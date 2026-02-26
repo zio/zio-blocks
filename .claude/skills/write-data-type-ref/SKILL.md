@@ -276,7 +276,39 @@ Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events",
 - **Don't pad**: Keep prose concise. Let the code examples do the talking. Short explanatory sentence, then code block.
 - **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write at least one sentence of explanation before the first subheader — introduce the group, state the purpose, or give context. The same rule applies at every heading level: a heading must be followed by prose before any child heading.
 - **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, or a `###` would have only one `####`, remove the subheader entirely and place the content directly under the parent heading. A subheader is only justified when there are two or more siblings.
-- **Always bridge consecutive code blocks with prose**: Two code blocks must never be separated by a blank line alone. Between every pair of consecutive code blocks, write a short descriptive sentence that either summarises what the previous block set up or introduces what the next block demonstrates. This sentence must be concise (one line) and genuinely informative — not filler. The bridging sentence must be surrounded by blank lines on both sides, i.e. the pattern is: closing ` ``` `, blank line, bridging sentence, blank line, opening ` ``` `.
+- **Every code block must be preceded by an introductory prose sentence**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. This applies universally:
+  - After a heading: write at least one sentence before the first code block. Never go `#### Heading` → blank line → ` ```scala `.
+  - Between two consecutive code blocks: write a short bridging sentence that either summarises what the previous block set up or introduces what the next block demonstrates. Never go ` ``` ` → blank line → ` ```scala `.
+  - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing), so the required pattern is always: prose sentence, blank line, opening ` ```scala `. The sentence must be concise (one line) and genuinely informative — not filler.
+
+  **Wrong** (heading with no intro, then two bare code blocks):
+  ```
+  #### `Option`
+
+  ` ``scala
+  implicit def optionInto[A, B](...): Into[Option[A], Option[B]]
+  ` ``
+
+  ` ``scala mdoc
+  Into[Option[Int], Option[Long]].into(Some(42))
+  ` ``
+  ```
+  **Right**:
+  ```
+  #### `Option`
+
+  `optionInto` coerces the element type of an `Option`, passing `None` through unchanged:
+
+  ` ``scala
+  implicit def optionInto[A, B](...): Into[Option[A], Option[B]]
+  ` ``
+
+  Both `Some` and `None` are handled — `None` passes through without invoking `Into#into`:
+
+  ` ``scala mdoc
+  Into[Option[Int], Option[Long]].into(Some(42))
+  ` ``
+  ```
 - **Person**: Use "we" when walking through examples or any time you want to guide the reader through a process or example. ("we can create...", "we need to...").
 - **Tense**: Use present tense ("returns", "creates", "modifies").
 - **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.

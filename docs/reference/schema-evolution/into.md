@@ -236,11 +236,13 @@ Into[Double, Int].into(3.14)
 
 #### `Option`
 
+`optionInto` lifts an `Into[A, B]` to work over `Option`, coercing the element when present and passing `None` through unchanged:
+
 ```scala
 implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]]
 ```
 
-Both `Some` and `None` are handled — `None` passes through unchanged:
+Both `Some` and `None` are handled:
 
 ```scala mdoc
 Into[Option[Int], Option[Long]].into(Some(42))
@@ -248,6 +250,8 @@ Into[Option[Int], Option[Long]].into(None)
 ```
 
 #### `Either`
+
+`eitherInto` coerces both branches independently, requiring separate `Into` instances for the left and right types:
 
 ```scala
 implicit def eitherInto[L1, R1, L2, R2](
@@ -265,6 +269,8 @@ Into[Either[Int, Int], Either[Long, Long]].into(Left(2))
 
 #### `Map`
 
+`mapInto` coerces both keys and values, requiring separate `Into` instances for each:
+
 ```scala
 implicit def mapInto[K1, V1, K2, V2](
   implicit keyInto: Into[K1, K2],
@@ -279,6 +285,8 @@ Into[Map[String, Int], Map[String, Long]].into(Map("a" -> 1, "b" -> 2))
 ```
 
 #### Iterables and Arrays
+
+Four overloads cover all combinations of `Iterable` subtypes and arrays as source or target:
 
 ```scala
 implicit def iterableInto[A, B, F1[X] <: Iterable[X], F2[_]](
