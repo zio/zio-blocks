@@ -36,11 +36,7 @@ sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
     new Reflect.Primitive(
       this,
       typeId,
-      binding,
-      Doc.Empty,
-      Vector.empty,
-      None,
-      Seq.empty
+      binding
     )
   )
 
