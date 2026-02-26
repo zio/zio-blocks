@@ -1,8 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -13,7 +11,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("Request and Response Types")(
     suite("RequestBody")(
       test("can be constructed with required content field only") {
-        val content     = Map("application/json" -> MediaType())
+        val content     = ChunkMap("application/json" -> MediaType())
         val requestBody = RequestBody(content = content)
 
         assertTrue(
@@ -24,13 +22,13 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val content = Map(
+        val content = ChunkMap(
           "application/json" -> MediaType(
             schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
           ),
           "application/xml" -> MediaType()
         )
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val requestBody = RequestBody(
           content = content,
@@ -47,12 +45,12 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal" -> Json.Boolean(true),
           "x-version"  -> Json.Number(2)
         )
         val requestBody = RequestBody(
-          content = Map("text/plain" -> MediaType()),
+          content = ChunkMap("text/plain" -> MediaType()),
           extensions = extensions
         )
 
@@ -63,17 +61,17 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("Schema[RequestBody] can be derived") {
-        val requestBody = RequestBody(content = Map("application/json" -> MediaType()))
+        val requestBody = RequestBody(content = ChunkMap("application/json" -> MediaType()))
         val schema      = Schema[RequestBody]
 
         assertTrue(schema != null, requestBody != null)
       },
       test("RequestBody round-trips through DynamicValue") {
         val requestBody = RequestBody(
-          content = Map("application/json" -> MediaType()),
+          content = ChunkMap("application/json" -> MediaType()),
           description = Some(doc("Test body")),
           required = true,
-          extensions = Map("x-test" -> Json.String("value"))
+          extensions = ChunkMap("x-test" -> Json.String("value"))
         )
 
         val dv     = Schema[RequestBody].toDynamicValue(requestBody)
@@ -103,13 +101,13 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val schemaObj = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
         val example   = Json.Object("name" -> Json.String("John"))
-        val examples  = Map(
+        val examples  = ChunkMap(
           "example1" -> ReferenceOr.Value(
             Example(summary = Some(doc("First example")), value = Some(Json.Number(1)))
           )
         )
-        val encoding   = Map("profileImage" -> Encoding(contentType = Some("image/png")))
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val encoding   = ChunkMap("profileImage" -> Encoding(contentType = Some("image/png")))
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val mediaType = MediaType(
           schema = Some(schemaObj),
@@ -128,10 +126,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves encoding definitions") {
-        val encoding = Map(
+        val encoding = ChunkMap(
           "file" -> Encoding(
             contentType = Some("application/octet-stream"),
-            headers = Map("X-File-Type" -> ReferenceOr.Value(Header()))
+            headers = ChunkMap("X-File-Type" -> ReferenceOr.Value(Header()))
           ),
           "metadata" -> Encoding(contentType = Some("application/json"))
         )
@@ -153,9 +151,9 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val mediaType = MediaType(
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("test")),
-          examples = Map.empty,
-          encoding = Map.empty,
-          extensions = Map("x-test" -> Json.Boolean(true))
+          examples = ChunkMap.empty,
+          encoding = ChunkMap.empty,
+          extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
 
         val dv     = Schema[MediaType].toDynamicValue(mediaType)
@@ -183,10 +181,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val headers = Map(
+        val headers = ChunkMap(
           "X-Rate-Limit" -> ReferenceOr.Value(Header(description = Some(doc("Rate limit info"))))
         )
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val encoding = Encoding(
           contentType = Some("image/jpeg"),
@@ -207,7 +205,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves multiple headers") {
-        val headers = Map(
+        val headers = ChunkMap(
           "X-Custom-1" -> ReferenceOr.Value(Header()),
           "X-Custom-2" -> ReferenceOr.Value(Header()),
           "X-Custom-3" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/headers/CommonHeader"))
@@ -230,11 +228,11 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("Encoding round-trips through DynamicValue") {
         val encoding = Encoding(
           contentType = Some("application/json"),
-          headers = Map.empty,
+          headers = ChunkMap.empty,
           style = Some("form"),
           explode = Some(false),
           allowReserved = true,
-          extensions = Map("x-test" -> Json.Number(1))
+          extensions = ChunkMap("x-test" -> Json.Number(1))
         )
 
         val dv     = Schema[Encoding].toDynamicValue(encoding)
@@ -261,12 +259,12 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val responsesMap = ListMap(
+        val responsesMap = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
           "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
         )
         val defaultResponse = ReferenceOr.Value(Response(description = doc("Default response")))
-        val extensions      = Map("x-custom" -> Json.String("value"))
+        val extensions      = ChunkMap("x-custom" -> Json.String("value"))
 
         val responses = Responses(
           responses = responsesMap,
@@ -281,7 +279,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves multiple status codes") {
-        val responsesMap = ListMap(
+        val responsesMap = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
           "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),
@@ -298,7 +296,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("supports reference to response") {
-        val responsesMap = ListMap(
+        val responsesMap = ChunkMap(
           "200" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/SuccessResponse"))
         )
         val responses = Responses(responses = responsesMap)
@@ -316,9 +314,9 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Responses round-trips through DynamicValue") {
         val responses = Responses(
-          responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+          responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
           default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
-          extensions = Map("x-test" -> Json.Boolean(false))
+          extensions = ChunkMap("x-test" -> Json.Boolean(false))
         )
 
         val dv     = Schema[Responses].toDynamicValue(responses)
@@ -345,14 +343,14 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val headers = Map("X-Rate-Limit" -> ReferenceOr.Value(Header()))
-        val content = Map("application/json" -> MediaType())
-        val links   = Map(
+        val headers = ChunkMap("X-Rate-Limit" -> ReferenceOr.Value(Header()))
+        val content = ChunkMap("application/json" -> MediaType())
+        val links   = ChunkMap(
           "GetUserById" -> ReferenceOr.Value(
-            Link(operationId = Some("getUserById"))
+            Link(operationRefOrId = Some(Right("getUserById")))
           )
         )
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val response = Response(
           description = doc("Successful response"),
@@ -371,7 +369,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves multiple content types") {
-        val content = Map(
+        val content = ChunkMap(
           "application/json" -> MediaType(schema =
             Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
           ),
@@ -396,10 +394,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("Response round-trips through DynamicValue") {
         val response = Response(
           description = doc("Success"),
-          headers = Map("X-Test" -> ReferenceOr.Value(Header())),
-          content = Map("application/json" -> MediaType()),
-          links = Map.empty,
-          extensions = Map("x-test" -> Json.String("value"))
+          headers = ChunkMap("X-Test" -> ReferenceOr.Value(Header())),
+          content = ChunkMap("application/json" -> MediaType()),
+          links = ChunkMap.empty,
+          extensions = ChunkMap("x-test" -> Json.String("value"))
         )
 
         val dv     = Schema[Response].toDynamicValue(response)
@@ -475,7 +473,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal" -> Json.Boolean(true),
           "x-version"  -> Json.Number(1)
         )
@@ -501,7 +499,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
           summary = Some(doc("Test")),
           description = Some(doc("A test example")),
           value = Some(Json.Number(42)),
-          extensions = Map("x-test" -> Json.Boolean(true))
+          extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
 
         val dv     = Schema[Example].toDynamicValue(example)
@@ -534,8 +532,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val link = Link()
 
         assertTrue(
-          link.operationRef.isEmpty,
-          link.operationId.isEmpty,
+          link.operationRefOrId.isEmpty,
           link.parameters.isEmpty,
           link.requestBody.isEmpty,
           link.description.isEmpty,
@@ -545,25 +542,23 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("can be constructed with operationRef") {
         val link = Link(
-          operationRef = Some("#/paths/~1users~1{userId}/get"),
+          operationRefOrId = Some(Left("#/paths/~1users~1{userId}/get")),
           description = Some(doc("Link to user by ID"))
         )
 
         assertTrue(
-          link.operationRef.contains("#/paths/~1users~1{userId}/get"),
-          link.operationId.isEmpty,
+          link.operationRefOrId.contains(Left("#/paths/~1users~1{userId}/get")),
           link.description.contains(doc("Link to user by ID"))
         )
       },
       test("can be constructed with operationId") {
         val link = Link(
-          operationId = Some("getUserById"),
-          parameters = Map("userId" -> Json.String("$response.body#/id"))
+          operationRefOrId = Some(Right("getUserById")),
+          parameters = ChunkMap("userId" -> Json.String("$response.body#/id"))
         )
 
         assertTrue(
-          link.operationRef.isEmpty,
-          link.operationId.contains("getUserById"),
+          link.operationRefOrId.contains(Right("getUserById")),
           link.parameters.size == 1
         )
       },
@@ -571,7 +566,12 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val result = scala.util.Try {
           Link(
             operationRef = Some("#/paths/~1users/get"),
-            operationId = Some("getUsers")
+            operationId = Some("getUsers"),
+            parameters = ChunkMap.empty,
+            requestBody = None,
+            description = None,
+            server = None,
+            extensions = ChunkMap.empty
           )
         }
 
@@ -584,8 +584,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val link = Link(description = Some(doc("Some link")))
 
         assertTrue(
-          link.operationRef.isEmpty,
-          link.operationId.isEmpty
+          link.operationRefOrId.isEmpty
         )
       },
       test("can include server and requestBody") {
@@ -593,7 +592,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val requestBody = Json.Object("userId" -> Json.String("$response.body#/id"))
 
         val link = Link(
-          operationId = Some("createUser"),
+          operationRefOrId = Some(Right("createUser")),
           requestBody = Some(requestBody),
           server = Some(server)
         )
@@ -604,13 +603,13 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves multiple parameters") {
-        val parameters = Map(
+        val parameters = ChunkMap(
           "userId" -> Json.String("$response.body#/id"),
           "format" -> Json.String("json"),
           "limit"  -> Json.Number(10)
         )
         val link = Link(
-          operationId = Some("getUser"),
+          operationRefOrId = Some(Right("getUser")),
           parameters = parameters
         )
 
@@ -622,12 +621,12 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal"   -> Json.Boolean(false),
           "x-rate-limit" -> Json.Number(100)
         )
         val link = Link(
-          operationId = Some("test"),
+          operationRefOrId = Some(Right("test")),
           extensions = extensions
         )
 
@@ -645,10 +644,10 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Link round-trips through DynamicValue") {
         val link = Link(
-          operationId = Some("getUser"),
-          parameters = Map("id" -> Json.Number(1)),
+          operationRefOrId = Some(Right("getUser")),
+          parameters = ChunkMap("id" -> Json.Number(1)),
           description = Some(doc("Get user link")),
-          extensions = Map("x-test" -> Json.String("value"))
+          extensions = ChunkMap("x-test" -> Json.String("value"))
         )
 
         val dv     = Schema[Link].toDynamicValue(link)
@@ -656,7 +655,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
 
         assertTrue(
           result.isRight,
-          result.exists(_.operationId.contains("getUser")),
+          result.exists(_.operationRefOrId.contains(Right("getUser"))),
           result.exists(_.parameters.nonEmpty),
           result.exists(_.description.contains(doc("Get user link"))),
           result.exists(_.extensions.nonEmpty)
@@ -668,8 +667,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         val result = Schema[Link].fromDynamicValue(dv)
         assertTrue(
           result.isRight,
-          result.exists(_.operationRef.isEmpty),
-          result.exists(_.operationId.isEmpty),
+          result.exists(_.operationRefOrId.isEmpty),
           result.exists(_.parameters.isEmpty),
           result.exists(_.requestBody.isEmpty),
           result.exists(_.description.isEmpty),
@@ -689,7 +687,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("can be constructed with callbacks") {
         val pathItem  = PathItem(summary = Some(doc("Callback path")))
-        val callbacks = ListMap(
+        val callbacks = ChunkMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(pathItem)
         )
 
@@ -703,7 +701,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
       test("supports multiple callback expressions") {
         val pathItem1 = PathItem(summary = Some(doc("Webhook 1")))
         val pathItem2 = PathItem(summary = Some(doc("Webhook 2")))
-        val callbacks = ListMap(
+        val callbacks = ChunkMap(
           "{$request.body#/webhookUrl1}" -> ReferenceOr.Value(pathItem1),
           "{$request.body#/webhookUrl2}" -> ReferenceOr.Value(pathItem2)
         )
@@ -717,7 +715,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("supports reference to path item") {
-        val callbacks = ListMap(
+        val callbacks = ChunkMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Ref(
             Reference(`$ref` = "#/components/pathItems/WebhookPath")
           )
@@ -730,7 +728,7 @@ object RequestResponseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-webhook-type" -> Json.String("async"),
           "x-priority"     -> Json.Number(1)
         )
@@ -750,8 +748,8 @@ object RequestResponseSpec extends SchemaBaseSpec {
       },
       test("Callback round-trips through DynamicValue") {
         val callback = Callback(
-          callbacks = ListMap("{$request.body#/url}" -> ReferenceOr.Value(PathItem())),
-          extensions = Map("x-test" -> Json.Boolean(true))
+          callbacks = ChunkMap("{$request.body#/url}" -> ReferenceOr.Value(PathItem())),
+          extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
 
         val dv     = Schema[Callback].toDynamicValue(callback)

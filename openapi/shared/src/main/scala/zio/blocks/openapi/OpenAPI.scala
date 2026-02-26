@@ -1,8 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -45,14 +43,14 @@ final case class OpenAPI(
   openapi: String,
   info: Info,
   jsonSchemaDialect: Option[String] = None,
-  servers: List[Server] = Nil,
+  servers: Chunk[Server] = Chunk.empty,
   paths: Option[Paths] = None,
-  webhooks: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
+  webhooks: ChunkMap[String, ReferenceOr[PathItem]] = ChunkMap.empty,
   components: Option[Components] = None,
-  security: List[SecurityRequirement] = Nil,
-  tags: List[Tag] = Nil,
+  security: Chunk[SecurityRequirement] = Chunk.empty,
+  tags: Chunk[Tag] = Chunk.empty,
   externalDocs: Option[ExternalDocumentation] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object OpenAPI {
@@ -77,7 +75,7 @@ final case class Info(
   termsOfService: Option[String] = None,
   contact: Option[Contact] = None,
   license: Option[License] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Info {
@@ -91,7 +89,7 @@ final case class Contact(
   name: Option[String] = None,
   url: Option[String] = None,
   email: Option[String] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Contact {
@@ -103,41 +101,40 @@ object Contact {
  *
  * @param name
  *   REQUIRED. The license name used for the API.
- * @param identifier
- *   An SPDX license expression for the API. The identifier field is mutually
- *   exclusive of the url field.
- * @param url
- *   A URL to the license used for the API. This MUST be in the form of a URL.
- *   The url field is mutually exclusive of the identifier field.
+ * @param identifierOrUrl
+ *   An optional Either where Left is an SPDX license expression (identifier)
+ *   and Right is a URL to the license. These are mutually exclusive per the
+ *   OpenAPI spec.
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
  */
-final case class License private (
+final case class License(
   name: String,
-  identifier: Option[String] = None,
-  url: Option[String] = None,
-  extensions: Map[String, Json] = Map.empty
-) {
-  require(
-    identifier.isEmpty || url.isEmpty,
-    "License identifier and url fields are mutually exclusive - only one may be specified"
-  )
-}
+  identifierOrUrl: Option[Either[String, String]] = None,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
+)
 
 object License {
   implicit val schema: Schema[License] = Schema.derived
 
-  /**
-   * Creates a License with validation of mutual exclusivity constraints.
-   */
   def apply(
     name: String,
-    identifier: Option[String] = None,
-    url: Option[String] = None,
-    extensions: Map[String, Json] = Map.empty
-  ): License =
-    new License(name, identifier, url, extensions)
+    identifier: Option[String],
+    url: Option[String],
+    extensions: ChunkMap[String, Json]
+  ): License = {
+    val identifierOrUrl = (identifier, url) match {
+      case (Some(id), None)   => Some(Left(id))
+      case (None, Some(u))    => Some(Right(u))
+      case (None, None)       => None
+      case (Some(_), Some(_)) =>
+        throw new IllegalArgumentException(
+          "License identifier and url fields are mutually exclusive - only one may be specified"
+        )
+    }
+    new License(name, identifierOrUrl, extensions)
+  }
 }
 
 /**
@@ -146,8 +143,8 @@ object License {
 final case class Server(
   url: String,
   description: Option[Doc] = None,
-  variables: Map[String, ServerVariable] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
+  variables: ChunkMap[String, ServerVariable] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Server {
@@ -160,9 +157,9 @@ object Server {
  */
 final case class ServerVariable(
   default: String,
-  `enum`: List[String] = Nil,
+  `enum`: Chunk[String] = Chunk.empty,
   description: Option[Doc] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object ServerVariable {
@@ -186,9 +183,9 @@ object ServerVariable {
    */
   def validated(
     default: String,
-    `enum`: List[String] = Nil,
+    `enum`: Chunk[String] = Chunk.empty,
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ): Either[String, ServerVariable] =
     if (`enum`.nonEmpty && !`enum`.contains(default)) {
       Left(
@@ -203,8 +200,8 @@ object ServerVariable {
  * Holds the relative paths to the individual endpoints and their operations.
  */
 final case class Paths(
-  paths: ListMap[String, PathItem] = ListMap.empty,
-  extensions: Map[String, Json] = Map.empty
+  paths: ChunkMap[String, PathItem] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Paths {
@@ -225,9 +222,9 @@ final case class PathItem(
   head: Option[Operation] = None,
   patch: Option[Operation] = None,
   trace: Option[Operation] = None,
-  servers: List[Server] = Nil,
-  parameters: List[ReferenceOr[Parameter]] = Nil,
-  extensions: Map[String, Json] = Map.empty
+  servers: Chunk[Server] = Chunk.empty,
+  parameters: Chunk[ReferenceOr[Parameter]] = Chunk.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object PathItem {
@@ -238,17 +235,17 @@ object PathItem {
  * Holds a set of reusable objects for different aspects of the OAS.
  */
 final case class Components(
-  schemas: ListMap[String, ReferenceOr[SchemaObject]] = ListMap.empty,
-  responses: ListMap[String, ReferenceOr[Response]] = ListMap.empty,
-  parameters: ListMap[String, ReferenceOr[Parameter]] = ListMap.empty,
-  examples: ListMap[String, ReferenceOr[Example]] = ListMap.empty,
-  requestBodies: ListMap[String, ReferenceOr[RequestBody]] = ListMap.empty,
-  headers: ListMap[String, ReferenceOr[Header]] = ListMap.empty,
-  securitySchemes: ListMap[String, ReferenceOr[SecurityScheme]] = ListMap.empty,
-  links: ListMap[String, ReferenceOr[Link]] = ListMap.empty,
-  callbacks: ListMap[String, ReferenceOr[Callback]] = ListMap.empty,
-  pathItems: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
-  extensions: Map[String, Json] = Map.empty
+  schemas: ChunkMap[String, ReferenceOr[SchemaObject]] = ChunkMap.empty,
+  responses: ChunkMap[String, ReferenceOr[Response]] = ChunkMap.empty,
+  parameters: ChunkMap[String, ReferenceOr[Parameter]] = ChunkMap.empty,
+  examples: ChunkMap[String, ReferenceOr[Example]] = ChunkMap.empty,
+  requestBodies: ChunkMap[String, ReferenceOr[RequestBody]] = ChunkMap.empty,
+  headers: ChunkMap[String, ReferenceOr[Header]] = ChunkMap.empty,
+  securitySchemes: ChunkMap[String, ReferenceOr[SecurityScheme]] = ChunkMap.empty,
+  links: ChunkMap[String, ReferenceOr[Link]] = ChunkMap.empty,
+  callbacks: ChunkMap[String, ReferenceOr[Callback]] = ChunkMap.empty,
+  pathItems: ChunkMap[String, ReferenceOr[PathItem]] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Components {
@@ -259,7 +256,7 @@ object Components {
  * Lists the required security schemes to execute this operation.
  */
 final case class SecurityRequirement(
-  requirements: Map[String, List[String]]
+  requirements: ChunkMap[String, Chunk[String]]
 )
 
 object SecurityRequirement {
@@ -273,7 +270,7 @@ final case class Tag(
   name: String,
   description: Option[Doc] = None,
   externalDocs: Option[ExternalDocumentation] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Tag {
@@ -286,7 +283,7 @@ object Tag {
 final case class ExternalDocumentation(
   url: String,
   description: Option[Doc] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object ExternalDocumentation {
@@ -326,18 +323,18 @@ object ExternalDocumentation {
  */
 final case class Operation(
   responses: Responses = Responses(),
-  tags: List[String] = Nil,
+  tags: Chunk[String] = Chunk.empty,
   summary: Option[Doc] = None,
   description: Option[Doc] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   operationId: Option[String] = None,
-  parameters: List[ReferenceOr[Parameter]] = Nil,
+  parameters: Chunk[ReferenceOr[Parameter]] = Chunk.empty,
   requestBody: Option[ReferenceOr[RequestBody]] = None,
-  callbacks: Map[String, ReferenceOr[Callback]] = Map.empty,
+  callbacks: ChunkMap[String, ReferenceOr[Callback]] = ChunkMap.empty,
   deprecated: Boolean = false,
-  security: List[SecurityRequirement] = Nil,
-  servers: List[Server] = Nil,
-  extensions: Map[String, Json] = Map.empty
+  security: Chunk[SecurityRequirement] = Chunk.empty,
+  servers: Chunk[Server] = Chunk.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Operation {
@@ -475,7 +472,7 @@ final case class SchemaObject(
   xml: Option[XML] = None,
   externalDocs: Option[ExternalDocumentation] = None,
   example: Option[Json] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 ) {
 
   def toJson: Json = jsonSchema match {
@@ -546,6 +543,10 @@ object ParameterLocation {
  *
  * A unique parameter is defined by a combination of a name and location.
  *
+ * Note: If the parameter location is "path", the required field MUST be true.
+ * This is not enforced in the constructor; callers are responsible for ensuring
+ * path parameters have required=true.
+ *
  * @param name
  *   REQUIRED. The name of the parameter. Parameter names are case sensitive.
  * @param in
@@ -589,7 +590,7 @@ object ParameterLocation {
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
  */
-final case class Parameter private (
+final case class Parameter(
   name: String,
   in: ParameterLocation,
   description: Option[Doc] = None,
@@ -601,56 +602,13 @@ final case class Parameter private (
   allowReserved: Option[Boolean] = None,
   schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
-  examples: Map[String, ReferenceOr[Example]] = Map.empty,
-  content: Map[String, MediaType] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
-) {
-  require(
-    in != ParameterLocation.Path || required,
-    "Parameter with location 'path' must have required=true"
-  )
-}
+  examples: ChunkMap[String, ReferenceOr[Example]] = ChunkMap.empty,
+  content: ChunkMap[String, MediaType] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
+)
 
 object Parameter {
   implicit lazy val schema: Schema[Parameter] = Schema.derived
-
-  /**
-   * Creates a Parameter with validation of the required field constraint.
-   *
-   * If the parameter location is "path", the required field MUST be true.
-   */
-  def apply(
-    name: String,
-    in: ParameterLocation,
-    description: Option[Doc] = None,
-    required: Boolean = false,
-    deprecated: Boolean = false,
-    allowEmptyValue: Boolean = false,
-    style: Option[String] = None,
-    explode: Option[Boolean] = None,
-    allowReserved: Option[Boolean] = None,
-    schema: Option[ReferenceOr[SchemaObject]] = None,
-    example: Option[Json] = None,
-    examples: Map[String, ReferenceOr[Example]] = Map.empty,
-    content: Map[String, MediaType] = Map.empty,
-    extensions: Map[String, Json] = Map.empty
-  ): Parameter =
-    new Parameter(
-      name,
-      in,
-      description,
-      required,
-      deprecated,
-      allowEmptyValue,
-      style,
-      explode,
-      allowReserved,
-      schema,
-      example,
-      examples,
-      content,
-      extensions
-    )
 }
 
 /**
@@ -704,9 +662,9 @@ final case class Header(
   allowReserved: Option[Boolean] = None,
   schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
-  examples: Map[String, ReferenceOr[Example]] = Map.empty,
-  content: Map[String, MediaType] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
+  examples: ChunkMap[String, ReferenceOr[Example]] = ChunkMap.empty,
+  content: ChunkMap[String, MediaType] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Header {
@@ -732,10 +690,10 @@ object Header {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class RequestBody(
-  content: Map[String, MediaType],
+  content: ChunkMap[String, MediaType],
   description: Option[Doc] = None,
   required: Boolean = false,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object RequestBody {
@@ -772,9 +730,9 @@ object RequestBody {
 final case class MediaType(
   schema: Option[ReferenceOr[SchemaObject]] = None,
   example: Option[Json] = None,
-  examples: Map[String, ReferenceOr[Example]] = Map.empty,
-  encoding: Map[String, Encoding] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
+  examples: ChunkMap[String, ReferenceOr[Example]] = ChunkMap.empty,
+  encoding: ChunkMap[String, Encoding] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object MediaType {
@@ -827,11 +785,11 @@ object MediaType {
  */
 final case class Encoding(
   contentType: Option[String] = None,
-  headers: Map[String, ReferenceOr[Header]] = Map.empty,
+  headers: ChunkMap[String, ReferenceOr[Header]] = ChunkMap.empty,
   style: Option[String] = None,
   explode: Option[Boolean] = None,
   allowReserved: Boolean = false,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Encoding {
@@ -862,9 +820,9 @@ object Encoding {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Responses(
-  responses: ListMap[String, ReferenceOr[Response]] = ListMap.empty,
+  responses: ChunkMap[String, ReferenceOr[Response]] = ChunkMap.empty,
   default: Option[ReferenceOr[Response]] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Responses {
@@ -897,10 +855,10 @@ object Responses {
  */
 final case class Response(
   description: Doc,
-  headers: Map[String, ReferenceOr[Header]] = Map.empty,
-  content: Map[String, MediaType] = Map.empty,
-  links: Map[String, ReferenceOr[Link]] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
+  headers: ChunkMap[String, ReferenceOr[Header]] = ChunkMap.empty,
+  content: ChunkMap[String, MediaType] = ChunkMap.empty,
+  links: ChunkMap[String, ReferenceOr[Link]] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Response {
@@ -939,7 +897,7 @@ final case class Example private (
   description: Option[Doc] = None,
   value: Option[Json] = None,
   externalValue: Option[String] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 ) {
   require(
     value.isEmpty || externalValue.isEmpty,
@@ -958,7 +916,7 @@ object Example {
     description: Option[Doc] = None,
     value: Option[Json] = None,
     externalValue: Option[String] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ): Example =
     new Example(summary, description, value, externalValue, extensions)
 }
@@ -976,15 +934,10 @@ object Example {
  * expression is used for accessing values in an operation and using them as
  * parameters while invoking the linked operation.
  *
- * @param operationRef
- *   A relative or absolute URI reference to an OAS operation. This field is
- *   mutually exclusive of the operationId field, and MUST point to an Operation
- *   Object. Relative operationRef values MAY be used to locate an existing
- *   Operation Object in the OpenAPI definition. See the rules for resolving
- *   Relative References.
- * @param operationId
- *   The name of an existing, resolvable OAS operation, as defined with a unique
- *   operationId. This field is mutually exclusive of the operationRef field.
+ * @param operationRefOrId
+ *   An optional Either where Left is a relative or absolute URI reference to an
+ *   OAS operation (operationRef) and Right is the name of an existing,
+ *   resolvable OAS operation (operationId). These are mutually exclusive.
  * @param parameters
  *   A map representing parameters to pass to an operation as specified with
  *   operationId or identified via operationRef. The key is the parameter name
@@ -1004,37 +957,38 @@ object Example {
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
  */
-final case class Link private (
-  operationRef: Option[String] = None,
-  operationId: Option[String] = None,
-  parameters: Map[String, Json] = Map.empty,
+final case class Link(
+  operationRefOrId: Option[Either[String, String]] = None,
+  parameters: ChunkMap[String, Json] = ChunkMap.empty,
   requestBody: Option[Json] = None,
   description: Option[Doc] = None,
   server: Option[Server] = None,
-  extensions: Map[String, Json] = Map.empty
-) {
-  require(
-    operationRef.isEmpty || operationId.isEmpty,
-    "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
-  )
-}
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
+)
 
 object Link {
   implicit lazy val schema: Schema[Link] = Schema.derived
 
-  /**
-   * Creates a Link with validation of mutual exclusivity constraints.
-   */
   def apply(
-    operationRef: Option[String] = None,
-    operationId: Option[String] = None,
-    parameters: Map[String, Json] = Map.empty,
-    requestBody: Option[Json] = None,
-    description: Option[Doc] = None,
-    server: Option[Server] = None,
-    extensions: Map[String, Json] = Map.empty
-  ): Link =
-    new Link(operationRef, operationId, parameters, requestBody, description, server, extensions)
+    operationRef: Option[String],
+    operationId: Option[String],
+    parameters: ChunkMap[String, Json],
+    requestBody: Option[Json],
+    description: Option[Doc],
+    server: Option[Server],
+    extensions: ChunkMap[String, Json]
+  ): Link = {
+    val operationRefOrId = (operationRef, operationId) match {
+      case (Some(ref), None)  => Some(Left(ref))
+      case (None, Some(id))   => Some(Right(id))
+      case (None, None)       => None
+      case (Some(_), Some(_)) =>
+        throw new IllegalArgumentException(
+          "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
+        )
+    }
+    new Link(operationRefOrId, parameters, requestBody, description, server, extensions)
+  }
 }
 
 /**
@@ -1056,8 +1010,8 @@ object Link {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Callback(
-  callbacks: ListMap[String, ReferenceOr[PathItem]] = ListMap.empty,
-  extensions: Map[String, Json] = Map.empty
+  callbacks: ChunkMap[String, ReferenceOr[PathItem]] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object Callback {
@@ -1109,7 +1063,7 @@ object SecurityScheme {
     name: String,
     in: APIKeyLocation,
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
   /**
@@ -1134,7 +1088,7 @@ object SecurityScheme {
     scheme: String,
     bearerFormat: Option[String] = None,
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
   /**
@@ -1153,7 +1107,7 @@ object SecurityScheme {
   final case class OAuth2(
     flows: OAuthFlows,
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
   /**
@@ -1173,7 +1127,7 @@ object SecurityScheme {
   final case class OpenIdConnect(
     openIdConnectUrl: String,
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
   /**
@@ -1188,7 +1142,7 @@ object SecurityScheme {
    */
   final case class MutualTLS(
     description: Option[Doc] = None,
-    extensions: Map[String, Json] = Map.empty
+    extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
   implicit val schema: Schema[SecurityScheme] = Schema.derived
@@ -1216,7 +1170,7 @@ final case class OAuthFlows(
   password: Option[OAuthFlow] = None,
   clientCredentials: Option[OAuthFlow] = None,
   authorizationCode: Option[OAuthFlow] = None,
-  extensions: Map[String, Json] = Map.empty
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object OAuthFlows {
@@ -1249,8 +1203,8 @@ final case class OAuthFlow(
   authorizationUrl: Option[String] = None,
   tokenUrl: Option[String] = None,
   refreshUrl: Option[String] = None,
-  scopes: Map[String, String] = Map.empty,
-  extensions: Map[String, Json] = Map.empty
+  scopes: ChunkMap[String, String] = ChunkMap.empty,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
 object OAuthFlow {

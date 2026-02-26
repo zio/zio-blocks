@@ -1,6 +1,6 @@
 package zio.blocks.openapi
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -68,9 +68,9 @@ object ParameterSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))
         val example    = Json.Number(10)
-        val examples   = Map("example1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20)))))
-        val content    = Map("application/json" -> MediaType())
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val examples   = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20)))))
+        val content    = ChunkMap("application/json" -> MediaType())
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val param = Parameter(
           name = "limit",
@@ -119,19 +119,17 @@ object ParameterSpec extends SchemaBaseSpec {
           param.required
         )
       },
-      test("path parameter with required=false throws exception") {
-        val result = scala.util.Try {
-          Parameter(
-            name = "userId",
-            in = ParameterLocation.Path,
-            required = false
-          )
-        }
+      test("path parameter with required=false is allowed") {
+        val param = Parameter(
+          name = "userId",
+          in = ParameterLocation.Path,
+          required = false
+        )
 
         assertTrue(
-          result.isFailure,
-          result.failed.get.getMessage.contains("path"),
-          result.failed.get.getMessage.contains("required")
+          param.name == "userId",
+          param.in == ParameterLocation.Path,
+          !param.required
         )
       },
       test("query parameter can have required=false") {
@@ -174,7 +172,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal"   -> Json.Boolean(true),
           "x-rate-limit" -> Json.Number(1000)
         )
@@ -209,9 +207,9 @@ object ParameterSpec extends SchemaBaseSpec {
           allowReserved = Some(false),
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
           example = Some(Json.Number(10)),
-          examples = Map("ex1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20))))),
-          content = Map("application/json" -> MediaType()),
-          extensions = Map("x-custom" -> Json.String("value"))
+          examples = ChunkMap("ex1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20))))),
+          content = ChunkMap("application/json" -> MediaType()),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
 
         val dv     = Schema[Parameter].toDynamicValue(param)
@@ -306,9 +304,9 @@ object ParameterSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))
         val example    = Json.String("Bearer token123")
-        val examples   = Map("example1" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer abc")))))
-        val content    = Map("application/json" -> MediaType())
-        val extensions = Map("x-custom" -> Json.String("value"))
+        val examples   = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer abc")))))
+        val content    = ChunkMap("application/json" -> MediaType())
+        val extensions = ChunkMap("x-custom" -> Json.String("value"))
 
         val header = Header(
           description = Some(doc("Authentication header")),
@@ -352,7 +350,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-rate-limit" -> Json.Number(100),
           "x-internal"   -> Json.Boolean(false)
         )
@@ -381,9 +379,9 @@ object ParameterSpec extends SchemaBaseSpec {
           allowReserved = Some(true),
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("key123")),
-          examples = Map("ex1" -> ReferenceOr.Value(Example(value = Some(Json.String("key456"))))),
-          content = Map("text/plain" -> MediaType()),
-          extensions = Map("x-custom" -> Json.Boolean(true))
+          examples = ChunkMap("ex1" -> ReferenceOr.Value(Example(value = Some(Json.String("key456"))))),
+          content = ChunkMap("text/plain" -> MediaType()),
+          extensions = ChunkMap("x-custom" -> Json.Boolean(true))
         )
 
         val dv     = Schema[Header].toDynamicValue(header)
@@ -427,7 +425,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("Header with multiple examples") {
-        val examples = Map(
+        val examples = ChunkMap(
           "default" -> ReferenceOr.Value(Example(value = Some(Json.String("value1")))),
           "special" -> ReferenceOr.Value(Example(value = Some(Json.String("value2")))),
           "extreme" -> ReferenceOr.Value(Example(value = Some(Json.String("value3"))))

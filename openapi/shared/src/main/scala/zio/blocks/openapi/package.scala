@@ -1,18 +1,17 @@
 package zio.blocks
 
-import scala.collection.immutable.ListMap
-
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema.Schema
 import zio.blocks.typeid.TypeId
 
 package object openapi {
 
-  implicit def listMapSchema[K: Schema, V: Schema](implicit tid: TypeId[ListMap[K, V]]): Schema[ListMap[K, V]] =
+  implicit def chunkMapSchema[K: Schema, V: Schema](implicit tid: TypeId[ChunkMap[K, V]]): Schema[ChunkMap[K, V]] =
     Schema
       .map[K, V]
-      .transform[ListMap[K, V]](
-        map => ListMap.from(map),
-        listMap => listMap
+      .transform[ChunkMap[K, V]](
+        map => ChunkMap.from(map),
+        chunkMap => chunkMap
       )
 
   type Discriminator = discriminator.Discriminator

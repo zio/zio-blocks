@@ -27,7 +27,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         val jsonSchema    = JsonSchema.obj()
         val discriminator = Discriminator(
           propertyName = "type",
-          mapping = Map("dog" -> "#/components/schemas/Dog", "cat" -> "#/components/schemas/Cat")
+          mapping = ChunkMap("dog" -> "#/components/schemas/Dog", "cat" -> "#/components/schemas/Cat")
         )
         val xml = XML(
           name = Some("Pet"),
@@ -48,7 +48,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
           xml = Some(xml),
           externalDocs = Some(externalDocs),
           example = Some(example),
-          extensions = Map("x-custom" -> Json.String("value"))
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
 
         assertTrue(
@@ -57,7 +57,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
           schemaObj.xml.contains(xml),
           schemaObj.externalDocs.contains(externalDocs),
           schemaObj.example.contains(example),
-          schemaObj.extensions == Map("x-custom" -> Json.String("value"))
+          schemaObj.extensions == ChunkMap("x-custom" -> Json.String("value"))
         )
       },
       test("wraps JsonSchema without duplicating keywords") {
@@ -111,7 +111,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
           xml = Some(XML(wrapped = true)),
           externalDocs = Some(ExternalDocumentation("https://example.com")),
           example = Some(Json.Array(Json.String("example1"), Json.String("example2"))),
-          extensions = Map("x-custom" -> Json.Boolean(true))
+          extensions = ChunkMap("x-custom" -> Json.Boolean(true))
         )
 
         val extracted = schemaObj.toJsonSchema
@@ -174,7 +174,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         val jsonSchema    = JsonSchema.string()
         val discriminator = Discriminator(
           propertyName = "petType",
-          mapping = Map("dog" -> "#/components/schemas/Dog")
+          mapping = ChunkMap("dog" -> "#/components/schemas/Dog")
         )
         val schemaObj = SchemaObject(
           jsonSchema = jsonSchema.toJson,
@@ -224,7 +224,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
       test("discriminator field stores polymorphism metadata") {
         val discriminator = Discriminator(
           propertyName = "type",
-          mapping = Map(
+          mapping = ChunkMap(
             "circle" -> "#/components/schemas/Circle",
             "square" -> "#/components/schemas/Square"
           )
@@ -294,7 +294,7 @@ object SchemaObjectSpec extends SchemaBaseSpec {
         )
       },
       test("extensions field stores custom x-* properties") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal" -> Json.Boolean(true),
           "x-version"  -> Json.String("1.0"),
           "x-metadata" -> Json.Object("key" -> Json.String("value"))

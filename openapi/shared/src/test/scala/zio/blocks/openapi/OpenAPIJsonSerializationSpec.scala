@@ -1,8 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
@@ -49,7 +47,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("toJson with discriminator") {
       val so = SchemaObject(
         jsonSchema = Json.Object("type" -> Json.String("object")),
-        discriminator = Some(Discriminator(propertyName = "kind", mapping = Map("a" -> "#/a")))
+        discriminator = Some(Discriminator(propertyName = "kind", mapping = ChunkMap("a" -> "#/a")))
       )
       val json = so.toJson
       assertTrue(
@@ -94,7 +92,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("toJson with extensions") {
       val so = SchemaObject(
         jsonSchema = Json.Object("type" -> Json.String("object")),
-        extensions = Map("x-custom" -> Json.String("val"), "x-num" -> Json.Number(42))
+        extensions = ChunkMap("x-custom" -> Json.String("val"), "x-num" -> Json.Number(42))
       )
       val json = so.toJson
       assertTrue(
@@ -108,11 +106,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("toJson with ALL fields populated") {
       val so = SchemaObject(
         jsonSchema = Json.Object("type" -> Json.String("object"), "title" -> Json.String("MyObj")),
-        discriminator = Some(Discriminator(propertyName = "type", mapping = Map("a" -> "#/a"))),
+        discriminator = Some(Discriminator(propertyName = "type", mapping = ChunkMap("a" -> "#/a"))),
         xml = Some(XML(name = Some("item"), wrapped = true)),
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
         example = Some(Json.Object("id" -> Json.Number(1))),
-        extensions = Map("x-ext" -> Json.Boolean(true))
+        extensions = ChunkMap("x-ext" -> Json.Boolean(true))
       )
       val json = so.toJson
       assertTrue(
@@ -229,7 +227,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
           `implicit` = Some(
             OAuthFlow(
               authorizationUrl = Some("https://example.com/oauth/authorize"),
-              scopes = Map("read" -> "Read access")
+              scopes = ChunkMap("read" -> "Read access")
             )
           )
         )
@@ -266,7 +264,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
 
   private lazy val extensionsFlatteningSuite = suite("Extensions are flattened at top level")(
     test("Info extensions are flattened at top level") {
-      val info = Info(title = "API", version = "1.0", extensions = Map("x-custom" -> Json.String("val")))
+      val info = Info(title = "API", version = "1.0", extensions = ChunkMap("x-custom" -> Json.String("val")))
       val json = JsonEncoder[Info].encode(info)
       assertTrue(
         hasField(json, "x-custom"),
@@ -274,7 +272,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("Contact extensions are flattened at top level") {
-      val contact = Contact(name = Some("Support"), extensions = Map("x-id" -> Json.Number(1)))
+      val contact = Contact(name = Some("Support"), extensions = ChunkMap("x-id" -> Json.Number(1)))
       val json    = JsonEncoder[Contact].encode(contact)
       assertTrue(
         hasField(json, "x-id"),
@@ -282,7 +280,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("License extensions are flattened at top level") {
-      val license = License(name = "MIT", extensions = Map("x-year" -> Json.Number(2024)))
+      val license = License(name = "MIT", extensions = ChunkMap("x-year" -> Json.Number(2024)))
       val json    = JsonEncoder[License].encode(license)
       assertTrue(
         hasField(json, "x-year"),
@@ -290,7 +288,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("Server extensions are flattened at top level") {
-      val server = Server(url = "https://api.example.com", extensions = Map("x-region" -> Json.String("us")))
+      val server = Server(url = "https://api.example.com", extensions = ChunkMap("x-region" -> Json.String("us")))
       val json   = JsonEncoder[Server].encode(server)
       assertTrue(
         hasField(json, "x-region"),
@@ -298,7 +296,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("Tag extensions are flattened at top level") {
-      val tag  = Tag(name = "users", extensions = Map("x-order" -> Json.Number(1)))
+      val tag  = Tag(name = "users", extensions = ChunkMap("x-order" -> Json.Number(1)))
       val json = JsonEncoder[Tag].encode(tag)
       assertTrue(
         hasField(json, "x-order"),
@@ -307,7 +305,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("ExternalDocumentation extensions are flattened") {
       val ed =
-        ExternalDocumentation(url = "https://docs.example.com", extensions = Map("x-lang" -> Json.String("en")))
+        ExternalDocumentation(url = "https://docs.example.com", extensions = ChunkMap("x-lang" -> Json.String("en")))
       val json = JsonEncoder[ExternalDocumentation].encode(ed)
       assertTrue(
         hasField(json, "x-lang"),
@@ -316,8 +314,8 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Operation extensions are flattened at top level") {
       val op = Operation(
-        responses = Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
-        extensions = Map("x-rate-limit" -> Json.Number(100))
+        responses = Responses(responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
+        extensions = ChunkMap("x-rate-limit" -> Json.Number(100))
       )
       val json = JsonEncoder[Operation].encode(op)
       assertTrue(
@@ -329,7 +327,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val param = Parameter(
         name = "q",
         in = ParameterLocation.Query,
-        extensions = Map("x-internal" -> Json.Boolean(true))
+        extensions = ChunkMap("x-internal" -> Json.Boolean(true))
       )
       val json = JsonEncoder[Parameter].encode(param)
       assertTrue(
@@ -338,7 +336,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("Response extensions are flattened at top level") {
-      val resp = Response(description = doc("OK"), extensions = Map("x-response-id" -> Json.String("r1")))
+      val resp = Response(description = doc("OK"), extensions = ChunkMap("x-response-id" -> Json.String("r1")))
       val json = JsonEncoder[Response].encode(resp)
       assertTrue(
         hasField(json, "x-response-id"),
@@ -349,7 +347,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val api = OpenAPI(
         openapi = "3.1.0",
         info = Info(title = "API", version = "1.0"),
-        extensions = Map("x-api-id" -> Json.String("api-123"))
+        extensions = ChunkMap("x-api-id" -> Json.String("api-123"))
       )
       val json = JsonEncoder[OpenAPI].encode(api)
       assertTrue(
@@ -361,7 +359,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
 
   private lazy val wrapperTypesSuite = suite("Wrapper types encode as flat maps")(
     test("SecurityRequirement encodes as flat map") {
-      val sr   = SecurityRequirement(Map("oauth2" -> List("read", "write")))
+      val sr   = SecurityRequirement(ChunkMap("oauth2" -> Chunk("read", "write")))
       val json = JsonEncoder[SecurityRequirement].encode(sr)
       assertTrue(
         hasField(json, "oauth2"),
@@ -370,7 +368,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Paths encodes with path keys at top level") {
       val paths =
-        Paths(paths = ListMap("/pets" -> PathItem()), extensions = Map("x-id" -> Json.String("v1")))
+        Paths(paths = ChunkMap("/pets" -> PathItem()), extensions = ChunkMap("x-id" -> Json.String("v1")))
       val json = JsonEncoder[Paths].encode(paths)
       assertTrue(
         hasField(json, "/pets"),
@@ -380,10 +378,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Callback encodes with callback keys at top level") {
       val cb = Callback(
-        callbacks = ListMap(
+        callbacks = ChunkMap(
           "{$request.body#/callbackUrl}" -> ReferenceOr.Value(PathItem(summary = Some(doc("Callback"))))
         ),
-        extensions = Map("x-cb" -> Json.String("v1"))
+        extensions = ChunkMap("x-cb" -> Json.String("v1"))
       )
       val json = JsonEncoder[Callback].encode(cb)
       assertTrue(
@@ -394,12 +392,12 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Responses encodes with status code keys at top level") {
       val resps = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "404" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/NotFound"))
         ),
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
-        extensions = Map("x-resps" -> Json.String("v1"))
+        extensions = ChunkMap("x-resps" -> Json.String("v1"))
       )
       val json = JsonEncoder[Responses].encode(resps)
       assertTrue(
@@ -441,7 +439,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       )
     },
     test("RequestBody with required=false omits it") {
-      val rb   = RequestBody(content = Map.empty)
+      val rb   = RequestBody(content = ChunkMap.empty)
       val json = JsonEncoder[RequestBody].encode(rb)
       assertTrue(
         !hasField(json, "required")
@@ -484,9 +482,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       assertTrue(decoded == Right(original))
     },
     test("License round-trips") {
-      val original = License(name = "MIT", identifier = Some("MIT"), extensions = Map("x-y" -> Json.Number(1)))
-      val json     = JsonEncoder[License].encode(original)
-      val decoded  = JsonDecoder[License].decode(json)
+      val original =
+        License(name = "MIT", identifierOrUrl = Some(Left("MIT")), extensions = ChunkMap("x-y" -> Json.Number(1)))
+      val json    = JsonEncoder[License].encode(original)
+      val decoded = JsonDecoder[License].decode(json)
       assertTrue(decoded == Right(original))
     },
     test("Info round-trips") {
@@ -498,7 +497,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         termsOfService = Some("https://example.com/terms"),
         contact = Some(Contact(name = Some("Support"))),
         license = Some(License(name = "MIT")),
-        extensions = Map("x-api" -> Json.String("v1"))
+        extensions = ChunkMap("x-api" -> Json.String("v1"))
       )
       val json    = JsonEncoder[Info].encode(original)
       val decoded = JsonDecoder[Info].decode(json)
@@ -508,8 +507,8 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val original = Server(
         url = "https://api.example.com",
         description = Some(doc("Prod")),
-        variables = Map("env" -> ServerVariable(default = "prod")),
-        extensions = Map("x-r" -> Json.String("us"))
+        variables = ChunkMap("env" -> ServerVariable(default = "prod")),
+        extensions = ChunkMap("x-r" -> Json.String("us"))
       )
       val json    = JsonEncoder[Server].encode(original)
       val decoded = JsonDecoder[Server].decode(json)
@@ -518,9 +517,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("ServerVariable round-trips") {
       val original = ServerVariable(
         default = "v1",
-        `enum` = List("v1", "v2"),
+        `enum` = Chunk("v1", "v2"),
         description = Some(doc("Version")),
-        extensions = Map("x-d" -> Json.Boolean(false))
+        extensions = ChunkMap("x-d" -> Json.Boolean(false))
       )
       val json    = JsonEncoder[ServerVariable].encode(original)
       val decoded = JsonDecoder[ServerVariable].decode(json)
@@ -531,7 +530,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         name = "users",
         description = Some(doc("User ops")),
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
-        extensions = Map("x-o" -> Json.Number(1))
+        extensions = ChunkMap("x-o" -> Json.Number(1))
       )
       val json    = JsonEncoder[Tag].encode(original)
       val decoded = JsonDecoder[Tag].decode(json)
@@ -541,7 +540,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val original = ExternalDocumentation(
         url = "https://docs.example.com",
         description = Some(doc("Full docs")),
-        extensions = Map("x-l" -> Json.String("en"))
+        extensions = ChunkMap("x-l" -> Json.String("en"))
       )
       val json    = JsonEncoder[ExternalDocumentation].encode(original)
       val decoded = JsonDecoder[ExternalDocumentation].decode(json)
@@ -562,7 +561,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("Discriminator round-trips") {
       val original = Discriminator(
         propertyName = "petType",
-        mapping = Map("dog" -> "#/components/schemas/Dog")
+        mapping = ChunkMap("dog" -> "#/components/schemas/Dog")
       )
       val json    = JsonEncoder[Discriminator].encode(original)
       val decoded = JsonDecoder[Discriminator].decode(json)
@@ -575,7 +574,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("Page limit")),
         required = true,
         schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
-        extensions = Map("x-p" -> Json.String("val"))
+        extensions = ChunkMap("x-p" -> Json.String("val"))
       )
       val json    = JsonEncoder[Parameter].encode(original)
       val decoded = JsonDecoder[Parameter].decode(json)
@@ -583,12 +582,12 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Operation round-trips") {
       val original = Operation(
-        responses = Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
-        tags = List("users"),
+        responses = Responses(responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
+        tags = Chunk("users"),
         summary = Some(doc("Get users")),
         operationId = Some("getUsers"),
         deprecated = true,
-        extensions = Map("x-rl" -> Json.Number(100))
+        extensions = ChunkMap("x-rl" -> Json.Number(100))
       )
       val json    = JsonEncoder[Operation].encode(original)
       val decoded = JsonDecoder[Operation].decode(json)
@@ -597,7 +596,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("Response round-trips") {
       val original = Response(
         description = doc("Success"),
-        headers = Map(
+        headers = ChunkMap(
           "X-Rate" -> ReferenceOr.Value(
             Header(schema =
               Some(
@@ -606,12 +605,12 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
             )
           )
         ),
-        content = Map(
+        content = ChunkMap(
           "application/json" -> MediaType(
             schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
           )
         ),
-        extensions = Map("x-rid" -> Json.String("r1"))
+        extensions = ChunkMap("x-rid" -> Json.String("r1"))
       )
       val json    = JsonEncoder[Response].encode(original)
       val decoded = JsonDecoder[Response].decode(json)
@@ -622,7 +621,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         name = "api_key",
         in = APIKeyLocation.Header,
         description = Some(doc("API key auth")),
-        extensions = Map("x-f" -> Json.String("uuid"))
+        extensions = ChunkMap("x-f" -> Json.String("uuid"))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -633,7 +632,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         scheme = "bearer",
         bearerFormat = Some("JWT"),
         description = Some(doc("Bearer auth")),
-        extensions = Map("x-t" -> Json.String("jwt"))
+        extensions = ChunkMap("x-t" -> Json.String("jwt"))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -645,13 +644,13 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
           `implicit` = Some(
             OAuthFlow(
               authorizationUrl = Some("https://example.com/auth"),
-              scopes = Map("read" -> "Read access")
+              scopes = ChunkMap("read" -> "Read access")
             )
           ),
-          extensions = Map("x-fl" -> Json.String("all"))
+          extensions = ChunkMap("x-fl" -> Json.String("all"))
         ),
         description = Some(doc("OAuth2")),
-        extensions = Map("x-p" -> Json.String("custom"))
+        extensions = ChunkMap("x-p" -> Json.String("custom"))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -661,7 +660,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val original: SecurityScheme = SecurityScheme.OpenIdConnect(
         openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
         description = Some(doc("OIDC")),
-        extensions = Map("x-oidc" -> Json.String("custom"))
+        extensions = ChunkMap("x-oidc" -> Json.String("custom"))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -670,7 +669,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("SecurityScheme.MutualTLS round-trips") {
       val original: SecurityScheme = SecurityScheme.MutualTLS(
         description = Some(doc("mTLS")),
-        extensions = Map("x-cert" -> Json.Boolean(true))
+        extensions = ChunkMap("x-cert" -> Json.Boolean(true))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -697,14 +696,14 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("Detailed description")),
         get = Some(
           Operation(responses =
-            Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
+            Responses(responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
           )
         ),
-        servers = List(Server(url = "https://api.example.com")),
-        parameters = List(
+        servers = Chunk(Server(url = "https://api.example.com")),
+        parameters = Chunk(
           ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true))
         ),
-        extensions = Map("x-path" -> Json.Number(1))
+        extensions = ChunkMap("x-path" -> Json.Number(1))
       )
       val json    = JsonEncoder[PathItem].encode(original)
       val decoded = JsonDecoder[PathItem].decode(json)
@@ -714,23 +713,23 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val original = OpenAPI(
         openapi = "3.1.0",
         info = Info(title = "Test API", version = "1.0.0"),
-        servers = List(Server(url = "https://api.example.com")),
+        servers = Chunk(Server(url = "https://api.example.com")),
         paths = Some(
-          Paths(paths = ListMap("/users" -> PathItem(summary = Some(doc("Users")))))
+          Paths(paths = ChunkMap("/users" -> PathItem(summary = Some(doc("Users")))))
         ),
         components = Some(
           Components(
-            schemas = ListMap(
+            schemas = ChunkMap(
               "User" -> ReferenceOr.Value(
                 SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))
               )
             )
           )
         ),
-        security = List(SecurityRequirement(Map("bearerAuth" -> Nil))),
-        tags = List(Tag(name = "users")),
+        security = Chunk(SecurityRequirement(ChunkMap("bearerAuth" -> Chunk.empty))),
+        tags = Chunk(Tag(name = "users")),
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
-        extensions = Map("x-api-id" -> Json.String("api-123"))
+        extensions = ChunkMap("x-api-id" -> Json.String("api-123"))
       )
       val json    = JsonEncoder[OpenAPI].encode(original)
       val decoded = JsonDecoder[OpenAPI].decode(json)
@@ -901,21 +900,21 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         info = Info(title = "Pet Store", version = "1.0.0"),
         paths = Some(
           Paths(
-            paths = ListMap(
+            paths = ChunkMap(
               "/pets" -> PathItem(
                 get = Some(
                   Operation(
                     responses = Responses(
-                      responses = ListMap(
+                      responses = ChunkMap(
                         "200" -> ReferenceOr.Value(
                           Response(
                             description = doc("List of pets"),
-                            content = Map("application/json" -> MediaType(schema = Some(petRef)))
+                            content = ChunkMap("application/json" -> MediaType(schema = Some(petRef)))
                           )
                         )
                       )
                     ),
-                    parameters = List(
+                    parameters = Chunk(
                       ReferenceOr.Value(
                         Parameter(
                           name = "name",
@@ -932,7 +931,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         components = Some(
           Components(
-            schemas = ListMap.from(petDefs.map { case (k, v) => k -> ReferenceOr.Value(v) })
+            schemas = ChunkMap.from(petDefs.map { case (k, v) => k -> ReferenceOr.Value(v) })
           )
         )
       )
@@ -1087,7 +1086,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         name = "api_key",
         in = APIKeyLocation.Header,
         description = Some(doc("API key")),
-        extensions = Map("x-id" -> Json.String("1"))
+        extensions = ChunkMap("x-id" -> Json.String("1"))
       )
       val json    = JsonEncoder[SecurityScheme].encode(original)
       val decoded = JsonDecoder[SecurityScheme].decode(json)
@@ -1115,7 +1114,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
             OAuthFlow(
               authorizationUrl = Some("https://example.com/auth"),
               tokenUrl = Some("https://example.com/token"),
-              scopes = Map("read" -> "Read access")
+              scopes = ChunkMap("read" -> "Read access")
             )
           )
         ),
@@ -1154,9 +1153,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val responsesAndSchemaEdgeCasesSuite = suite("Responses and SchemaObject edge cases")(
     test("Responses encodes 'default' key at top level") {
       val responses = Responses(
-        responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
+        responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))),
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
-        extensions = Map("x-id" -> Json.String("1"))
+        extensions = ChunkMap("x-id" -> Json.String("1"))
       )
       val json = JsonEncoder[Responses].encode(responses)
       assertTrue(
@@ -1168,12 +1167,12 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Responses round-trips with 'default' key") {
       val original = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("OK"))),
           "404" -> ReferenceOr.Value(Response(description = doc("Not found")))
         ),
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
-        extensions = Map("x-resp" -> Json.Boolean(true))
+        extensions = ChunkMap("x-resp" -> Json.Boolean(true))
       )
       val json    = JsonEncoder[Responses].encode(original)
       val decoded = JsonDecoder[Responses].decode(json)
@@ -1208,11 +1207,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("SchemaObject.toJson renders discriminator correctly with OpenAPICodec") {
       val so = SchemaObject(
         jsonSchema = Json.Object("type" -> Json.String("object")),
-        discriminator = Some(Discriminator(propertyName = "petType", mapping = Map("dog" -> "#/dog"))),
+        discriminator = Some(Discriminator(propertyName = "petType", mapping = ChunkMap("dog" -> "#/dog"))),
         xml = Some(XML(name = Some("root"), attribute = true)),
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com", description = Some(doc("Docs")))),
         example = Some(Json.Object("id" -> Json.Number(1))),
-        extensions = Map("x-schema" -> Json.String("custom"))
+        extensions = ChunkMap("x-schema" -> Json.String("custom"))
       )
       val json     = so.toJson
       val discJson = fieldValue(json, "discriminator")
@@ -1238,11 +1237,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("SchemaObject with all vocabulary fields round-trips through codec") {
       val original = SchemaObject(
         jsonSchema = Json.Object("type" -> Json.String("object"), "properties" -> Json.Object()),
-        discriminator = Some(Discriminator(propertyName = "type", mapping = Map("a" -> "#/a"))),
+        discriminator = Some(Discriminator(propertyName = "type", mapping = ChunkMap("a" -> "#/a"))),
         xml = Some(XML(name = Some("root"), namespace = Some("http://ns.example.com"), wrapped = true)),
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
         example = Some(Json.String("example")),
-        extensions = Map("x-ext" -> Json.Number(42))
+        extensions = ChunkMap("x-ext" -> Json.Number(42))
       )
       val json    = JsonEncoder[SchemaObject].encode(original)
       val decoded = JsonDecoder[SchemaObject].decode(json)
@@ -1255,12 +1254,12 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val original = OpenAPI(
         openapi = "3.1.0",
         info = Info(title = "API", version = "1.0"),
-        webhooks = ListMap(
+        webhooks = ChunkMap(
           "newPet" -> ReferenceOr.Value(
             PathItem(
               post = Some(
                 Operation(responses =
-                  Responses(responses = ListMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
+                  Responses(responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK")))))
                 )
               )
             )

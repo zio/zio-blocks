@@ -1,6 +1,6 @@
 package zio.blocks.openapi
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -23,11 +23,11 @@ object ServerSpec extends SchemaBaseSpec {
       test("can be constructed with all fields populated") {
         val variable = ServerVariable(
           default = "v1",
-          `enum` = List("v1", "v2"),
+          `enum` = Chunk("v1", "v2"),
           description = Some(doc("API version"))
         )
-        val variables   = Map("version" -> variable)
-        val extensions  = Map("x-custom" -> Json.String("value"))
+        val variables   = ChunkMap("version" -> variable)
+        val extensions  = ChunkMap("x-custom" -> Json.String("value"))
         val description = doc("Production API server")
         val server      = Server(
           url = "https://api.example.com/{version}",
@@ -46,7 +46,7 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-internal"   -> Json.Boolean(true),
           "x-rate-limit" -> Json.Number(1000)
         )
@@ -67,14 +67,14 @@ object ServerSpec extends SchemaBaseSpec {
       test("Server round-trips through DynamicValue") {
         val variable = ServerVariable(
           default = "prod",
-          `enum` = List("dev", "staging", "prod"),
+          `enum` = Chunk("dev", "staging", "prod"),
           description = Some(doc("Environment"))
         )
         val server = Server(
           url = "https://{environment}.api.example.com",
           description = Some(doc("Multi-environment server")),
-          variables = Map("environment" -> variable),
-          extensions = Map("x-region" -> Json.String("us-east-1"))
+          variables = ChunkMap("environment" -> variable),
+          extensions = ChunkMap("x-region" -> Json.String("us-east-1"))
         )
 
         val dv     = Schema[Server].toDynamicValue(server)
@@ -89,11 +89,11 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("Server with URL template variables") {
-        val portVar    = ServerVariable(default = "443", `enum` = List("443", "8443"))
-        val versionVar = ServerVariable(default = "v1", `enum` = List("v1", "v2", "v3"))
+        val portVar    = ServerVariable(default = "443", `enum` = Chunk("443", "8443"))
+        val versionVar = ServerVariable(default = "v1", `enum` = Chunk("v1", "v2", "v3"))
         val server     = Server(
           url = "https://api.example.com:{port}/{version}",
-          variables = Map("port" -> portVar, "version" -> versionVar)
+          variables = ChunkMap("port" -> portVar, "version" -> versionVar)
         )
 
         assertTrue(
@@ -116,8 +116,8 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val enumValues = List("dev", "staging", "production")
-        val extensions = Map("x-priority" -> Json.Number(1))
+        val enumValues = Chunk("dev", "staging", "production")
+        val extensions = ChunkMap("x-priority" -> Json.Number(1))
         val variable   = ServerVariable(
           default = "production",
           `enum` = enumValues,
@@ -134,10 +134,10 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("enum field uses backticks (reserved keyword)") {
-        val variable = ServerVariable(default = "v1", `enum` = List("v1", "v2"))
+        val variable = ServerVariable(default = "v1", `enum` = Chunk("v1", "v2"))
 
         assertTrue(
-          variable.`enum` == List("v1", "v2"),
+          variable.`enum` == Chunk("v1", "v2"),
           variable.`enum`.contains("v1"),
           variable.`enum`.contains("v2")
         )
@@ -145,11 +145,11 @@ object ServerSpec extends SchemaBaseSpec {
       test("validates that default is in enum when enum is non-empty") {
         val validResult = ServerVariable.validated(
           default = "v1",
-          `enum` = List("v1", "v2", "v3")
+          `enum` = Chunk("v1", "v2", "v3")
         )
         val invalidResult = ServerVariable.validated(
           default = "v4",
-          `enum` = List("v1", "v2", "v3")
+          `enum` = Chunk("v1", "v2", "v3")
         )
 
         assertTrue(
@@ -162,7 +162,7 @@ object ServerSpec extends SchemaBaseSpec {
       test("validation allows any default when enum is empty") {
         val result = ServerVariable.validated(
           default = "any-value",
-          `enum` = Nil
+          `enum` = Chunk.empty
         )
 
         assertTrue(
@@ -174,9 +174,9 @@ object ServerSpec extends SchemaBaseSpec {
       test("validation works with description and extensions") {
         val result = ServerVariable.validated(
           default = "prod",
-          `enum` = List("dev", "prod"),
+          `enum` = Chunk("dev", "prod"),
           description = Some(doc("Environment")),
-          extensions = Map("x-custom" -> Json.String("value"))
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
 
         assertTrue(
@@ -186,7 +186,7 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-example"    -> Json.String("example-value"),
           "x-deprecated" -> Json.Boolean(false)
         )
@@ -207,9 +207,9 @@ object ServerSpec extends SchemaBaseSpec {
       test("ServerVariable round-trips through DynamicValue") {
         val variable = ServerVariable(
           default = "8443",
-          `enum` = List("443", "8443", "9443"),
+          `enum` = Chunk("443", "8443", "9443"),
           description = Some(doc("HTTPS port")),
-          extensions = Map("x-secure" -> Json.Boolean(true))
+          extensions = ChunkMap("x-secure" -> Json.Boolean(true))
         )
 
         val dv     = Schema[ServerVariable].toDynamicValue(variable)
@@ -218,7 +218,7 @@ object ServerSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.default == "8443"),
-          result.exists(_.`enum` == List("443", "8443", "9443")),
+          result.exists(_.`enum` == Chunk("443", "8443", "9443")),
           result.exists(_.description.contains(doc("HTTPS port"))),
           result.exists(_.extensions.contains("x-secure"))
         )
@@ -226,7 +226,7 @@ object ServerSpec extends SchemaBaseSpec {
       test("ServerVariable with numeric-like string values") {
         val variable = ServerVariable(
           default = "443",
-          `enum` = List("80", "443", "8080", "8443")
+          `enum` = Chunk("80", "443", "8080", "8443")
         )
 
         assertTrue(
@@ -238,13 +238,13 @@ object ServerSpec extends SchemaBaseSpec {
       test("ServerVariable with path segment values") {
         val variable = ServerVariable(
           default = "v1",
-          `enum` = List("v1", "v2", "beta"),
+          `enum` = Chunk("v1", "v2", "beta"),
           description = Some(doc("API version path segment"))
         )
 
         assertTrue(
           variable.default == "v1",
-          variable.`enum` == List("v1", "v2", "beta"),
+          variable.`enum` == Chunk("v1", "v2", "beta"),
           variable.description.contains(doc("API version path segment"))
         )
       },
