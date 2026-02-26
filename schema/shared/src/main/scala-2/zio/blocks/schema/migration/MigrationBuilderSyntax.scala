@@ -677,7 +677,7 @@ object MigrationValidationMacros {
         case (Some(srcType), Some(tgtType)) if !(srcType =:= tgtType) =>
           val hasExplicitChild = explicitlyHandled.exists(_.startsWith(s"$fullFieldName."))
           if (hasExplicitChild)
-            crossTypeAutoMapLeaves(c)(srcType, tgtType, fullFieldName)
+            crossTypeAutoMapLeaves(c)(srcType, tgtType, explicitlyHandled, fullFieldName)
           else Set.empty[String]
         case _ => Set.empty[String]
       }
@@ -686,7 +686,7 @@ object MigrationValidationMacros {
 
   private def crossTypeAutoMapLeaves(
     c: whitebox.Context
-  )(srcType: c.universe.Type, tgtType: c.universe.Type, prefix: String): Set[String] = {
+  )(srcType: c.universe.Type, tgtType: c.universe.Type, explicitlyHandled: Set[String], prefix: String): Set[String] = {
     import c.universe._
 
     val srcSym = srcType.typeSymbol
@@ -716,21 +716,33 @@ object MigrationValidationMacros {
       val fullName = s"$prefix.$fieldName"
       (srcFields(fieldName), tgtFields(fieldName)) match {
         case (s, t) if s =:= t => Set(fullName)
-        case _                 => Set.empty[String]
+        case (s, t)            =>
+          val hasExplicitChild = explicitlyHandled.exists(_.startsWith(s"$fullName."))
+          if (hasExplicitChild)
+            crossTypeAutoMapLeaves(c)(s, t, explicitlyHandled, fullName)
+          else Set.empty[String]
       }
     }
   }
 
   private def inferParentCoverage(allFields: Set[String], covered: Set[String]): Set[String] = {
-    var result  = covered
     val parents = allFields.flatMap { f =>
       val parts = f.split('.')
       if (parts.length > 1) Some(parts.init.mkString(".")) else None
     }
-    for (parent <- parents) {
-      val children = allFields.filter(_.startsWith(s"$parent."))
-      if (children.nonEmpty && children.forall(result.contains))
-        result = result + parent
+    var result  = covered
+    var changed = true
+    while (changed) {
+      changed = false
+      for (parent <- parents) {
+        if (!result.contains(parent)) {
+          val children = allFields.filter(_.startsWith(s"$parent."))
+          if (children.nonEmpty && children.forall(result.contains)) {
+            result = result + parent
+            changed = true
+          }
+        }
+      }
     }
     result
   }
