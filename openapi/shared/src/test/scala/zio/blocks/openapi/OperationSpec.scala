@@ -1,8 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -32,12 +30,12 @@ object OperationSpec extends SchemaBaseSpec {
     },
     test("can be constructed with all fields populated") {
       val responses = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
           "404" -> ReferenceOr.Value(Response(description = doc("Not Found")))
         )
       )
-      val tags         = List("users", "admin")
+      val tags         = Chunk("users", "admin")
       val summary      = doc("Get user by ID")
       val description  = doc("Retrieves a user from the database by their unique identifier")
       val externalDocs = ExternalDocumentation(
@@ -45,23 +43,23 @@ object OperationSpec extends SchemaBaseSpec {
         description = Some(doc("User API Documentation"))
       )
       val operationId = "getUserById"
-      val parameters  = List(
+      val parameters  = Chunk(
         ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true))
       )
       val requestBody = ReferenceOr.Value(
-        RequestBody(content = Map("application/json" -> MediaType()), required = true)
+        RequestBody(content = ChunkMap("application/json" -> MediaType()), required = true)
       )
-      val callbacks = Map(
+      val callbacks = ChunkMap(
         "myCallback" -> ReferenceOr.Value(Callback())
       )
       val deprecated = true
-      val security   = List(
-        SecurityRequirement(Map("api_key" -> List("read:users")))
+      val security   = Chunk(
+        SecurityRequirement(ChunkMap("api_key" -> Chunk("read:users")))
       )
-      val servers = List(
+      val servers = Chunk(
         Server(url = "https://api.example.com/v1")
       )
-      val extensions = Map(
+      val extensions = ChunkMap(
         "x-internal"   -> Json.Boolean(false),
         "x-rate-limit" -> Json.Number(100)
       )
@@ -120,7 +118,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("preserves extensions on construction") {
-      val extensions = Map(
+      val extensions = ChunkMap(
         "x-code-samples"     -> Json.Array(Json.String("sample1")),
         "x-visibility"       -> Json.String("public"),
         "x-deprecated-since" -> Json.String("2024-01-01")
@@ -135,7 +133,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("tags can be used for logical grouping") {
-      val tags      = List("pets", "store", "user")
+      val tags      = Chunk("pets", "store", "user")
       val operation = Operation(tags = tags)
 
       assertTrue(
@@ -169,9 +167,9 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("supports multiple security requirements") {
-      val security = List(
-        SecurityRequirement(Map("api_key" -> Nil)),
-        SecurityRequirement(Map("oauth2" -> List("read", "write")))
+      val security = Chunk(
+        SecurityRequirement(ChunkMap("api_key" -> Chunk.empty)),
+        SecurityRequirement(ChunkMap("oauth2" -> Chunk("read", "write")))
       )
       val operation = Operation(security = security)
 
@@ -182,7 +180,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("supports alternative servers") {
-      val servers = List(
+      val servers = Chunk(
         Server(url = "https://dev.example.com"),
         Server(url = "https://staging.example.com"),
         Server(url = "https://prod.example.com")
@@ -210,7 +208,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("parameters field uses typed ReferenceOr[Parameter]") {
-      val parameters = List(
+      val parameters = Chunk(
         ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true)),
         ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))
       )
@@ -223,7 +221,7 @@ object OperationSpec extends SchemaBaseSpec {
     test("requestBody field uses typed ReferenceOr[RequestBody]") {
       val requestBody = ReferenceOr.Value(
         RequestBody(
-          content = Map("application/json" -> MediaType()),
+          content = ChunkMap("application/json" -> MediaType()),
           required = true
         )
       )
@@ -234,7 +232,7 @@ object OperationSpec extends SchemaBaseSpec {
       )
     },
     test("callbacks field uses typed ReferenceOr[Callback]") {
-      val callbacks = Map(
+      val callbacks = ChunkMap(
         "onData"  -> ReferenceOr.Value(Callback()),
         "onError" -> ReferenceOr.Value(Callback())
       )
@@ -254,19 +252,19 @@ object OperationSpec extends SchemaBaseSpec {
     },
     test("Operation round-trips through DynamicValue") {
       val responses = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
           "400" -> ReferenceOr.Value(Response(description = doc("Bad Request")))
         )
       )
       val operation = Operation(
         responses = responses,
-        tags = List("users", "api"),
+        tags = Chunk("users", "api"),
         summary = Some(doc("List users")),
         description = Some(doc("Returns a list of all users in the system")),
         operationId = Some("listUsers"),
         deprecated = false,
-        extensions = Map("x-internal" -> Json.Boolean(true))
+        extensions = ChunkMap("x-internal" -> Json.Boolean(true))
       )
 
       val dv     = Schema[Operation].toDynamicValue(operation)
@@ -275,7 +273,7 @@ object OperationSpec extends SchemaBaseSpec {
       assertTrue(
         result.isRight,
         result.exists(_.responses == responses),
-        result.exists(_.tags == List("users", "api")),
+        result.exists(_.tags == Chunk("users", "api")),
         result.exists(_.summary.contains(doc("List users"))),
         result.exists(_.description.contains(doc("Returns a list of all users in the system"))),
         result.exists(_.operationId.contains("listUsers")),
@@ -292,11 +290,11 @@ object OperationSpec extends SchemaBaseSpec {
     },
     test("Operation supports complex nested structures") {
       val responses = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(
             Response(
               description = doc("Success"),
-              content = Map(
+              content = ChunkMap(
                 "application/json" -> MediaType(
                   schema =
                     Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
@@ -308,9 +306,9 @@ object OperationSpec extends SchemaBaseSpec {
       )
       val operation = Operation(
         responses = responses,
-        tags = List("complex"),
+        tags = Chunk("complex"),
         summary = Some(doc("Complex operation")),
-        parameters = List(
+        parameters = Chunk(
           ReferenceOr.Value(
             Parameter(
               name = "filter",
@@ -331,18 +329,18 @@ object OperationSpec extends SchemaBaseSpec {
       val operation = Operation()
 
       assertTrue(
-        operation.tags == Nil,
-        operation.parameters == Nil,
-        operation.callbacks == Map.empty[String, ReferenceOr[Callback]],
-        operation.security == Nil,
-        operation.servers == Nil,
-        operation.extensions == Map.empty[String, Json],
+        operation.tags == Chunk.empty,
+        operation.parameters == Chunk.empty,
+        operation.callbacks == ChunkMap.empty[String, ReferenceOr[Callback]],
+        operation.security == Chunk.empty,
+        operation.servers == Chunk.empty,
+        operation.extensions == ChunkMap.empty[String, Json],
         operation.responses == Responses()
       )
     },
     test("multiple responses with different status codes") {
       val responses = Responses(
-        responses = ListMap(
+        responses = ChunkMap(
           "200" -> ReferenceOr.Value(Response(description = doc("Success"))),
           "201" -> ReferenceOr.Value(Response(description = doc("Created"))),
           "400" -> ReferenceOr.Value(Response(description = doc("Bad Request"))),

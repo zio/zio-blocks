@@ -1,6 +1,6 @@
 package zio.blocks.openapi
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -25,7 +25,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
           url = "https://docs.example.com/users",
           description = Some(doc("User documentation"))
         )
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom"   -> Json.String("value"),
           "x-priority" -> Json.Number(1)
         )
@@ -47,7 +47,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-display-name" -> Json.String("User Management"),
           "x-icon"         -> Json.String("user-icon"),
           "x-order"        -> Json.Number(5)
@@ -86,7 +86,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
           url = "https://docs.example.com/users",
           description = Some(doc("User API docs"))
         )
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom" -> Json.String("test"),
           "x-value"  -> Json.Number(42)
         )
@@ -116,12 +116,12 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         val externalDocs = ExternalDocumentation(
           url = "https://example.com",
           description = Some(doc("Docs")),
-          extensions = Map("x-doc-version" -> Json.String("v1"))
+          extensions = ChunkMap("x-doc-version" -> Json.String("v1"))
         )
         val tag = Tag(
           name = "test",
           externalDocs = Some(externalDocs),
-          extensions = Map("x-tag-level" -> Json.String("top"))
+          extensions = ChunkMap("x-tag-level" -> Json.String("top"))
         )
 
         val dv     = Schema[Tag].toDynamicValue(tag)
@@ -145,7 +145,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-language" -> Json.String("en"),
           "x-version"  -> Json.String("2.0")
         )
@@ -164,7 +164,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-format" -> Json.String("swagger-ui"),
           "x-public" -> Json.Boolean(true),
           "x-rating" -> Json.Number(4.5)
@@ -201,7 +201,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("ExternalDocumentation round-trips through DynamicValue with all fields") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom" -> Json.String("value"),
           "x-number" -> Json.Number(123)
         )
@@ -224,7 +224,7 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("ExternalDocumentation handles different URL formats") {
-        val urls = List(
+        val urls = Chunk(
           "https://example.com",
           "http://docs.example.com/path",
           "https://api.example.com/v1/docs#section",
@@ -243,8 +243,8 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
     ),
     suite("Integration")(
       test("Tag can contain ExternalDocumentation and both preserve extensions") {
-        val docExtensions = Map("x-doc-lang" -> Json.String("en"))
-        val tagExtensions = Map("x-tag-group" -> Json.String("core"))
+        val docExtensions = ChunkMap("x-doc-lang" -> Json.String("en"))
+        val tagExtensions = ChunkMap("x-tag-group" -> Json.String("core"))
 
         val docs = ExternalDocumentation(
           url = "https://example.com",

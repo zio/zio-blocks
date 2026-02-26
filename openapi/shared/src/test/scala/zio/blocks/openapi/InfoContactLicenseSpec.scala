@@ -1,6 +1,6 @@
 package zio.blocks.openapi
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -55,7 +55,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           name = Some("API Support Team"),
           url = Some("https://www.example.com/support"),
           email = Some("support@example.com"),
-          extensions = Map("x-team-id" -> Json.String("team-123"))
+          extensions = ChunkMap("x-team-id" -> Json.String("team-123"))
         )
 
         assertTrue(
@@ -67,7 +67,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom" -> Json.String("value"),
           "x-number" -> Json.Number(42),
           "x-bool"   -> Json.Boolean(true)
@@ -92,7 +92,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           name = Some("API Support"),
           url = Some("https://example.com"),
           email = Some("support@example.com"),
-          extensions = Map("x-custom" -> Json.String("test"))
+          extensions = ChunkMap("x-custom" -> Json.String("test"))
         )
 
         val dv     = Schema[Contact].toDynamicValue(contact)
@@ -113,34 +113,31 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
 
         assertTrue(
           license.name == "Apache 2.0",
-          license.identifier.isEmpty,
-          license.url.isEmpty,
+          license.identifierOrUrl.isEmpty,
           license.extensions.isEmpty
         )
       },
       test("can be constructed with name and identifier") {
         val license = License(
           name = "Apache 2.0",
-          identifier = Some("Apache-2.0")
+          identifierOrUrl = Some(Left("Apache-2.0"))
         )
 
         assertTrue(
           license.name == "Apache 2.0",
-          license.identifier.contains("Apache-2.0"),
-          license.url.isEmpty,
+          license.identifierOrUrl.contains(Left("Apache-2.0")),
           license.extensions.isEmpty
         )
       },
       test("can be constructed with name and url") {
         val license = License(
           name = "Apache 2.0",
-          url = Some("https://www.apache.org/licenses/LICENSE-2.0.html")
+          identifierOrUrl = Some(Right("https://www.apache.org/licenses/LICENSE-2.0.html"))
         )
 
         assertTrue(
           license.name == "Apache 2.0",
-          license.identifier.isEmpty,
-          license.url.contains("https://www.apache.org/licenses/LICENSE-2.0.html"),
+          license.identifierOrUrl.contains(Right("https://www.apache.org/licenses/LICENSE-2.0.html")),
           license.extensions.isEmpty
         )
       },
@@ -149,7 +146,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           License(
             name = "Apache 2.0",
             identifier = Some("Apache-2.0"),
-            url = Some("https://www.apache.org/licenses/LICENSE-2.0.html")
+            url = Some("https://www.apache.org/licenses/LICENSE-2.0.html"),
+            extensions = ChunkMap.empty
           )
           None
         } catch {
@@ -162,7 +160,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-license-category" -> Json.String("permissive"),
           "x-osi-approved"     -> Json.Boolean(true)
         )
@@ -183,8 +181,8 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
       test("License round-trips through DynamicValue with identifier") {
         val license = License(
           name = "MIT",
-          identifier = Some("MIT"),
-          extensions = Map("x-custom" -> Json.String("test"))
+          identifierOrUrl = Some(Left("MIT")),
+          extensions = ChunkMap("x-custom" -> Json.String("test"))
         )
 
         val dv     = Schema[License].toDynamicValue(license)
@@ -193,16 +191,15 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.name == "MIT"),
-          result.exists(_.identifier.contains("MIT")),
-          result.exists(_.url.isEmpty),
+          result.exists(_.identifierOrUrl.contains(Left("MIT"))),
           result.exists(_.extensions.contains("x-custom"))
         )
       },
       test("License round-trips through DynamicValue with url") {
         val license = License(
           name = "Apache 2.0",
-          url = Some("https://www.apache.org/licenses/LICENSE-2.0.html"),
-          extensions = Map("x-custom" -> Json.String("test"))
+          identifierOrUrl = Some(Right("https://www.apache.org/licenses/LICENSE-2.0.html")),
+          extensions = ChunkMap("x-custom" -> Json.String("test"))
         )
 
         val dv     = Schema[License].toDynamicValue(license)
@@ -211,8 +208,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.name == "Apache 2.0"),
-          result.exists(_.identifier.isEmpty),
-          result.exists(_.url.contains("https://www.apache.org/licenses/LICENSE-2.0.html")),
+          result.exists(_.identifierOrUrl.contains(Right("https://www.apache.org/licenses/LICENSE-2.0.html"))),
           result.exists(_.extensions.contains("x-custom"))
         )
       },
@@ -223,8 +219,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         assertTrue(
           result.isRight,
           result.exists(_.name == "MIT"),
-          result.exists(_.identifier.isEmpty),
-          result.exists(_.url.isEmpty),
+          result.exists(_.identifierOrUrl.isEmpty),
           result.exists(_.extensions.isEmpty)
         )
       }
@@ -315,7 +310,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with license") {
-        val license = License(name = "MIT", identifier = Some("MIT"))
+        val license = License(name = "MIT", identifierOrUrl = Some(Left("MIT")))
         val info    = Info(
           title = "My API",
           version = "1.0.0",
@@ -325,7 +320,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         assertTrue(
           info.license.isDefined,
           info.license.exists(_.name == "MIT"),
-          info.license.exists(_.identifier.contains("MIT"))
+          info.license.exists(_.identifierOrUrl.contains(Left("MIT")))
         )
       },
       test("can be constructed with all fields populated") {
@@ -336,7 +331,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         )
         val license = License(
           name = "Apache 2.0",
-          identifier = Some("Apache-2.0")
+          identifierOrUrl = Some(Left("Apache-2.0"))
         )
         val info = Info(
           title = "Comprehensive API",
@@ -346,7 +341,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           termsOfService = Some("https://example.com/terms"),
           contact = Some(contact),
           license = Some(license),
-          extensions = Map(
+          extensions = ChunkMap(
             "x-api-id"   -> Json.String("api-123"),
             "x-audience" -> Json.String("external")
           )
@@ -366,7 +361,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = Map(
+        val extensions = ChunkMap(
           "x-custom" -> Json.String("value")
         )
         val info = Info(
@@ -414,7 +409,7 @@ object InfoContactLicenseSpec extends SchemaBaseSpec {
           termsOfService = Some("https://example.com/terms"),
           contact = Some(contact),
           license = Some(license),
-          extensions = Map("x-custom" -> Json.String("test"))
+          extensions = ChunkMap("x-custom" -> Json.String("test"))
         )
 
         val dv     = Schema[Info].toDynamicValue(info)

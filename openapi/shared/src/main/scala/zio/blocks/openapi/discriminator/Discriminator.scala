@@ -1,13 +1,15 @@
 package zio.blocks.openapi.discriminator
 
+import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Constructor, Deconstructor, Registers}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
+import zio.blocks.openapi.chunkMapSchema
 
 final case class Discriminator(
   propertyName: String,
-  mapping: Map[String, String] = Map.empty
+  mapping: ChunkMap[String, String] = ChunkMap.empty
 )
 
 object Discriminator {
@@ -15,7 +17,7 @@ object Discriminator {
     reflect = new Reflect.Record[Binding, Discriminator](
       fields = Vector(
         Schema[String].reflect.asTerm("propertyName"),
-        Schema[Map[String, String]].reflect.asTerm("mapping")
+        Schema[ChunkMap[String, String]].reflect.asTerm("mapping")
       ),
       typeId = TypeId.of[Discriminator],
       recordBinding = new Binding.Record(
@@ -24,7 +26,7 @@ object Discriminator {
           def construct(in: Registers, offset: RegisterOffset): Discriminator =
             Discriminator(
               in.getObject(offset).asInstanceOf[String],
-              in.getObject(offset + binding.RegisterOffset(objects = 1)).asInstanceOf[Map[String, String]]
+              in.getObject(offset + binding.RegisterOffset(objects = 1)).asInstanceOf[ChunkMap[String, String]]
             )
         },
         deconstructor = new Deconstructor[Discriminator] {

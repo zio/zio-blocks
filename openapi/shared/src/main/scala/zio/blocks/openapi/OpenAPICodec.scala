@@ -1,8 +1,7 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.docs.{
   Autolink,
   Block,
@@ -44,7 +43,7 @@ object OpenAPICodec {
     new Json.Object(builder.result())
   }
 
-  private def withExtensions(base: Json.Object, extensions: Map[String, Json]): Json.Object =
+  private def withExtensions(base: Json.Object, extensions: ChunkMap[String, Json]): Json.Object =
     if (extensions.isEmpty) base
     else new Json.Object(base.value ++ Chunk.from(extensions))
 
@@ -52,13 +51,15 @@ object OpenAPICodec {
 
   private def optField[A](a: Option[A])(implicit enc: JsonEncoder[A]): Option[Json] = a.map(enc.encode)
 
-  private def listField[A](a: List[A])(implicit enc: JsonEncoder[A]): Option[Json] =
-    if (a.isEmpty) None else Some(JsonEncoder.listEncoder(enc).encode(a))
+  private def chunkField[A](a: Chunk[A])(implicit enc: JsonEncoder[A]): Option[Json] =
+    if (a.isEmpty) None
+    else {
+      val builder = ChunkBuilder.make[Json](a.length)
+      a.foreach(v => builder += enc.encode(v))
+      Some(new Json.Array(builder.result()))
+    }
 
-  private def mapField[V](a: Map[String, V])(implicit enc: JsonEncoder[V]): Option[Json] =
-    if (a.isEmpty) None else Some(JsonEncoder.mapEncoder(enc).encode(a))
-
-  private def listMapField[V](a: ListMap[String, V])(implicit enc: JsonEncoder[V]): Option[Json] =
+  private def chunkMapField[V](a: ChunkMap[String, V])(implicit enc: JsonEncoder[V]): Option[Json] =
     if (a.isEmpty) None else Some(JsonEncoder.mapEncoder(enc).encode(a))
 
   private def boolField(a: Boolean, default: Boolean = false): Option[Json] =
@@ -85,29 +86,34 @@ object OpenAPICodec {
       case Some(json)             => dec.decode(json).map(Some(_))
     }
 
-  private def listFieldDec[A](jObj: Json.Object, name: String)(implicit
+  private def chunkFieldDec[A](jObj: Json.Object, name: String)(implicit
     dec: JsonDecoder[A]
-  ): Either[SchemaError, List[A]] =
+  ): Either[SchemaError, Chunk[A]] =
     getField(jObj, name) match {
-      case None       => Right(Nil)
-      case Some(json) => JsonDecoder.listDecoder(dec).decode(json)
+      case None                  => Right(Chunk.empty)
+      case Some(arr: Json.Array) =>
+        val builder                             = ChunkBuilder.make[A](arr.value.length)
+        var error: Either[SchemaError, Nothing] = null
+        arr.value.foreach { v =>
+          if (error == null) {
+            dec.decode(v) match {
+              case Right(r) => builder += r
+              case Left(e)  => error = Left(e)
+            }
+          }
+        }
+        if (error != null) error.asInstanceOf[Either[SchemaError, Chunk[A]]]
+        else Right(builder.result())
+      case Some(json) => JsonDecoder.listDecoder(dec).decode(json).map(l => Chunk.from(l))
     }
 
-  private def mapFieldDec[V](jObj: Json.Object, name: String)(implicit
+  private def chunkMapFieldDec[V](jObj: Json.Object, name: String)(implicit
     dec: JsonDecoder[V]
-  ): Either[SchemaError, Map[String, V]] =
+  ): Either[SchemaError, ChunkMap[String, V]] =
     getField(jObj, name) match {
-      case None       => Right(Map.empty)
-      case Some(json) => JsonDecoder.mapDecoder(dec).decode(json)
-    }
-
-  private def listMapFieldDec[V](jObj: Json.Object, name: String)(implicit
-    dec: JsonDecoder[V]
-  ): Either[SchemaError, ListMap[String, V]] =
-    getField(jObj, name) match {
-      case None                   => Right(ListMap.empty)
+      case None                   => Right(ChunkMap.empty)
       case Some(obj: Json.Object) =>
-        val builder                             = ListMap.newBuilder[String, V]
+        val builder                             = ChunkMap.newBuilder[String, V]
         var error: Either[SchemaError, Nothing] = null
         obj.value.foreach { case (k, v) =>
           if (error == null) {
@@ -117,7 +123,7 @@ object OpenAPICodec {
             }
           }
         }
-        if (error != null) error.asInstanceOf[Either[SchemaError, ListMap[String, V]]]
+        if (error != null) error.asInstanceOf[Either[SchemaError, ChunkMap[String, V]]]
         else Right(builder.result())
       case Some(_) => Left(SchemaError(s"Expected Object for field: $name"))
     }
@@ -128,8 +134,11 @@ object OpenAPICodec {
       case Some(json) => JsonDecoder.booleanDecoder.decode(json)
     }
 
-  private def extractExtensions(jObj: Json.Object): Map[String, Json] =
-    jObj.value.collect { case (k, v) if k.startsWith("x-") => (k, v) }.toMap
+  private def extractExtensions(jObj: Json.Object): ChunkMap[String, Json] = {
+    val builder = ChunkMap.newBuilder[String, Json]
+    jObj.value.foreach { case (k, v) => if (k.startsWith("x-")) builder += (k -> v) }
+    builder.result()
+  }
 
   // ---------------------------------------------------------------------------
   // Doc normalization helpers
@@ -243,11 +252,13 @@ object OpenAPICodec {
   // ---------------------------------------------------------------------------
 
   implicit val licenseJsonEncoder: JsonEncoder[License] = JsonEncoder.instance[License] { l =>
+    val identifierOpt = l.identifierOrUrl.flatMap(_.left.toOption)
+    val urlOpt        = l.identifierOrUrl.flatMap(_.toOption)
     withExtensions(
       obj(
         "name"       -> field(l.name),
-        "identifier" -> optField(l.identifier),
-        "url"        -> optField(l.url)
+        "identifier" -> optField(identifierOpt),
+        "url"        -> optField(urlOpt)
       ),
       l.extensions
     )
@@ -301,7 +312,7 @@ object OpenAPICodec {
       withExtensions(
         obj(
           "default"     -> field(sv.default),
-          "enum"        -> listField(sv.`enum`),
+          "enum"        -> chunkField(sv.`enum`),
           "description" -> optField(sv.description)(docJsonEncoder)
         ),
         sv.extensions
@@ -314,7 +325,7 @@ object OpenAPICodec {
         case jObj: Json.Object =>
           for {
             default     <- reqField[String](jObj, "default")
-            enumValues  <- listFieldDec[String](jObj, "enum")
+            enumValues  <- chunkFieldDec[String](jObj, "enum")
             description <- optFieldDec[Doc](jObj, "description")(docJsonDecoder)
           } yield ServerVariable(default, enumValues, description, extractExtensions(jObj))
         case _ => Left(SchemaError("Expected Object for ServerVariable"))
@@ -330,7 +341,7 @@ object OpenAPICodec {
       obj(
         "url"         -> field(s.url),
         "description" -> optField(s.description)(docJsonEncoder),
-        "variables"   -> mapField(s.variables)(serverVariableJsonEncoder)
+        "variables"   -> chunkMapField(s.variables)(serverVariableJsonEncoder)
       ),
       s.extensions
     )
@@ -342,7 +353,7 @@ object OpenAPICodec {
         for {
           url         <- reqField[String](jObj, "url")
           description <- optFieldDec[Doc](jObj, "description")(docJsonDecoder)
-          variables   <- mapFieldDec[ServerVariable](jObj, "variables")(serverVariableJsonDecoder)
+          variables   <- chunkMapFieldDec[ServerVariable](jObj, "variables")(serverVariableJsonDecoder)
         } yield Server(url, description, variables, extractExtensions(jObj))
       case _ => Left(SchemaError("Expected Object for Server"))
     }
@@ -445,7 +456,7 @@ object OpenAPICodec {
   implicit val discriminatorJsonEncoder: JsonEncoder[Discriminator] = JsonEncoder.instance[Discriminator] { d =>
     obj(
       "propertyName" -> field(d.propertyName),
-      "mapping"      -> mapField(d.mapping)
+      "mapping"      -> chunkMapField(d.mapping)
     )
   }
 
@@ -454,7 +465,7 @@ object OpenAPICodec {
       case jObj: Json.Object =>
         for {
           propertyName <- reqField[String](jObj, "propertyName")
-          mapping      <- mapFieldDec[String](jObj, "mapping")
+          mapping      <- chunkMapFieldDec[String](jObj, "mapping")
         } yield Discriminator(propertyName, mapping)
       case _ => Left(SchemaError("Expected Object for Discriminator"))
     }
@@ -577,7 +588,7 @@ object OpenAPICodec {
         "authorizationUrl" -> optField(f.authorizationUrl),
         "tokenUrl"         -> optField(f.tokenUrl),
         "refreshUrl"       -> optField(f.refreshUrl),
-        "scopes"           -> mapField(f.scopes)
+        "scopes"           -> chunkMapField(f.scopes)
       ),
       f.extensions
     )
@@ -590,7 +601,7 @@ object OpenAPICodec {
           authorizationUrl <- optFieldDec[String](jObj, "authorizationUrl")
           tokenUrl         <- optFieldDec[String](jObj, "tokenUrl")
           refreshUrl       <- optFieldDec[String](jObj, "refreshUrl")
-          scopes           <- mapFieldDec[String](jObj, "scopes")
+          scopes           <- chunkMapFieldDec[String](jObj, "scopes")
         } yield OAuthFlow(authorizationUrl, tokenUrl, refreshUrl, scopes, extractExtensions(jObj))
       case _ => Left(SchemaError("Expected Object for OAuthFlow"))
     }
@@ -722,12 +733,40 @@ object OpenAPICodec {
 
   implicit val securityRequirementJsonEncoder: JsonEncoder[SecurityRequirement] =
     JsonEncoder.instance[SecurityRequirement] { sr =>
-      JsonEncoder.mapEncoder[List[String]].encode(sr.requirements)
+      val builder = ChunkBuilder.make[(String, Json)](sr.requirements.size)
+      sr.requirements.foreach { case (name, scopes) =>
+        val scopeArray = new Json.Array(scopes.map(Json.String(_): Json))
+        builder += (name -> scopeArray)
+      }
+      new Json.Object(builder.result())
     }
 
   implicit val securityRequirementJsonDecoder: JsonDecoder[SecurityRequirement] =
     JsonDecoder.instance[SecurityRequirement] { json =>
-      JsonDecoder.mapDecoder[List[String]].decode(json).map(SecurityRequirement(_))
+      json match {
+        case jObj: Json.Object =>
+          val builder                             = ChunkMap.newBuilder[String, Chunk[String]]
+          var error: Either[SchemaError, Nothing] = null
+          jObj.value.foreach { case (k, v) =>
+            if (error == null) {
+              v match {
+                case arr: Json.Array =>
+                  val scopeBuilder = ChunkBuilder.make[String](arr.value.length)
+                  arr.value.foreach {
+                    case s: Json.String => scopeBuilder += s.value
+                    case other          =>
+                      if (error == null) error = Left(SchemaError(s"Expected String in security scopes, got: $other"))
+                  }
+                  if (error == null) builder += (k -> scopeBuilder.result())
+                case _ =>
+                  error = Left(SchemaError(s"Expected Array for security requirement scopes"))
+              }
+            }
+          }
+          if (error != null) error.asInstanceOf[Either[SchemaError, SecurityRequirement]]
+          else Right(SecurityRequirement(builder.result()))
+        case _ => Left(SchemaError("Expected Object for SecurityRequirement"))
+      }
     }
 
   // ---------------------------------------------------------------------------
@@ -793,11 +832,13 @@ object OpenAPICodec {
   // ---------------------------------------------------------------------------
 
   implicit lazy val linkJsonEncoder: JsonEncoder[Link] = JsonEncoder.instance[Link] { l =>
+    val operationRefOpt = l.operationRefOrId.flatMap(_.left.toOption)
+    val operationIdOpt  = l.operationRefOrId.flatMap(_.toOption)
     withExtensions(
       obj(
-        "operationRef" -> optField(l.operationRef),
-        "operationId"  -> optField(l.operationId),
-        "parameters"   -> mapField(l.parameters)(JsonEncoder.jsonEncoder),
+        "operationRef" -> optField(operationRefOpt),
+        "operationId"  -> optField(operationIdOpt),
+        "parameters"   -> chunkMapField(l.parameters)(JsonEncoder.jsonEncoder),
         "requestBody"  -> optField(l.requestBody)(JsonEncoder.jsonEncoder),
         "description"  -> optField(l.description)(docJsonEncoder),
         "server"       -> optField(l.server)(serverJsonEncoder)
@@ -812,7 +853,7 @@ object OpenAPICodec {
         for {
           operationRef <- optFieldDec[String](jObj, "operationRef")
           operationId  <- optFieldDec[String](jObj, "operationId")
-          parameters   <- mapFieldDec[Json](jObj, "parameters")(JsonDecoder.jsonDecoder)
+          parameters   <- chunkMapFieldDec[Json](jObj, "parameters")(JsonDecoder.jsonDecoder)
           requestBody  <- optFieldDec[Json](jObj, "requestBody")(JsonDecoder.jsonDecoder)
           description  <- optFieldDec[Doc](jObj, "description")(docJsonDecoder)
           server       <- optFieldDec[Server](jObj, "server")(serverJsonDecoder)
@@ -829,7 +870,7 @@ object OpenAPICodec {
     withExtensions(
       obj(
         "contentType"   -> optField(e.contentType),
-        "headers"       -> mapField(e.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
+        "headers"       -> chunkMapField(e.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
         "style"         -> optField(e.style),
         "explode"       -> optBoolField(e.explode),
         "allowReserved" -> boolField(e.allowReserved)
@@ -844,7 +885,7 @@ object OpenAPICodec {
         for {
           contentType <- optFieldDec[String](jObj, "contentType")
           headers     <-
-            mapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
+            chunkMapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
           style         <- optFieldDec[String](jObj, "style")
           explode       <- optBoolFieldDec(jObj, "explode")
           allowReserved <- boolFieldDec(jObj, "allowReserved")
@@ -862,8 +903,8 @@ object OpenAPICodec {
       obj(
         "schema"   -> optField(mt.schema)(referenceOrJsonEncoder[SchemaObject](schemaObjectJsonEncoder)),
         "example"  -> optField(mt.example)(JsonEncoder.jsonEncoder),
-        "examples" -> mapField(mt.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
-        "encoding" -> mapField(mt.encoding)(encodingJsonEncoder)
+        "examples" -> chunkMapField(mt.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
+        "encoding" -> chunkMapField(mt.encoding)(encodingJsonEncoder)
       ),
       mt.extensions
     )
@@ -878,8 +919,10 @@ object OpenAPICodec {
                     )
           example  <- optFieldDec[Json](jObj, "example")(JsonDecoder.jsonDecoder)
           examples <-
-            mapFieldDec[ReferenceOr[Example]](jObj, "examples")(referenceOrJsonDecoder[Example](exampleJsonDecoder))
-          encoding <- mapFieldDec[Encoding](jObj, "encoding")(encodingJsonDecoder)
+            chunkMapFieldDec[ReferenceOr[Example]](jObj, "examples")(
+              referenceOrJsonDecoder[Example](exampleJsonDecoder)
+            )
+          encoding <- chunkMapFieldDec[Encoding](jObj, "encoding")(encodingJsonDecoder)
         } yield MediaType(schema, example, examples, encoding, extractExtensions(jObj))
       case _ => Left(SchemaError("Expected Object for MediaType"))
     }
@@ -901,8 +944,8 @@ object OpenAPICodec {
         "allowReserved"   -> optBoolField(h.allowReserved),
         "schema"          -> optField(h.schema)(referenceOrJsonEncoder[SchemaObject](schemaObjectJsonEncoder)),
         "example"         -> optField(h.example)(JsonEncoder.jsonEncoder),
-        "examples"        -> mapField(h.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
-        "content"         -> mapField(h.content)(mediaTypeJsonEncoder)
+        "examples"        -> chunkMapField(h.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
+        "content"         -> chunkMapField(h.content)(mediaTypeJsonEncoder)
       ),
       h.extensions
     )
@@ -924,8 +967,10 @@ object OpenAPICodec {
                     )
           example  <- optFieldDec[Json](jObj, "example")(JsonDecoder.jsonDecoder)
           examples <-
-            mapFieldDec[ReferenceOr[Example]](jObj, "examples")(referenceOrJsonDecoder[Example](exampleJsonDecoder))
-          content <- mapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
+            chunkMapFieldDec[ReferenceOr[Example]](jObj, "examples")(
+              referenceOrJsonDecoder[Example](exampleJsonDecoder)
+            )
+          content <- chunkMapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
         } yield Header(
           description,
           required,
@@ -962,8 +1007,8 @@ object OpenAPICodec {
         "allowReserved"   -> optBoolField(p.allowReserved),
         "schema"          -> optField(p.schema)(referenceOrJsonEncoder[SchemaObject](schemaObjectJsonEncoder)),
         "example"         -> optField(p.example)(JsonEncoder.jsonEncoder),
-        "examples"        -> mapField(p.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
-        "content"         -> mapField(p.content)(mediaTypeJsonEncoder)
+        "examples"        -> chunkMapField(p.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
+        "content"         -> chunkMapField(p.content)(mediaTypeJsonEncoder)
       ),
       p.extensions
     )
@@ -987,8 +1032,10 @@ object OpenAPICodec {
                     )
           example  <- optFieldDec[Json](jObj, "example")(JsonDecoder.jsonDecoder)
           examples <-
-            mapFieldDec[ReferenceOr[Example]](jObj, "examples")(referenceOrJsonDecoder[Example](exampleJsonDecoder))
-          content <- mapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
+            chunkMapFieldDec[ReferenceOr[Example]](jObj, "examples")(
+              referenceOrJsonDecoder[Example](exampleJsonDecoder)
+            )
+          content <- chunkMapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
         } yield Parameter(
           name,
           in,
@@ -1016,7 +1063,7 @@ object OpenAPICodec {
   implicit lazy val requestBodyJsonEncoder: JsonEncoder[RequestBody] = JsonEncoder.instance[RequestBody] { rb =>
     withExtensions(
       obj(
-        "content"     -> field(rb.content)(JsonEncoder.mapEncoder(mediaTypeJsonEncoder)),
+        "content"     -> chunkMapField(rb.content)(mediaTypeJsonEncoder),
         "description" -> optField(rb.description)(docJsonEncoder),
         "required"    -> boolField(rb.required)
       ),
@@ -1028,7 +1075,7 @@ object OpenAPICodec {
     json match {
       case jObj: Json.Object =>
         for {
-          content     <- mapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
+          content     <- chunkMapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
           description <- optFieldDec[Doc](jObj, "description")(docJsonDecoder)
           required    <- boolFieldDec(jObj, "required")
         } yield RequestBody(content, description, required, extractExtensions(jObj))
@@ -1044,9 +1091,9 @@ object OpenAPICodec {
     withExtensions(
       obj(
         "description" -> field(r.description)(docJsonEncoder),
-        "headers"     -> mapField(r.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
-        "content"     -> mapField(r.content)(mediaTypeJsonEncoder),
-        "links"       -> mapField(r.links)(referenceOrJsonEncoder[Link](linkJsonEncoder))
+        "headers"     -> chunkMapField(r.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
+        "content"     -> chunkMapField(r.content)(mediaTypeJsonEncoder),
+        "links"       -> chunkMapField(r.links)(referenceOrJsonEncoder[Link](linkJsonEncoder))
       ),
       r.extensions
     )
@@ -1058,9 +1105,9 @@ object OpenAPICodec {
         for {
           description <- reqField[Doc](jObj, "description")(docJsonDecoder)
           headers     <-
-            mapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
-          content <- mapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
-          links   <- mapFieldDec[ReferenceOr[Link]](jObj, "links")(referenceOrJsonDecoder[Link](linkJsonDecoder))
+            chunkMapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
+          content <- chunkMapFieldDec[MediaType](jObj, "content")(mediaTypeJsonDecoder)
+          links   <- chunkMapFieldDec[ReferenceOr[Link]](jObj, "links")(referenceOrJsonDecoder[Link](linkJsonDecoder))
         } yield Response(description, headers, content, links, extractExtensions(jObj))
       case _ => Left(SchemaError("Expected Object for Response"))
     }
@@ -1098,7 +1145,7 @@ object OpenAPICodec {
                        case Some(json) => refOrRespDec.decode(json).map(Some(_))
                      }
           responses <- {
-            val builder                             = ListMap.newBuilder[String, ReferenceOr[Response]]
+            val builder                             = ChunkMap.newBuilder[String, ReferenceOr[Response]]
             var error: Either[SchemaError, Nothing] = null
             responseFields.foreach { case (k, v) =>
               if (error == null) {
@@ -1108,7 +1155,7 @@ object OpenAPICodec {
                 }
               }
             }
-            if (error != null) error.asInstanceOf[Either[SchemaError, ListMap[String, ReferenceOr[Response]]]]
+            if (error != null) error.asInstanceOf[Either[SchemaError, ChunkMap[String, ReferenceOr[Response]]]]
             else Right(builder.result())
           }
         } yield Responses(responses, default, ext)
@@ -1133,7 +1180,7 @@ object OpenAPICodec {
         val refOrPathDec                        = referenceOrJsonDecoder[PathItem](pathItemJsonDecoder)
         val ext                                 = extractExtensions(jObj)
         val callbackFields                      = jObj.value.filter { case (k, _) => !k.startsWith("x-") }
-        val builder                             = ListMap.newBuilder[String, ReferenceOr[PathItem]]
+        val builder                             = ChunkMap.newBuilder[String, ReferenceOr[PathItem]]
         var error: Either[SchemaError, Nothing] = null
         callbackFields.foreach { case (k, v) =>
           if (error == null) {
@@ -1157,17 +1204,17 @@ object OpenAPICodec {
     withExtensions(
       obj(
         "responses"    -> field(op.responses)(responsesJsonEncoder),
-        "tags"         -> listField(op.tags),
+        "tags"         -> chunkField(op.tags),
         "summary"      -> optField(op.summary)(docJsonEncoder),
         "description"  -> optField(op.description)(docJsonEncoder),
         "externalDocs" -> optField(op.externalDocs)(externalDocumentationJsonEncoder),
         "operationId"  -> optField(op.operationId),
-        "parameters"   -> listField(op.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder)),
+        "parameters"   -> chunkField(op.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder)),
         "requestBody"  -> optField(op.requestBody)(referenceOrJsonEncoder[RequestBody](requestBodyJsonEncoder)),
-        "callbacks"    -> mapField(op.callbacks)(referenceOrJsonEncoder[Callback](callbackJsonEncoder)),
+        "callbacks"    -> chunkMapField(op.callbacks)(referenceOrJsonEncoder[Callback](callbackJsonEncoder)),
         "deprecated"   -> boolField(op.deprecated),
-        "security"     -> listField(op.security)(securityRequirementJsonEncoder),
-        "servers"      -> listField(op.servers)(serverJsonEncoder)
+        "security"     -> chunkField(op.security)(securityRequirementJsonEncoder),
+        "servers"      -> chunkField(op.servers)(serverJsonEncoder)
       ),
       op.extensions
     )
@@ -1183,22 +1230,24 @@ object OpenAPICodec {
               case Some(rJson) => responsesJsonDecoder.decode(rJson)
             }
           }
-          tags        <- listFieldDec[String](jObj, "tags")
+          tags        <- chunkFieldDec[String](jObj, "tags")
           summary     <- optFieldDec[Doc](jObj, "summary")(docJsonDecoder)
           description <- optFieldDec[Doc](jObj, "description")(docJsonDecoder)
           extDocs     <- optFieldDec[ExternalDocumentation](jObj, "externalDocs")(externalDocumentationJsonDecoder)
           operationId <- optFieldDec[String](jObj, "operationId")
-          parameters  <- listFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
+          parameters  <- chunkFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
                           referenceOrJsonDecoder[Parameter](parameterJsonDecoder)
                         )
           requestBody <- optFieldDec[ReferenceOr[RequestBody]](jObj, "requestBody")(
                            referenceOrJsonDecoder[RequestBody](requestBodyJsonDecoder)
                          )
           callbacks <-
-            mapFieldDec[ReferenceOr[Callback]](jObj, "callbacks")(referenceOrJsonDecoder[Callback](callbackJsonDecoder))
+            chunkMapFieldDec[ReferenceOr[Callback]](jObj, "callbacks")(
+              referenceOrJsonDecoder[Callback](callbackJsonDecoder)
+            )
           deprecated <- boolFieldDec(jObj, "deprecated")
-          security   <- listFieldDec[SecurityRequirement](jObj, "security")(securityRequirementJsonDecoder)
-          servers    <- listFieldDec[Server](jObj, "servers")(serverJsonDecoder)
+          security   <- chunkFieldDec[SecurityRequirement](jObj, "security")(securityRequirementJsonDecoder)
+          servers    <- chunkFieldDec[Server](jObj, "servers")(serverJsonDecoder)
         } yield Operation(
           responses,
           tags,
@@ -1235,8 +1284,8 @@ object OpenAPICodec {
         "head"        -> optField(pi.head)(operationJsonEncoder),
         "patch"       -> optField(pi.patch)(operationJsonEncoder),
         "trace"       -> optField(pi.trace)(operationJsonEncoder),
-        "servers"     -> listField(pi.servers)(serverJsonEncoder),
-        "parameters"  -> listField(pi.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder))
+        "servers"     -> chunkField(pi.servers)(serverJsonEncoder),
+        "parameters"  -> chunkField(pi.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder))
       ),
       pi.extensions
     )
@@ -1256,8 +1305,8 @@ object OpenAPICodec {
           head        <- optFieldDec[Operation](jObj, "head")(operationJsonDecoder)
           patch       <- optFieldDec[Operation](jObj, "patch")(operationJsonDecoder)
           trace       <- optFieldDec[Operation](jObj, "trace")(operationJsonDecoder)
-          servers     <- listFieldDec[Server](jObj, "servers")(serverJsonDecoder)
-          parameters  <- listFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
+          servers     <- chunkFieldDec[Server](jObj, "servers")(serverJsonDecoder)
+          parameters  <- chunkFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
                           referenceOrJsonDecoder[Parameter](parameterJsonDecoder)
                         )
         } yield PathItem(
@@ -1293,7 +1342,7 @@ object OpenAPICodec {
       case jObj: Json.Object =>
         val ext                                 = extractExtensions(jObj)
         val pathFields                          = jObj.value.filter { case (k, _) => !k.startsWith("x-") }
-        val builder                             = ListMap.newBuilder[String, PathItem]
+        val builder                             = ChunkMap.newBuilder[String, PathItem]
         var error: Either[SchemaError, Nothing] = null
         pathFields.foreach { case (k, v) =>
           if (error == null) {
@@ -1316,18 +1365,18 @@ object OpenAPICodec {
   implicit lazy val componentsJsonEncoder: JsonEncoder[Components] = JsonEncoder.instance[Components] { c =>
     withExtensions(
       obj(
-        "schemas"         -> listMapField(c.schemas)(referenceOrJsonEncoder[SchemaObject](schemaObjectJsonEncoder)),
-        "responses"       -> listMapField(c.responses)(referenceOrJsonEncoder[Response](responseJsonEncoder)),
-        "parameters"      -> listMapField(c.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder)),
-        "examples"        -> listMapField(c.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
-        "requestBodies"   -> listMapField(c.requestBodies)(referenceOrJsonEncoder[RequestBody](requestBodyJsonEncoder)),
-        "headers"         -> listMapField(c.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
-        "securitySchemes" -> listMapField(c.securitySchemes)(
+        "schemas"         -> chunkMapField(c.schemas)(referenceOrJsonEncoder[SchemaObject](schemaObjectJsonEncoder)),
+        "responses"       -> chunkMapField(c.responses)(referenceOrJsonEncoder[Response](responseJsonEncoder)),
+        "parameters"      -> chunkMapField(c.parameters)(referenceOrJsonEncoder[Parameter](parameterJsonEncoder)),
+        "examples"        -> chunkMapField(c.examples)(referenceOrJsonEncoder[Example](exampleJsonEncoder)),
+        "requestBodies"   -> chunkMapField(c.requestBodies)(referenceOrJsonEncoder[RequestBody](requestBodyJsonEncoder)),
+        "headers"         -> chunkMapField(c.headers)(referenceOrJsonEncoder[Header](headerJsonEncoder)),
+        "securitySchemes" -> chunkMapField(c.securitySchemes)(
           referenceOrJsonEncoder[SecurityScheme](securitySchemeJsonEncoder)
         ),
-        "links"     -> listMapField(c.links)(referenceOrJsonEncoder[Link](linkJsonEncoder)),
-        "callbacks" -> listMapField(c.callbacks)(referenceOrJsonEncoder[Callback](callbackJsonEncoder)),
-        "pathItems" -> listMapField(c.pathItems)(referenceOrJsonEncoder[PathItem](pathItemJsonEncoder))
+        "links"     -> chunkMapField(c.links)(referenceOrJsonEncoder[Link](linkJsonEncoder)),
+        "callbacks" -> chunkMapField(c.callbacks)(referenceOrJsonEncoder[Callback](callbackJsonEncoder)),
+        "pathItems" -> chunkMapField(c.pathItems)(referenceOrJsonEncoder[PathItem](pathItemJsonEncoder))
       ),
       c.extensions
     )
@@ -1337,35 +1386,35 @@ object OpenAPICodec {
     json match {
       case jObj: Json.Object =>
         for {
-          schemas <- listMapFieldDec[ReferenceOr[SchemaObject]](jObj, "schemas")(
+          schemas <- chunkMapFieldDec[ReferenceOr[SchemaObject]](jObj, "schemas")(
                        referenceOrJsonDecoder[SchemaObject](schemaObjectJsonDecoder)
                      )
           responses <-
-            listMapFieldDec[ReferenceOr[Response]](jObj, "responses")(
+            chunkMapFieldDec[ReferenceOr[Response]](jObj, "responses")(
               referenceOrJsonDecoder[Response](responseJsonDecoder)
             )
-          parameters <- listMapFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
+          parameters <- chunkMapFieldDec[ReferenceOr[Parameter]](jObj, "parameters")(
                           referenceOrJsonDecoder[Parameter](parameterJsonDecoder)
                         )
           examples <-
-            listMapFieldDec[ReferenceOr[Example]](jObj, "examples")(
+            chunkMapFieldDec[ReferenceOr[Example]](jObj, "examples")(
               referenceOrJsonDecoder[Example](exampleJsonDecoder)
             )
-          requestBodies <- listMapFieldDec[ReferenceOr[RequestBody]](jObj, "requestBodies")(
+          requestBodies <- chunkMapFieldDec[ReferenceOr[RequestBody]](jObj, "requestBodies")(
                              referenceOrJsonDecoder[RequestBody](requestBodyJsonDecoder)
                            )
           headers <-
-            listMapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
-          securitySchemes <- listMapFieldDec[ReferenceOr[SecurityScheme]](jObj, "securitySchemes")(
+            chunkMapFieldDec[ReferenceOr[Header]](jObj, "headers")(referenceOrJsonDecoder[Header](headerJsonDecoder))
+          securitySchemes <- chunkMapFieldDec[ReferenceOr[SecurityScheme]](jObj, "securitySchemes")(
                                referenceOrJsonDecoder[SecurityScheme](securitySchemeJsonDecoder)
                              )
-          links     <- listMapFieldDec[ReferenceOr[Link]](jObj, "links")(referenceOrJsonDecoder[Link](linkJsonDecoder))
+          links     <- chunkMapFieldDec[ReferenceOr[Link]](jObj, "links")(referenceOrJsonDecoder[Link](linkJsonDecoder))
           callbacks <-
-            listMapFieldDec[ReferenceOr[Callback]](jObj, "callbacks")(
+            chunkMapFieldDec[ReferenceOr[Callback]](jObj, "callbacks")(
               referenceOrJsonDecoder[Callback](callbackJsonDecoder)
             )
           pathItems <-
-            listMapFieldDec[ReferenceOr[PathItem]](jObj, "pathItems")(
+            chunkMapFieldDec[ReferenceOr[PathItem]](jObj, "pathItems")(
               referenceOrJsonDecoder[PathItem](pathItemJsonDecoder)
             )
         } yield Components(
@@ -1395,12 +1444,12 @@ object OpenAPICodec {
         "openapi"           -> field(api.openapi),
         "info"              -> field(api.info)(infoJsonEncoder),
         "jsonSchemaDialect" -> optField(api.jsonSchemaDialect),
-        "servers"           -> listField(api.servers)(serverJsonEncoder),
+        "servers"           -> chunkField(api.servers)(serverJsonEncoder),
         "paths"             -> optField(api.paths)(pathsJsonEncoder),
-        "webhooks"          -> listMapField(api.webhooks)(referenceOrJsonEncoder[PathItem](pathItemJsonEncoder)),
+        "webhooks"          -> chunkMapField(api.webhooks)(referenceOrJsonEncoder[PathItem](pathItemJsonEncoder)),
         "components"        -> optField(api.components)(componentsJsonEncoder),
-        "security"          -> listField(api.security)(securityRequirementJsonEncoder),
-        "tags"              -> listField(api.tags)(tagJsonEncoder),
+        "security"          -> chunkField(api.security)(securityRequirementJsonEncoder),
+        "tags"              -> chunkField(api.tags)(tagJsonEncoder),
         "externalDocs"      -> optField(api.externalDocs)(externalDocumentationJsonEncoder)
       ),
       api.extensions
@@ -1414,14 +1463,14 @@ object OpenAPICodec {
           openapi           <- reqField[String](jObj, "openapi")
           info              <- reqField[Info](jObj, "info")(infoJsonDecoder)
           jsonSchemaDialect <- optFieldDec[String](jObj, "jsonSchemaDialect")
-          servers           <- listFieldDec[Server](jObj, "servers")(serverJsonDecoder)
+          servers           <- chunkFieldDec[Server](jObj, "servers")(serverJsonDecoder)
           paths             <- optFieldDec[Paths](jObj, "paths")(pathsJsonDecoder)
-          webhooks          <- listMapFieldDec[ReferenceOr[PathItem]](jObj, "webhooks")(
+          webhooks          <- chunkMapFieldDec[ReferenceOr[PathItem]](jObj, "webhooks")(
                         referenceOrJsonDecoder[PathItem](pathItemJsonDecoder)
                       )
           components   <- optFieldDec[Components](jObj, "components")(componentsJsonDecoder)
-          security     <- listFieldDec[SecurityRequirement](jObj, "security")(securityRequirementJsonDecoder)
-          tags         <- listFieldDec[Tag](jObj, "tags")(tagJsonDecoder)
+          security     <- chunkFieldDec[SecurityRequirement](jObj, "security")(securityRequirementJsonDecoder)
+          tags         <- chunkFieldDec[Tag](jObj, "tags")(tagJsonDecoder)
           externalDocs <- optFieldDec[ExternalDocumentation](jObj, "externalDocs")(externalDocumentationJsonDecoder)
         } yield OpenAPI(
           openapi,

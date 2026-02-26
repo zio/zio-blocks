@@ -1,7 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 import zio.test._
@@ -28,7 +27,7 @@ object OpenAPISpec extends SchemaBaseSpec {
     },
     test("preserves extensions on construction") {
       val info       = Info(title = "Test API", version = "1.0.0")
-      val extensions = Map("x-custom" -> Json.String("value"), "x-number" -> Json.Number(42))
+      val extensions = ChunkMap("x-custom" -> Json.String("value"), "x-number" -> Json.Number(42))
       val api        = OpenAPI(openapi = "3.1.0", info = info, extensions = extensions)
 
       assertTrue(
@@ -50,7 +49,7 @@ object OpenAPISpec extends SchemaBaseSpec {
         openapi = "3.1.0",
         info = info,
         jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
-        extensions = Map("x-custom" -> Json.String("test"))
+        extensions = ChunkMap("x-custom" -> Json.String("test"))
       )
 
       val dv     = Schema[OpenAPI].toDynamicValue(api)
@@ -67,22 +66,22 @@ object OpenAPISpec extends SchemaBaseSpec {
     test("OpenAPI with all optional fields populated") {
       val info         = Info(title = "Test API", version = "1.0.0")
       val server       = Server(url = "https://api.example.com")
-      val paths        = Paths(ListMap.empty)
+      val paths        = Paths(ChunkMap.empty)
       val components   = Components()
-      val security     = List(SecurityRequirement(Map.empty))
+      val security     = Chunk(SecurityRequirement(ChunkMap.empty))
       val tag          = Tag(name = "test")
       val externalDocs = ExternalDocumentation(url = "https://docs.example.com")
       val api          = OpenAPI(
         openapi = "3.1.0",
         info = info,
         jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
-        servers = List(server),
+        servers = Chunk(server),
         paths = Some(paths),
         components = Some(components),
         security = security,
-        tags = List(tag),
+        tags = Chunk(tag),
         externalDocs = Some(externalDocs),
-        extensions = Map("x-custom" -> Json.String("value"))
+        extensions = ChunkMap("x-custom" -> Json.String("value"))
       )
 
       assertTrue(
@@ -99,22 +98,22 @@ object OpenAPISpec extends SchemaBaseSpec {
     test("OpenAPI fully-populated round-trips through DynamicValue") {
       val info         = Info(title = "Full API", version = "2.0.0")
       val server       = Server(url = "https://api.example.com")
-      val paths        = Paths(ListMap.empty)
+      val paths        = Paths(ChunkMap.empty)
       val components   = Components()
-      val security     = List(SecurityRequirement(Map("bearer" -> List("read", "write"))))
+      val security     = Chunk(SecurityRequirement(ChunkMap("bearer" -> Chunk("read", "write"))))
       val tag          = Tag(name = "users")
       val externalDocs = ExternalDocumentation(url = "https://docs.example.com")
       val api          = OpenAPI(
         openapi = "3.1.0",
         info = info,
         jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
-        servers = List(server),
+        servers = Chunk(server),
         paths = Some(paths),
         components = Some(components),
         security = security,
-        tags = List(tag),
+        tags = Chunk(tag),
         externalDocs = Some(externalDocs),
-        extensions = Map("x-custom" -> Json.String("value"))
+        extensions = ChunkMap("x-custom" -> Json.String("value"))
       )
 
       val dv     = Schema[OpenAPI].toDynamicValue(api)

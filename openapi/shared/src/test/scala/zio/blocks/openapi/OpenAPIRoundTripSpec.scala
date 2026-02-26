@@ -1,8 +1,6 @@
 package zio.blocks.openapi
 
-import scala.collection.immutable.ListMap
-
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -42,17 +40,17 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               name = Some("Support Team"),
               url = Some("https://example.com/support"),
               email = Some("support@example.com"),
-              extensions = Map("x-contact-id" -> Json.String("12345"))
+              extensions = ChunkMap("x-contact-id" -> Json.String("12345"))
             )
           ),
           license = Some(
             License(
               name = "MIT",
-              identifier = Some("MIT"),
-              extensions = Map("x-license-year" -> Json.Number(2024))
+              identifierOrUrl = Some(Left("MIT")),
+              extensions = ChunkMap("x-license-year" -> Json.Number(2024))
             )
           ),
-          extensions = Map("x-api-version" -> Json.String("v1"))
+          extensions = ChunkMap("x-api-version" -> Json.String("v1"))
         )
 
         val dv     = Schema[Info].toDynamicValue(original)
@@ -65,7 +63,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           name = Some("John Doe"),
           url = Some("https://example.com"),
           email = Some("john@example.com"),
-          extensions = Map("x-custom" -> Json.Boolean(true))
+          extensions = ChunkMap("x-custom" -> Json.Boolean(true))
         )
 
         val dv     = Schema[Contact].toDynamicValue(original)
@@ -84,8 +82,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("License round-trips with identifier") {
         val original = License(
           name = "Apache 2.0",
-          identifier = Some("Apache-2.0"),
-          extensions = Map("x-year" -> Json.Number(2024))
+          identifierOrUrl = Some(Left("Apache-2.0")),
+          extensions = ChunkMap("x-year" -> Json.Number(2024))
         )
 
         val dv     = Schema[License].toDynamicValue(original)
@@ -96,8 +94,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("License round-trips with url") {
         val original = License(
           name = "Custom License",
-          url = Some("https://example.com/license"),
-          extensions = Map("x-custom" -> Json.String("value"))
+          identifierOrUrl = Some(Right("https://example.com/license")),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
 
         val dv     = Schema[License].toDynamicValue(original)
@@ -119,19 +117,19 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Server(
           url = "https://api.example.com/v1",
           description = Some(doc("Production server")),
-          variables = Map(
+          variables = ChunkMap(
             "environment" -> ServerVariable(
               default = "prod",
-              `enum` = List("prod", "staging", "dev"),
+              `enum` = Chunk("prod", "staging", "dev"),
               description = Some(doc("Environment name")),
-              extensions = Map("x-var-id" -> Json.String("env-1"))
+              extensions = ChunkMap("x-var-id" -> Json.String("env-1"))
             ),
             "region" -> ServerVariable(
               default = "us-east",
               description = Some(doc("AWS region"))
             )
           ),
-          extensions = Map("x-server-id" -> Json.Number(42))
+          extensions = ChunkMap("x-server-id" -> Json.Number(42))
         )
 
         val dv     = Schema[Server].toDynamicValue(original)
@@ -150,9 +148,9 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("ServerVariable round-trips with enum") {
         val original = ServerVariable(
           default = "v1",
-          `enum` = List("v1", "v2", "v3"),
+          `enum` = Chunk("v1", "v2", "v3"),
           description = Some(doc("API version")),
-          extensions = Map("x-deprecated" -> Json.Boolean(false))
+          extensions = ChunkMap("x-deprecated" -> Json.Boolean(false))
         )
 
         val dv     = Schema[ServerVariable].toDynamicValue(original)
@@ -178,10 +176,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             ExternalDocumentation(
               url = "https://docs.example.com/users",
               description = Some(doc("User documentation")),
-              extensions = Map("x-doc-version" -> Json.String("1.0"))
+              extensions = ChunkMap("x-doc-version" -> Json.String("1.0"))
             )
           ),
-          extensions = Map("x-tag-color" -> Json.String("blue"))
+          extensions = ChunkMap("x-tag-color" -> Json.String("blue"))
         )
 
         val dv     = Schema[Tag].toDynamicValue(original)
@@ -201,7 +199,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = ExternalDocumentation(
           url = "https://docs.example.com",
           description = Some(doc("Full documentation")),
-          extensions = Map("x-language" -> Json.String("en"))
+          extensions = ChunkMap("x-language" -> Json.String("en"))
         )
 
         val dv     = Schema[ExternalDocumentation].toDynamicValue(original)
@@ -254,7 +252,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           discriminator = Some(
             Discriminator(
               propertyName = "type",
-              mapping = Map("user" -> "#/components/schemas/User")
+              mapping = ChunkMap("user" -> "#/components/schemas/User")
             )
           ),
           xml = Some(
@@ -272,7 +270,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             )
           ),
           example = Some(Json.Object("name" -> Json.String("John"))),
-          extensions = Map("x-schema-id" -> Json.String("user-v1"))
+          extensions = ChunkMap("x-schema-id" -> Json.String("user-v1"))
         )
 
         val dv     = Schema[SchemaObject].toDynamicValue(original)
@@ -283,7 +281,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("OpenAPIDiscriminator round-trips") {
         val original = Discriminator(
           propertyName = "petType",
-          mapping = Map(
+          mapping = ChunkMap(
             "dog" -> "#/components/schemas/Dog",
             "cat" -> "#/components/schemas/Cat"
           )
@@ -313,25 +311,26 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Operation round-trips with all fields") {
         val original = Operation(
           responses = Responses(
-            responses = ListMap(
+            responses = ChunkMap(
               "200" -> ReferenceOr.Value(Response(description = doc("Success")))
             )
           ),
-          tags = List("users", "admin"),
+          tags = Chunk("users", "admin"),
           summary = Some(doc("Get user")),
           description = Some(doc("Retrieves a user by ID")),
           externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com/get-user")),
           operationId = Some("getUser"),
-          parameters = List(
+          parameters = Chunk(
             ReferenceOr.Value(Parameter(name = "id", in = ParameterLocation.Path, required = true))
           ),
-          requestBody =
-            Some(ReferenceOr.Value(RequestBody(content = Map("application/json" -> MediaType()), required = true))),
-          callbacks = Map("onData" -> ReferenceOr.Value(Callback())),
+          requestBody = Some(
+            ReferenceOr.Value(RequestBody(content = ChunkMap("application/json" -> MediaType()), required = true))
+          ),
+          callbacks = ChunkMap("onData" -> ReferenceOr.Value(Callback())),
           deprecated = true,
-          security = List(SecurityRequirement(Map("api_key" -> List("read")))),
-          servers = List(Server(url = "https://api.example.com")),
-          extensions = Map("x-operation-id" -> Json.Number(123))
+          security = Chunk(SecurityRequirement(ChunkMap("api_key" -> Chunk("read")))),
+          servers = Chunk(Server(url = "https://api.example.com")),
+          extensions = ChunkMap("x-operation-id" -> Json.Number(123))
         )
 
         val dv     = Schema[Operation].toDynamicValue(original)
@@ -352,9 +351,9 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           allowReserved = Some(false),
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
           example = Some(Json.Number(10)),
-          examples = Map("default" -> ReferenceOr.Value(Example(value = Some(Json.Number(10))))),
-          content = Map("application/json" -> MediaType()),
-          extensions = Map("x-param-id" -> Json.String("limit-1"))
+          examples = ChunkMap("default" -> ReferenceOr.Value(Example(value = Some(Json.Number(10))))),
+          content = ChunkMap("application/json" -> MediaType()),
+          extensions = ChunkMap("x-param-id" -> Json.String("limit-1"))
         )
 
         val dv     = Schema[Parameter].toDynamicValue(original)
@@ -386,9 +385,9 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           allowReserved = Some(false),
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("Bearer token")),
-          examples = Map("auth" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer xyz"))))),
-          content = Map.empty[String, MediaType],
-          extensions = Map("x-header-id" -> Json.String("auth-1"))
+          examples = ChunkMap("auth" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer xyz"))))),
+          content = ChunkMap.empty[String, MediaType],
+          extensions = ChunkMap("x-header-id" -> Json.String("auth-1"))
         )
 
         val dv     = Schema[Header].toDynamicValue(original)
@@ -400,17 +399,17 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Request and Response types round-trip")(
       test("RequestBody round-trips") {
         val original = RequestBody(
-          content = Map(
+          content = ChunkMap(
             "application/json" -> MediaType(
               schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))),
               example = Some(Json.Object("name" -> Json.String("test"))),
-              examples = Map.empty[String, ReferenceOr[Example]],
-              encoding = Map.empty[String, Encoding]
+              examples = ChunkMap.empty[String, ReferenceOr[Example]],
+              encoding = ChunkMap.empty[String, Encoding]
             )
           ),
           description = Some(doc("User object")),
           required = true,
-          extensions = Map("x-body-id" -> Json.String("user-body"))
+          extensions = ChunkMap("x-body-id" -> Json.String("user-body"))
         )
 
         val dv     = Schema[RequestBody].toDynamicValue(original)
@@ -422,7 +421,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = MediaType(
           schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
           example = Some(Json.String("example value")),
-          examples = Map(
+          examples = ChunkMap(
             "example1" -> ReferenceOr.Value(
               Example(
                 summary = Some(doc("First example")),
@@ -430,17 +429,17 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               )
             )
           ),
-          encoding = Map(
+          encoding = ChunkMap(
             "field1" -> Encoding(
               contentType = Some("application/json"),
-              headers = Map.empty[String, ReferenceOr[Header]],
+              headers = ChunkMap.empty[String, ReferenceOr[Header]],
               style = Some("form"),
               explode = Some(true),
               allowReserved = false,
-              extensions = Map("x-encoding" -> Json.Boolean(true))
+              extensions = ChunkMap("x-encoding" -> Json.Boolean(true))
             )
           ),
-          extensions = Map("x-media-type" -> Json.String("custom"))
+          extensions = ChunkMap("x-media-type" -> Json.String("custom"))
         )
 
         val dv     = Schema[MediaType].toDynamicValue(original)
@@ -451,7 +450,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Encoding round-trips") {
         val original = Encoding(
           contentType = Some("application/json"),
-          headers = Map(
+          headers = ChunkMap(
             "X-Custom" -> ReferenceOr.Value(
               Header(
                 description = Some(doc("Custom header"))
@@ -461,7 +460,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           style = Some("form"),
           explode = Some(false),
           allowReserved = true,
-          extensions = Map("x-enc-id" -> Json.Number(1))
+          extensions = ChunkMap("x-enc-id" -> Json.Number(1))
         )
 
         val dv     = Schema[Encoding].toDynamicValue(original)
@@ -471,19 +470,19 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Responses round-trips") {
         val original = Responses(
-          responses = ListMap(
+          responses = ChunkMap(
             "200" -> ReferenceOr.Value(
               Response(
                 description = doc("Success"),
-                headers = Map.empty[String, ReferenceOr[Header]],
-                content = Map.empty[String, MediaType],
-                links = Map.empty[String, ReferenceOr[Link]]
+                headers = ChunkMap.empty[String, ReferenceOr[Header]],
+                content = ChunkMap.empty[String, MediaType],
+                links = ChunkMap.empty[String, ReferenceOr[Link]]
               )
             ),
             "404" -> ReferenceOr.Ref(Reference(`$ref` = "#/components/responses/NotFound"))
           ),
           default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
-          extensions = Map("x-responses" -> Json.String("custom"))
+          extensions = ChunkMap("x-responses" -> Json.String("custom"))
         )
 
         val dv     = Schema[Responses].toDynamicValue(original)
@@ -494,7 +493,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("Response round-trips") {
         val original = Response(
           description = doc("Successful operation"),
-          headers = Map(
+          headers = ChunkMap(
             "X-Rate-Limit" -> ReferenceOr.Value(
               Header(
                 schema =
@@ -502,20 +501,20 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               )
             )
           ),
-          content = Map(
+          content = ChunkMap(
             "application/json" -> MediaType(
               schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object")))))
             )
           ),
-          links = Map(
+          links = ChunkMap(
             "next" -> ReferenceOr.Value(
               Link(
-                operationId = Some("getNextPage"),
+                operationRefOrId = Some(Right("getNextPage")),
                 description = Some(doc("Next page link"))
               )
             )
           ),
-          extensions = Map("x-response-id" -> Json.String("resp-1"))
+          extensions = ChunkMap("x-response-id" -> Json.String("resp-1"))
         )
 
         val dv     = Schema[Response].toDynamicValue(original)
@@ -530,7 +529,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           summary = Some(doc("User example")),
           description = Some(doc("Example of a user object")),
           value = Some(Json.Object("name" -> Json.String("John"), "age" -> Json.Number(30))),
-          extensions = Map("x-example-id" -> Json.String("ex-1"))
+          extensions = ChunkMap("x-example-id" -> Json.String("ex-1"))
         )
 
         val dv     = Schema[Example].toDynamicValue(original)
@@ -542,7 +541,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Example(
           summary = Some(doc("External example")),
           externalValue = Some("https://example.com/examples/user.json"),
-          extensions = Map("x-external" -> Json.Boolean(true))
+          extensions = ChunkMap("x-external" -> Json.Boolean(true))
         )
 
         val dv     = Schema[Example].toDynamicValue(original)
@@ -552,12 +551,12 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Link round-trips with operationRef") {
         val original = Link(
-          operationRef = Some("#/paths/~1users~1{id}/get"),
-          parameters = Map("id" -> Json.String("$response.body#/id")),
+          operationRefOrId = Some(Left("#/paths/~1users~1{id}/get")),
+          parameters = ChunkMap("id" -> Json.String("$response.body#/id")),
           requestBody = Some(Json.Object("data" -> Json.String("value"))),
           description = Some(doc("Link to get user")),
           server = Some(Server(url = "https://api.example.com")),
-          extensions = Map("x-link-id" -> Json.String("link-1"))
+          extensions = ChunkMap("x-link-id" -> Json.String("link-1"))
         )
 
         val dv     = Schema[Link].toDynamicValue(original)
@@ -567,10 +566,10 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Link round-trips with operationId") {
         val original = Link(
-          operationId = Some("getUserById"),
-          parameters = Map("id" -> Json.Number(123)),
+          operationRefOrId = Some(Right("getUserById")),
+          parameters = ChunkMap("id" -> Json.Number(123)),
           description = Some(doc("Link by operation ID")),
-          extensions = Map("x-link-type" -> Json.String("operation-id"))
+          extensions = ChunkMap("x-link-type" -> Json.String("operation-id"))
         )
 
         val dv     = Schema[Link].toDynamicValue(original)
@@ -582,7 +581,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Callback round-trip")(
       test("Callback round-trips") {
         val original = Callback(
-          callbacks = ListMap(
+          callbacks = ChunkMap(
             "{$request.body#/callbackUrl}" -> ReferenceOr.Value(
               PathItem(
                 summary = Some(doc("Callback path")),
@@ -590,7 +589,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               )
             )
           ),
-          extensions = Map("x-callback-id" -> Json.String("cb-1"))
+          extensions = ChunkMap("x-callback-id" -> Json.String("cb-1"))
         )
 
         val dv     = Schema[Callback].toDynamicValue(original)
@@ -605,7 +604,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           name = "api_key",
           in = APIKeyLocation.Header,
           description = Some(doc("API key authentication")),
-          extensions = Map("x-api-key-format" -> Json.String("uuid"))
+          extensions = ChunkMap("x-api-key-format" -> Json.String("uuid"))
         )
 
         val dv     = Schema[SecurityScheme].toDynamicValue(original)
@@ -618,7 +617,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           scheme = "bearer",
           bearerFormat = Some("JWT"),
           description = Some(doc("Bearer token authentication")),
-          extensions = Map("x-token-type" -> Json.String("jwt"))
+          extensions = ChunkMap("x-token-type" -> Json.String("jwt"))
         )
 
         val dv     = Schema[SecurityScheme].toDynamicValue(original)
@@ -632,19 +631,19 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
             `implicit` = Some(
               OAuthFlow(
                 authorizationUrl = Some("https://example.com/oauth/authorize"),
-                scopes = Map("read" -> "Read access", "write" -> "Write access")
+                scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
               )
             ),
             password = Some(
               OAuthFlow(
                 tokenUrl = Some("https://example.com/oauth/token"),
-                scopes = Map("admin" -> "Admin access")
+                scopes = ChunkMap("admin" -> "Admin access")
               )
             ),
             clientCredentials = Some(
               OAuthFlow(
                 tokenUrl = Some("https://example.com/oauth/token"),
-                scopes = Map.empty
+                scopes = ChunkMap.empty
               )
             ),
             authorizationCode = Some(
@@ -652,13 +651,13 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
                 authorizationUrl = Some("https://example.com/oauth/authorize"),
                 tokenUrl = Some("https://example.com/oauth/token"),
                 refreshUrl = Some("https://example.com/oauth/refresh"),
-                scopes = Map("read" -> "Read", "write" -> "Write")
+                scopes = ChunkMap("read" -> "Read", "write" -> "Write")
               )
             ),
-            extensions = Map("x-flows" -> Json.String("all"))
+            extensions = ChunkMap("x-flows" -> Json.String("all"))
           ),
           description = Some(doc("OAuth2 security")),
-          extensions = Map("x-oauth-provider" -> Json.String("custom"))
+          extensions = ChunkMap("x-oauth-provider" -> Json.String("custom"))
         )
 
         val dv     = Schema[SecurityScheme].toDynamicValue(original)
@@ -670,7 +669,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original: SecurityScheme = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
           description = Some(doc("OpenID Connect authentication")),
-          extensions = Map("x-oidc-provider" -> Json.String("custom"))
+          extensions = ChunkMap("x-oidc-provider" -> Json.String("custom"))
         )
 
         val dv     = Schema[SecurityScheme].toDynamicValue(original)
@@ -681,7 +680,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("SecurityScheme.MutualTLS round-trips") {
         val original: SecurityScheme = SecurityScheme.MutualTLS(
           description = Some(doc("Mutual TLS authentication")),
-          extensions = Map("x-cert-required" -> Json.Boolean(true))
+          extensions = ChunkMap("x-cert-required" -> Json.Boolean(true))
         )
 
         val dv     = Schema[SecurityScheme].toDynamicValue(original)
@@ -694,29 +693,29 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           `implicit` = Some(
             OAuthFlow(
               authorizationUrl = Some("https://example.com/auth"),
-              scopes = Map("read" -> "Read")
+              scopes = ChunkMap("read" -> "Read")
             )
           ),
           password = Some(
             OAuthFlow(
               tokenUrl = Some("https://example.com/token"),
-              scopes = Map("write" -> "Write")
+              scopes = ChunkMap("write" -> "Write")
             )
           ),
           clientCredentials = Some(
             OAuthFlow(
               tokenUrl = Some("https://example.com/token"),
-              scopes = Map.empty
+              scopes = ChunkMap.empty
             )
           ),
           authorizationCode = Some(
             OAuthFlow(
               authorizationUrl = Some("https://example.com/auth"),
               tokenUrl = Some("https://example.com/token"),
-              scopes = Map("admin" -> "Admin")
+              scopes = ChunkMap("admin" -> "Admin")
             )
           ),
-          extensions = Map("x-oauth" -> Json.Boolean(true))
+          extensions = ChunkMap("x-oauth" -> Json.Boolean(true))
         )
 
         val dv     = Schema[OAuthFlows].toDynamicValue(original)
@@ -729,8 +728,8 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           authorizationUrl = Some("https://example.com/authorize"),
           tokenUrl = Some("https://example.com/token"),
           refreshUrl = Some("https://example.com/refresh"),
-          scopes = Map("read" -> "Read access", "write" -> "Write access"),
-          extensions = Map("x-flow-id" -> Json.String("flow-1"))
+          scopes = ChunkMap("read" -> "Read access", "write" -> "Write access"),
+          extensions = ChunkMap("x-flow-id" -> Json.String("flow-1"))
         )
 
         val dv     = Schema[OAuthFlow].toDynamicValue(original)
@@ -740,9 +739,9 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("SecurityRequirement round-trips") {
         val original = SecurityRequirement(
-          requirements = Map(
-            "oauth2"  -> List("read", "write"),
-            "api_key" -> List.empty
+          requirements = ChunkMap(
+            "oauth2"  -> Chunk("read", "write"),
+            "api_key" -> Chunk.empty
           )
         )
 
@@ -755,27 +754,27 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
     suite("Container types round-trip")(
       test("Components round-trips") {
         val original = Components(
-          schemas = ListMap(
+          schemas = ChunkMap(
             "User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
           ),
-          responses = ListMap("NotFound" -> ReferenceOr.Value(Response(description = doc("Not found")))),
-          parameters = ListMap("limit" -> ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))),
-          examples = ListMap(
+          responses = ChunkMap("NotFound" -> ReferenceOr.Value(Response(description = doc("Not found")))),
+          parameters = ChunkMap("limit" -> ReferenceOr.Value(Parameter(name = "limit", in = ParameterLocation.Query))),
+          examples = ChunkMap(
             "user" -> ReferenceOr.Value(Example(value = Some(Json.Object("name" -> Json.String("John")))))
           ),
-          requestBodies = ListMap(
+          requestBodies = ChunkMap(
             "UserBody" -> ReferenceOr.Value(
-              RequestBody(content = Map("application/json" -> MediaType()), required = true)
+              RequestBody(content = ChunkMap("application/json" -> MediaType()), required = true)
             )
           ),
-          headers = ListMap("X-Custom" -> ReferenceOr.Value(Header())),
-          securitySchemes = ListMap(
+          headers = ChunkMap("X-Custom" -> ReferenceOr.Value(Header())),
+          securitySchemes = ChunkMap(
             "api_key" -> ReferenceOr.Value(SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header))
           ),
-          links = ListMap("next" -> ReferenceOr.Value(Link(operationId = Some("getNext")))),
-          callbacks = ListMap("onEvent" -> ReferenceOr.Value(Callback())),
-          pathItems = ListMap("/users" -> ReferenceOr.Value(PathItem(summary = Some(doc("Users"))))),
-          extensions = Map("x-components" -> Json.String("custom"))
+          links = ChunkMap("next" -> ReferenceOr.Value(Link(operationRefOrId = Some(Right("getNext"))))),
+          callbacks = ChunkMap("onEvent" -> ReferenceOr.Value(Callback())),
+          pathItems = ChunkMap("/users" -> ReferenceOr.Value(PathItem(summary = Some(doc("Users"))))),
+          extensions = ChunkMap("x-components" -> Json.String("custom"))
         )
 
         val dv     = Schema[Components].toDynamicValue(original)
@@ -785,14 +784,14 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("Paths round-trips") {
         val original = Paths(
-          paths = ListMap(
+          paths = ChunkMap(
             "/users" -> PathItem(
               summary = Some(doc("Users endpoint")),
               description = Some(doc("Operations on users"))
             ),
             "/posts" -> PathItem(summary = Some(doc("Posts")))
           ),
-          extensions = Map("x-paths-version" -> Json.String("v1"))
+          extensions = ChunkMap("x-paths-version" -> Json.String("v1"))
         )
 
         val dv     = Schema[Paths].toDynamicValue(original)
@@ -804,7 +803,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = PathItem(
           summary = Some(doc("API endpoint")),
           description = Some(doc("Description of endpoint")),
-          extensions = Map("x-path-id" -> Json.Number(123))
+          extensions = ChunkMap("x-path-id" -> Json.Number(123))
         )
 
         val dv     = Schema[PathItem].toDynamicValue(original)
@@ -841,22 +840,22 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
                 email = Some("support@example.com")
               )
             ),
-            license = Some(License(name = "Apache 2.0", identifier = Some("Apache-2.0")))
+            license = Some(License(name = "Apache 2.0", identifierOrUrl = Some(Left("Apache-2.0"))))
           ),
           jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
-          servers = List(
+          servers = Chunk(
             Server(
               url = "https://api.example.com/v1",
               description = Some(doc("Production")),
-              variables = Map(
-                "env" -> ServerVariable(default = "prod", `enum` = List("prod", "staging"))
+              variables = ChunkMap(
+                "env" -> ServerVariable(default = "prod", `enum` = Chunk("prod", "staging"))
               )
             ),
             Server(url = "https://staging.example.com/v1", description = Some(doc("Staging")))
           ),
           paths = Some(
             Paths(
-              paths = ListMap(
+              paths = ChunkMap(
                 "/users" -> PathItem(summary = Some(doc("Users")), description = Some(doc("User operations"))),
                 "/posts" -> PathItem(summary = Some(doc("Posts")))
               )
@@ -864,17 +863,17 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           ),
           components = Some(
             Components(
-              schemas = ListMap(
+              schemas = ChunkMap(
                 "User" -> ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("object"))))
               ),
-              securitySchemes = ListMap("bearerAuth" -> ReferenceOr.Value(SecurityScheme.HTTP(scheme = "bearer")))
+              securitySchemes = ChunkMap("bearerAuth" -> ReferenceOr.Value(SecurityScheme.HTTP(scheme = "bearer")))
             )
           ),
-          security = List(
-            SecurityRequirement(Map("bearerAuth" -> List.empty)),
-            SecurityRequirement(Map("api_key" -> List("read")))
+          security = Chunk(
+            SecurityRequirement(ChunkMap("bearerAuth" -> Chunk.empty)),
+            SecurityRequirement(ChunkMap("api_key" -> Chunk("read")))
           ),
-          tags = List(
+          tags = Chunk(
             Tag(
               name = "users",
               description = Some(doc("User operations")),
@@ -888,7 +887,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
               description = Some(doc("Complete documentation"))
             )
           ),
-          extensions = Map(
+          extensions = ChunkMap(
             "x-api-id"   -> Json.String("api-123"),
             "x-version"  -> Json.Number(2),
             "x-internal" -> Json.Boolean(false)
@@ -906,45 +905,45 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Info(
           title = "API",
           version = "1.0",
-          extensions = Map("x-custom" -> Json.String("value"))
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
         val dv     = Schema[Info].toDynamicValue(original)
         val result = Schema[Info].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Contact") {
-        val original = Contact(extensions = Map("x-id" -> Json.Number(1)))
+        val original = Contact(extensions = ChunkMap("x-id" -> Json.Number(1)))
         val dv       = Schema[Contact].toDynamicValue(original)
         val result   = Schema[Contact].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on License") {
-        val original = License(name = "MIT", extensions = Map("x-year" -> Json.Number(2024)))
+        val original = License(name = "MIT", extensions = ChunkMap("x-year" -> Json.Number(2024)))
         val dv       = Schema[License].toDynamicValue(original)
         val result   = Schema[License].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Server") {
-        val original = Server(url = "https://api.example.com", extensions = Map("x-region" -> Json.String("us")))
+        val original = Server(url = "https://api.example.com", extensions = ChunkMap("x-region" -> Json.String("us")))
         val dv       = Schema[Server].toDynamicValue(original)
         val result   = Schema[Server].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on ServerVariable") {
-        val original = ServerVariable(default = "v1", extensions = Map("x-deprecated" -> Json.Boolean(false)))
+        val original = ServerVariable(default = "v1", extensions = ChunkMap("x-deprecated" -> Json.Boolean(false)))
         val dv       = Schema[ServerVariable].toDynamicValue(original)
         val result   = Schema[ServerVariable].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Tag") {
-        val original = Tag(name = "users", extensions = Map("x-order" -> Json.Number(1)))
+        val original = Tag(name = "users", extensions = ChunkMap("x-order" -> Json.Number(1)))
         val dv       = Schema[Tag].toDynamicValue(original)
         val result   = Schema[Tag].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on ExternalDocumentation") {
         val original =
-          ExternalDocumentation(url = "https://docs.example.com", extensions = Map("x-lang" -> Json.String("en")))
+          ExternalDocumentation(url = "https://docs.example.com", extensions = ChunkMap("x-lang" -> Json.String("en")))
         val dv     = Schema[ExternalDocumentation].toDynamicValue(original)
         val result = Schema[ExternalDocumentation].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
@@ -952,7 +951,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("extensions preserved on SchemaObject") {
         val original = SchemaObject(
           jsonSchema = Json.Object(),
-          extensions = Map("x-schema-version" -> Json.String("1.0"))
+          extensions = ChunkMap("x-schema-version" -> Json.String("1.0"))
         )
         val dv     = Schema[SchemaObject].toDynamicValue(original)
         val result = Schema[SchemaObject].fromDynamicValue(dv)
@@ -960,7 +959,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       },
       test("extensions preserved on Operation") {
         val original = Operation(
-          extensions = Map("x-rate-limit" -> Json.Number(100))
+          extensions = ChunkMap("x-rate-limit" -> Json.Number(100))
         )
         val dv     = Schema[Operation].toDynamicValue(original)
         val result = Schema[Operation].fromDynamicValue(dv)
@@ -970,41 +969,41 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = Parameter(
           name = "id",
           in = ParameterLocation.Query,
-          extensions = Map("x-internal" -> Json.Boolean(true))
+          extensions = ChunkMap("x-internal" -> Json.Boolean(true))
         )
         val dv     = Schema[Parameter].toDynamicValue(original)
         val result = Schema[Parameter].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Header") {
-        val original = Header(extensions = Map("x-custom-header" -> Json.String("value")))
+        val original = Header(extensions = ChunkMap("x-custom-header" -> Json.String("value")))
         val dv       = Schema[Header].toDynamicValue(original)
         val result   = Schema[Header].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on RequestBody") {
         val original = RequestBody(
-          content = Map.empty[String, MediaType],
-          extensions = Map("x-body-id" -> Json.String("req-1"))
+          content = ChunkMap.empty[String, MediaType],
+          extensions = ChunkMap("x-body-id" -> Json.String("req-1"))
         )
         val dv     = Schema[RequestBody].toDynamicValue(original)
         val result = Schema[RequestBody].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on MediaType") {
-        val original = MediaType(extensions = Map("x-media" -> Json.String("custom")))
+        val original = MediaType(extensions = ChunkMap("x-media" -> Json.String("custom")))
         val dv       = Schema[MediaType].toDynamicValue(original)
         val result   = Schema[MediaType].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Encoding") {
-        val original = Encoding(extensions = Map("x-encoding-id" -> Json.Number(1)))
+        val original = Encoding(extensions = ChunkMap("x-encoding-id" -> Json.Number(1)))
         val dv       = Schema[Encoding].toDynamicValue(original)
         val result   = Schema[Encoding].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Responses") {
-        val original = Responses(extensions = Map("x-responses" -> Json.String("custom")))
+        val original = Responses(extensions = ChunkMap("x-responses" -> Json.String("custom")))
         val dv       = Schema[Responses].toDynamicValue(original)
         val result   = Schema[Responses].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
@@ -1012,35 +1011,35 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("extensions preserved on Response") {
         val original = Response(
           description = doc("OK"),
-          extensions = Map("x-response-id" -> Json.String("resp-1"))
+          extensions = ChunkMap("x-response-id" -> Json.String("resp-1"))
         )
         val dv     = Schema[Response].toDynamicValue(original)
         val result = Schema[Response].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Example") {
-        val original = Example(extensions = Map("x-example-source" -> Json.String("manual")))
+        val original = Example(extensions = ChunkMap("x-example-source" -> Json.String("manual")))
         val dv       = Schema[Example].toDynamicValue(original)
         val result   = Schema[Example].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Link") {
         val original = Link(
-          operationId = Some("getUser"),
-          extensions = Map("x-link-type" -> Json.String("internal"))
+          operationRefOrId = Some(Right("getUser")),
+          extensions = ChunkMap("x-link-type" -> Json.String("internal"))
         )
         val dv     = Schema[Link].toDynamicValue(original)
         val result = Schema[Link].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Callback") {
-        val original = Callback(extensions = Map("x-callback-id" -> Json.String("cb-1")))
+        val original = Callback(extensions = ChunkMap("x-callback-id" -> Json.String("cb-1")))
         val dv       = Schema[Callback].toDynamicValue(original)
         val result   = Schema[Callback].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on all SecurityScheme variants") {
-        val exts = Map("x-custom" -> Json.String("value"))
+        val exts = ChunkMap("x-custom" -> Json.String("value"))
 
         val apiKey: SecurityScheme = SecurityScheme.APIKey(name = "key", in = APIKeyLocation.Header, extensions = exts)
         val http: SecurityScheme   = SecurityScheme.HTTP(scheme = "bearer", extensions = exts)
@@ -1049,7 +1048,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           SecurityScheme.OpenIdConnect(openIdConnectUrl = "https://example.com", extensions = exts)
         val mtls: SecurityScheme = SecurityScheme.MutualTLS(extensions = exts)
 
-        val results = List(apiKey, http, oauth2, oidc, mtls).map { scheme =>
+        val results = Chunk(apiKey, http, oauth2, oidc, mtls).map { scheme =>
           val dv = Schema[SecurityScheme].toDynamicValue(scheme)
           Schema[SecurityScheme].fromDynamicValue(dv)
         }
@@ -1057,34 +1056,34 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         assertTrue(results.forall(_.isRight))
       },
       test("extensions preserved on OAuthFlows") {
-        val original = OAuthFlows(extensions = Map("x-oauth-provider" -> Json.String("custom")))
+        val original = OAuthFlows(extensions = ChunkMap("x-oauth-provider" -> Json.String("custom")))
         val dv       = Schema[OAuthFlows].toDynamicValue(original)
         val result   = Schema[OAuthFlows].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on OAuthFlow") {
         val original = OAuthFlow(
-          scopes = Map.empty[String, String],
-          extensions = Map("x-flow-id" -> Json.String("flow-1"))
+          scopes = ChunkMap.empty[String, String],
+          extensions = ChunkMap("x-flow-id" -> Json.String("flow-1"))
         )
         val dv     = Schema[OAuthFlow].toDynamicValue(original)
         val result = Schema[OAuthFlow].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Components") {
-        val original = Components(extensions = Map("x-components-version" -> Json.String("1.0")))
+        val original = Components(extensions = ChunkMap("x-components-version" -> Json.String("1.0")))
         val dv       = Schema[Components].toDynamicValue(original)
         val result   = Schema[Components].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on Paths") {
-        val original = Paths(extensions = Map("x-paths-id" -> Json.String("paths-1")))
+        val original = Paths(extensions = ChunkMap("x-paths-id" -> Json.String("paths-1")))
         val dv       = Schema[Paths].toDynamicValue(original)
         val result   = Schema[Paths].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
       },
       test("extensions preserved on PathItem") {
-        val original = PathItem(extensions = Map("x-path-version" -> Json.Number(1)))
+        val original = PathItem(extensions = ChunkMap("x-path-version" -> Json.Number(1)))
         val dv       = Schema[PathItem].toDynamicValue(original)
         val result   = Schema[PathItem].fromDynamicValue(dv)
         assertTrue(result.exists(_.extensions == original.extensions))
@@ -1093,7 +1092,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
         val original = OpenAPI(
           openapi = "3.1.0",
           info = Info(title = "API", version = "1.0"),
-          extensions = Map("x-api-id" -> Json.String("api-123"))
+          extensions = ChunkMap("x-api-id" -> Json.String("api-123"))
         )
         val dv     = Schema[OpenAPI].toDynamicValue(original)
         val result = Schema[OpenAPI].fromDynamicValue(dv)
