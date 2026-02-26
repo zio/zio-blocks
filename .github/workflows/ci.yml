@@ -56,7 +56,7 @@ jobs:
       - name: Setup Action
         uses: coursier/setup-action@v2
         with:
-          jvm: temurin:11
+          jvm: temurin:17
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
@@ -69,7 +69,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [11, 25]
+        java: [17, 25]
         platform: ['JVM']
         scala: ['2.13.x', '3.3.x', '3.7.x']
     steps:
@@ -92,8 +92,8 @@ jobs:
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage and docs (JDK 11)
-        if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 11 }}
+      - name: Run Scala 3 tests with test coverage and docs (JDK 17)
+        if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 17 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
       - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
@@ -111,7 +111,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [11]
+        java: [17]
         platform: ['JS']
         # Note: 3.7.x excluded due to Scala.js compiler bug (URISyntaxException in genSJSIR)
         scala: ['2.13.x', '3.3.x']
@@ -151,7 +151,7 @@ jobs:
       - name: Setup Action
         uses: coursier/setup-action@v2
         with:
-          jvm: temurin:11
+          jvm: temurin:17
           apps: sbt
       - name: Release
         run: sbt ci-release
