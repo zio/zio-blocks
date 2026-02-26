@@ -1,5 +1,5 @@
 ---
-id: schema-evolution
+id: index
 title: "Schema Evolution"
 ---
 
