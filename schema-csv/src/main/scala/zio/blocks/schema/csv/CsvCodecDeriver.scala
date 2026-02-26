@@ -67,20 +67,38 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
-      val recordBinding                         = binding.asInstanceOf[Binding.Record[A]]
-      val len                                   = fields.length
-      val fieldNames                            = new Array[String](len)
-      val fieldCodecs                           = new Array[CsvCodec[Any]](len)
-      val fieldOffsets                          = new Array[Long](len)
+      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      val len           = fields.length
+      val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+      var cachedInfo    =
+        if (isRecursive) recursiveRecordCache.get.get(typeId)
+        else null
+      val deriveCodecs = cachedInfo eq null
+      if (deriveCodecs) {
+        val names   = new Array[String](len)
+        val codecs  = new Array[CsvCodec[Any]](len)
+        val offsets = new Array[Long](len)
+        cachedInfo = new CsvRecordInfo(names, codecs, offsets)
+        var idx = 0
+        while (idx < len) {
+          names(idx) = fields(idx).name
+          idx += 1
+        }
+        if (isRecursive) recursiveRecordCache.get.put(typeId, cachedInfo)
+      }
+      val fieldNames   = cachedInfo.fieldNames
+      val fieldCodecs  = cachedInfo.fieldCodecs
+      val fieldOffsets = cachedInfo.fieldOffsets
       var offset: RegisterOffset.RegisterOffset = 0L
       var idx                                   = 0
       while (idx < len) {
         val field = fields(idx)
-        fieldNames(idx) = field.name
-        val codec = D.instance(field.value.metadata).force.asInstanceOf[CsvCodec[Any]]
-        fieldCodecs(idx) = codec
-        fieldOffsets(idx) = offset
-        offset = RegisterOffset.add(codec.valueOffset, offset)
+        if (deriveCodecs) {
+          val codec = D.instance(field.value.metadata).force.asInstanceOf[CsvCodec[Any]]
+          fieldCodecs(idx) = codec
+          fieldOffsets(idx) = offset
+          offset = RegisterOffset.add(codec.valueOffset, offset)
+        }
         idx += 1
       }
       val headers = IndexedSeq.newBuilder[String]
@@ -107,12 +125,13 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
           val regs = Registers(usedRegisters)
           deconstructor.deconstruct(regs, 0, value)
           val fieldStrings = new Array[String](len)
+          val buf          = encodeBuffer.get
           var i            = 0
           while (i < len) {
             val fieldCodec  = fieldCodecs(i)
             val fieldOffset = fieldOffsets(i)
             val fieldValue  = readFieldFromRegisters(fieldCodec, regs, fieldOffset)
-            val buf         = CharBuffer.allocate(1024)
+            buf.clear()
             fieldCodec.encode(fieldValue, buf)
             buf.flip()
             fieldStrings(i) = buf.toString
@@ -229,9 +248,29 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
       }
     } else binding.asInstanceOf[BindingInstance[CsvCodec, ?, A]].instance
 
-  override def instanceOverrides: IndexedSeq[InstanceOverride] = Chunk.empty
+  override def instanceOverrides: IndexedSeq[InstanceOverride] = {
+    recursiveRecordCache.remove()
+    super.instanceOverrides
+  }
 
   override def modifierOverrides: IndexedSeq[ModifierOverride] = Chunk.empty
+
+  private final class CsvRecordInfo(
+    val fieldNames: Array[String],
+    val fieldCodecs: Array[CsvCodec[Any]],
+    val fieldOffsets: Array[Long]
+  )
+
+  private[this] val recursiveRecordCache =
+    new ThreadLocal[java.util.HashMap[TypeId[?], CsvRecordInfo]] {
+      override def initialValue: java.util.HashMap[TypeId[?], CsvRecordInfo] =
+        new java.util.HashMap
+    }
+
+  private[this] val encodeBuffer =
+    new ThreadLocal[CharBuffer] {
+      override def initialValue: CharBuffer = CharBuffer.allocate(1024)
+    }
 
   // ---------------------------------------------------------------------------
   // Primitive codecs
