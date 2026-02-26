@@ -141,28 +141,16 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Navigates to child elements with the given name. */
-  def get(name: String): XmlSelection = flatMap { xml =>
-    xml match {
-      case Xml.Element(_, _, children) =>
-        val matching = children.collect {
-          case e @ Xml.Element(n, _, _) if n.localName == name => e
-        }
-        XmlSelection.succeedMany(matching)
-      case _ => XmlSelection.empty
-    }
+  def get(name: String): XmlSelection = flatMap {
+    case e1: Xml.Element =>
+      XmlSelection.succeedMany(e1.children.collect { case e2: Xml.Element if e2.name.localName == name => e2 })
+    case _ => XmlSelection.empty
   }
 
   /** Navigates to the nth child (any type). */
-  def apply(index: Int): XmlSelection = flatMap { xml =>
-    xml match {
-      case Xml.Element(_, _, children) =>
-        if (index >= 0 && index < children.length) {
-          XmlSelection.succeed(children(index))
-        } else {
-          XmlSelection.empty
-        }
-      case _ => XmlSelection.empty
-    }
+  def apply(index: Int): XmlSelection = flatMap {
+    case e: Xml.Element if index >= 0 && index < e.children.length => XmlSelection.succeed(e.children(index))
+    case _                                                         => XmlSelection.empty
   }
 
   /**
@@ -172,16 +160,17 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    */
   def descendant(name: String): XmlSelection = flatMap { xml =>
     def findDescendants(node: Xml): Chunk[Xml] = node match {
-      case Xml.Element(n, _, children) =>
-        val self = if (n.localName == name) Chunk.single(node) else Chunk.empty
-        self ++ children.flatMap(findDescendants)
+      case e: Xml.Element =>
+        val self =
+          if (e.name.localName == name) Chunk.single(node)
+          else Chunk.empty
+        self ++ e.children.flatMap(findDescendants)
       case _ => Chunk.empty
     }
     // Only search in children, not the starting element itself
     xml match {
-      case Xml.Element(_, _, children) =>
-        XmlSelection.succeedMany(children.flatMap(findDescendants))
-      case _ => XmlSelection.empty
+      case e: Xml.Element => XmlSelection.succeedMany(e.children.flatMap(findDescendants))
+      case _              => XmlSelection.empty
     }
   }
 
@@ -189,10 +178,10 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
   def get(path: DynamicOptic): XmlSelection =
     path.nodes.foldLeft(this) { (sel, node) =>
       node match {
-        case DynamicOptic.Node.Field(name)   => sel.get(name)
-        case DynamicOptic.Node.AtIndex(idx)  => sel(idx)
-        case DynamicOptic.Node.AtMapKey(key) =>
-          key match {
+        case f: DynamicOptic.Node.Field      => sel.get(f.name)
+        case ai: DynamicOptic.Node.AtIndex   => sel(ai.index)
+        case amt: DynamicOptic.Node.AtMapKey =>
+          amt.key match {
             case DynamicValue.Primitive(PrimitiveValue.String(s)) => sel.getAttribute(s)
             case _                                                => sel
           }
@@ -201,16 +190,16 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
     }
 
   /** Gets an attribute value by name (internal helper). */
-  private def getAttribute(name: String): XmlSelection = flatMap { xml =>
-    xml match {
-      case Xml.Element(_, attrs, _) =>
-        attrs.collectFirst {
-          case (n, value) if n.localName == name => Xml.Text(value)
-        }
-          .map(XmlSelection.succeed)
-          .getOrElse(XmlSelection.empty)
-      case _ => XmlSelection.empty
-    }
+  private def getAttribute(name: String): XmlSelection = flatMap {
+    case e: Xml.Element =>
+      e.attributes.collectFirst {
+        case (n, value) if n.localName == name =>
+          XmlSelection.succeed(new Xml.Text(value))
+      } match {
+        case Some(v) => v
+        case _       => XmlSelection.empty
+      }
+    case _ => XmlSelection.empty
   }
 
   /**
@@ -219,32 +208,37 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    * concatenated text of all child text nodes.
    */
   def text: Either[XmlError, String] = one.flatMap {
-    case Xml.Text(value)             => Right(value)
-    case Xml.CData(value)            => Right(value)
-    case Xml.Element(_, _, children) =>
-      val texts = children.collect {
-        case Xml.Text(v)  => v
-        case Xml.CData(v) => v
+    case t: Xml.Text    => new Right(t.value)
+    case cd: Xml.CData  => new Right(cd.value)
+    case e: Xml.Element =>
+      val texts = e.children.collect {
+        case t: Xml.Text   => t.value
+        case cd: Xml.CData => cd.value
       }
-      if (texts.nonEmpty) Right(texts.mkString)
-      else Left(XmlError("No text content found"))
-    case other => Left(XmlError(s"Expected text content but got ${other.xmlType}"))
+      if (texts.nonEmpty) new Right(texts.mkString)
+      else new Left(XmlError("No text content found"))
+    case other => new Left(XmlError(s"Expected text content but got ${other.xmlType}"))
   }
 
   /**
    * Concatenates all text content from the selection. Never fails; returns
    * empty string if no text is found.
    */
-  def textContent: String = toChunk.flatMap {
-    case Xml.Text(v)                 => Chunk.single(v)
-    case Xml.CData(v)                => Chunk.single(v)
-    case Xml.Element(_, _, children) =>
-      children.collect {
-        case Xml.Text(v)  => v
-        case Xml.CData(v) => v
-      }
-    case _ => Chunk.empty
-  }.mkString
+  def textContent: String = {
+    val sb = new java.lang.StringBuilder
+    toChunk.foreach {
+      case t: Xml.Text    => sb.append(t.value)
+      case cd: Xml.CData  => sb.append(cd.value)
+      case e: Xml.Element =>
+        e.children.foreach {
+          case t: Xml.Text   => sb.append(t.value)
+          case cd: Xml.CData => sb.append(cd.value)
+          case _             =>
+        }
+      case _ =>
+    }
+    sb.toString
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Combinators
@@ -302,11 +296,7 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
         case Right(v2) => new Right(v1 ++ v2)
         case l         => l
       }
-    case l @ Left(_) =>
-      other.either match {
-        case Left(_) => l // Return first error, don't corrupt path with second error's message
-        case _       => l
-      }
+    case l => l // Return first error, don't corrupt path with second error's message
   })
 
   // ─────────────────────────────────────────────────────────────────────────

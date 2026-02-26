@@ -3,7 +3,6 @@ package zio.blocks.schema.xml
 import zio.blocks.schema.Schema
 
 trait XmlEncoder[A] { self =>
-
   def encode(value: A): Xml
 
   def contramap[B](f: B => A): XmlEncoder[B] = new XmlEncoder[B] {
@@ -12,7 +11,6 @@ trait XmlEncoder[A] { self =>
 }
 
 object XmlEncoder {
-
   def apply[A](implicit encoder: XmlEncoder[A]): XmlEncoder[A] = encoder
 
   def instance[A](f: A => Xml): XmlEncoder[A] = new XmlEncoder[A] {
