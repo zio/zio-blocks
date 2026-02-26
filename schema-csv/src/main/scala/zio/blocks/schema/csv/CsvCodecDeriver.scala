@@ -7,6 +7,9 @@ import zio.blocks.schema.derive._
 import zio.blocks.typeid.TypeId
 import zio.blocks.docs.Doc
 
+import java.nio.CharBuffer
+import java.util.{Currency, UUID}
+
 object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   override def derivePrimitive[A](
@@ -17,7 +20,42 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[CsvCodec[A]] = Lazy(???)
+  ): Lazy[CsvCodec[A]] = {
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      Lazy(primitiveType match {
+        case _: PrimitiveType.Unit.type      => unitCodec
+        case _: PrimitiveType.Boolean        => booleanCodec
+        case _: PrimitiveType.Byte           => byteCodec
+        case _: PrimitiveType.Short          => shortCodec
+        case _: PrimitiveType.Int            => intCodec
+        case _: PrimitiveType.Long           => longCodec
+        case _: PrimitiveType.Float          => floatCodec
+        case _: PrimitiveType.Double         => doubleCodec
+        case _: PrimitiveType.Char           => charCodec
+        case _: PrimitiveType.String         => stringCodec
+        case _: PrimitiveType.BigInt         => bigIntCodec
+        case _: PrimitiveType.BigDecimal     => bigDecimalCodec
+        case _: PrimitiveType.DayOfWeek      => dayOfWeekCodec
+        case _: PrimitiveType.Duration       => durationCodec
+        case _: PrimitiveType.Instant        => instantCodec
+        case _: PrimitiveType.LocalDate      => localDateCodec
+        case _: PrimitiveType.LocalDateTime  => localDateTimeCodec
+        case _: PrimitiveType.LocalTime      => localTimeCodec
+        case _: PrimitiveType.Month          => monthCodec
+        case _: PrimitiveType.MonthDay       => monthDayCodec
+        case _: PrimitiveType.OffsetDateTime => offsetDateTimeCodec
+        case _: PrimitiveType.OffsetTime     => offsetTimeCodec
+        case _: PrimitiveType.Period         => periodCodec
+        case _: PrimitiveType.Year           => yearCodec
+        case _: PrimitiveType.YearMonth      => yearMonthCodec
+        case _: PrimitiveType.ZoneId         => zoneIdCodec
+        case _: PrimitiveType.ZoneOffset     => zoneOffsetCodec
+        case _: PrimitiveType.ZonedDateTime  => zonedDateTimeCodec
+        case _: PrimitiveType.Currency       => currencyCodec
+        case _: PrimitiveType.UUID           => uuidCodec
+      })
+    } else binding.asInstanceOf[BindingInstance[CsvCodec, ?, A]].instance
+  }.asInstanceOf[Lazy[CsvCodec[A]]]
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -81,4 +119,345 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
   override def instanceOverrides: IndexedSeq[InstanceOverride] = Chunk.empty
 
   override def modifierOverrides: IndexedSeq[ModifierOverride] = Chunk.empty
+
+  // ---------------------------------------------------------------------------
+  // Primitive codecs
+  // ---------------------------------------------------------------------------
+
+  private def typeError(str: String, typeName: String, cause: Throwable): SchemaError =
+    SchemaError.expectationMismatch(Nil, s"Cannot parse '$str' as $typeName: ${cause.getMessage}")
+
+  private val singleHeader: IndexedSeq[String] = IndexedSeq("value")
+
+  private val unitCodec: CsvCodec[Unit] = new CsvCodec[Unit] {
+    val headerNames: IndexedSeq[String]                      = singleHeader
+    def nullValue: Unit                                      = ()
+    def encode(value: Unit, output: CharBuffer): Unit        = ()
+    def decode(input: CharBuffer): Either[SchemaError, Unit] = new Right(())
+  }
+
+  private val booleanCodec: CsvCodec[Boolean] = new CsvCodec[Boolean] {
+    val headerNames: IndexedSeq[String]                         = singleHeader
+    def nullValue: Boolean                                      = false
+    def encode(value: Boolean, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Boolean] = {
+      val str = readString(input)
+      str.toLowerCase match {
+        case "true"  => new Right(true)
+        case "false" => new Right(false)
+        case _       => new Left(SchemaError.expectationMismatch(Nil, s"Cannot parse '$str' as Boolean"))
+      }
+    }
+  }
+
+  private val byteCodec: CsvCodec[Byte] = new CsvCodec[Byte] {
+    val headerNames: IndexedSeq[String]                      = singleHeader
+    def nullValue: Byte                                      = 0
+    def encode(value: Byte, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Byte] = {
+      val str = readString(input)
+      try new Right(java.lang.Byte.parseByte(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Byte", e)) }
+    }
+  }
+
+  private val shortCodec: CsvCodec[Short] = new CsvCodec[Short] {
+    val headerNames: IndexedSeq[String]                       = singleHeader
+    def nullValue: Short                                      = 0
+    def encode(value: Short, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Short] = {
+      val str = readString(input)
+      try new Right(java.lang.Short.parseShort(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Short", e)) }
+    }
+  }
+
+  private val intCodec: CsvCodec[scala.Int] = new CsvCodec[scala.Int] {
+    val headerNames: IndexedSeq[String]                           = singleHeader
+    def nullValue: scala.Int                                      = 0
+    def encode(value: scala.Int, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, scala.Int] = {
+      val str = readString(input)
+      try new Right(java.lang.Integer.parseInt(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Int", e)) }
+    }
+  }
+
+  private val longCodec: CsvCodec[Long] = new CsvCodec[Long] {
+    val headerNames: IndexedSeq[String]                      = singleHeader
+    def nullValue: Long                                      = 0L
+    def encode(value: Long, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Long] = {
+      val str = readString(input)
+      try new Right(java.lang.Long.parseLong(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Long", e)) }
+    }
+  }
+
+  private val floatCodec: CsvCodec[Float] = new CsvCodec[Float] {
+    val headerNames: IndexedSeq[String]                       = singleHeader
+    def nullValue: Float                                      = 0.0f
+    def encode(value: Float, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Float] = {
+      val str = readString(input)
+      try new Right(java.lang.Float.parseFloat(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Float", e)) }
+    }
+  }
+
+  private val doubleCodec: CsvCodec[Double] = new CsvCodec[Double] {
+    val headerNames: IndexedSeq[String]                        = singleHeader
+    def nullValue: Double                                      = 0.0d
+    def encode(value: Double, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, Double] = {
+      val str = readString(input)
+      try new Right(java.lang.Double.parseDouble(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "Double", e)) }
+    }
+  }
+
+  private val charCodec: CsvCodec[Char] = new CsvCodec[Char] {
+    val headerNames: IndexedSeq[String]                      = singleHeader
+    def nullValue: Char                                      = '\u0000'
+    def encode(value: Char, output: CharBuffer): Unit        = output.put(value)
+    def decode(input: CharBuffer): Either[SchemaError, Char] = {
+      val str = readString(input)
+      if (str.length == 1) new Right(str.charAt(0))
+      else new Left(SchemaError.expectationMismatch(Nil, s"Cannot parse '$str' as Char: expected single character"))
+    }
+  }
+
+  private val stringCodec: CsvCodec[String] = new CsvCodec[String] {
+    val headerNames: IndexedSeq[String]                        = singleHeader
+    def nullValue: String                                      = ""
+    def encode(value: String, output: CharBuffer): Unit        = output.put(value)
+    def decode(input: CharBuffer): Either[SchemaError, String] = new Right(readString(input))
+  }
+
+  private val bigIntCodec: CsvCodec[BigInt] = new CsvCodec[BigInt] {
+    val headerNames: IndexedSeq[String]                        = singleHeader
+    def nullValue: BigInt                                      = BigInt(0)
+    def encode(value: BigInt, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, BigInt] = {
+      val str = readString(input)
+      try new Right(BigInt(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "BigInt", e)) }
+    }
+  }
+
+  private val bigDecimalCodec: CsvCodec[BigDecimal] = new CsvCodec[BigDecimal] {
+    val headerNames: IndexedSeq[String]                            = singleHeader
+    def nullValue: BigDecimal                                      = BigDecimal(0)
+    def encode(value: BigDecimal, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, BigDecimal] = {
+      val str = readString(input)
+      try new Right(BigDecimal(str))
+      catch { case e: NumberFormatException => new Left(typeError(str, "BigDecimal", e)) }
+    }
+  }
+
+  private val dayOfWeekCodec: CsvCodec[java.time.DayOfWeek] = new CsvCodec[java.time.DayOfWeek] {
+    val headerNames: IndexedSeq[String]                                     = singleHeader
+    def nullValue: java.time.DayOfWeek                                      = java.time.DayOfWeek.MONDAY
+    def encode(value: java.time.DayOfWeek, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.DayOfWeek] = {
+      val str = readString(input)
+      try new Right(java.time.DayOfWeek.valueOf(str.toUpperCase))
+      catch { case e: IllegalArgumentException => new Left(typeError(str, "DayOfWeek", e)) }
+    }
+  }
+
+  private val durationCodec: CsvCodec[java.time.Duration] = new CsvCodec[java.time.Duration] {
+    val headerNames: IndexedSeq[String]                                    = singleHeader
+    def nullValue: java.time.Duration                                      = java.time.Duration.ZERO
+    def encode(value: java.time.Duration, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.Duration] = {
+      val str = readString(input)
+      try new Right(java.time.Duration.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Duration", e)) }
+    }
+  }
+
+  private val instantCodec: CsvCodec[java.time.Instant] = new CsvCodec[java.time.Instant] {
+    val headerNames: IndexedSeq[String]                                   = singleHeader
+    def nullValue: java.time.Instant                                      = java.time.Instant.EPOCH
+    def encode(value: java.time.Instant, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.Instant] = {
+      val str = readString(input)
+      try new Right(java.time.Instant.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Instant", e)) }
+    }
+  }
+
+  private val localDateCodec: CsvCodec[java.time.LocalDate] = new CsvCodec[java.time.LocalDate] {
+    val headerNames: IndexedSeq[String]                                     = singleHeader
+    def nullValue: java.time.LocalDate                                      = java.time.LocalDate.MIN
+    def encode(value: java.time.LocalDate, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDate] = {
+      val str = readString(input)
+      try new Right(java.time.LocalDate.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalDate", e)) }
+    }
+  }
+
+  private val localDateTimeCodec: CsvCodec[java.time.LocalDateTime] = new CsvCodec[java.time.LocalDateTime] {
+    val headerNames: IndexedSeq[String]                                         = singleHeader
+    def nullValue: java.time.LocalDateTime                                      = java.time.LocalDateTime.MIN
+    def encode(value: java.time.LocalDateTime, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDateTime] = {
+      val str = readString(input)
+      try new Right(java.time.LocalDateTime.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalDateTime", e)) }
+    }
+  }
+
+  private val localTimeCodec: CsvCodec[java.time.LocalTime] = new CsvCodec[java.time.LocalTime] {
+    val headerNames: IndexedSeq[String]                                     = singleHeader
+    def nullValue: java.time.LocalTime                                      = java.time.LocalTime.MIDNIGHT
+    def encode(value: java.time.LocalTime, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.LocalTime] = {
+      val str = readString(input)
+      try new Right(java.time.LocalTime.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalTime", e)) }
+    }
+  }
+
+  private val monthCodec: CsvCodec[java.time.Month] = new CsvCodec[java.time.Month] {
+    val headerNames: IndexedSeq[String]                                 = singleHeader
+    def nullValue: java.time.Month                                      = java.time.Month.JANUARY
+    def encode(value: java.time.Month, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.Month] = {
+      val str = readString(input)
+      try new Right(java.time.Month.valueOf(str.toUpperCase))
+      catch { case e: IllegalArgumentException => new Left(typeError(str, "Month", e)) }
+    }
+  }
+
+  private val monthDayCodec: CsvCodec[java.time.MonthDay] = new CsvCodec[java.time.MonthDay] {
+    val headerNames: IndexedSeq[String]                                    = singleHeader
+    def nullValue: java.time.MonthDay                                      = java.time.MonthDay.of(1, 1)
+    def encode(value: java.time.MonthDay, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.MonthDay] = {
+      val str = readString(input)
+      try new Right(java.time.MonthDay.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "MonthDay", e)) }
+    }
+  }
+
+  private val offsetDateTimeCodec: CsvCodec[java.time.OffsetDateTime] = new CsvCodec[java.time.OffsetDateTime] {
+    val headerNames: IndexedSeq[String]                                          = singleHeader
+    def nullValue: java.time.OffsetDateTime                                      = java.time.OffsetDateTime.MIN
+    def encode(value: java.time.OffsetDateTime, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetDateTime] = {
+      val str = readString(input)
+      try new Right(java.time.OffsetDateTime.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "OffsetDateTime", e)) }
+    }
+  }
+
+  private val offsetTimeCodec: CsvCodec[java.time.OffsetTime] = new CsvCodec[java.time.OffsetTime] {
+    val headerNames: IndexedSeq[String]                                      = singleHeader
+    def nullValue: java.time.OffsetTime                                      = java.time.OffsetTime.MIN
+    def encode(value: java.time.OffsetTime, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetTime] = {
+      val str = readString(input)
+      try new Right(java.time.OffsetTime.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "OffsetTime", e)) }
+    }
+  }
+
+  private val periodCodec: CsvCodec[java.time.Period] = new CsvCodec[java.time.Period] {
+    val headerNames: IndexedSeq[String]                                  = singleHeader
+    def nullValue: java.time.Period                                      = java.time.Period.ZERO
+    def encode(value: java.time.Period, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.Period] = {
+      val str = readString(input)
+      try new Right(java.time.Period.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Period", e)) }
+    }
+  }
+
+  private val yearCodec: CsvCodec[java.time.Year] = new CsvCodec[java.time.Year] {
+    val headerNames: IndexedSeq[String]                                = singleHeader
+    def nullValue: java.time.Year                                      = java.time.Year.of(1970)
+    def encode(value: java.time.Year, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.Year] = {
+      val str = readString(input)
+      try new Right(java.time.Year.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Year", e)) }
+    }
+  }
+
+  private val yearMonthCodec: CsvCodec[java.time.YearMonth] = new CsvCodec[java.time.YearMonth] {
+    val headerNames: IndexedSeq[String]                                     = singleHeader
+    def nullValue: java.time.YearMonth                                      = java.time.YearMonth.of(1970, 1)
+    def encode(value: java.time.YearMonth, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.YearMonth] = {
+      val str = readString(input)
+      try new Right(java.time.YearMonth.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "YearMonth", e)) }
+    }
+  }
+
+  private val zoneIdCodec: CsvCodec[java.time.ZoneId] = new CsvCodec[java.time.ZoneId] {
+    val headerNames: IndexedSeq[String]                                  = singleHeader
+    def nullValue: java.time.ZoneId                                      = java.time.ZoneId.of("UTC")
+    def encode(value: java.time.ZoneId, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneId] = {
+      val str = readString(input)
+      try new Right(java.time.ZoneId.of(str))
+      catch { case e: java.time.zone.ZoneRulesException => new Left(typeError(str, "ZoneId", e)) }
+    }
+  }
+
+  private val zoneOffsetCodec: CsvCodec[java.time.ZoneOffset] = new CsvCodec[java.time.ZoneOffset] {
+    val headerNames: IndexedSeq[String]                                      = singleHeader
+    def nullValue: java.time.ZoneOffset                                      = java.time.ZoneOffset.UTC
+    def encode(value: java.time.ZoneOffset, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneOffset] = {
+      val str = readString(input)
+      try new Right(java.time.ZoneOffset.of(str))
+      catch { case e: java.time.DateTimeException => new Left(typeError(str, "ZoneOffset", e)) }
+    }
+  }
+
+  private val zonedDateTimeCodec: CsvCodec[java.time.ZonedDateTime] = new CsvCodec[java.time.ZonedDateTime] {
+    val headerNames: IndexedSeq[String]    = singleHeader
+    def nullValue: java.time.ZonedDateTime =
+      java.time.ZonedDateTime.of(java.time.LocalDateTime.MIN, java.time.ZoneOffset.UTC)
+    def encode(value: java.time.ZonedDateTime, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, java.time.ZonedDateTime] = {
+      val str = readString(input)
+      try new Right(java.time.ZonedDateTime.parse(str))
+      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "ZonedDateTime", e)) }
+    }
+  }
+
+  private val currencyCodec: CsvCodec[Currency] = new CsvCodec[Currency] {
+    val headerNames: IndexedSeq[String]                          = singleHeader
+    def nullValue: Currency                                      = Currency.getInstance("USD")
+    def encode(value: Currency, output: CharBuffer): Unit        = output.put(value.getCurrencyCode)
+    def decode(input: CharBuffer): Either[SchemaError, Currency] = {
+      val str = readString(input)
+      try new Right(Currency.getInstance(str))
+      catch { case e: IllegalArgumentException => new Left(typeError(str, "Currency", e)) }
+    }
+  }
+
+  private val uuidCodec: CsvCodec[UUID] = new CsvCodec[UUID] {
+    val headerNames: IndexedSeq[String]                      = singleHeader
+    def nullValue: UUID                                      = new UUID(0L, 0L)
+    def encode(value: UUID, output: CharBuffer): Unit        = output.put(value.toString)
+    def decode(input: CharBuffer): Either[SchemaError, UUID] = {
+      val str = readString(input)
+      try new Right(UUID.fromString(str))
+      catch { case e: IllegalArgumentException => new Left(typeError(str, "UUID", e)) }
+    }
+  }
+
+  private def readString(input: CharBuffer): String = {
+    val str = input.toString
+    input.position(input.limit())
+    str
+  }
 }
