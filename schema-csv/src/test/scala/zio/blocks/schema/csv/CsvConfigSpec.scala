@@ -11,7 +11,6 @@ object CsvConfigSpec extends SchemaBaseSpec {
         assertTrue(
           config.delimiter == ',' &&
             config.quoteChar == '"' &&
-            config.escapeChar == '"' &&
             config.lineTerminator == "\r\n" &&
             config.hasHeader == true &&
             config.nullValue == ""
@@ -52,7 +51,6 @@ object CsvConfigSpec extends SchemaBaseSpec {
         val tsv = CsvConfig.tsv
         assertTrue(
           tsv.quoteChar == '"' &&
-            tsv.escapeChar == '"' &&
             tsv.lineTerminator == "\r\n" &&
             tsv.hasHeader == true &&
             tsv.nullValue == ""

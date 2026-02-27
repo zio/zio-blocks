@@ -11,6 +11,17 @@ import java.nio.CharBuffer
 import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
+/**
+ * Deriver for CSV codecs that converts between Scala types and CSV row
+ * representations.
+ *
+ * Supports all 27 primitive types, flat record types (case classes), and
+ * wrapper/newtype types. Variant (sum types), sequence, map, and dynamic types
+ * are rejected with clear error messages.
+ *
+ * Uses ThreadLocal caches for performance: a reusable `CharBuffer` for field
+ * encoding and a recursive record cache for types with self-referential fields.
+ */
 object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   override def derivePrimitive[A](
@@ -133,9 +144,17 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
             val fieldOffset = fieldOffsets(i)
             val fieldValue  = readFieldFromRegisters(fieldCodec, regs, fieldOffset)
             buf.clear()
-            fieldCodec.encode(fieldValue, buf)
-            buf.flip()
-            fieldStrings(i) = buf.toString
+            val usedBuf = try {
+              fieldCodec.encode(fieldValue, buf)
+              buf
+            } catch {
+              case _: java.nio.BufferOverflowException =>
+                val largeBuf = CharBuffer.allocate(buf.capacity() * 8)
+                fieldCodec.encode(fieldValue, largeBuf)
+                largeBuf
+            }
+            usedBuf.flip()
+            fieldStrings(i) = usedBuf.toString
             i += 1
           }
           val row =
