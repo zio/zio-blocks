@@ -1,6 +1,5 @@
 package zio.blocks.codegen.emit
 
-import zio._
 import zio.test._
 
 object EmitterConfigSpec extends ZIOSpecDefault {

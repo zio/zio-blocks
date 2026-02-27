@@ -118,7 +118,11 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           assert(st.cases.length)(equalTo(1)) &&
           assert(st.cases(0))(
             isSubtype[SealedTraitCase.CaseClassCase](
-              hasField("cc", _.cc, hasField("name", _.name, equalTo("Circle")))
+              hasField(
+                "cc",
+                (c: SealedTraitCase.CaseClassCase) => c.cc,
+                hasField("name", (cc: CaseClass) => cc.name, equalTo("Circle"))
+              )
             )
           )
         },
@@ -288,7 +292,11 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           assert(obj.members.length)(equalTo(1)) &&
           assert(obj.members(0))(
             isSubtype[ObjectMember.DefMember](
-              hasField("method", _.method, hasField("name", _.name, equalTo("create")))
+              hasField(
+                "method",
+                (d: ObjectMember.DefMember) => d.method,
+                hasField("name", (m: Method) => m.name, equalTo("create"))
+              )
             )
           )
         },
@@ -316,7 +324,11 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           assert(obj.members.length)(equalTo(1)) &&
           assert(obj.members(0))(
             isSubtype[ObjectMember.NestedType](
-              hasField("typeDef", _.typeDef, hasField("name", _.name, equalTo("Inner")))
+              hasField(
+                "typeDef",
+                (n: ObjectMember.NestedType) => n.typeDef,
+                hasField("name", (td: TypeDefinition) => td.name, equalTo("Inner"))
+              )
             )
           )
         },
