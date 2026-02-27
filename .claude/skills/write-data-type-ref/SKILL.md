@@ -209,8 +209,8 @@ output.
 
 ### Writing Rules
 
-See the **`docs-writing-style`** skill for universal prose style, referencing conventions, heading
-layout rules, and code block rules.
+**REQUIRED SUB-SKILL:** Use `docs-writing-style` for universal prose style, referencing
+conventions, heading layout rules, and code block rules. Invoke it before writing any prose.
 
 Additional rules specific to reference pages:
 
