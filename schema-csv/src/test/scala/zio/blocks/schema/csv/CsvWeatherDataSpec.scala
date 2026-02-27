@@ -84,9 +84,9 @@ object CsvWeatherDataSpec extends SchemaBaseSpec {
       },
       test("encodes negative temperatures correctly") {
         val obs =
-          WeatherObservation("RSM00024266", java.time.LocalDate.of(2024, 12, 1), -18.5, -31.2, 3.1, 22.0, 91)
+          WeatherObservation("RSM00024266", java.time.LocalDate.of(2024, 12, 1), -18.5, -31.2, 3.1, 22.7, 91)
         val encoded = encodeToString(obs)
-        assertTrue(encoded == "RSM00024266,2024-12-01,-18.5,-31.2,3.1,22.0,91\r\n")
+        assertTrue(encoded == "RSM00024266,2024-12-01,-18.5,-31.2,3.1,22.7,91\r\n")
       }
     ),
     suite("weather data round-trips")(
