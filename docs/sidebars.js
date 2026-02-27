@@ -9,6 +9,7 @@ const sidebars = {
          "reference/schema",
          "reference/reflect",
          "reference/binding",
+         "reference/binding-resolver",
          "reference/registers",
          "reference/typeid",
          "reference/modifier",
