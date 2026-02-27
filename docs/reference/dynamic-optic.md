@@ -394,3 +394,8 @@ val opticSchema: Schema[DynamicOptic] = Schema[DynamicOptic]
 val path = p".users[0].name"
 val serialized: DynamicValue = opticSchema.toDynamicValue(path)
 ```
+
+
+## See Also
+
+- [DynamicSchema](./dynamic-schema.md) — use `DynamicSchema#get` with a `DynamicOptic` to navigate schema trees and inspect nested type structures.

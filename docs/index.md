@@ -547,6 +547,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
