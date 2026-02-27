@@ -23,6 +23,24 @@ object SmithyParser {
     "document"
   )
 
+  private val aggregateShapeKeywords: Set[String] = Set(
+    "structure",
+    "union",
+    "list",
+    "map"
+  )
+
+  private val enumShapeKeywords: Set[String] = Set(
+    "enum",
+    "intEnum"
+  )
+
+  private val serviceShapeKeywords: Set[String] = Set(
+    "service",
+    "operation",
+    "resource"
+  )
+
   private class SmithyParserState(input: String) {
     private var pos: Int    = 0
     private var line: Int   = 1
@@ -79,20 +97,28 @@ object SmithyParser {
           skipWsAndComments()
         }
 
-        // Parse shapes
-        var shapes = List.empty[ShapeDefinition]
+        // Parse shapes and apply statements
+        var shapes          = List.empty[ShapeDefinition]
+        var applyStatements = List.empty[ApplyStatement]
         while (!atEnd) {
           skipWsAndComments()
           if (!atEnd) {
-            parseShapeStatement() match {
-              case Right(sd) => shapes = shapes :+ sd
-              case Left(err) => return Left(err)
+            if (lookingAt("apply")) {
+              parseApplyStatement() match {
+                case Right(as) => applyStatements = applyStatements :+ as
+                case Left(err) => return Left(err)
+              }
+            } else {
+              parseShapeStatement() match {
+                case Right(sd) => shapes = shapes :+ sd
+                case Left(err) => return Left(err)
+              }
             }
             skipWsAndComments()
           }
         }
 
-        Right(SmithyModel(version, namespace, useStatements, metadata, shapes))
+        Right(SmithyModel(version, namespace, useStatements, metadata, shapes, applyStatements))
       } catch {
         case e: SmithyParseException =>
           Left(SmithyError.ParseError(e.getMessage, e.line, e.column, None))
@@ -168,18 +194,504 @@ object SmithyParser {
       val keyword = readIdentifier()
       if (keyword.isEmpty) return Left(error("Expected shape keyword"))
 
-      if (!simpleShapeKeywords.contains(keyword)) {
-        return Left(
-          error("Unexpected keyword: " + keyword + ". Only simple shapes are supported in this parser version.")
-        )
-      }
-
       skipWsInline()
       val shapeName = readIdentifier()
       if (shapeName.isEmpty) return Left(error("Expected shape name after '" + keyword + "'"))
 
-      val shape = createSimpleShape(keyword, shapeName, traits)
-      Right(ShapeDefinition(shapeName, shape))
+      if (simpleShapeKeywords.contains(keyword)) {
+        val shape = createSimpleShape(keyword, shapeName, traits)
+        Right(ShapeDefinition(shapeName, shape))
+      } else if (aggregateShapeKeywords.contains(keyword)) {
+        parseAggregateShape(keyword, shapeName, traits)
+      } else if (enumShapeKeywords.contains(keyword)) {
+        parseEnumShape(keyword, shapeName, traits)
+      } else if (serviceShapeKeywords.contains(keyword)) {
+        parseServiceShape(keyword, shapeName, traits)
+      } else {
+        Left(
+          error("Unexpected keyword: " + keyword)
+        )
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Apply statement parsing
+    // -----------------------------------------------------------------------
+
+    private def parseApplyStatement(): Either[SmithyError, ApplyStatement] = {
+      expectString("apply")
+      skipWsInline()
+      val target = readIdentifier()
+      if (target.isEmpty) return Left(error("Expected shape name after 'apply'"))
+      skipWsInline()
+      val traits = collectTraits() match {
+        case Right(ts) => ts
+        case Left(err) => return Left(err)
+      }
+      if (traits.isEmpty) return Left(error("Expected at least one trait after 'apply " + target + "'"))
+      Right(ApplyStatement(target, traits))
+    }
+
+    // -----------------------------------------------------------------------
+    // Aggregate shape parsing
+    // -----------------------------------------------------------------------
+
+    private def parseAggregateShape(
+      keyword: String,
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      skipWsAndComments()
+      expectChar('{')
+      skipWsAndComments()
+
+      keyword match {
+        case "structure" =>
+          parseMemberDefinitions() match {
+            case Right(members) =>
+              expectChar('}')
+              Right(ShapeDefinition(name, StructureShape(name, traits, members)))
+            case Left(err) => Left(err)
+          }
+        case "union" =>
+          parseMemberDefinitions() match {
+            case Right(members) =>
+              expectChar('}')
+              Right(ShapeDefinition(name, UnionShape(name, traits, members)))
+            case Left(err) => Left(err)
+          }
+        case "list" =>
+          parseMemberDefinitions() match {
+            case Right(members) =>
+              expectChar('}')
+              members.find(_.name == "member") match {
+                case Some(member) => Right(ShapeDefinition(name, ListShape(name, traits, member)))
+                case None         => Left(error("List shape '" + name + "' must have a 'member' definition"))
+              }
+            case Left(err) => Left(err)
+          }
+        case "map" =>
+          parseMemberDefinitions() match {
+            case Right(members) =>
+              expectChar('}')
+              (members.find(_.name == "key"), members.find(_.name == "value")) match {
+                case (Some(key), Some(value)) =>
+                  Right(ShapeDefinition(name, MapShape(name, traits, key, value)))
+                case (None, _) =>
+                  Left(error("Map shape '" + name + "' must have a 'key' definition"))
+                case (_, None) =>
+                  Left(error("Map shape '" + name + "' must have a 'value' definition"))
+              }
+            case Left(err) => Left(err)
+          }
+        case _ => Left(error("Unknown aggregate keyword: " + keyword))
+      }
+    }
+
+    private def parseMemberDefinitions(): Either[SmithyError, List[MemberDefinition]] = {
+      var members = List.empty[MemberDefinition]
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() == '}') {
+          // done
+        } else {
+          // Collect member traits
+          val memberTraits = collectTraits() match {
+            case Right(ts) => ts
+            case Left(err) => return Left(err)
+          }
+          skipWsAndComments()
+          if (!atEnd && peekChar() != '}') {
+            val memberName = readIdentifier()
+            if (memberName.isEmpty) return Left(error("Expected member name"))
+            skipWsInline()
+            expectChar(':')
+            skipWsInline()
+            val targetStr = readShapeTarget()
+            if (targetStr.isEmpty) return Left(error("Expected target shape for member '" + memberName + "'"))
+            val target = parseTargetShapeId(targetStr)
+            members = members :+ MemberDefinition(memberName, target, memberTraits)
+            skipWsInline()
+            // Skip optional comma
+            if (!atEnd && peekChar() == ',') advance()
+          }
+        }
+        skipWsAndComments()
+      }
+      Right(members)
+    }
+
+    private def readShapeTarget(): String = {
+      // Reads a shape target: either a simple name or namespace#name
+      val sb    = new StringBuilder
+      val first = readIdentifier()
+      if (first.isEmpty) return ""
+      sb.append(first)
+      // Check for dots (namespace) or hash (absolute)
+      while (!atEnd && (peekChar() == '.' || peekChar() == '#')) {
+        sb.append(advance())
+        val next = readIdentifier()
+        sb.append(next)
+      }
+      sb.toString
+    }
+
+    private def parseTargetShapeId(s: String): ShapeId = {
+      val hashIdx = s.indexOf('#')
+      if (hashIdx >= 0) {
+        ShapeId(s.substring(0, hashIdx), s.substring(hashIdx + 1))
+      } else {
+        // Relative name — store with empty namespace
+        ShapeId("", s)
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Enum shape parsing
+    // -----------------------------------------------------------------------
+
+    private def parseEnumShape(
+      keyword: String,
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      skipWsAndComments()
+      expectChar('{')
+      skipWsAndComments()
+
+      keyword match {
+        case "enum" =>
+          parseEnumMembers() match {
+            case Right(members) =>
+              expectChar('}')
+              Right(ShapeDefinition(name, EnumShape(name, traits, members)))
+            case Left(err) => Left(err)
+          }
+        case "intEnum" =>
+          parseIntEnumMembers() match {
+            case Right(members) =>
+              expectChar('}')
+              Right(ShapeDefinition(name, IntEnumShape(name, traits, members)))
+            case Left(err) => Left(err)
+          }
+        case _ => Left(error("Unknown enum keyword: " + keyword))
+      }
+    }
+
+    private def parseEnumMembers(): Either[SmithyError, List[EnumMember]] = {
+      var members = List.empty[EnumMember]
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() == '}') {
+          // done
+        } else {
+          val memberTraits = collectTraits() match {
+            case Right(ts) => ts
+            case Left(err) => return Left(err)
+          }
+          skipWsAndComments()
+          if (!atEnd && peekChar() != '}') {
+            val memberName = readIdentifier()
+            if (memberName.isEmpty) return Left(error("Expected enum member name"))
+            skipWsInline()
+            // Optional = "value"
+            val value = if (!atEnd && peekChar() == '=') {
+              advance()
+              skipWsInline()
+              readQuotedString() match {
+                case Right(v)  => Some(v)
+                case Left(err) => return Left(err)
+              }
+            } else {
+              None
+            }
+            members = members :+ EnumMember(memberName, value, memberTraits)
+            skipWsInline()
+            if (!atEnd && peekChar() == ',') advance()
+          }
+        }
+        skipWsAndComments()
+      }
+      Right(members)
+    }
+
+    private def parseIntEnumMembers(): Either[SmithyError, List[IntEnumMember]] = {
+      var members = List.empty[IntEnumMember]
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() == '}') {
+          // done
+        } else {
+          val memberTraits = collectTraits() match {
+            case Right(ts) => ts
+            case Left(err) => return Left(err)
+          }
+          skipWsAndComments()
+          if (!atEnd && peekChar() != '}') {
+            val memberName = readIdentifier()
+            if (memberName.isEmpty) return Left(error("Expected intEnum member name"))
+            skipWsInline()
+            expectChar('=')
+            skipWsInline()
+            readNumber() match {
+              case Right(v) =>
+                members = members :+ IntEnumMember(memberName, v.toInt, memberTraits)
+              case Left(err) => return Left(err)
+            }
+            skipWsInline()
+            if (!atEnd && peekChar() == ',') advance()
+          }
+        }
+        skipWsAndComments()
+      }
+      Right(members)
+    }
+
+    // -----------------------------------------------------------------------
+    // Service shape parsing
+    // -----------------------------------------------------------------------
+
+    private def parseServiceShape(
+      keyword: String,
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      skipWsAndComments()
+      expectChar('{')
+      skipWsAndComments()
+
+      keyword match {
+        case "service"   => parseServiceBody(name, traits)
+        case "operation" => parseOperationBody(name, traits)
+        case "resource"  => parseResourceBody(name, traits)
+        case _           => Left(error("Unknown service keyword: " + keyword))
+      }
+    }
+
+    private def parseServiceBody(
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      var version: Option[String]   = None
+      var operations: List[ShapeId] = Nil
+      var resources: List[ShapeId]  = Nil
+      var errors: List[ShapeId]     = Nil
+
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() != '}') {
+          val key = readIdentifier()
+          if (key.isEmpty) return Left(error("Expected service property name"))
+          skipWsInline()
+          expectChar(':')
+          skipWsInline()
+          key match {
+            case "version" =>
+              readQuotedString() match {
+                case Right(v)  => version = Some(v)
+                case Left(err) => return Left(err)
+              }
+            case "operations" =>
+              parseShapeIdList() match {
+                case Right(ids) => operations = ids
+                case Left(err)  => return Left(err)
+              }
+            case "resources" =>
+              parseShapeIdList() match {
+                case Right(ids) => resources = ids
+                case Left(err)  => return Left(err)
+              }
+            case "errors" =>
+              parseShapeIdList() match {
+                case Right(ids) => errors = ids
+                case Left(err)  => return Left(err)
+              }
+            case other => return Left(error("Unknown service property: " + other))
+          }
+          skipWsInline()
+          if (!atEnd && peekChar() == ',') advance()
+        }
+        skipWsAndComments()
+      }
+      expectChar('}')
+      Right(ShapeDefinition(name, ServiceShape(name, traits, version, operations, resources, errors)))
+    }
+
+    private def parseOperationBody(
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      var input: Option[ShapeId]  = None
+      var output: Option[ShapeId] = None
+      var errors: List[ShapeId]   = Nil
+
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() != '}') {
+          val key = readIdentifier()
+          if (key.isEmpty) return Left(error("Expected operation property name"))
+          skipWsInline()
+          expectChar(':')
+          skipWsInline()
+          key match {
+            case "input" =>
+              val target = readShapeTarget()
+              if (target.isEmpty) return Left(error("Expected target for 'input'"))
+              input = Some(parseTargetShapeId(target))
+            case "output" =>
+              val target = readShapeTarget()
+              if (target.isEmpty) return Left(error("Expected target for 'output'"))
+              output = Some(parseTargetShapeId(target))
+            case "errors" =>
+              parseShapeIdList() match {
+                case Right(ids) => errors = ids
+                case Left(err)  => return Left(err)
+              }
+            case other => return Left(error("Unknown operation property: " + other))
+          }
+          skipWsInline()
+          if (!atEnd && peekChar() == ',') advance()
+        }
+        skipWsAndComments()
+      }
+      expectChar('}')
+      Right(ShapeDefinition(name, OperationShape(name, traits, input, output, errors)))
+    }
+
+    private def parseResourceBody(
+      name: String,
+      traits: List[TraitApplication]
+    ): Either[SmithyError, ShapeDefinition] = {
+      var identifiers: Map[String, ShapeId]   = Map.empty
+      var create: Option[ShapeId]             = None
+      var read: Option[ShapeId]               = None
+      var update: Option[ShapeId]             = None
+      var delete: Option[ShapeId]             = None
+      var list: Option[ShapeId]               = None
+      var operations: List[ShapeId]           = Nil
+      var collectionOperations: List[ShapeId] = Nil
+      var resources: List[ShapeId]            = Nil
+
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() != '}') {
+          val key = readIdentifier()
+          if (key.isEmpty) return Left(error("Expected resource property name"))
+          skipWsInline()
+          expectChar(':')
+          skipWsInline()
+          key match {
+            case "identifiers" =>
+              parseIdentifiersMap() match {
+                case Right(ids) => identifiers = ids
+                case Left(err)  => return Left(err)
+              }
+            case "create" =>
+              val t = readShapeTarget()
+              if (t.isEmpty) return Left(error("Expected target for 'create'"))
+              create = Some(parseTargetShapeId(t))
+            case "read" =>
+              val t = readShapeTarget()
+              if (t.isEmpty) return Left(error("Expected target for 'read'"))
+              read = Some(parseTargetShapeId(t))
+            case "update" =>
+              val t = readShapeTarget()
+              if (t.isEmpty) return Left(error("Expected target for 'update'"))
+              update = Some(parseTargetShapeId(t))
+            case "delete" =>
+              val t = readShapeTarget()
+              if (t.isEmpty) return Left(error("Expected target for 'delete'"))
+              delete = Some(parseTargetShapeId(t))
+            case "list" =>
+              val t = readShapeTarget()
+              if (t.isEmpty) return Left(error("Expected target for 'list'"))
+              list = Some(parseTargetShapeId(t))
+            case "operations" =>
+              parseShapeIdList() match {
+                case Right(ids) => operations = ids
+                case Left(err)  => return Left(err)
+              }
+            case "collectionOperations" =>
+              parseShapeIdList() match {
+                case Right(ids) => collectionOperations = ids
+                case Left(err)  => return Left(err)
+              }
+            case "resources" =>
+              parseShapeIdList() match {
+                case Right(ids) => resources = ids
+                case Left(err)  => return Left(err)
+              }
+            case other => return Left(error("Unknown resource property: " + other))
+          }
+          skipWsInline()
+          if (!atEnd && peekChar() == ',') advance()
+        }
+        skipWsAndComments()
+      }
+      expectChar('}')
+      Right(
+        ShapeDefinition(
+          name,
+          ResourceShape(
+            name,
+            traits,
+            identifiers,
+            create,
+            read,
+            update,
+            delete,
+            list,
+            operations,
+            collectionOperations,
+            resources
+          )
+        )
+      )
+    }
+
+    private def parseShapeIdList(): Either[SmithyError, List[ShapeId]] = {
+      expectChar('[')
+      skipWsAndComments()
+      var ids = List.empty[ShapeId]
+      while (!atEnd && peekChar() != ']') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() != ']') {
+          val target = readShapeTarget()
+          if (target.isEmpty) return Left(error("Expected shape ID in list"))
+          ids = ids :+ parseTargetShapeId(target)
+          skipWsInline()
+          if (!atEnd && peekChar() == ',') advance()
+        }
+        skipWsAndComments()
+      }
+      if (atEnd) return Left(error("Unterminated shape ID list"))
+      expectChar(']')
+      Right(ids)
+    }
+
+    private def parseIdentifiersMap(): Either[SmithyError, Map[String, ShapeId]] = {
+      expectChar('{')
+      skipWsAndComments()
+      var ids = Map.empty[String, ShapeId]
+      while (!atEnd && peekChar() != '}') {
+        skipWsAndComments()
+        if (!atEnd && peekChar() != '}') {
+          val key = readIdentifier()
+          if (key.isEmpty) return Left(error("Expected identifier name"))
+          skipWsInline()
+          expectChar(':')
+          skipWsInline()
+          val target = readShapeTarget()
+          if (target.isEmpty) return Left(error("Expected target for identifier '" + key + "'"))
+          ids = ids + (key -> parseTargetShapeId(target))
+          skipWsInline()
+          if (!atEnd && peekChar() == ',') advance()
+        }
+        skipWsAndComments()
+      }
+      if (atEnd) return Left(error("Unterminated identifiers map"))
+      expectChar('}')
+      Right(ids)
     }
 
     private def collectTraits(): Either[SmithyError, List[TraitApplication]] = {

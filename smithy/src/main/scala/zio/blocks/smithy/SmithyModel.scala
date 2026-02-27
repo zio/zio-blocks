@@ -5,7 +5,8 @@ package zio.blocks.smithy
  *
  * A SmithyModel contains all the shapes, metadata, and configuration for a
  * Smithy API definition. It includes the model version, target namespace, use
- * statements, metadata key-value pairs, and a list of shape definitions.
+ * statements, metadata key-value pairs, a list of shape definitions, and apply
+ * statements that attach traits to shapes.
  *
  * @param version
  *   the Smithy specification version (e.g., "2.0")
@@ -17,13 +18,16 @@ package zio.blocks.smithy
  *   map of metadata key-value pairs for the model
  * @param shapes
  *   list of shape definitions in the model
+ * @param applyStatements
+ *   list of apply statements that attach traits to shapes
  */
 final case class SmithyModel(
   version: String,
   namespace: String,
   useStatements: List[ShapeId],
   metadata: Map[String, NodeValue],
-  shapes: List[ShapeDefinition]
+  shapes: List[ShapeDefinition],
+  applyStatements: List[ApplyStatement] = Nil
 ) {
 
   /**
@@ -65,3 +69,19 @@ final case class SmithyModel(
  *   the Shape definition for this named shape
  */
 final case class ShapeDefinition(name: String, shape: Shape)
+
+/**
+ * Represents an apply statement that attaches traits to an existing shape.
+ *
+ * In Smithy IDL, apply statements allow traits to be added to shapes defined
+ * elsewhere, e.g., `apply MyShape @tag("foo")`.
+ *
+ * @param target
+ *   the name of the shape to apply traits to
+ * @param traits
+ *   the traits to apply
+ */
+final case class ApplyStatement(
+  target: String,
+  traits: List[TraitApplication]
+)
