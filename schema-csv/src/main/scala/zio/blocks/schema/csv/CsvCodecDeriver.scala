@@ -9,6 +9,7 @@ import zio.blocks.docs.Doc
 
 import java.nio.CharBuffer
 import java.util.{Currency, UUID}
+import scala.util.control.NonFatal
 
 object CsvCodecDeriver extends Deriver[CsvCodec] {
 
@@ -309,7 +310,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Byte] = {
       val str = readString(input)
       try new Right(java.lang.Byte.parseByte(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Byte", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Byte", e)) }
     }
   }
 
@@ -320,7 +321,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Short] = {
       val str = readString(input)
       try new Right(java.lang.Short.parseShort(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Short", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Short", e)) }
     }
   }
 
@@ -331,7 +332,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, scala.Int] = {
       val str = readString(input)
       try new Right(java.lang.Integer.parseInt(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Int", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Int", e)) }
     }
   }
 
@@ -342,7 +343,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Long] = {
       val str = readString(input)
       try new Right(java.lang.Long.parseLong(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Long", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Long", e)) }
     }
   }
 
@@ -353,7 +354,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Float] = {
       val str = readString(input)
       try new Right(java.lang.Float.parseFloat(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Float", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Float", e)) }
     }
   }
 
@@ -364,7 +365,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Double] = {
       val str = readString(input)
       try new Right(java.lang.Double.parseDouble(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "Double", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Double", e)) }
     }
   }
 
@@ -393,7 +394,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, BigInt] = {
       val str = readString(input)
       try new Right(BigInt(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "BigInt", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "BigInt", e)) }
     }
   }
 
@@ -404,7 +405,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, BigDecimal] = {
       val str = readString(input)
       try new Right(BigDecimal(str))
-      catch { case e: NumberFormatException => new Left(typeError(str, "BigDecimal", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "BigDecimal", e)) }
     }
   }
 
@@ -415,7 +416,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.DayOfWeek] = {
       val str = readString(input)
       try new Right(java.time.DayOfWeek.valueOf(str.toUpperCase))
-      catch { case e: IllegalArgumentException => new Left(typeError(str, "DayOfWeek", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "DayOfWeek", e)) }
     }
   }
 
@@ -426,7 +427,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.Duration] = {
       val str = readString(input)
       try new Right(java.time.Duration.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Duration", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Duration", e)) }
     }
   }
 
@@ -437,7 +438,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.Instant] = {
       val str = readString(input)
       try new Right(java.time.Instant.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Instant", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Instant", e)) }
     }
   }
 
@@ -448,7 +449,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDate] = {
       val str = readString(input)
       try new Right(java.time.LocalDate.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalDate", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "LocalDate", e)) }
     }
   }
 
@@ -459,7 +460,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDateTime] = {
       val str = readString(input)
       try new Right(java.time.LocalDateTime.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalDateTime", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "LocalDateTime", e)) }
     }
   }
 
@@ -470,7 +471,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalTime] = {
       val str = readString(input)
       try new Right(java.time.LocalTime.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "LocalTime", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "LocalTime", e)) }
     }
   }
 
@@ -481,7 +482,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.Month] = {
       val str = readString(input)
       try new Right(java.time.Month.valueOf(str.toUpperCase))
-      catch { case e: IllegalArgumentException => new Left(typeError(str, "Month", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Month", e)) }
     }
   }
 
@@ -492,7 +493,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.MonthDay] = {
       val str = readString(input)
       try new Right(java.time.MonthDay.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "MonthDay", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "MonthDay", e)) }
     }
   }
 
@@ -503,7 +504,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetDateTime] = {
       val str = readString(input)
       try new Right(java.time.OffsetDateTime.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "OffsetDateTime", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "OffsetDateTime", e)) }
     }
   }
 
@@ -514,7 +515,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetTime] = {
       val str = readString(input)
       try new Right(java.time.OffsetTime.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "OffsetTime", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "OffsetTime", e)) }
     }
   }
 
@@ -525,7 +526,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.Period] = {
       val str = readString(input)
       try new Right(java.time.Period.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Period", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Period", e)) }
     }
   }
 
@@ -536,7 +537,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.Year] = {
       val str = readString(input)
       try new Right(java.time.Year.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "Year", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Year", e)) }
     }
   }
 
@@ -547,7 +548,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.YearMonth] = {
       val str = readString(input)
       try new Right(java.time.YearMonth.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "YearMonth", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "YearMonth", e)) }
     }
   }
 
@@ -558,7 +559,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneId] = {
       val str = readString(input)
       try new Right(java.time.ZoneId.of(str))
-      catch { case e: java.time.zone.ZoneRulesException => new Left(typeError(str, "ZoneId", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "ZoneId", e)) }
     }
   }
 
@@ -569,7 +570,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneOffset] = {
       val str = readString(input)
       try new Right(java.time.ZoneOffset.of(str))
-      catch { case e: java.time.DateTimeException => new Left(typeError(str, "ZoneOffset", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "ZoneOffset", e)) }
     }
   }
 
@@ -581,7 +582,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZonedDateTime] = {
       val str = readString(input)
       try new Right(java.time.ZonedDateTime.parse(str))
-      catch { case e: java.time.format.DateTimeParseException => new Left(typeError(str, "ZonedDateTime", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "ZonedDateTime", e)) }
     }
   }
 
@@ -592,7 +593,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, Currency] = {
       val str = readString(input)
       try new Right(Currency.getInstance(str))
-      catch { case e: IllegalArgumentException => new Left(typeError(str, "Currency", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "Currency", e)) }
     }
   }
 
@@ -603,7 +604,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     def decode(input: CharBuffer): Either[SchemaError, UUID] = {
       val str = readString(input)
       try new Right(UUID.fromString(str))
-      catch { case e: IllegalArgumentException => new Left(typeError(str, "UUID", e)) }
+      catch { case NonFatal(e) => new Left(typeError(str, "UUID", e)) }
     }
   }
 
