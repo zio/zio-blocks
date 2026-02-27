@@ -1612,7 +1612,7 @@ object DynamicSchema extends TypeIdSchemas {
     }
   }
 
-  private def dynamicValueToReflect(dv: DynamicValue): Reflect.Unbound[_] = {
+  private[this] def dynamicValueToReflect(dv: DynamicValue): Reflect.Unbound[_] = {
     def dvToTypeId(dv: DynamicValue): TypeId[Any] =
       typeIdSchema.fromDynamicValue(dv) match {
         case Right(tid) => tid.asInstanceOf[TypeId[Any]]

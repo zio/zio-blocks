@@ -241,7 +241,7 @@ class JsonBinaryCodecDeriver private[json] (
   def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
-  private def copy(
+  private[this] def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
     discriminatorKind: DiscriminatorKind = discriminatorKind,

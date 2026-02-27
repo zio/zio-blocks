@@ -84,7 +84,7 @@ private[schema] object PathParser {
     def skipWhitespace(): Unit = while (!atEnd && current.isWhitespace) advance()
   }
 
-  private def parseNodes(ctx: ParseContext): Either[ParseError, Chunk[Node]] = {
+  private[this] def parseNodes(ctx: ParseContext): Either[ParseError, Chunk[Node]] = {
     val nodes = ChunkBuilder.make[Node]()
     while (!ctx.atEnd) {
       parseNode(ctx) match {
@@ -95,7 +95,7 @@ private[schema] object PathParser {
     new Right(nodes.result())
   }
 
-  private def parseNode(ctx: ParseContext): Either[ParseError, Node] = ctx.current match {
+  private[this] def parseNode(ctx: ParseContext): Either[ParseError, Node] = ctx.current match {
     case '.' =>
       ctx.advance()
       if (ctx.atEnd || !isIdentifierStart(ctx.current)) new Left(new ParseError.InvalidIdentifier(ctx.pos))
@@ -107,7 +107,7 @@ private[schema] object PathParser {
     case c                         => new Left(new ParseError.UnexpectedChar(c, ctx.pos, "field, index, map, or variant accessor"))
   }
 
-  private def parseField(ctx: ParseContext): Either[ParseError, Node] = {
+  private[this] def parseField(ctx: ParseContext): Either[ParseError, Node] = {
     val start = ctx.pos
     val sb    = new java.lang.StringBuilder
     while (!ctx.atEnd && isIdentifierPart(ctx.current)) {
@@ -118,7 +118,7 @@ private[schema] object PathParser {
     else new Right(new Node.Field(sb.toString))
   }
 
-  private def parseIndexOrElements(ctx: ParseContext): Either[ParseError, Node] = {
+  private[this] def parseIndexOrElements(ctx: ParseContext): Either[ParseError, Node] = {
     ctx.advance() // Skip '['
     ctx.skipWhitespace()
     if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("']' or index"))
@@ -197,7 +197,7 @@ private[schema] object PathParser {
     }
   }
 
-  private def parseMapAccess(ctx: ParseContext): Either[ParseError, Node] = {
+  private[this] def parseMapAccess(ctx: ParseContext): Either[ParseError, Node] = {
     ctx.advance() // Skip '{'
     ctx.skipWhitespace()
     if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("'}' or map key"))
@@ -258,7 +258,7 @@ private[schema] object PathParser {
     }
   }
 
-  private def parseMapKey(ctx: ParseContext): Either[ParseError, DynamicValue] =
+  private[this] def parseMapKey(ctx: ParseContext): Either[ParseError, DynamicValue] =
     ctx.current match {
       case '"' =>
         parseString(ctx).map(s => new DynamicValue.Primitive(new PrimitiveValue.String(s)))
@@ -300,7 +300,7 @@ private[schema] object PathParser {
       case c => new Left(new ParseError.UnexpectedChar(c, ctx.pos, "string, char, int, or boolean"))
     }
 
-  private def parseVariantCase(ctx: ParseContext): Either[ParseError, Node] = {
+  private[this] def parseVariantCase(ctx: ParseContext): Either[ParseError, Node] = {
     ctx.advance() // Skip '<'
     ctx.skipWhitespace()
     if (ctx.atEnd || !isIdentifierStart(ctx.current)) return new Left(new ParseError.InvalidIdentifier(ctx.pos))
@@ -316,7 +316,7 @@ private[schema] object PathParser {
     } else new Left(new ParseError.UnexpectedChar(ctx.current, ctx.pos, "'>'"))
   }
 
-  private def parseString(ctx: ParseContext): Either[ParseError, String] = {
+  private[this] def parseString(ctx: ParseContext): Either[ParseError, String] = {
     val start = ctx.pos
     ctx.advance() // Skip opening '"'
     val sb = new java.lang.StringBuilder
@@ -345,7 +345,7 @@ private[schema] object PathParser {
     }
   }
 
-  private def parseChar(ctx: ParseContext): Either[ParseError, Char] = {
+  private[this] def parseChar(ctx: ParseContext): Either[ParseError, Char] = {
     val start = ctx.pos
     ctx.advance() // Skip opening '\''
     if (ctx.atEnd) return new Left(new ParseError.UnterminatedChar(start))
@@ -376,7 +376,7 @@ private[schema] object PathParser {
     }
   }
 
-  private def parseInteger(ctx: ParseContext): Either[ParseError, Int] = {
+  private[this] def parseInteger(ctx: ParseContext): Either[ParseError, Int] = {
     val start = ctx.pos
     val sb    = new java.lang.StringBuilder
     while (!ctx.atEnd && ctx.current.isDigit) {
@@ -392,7 +392,7 @@ private[schema] object PathParser {
     }
   }
 
-  private def isIdentifierStart(c: Char): Boolean = c == '_' || Character.isLetter(c)
+  private[this] def isIdentifierStart(c: Char): Boolean = c == '_' || Character.isLetter(c)
 
-  private def isIdentifierPart(c: Char): Boolean = c == '_' || Character.isLetterOrDigit(c)
+  private[this] def isIdentifierPart(c: Char): Boolean = c == '_' || Character.isLetterOrDigit(c)
 }
