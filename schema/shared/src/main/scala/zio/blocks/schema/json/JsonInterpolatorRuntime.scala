@@ -43,8 +43,8 @@ private[schema] object JsonInterpolatorRuntime {
       out.write(parts.next())
     }
     Json.jsonCodec.decode(out.toByteArray) match {
-      case Right(_)    => () // Valid JSON
       case Left(error) => throw error
+      case _           => () // Valid JSON
     }
   }
 
@@ -194,13 +194,27 @@ private[schema] object JsonInterpolatorRuntime {
     while (i < s.length) {
       val ch1 = s.charAt(i).toInt
       ch1 match {
-        case '"'             => out.write('\\'); out.write('"')
-        case '\\'            => out.write('\\'); out.write('\\')
-        case '\b'            => out.write('\\'); out.write('b')
-        case '\f'            => out.write('\\'); out.write('f')
-        case '\n'            => out.write('\\'); out.write('n')
-        case '\r'            => out.write('\\'); out.write('r')
-        case '\t'            => out.write('\\'); out.write('t')
+        case '"' =>
+          out.write('\\')
+          out.write('"')
+        case '\\' =>
+          out.write('\\')
+          out.write('\\')
+        case '\b' =>
+          out.write('\\')
+          out.write('b')
+        case '\f' =>
+          out.write('\\')
+          out.write('f')
+        case '\n' =>
+          out.write('\\')
+          out.write('n')
+        case '\r' =>
+          out.write('\\')
+          out.write('r')
+        case '\t' =>
+          out.write('\\')
+          out.write('t')
         case _ if ch1 < 0x20 =>
           out.write('\\')
           out.write('u')
@@ -233,11 +247,15 @@ private[schema] object JsonInterpolatorRuntime {
               i += 1 // Skip the low surrogate
             } else {
               // Invalid surrogate pair, write replacement character
-              out.write(0xef); out.write(0xbf); out.write(0xbd)
+              out.write(0xef)
+              out.write(0xbf)
+              out.write(0xbd)
             }
           } else {
             // Lone high surrogate at end, write replacement character
-            out.write(0xef); out.write(0xbf); out.write(0xbd)
+            out.write(0xef)
+            out.write(0xbf)
+            out.write(0xbd)
           }
       }
       i += 1
