@@ -35,8 +35,11 @@ object Step4NestedSql extends App {
 
   // --- Table-Qualified Column Names ---
 
-  def qualifiedColumnName(optic: zio.blocks.schema.Optic[?, ?]): String = {
-    val fields = optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field =>
+  def qualifiedColumnName(optic: zio.blocks.schema.Optic[?, ?]): String =
+    qualifiedColumnNameDynamic(optic.toDynamic)
+
+  def qualifiedColumnNameDynamic(optic: DynamicOptic): String = {
+    val fields = optic.nodes.collect { case f: DynamicOptic.Node.Field =>
       f.name
     }
     if (fields.length <= 1) fields.mkString
@@ -51,38 +54,43 @@ object Step4NestedSql extends App {
   println()
 
   // --- SQL Generation with Qualified Names ---
-  // Override columnName locally to produce table-qualified names
 
-  def toSqlQualified[A, B](expr: SchemaExpr[A, B]): String = expr match {
-    case SchemaExpr.Optic(optic)                => qualifiedColumnName(optic)
-    case SchemaExpr.Literal(value, _)           => sqlLiteral(value)
-    case SchemaExpr.Relational(left, right, op) =>
+  def toSqlQualified[A, B](expr: SchemaExpr[A, B]): String = toSqlQualifiedDynamic(expr.dynamic)
+
+  private def toSqlQualifiedDynamic(expr: DynamicSchemaExpr): String = expr match {
+    case DynamicSchemaExpr.Select(path)                => qualifiedColumnNameDynamic(path)
+    case DynamicSchemaExpr.Literal(value)              => sqlLiteralDV(value)
+    case DynamicSchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
-        case SchemaExpr.RelationalOperator.Equal              => "="
-        case SchemaExpr.RelationalOperator.NotEqual           => "<>"
-        case SchemaExpr.RelationalOperator.LessThan           => "<"
-        case SchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-        case SchemaExpr.RelationalOperator.GreaterThan        => ">"
-        case SchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
+        case DynamicSchemaExpr.RelationalOperator.Equal              => "="
+        case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
+        case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
+        case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
+        case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
+        case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
       }
-      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
-    case SchemaExpr.Logical(left, right, op) =>
+      s"(${toSqlQualifiedDynamic(left)} $sqlOp ${toSqlQualifiedDynamic(right)})"
+    case DynamicSchemaExpr.Logical(left, right, op) =>
       val sqlOp = op match {
-        case SchemaExpr.LogicalOperator.And => "AND"
-        case SchemaExpr.LogicalOperator.Or  => "OR"
+        case DynamicSchemaExpr.LogicalOperator.And => "AND"
+        case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
       }
-      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
-    case SchemaExpr.Not(inner)                     => s"NOT (${toSqlQualified(inner)})"
-    case SchemaExpr.Arithmetic(left, right, op, _) =>
+      s"(${toSqlQualifiedDynamic(left)} $sqlOp ${toSqlQualifiedDynamic(right)})"
+    case DynamicSchemaExpr.Not(inner)                     => s"NOT (${toSqlQualifiedDynamic(inner)})"
+    case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
       val sqlOp = op match {
-        case SchemaExpr.ArithmeticOperator.Add      => "+"
-        case SchemaExpr.ArithmeticOperator.Subtract => "-"
-        case SchemaExpr.ArithmeticOperator.Multiply => "*"
+        case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
+        case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
+        case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
+        case _                                             => "?"
       }
-      s"(${toSqlQualified(left)} $sqlOp ${toSqlQualified(right)})"
-    case SchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSqlQualified(left)}, ${toSqlQualified(right)})"
-    case SchemaExpr.StringRegexMatch(regex, string) => s"(${toSqlQualified(string)} LIKE ${toSqlQualified(regex)})"
-    case SchemaExpr.StringLength(string)            => s"LENGTH(${toSqlQualified(string)})"
+      s"(${toSqlQualifiedDynamic(left)} $sqlOp ${toSqlQualifiedDynamic(right)})"
+    case DynamicSchemaExpr.StringConcat(left, right) =>
+      s"CONCAT(${toSqlQualifiedDynamic(left)}, ${toSqlQualifiedDynamic(right)})"
+    case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
+      s"(${toSqlQualifiedDynamic(string)} LIKE ${toSqlQualifiedDynamic(regex)})"
+    case DynamicSchemaExpr.StringLength(string) => s"LENGTH(${toSqlQualifiedDynamic(string)})"
+    case _                                      => "?"
   }
 
   def selectQualified(table: String, predicate: SchemaExpr[?, Boolean]): String =
