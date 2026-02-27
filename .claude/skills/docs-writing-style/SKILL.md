@@ -29,6 +29,7 @@ description: Shared prose style rules for ZIO Blocks documentation. Include when
 
 Apply these conventions consistently in all prose, section headings, and inline code:
 
+- **Always qualify with the type name** — never refer to a method or constructor by its bare name. Write `BindingResolver.empty`, not `empty`; write `ZIO#map`, not `map`. The type name is essential context for the reader.
 - **Type name alone** — when talking about the type itself, use only its name with no qualifier:
   "derives automatically via `As`", "`Into` is a one-way conversion".
 - **Instance method** — use `TypeName#methodName` (the `#` convention signals a non-static member):
