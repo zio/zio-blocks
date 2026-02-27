@@ -7,10 +7,8 @@ package zio.blocks.schema.csv
  *   The character used to separate fields (default: ',')
  * @param quoteChar
  *   The character used to quote fields containing special characters (default:
- *   '"')
- * @param escapeChar
- *   The character used to escape quote characters within quoted fields
- *   (default: '"')
+ *   '"'). Escaping within quoted fields is done by doubling the quote character
+ *   per RFC 4180.
  * @param lineTerminator
  *   The line terminator sequence (default: "\r\n" for RFC 4180)
  * @param hasHeader
@@ -21,7 +19,6 @@ package zio.blocks.schema.csv
 final case class CsvConfig(
   delimiter: Char = ',',
   quoteChar: Char = '"',
-  escapeChar: Char = '"',
   lineTerminator: String = "\r\n",
   hasHeader: Boolean = true,
   nullValue: String = ""

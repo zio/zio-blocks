@@ -55,9 +55,9 @@ object CsvIntegrationSpec extends SchemaBaseSpec {
 
   case class WithWrappedField(id: WrappedId, name: String)
 
-  // Note: Schema derivation for records with wrapper-typed fields is not supported
-  // in the CSV deriver because wrapper codec headerNames returns "value" which conflicts
-  // with record field names. We test wrappers standalone instead.
+  // Note: Records with wrapper-typed fields (e.g., case class Person(id: WrappedId, name: String))
+  // work correctly since record derivation uses field names directly for CSV headers,
+  // not the wrapped codec's headerNames. We test wrappers standalone for isolation.
 
   private def deriveCodec[A](implicit s: Schema[A]): CsvCodec[A] =
     s.derive(CsvFormat)

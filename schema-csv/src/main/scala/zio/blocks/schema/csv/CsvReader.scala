@@ -239,11 +239,11 @@ object CsvReader {
             if (fields.length > 1 || (fields.length == 1 && fields(0).nonEmpty) || newOff < input.length) {
               rows += fields
             }
+            offset = newOff
           } else {
             // Safety: no progress made, break to avoid infinite loop
             offset = input.length
           }
-          offset = newOff
       }
     }
 
