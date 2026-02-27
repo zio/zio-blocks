@@ -1,6 +1,14 @@
 package zio.blocks.smithy
 
 /**
+ * Represents a reference to a Smithy shape (either absolute or member).
+ *
+ * This sealed trait provides a common type for both ShapeId and ShapeId.Member,
+ * enabling cross-Scala-version compatibility without using Scala 3 union types.
+ */
+sealed trait ShapeRef
+
+/**
  * Represents an absolute reference to a Smithy shape.
  *
  * A ShapeId consists of a namespace and a name. It can optionally reference a
@@ -11,7 +19,7 @@ package zio.blocks.smithy
  * @param name
  *   the shape name (e.g., "MyShape")
  */
-final case class ShapeId(namespace: String, name: String) {
+final case class ShapeId(namespace: String, name: String) extends ShapeRef {
   override def toString: String = s"$namespace#$name"
 }
 
@@ -25,8 +33,8 @@ object ShapeId {
    * @param memberName
    *   the name of the member within the shape
    */
-  final case class Member(shape: ShapeId, memberName: String) {
-    override def toString: String = s"${shape.toString}$$${memberName}"
+  final case class Member(shape: ShapeId, memberName: String) extends ShapeRef {
+    override def toString: String = shape.toString + "$" + memberName
   }
 
   /**
@@ -41,7 +49,7 @@ object ShapeId {
    * @return
    *   Right(ShapeId) or Right(Member) on success, Left(error) on failure
    */
-  def parse(s: String): Either[String, ShapeId | Member] =
+  def parse(s: String): Either[String, ShapeRef] =
     if (s.isEmpty) {
       Left("ShapeId cannot be empty")
     } else if (!s.contains("#")) {

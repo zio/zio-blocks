@@ -26,7 +26,7 @@ object NodeValueSpec extends ZIOSpecDefault {
       test("creates number value from Double") {
         val value = NodeValue.NumberValue(BigDecimal(3.14))
         val num   = value.asInstanceOf[NodeValue.NumberValue].value
-        assertTrue(num.doubleValue() == 3.14)
+        assertTrue(num.toDouble == 3.14)
       },
       test("creates number value from large integer") {
         val value = NodeValue.NumberValue(BigDecimal("123456789012345678901234567890"))
