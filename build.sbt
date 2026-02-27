@@ -39,7 +39,7 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
 )
 
 addCommandAlias(
@@ -48,7 +48,7 @@ addCommandAlias(
 )
 addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
 )
 
 lazy val root = project
