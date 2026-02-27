@@ -24,7 +24,7 @@ trait BindingResolver {
 
 - Uses `TypeId` as the lookup key for all resolution methods.
 - Stores sequence and map bindings by their *unapplied type constructor*, so one `List` binding covers `List[Int]`, `List[String]`, and any other element type.
-- Composes via `++` with left-biased precedence: the left resolver is tried first, the right serves as fallback.
+- Composes via `BindingResolver#++` with left-biased precedence: the left resolver is tried first, the right serves as fallback.
 
 ## Motivation
 
@@ -71,11 +71,11 @@ val rebound: Schema[Person] = dynamic.rebind[Person](resolver)
 
 ## Predefined Resolvers
 
-ZIO Blocks ships three ready-made resolvers. We almost always compose them with `++` rather than using them in isolation.
+ZIO Blocks ships three ready-made resolvers. We almost always compose them with `BindingResolver#++` rather than using them in isolation.
 
 ### `BindingResolver.empty`
 
-`empty` is an empty `Registry` with no bindings. It is the starting point for building a custom registry with `bind`:
+`BindingResolver.empty` is an empty `Registry` with no bindings. It is the starting point for building a custom registry with `Registry#bind`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.binding._
@@ -85,7 +85,7 @@ val empty: BindingResolver.Registry = BindingResolver.empty
 
 ### `BindingResolver.defaults`
 
-`defaults` is a pre-populated `Registry` covering all primitive types, `java.time` types, `java.util.UUID`, `java.util.Currency`, `DynamicValue`, common sequence types (`List`, `Vector`, `Set`, `IndexedSeq`, `Seq`, `Chunk`), and `Map`. In practice we place it at the right end of a `++` chain so custom bindings can override it when needed.
+`BindingResolver.defaults` is a pre-populated `Registry` covering all primitive types, `java.time` types, `java.util.UUID`, `java.util.Currency`, `DynamicValue`, common sequence types (`List`, `Vector`, `Set`, `IndexedSeq`, `Seq`, `Chunk`), and `Map`. In practice we place it at the right end of a `BindingResolver#++` chain so custom bindings can override it when needed.
 
 The types covered by `defaults` include:
 
@@ -111,9 +111,9 @@ defaults.resolveMap[Map[String, Int]]        // Some(...)
 
 ### `BindingResolver.reflection` (JVM only)
 
-`reflection` derives `Binding.Record` instances at runtime using Java reflection for case classes. Derived bindings are cached per `TypeId` in a `ConcurrentHashMap`, so the reflection cost is paid only once per type.
+`BindingResolver.reflection` derives `Binding.Record` instances at runtime using Java reflection for case classes. Derived bindings are cached per `TypeId` in a `ConcurrentHashMap`, so the reflection cost is paid only once per type.
 
-On Scala.js, `reflection` is a no-op resolver that returns `None` for every query.
+On Scala.js, `BindingResolver.reflection` is a no-op resolver that returns `None` for every query.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -132,16 +132,16 @@ val rebound: Schema[Order] = Schema[Order].toDynamicSchema.rebind[Order](resolve
 ```
 
 :::warning
-`reflection` only derives `Binding.Record` for case classes. It returns `None` for primitives, variants, wrappers, sequences, and maps. Always compose it with `BindingResolver.defaults` to cover those types.
+`BindingResolver.reflection` only derives `Binding.Record` for case classes. It returns `None` for primitives, variants, wrappers, sequences, and maps. Always compose it with `BindingResolver.defaults` to cover those types.
 :::
 
 ## Building a Registry
 
-`BindingResolver.Registry` is an immutable, map-backed resolver. Every `bind` call returns a **new** `Registry` with the binding added; the original registry is unchanged.
+`BindingResolver.Registry` is an immutable, map-backed resolver. Every `Registry#bind` call returns a **new** `Registry` with the binding added; the original registry is unchanged.
 
 ### `Registry#bind` for proper types
 
-The unified `bind` method accepts any proper binding—`Record`, `Variant`, `Primitive`, `Wrapper`, or `Dynamic`—and dispatches to the correct internal storage slot automatically. We typically call `Binding.of[A]` to derive the right binding at compile time:
+The unified `Registry#bind` method accepts any proper binding—`Record`, `Variant`, `Primitive`, `Wrapper`, or `Dynamic`—and dispatches to the correct internal storage slot automatically. We typically call `Binding.of[A]` to derive the right binding at compile time:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -175,7 +175,7 @@ val registry: BindingResolver.Registry =
 - Single-field wrapper with a smart constructor → `Binding.Wrapper`
 
 :::warning
-Passing a `Binding.Seq` or `Binding.Map` to the unified `bind` method throws `IllegalArgumentException` at runtime. Use the specialized overloads shown below for collection types.
+Passing a `Binding.Seq` or `Binding.Map` to the unified `Registry#bind` method throws `IllegalArgumentException` at runtime. Use the specialized overloads shown below for collection types.
 :::
 
 ### `Registry#bind` for sequence types
@@ -209,7 +209,7 @@ registry.resolveMap[Map[Int, String]] // Some(...)
 
 ## Combining Resolvers
 
-The `++` operator composes two resolvers into a left-biased fallback chain. The left resolver is consulted first; the right is used only when the left returns `None`.
+The `BindingResolver#++` operator composes two resolvers into a left-biased fallback chain. The left resolver is consulted first; the right is used only when the left returns `None`.
 
 ```scala
 trait BindingResolver {
@@ -235,7 +235,7 @@ val resolver: BindingResolver =
   BindingResolver.empty.bind(Binding.of[UserId]) ++ BindingResolver.defaults
 ```
 
-`++` is associative for resolution outcomes: `(a ++ b) ++ c` and `a ++ (b ++ c)` always resolve to the same binding for any type.
+`BindingResolver#++` is associative for resolution outcomes: `(a ++ b) ++ c` and `a ++ (b ++ c)` always resolve to the same binding for any type.
 
 ## Resolution Methods
 
@@ -243,7 +243,7 @@ All `resolve*` methods return an `Option` and never throw. They return `None` wh
 
 ### `BindingResolver#resolveRecord`
 
-`resolveRecord` returns the `Binding.Record` for a product type (case class, tuple, module object):
+`BindingResolver#resolveRecord` returns the `Binding.Record` for a product type (case class, tuple, module object):
 
 ```scala
 trait BindingResolver {
@@ -269,7 +269,7 @@ val binding: Option[Binding.Record[Point]] = registry.resolveRecord[Point]
 
 ### `BindingResolver#resolveVariant`
 
-`resolveVariant` returns the `Binding.Variant` for a sum type (sealed trait, Scala 3 enum):
+`BindingResolver#resolveVariant` returns the `Binding.Variant` for a sum type (sealed trait, Scala 3 enum):
 
 ```scala
 trait BindingResolver {
@@ -295,7 +295,7 @@ val binding: Option[Binding.Variant[Shape]] = registry.resolveVariant[Shape]
 
 ### `BindingResolver#resolvePrimitive`
 
-`resolvePrimitive` returns the `Binding.Primitive` for scalar types such as `Int`, `String`, `java.time.Instant`, and `java.util.UUID`:
+`BindingResolver#resolvePrimitive` returns the `Binding.Primitive` for scalar types such as `Int`, `String`, `java.time.Instant`, and `java.util.UUID`:
 
 ```scala
 trait BindingResolver {
@@ -311,7 +311,7 @@ val binding: Option[Binding.Primitive[Int]] = BindingResolver.defaults.resolvePr
 
 ### `BindingResolver#resolveWrapper`
 
-`resolveWrapper` returns the `Binding.Wrapper` for newtype patterns—single-field case classes and smart-constructor wrappers. The binding holds a `wrap: B => A` and an `unwrap: A => B` function, converting between the inner type `B` and the outer type `A`:
+`BindingResolver#resolveWrapper` returns the `Binding.Wrapper` for newtype patterns—single-field case classes and smart-constructor wrappers. The binding holds a `wrap: B => A` and an `unwrap: A => B` function, converting between the inner type `B` and the outer type `A`:
 
 ```scala
 trait BindingResolver {
@@ -336,7 +336,7 @@ val binding: Option[Binding.Wrapper[Email, _]] = registry.resolveWrapper[Email]
 
 ### `BindingResolver#resolveDynamic`
 
-`resolveDynamic` returns the `Binding.Dynamic` singleton, used for `DynamicValue` nodes in the reflect tree. `BindingResolver.defaults` already includes it, so manual registration is rarely needed:
+`BindingResolver#resolveDynamic` returns the `Binding.Dynamic` singleton, used for `DynamicValue` nodes in the reflect tree. `BindingResolver.defaults` already includes it, so manual registration is rarely needed:
 
 ```scala
 trait BindingResolver {
@@ -352,7 +352,7 @@ val binding: Option[Binding.Dynamic] = BindingResolver.defaults.resolveDynamic
 
 ### `BindingResolver#resolveSeq` and `BindingResolver#resolveSeqFor`
 
-`resolveSeq` uses `UnapplySeq` evidence to decompose an applied type like `List[Int]` into its constructor `List` and element type `Int`, then looks up the binding by constructor. `resolveSeqFor` is the explicit variant when the constructor and element types are already known as separate parameters:
+`BindingResolver#resolveSeq` uses `UnapplySeq` evidence to decompose an applied type like `List[Int]` into its constructor `List` and element type `Int`, then looks up the binding by constructor. `BindingResolver#resolveSeqFor` is the explicit variant when the constructor and element types are already known as separate parameters:
 
 ```scala
 trait BindingResolver {
@@ -379,7 +379,7 @@ val explicit: Option[Binding.Seq[List, Int]] =
 
 ### `BindingResolver#resolveMap` and `BindingResolver#resolveMapFor`
 
-`resolveMap` and `resolveMapFor` follow the same pattern as their sequence counterparts, applied to key-value collection types:
+`BindingResolver#resolveMap` and `BindingResolver#resolveMapFor` follow the same pattern as their sequence counterparts, applied to key-value collection types:
 
 ```scala
 trait BindingResolver {
@@ -397,7 +397,7 @@ val binding: Option[Binding.Map[Map, String, Int]] =
 
 ## Registry Inspection
 
-`Registry` exposes several methods to interrogate its state without performing a full resolution. `contains[A]` checks whether a proper binding (Record, Variant, Primitive, Wrapper, or Dynamic) is registered for type `A`. `containsSeq` and `containsMap` check for sequence and map type constructors respectively:
+`Registry` exposes several methods to interrogate its state without performing a full resolution. `Registry#contains` checks whether a proper binding (Record, Variant, Primitive, Wrapper, or Dynamic) is registered for type `A`. `Registry#containsSeq` and `Registry#containsMap` check for sequence and map type constructors respectively:
 
 ```scala
 final class Registry {
@@ -423,7 +423,7 @@ registry.size                       // total number of registered bindings
 
 ## Integration with `DynamicSchema`
 
-The primary consumer of `BindingResolver` is `DynamicSchema#rebind`. Given an unbound `DynamicSchema`, `rebind` walks the `Reflect` tree and queries the resolver for each node's binding, then returns a fully operational `Schema[A]`:
+The primary consumer of `BindingResolver` is `DynamicSchema#rebind`. Given an unbound `DynamicSchema`, `DynamicSchema#rebind` walks the `Reflect` tree and queries the resolver for each node's binding, then returns a fully operational `Schema[A]`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -463,7 +463,7 @@ val rebound: Schema[Address] = Schema[Address].toDynamicSchema.rebind[Address](r
 ```
 
 :::warning
-If `rebind` cannot find a binding for any type present in the unbound schema tree, it throws at runtime. Make sure the resolver covers every concrete type—records, variants, wrappers, primitives, and collections—that appears in the schema.
+If `DynamicSchema#rebind` cannot find a binding for any type present in the unbound schema tree, it throws at runtime. Make sure the resolver covers every concrete type—records, variants, wrappers, primitives, and collections—that appears in the schema.
 :::
 
 See [Binding](./binding.md) for details on each binding kind, and [Schema](./schema.md) for the overall structure of the schema system.
