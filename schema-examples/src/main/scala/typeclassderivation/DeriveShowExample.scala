@@ -32,7 +32,7 @@ object DeriveShowExample extends App {
     override def derivePrimitive[A](
       primitiveType: PrimitiveType[A],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Primitive, A],
+      binding: Binding.Primitive[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -51,7 +51,7 @@ object DeriveShowExample extends App {
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Record, A],
+      binding: Binding.Record[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -62,7 +62,7 @@ object DeriveShowExample extends App {
       // Cast fields to use Binding as F (we are going to create Reflect.Record with Binding as F)
       val recordFields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
       // Cast to Binding.Record to access constructor/deconstructor
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      val recordBinding = binding
       // Build a Reflect.Record to get access to the computed registers for each field
       val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
       Lazy {
@@ -94,7 +94,7 @@ object DeriveShowExample extends App {
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Variant, A],
+      binding: Binding.Variant[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -105,7 +105,7 @@ object DeriveShowExample extends App {
       val caseShowLazies = cases.map(c => D.instance(c.value.metadata).asInstanceOf[Lazy[Show[Any]]])
 
       // Cast binding to Binding.Variant to access discriminator and matchers
-      val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
+      val variantBinding = binding
       Lazy {
         new Show[A] {
           // Force child instances lazily — same recursive-safety rationale as deriveRecord
@@ -127,14 +127,14 @@ object DeriveShowExample extends App {
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
       typeId: TypeId[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
+      binding: Binding.Seq[C, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[C[A]]] = {
       // Cast binding to Binding.Seq to access the deconstructor
-      val deconstructor = binding.asInstanceOf[Binding.Seq[C, A]].deconstructor
+      val deconstructor = binding.deconstructor
       // Sequences are structurally non-recursive, so we can use monadic .map composition.
       // instance(...).map { elementShow => ... } returns a Lazy that, when forced, builds
       // a Show[C[A]] with elementShow already resolved — no .force needed at show()-time.
@@ -153,14 +153,14 @@ object DeriveShowExample extends App {
       key: Reflect[F, K],
       value: Reflect[F, V],
       typeId: TypeId[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
+      binding: Binding.Map[M, K, V],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[M[K, V]]] = {
       // Cast binding to Binding.Map to access the deconstructor
-      val deconstructor = binding.asInstanceOf[Binding.Map[M, K, V]].deconstructor
+      val deconstructor = binding.deconstructor
       // Maps are non-recursive: use .zip to pair the two child Lazy instances, then .map
       // to build the Show[M[K,V]] with both keyShow and valueShow already resolved.
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (keyShow, valueShow) =>
@@ -182,7 +182,7 @@ object DeriveShowExample extends App {
     }
 
     override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
+      binding: Binding.Dynamic,
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
@@ -221,14 +221,14 @@ object DeriveShowExample extends App {
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Wrapper[A, B], A],
+      binding: Binding.Wrapper[A, B],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveShow.HasInstance[F]): Lazy[Show[A]] = {
       // Cast binding to Binding.Wrapper to access the unwrap function
-      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+      val wrapperBinding = binding
       // Wrappers are non-recursive: use .map so wrappedShow is already resolved
       // when show() is called — no .force needed.
       D.instance(wrapped.metadata).map { wrappedShow =>

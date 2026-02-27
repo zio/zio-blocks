@@ -17,7 +17,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     override def derivePrimitive[A](
       primitiveType: PrimitiveType[A],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Primitive, A],
+      binding: Binding.Primitive[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -31,7 +31,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, ?]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Record, A],
+      binding: Binding.Record[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -39,7 +39,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
       val fieldNames    = fields.map(_.name)
       val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]]
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      val recordBinding = binding
       val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
       Lazy {
         new Show[A] {
@@ -61,14 +61,14 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, ?]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Variant, A],
+      binding: Binding.Variant[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
       val caseShowLazies = cases.map(c => instance(c.value.metadata).asInstanceOf[Lazy[Show[Any]]])
-      val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
+      val variantBinding = binding
       Lazy {
         new Show[A] {
           private lazy val resolvedShows: IndexedSeq[Show[Any]] = caseShowLazies.map(_.force)
@@ -84,13 +84,13 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
       typeId: TypeId[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
+      binding: Binding.Seq[C, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[C[A]]] = {
-      val deconstructor = binding.asInstanceOf[Binding.Seq[C, A]].deconstructor
+      val deconstructor = binding.deconstructor
       instance(element.metadata).map { elementShow =>
         new Show[C[A]] {
           def show(value: C[A]): String = {
@@ -105,13 +105,13 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
       key: Reflect[F, K],
       value: Reflect[F, V],
       typeId: TypeId[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
+      binding: Binding.Map[M, K, V],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[M[K, V]]] = {
-      val deconstructor = binding.asInstanceOf[Binding.Map[M, K, V]].deconstructor
+      val deconstructor = binding.deconstructor
       instance(key.metadata).zip(instance(value.metadata)).map { case (keyShow, valueShow) =>
         new Show[M[K, V]] {
           def show(m: M[K, V]): String = {
@@ -125,7 +125,7 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     }
 
     override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
+      binding: Binding.Dynamic,
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
@@ -139,13 +139,13 @@ object SchemaDerivationShowSpec extends SchemaBaseSpec {
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Wrapper[A, B], A],
+      binding: Binding.Wrapper[A, B],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[Show[A]] = {
-      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+      val wrapperBinding = binding
       instance(wrapped.metadata).map { wrappedShow =>
         new Show[A] {
           def show(value: A): String =
