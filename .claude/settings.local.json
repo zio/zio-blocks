@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c \"where sbt.bat 2>&1\")",
+      "Bash(cmd.exe /c \"sbt --version 2>&1\")",
+      "Bash(cmd.exe /c \"sbt \"\"schemaJVM/compile\"\" 2>&1\")",
+      "Bash(powershell.exe -Command \"Get-Command sbt -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe:*)",
+      "Bash(\"c:/Users/sdysa/sbt/bin/sbt.bat\" \"schemaJVM/compile\")",
+      "Bash(\"c:/Users/sdysa/sbt/bin/sbt.bat\" \"schemaJS/compile\")",
+      "Bash(\"c:/Users/sdysa/sbt/bin/sbt.bat\" \"schemaJVM/Test/compile\")",
+      "Bash(\"c:/Users/sdysa/sbt/bin/sbt.bat\" \"schemaJVM/testOnly zio.blocks.schema.migration.*\")",
+      "Bash(C:Userssdysasbtbinsbt.bat \"schemaJVM/testOnly *SchemaShapeSpec\")",
+      "Bash(cmd /c \"C:\\\\Users\\\\sdysa\\\\sbt\\\\bin\\\\sbt.bat \"\"schemaJVM/testOnly *SchemaShapeSpec\"\"\")",
+      "Bash(/c/Users/sdysa/sbt/bin/sbt.bat:*)",
+      "Bash(dir:*)",
+      "Bash(C:Userssdysasbtbinsbt.bat schemaJVM/compile)"
+    ]
+  }
+}
