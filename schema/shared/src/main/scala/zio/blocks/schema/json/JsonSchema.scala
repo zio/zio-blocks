@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
-import zio.blocks.schema.{DynamicOptic, SchemaError}
+import zio.blocks.schema.{DynamicOptic, Platform, SchemaError}
 import java.net.URI
 import java.util.regex.{Pattern, PatternSyntaxException}
 import scala.jdk.CollectionConverters._
@@ -158,14 +158,23 @@ private[json] object FormatValidator {
   }
 
   private[this] val dateTimePattern: Pattern =
-    Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$")
-  private[this] val datePattern: Pattern  = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
-  private[this] val timePattern: Pattern  = Pattern.compile("^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$")
-  private[this] val emailPattern: Pattern = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
-  private[this] val uuidPattern: Pattern  =
+    Pattern.compile(
+      "^[+-]?\\d{1,9}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}(:\\d{2}(:\\d{2})?)?)?$"
+    )
+  private[this] val datePattern: Pattern =
+    Pattern.compile("^[+-]?\\d{1,9}-\\d{2}-\\d{2}$")
+  private[this] val timePattern: Pattern =
+    Pattern.compile("^\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}(:\\d{2}(:\\d{2})?)?)?$")
+  private[this] val emailPattern: Pattern =
+    // Hardened to avoid Cross-Site Scripting (XSS) / Injection Risks when rendered on the web page without sanitization
+    Pattern.compile(
+      "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+    )
+  private[this] val uuidPattern: Pattern =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
   private[this] val ipv4Pattern: Pattern =
-    Pattern.compile("^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$")
+    // Hardened to avoid Server-Side Request Forgery (SSRF) Bypass via Octal Encoding that can bypass black lists
+    Pattern.compile("^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)$")
   private[this] val ipv6Pattern: Pattern =
     Pattern.compile(
       "^(" +
@@ -184,29 +193,67 @@ private[json] object FormatValidator {
         ")$"
     )
   private[this] val hostnamePattern: Pattern =
-    Pattern.compile("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+    // Allows RFC 1123 hostnames, including single-label ones
+    Pattern.compile(
+      "^(?=.{1,253}$)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(\\.([a-zA-Z]{2,63}))?$"
+    )
   private[this] val durationPattern: Pattern =
-    Pattern.compile("^P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$")
-  private[this] val jsonPointerPattern: Pattern = Pattern.compile("^(/([^~/]|~0|~1)*)*$")
+    Pattern.compile(
+      "^[+-]?P(?=[^\\d]{0,5}\\d)([+-]?\\d{1,20}Y)?([+-]?\\d{1,20}M)?([+-]?\\d{1,20}W)?([+-]?\\d{1,20}D)?(T([+-]?\\d{1,20}H)?([+-]?\\d{1,20}M)?([+-]?\\d{1,20}(\\.\\d{1,9})?S)?)?$"
+    )
+  private[this] val jsonPointerPattern: Pattern =
+    // JSON Pointer specification (RFC 6901)
+    Pattern.compile("^(/([^~/]|~0|~1)*)*$")
 
   private[this] def validateDateTime(value: String): Option[String] =
     if (dateTimePattern.matcher(value).matches()) validateDateTimeSemantics(value)
     else new Some(s"String '$value' is not a valid date-time (RFC 3339)")
 
-  private[this] def validateDateTimeSemantics(value: String): Option[String] =
-    validateDateSemantics(value) match {
-      case None => validateTimeSemantics(value.substring(11))
-      case err  => err
-    }
+  private[this] def validateDateTimeSemantics(value: String): Option[String] = {
+    val ch      = value.charAt(0)
+    val yearPos =
+      if (ch == '-' || ch == '+') 1
+      else 0
+    val monthPos  = value.indexOf('-', yearPos) + 1
+    val dayPos    = monthPos + 3
+    val hourPos   = dayPos + 3
+    val minutePos = hourPos + 3
+    val year      = toInt(value, yearPos, monthPos - 1)
+    val month     = toInt(value, monthPos, dayPos - 1)
+    val day       = toInt(value, dayPos, hourPos - 1)
+    val hour      = toInt(value, hourPos, minutePos - 1)
+    val minute    = toInt(value, minutePos, minutePos + 2)
+    val second    =
+      if (value.length >= minutePos + 5) toInt(value, minutePos + 3, minutePos + 5)
+      else 0
+    if (month < 1 || month > 12) new Some(s"Invalid month $month in date '$value'")
+    else if (
+      day < 1 || day > {
+        if (month != 2) month >> 3 ^ (month | 0x1e)
+        else if (isLeapYear(year)) 29
+        else 28
+      }
+    ) new Some(s"Invalid day $day for month $month in date '$value'")
+    else if (hour > 23) new Some(s"Invalid hour $hour in time '$value'")
+    else if (minute > 59) new Some(s"Invalid minute $minute in time '$value'")
+    else if (second > 60) new Some(s"Invalid second $second in time '$value'")
+    else None
+  }
 
   private[this] def validateDate(value: String): Option[String] =
     if (datePattern.matcher(value).matches()) validateDateSemantics(value)
     else new Some(s"String '$value' is not a valid date (RFC 3339)")
 
   private[this] def validateDateSemantics(value: String): Option[String] = {
-    val year  = toInt(value, 0, 4)
-    val month = toInt(value, 5, 7)
-    val day   = toInt(value, 8, 10)
+    val ch      = value.charAt(0)
+    val yearPos =
+      if (ch == '-' || ch == '+') 1
+      else 0
+    val monthPos = value.indexOf('-', yearPos) + 1
+    val dayPos   = monthPos + 3
+    val year     = toInt(value, yearPos, monthPos - 1)
+    val month    = toInt(value, monthPos, dayPos - 1)
+    val day      = toInt(value, dayPos, value.length)
     if (month < 1 || month > 12) new Some(s"Invalid month $month in date '$value'")
     else if (
       day < 1 || day > {
@@ -228,10 +275,12 @@ private[json] object FormatValidator {
   private[this] def validateTimeSemantics(value: String): Option[String] = {
     val hour   = toInt(value, 0, 2)
     val minute = toInt(value, 3, 5)
-    val second = toInt(value, 6, 8)
-    if (hour < 0 || hour > 23) new Some(s"Invalid hour $hour in time '$value'")
-    else if (minute < 0 || minute > 59) new Some(s"Invalid minute $minute in time '$value'")
-    else if (second < 0 || second > 60) new Some(s"Invalid second $second in time '$value'")
+    val second =
+      if (value.length >= 8) toInt(value, 6, 8)
+      else 0
+    if (hour > 23) new Some(s"Invalid hour $hour in time '$value'")
+    else if (minute > 59) new Some(s"Invalid minute $minute in time '$value'")
+    else if (second > 60) new Some(s"Invalid second $second in time '$value'")
     else None
   }
 
@@ -267,9 +316,13 @@ private[json] object FormatValidator {
     if (ipv6Pattern.matcher(value).matches()) None
     else new Some(s"String '$value' is not a valid IPv6 address")
 
-  private[this] def validateHostname(value: String): Option[String] =
-    if (hostnamePattern.matcher(value).matches() && value.length <= 253) None
-    else new Some(s"String '$value' is not a valid hostname (RFC 1123)")
+  private[this] def validateHostname(value: String): Option[String] = {
+    Platform.idnToAscii(value) match {
+      case Some(asciiHostname) if hostnamePattern.matcher(asciiHostname).matches() => return None
+      case _                                                                       =>
+    }
+    new Some(s"String '$value' is not a valid hostname (RFC 1123)")
+  }
 
   private[this] def validateRegex(value: String): Option[String] =
     try {
