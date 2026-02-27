@@ -394,12 +394,12 @@ object Patch {
   def editString[S](optic: Optic[S, String], edits: Chunk[Patch.StringOp]): Patch[S] =
     toPrimitiveDeltaPatch(optic, new Patch.PrimitiveOp.StringEdit(edits))
 
-  private def toPrimitiveDeltaPatch[S, F](optic: Optic[S, F], pop: DynamicPatch.PrimitiveOp): Patch[S] = {
+  private[this] def toPrimitiveDeltaPatch[S, F](optic: Optic[S, F], pop: DynamicPatch.PrimitiveOp): Patch[S] = {
     val op = new Patch.DynamicPatchOp(optic.toDynamic, new Patch.Operation.PrimitiveDelta(pop))
     new Patch(new DynamicPatch(Chunk.single(op)), new Schema(optic.source))
   }
 
-  private def toDynamicPatch[S, F](optic: Optic[S, F], ops: Chunk[DynamicPatchOp]): Patch[S] =
+  private[this] def toDynamicPatch[S, F](optic: Optic[S, F], ops: Chunk[DynamicPatchOp]): Patch[S] =
     new Patch(new DynamicPatch(ops), new Schema(optic.source))
 
   /** Replace a field value using a Lens. */

@@ -175,7 +175,7 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
       throw new MessagePackCodecError(span :: Nil, msg)
   }
 
-  private def toError(error: Throwable): SchemaError = new SchemaError(
+  private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
       ExpectationMismatch(
         error match {

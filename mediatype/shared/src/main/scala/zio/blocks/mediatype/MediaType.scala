@@ -74,7 +74,7 @@ object MediaType {
     }
   }
 
-  private def parseParameters(s: String): Map[String, String] = {
+  private[this] def parseParameters(s: String): Map[String, String] = {
     if (s.isEmpty) return Map.empty
 
     s.split(';')

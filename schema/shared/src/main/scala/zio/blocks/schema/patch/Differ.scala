@@ -25,7 +25,7 @@ private[schema] object Differ {
 
   // Diff two primitive values. Uses delta operations for numerics, temporal
   // types, and strings. Falls back to Set for other types.
-  private def diffPrimitive(oldPrim: PrimitiveValue, newPrim: PrimitiveValue): DynamicPatch =
+  private[this] def diffPrimitive(oldPrim: PrimitiveValue, newPrim: PrimitiveValue): DynamicPatch =
     if (oldPrim.typeIndex == newPrim.typeIndex) {
       oldPrim match {
         // Numeric types - use delta operations

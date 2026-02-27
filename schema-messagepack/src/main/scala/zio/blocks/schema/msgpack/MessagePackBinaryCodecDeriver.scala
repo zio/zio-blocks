@@ -488,7 +488,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
 
       def encodeValue(value: DynamicValue, out: MessagePackWriter): Unit = encodeDynamic(value, out)
 
-      private def decodeDynamic(in: MessagePackReader): DynamicValue = {
+      private[this] def decodeDynamic(in: MessagePackReader): DynamicValue = {
         val b = in.peekType & 0xff
         if ((b & 0x80) == 0 || (b & 0xe0) == 0xe0) {
           new DynamicValue.Primitive(PrimitiveValue.Long(in.readLongValue()))
@@ -554,7 +554,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         }
       }
 
-      private def encodeDynamic(value: DynamicValue, out: MessagePackWriter): Unit = value match {
+      private[this] def encodeDynamic(value: DynamicValue, out: MessagePackWriter): Unit = value match {
         case p: DynamicValue.Primitive => encodePrimitive(p.value, out)
         case r: DynamicValue.Record    =>
           val fields = r.fields
@@ -596,7 +596,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         case _ => out.writeNil()
       }
 
-      private def encodePrimitive(p: PrimitiveValue, out: MessagePackWriter): Unit = p match {
+      private[this] def encodePrimitive(p: PrimitiveValue, out: MessagePackWriter): Unit = p match {
         case _: PrimitiveValue.Unit.type      => out.writeMapHeader(0)
         case v: PrimitiveValue.Boolean        => booleanCodec.encodeValue(v.value, out)
         case v: PrimitiveValue.Byte           => byteCodec.encodeValue(v.value, out)

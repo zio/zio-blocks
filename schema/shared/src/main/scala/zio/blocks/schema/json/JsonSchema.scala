@@ -1573,7 +1573,7 @@ object JsonSchema {
   // Parsing Helpers
   // ===========================================================================
 
-  private def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
+  private[this] def parseObject(obj: Json.Object): Either[SchemaError, Object] = {
     val fieldMap = new java.util.HashMap[java.lang.String, Json](obj.value.length << 1) {
       obj.value.foreach(kv => put(kv._1, kv._2))
     }
