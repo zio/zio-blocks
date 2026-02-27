@@ -1,11 +1,14 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.schema.{Schema, SchemaBaseSpec}
+import zio.blocks.schema.JavaTimeGen._
 import zio.test._
+import java.time._
+import java.util.{Currency, UUID}
 
 object XmlBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
-  case class Person(name: String, age: Int)
+  case class Person(name: String, age: Short)
   object Person {
     implicit val schema: Schema[Person] = Schema.derived
   }
@@ -21,8 +24,8 @@ object XmlBinaryCodecDeriverSpec extends SchemaBaseSpec {
   }
 
   sealed trait Animal
-  case class Dog(name: String)             extends Animal
-  case class Cat(name: String, lives: Int) extends Animal
+  case class Dog(name: String)              extends Animal
+  case class Cat(name: String, lives: Byte) extends Animal
   object Animal {
     implicit val dogSchema: Schema[Dog] = Schema.derived
     implicit val catSchema: Schema[Cat] = Schema.derived
@@ -34,7 +37,7 @@ object XmlBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Team] = Schema.derived
   }
 
-  case class Config(settings: Map[String, Int])
+  case class Config(settings: Map[String, Float])
   object Config {
     implicit val schema: Schema[Config] = Schema.derived
   }
@@ -210,30 +213,127 @@ object XmlBinaryCodecDeriverSpec extends SchemaBaseSpec {
       }
     ),
     suite("primitive types")(
-      test("round-trip Int") {
-        val codec  = Schema[Int].derive(XmlBinaryCodecDeriver)
-        val result = codec.decode(codec.encode(42))
-        assertTrue(result == Right(42))
-      },
-      test("round-trip String") {
-        val codec  = Schema[String].derive(XmlBinaryCodecDeriver)
-        val result = codec.decode(codec.encode("hello"))
-        assertTrue(result == Right("hello"))
-      },
       test("round-trip Boolean") {
-        val codec  = Schema[Boolean].derive(XmlBinaryCodecDeriver)
-        val result = codec.decode(codec.encode(true))
-        assertTrue(result == Right(true))
+        val codec = Schema[Boolean].derive(XmlBinaryCodecDeriver)
+        check(Gen.boolean)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
       },
-      test("round-trip Long") {
-        val codec  = Schema[Long].derive(XmlBinaryCodecDeriver)
-        val result = codec.decode(codec.encode(123456789L))
-        assertTrue(result == Right(123456789L))
+      test("round-trip Byte") {
+        val codec = Schema[Byte].derive(XmlBinaryCodecDeriver)
+        check(Gen.byte)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Char") {
+        val codec = Schema[Char].derive(XmlBinaryCodecDeriver)
+        check(Gen.char.filter(x => x >= ' ' && (x < 0xd800 || x > 0xdfff))) { x =>
+          assertTrue(codec.decode(codec.encode(x)) == Right(x))
+        }
+      },
+      test("round-trip Float") {
+        val codec = Schema[Float].derive(XmlBinaryCodecDeriver)
+        check(Gen.float)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Int") {
+        val codec = Schema[Int].derive(XmlBinaryCodecDeriver)
+        check(Gen.int)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
       },
       test("round-trip Double") {
-        val codec  = Schema[Double].derive(XmlBinaryCodecDeriver)
-        val result = codec.decode(codec.encode(3.14159))
-        assertTrue(result == Right(3.14159))
+        val codec = Schema[Double].derive(XmlBinaryCodecDeriver)
+        check(Gen.double)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Long") {
+        val codec = Schema[Long].derive(XmlBinaryCodecDeriver)
+        check(Gen.long)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip BigInt") {
+        val codec = Schema[BigInt].derive(XmlBinaryCodecDeriver)
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20))) { x =>
+          assertTrue(codec.decode(codec.encode(x)) == Right(x))
+        }
+      },
+      test("round-trip BigDecimal") {
+        val codec = Schema[BigDecimal].derive(XmlBinaryCodecDeriver)
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20))) { x =>
+          assertTrue(codec.decode(codec.encode(x)) == Right(x))
+        }
+      },
+      test("round-trip String") {
+        val codec = Schema[String].derive(XmlBinaryCodecDeriver)
+        check(Gen.string)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip DayOfWeek") {
+        val codec = Schema[DayOfWeek].derive(XmlBinaryCodecDeriver)
+        check(genDayOfWeek)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Duration") {
+        val codec = Schema[Duration].derive(XmlBinaryCodecDeriver)
+        check(genDuration)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Instant") {
+        val codec = Schema[Instant].derive(XmlBinaryCodecDeriver)
+        check(genInstant)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip LocalDate") {
+        val codec = Schema[LocalDate].derive(XmlBinaryCodecDeriver)
+        check(genLocalDate)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip LocalDateTime") {
+        val codec = Schema[LocalDateTime].derive(XmlBinaryCodecDeriver)
+        check(genLocalDateTime)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip LocalTime") {
+        val codec = Schema[LocalTime].derive(XmlBinaryCodecDeriver)
+        check(genLocalTime)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Month") {
+        val codec = Schema[Month].derive(XmlBinaryCodecDeriver)
+        check(genMonth)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip MonthDay") {
+        val codec = Schema[MonthDay].derive(XmlBinaryCodecDeriver)
+        check(genMonthDay)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip OffsetDateTime") {
+        val codec = Schema[OffsetDateTime].derive(XmlBinaryCodecDeriver)
+        check(genOffsetDateTime)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip OffsetTime") {
+        val codec = Schema[OffsetTime].derive(XmlBinaryCodecDeriver)
+        check(genOffsetTime)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Period") {
+        val codec = Schema[Period].derive(XmlBinaryCodecDeriver)
+        check(genPeriod)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Year") {
+        val codec = Schema[Year].derive(XmlBinaryCodecDeriver)
+        check(genYear)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      } @@ TestAspect.jvmOnly,
+      test("round-trip YearMonth") {
+        val codec = Schema[YearMonth].derive(XmlBinaryCodecDeriver)
+        check(genYearMonth)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip ZoneId") {
+        val codec = Schema[ZoneId].derive(XmlBinaryCodecDeriver)
+        check(genZoneId)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip ZoneOffset") {
+        val codec = Schema[ZoneOffset].derive(XmlBinaryCodecDeriver)
+        check(genZoneOffset)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip ZonedDateTime") {
+        val codec = Schema[ZonedDateTime].derive(XmlBinaryCodecDeriver)
+        check(genZonedDateTime)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Currency") {
+        val codec = Schema[Currency].derive(XmlBinaryCodecDeriver)
+        check(Gen.currency)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip UUID") {
+        val codec = Schema[UUID].derive(XmlBinaryCodecDeriver)
+        check(Gen.uuid)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
+      },
+      test("round-trip Unit") {
+        val codec = Schema[Unit].derive(XmlBinaryCodecDeriver)
+        check(Gen.unit)(x => assertTrue(codec.decode(codec.encode(x)) == Right(x)))
       }
     )
   )

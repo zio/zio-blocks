@@ -457,8 +457,8 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 74,
-    coverageMinimumBranchTotal := 66
+    coverageMinimumStmtTotal   := 81,
+    coverageMinimumBranchTotal := 72
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)

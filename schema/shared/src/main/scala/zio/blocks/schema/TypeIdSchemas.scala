@@ -210,7 +210,7 @@ trait TypeIdSchemas {
     baseSchema
   }
 
-  private def typeReprFromDynamic(dv: DynamicValue): Either[SchemaError, TypeRepr] = {
+  private[this] def typeReprFromDynamic(dv: DynamicValue): Either[SchemaError, TypeRepr] = {
     dv match {
       case DynamicValue.Record(fields) =>
         val fieldMap = fields.toMap
@@ -490,7 +490,7 @@ trait TypeIdSchemas {
     }
   }
 
-  private def typeReprToDynamic(tr: TypeRepr): DynamicValue = {
+  private[this] def typeReprToDynamic(tr: TypeRepr): DynamicValue = {
     tr match {
       case TypeRepr.Ref(id) =>
         DynamicValue.Record(
@@ -1055,7 +1055,7 @@ trait TypeIdSchemas {
       arg => annotationArgToDynamic(arg)
     )
 
-  private def annotationArgFromDynamic(dv: DynamicValue): Either[SchemaError, AnnotationArg] =
+  private[this] def annotationArgFromDynamic(dv: DynamicValue): Either[SchemaError, AnnotationArg] =
     dv match {
       case DynamicValue.Record(fields) =>
         val fieldMap = fields.toMap
@@ -1124,7 +1124,7 @@ trait TypeIdSchemas {
       case _ => Left(SchemaError.expectationMismatch(Nil, "Expected a record"))
     }
 
-  private def annotationArgToDynamic(arg: AnnotationArg): DynamicValue =
+  private[this] def annotationArgToDynamic(arg: AnnotationArg): DynamicValue =
     arg match {
       case AnnotationArg.Const(value) =>
         DynamicValue.Record(

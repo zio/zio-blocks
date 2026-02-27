@@ -103,7 +103,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
     transport.getOutput.toByteArray
   }
 
-  private def toError(error: Throwable): SchemaError = new SchemaError(
+  private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
       error match {
         case e: ThriftBinaryCodecError =>
@@ -122,7 +122,7 @@ abstract class ThriftBinaryCodec[A](val valueType: Int = ThriftBinaryCodec.objec
     )
   )
 
-  private def getMessage(error: Throwable): String = error match {
+  private[this] def getMessage(error: Throwable): String = error match {
     case _: java.io.EOFException         => "Unexpected end of input"
     case _: org.apache.thrift.TException => s"Thrift protocol error: ${error.getMessage}"
     case _                               =>

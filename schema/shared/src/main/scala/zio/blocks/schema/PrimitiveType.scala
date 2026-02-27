@@ -507,7 +507,7 @@ object PrimitiveType {
     }
   }
 
-  private def typeReprToPrimitiveType(repr: TypeRepr): Option[PrimitiveType[?]] = repr match {
+  private[this] def typeReprToPrimitiveType(repr: TypeRepr): Option[PrimitiveType[?]] = repr match {
     case TypeRepr.Ref(id) =>
       val fullName = id.fullName
       if (fullName == "scala.Unit") Some(PrimitiveType.Unit)

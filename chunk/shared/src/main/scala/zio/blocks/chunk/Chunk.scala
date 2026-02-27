@@ -219,7 +219,7 @@ object ChunkBuilder {
 
     override def knownSize: SInt = (len << 3) + maxBitIndex
 
-    private def addLastByte(): Unit = {
+    private[this] def addLastByte(): Unit = {
       val idx = len
       if (idx > array.length) array = util.Arrays.copyOf(array, idx << 1)
       array(idx) = lastByte
@@ -2632,7 +2632,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       } else if (self.endianness == endianness) ints
       else ints.map(Integer.reverse)
 
-    private def respectEndian(endianness: BitChunk.Endianness, bigEndianValue: Int) =
+    private[this] def respectEndian(endianness: BitChunk.Endianness, bigEndianValue: Int) =
       if (endianness == BitChunk.Endianness.BigEndian) bigEndianValue
       else Integer.reverse(bigEndianValue)
   }
@@ -2740,7 +2740,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       } else if (self.endianness == endianness) longs
       else longs.map(java.lang.Long.reverse)
 
-    private def respectEndian(endianness: BitChunk.Endianness, bigEndianValue: Long) =
+    private[this] def respectEndian(endianness: BitChunk.Endianness, bigEndianValue: Long) =
       if (endianness == BitChunk.Endianness.BigEndian) bigEndianValue
       else java.lang.Long.reverse(bigEndianValue)
   }
@@ -2759,7 +2759,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       else 1
     }
 
-    private def bitOr0(index: Int) =
+    private[this] def bitOr0(index: Int) =
       if (index < unpacked.length && unpacked(index)) one
       else zero
 
