@@ -59,6 +59,8 @@ lazy val root = project
   .aggregate(
     typeid.jvm,
     typeid.js,
+    combinators.jvm,
+    combinators.js,
     context.jvm,
     context.js,
     scope.jvm,
@@ -113,6 +115,31 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
     }),
     coverageMinimumStmtTotal   := 77,
     coverageMinimumBranchTotal := 69
+  )
+
+lazy val combinators = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-combinators"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.combinators"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect"  % scalaVersion.value, // Compile scope for macros
+          "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
+        )
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 58,
+    coverageMinimumBranchTotal := 25
   )
 
 lazy val context = crossProject(JSPlatform, JVMPlatform)
