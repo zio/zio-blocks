@@ -121,9 +121,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
       }
       val headerResult = headers.result()
       new CsvCodec[A] {
-        private[this] val deconstructor     = recordBinding.deconstructor
-        private[this] val constructor       = recordBinding.constructor
-        private[this] var usedRegisters     = offset
+        private[csv] val deconstructor      = recordBinding.deconstructor
+        private[csv] val constructor        = recordBinding.constructor
+        private[csv] var usedRegisters      = offset
         val headerNames: IndexedSeq[String] = headerResult
         def nullValue: A                    = {
           if (len > 0 && usedRegisters == 0L)
@@ -253,9 +253,9 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
       D.instance(wrapped.metadata).map { codec =>
         new CsvCodec[A](codec.valueType) {
-          private[this] val wrap                                = wrapperBinding.wrap
-          private[this] val unwrap                              = wrapperBinding.unwrap
-          private[this] val wrappedCodec                        = codec
+          private[csv] val wrap                                 = wrapperBinding.wrap
+          private[csv] val unwrap                               = wrapperBinding.unwrap
+          private[csv] val wrappedCodec                         = codec
           val headerNames: IndexedSeq[String]                   = wrappedCodec.headerNames
           def nullValue: A                                      = wrap(wrappedCodec.nullValue)
           def encode(value: A, output: CharBuffer): Unit        = wrappedCodec.encode(unwrap(value), output)
@@ -275,19 +275,19 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   override def modifierOverrides: IndexedSeq[ModifierOverride] = Chunk.empty
 
-  private final class CsvRecordInfo(
+  private[csv] final class CsvRecordInfo(
     val fieldNames: Array[String],
     val fieldCodecs: Array[CsvCodec[Any]],
     val fieldOffsets: Array[Long]
   )
 
-  private[this] val recursiveRecordCache =
+  private[csv] val recursiveRecordCache =
     new ThreadLocal[java.util.HashMap[TypeId[?], CsvRecordInfo]] {
       override def initialValue: java.util.HashMap[TypeId[?], CsvRecordInfo] =
         new java.util.HashMap
     }
 
-  private[this] val encodeBuffer =
+  private[csv] val encodeBuffer =
     new ThreadLocal[CharBuffer] {
       override def initialValue: CharBuffer = CharBuffer.allocate(1024)
     }
