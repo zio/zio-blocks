@@ -17,6 +17,8 @@ description: Shared prose style rules for ZIO Blocks documentation. Include when
 - **Don't pad**: No filler phrases like "as we can see" or "it's worth noting that". Just state
   the fact.
 - **No emojis**: Unless the user explicitly requests them.
+- **Capitalize bullet sentences**: When a bullet point is a full sentence, start it with a capital letter.
+- **No manual line breaks in prose**: Do not hard-wrap paragraph text at a fixed column. Write each paragraph as one continuous line.
 - **ASCII art**: Use it for diagrams showing data flow, type relationships, or architecture.
   Readers find these very helpful for understanding how pieces fit together.
 - **No exhaustive API coverage in guides**: Only document the methods and types that serve the
