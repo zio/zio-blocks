@@ -521,7 +521,7 @@ lazy val `schema-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.2")
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4")
   )
   .dependsOn(
     schema.jvm,
