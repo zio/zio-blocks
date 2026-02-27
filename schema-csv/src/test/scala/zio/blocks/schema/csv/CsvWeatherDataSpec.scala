@@ -54,6 +54,21 @@ object CsvWeatherDataSpec extends SchemaBaseSpec {
     codec.decode(CharBuffer.wrap(raw))
   }
 
+  private val weatherCsv: String =
+    "stationId,date,temperatureMax,temperatureMin,precipitation,windSpeed,humidity\r\n" +
+      "USW00094728,2024-01-15,2.3,-4.1,12.7,15.2,78\r\n" +
+      "USW00094728,2024-01-16,-1.8,-8.3,0.0,22.5,65\r\n" +
+      "USW00094728,2024-01-17,5.1,-2.4,3.2,11.8,72\r\n" +
+      "USW00012839,2024-01-15,18.9,8.7,0.0,6.3,45\r\n" +
+      "USW00012839,2024-01-16,21.2,11.4,0.0,8.1,38\r\n" +
+      "USW00012839,2024-01-17,19.5,9.8,2.1,12.6,52\r\n" +
+      "GME00127786,2024-01-15,-3.2,-9.7,5.8,18.4,82\r\n" +
+      "GME00127786,2024-01-16,-5.6,-12.1,8.3,25.7,88\r\n" +
+      "GME00127786,2024-01-17,-1.4,-7.8,0.0,14.2,71\r\n" +
+      "ASN00086071,2024-01-15,35.8,22.4,0.0,9.7,33\r\n" +
+      "ASN00086071,2024-01-16,38.2,24.1,0.0,7.3,28\r\n" +
+      "ASN00086071,2024-01-17,33.9,21.7,15.6,16.8,61\r\n"
+
   def spec = suite("CsvWeatherDataSpec")(
     suite("real-world weather data parsing")(
       test("decodes a single weather observation from raw CSV") {
@@ -152,6 +167,58 @@ object CsvWeatherDataSpec extends SchemaBaseSpec {
         val summary =
           DailyWeatherSummary("Test Station", java.time.LocalDate.of(2024, 1, 1), 0.0, "\"Feels like\" -10")
         assertTrue(roundTrip(summary) == Right(summary))
+      }
+    ),
+    suite("parsing CSV file content")(
+      test("parses header row from weather CSV") {
+        val result = CsvReader.readAll(weatherCsv, CsvConfig())
+        assertTrue(
+          result.isRight &&
+            result.toOption.get._1 == IndexedSeq(
+              "stationId",
+              "date",
+              "temperatureMax",
+              "temperatureMin",
+              "precipitation",
+              "windSpeed",
+              "humidity"
+            )
+        )
+      },
+      test("parses all data rows from weather CSV") {
+        val result = CsvReader.readAll(weatherCsv, CsvConfig())
+        assertTrue(
+          result.isRight &&
+            result.toOption.get._2.size == 12
+        )
+      },
+      test("decodes each row into WeatherObservation") {
+        val Right((_, dataRows)) = CsvReader.readAll(weatherCsv, CsvConfig()): @unchecked
+        val firstRow             = dataRows.head.mkString(",") + "\r\n"
+        val lastRow              = dataRows.last.mkString(",") + "\r\n"
+        val firstResult          = decode[WeatherObservation](firstRow)
+        val lastResult           = decode[WeatherObservation](lastRow)
+        assertTrue(
+          firstResult == Right(
+            WeatherObservation("USW00094728", java.time.LocalDate.of(2024, 1, 15), 2.3, -4.1, 12.7, 15.2, 78)
+          ) &&
+            lastResult == Right(
+              WeatherObservation("ASN00086071", java.time.LocalDate.of(2024, 1, 17), 33.9, 21.7, 15.6, 16.8, 61)
+            )
+        )
+      },
+      test("round-trips all decoded observations") {
+        val Right((_, dataRows)) = CsvReader.readAll(weatherCsv, CsvConfig()): @unchecked
+        val allDecoded           = dataRows.map { row =>
+          val raw = row.mkString(",") + "\r\n"
+          decode[WeatherObservation](raw)
+        }
+        val allRoundTripped = allDecoded.collect { case Right(obs) => roundTrip(obs) == Right(obs) }
+        assertTrue(
+          allDecoded.forall(_.isRight) &&
+            allRoundTripped.size == 12 &&
+            allRoundTripped.forall(identity)
+        )
       }
     )
   )
