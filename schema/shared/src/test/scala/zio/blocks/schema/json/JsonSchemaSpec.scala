@@ -2,6 +2,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
+import zio.blocks.schema.JavaTimeGen._
 import zio.test._
 
 object JsonSchemaSpec extends SchemaBaseSpec {
@@ -21,13 +22,19 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(
           !JsonSchema.False.conforms(Json.Null),
           !JsonSchema.False.conforms(Json.Boolean(true)),
-          !JsonSchema.False.conforms(Json.String("hello"))
+          !JsonSchema.False.conforms(Json.String("hello")),
+          !JsonSchema.False.conforms(Json.Number(42)),
+          !JsonSchema.False.conforms(Json.Array()),
+          !JsonSchema.False.conforms(Json.Object())
         )
       }
     ),
     suite("Type validation")(
       test("string type accepts strings only") {
         val schema = JsonSchema.string()
+        check(Gen.string) { s =>
+          assertTrue(schema.conforms(Json.String(s)))
+        } &&
         assertTrue(
           schema.conforms(Json.String("hello")),
           !schema.conforms(Json.Number(42)),
@@ -37,6 +44,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("integer type accepts integers only") {
         val schema = JsonSchema.integer()
+        check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20))) { n =>
+          assertTrue(schema.conforms(Json.Number(n)))
+        } &&
         assertTrue(
           schema.conforms(Json.Number(42)),
           schema.conforms(Json.Number(-100)),
@@ -46,6 +56,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("number type accepts all numbers") {
         val schema = JsonSchema.number()
+        check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20))) { n =>
+          assertTrue(schema.conforms(Json.Number(n)))
+        } &&
         assertTrue(
           schema.conforms(Json.Number(42)),
           schema.conforms(Json.Number(3.14)),
@@ -561,7 +574,15 @@ object JsonSchemaSpec extends SchemaBaseSpec {
     suite("Format validation")(
       test("date-time format validates RFC 3339 date-times") {
         val schema = JsonSchema.string(format = Some("date-time"))
+        check(genLocalDateTime) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
+        check(genOffsetDateTime) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
         assertTrue(
+          schema.conforms(Json.String("-9999-01-01T00:00")),
+          schema.conforms(Json.String("-789430502-05-26T07:02:41.076")),
           schema.conforms(Json.String("2024-01-15T10:30:00Z")),
           schema.conforms(Json.String("2024-01-15T10:30:00+05:00")),
           schema.conforms(Json.String("2024-01-15T10:30:00.123Z")),
@@ -573,6 +594,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("date format validates RFC 3339 dates") {
         val schema = JsonSchema.string(format = Some("date"))
+        check(genLocalDate) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
         assertTrue(
           schema.conforms(Json.String("2024-01-15")),
           schema.conforms(Json.String("2024-02-29")),
@@ -583,6 +607,12 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("time format validates RFC 3339 times") {
         val schema = JsonSchema.string(format = Some("time"))
+        check(genLocalTime) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
+        check(genOffsetTime) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
         assertTrue(
           schema.conforms(Json.String("10:30:00Z")),
           schema.conforms(Json.String("10:30:00+05:00")),
@@ -599,11 +629,15 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           schema.conforms(Json.String("user.name@sub.domain.org")),
           !schema.conforms(Json.String("not-an-email")),
           !schema.conforms(Json.String("@missing-local.com")),
+          !schema.conforms(Json.String("<script>alert(1)</script>@example.com")),
           !schema.conforms(Json.String("missing-at.com"))
         )
       },
       test("uuid format validates RFC 4122 UUIDs") {
         val schema = JsonSchema.string(format = Some("uuid"))
+        check(Gen.uuid) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
         assertTrue(
           schema.conforms(Json.String("550e8400-e29b-41d4-a716-446655440000")),
           schema.conforms(Json.String("550E8400-E29B-41D4-A716-446655440000")),
@@ -633,13 +667,19 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("ipv4 format validates IPv4 addresses") {
         val schema = JsonSchema.string(format = Some("ipv4"))
+        check(Gen.int) { n =>
+          val b1 = n & 0xff
+          val b2 = (n >> 8) & 0xff
+          val b3 = (n >> 16) & 0xff
+          val b4 = (n >> 24) & 0xff
+          assertTrue(schema.conforms(Json.String(s"$b1.$b2.$b3.$b4")))
+        } &&
         assertTrue(
-          schema.conforms(Json.String("192.168.1.1")),
-          schema.conforms(Json.String("0.0.0.0")),
-          schema.conforms(Json.String("255.255.255.255")),
+          // some network libraries and operating systems interpret IP octets with leading zeros as octal (base-8) numbers rather than decimal
+          !schema.conforms(Json.String("010.0.0.1")),
           !schema.conforms(Json.String("256.1.1.1")),
           !schema.conforms(Json.String("192.168.1")),
-          !schema.conforms(Json.String("not-an-ip"))
+          !schema.conforms(Json.String("not-an-ipv4"))
         )
       },
       test("ipv6 format validates IPv6 addresses") {
@@ -659,6 +699,9 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           schema.conforms(Json.String("example.com")),
           schema.conforms(Json.String("sub.example.com")),
           schema.conforms(Json.String("localhost")),
+          schema.conforms( // Internationalized Domain Name support for JVM
+            Json.String(if (Platform.isJVM) "münchen.de" else "xn--mnchen-3ya.de")
+          ),
           !schema.conforms(Json.String("-invalid.com")),
           !schema.conforms(Json.String("invalid-.com"))
         )
@@ -673,6 +716,12 @@ object JsonSchemaSpec extends SchemaBaseSpec {
       },
       test("duration format validates ISO 8601 durations") {
         val schema = JsonSchema.string(format = Some("duration"))
+        check(genDuration) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
+        check(genPeriod) { d =>
+          assertTrue(schema.conforms(Json.String(d.toString)))
+        } &&
         assertTrue(
           schema.conforms(Json.String("P1Y")),
           schema.conforms(Json.String("P1M")),

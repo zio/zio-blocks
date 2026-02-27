@@ -81,12 +81,15 @@ final case class DerivationBuilder[TC[_], A](
       val nodes = optic.toDynamic.nodes
       if (nodes.isEmpty) this
       else {
-        val path = new DynamicOptic(nodes.init)
         nodes.last match {
-          case DynamicOptic.Node.Field(name) =>
-            copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByOptic(path, name, mt))
-          case DynamicOptic.Node.Case(name) =>
-            copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByOptic(path, name, mt))
+          case f: DynamicOptic.Node.Field =>
+            copy(modifierOverrides =
+              modifierOverrides :+ new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), f.name, mt)
+            )
+          case c: DynamicOptic.Node.Case =>
+            copy(modifierOverrides =
+              modifierOverrides :+ new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), c.name, mt)
+            )
           case _ => this
         }
       }
@@ -230,9 +233,7 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val instance     = getCustomInstance[A0](path, typeId).getOrElse {
+            val instance = getCustomInstance[A0](path, typeId).getOrElse {
               val fieldsWithInstanceOverrides =
                 applyTypeAndTermNameOverrides(typeId, path, fields, (p, name) => p.field(name))
               val modifiersToPrepend = combineModifiers(path, typeId)
@@ -254,8 +255,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
+                  storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
                 )
             }
             new Reflect.Record(
@@ -291,9 +292,7 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val instance     = getCustomInstance[A0](path, typeId).getOrElse {
+            val instance = getCustomInstance[A0](path, typeId).getOrElse {
               val casesWithInstanceOverrides =
                 applyTypeAndTermNameOverrides(typeId, path, cases, (p, name) => p.caseOf(name))
                   .asInstanceOf[IndexedSeq[Term[G, A0, ? <: A0]]]
@@ -306,10 +305,11 @@ final case class DerivationBuilder[TC[_], A](
                       case (name, modifier) if name == case_.name => modifier
                     }
                     if (caseModifiersToPrepend.isEmpty) case_
-                    else
+                    else {
                       case_
                         .copy(modifiers = caseModifiersToPrepend ++ case_.modifiers)
                         .asInstanceOf[Term[G, A0, ? <: A0]]
+                    }
                   }
                 }
               deriver
@@ -319,8 +319,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
+                  storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
                 )
             }
             new Reflect.Variant(
@@ -356,9 +356,7 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val instance     = getCustomInstance[C[A0]](path, typeId).getOrElse(
+            val instance = getCustomInstance[C[A0]](path, typeId).getOrElse(
               deriver
                 .deriveSequence(
                   element,
@@ -366,8 +364,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
+                  storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
                 )
             )
             new Reflect.Sequence(
@@ -405,9 +403,7 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val instance     = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
+            val instance = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
               deriver
                 .deriveMap(
                   key,
@@ -416,8 +412,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
+                  storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
                 )
             )
             new Reflect.Map(
@@ -471,9 +467,7 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Primitive[G, A0]] = Lazy {
-            val defaultValue = storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
-            val examples     = storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
-            val instance     = getCustomInstance[A0](path, typeId).getOrElse(
+            val instance = getCustomInstance[A0](path, typeId).getOrElse(
               deriver
                 .derivePrimitive(
                   primitiveType,
@@ -481,8 +475,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption),
+                  storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
                 )
             )
             new Reflect.Primitive(
@@ -518,9 +512,7 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val defaultValue = storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val examples     = storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
-            val instance     = getCustomInstance[A0](path, typeId)
+            val instance = getCustomInstance[A0](path, typeId)
               .getOrElse(
                 deriver.deriveWrapper(
                   wrapped,
@@ -528,8 +520,8 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
-                  defaultValue,
-                  examples
+                  storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
+                  storedExamples.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption)
                 )
               )
             new Reflect.Wrapper(
