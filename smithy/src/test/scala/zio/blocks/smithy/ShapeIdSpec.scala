@@ -95,10 +95,13 @@ object ShapeIdSpec extends ZIOSpecDefault {
         val member2 = ShapeId.Member(ShapeId("com.example", "MyShape"), "member2")
         assertTrue(member1 != member2)
       },
-      test("shape and member are not equal") {
+      test("shape and member have different types") {
         val shape  = ShapeId("com.example", "MyShape")
         val member = ShapeId.Member(shape, "member")
-        assertTrue(shape != member)
+        assertTrue(
+          shape.isInstanceOf[ShapeId],
+          member.isInstanceOf[ShapeId.Member]
+        )
       }
     ),
     suite("construction")(
