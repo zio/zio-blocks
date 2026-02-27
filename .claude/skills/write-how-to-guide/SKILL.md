@@ -320,82 +320,20 @@ If relevant, end with:
 - Variations or extensions the reader might try
 - Links to other guides that build on this one
 
-### Scala Version
-
-All code in the guide and companion example files **must use Scala 2.13.x syntax**. When in doubt, check the companion example files — they are the source of truth for syntax style.
-
 ### Writing Style Rules
 
-Follow these rules precisely:
-
-- **Person**: Use "we" when guiding the reader ("we can create...", "we need to..."). Use "you" when addressing the reader's choices ("if you need...", "you might want to...").
-- **Tense**: Present tense ("returns", "creates", "produces").
-- **Concision**: Keep prose short. Let code examples do the heavy lifting. If you find yourself writing more than 4 sentences of prose without a code block, you're being too verbose.
-- **Project name**: "ZIO Blocks" (not "zio-blocks").
-- **Don't pad**: No filler phrases like "as we can see" or "it's worth noting that". Just state the fact.
-- **No exhaustive API coverage**: Only document the methods and types that serve the guide's goal. Link to reference pages for full API details.
-- **No emojis**: Unless the user explicitly requests them.
-- **ASCII art**: Use it for diagrams showing data flow, type relationships, or architecture. Readers find these very helpful for understanding how pieces fit together.
+See the **`docs-writing-style`** skill for universal prose style, Scala version rules, and code
+block conventions.
 
 ### Compile-Checked Code Blocks with mdoc
 
-This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala code blocks in documentation. Every Scala code block must use one of the mdoc modifiers below. **Choosing the right modifier is critical** — incorrect usage causes mdoc compilation failures or broken rendered output.
-
-#### Modifier Summary
-
-| Modifier                   | Rendered Output           | Scope                         | Use When                                        |
-|----------------------------|---------------------------|-------------------------------|-------------------------------------------------|
-| `scala mdoc:compile-only ` | Source code only          | Isolated (no shared state)    | Default choice for most examples                |
-| `scala mdoc:silent`        | Nothing (hidden)          | Shared with subsequent blocks | Setting up definitions needed by later blocks   |
-| `scala mdoc:silent:nest`   | Nothing (hidden)          | Shared, wrapped in `object`   | Re-defining names already in scope              |
-| `scala mdoc`               | Source + evaluated output | Shared with subsequent blocks | Showing REPL-style output to the reader         |
-| `scala mdoc:invisible`     | Nothing (hidden)          | Shared with subsequent blocks | Importing hidden prerequisites                  |
-| `scala mdoc:silent:reset`  | Nothing (hidden)          | Resets all prior scope        | Starting a clean scope mid-document             |
-| `scala` (no mdoc)          | Source code only          | Not compiled                  | Pseudocode, ASCII diagrams, conceptual snippets |
-
-#### Key Rules
-
-- **`mdoc:compile-only`** is the **default**. Use it for self-contained examples. Each block is compiled in isolation — definitions do NOT carry over between `compile-only` blocks.
-- **`mdoc:silent`** defines types/values that **subsequent blocks** can reference (scope persists until reset). Nothing is rendered. You cannot redefine the same name — use `silent:nest` for that.
-- **`mdoc:silent:nest`** is like `silent` but wraps code in an anonymous `object`, allowing you to **shadow names** from earlier blocks (e.g., redefining `Person` with different fields in a later section).
-- **`mdoc:silent:reset`** wipes **all** accumulated scope and starts fresh. Use when `silent:nest` wouldn't suffice (e.g., switching to a completely different topic mid-document).
-- **`mdoc`** (no qualifier) shows **source + evaluated output** (REPL-style). Requires definitions in scope from a prior `silent`/`silent:nest` block. Use to show `toJson`, `show`, encoding results, etc.
-- **`mdoc:invisible`** is like `silent` but signals "hidden imports only." Rare — prefer including imports in the `compile-only` block itself.
-- **No mdoc** (plain `` ```scala ``) — not compiled. Use for pseudocode, ASCII diagrams, type signatures for illustration, or sbt/non-Scala syntax.
-
-#### Choosing the Right Modifier — Guide-Specific Advice
-
-How-to guides have a **progressive narrative** where code builds on itself. This means you will use shared-scope modifiers more often than reference pages:
-
-1. **Domain setup** (case classes, imports): `mdoc:silent` — hidden, but in scope for all subsequent blocks.
-2. **First example** (showing how something works): `mdoc` — show source + output so the reader sees the result.
-3. **Building on the example** (adding a feature): `mdoc:silent:nest` if redefining, `mdoc` if showing output.
-4. **New topic within the guide**: `mdoc:silent:reset` to start clean, then `mdoc:silent` for new setup.
-5. **Final "putting it together"**: `mdoc:compile-only` — fully self-contained, copy-paste ready.
+See the **`docs-mdoc-conventions`** skill for the complete mdoc modifier table, key rules, and
+the "For How-To Guides (Progressive Narrative)" section which explains the recommended modifier
+sequence for guides specifically.
 
 ### Docusaurus Admonitions
 
-Use Docusaurus admonition syntax for callouts:
-
-```
-:::note
-Additional context or clarification.
-:::
-
-:::tip
-Helpful shortcut or best practice.
-:::
-
-:::warning
-Common mistake or gotcha to avoid.
-:::
-
-:::info
-Background information that is useful but not essential.
-:::
-```
-
-Use admonitions sparingly — at most 3-4 in a typical guide. They should highlight genuinely important information, not decorate every section.
+See the **`docs-mdoc-conventions`** skill for admonition syntax and usage guidelines.
 
 ---
 
@@ -486,25 +424,14 @@ If any example fails to compile, fix it before proceeding. The examples must com
 
 ## Step 5: Integrate
 
-After writing the guide and creating examples:
+See the **`docs-integrate`** skill for the complete integration checklist (sidebars.js, index.md,
+cross-references, link verification).
 
-1. **Add to `sidebars.js`**: Add the guide's `id` to the sidebar. Place it after reference pages, grouped with other guides if any exist. If there is no "Guides" category yet, add one:
-
-```javascript
-{
-  type: "category",
-  label: "Guides",
-  items: [
-    "guides/guide-id-here",
-  ]
-}
-```
-
-2. **Update `docs/index.md`**: Add a link to the guide under an appropriate section. If a "Guides" section does not exist, create one after the reference documentation links.
-
-3. **Cross-reference**: Add links from related existing reference pages to the new guide (e.g., if you wrote a guide about query DSLs using `Schema` and `DynamicOptic`, add a "See also" link from `docs/reference/schema.md` and `docs/reference/dynamic-optic.md`).
-
-4. **Verify all links**: Ensure relative links in the guide and in updated pages are correct.
+Additional notes for how-to guides:
+- Place the file in `docs/guides/` directory.
+- In `sidebars.js`, add under a "Guides" category (create it if absent).
+- Cross-reference: add links from any related reference pages (e.g., if the guide uses `Schema`,
+  add a "See also" link from `docs/reference/schema.md`).
 
 ---
 
