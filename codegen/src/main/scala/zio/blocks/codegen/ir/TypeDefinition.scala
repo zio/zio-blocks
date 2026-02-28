@@ -74,6 +74,8 @@ final case class CaseClass(
  *   The name of the sealed trait
  * @param typeParams
  *   Type parameters for generic sealed traits (defaults to empty list)
+ * @param extendsTypes
+ *   Types that this sealed trait extends (defaults to empty list)
  * @param cases
  *   The cases (subtypes) of the sealed trait (defaults to empty list)
  * @param annotations
@@ -97,6 +99,7 @@ final case class CaseClass(
 final case class SealedTrait(
   name: String,
   typeParams: List[TypeRef] = Nil,
+  extendsTypes: List[TypeRef] = Nil,
   cases: List[SealedTraitCase] = Nil,
   annotations: List[Annotation] = Nil,
   companion: Option[CompanionObject] = None,
@@ -196,6 +199,8 @@ object EnumCase {
  *   The members of the object (defaults to empty list)
  * @param extendsTypes
  *   Types that this object extends (defaults to empty list)
+ * @param isCaseObject
+ *   Whether this is a case object (defaults to false)
  * @param annotations
  *   Annotations on the object (defaults to empty list)
  * @param doc
@@ -215,6 +220,7 @@ final case class ObjectDef(
   name: String,
   members: List[ObjectMember] = Nil,
   extendsTypes: List[TypeRef] = Nil,
+  isCaseObject: Boolean = false,
   annotations: List[Annotation] = Nil,
   doc: Option[String] = None
 ) extends TypeDefinition

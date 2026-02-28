@@ -153,6 +153,39 @@ object ScalaEmitterSealedTraitSpec extends ZIOSpecDefault {
         val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
         assertTrue(result.contains("extends Animal"))
         assertTrue(!result.contains("extends Animal with Animal"))
+      },
+      test("sealed trait with extendsTypes") {
+        val st = SealedTrait(
+          "Shape",
+          extendsTypes = List(TypeRef("Serializable"), TypeRef("Product")),
+          cases = List(
+            SealedTraitCase.CaseObjectCase("Unknown")
+          )
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(
+          result ==
+            """|sealed trait Shape extends Serializable with Product
+               |
+               |object Shape {
+               |  case object Unknown extends Shape
+               |}""".stripMargin
+        )
+      },
+      test("generic sealed trait cases get type params in extends") {
+        val st = SealedTrait(
+          "Result",
+          typeParams = List(TypeRef("A")),
+          cases = List(
+            SealedTraitCase.CaseClassCase(
+              CaseClass("Ok", List(Field("value", TypeRef("A"))))
+            ),
+            SealedTraitCase.CaseObjectCase("Err")
+          )
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(result.contains("extends Result[A]"))
+        assertTrue(result.contains("case object Err extends Result[A]"))
       }
     )
 }

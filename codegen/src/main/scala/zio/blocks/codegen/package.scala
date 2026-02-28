@@ -3,7 +3,7 @@
  *
  * This module defines:
  *   - `ir`: Intermediate representation for code generation
- *   - `emit`: Code emitters for various target languages
+ *   - `emit`: Scala source code emitter
  */
 package zio.blocks
 

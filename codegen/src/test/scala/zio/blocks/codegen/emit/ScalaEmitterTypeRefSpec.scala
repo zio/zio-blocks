@@ -89,15 +89,7 @@ object ScalaEmitterTypeRefSpec extends ZIOSpecDefault {
           val result = ScalaEmitter.emitImport(Import.WildcardImport("com.example"))
           assertTrue(result == "import com.example.*")
         },
-        test("wildcard import Scala 2 syntax") {
-          val result = ScalaEmitter.emitImport(Import.WildcardImport("com.example"))
-          assertTrue(result == "import com.example.*")
-        },
         test("rename import Scala 3 syntax") {
-          val result = ScalaEmitter.emitImport(Import.RenameImport("com.example", "Foo", "Bar"))
-          assertTrue(result == "import com.example.{Foo as Bar}")
-        },
-        test("rename import Scala 2 syntax") {
           val result = ScalaEmitter.emitImport(Import.RenameImport("com.example", "Foo", "Bar"))
           assertTrue(result == "import com.example.{Foo as Bar}")
         }
