@@ -13,7 +13,7 @@ package zio.blocks.smithy
  *   ShapeDefinition("MyString", StringShape("MyString"))
  * ))
  * val idl = SmithyPrinter.print(model)
- * // "$version: \"2.0\"\n\nnamespace com.example\n\nstring MyString\n"
+ * // "$$version: \"2.0\"\n\nnamespace com.example\n\nstring MyString\n"
  *   }}}
  */
 object SmithyPrinter {

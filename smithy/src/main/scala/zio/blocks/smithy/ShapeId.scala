@@ -42,7 +42,7 @@ object ShapeId {
    *
    * Expected formats:
    *   - "namespace#name" → ShapeId
-   *   - "namespace#name$memberName" → Member
+   *   - "namespace#name$$memberName" → Member
    *
    * @param s
    *   the string to parse
