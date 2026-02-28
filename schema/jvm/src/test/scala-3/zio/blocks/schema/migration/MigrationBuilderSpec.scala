@@ -40,7 +40,9 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
     selectorSuite,
     builderSuite,
     nestedBuilderSuite,
-    typedMigrationSuite
+    typedMigrationSuite,
+    builderApiCoverageSuite,
+    nestedBuilderCoverageSuite
   )
 
   private val selectorSuite = suite("Selector Macro")(
@@ -178,6 +180,118 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
 
       val result = migration(PersonV1("Alice", 30))
       assertTrue(result.isLeft || result.isRight)
+    }
+  )
+
+  private val builderApiCoverageSuite = suite("Builder API coverage")(
+    test("build creates Migration same as buildPartial") {
+      val migration = MigrationBuilder[PersonV1, PersonV2]
+        .renameField(_.name, _.fullName)
+        .addField(_.email, DynamicValue.string("unknown"))
+        .build
+
+      val result = migration(PersonV1("Alice", 30))
+      assertTrue(result == Right(PersonV2("Alice", 30, "unknown")))
+    },
+    test("renameCase creates RenameCase action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .renameCase("OldCase", "NewCase")
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.RenameCase])
+    },
+    test("transformCase creates TransformCase action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .transformCase("MyCase") { nested =>
+          nested.addField("extra", DynamicValue.string("val"))
+        }
+
+      val action = builder.actions.head
+      assertTrue(
+        action.isInstanceOf[MigrationAction.TransformCase],
+        action.asInstanceOf[MigrationAction.TransformCase].actions.length == 1
+      )
+    },
+    test("transformField creates correct action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .transformField(_.name, _.fullName, DynamicValue.string("mapped"))
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.Rename])
+    },
+    test("mandateField creates Mandate action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .mandateField(_.name, DynamicValue.string("default"))
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.Mandate])
+    },
+    test("optionalizeField creates Optionalize action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .optionalizeField(_.name)
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.Optionalize])
+    },
+    test("changeFieldType creates ChangeType action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .changeFieldType(_.name, DynamicValue.string("converted"))
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.ChangeType])
+    },
+    test("transformElements creates TransformElements action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .transformElements(DynamicOptic.root.field("items"), DynamicValue.Null)
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.TransformElements])
+    },
+    test("transformKeys creates TransformKeys action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .transformKeys(DynamicOptic.root.field("map"), DynamicValue.Null)
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.TransformKeys])
+    },
+    test("transformValues creates TransformValues action") {
+      val builder = MigrationBuilder[PersonV1, PersonV2]
+        .transformValues(DynamicOptic.root.field("map"), DynamicValue.Null)
+
+      val action = builder.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.TransformValues])
+    }
+  )
+
+  private val nestedBuilderCoverageSuite = suite("Nested Builder coverage")(
+    test("Nested.dropField creates DropField action") {
+      val nested = MigrationBuilder.Nested.empty
+        .dropField("oldField")
+      val action = nested.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.DropField])
+    },
+    test("Nested.mandate creates Mandate action") {
+      val nested = MigrationBuilder.Nested.empty
+        .mandate("field", DynamicValue.int(0))
+      val action = nested.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.Mandate])
+    },
+    test("Nested.optionalize creates Optionalize action") {
+      val nested = MigrationBuilder.Nested.empty
+        .optionalize("field")
+      val action = nested.actions.head
+      assertTrue(action.isInstanceOf[MigrationAction.Optionalize])
+    },
+    test("Nested.transformCase creates nested TransformCase action") {
+      val nested = MigrationBuilder.Nested.empty
+        .transformCase("InnerCase") { inner =>
+          inner.addField("x", DynamicValue.int(1))
+        }
+      val action = nested.actions.head
+      assertTrue(
+        action.isInstanceOf[MigrationAction.TransformCase],
+        action.asInstanceOf[MigrationAction.TransformCase].actions.length == 1
+      )
     }
   )
 }
