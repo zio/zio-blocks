@@ -501,6 +501,7 @@ val combined = Path("/api") ++ Path("v1/users")  // "/api/v1/users"
 
 ```scala mdoc:compile-only
 import zio.http.Path
+import zio.blocks.chunk.Chunk
 
 val path = Path(Chunk("hello world", "foo/bar"), hasLeadingSlash = true, trailingSlash = false)
 
@@ -1234,7 +1235,7 @@ import zio.http._
 
 val url = URL.parse("https://api.example.com").toOption.get
 
-val extended = url / "v1" / "users" / "123" ?? ("include", "profile") ?? ("include", "posts")
+val extended = (url / "v1" / "users" / "123") ?? ("include", "profile") ?? ("include", "posts")
 
 extended.encode
 // "https://api.example.com/v1/users/123?include=profile&include=posts"

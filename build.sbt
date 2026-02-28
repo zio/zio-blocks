@@ -580,6 +580,7 @@ lazy val docs = project
     `schema-thrift`,
     `schema-bson`,
     `schema-xml`.jvm,
-    mediatype.jvm
+    mediatype.jvm,
+    `http-model`.jvm
   )
   .enablePlugins(WebsitePlugin)
