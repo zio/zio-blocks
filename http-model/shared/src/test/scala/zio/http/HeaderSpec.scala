@@ -88,6 +88,10 @@ object HeaderSpec extends HttpModelBaseSpec {
         val result = Header.Host.parse("example.com:abc")
         assertTrue(result.isLeft)
       },
+      test("parse port-only host returns Left") {
+        val result = Header.Host.parse(":8080")
+        assertTrue(result.isLeft)
+      },
       test("render host without port") {
         val h = Header.Host("localhost", None)
         assertTrue(Header.Host.render(h) == "localhost")

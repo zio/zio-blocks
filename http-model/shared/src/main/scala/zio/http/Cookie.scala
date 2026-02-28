@@ -27,11 +27,11 @@ object Cookie {
 
   def parseRequest(s: String): Chunk[RequestCookie] = {
     if (s.isEmpty) return Chunk.empty[RequestCookie]
-    val parts   = s.split("; ")
+    val parts   = s.split(';')
     val builder = Chunk.newBuilder[RequestCookie]
     var i       = 0
     while (i < parts.length) {
-      val part  = parts(i)
+      val part  = parts(i).trim
       val eqIdx = part.indexOf('=')
       if (eqIdx > 0) {
         val name  = part.substring(0, eqIdx).trim

@@ -1,4 +1,13 @@
 package zio.http
+
+/**
+ * Pure, immutable URL representation.
+ *
+ * Path segments are stored in decoded form and percent-encoded on output via
+ * `encode`. `parse` returns `Left` on invalid input (empty string, malformed
+ * port, etc.). Use `/` to append a path segment and `??` to add a query
+ * parameter. `encode` renders the full URL string with proper percent-encoding.
+ */
 final case class URL(
   scheme: Option[Scheme],
   host: Option[String],
@@ -107,7 +116,9 @@ object URL {
             host = Some(authority.substring(0, closeBracket + 1))
             if (closeBracket + 1 < authority.length && authority.charAt(closeBracket + 1) == ':') {
               val portStr = authority.substring(closeBracket + 2)
-              if (portStr.nonEmpty) port = Some(portStr.toInt)
+              if (portStr.nonEmpty)
+                try port = Some(portStr.toInt)
+                catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
             }
           } else {
             host = Some(authority)
@@ -117,7 +128,9 @@ object URL {
           if (colonIdx >= 0) {
             host = Some(authority.substring(0, colonIdx))
             val portStr = authority.substring(colonIdx + 1)
-            if (portStr.nonEmpty) port = Some(portStr.toInt)
+            if (portStr.nonEmpty)
+              try port = Some(portStr.toInt)
+              catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
           } else {
             host = Some(authority)
           }

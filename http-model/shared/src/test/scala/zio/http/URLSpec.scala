@@ -184,6 +184,10 @@ object URLSpec extends HttpModelBaseSpec {
       test("empty string fails") {
         assertTrue(URL.parse("").isLeft)
       },
+      test("non-numeric port returns Left instead of throwing") {
+        val result = URL.parse("http://example.com:abc/path")
+        assertTrue(result.isLeft)
+      },
       test("full URL with all components") {
         val result = URL.parse("http://example.com:8080/path/to/resource?key=value&a=b#frag")
         assertTrue(

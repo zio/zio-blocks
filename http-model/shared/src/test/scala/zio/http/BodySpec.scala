@@ -18,8 +18,8 @@ object BodySpec extends HttpModelBaseSpec {
       test("has no content type") {
         assertTrue(Body.empty.contentType.isEmpty)
       },
-      test("data is empty array") {
-        assertTrue(Body.empty.data.length == 0)
+      test("toArray is empty array for empty body") {
+        assertTrue(Body.empty.toArray.length == 0)
       }
     ),
     suite("fromArray")(
@@ -28,16 +28,16 @@ object BodySpec extends HttpModelBaseSpec {
         val body  = Body.fromArray(bytes)
         assertTrue(
           body.length == 3,
-          body.data(0) == 1.toByte,
-          body.data(1) == 2.toByte,
-          body.data(2) == 3.toByte
+          body.toArray(0) == 1.toByte,
+          body.toArray(1) == 2.toByte,
+          body.toArray(2) == 3.toByte
         )
       },
       test("makes defensive copy") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte
-        assertTrue(body.data(0) == 1.toByte)
+        assertTrue(body.toArray(0) == 1.toByte)
       },
       test("preserves content type") {
         val ct   = Some(ContentType.`application/json`)
@@ -55,9 +55,9 @@ object BodySpec extends HttpModelBaseSpec {
         val body  = Body.fromChunk(chunk)
         assertTrue(
           body.length == 3,
-          body.data(0) == 10.toByte,
-          body.data(1) == 20.toByte,
-          body.data(2) == 30.toByte
+          body.toArray(0) == 10.toByte,
+          body.toArray(1) == 20.toByte,
+          body.toArray(2) == 30.toByte
         )
       },
       test("preserves content type") {

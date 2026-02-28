@@ -1,5 +1,20 @@
 package zio.http
 
+/**
+ * RFC 3986 percent-encoding utilities.
+ *
+ * Provides component-specific encoding via [[ComponentType]] variants
+ * (`PathSegment`, `QueryKey`, `QueryValue`, `Fragment`, `UserInfo`), each
+ * allowing a different set of unescaped characters as defined by the RFC.
+ * Non-ASCII characters are first encoded to UTF-8 bytes, then each byte is
+ * percent-encoded.
+ *
+ * `decode` converts percent-encoded triplets back to characters; invalid or
+ * incomplete percent sequences are passed through unchanged.
+ *
+ * Note: this encoder does '''not''' use `application/x-www-form-urlencoded`
+ * rules (spaces are encoded as `%20`, never as `+`).
+ */
 object PercentEncoder {
 
   sealed trait ComponentType

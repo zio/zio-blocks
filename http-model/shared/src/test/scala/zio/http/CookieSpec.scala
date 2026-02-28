@@ -36,6 +36,15 @@ object CookieSpec extends HttpModelBaseSpec {
         test("trims whitespace from name and value") {
           val cookies = Cookie.parseRequest("name = value")
           assertTrue(cookies == Chunk(RequestCookie("name", "value")))
+        },
+        test("parses cookies without space after semicolon") {
+          val cookies = Cookie.parseRequest("a=1;b=2")
+          assertTrue(
+            cookies == Chunk(
+              RequestCookie("a", "1"),
+              RequestCookie("b", "2")
+            )
+          )
         }
       ),
       suite("renderRequest")(

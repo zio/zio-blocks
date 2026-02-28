@@ -3,7 +3,7 @@ package zio.http
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaTypes
 
-final class Body private (val data: Array[Byte], val contentType: Option[ContentType]) {
+final class Body private (private val data: Array[Byte], val contentType: Option[ContentType]) {
 
   override def equals(that: Any): Boolean = that match {
     case b: Body => java.util.Arrays.equals(data, b.data) && contentType == b.contentType
@@ -15,6 +15,12 @@ final class Body private (val data: Array[Byte], val contentType: Option[Content
   def asString(charset: Charset = Charset.UTF8): String = new String(data, charset.name)
 
   def asChunk: Chunk[Byte] = Chunk.fromArray(data)
+
+  def toArray: Array[Byte] = {
+    val copy = new Array[Byte](data.length)
+    System.arraycopy(data, 0, copy, 0, data.length)
+    copy
+  }
 
   def length: Int = data.length
 

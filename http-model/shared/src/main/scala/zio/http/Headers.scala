@@ -2,6 +2,16 @@ package zio.http
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Immutable collection of HTTP headers, backed by parallel arrays.
+ *
+ * Header names are stored pre-lowercased for case-insensitive matching.
+ * Multiple headers with the same name are allowed (multi-value). The `parsed`
+ * array is populated lazily on the first typed `get` call and is monotonic,
+ * making it thread-safe without locks. Parse failures are not cached: `get`
+ * returns `None` but a subsequent call may succeed if the underlying raw value
+ * has been corrected via `set`.
+ */
 final class Headers private[http] (
   private val names: Array[String],
   private val rawValues: Array[String],

@@ -67,7 +67,8 @@ object Header {
       if (colonIdx < 0) Right(Host(value, None))
       else {
         val hostPart = value.substring(0, colonIdx)
-        val portStr  = value.substring(colonIdx + 1)
+        if (hostPart.isEmpty) return Left("Invalid host: cannot be empty")
+        val portStr = value.substring(colonIdx + 1)
         try {
           val p = portStr.toInt
           if (p < 0 || p > 65535) Left(s"Invalid port: $p")
