@@ -216,8 +216,11 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       val builder = MigrationBuilder[PersonV1, PersonV2]
         .transformField(_.name, _.fullName, DynamicValue.string("mapped"))
 
-      val action = builder.actions.head
-      assertTrue(action.isInstanceOf[MigrationAction.Rename])
+      assertTrue(
+        builder.actions.length == 2,
+        builder.actions(0).isInstanceOf[MigrationAction.Rename],
+        builder.actions(1).isInstanceOf[MigrationAction.TransformValue]
+      )
     },
     test("mandateField creates Mandate action") {
       val builder = MigrationBuilder[PersonV1, PersonV2]

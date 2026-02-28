@@ -19,6 +19,20 @@ private[migration] object MigrationBuilderMacros {
     """)
   }
 
+  def dropFieldImplDefault[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
+    source: c.Expr[A => Any]
+  ): c.Expr[MigrationBuilder[A, B]] = {
+    import c.universe._
+    val path = selectorToOptic(c)(source.tree)
+    c.Expr[MigrationBuilder[A, B]](q"""
+      new _root_.zio.blocks.schema.migration.MigrationBuilder(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.DropField($path, _root_.zio.blocks.schema.DynamicValue.Null),
+        ${c.prefix}.sourceSchema,
+        ${c.prefix}.targetSchema
+      )
+    """)
+  }
+
   def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Any],
     defaultForReverse: c.Expr[zio.blocks.schema.DynamicValue]
@@ -57,11 +71,11 @@ private[migration] object MigrationBuilderMacros {
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
     val fromPath = selectorToOptic(c)(from.tree)
+    val toPath   = selectorToOptic(c)(to.tree)
     val toName   = lastFieldName(c)(to.tree)
-    val _        = transform // reserved for future SchemaExpr evaluation
     c.Expr[MigrationBuilder[A, B]](q"""
       new _root_.zio.blocks.schema.migration.MigrationBuilder(
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Rename($fromPath, $toName),
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Rename($fromPath, $toName) :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformValue($toPath, $transform),
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema
       )

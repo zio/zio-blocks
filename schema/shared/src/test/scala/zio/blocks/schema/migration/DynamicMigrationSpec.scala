@@ -749,7 +749,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
   private val additionalBranchCoverageSuite = suite("Additional branch coverage")(
     test("multi-action chain where middle action fails") {
       val original = record("a" -> intVal(1), "b" -> intVal(2))
-      val m = DynamicMigration(
+      val m        = DynamicMigration(
         Chunk(
           MigrationAction.AddField(DynamicOptic.root.field("c"), intVal(3)),
           MigrationAction.DropField(DynamicOptic.root.field("nonexistent"), intVal(0)),
@@ -760,7 +760,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("TransformCase at root on Variant where nested migration fails") {
       val original = variant("A", record("x" -> intVal(1)))
-      val m = DynamicMigration(
+      val m        = DynamicMigration(
         Chunk(
           MigrationAction.TransformCase(
             DynamicOptic.root,
@@ -772,7 +772,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("TransformCase at root on non-Variant where nested migration fails") {
       val original = record("x" -> intVal(1))
-      val m = DynamicMigration(
+      val m        = DynamicMigration(
         Chunk(
           MigrationAction.TransformCase(
             DynamicOptic.root,
@@ -784,7 +784,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("TransformCase nested path non-Variant where nested migration fails") {
       val original = record("inner" -> record("x" -> intVal(1)))
-      val m = DynamicMigration(
+      val m        = DynamicMigration(
         Chunk(
           MigrationAction.TransformCase(
             DynamicOptic.root.field("inner"),
@@ -796,7 +796,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("RenameCase at nested path with non-matching variant name") {
       val original = record("shape" -> variant("Circle", record("r" -> intVal(5))))
-      val m = DynamicMigration(
+      val m        = DynamicMigration(
         Chunk(MigrationAction.RenameCase(DynamicOptic.root.field("shape"), "Square", "Rectangle"))
       )
       val result = m(original)
@@ -804,22 +804,22 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("Migration.andThen composes two migrations") {
       val intSchema: Schema[Int] = Schema[Int]
-      val m1 = Migration.identity[Int](intSchema)
-      val m2 = Migration.identity[Int](intSchema)
-      val composed = m1.andThen(m2)
+      val m1                     = Migration.identity[Int](intSchema)
+      val m2                     = Migration.identity[Int](intSchema)
+      val composed               = m1.andThen(m2)
       assertTrue(composed(42) == Right(42))
     },
     test("Migration.apply fails when fromDynamicValue fails") {
       val stringSchema: Schema[String] = Schema[String]
-      val intSchema: Schema[Int] = Schema[Int]
-      val m = Migration[String, Int](DynamicMigration.empty, stringSchema, intSchema)
+      val intSchema: Schema[Int]       = Schema[Int]
+      val m                            = Migration[String, Int](DynamicMigration.empty, stringSchema, intSchema)
       assertTrue(m("hello").isLeft)
     },
     test("DynamicMigration composition via ++") {
-      val m1 = DynamicMigration(Chunk(MigrationAction.AddField(DynamicOptic.root.field("a"), intVal(1))))
-      val m2 = DynamicMigration(Chunk(MigrationAction.AddField(DynamicOptic.root.field("b"), intVal(2))))
+      val m1       = DynamicMigration(Chunk(MigrationAction.AddField(DynamicOptic.root.field("a"), intVal(1))))
+      val m2       = DynamicMigration(Chunk(MigrationAction.AddField(DynamicOptic.root.field("b"), intVal(2))))
       val composed = m1 ++ m2
-      val result = composed(record())
+      val result   = composed(record())
       assertTrue(result == Right(record("a" -> intVal(1), "b" -> intVal(2))))
     }
   )

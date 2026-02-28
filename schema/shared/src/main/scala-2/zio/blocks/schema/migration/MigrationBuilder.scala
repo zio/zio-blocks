@@ -19,6 +19,7 @@ final class MigrationBuilder[A, B](
 
   // format: off
   def addField(target: B => Any, default: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
+  def dropField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImplDefault[A, B]
   def dropField(source: A => Any, defaultForReverse: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
   def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.renameFieldImpl[A, B]
   def transformField(from: A => Any, to: B => Any, transform: DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.transformFieldImpl[A, B]
@@ -61,11 +62,32 @@ final class MigrationBuilder[A, B](
 
   // ── Build ─────────────────────────────────────────────────────────
 
-  /** Build migration with full validation. */
-  def build: Migration[A, B] =
-    new Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
+  /**
+   * Build migration with runtime validation. When a default or example value
+   * is available on the source schema, the migration is applied to it and the
+   * result is checked against the target schema.
+   */
+  def build: Migration[A, B] = {
+    val dm        = new DynamicMigration(actions)
+    val sourceDyn = sourceSchema.toDynamicSchema
+    val targetDyn = targetSchema.toDynamicSchema
+    val sample    = sourceDyn.getDefaultValue.orElse(sourceDyn.examples.headOption)
+    sample.foreach { sourceSample =>
+      dm(sourceSample) match {
+        case Left(err) =>
+          throw new IllegalArgumentException(s"Migration validation failed: ${err.getMessage}")
+        case Right(result) =>
+          targetDyn.check(result).foreach { err =>
+            throw new IllegalArgumentException(
+              s"Migration validation failed: result does not conform to target schema: ${err.message}"
+            )
+          }
+      }
+    }
+    new Migration(dm, sourceSchema, targetSchema)
+  }
 
-  /** Build migration without full validation. */
+  /** Build migration without validation. */
   def buildPartial: Migration[A, B] =
     new Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
 }

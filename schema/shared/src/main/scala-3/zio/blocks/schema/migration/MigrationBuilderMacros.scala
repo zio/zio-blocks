@@ -59,11 +59,12 @@ private[migration] object MigrationBuilderMacros {
     transform: Expr[DynamicValue]
   )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
     val fromPath = selectorToOptic[A](from)
+    val toPath   = selectorToOptic[B](to)
     val toName   = lastFieldName[B](to)
-    val _        = transform // reserved for future SchemaExpr evaluation
     '{
       new MigrationBuilder(
-        $self.actions :+ MigrationAction.Rename($fromPath, $toName),
+        $self.actions :+ MigrationAction.Rename($fromPath, $toName) :+ MigrationAction
+          .TransformValue($toPath, $transform),
         $self.sourceSchema,
         $self.targetSchema
       )
