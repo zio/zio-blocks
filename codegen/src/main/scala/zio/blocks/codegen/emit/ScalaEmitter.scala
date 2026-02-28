@@ -265,17 +265,20 @@ object ScalaEmitter {
     sb.append(prefix).append("sealed trait ").append(st.name)
     if (st.typeParams.nonEmpty)
       sb.append("[").append(st.typeParams.map(emitTypeRef).mkString(", ")).append("]")
-
+    if (st.extendsTypes.nonEmpty)
+      sb.append(" extends ").append(st.extendsTypes.map(emitTypeRef).mkString(" with "))
     if (st.cases.nonEmpty || st.companion.isDefined) {
       val companionMembers                = st.companion.map(_.members).getOrElse(Nil)
       val caseMembers: List[ObjectMember] = st.cases.map {
         case SealedTraitCase.CaseClassCase(cc) =>
           val extended =
             if (cc.extendsTypes.exists(_.name == st.name)) cc
-            else cc.copy(extendsTypes = cc.extendsTypes :+ TypeRef(st.name))
+            else cc.copy(extendsTypes = cc.extendsTypes :+ TypeRef(st.name, st.typeParams))
           ObjectMember.NestedType(extended)
         case SealedTraitCase.CaseObjectCase(name) =>
-          ObjectMember.NestedType(ObjectDef(name, extendsTypes = List(TypeRef(st.name))))
+          ObjectMember.NestedType(
+            ObjectDef(name, extendsTypes = List(TypeRef(st.name, st.typeParams)), isCaseObject = true)
+          )
       }
       val allMembers = caseMembers ++ companionMembers
       sb.append("\n")
@@ -321,9 +324,8 @@ object ScalaEmitter {
 
     val simples       = en.cases.collect { case EnumCase.SimpleCase(n) => n }
     val parameterized = en.cases.collect { case p: EnumCase.ParameterizedCase => p }
-    val hasBoth       = simples.nonEmpty && parameterized.nonEmpty
 
-    if (!hasBoth && parameterized.isEmpty && simples.nonEmpty) {
+    if (parameterized.isEmpty && simples.nonEmpty) {
       sb.append(inner).append("case ").append(simples.mkString(", ")).append("\n")
     } else {
       en.cases.foreach {
@@ -350,6 +352,7 @@ object ScalaEmitter {
     val st = SealedTrait(
       name = en.name,
       cases = cases,
+      extendsTypes = en.extendsTypes,
       annotations = en.annotations,
       doc = en.doc
     )
@@ -381,7 +384,7 @@ object ScalaEmitter {
 
     // case object for sealed trait subtypes, otherwise plain object
     sb.append(prefix)
-    if (obj.members.isEmpty && obj.extendsTypes.nonEmpty) sb.append("case object ")
+    if (obj.isCaseObject) sb.append("case object ")
     else sb.append("object ")
     sb.append(obj.name)
 

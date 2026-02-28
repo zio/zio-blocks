@@ -123,6 +123,15 @@ object ScalaEmitterEnumSpec extends ZIOSpecDefault {
         assertTrue(result.contains("case class Circle"))
         assertTrue(result.contains("radius: Double"))
         assertTrue(result.contains("case object Unknown extends Shape"))
+      },
+      test("Scala 2 - enum with extendsTypes preserved") {
+        val en = Enum(
+          "Status",
+          cases = List(EnumCase.SimpleCase("Active"), EnumCase.SimpleCase("Inactive")),
+          extendsTypes = List(TypeRef("Serializable"))
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.scala2)
+        assertTrue(result.contains("sealed trait Status extends Serializable"))
       }
     )
 }

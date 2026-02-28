@@ -107,7 +107,8 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
         test("case object with extends and no members") {
           val obj = ObjectDef(
             "Unknown",
-            extendsTypes = List(TypeRef("Shape"))
+            extendsTypes = List(TypeRef("Shape")),
+            isCaseObject = true
           )
           val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
           assertTrue(result == "case object Unknown extends Shape")
