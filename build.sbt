@@ -35,7 +35,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; codegen/test"
 )
 addCommandAlias(
   "testJS",
@@ -44,7 +44,7 @@ addCommandAlias(
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; codegen/doc"
 )
 addCommandAlias(
   "docJS",
@@ -71,6 +71,7 @@ lazy val root = project
     `schema-messagepack`.js,
     `schema-thrift`,
     `schema-bson`,
+    codegen,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-xml`.jvm,
@@ -338,6 +339,19 @@ lazy val `schema-avro` = project
     }),
     coverageMinimumStmtTotal   := 96,
     coverageMinimumBranchTotal := 91
+  )
+
+lazy val codegen = project
+  .settings(stdSettings("zio-blocks-codegen"))
+  .settings(buildInfoSettings("zio.blocks.codegen"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 75
   )
 
 lazy val `schema-thrift` = project
