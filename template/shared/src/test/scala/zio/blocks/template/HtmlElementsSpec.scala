@@ -205,6 +205,234 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           result.render.contains("<button>Submit</button>")
         )
       }
+    ),
+    suite("uncommon HTML5 tags")(
+      test("renders a representative sample of less-common tags") {
+        assertTrue(
+          abbr("abbr").render == "<abbr>abbr</abbr>",
+          address("addr").render == "<address>addr</address>",
+          bdi("x").render == "<bdi>x</bdi>",
+          bdo("x").render == "<bdo>x</bdo>",
+          datalist().render == "<datalist></datalist>",
+          dfn("x").render == "<dfn>x</dfn>",
+          dialog("x").render == "<dialog>x</dialog>",
+          figcaption("x").render == "<figcaption>x</figcaption>",
+          kbd("x").render == "<kbd>x</kbd>",
+          meter("x").render == "<meter>x</meter>",
+          optgroup().render == "<optgroup></optgroup>",
+          output("x").render == "<output>x</output>",
+          progress("x").render == "<progress>x</progress>",
+          ruby("x").render == "<ruby>x</ruby>",
+          samp("x").render == "<samp>x</samp>",
+          search("x").render == "<search>x</search>",
+          slot("x").render == "<slot>x</slot>",
+          svg().render == "<svg></svg>",
+          time("x").render == "<time>x</time>",
+          noscript("x").render == "<noscript>x</noscript>",
+          map("x").render == "<map>x</map>",
+          math("x").render == "<math>x</math>",
+          picture().render == "<picture></picture>",
+          data("x").render == "<data>x</data>",
+          details("x").render == "<details>x</details>",
+          dl(dt("term"), dd("def")).render == "<dl><dt>term</dt><dd>def</dd></dl>",
+          figure("x").render == "<figure>x</figure>",
+          mark("x").render == "<mark>x</mark>",
+          ins("x").render == "<ins>x</ins>",
+          del("x").render == "<del>x</del>",
+          rp("x").render == "<rp>x</rp>",
+          rt("x").render == "<rt>x</rt>"
+        )
+      },
+      test("renders void element tags") {
+        assertTrue(
+          base().render == "<base/>",
+          embed().render == "<embed/>",
+          track().render == "<track/>",
+          area().render == "<area/>",
+          col().render == "<col/>",
+          wbr().render == "<wbr/>",
+          param().render == "<param/>",
+          source().render == "<source/>"
+        )
+      },
+      test("renders remaining common tags") {
+        assertTrue(
+          article("x").render == "<article>x</article>",
+          aside("x").render == "<aside>x</aside>",
+          audio().render == "<audio></audio>",
+          b("x").render == "<b>x</b>",
+          blockquote("x").render == "<blockquote>x</blockquote>",
+          canvas().render == "<canvas></canvas>",
+          caption("x").render == "<caption>x</caption>",
+          cite("x").render == "<cite>x</cite>",
+          code("x").render == "<code>x</code>",
+          colgroup().render == "<colgroup></colgroup>",
+          em("x").render == "<em>x</em>",
+          fieldset("x").render == "<fieldset>x</fieldset>",
+          footer("x").render == "<footer>x</footer>",
+          header("x").render == "<header>x</header>",
+          i("x").render == "<i>x</i>",
+          iframe().render == "<iframe></iframe>",
+          label("x").render == "<label>x</label>",
+          legend("x").render == "<legend>x</legend>",
+          link().render == "<link/>",
+          element("main", "x").render == "<main>x</main>",
+          meta().render == "<meta/>",
+          nav("x").render == "<nav>x</nav>",
+          ol(li("x")).render == "<ol><li>x</li></ol>",
+          option("x").render == "<option>x</option>",
+          pre("x").render == "<pre>x</pre>",
+          q("x").render == "<q>x</q>",
+          s("x").render == "<s>x</s>",
+          section("x").render == "<section>x</section>",
+          select(option("x")).render == "<select><option>x</option></select>",
+          small("x").render == "<small>x</small>",
+          strong("x").render == "<strong>x</strong>",
+          sub("x").render == "<sub>x</sub>",
+          summary("x").render == "<summary>x</summary>",
+          sup("x").render == "<sup>x</sup>",
+          tbody().render == "<tbody></tbody>",
+          tfoot().render == "<tfoot></tfoot>",
+          thead().render == "<thead></thead>",
+          textarea("x").render == "<textarea>x</textarea>",
+          u("x").render == "<u>x</u>",
+          video().render == "<video></video>"
+        )
+      }
+    ),
+    suite("backtick/alternative tag variants")(
+      test("object and objectTag both render object element") {
+        assertTrue(
+          `object`("x").render == "<object>x</object>",
+          objectTag("x").render == "<object>x</object>"
+        )
+      },
+      test("template and templateTag both render template element") {
+        assertTrue(
+          `template`("x").render == "<template>x</template>",
+          templateTag("x").render == "<template>x</template>"
+        )
+      },
+      test("var and varTag both render var element") {
+        assertTrue(
+          `var`("x").render == "<var>x</var>",
+          varTag("x").render == "<var>x</var>"
+        )
+      }
+    ),
+    suite("custom element helper")(
+      test("element creates custom-named elements") {
+        assertTrue(element("custom-tag", "content").render == "<custom-tag>content</custom-tag>")
+      },
+      test("element with attributes") {
+        assertTrue(element("x-app", id := "root").render == "<x-app id=\"root\"></x-app>")
+      }
+    ),
+    suite("additional attribute vals")(
+      test("scope-related attributes") {
+        assertTrue(
+          th(scopeAttr := "col").render == "<th scope=\"col\"></th>",
+          th(`scope` := "row").render == "<th scope=\"row\"></th>"
+        )
+      },
+      test("for-related attributes") {
+        assertTrue(
+          label(forAttr := "input1").render == "<label for=\"input1\"></label>",
+          label(`for` := "input1").render == "<label for=\"input1\"></label>"
+        )
+      },
+      test("cite and span attributes") {
+        assertTrue(
+          blockquote(citeAttr := "url").render == "<blockquote cite=\"url\"></blockquote>",
+          col(spanAttr := "2").render == "<col span=\"2\"/>"
+        )
+      },
+      test("slot and summary attributes") {
+        assertTrue(
+          div(slotAttr := "main").render == "<div slot=\"main\"></div>",
+          table(summaryAttr := "desc").render == "<table summary=\"desc\"></table>"
+        )
+      },
+      test("form and label attribute aliases") {
+        assertTrue(
+          input(formAttr := "myform").render == "<input form=\"myform\"/>",
+          option(labelAttr := "opt").render == "<option label=\"opt\"></option>"
+        )
+      },
+      test("httpEquiv attribute") {
+        assertTrue(meta(httpEquiv := "refresh").render == "<meta http-equiv=\"refresh\"/>")
+      },
+      test("xmlns attribute") {
+        assertTrue(html(xmlns := "http://www.w3.org/1999/xhtml").render.contains("xmlns=\""))
+      },
+      test("miscellaneous attributes") {
+        assertTrue(
+          input(accept := "image/*").render.contains("accept=\"image/*\""),
+          div(accesskey := "h").render.contains("accesskey=\"h\""),
+          script(async).render.contains("async"),
+          script(defer).render.contains("defer"),
+          video(autoplay).render.contains("autoplay"),
+          video(controls).render.contains("controls"),
+          video(loop).render.contains("loop"),
+          video(muted).render.contains("muted"),
+          img(loading := "lazy").render.contains("loading=\"lazy\""),
+          meta(charset := "utf-8").render.contains("charset=\"utf-8\""),
+          meta(content := "text").render.contains("content=\"text\""),
+          img(crossorigin := "anonymous").render.contains("crossorigin="),
+          time(datetime := "2024-01-01").render.contains("datetime="),
+          details(open).render.contains("open"),
+          input(list := "opts").render.contains("list=\"opts\""),
+          form(noValidate).render.contains("novalidate"),
+          form(encType := "multipart").render.contains("enctype="),
+          button(formAction := "/go").render.contains("formaction="),
+          button(formMethod := "post").render.contains("formmethod="),
+          button(formNoValidate).render.contains("formnovalidate"),
+          img(srcSet := "a.png 1x").render.contains("srcset="),
+          img(sizes := "100vw").render.contains("sizes="),
+          input(minLength := "3").render.contains("minlength="),
+          input(maxLength := "10").render.contains("maxlength="),
+          input(size := "20").render.contains("size="),
+          textarea(cols := "40").render.contains("cols="),
+          textarea(rows := "5").render.contains("rows="),
+          textarea(wrap := "hard").render.contains("wrap="),
+          script(integrity := "sha384-xxx").render.contains("integrity="),
+          img(referrerpolicy := "no-referrer").render.contains("referrerpolicy="),
+          ol(reversed).render.contains("reversed"),
+          iframe(sandbox := "allow-scripts").render.contains("sandbox="),
+          div(spellcheck := "true").render.contains("spellcheck="),
+          div(translate := "yes").render.contains("translate="),
+          video(poster := "img.png").render.contains("poster="),
+          video(preload := "auto").render.contains("preload="),
+          meter(high := "90").render.contains("high="),
+          meter(low := "10").render.contains("low="),
+          meter(optimum := "50").render.contains("optimum="),
+          audio(media := "all").render.contains("media="),
+          div(`class` := "x").render.contains("class=")
+        )
+      }
+    ),
+    suite("aria, dataAttr, attr helpers")(
+      test("aria helper") {
+        assertTrue(div(aria("label") := "hi").render == "<div aria-label=\"hi\"></div>")
+      },
+      test("dataAttr helper") {
+        assertTrue(div(dataAttr("id") := "42").render == "<div data-id=\"42\"></div>")
+      },
+      test("attr helper") {
+        assertTrue(div(attr("custom") := "val").render == "<div custom=\"val\"></div>")
+      }
+    ),
+    suite("multiAttr with Iterable overload")(
+      test("multiAttr with Iterable[String] creates attribute") {
+        val a  = multiAttr("class", List("a", "b"))
+        val el = Dom.Element.Generic("div", Vector(a), Vector.empty)
+        assertTrue(el.render == "<div class=\"a b\"></div>")
+      },
+      test("multiAttr with separator and varargs") {
+        val a  = multiAttr("style", Dom.AttributeSeparator.Semicolon, "color: red", "font-size: 14px")
+        val el = Dom.Element.Generic("div", Vector(a), Vector.empty)
+        assertTrue(el.render == "<div style=\"color: red;font-size: 14px\"></div>")
+      }
     )
   )
 }

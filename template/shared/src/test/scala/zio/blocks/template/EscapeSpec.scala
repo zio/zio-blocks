@@ -59,6 +59,16 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes single quotes") {
         assertTrue(Escape.jsString("a'b") == "a\\'b")
+      },
+      test("escapes ampersand in JS") {
+        assertTrue(Escape.jsString("a&b") == "a\\u0026b")
+      },
+      test("escapes control characters") {
+        val result = Escape.jsString("a\u0001b")
+        assertTrue(result.contains("\\u0001"))
+      },
+      test("escapes greater-than sign") {
+        assertTrue(Escape.jsString("a>b").contains("\\u003e"))
       }
     ),
     suite("cssString")(
@@ -83,6 +93,13 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes ampersand") {
         assertTrue(Escape.cssString("a&b") == "a\\26 b")
+      },
+      test("cssString with all escape types at once") {
+        val result = Escape.cssString("\\\"'<>&")
+        assertTrue(
+          result.contains("\\\\"),
+          result.contains("\\\"")
+        )
       }
     )
   )
