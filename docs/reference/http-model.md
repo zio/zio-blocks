@@ -710,16 +710,16 @@ relative.isRelative  // true (no scheme)
 
 ## Header
 
-`Header` is a sealed trait representing typed HTTP headers:
+`Header` is a trait representing typed HTTP headers:
 
 ```scala
-sealed trait Header {
+trait Header {
   def headerName: String
   def renderedValue: String
 }
 ```
 
-Each header type has a companion object implementing `HeaderType[H]` for parsing and rendering.
+Each header type has a companion object implementing `Header.Typed[H]` for parsing and rendering.
 
 ### Predefined Header Types
 
@@ -1080,6 +1080,40 @@ val encoded = form.encode
 
 val parsed = Form.fromString(encoded)
 // Form with decoded entries
+```
+
+## FormField
+
+`FormField` is a sealed trait for multipart form fields, supporting simple key-value pairs, text parts with optional metadata, and binary parts:
+
+```scala mdoc:compile-only
+import zio.http._
+import zio.blocks.chunk.Chunk
+import zio.blocks.mediatype.MediaTypes
+
+// Simple key-value field
+val simple = FormField.Simple("username", "alice")
+
+// Text field with optional content type and filename
+val text = FormField.Text(
+  name = "bio",
+  value = "Hello world",
+  contentType = Some(ContentType(MediaTypes.text.`plain`)),
+  filename = None
+)
+
+// Binary field with content type and optional filename
+val binary = FormField.Binary(
+  name = "avatar",
+  data = Chunk.fromArray(Array[Byte](1, 2, 3)),
+  contentType = ContentType(MediaTypes.image.`png`),
+  filename = Some("avatar.png")
+)
+
+// All variants share a common `name` accessor
+simple.name  // "username"
+text.name    // "bio"
+binary.name  // "avatar"
 ```
 
 ## Request
