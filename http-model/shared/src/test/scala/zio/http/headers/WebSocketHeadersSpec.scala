@@ -12,6 +12,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketAccept("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")),
           result.map(_.headerName) == Right("sec-websocket-accept")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketAccept.render(SecWebSocketAccept("abc=")) == "abc=")
       }
     ),
     suite("SecWebSocketExtensions")(
@@ -21,6 +24,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketExtensions("permessage-deflate")),
           result.map(_.headerName) == Right("sec-websocket-extensions")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketExtensions.render(SecWebSocketExtensions("permessage-deflate")) == "permessage-deflate")
       }
     ),
     suite("SecWebSocketKey")(
@@ -30,6 +36,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketKey("dGhlIHNhbXBsZSBub25jZQ==")),
           result.map(_.headerName) == Right("sec-websocket-key")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketKey.render(SecWebSocketKey("key123")) == "key123")
       }
     ),
     suite("SecWebSocketLocation")(
@@ -39,6 +48,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketLocation("ws://example.com/chat")),
           result.map(_.headerName) == Right("sec-websocket-location")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketLocation.render(SecWebSocketLocation("ws://test")) == "ws://test")
       }
     ),
     suite("SecWebSocketOrigin")(
@@ -48,6 +60,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketOrigin("http://example.com")),
           result.map(_.headerName) == Right("sec-websocket-origin")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketOrigin.render(SecWebSocketOrigin("http://test")) == "http://test")
       }
     ),
     suite("SecWebSocketProtocol")(
@@ -76,6 +91,9 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
           result == Right(SecWebSocketVersion("13")),
           result.map(_.headerName) == Right("sec-websocket-version")
         )
+      },
+      test("render") {
+        assertTrue(SecWebSocketVersion.render(SecWebSocketVersion("13")) == "13")
       }
     )
   )

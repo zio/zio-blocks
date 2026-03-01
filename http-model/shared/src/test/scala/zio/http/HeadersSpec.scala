@@ -329,6 +329,50 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h = builder.build()
         assertTrue(h.rawGet("content-type") == Some("text/html"))
       }
+    ),
+    suite("HeadersBuilder capacity growth")(
+      test("grows past initial capacity of 4 (minimum)") {
+        val builder = HeadersBuilder.make(1)
+        builder.add("a", "1")
+        builder.add("b", "2")
+        builder.add("c", "3")
+        builder.add("d", "4")
+        builder.add("e", "5")
+        builder.add("f", "6")
+        builder.add("g", "7")
+        builder.add("h", "8")
+        builder.add("i", "9")
+        val h = builder.build()
+        assertTrue(
+          h.size == 9,
+          h.rawGet("a") == Some("1"),
+          h.rawGet("i") == Some("9")
+        )
+      },
+      test("builds empty headers from builder") {
+        val builder = HeadersBuilder.make()
+        val h       = builder.build()
+        assertTrue(h.isEmpty, h.size == 0)
+      },
+      test("default initial capacity is at least 4") {
+        val builder = HeadersBuilder.make(0)
+        builder.add("a", "1")
+        builder.add("b", "2")
+        builder.add("c", "3")
+        builder.add("d", "4")
+        builder.add("e", "5")
+        val h = builder.build()
+        assertTrue(h.size == 5)
+      }
+    ),
+    suite("Headers equality edge cases")(
+      test("Headers does not equal non-Headers") {
+        val h = Headers("a" -> "1")
+        assertTrue(!h.equals("not headers"))
+      },
+      test("empty headers toString") {
+        assertTrue(Headers.empty.toString == "Headers()")
+      }
     )
   )
 }

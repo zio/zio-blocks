@@ -94,6 +94,71 @@ object PercentEncoderSpec extends HttpModelBaseSpec {
       test("encode then decode preserves non-ASCII") {
         assertTrue(decode(encode("日本語", PathSegment)) == "日本語")
       }
+    ),
+    suite("decode edge cases")(
+      test("empty string returns empty") {
+        assertTrue(decode("") == "")
+      },
+      test("percent at end of string") {
+        assertTrue(decode("abc%") == "abc%")
+      },
+      test("percent with one char at end") {
+        assertTrue(decode("abc%2") == "abc%2")
+      },
+      test("invalid hex after valid percent-encoded byte") {
+        assertTrue(decode("%20%ZZ") == " %ZZ")
+      },
+      test("mixed encoded and plain text with buffer flushing") {
+        assertTrue(decode("a%20b%20c") == "a b c")
+      },
+      test("consecutive percent-encoded bytes") {
+        assertTrue(decode("%41%42%43") == "ABC")
+      },
+      test("percent-encoded byte followed by plain char") {
+        assertTrue(decode("%41x%42") == "AxB")
+      },
+      test("lowercase hex digits decoded") {
+        assertTrue(decode("%2f%2F") == "//")
+      }
+    ),
+    suite("encode edge cases")(
+      test("UserInfo encodes most characters") {
+        assertTrue(
+          encode("user:pass", UserInfo) == "user:pass",
+          encode("user@host", UserInfo) == "user%40host",
+          encode("a/b", UserInfo) == "a%2Fb"
+        )
+      },
+      test("PathSegment allows sub-delims") {
+        assertTrue(
+          encode("a;b", PathSegment) == "a;b",
+          encode("a@b", PathSegment) == "a@b",
+          encode("a:b", PathSegment) == "a:b"
+        )
+      },
+      test("PathSegment encodes slash and question mark") {
+        assertTrue(
+          encode("a/b", PathSegment) == "a%2Fb",
+          encode("a?b", PathSegment) == "a%3Fb"
+        )
+      },
+      test("Fragment allows slash and question mark") {
+        assertTrue(
+          encode("a/b?c", Fragment) == "a/b?c"
+        )
+      },
+      test("QueryKey allows slash and question mark but not equals") {
+        assertTrue(
+          encode("a/b", QueryKey) == "a/b",
+          encode("a=b", QueryKey) == "a%3Db"
+        )
+      },
+      test("QueryValue allows equals but not ampersand") {
+        assertTrue(
+          encode("a=b", QueryValue) == "a=b",
+          encode("a&b", QueryValue) == "a%26b"
+        )
+      }
     )
   )
 }

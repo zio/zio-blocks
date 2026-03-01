@@ -116,6 +116,21 @@ object NegotiationHeadersSpec extends ZIOSpecDefault {
       test("round-trip") {
         val rendered = AcceptEncoding.render(AcceptEncoding.Deflate(None))
         assertTrue(AcceptEncoding.parse(rendered) == Right(AcceptEncoding.Deflate(None)))
+      },
+      test("render all variants") {
+        assertTrue(
+          AcceptEncoding.render(AcceptEncoding.Deflate(None)) == "deflate",
+          AcceptEncoding.render(AcceptEncoding.Br(None)) == "br",
+          AcceptEncoding.render(AcceptEncoding.Compress(None)) == "compress",
+          AcceptEncoding.render(AcceptEncoding.Identity(None)) == "identity",
+          AcceptEncoding.render(AcceptEncoding.Any(None)) == "*"
+        )
+      },
+      test("parse empty returns Left") {
+        assertTrue(AcceptEncoding.parse("").isLeft)
+      },
+      test("header name") {
+        assertTrue(AcceptEncoding.GZip(None).headerName == "accept-encoding")
       }
     ),
     suite("AcceptLanguage")(

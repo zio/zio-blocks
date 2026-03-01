@@ -13,6 +13,9 @@ object MiscHeadersSpec extends ZIOSpecDefault {
           result == Right(UserAgent("Mozilla/5.0")),
           result.map(_.headerName) == Right("user-agent")
         )
+      },
+      test("render") {
+        assertTrue(UserAgent.render(UserAgent("Mozilla/5.0")) == "Mozilla/5.0")
       }
     ),
     suite("Server")(
@@ -22,6 +25,9 @@ object MiscHeadersSpec extends ZIOSpecDefault {
           result == Right(Server("Apache/2.4.1")),
           result.map(_.headerName) == Right("server")
         )
+      },
+      test("render") {
+        assertTrue(Server.render(Server("Apache/2.4.1")) == "Apache/2.4.1")
       }
     ),
     suite("Date")(
@@ -31,6 +37,9 @@ object MiscHeadersSpec extends ZIOSpecDefault {
           result == Right(Date("Tue, 15 Nov 1994 08:12:31 GMT")),
           result.map(_.headerName) == Right("date")
         )
+      },
+      test("render") {
+        assertTrue(Date.render(Date("Tue, 15 Nov 1994 08:12:31 GMT")) == "Tue, 15 Nov 1994 08:12:31 GMT")
       }
     ),
     suite("Link")(
@@ -40,6 +49,10 @@ object MiscHeadersSpec extends ZIOSpecDefault {
           result == Right(Link("""<https://example.com>; rel="preconnect"""")),
           result.map(_.headerName) == Right("link")
         )
+      },
+      test("render") {
+        val h = Link("<https://example.com>; rel=\"preconnect\"")
+        assertTrue(Link.render(h) == "<https://example.com>; rel=\"preconnect\"")
       }
     ),
     suite("RetryAfter")(
@@ -53,6 +66,9 @@ object MiscHeadersSpec extends ZIOSpecDefault {
       test("parse date") {
         val result = RetryAfter.parse("Fri, 31 Dec 1999 23:59:59 GMT")
         assertTrue(result == Right(RetryAfter("Fri, 31 Dec 1999 23:59:59 GMT")))
+      },
+      test("render") {
+        assertTrue(RetryAfter.render(RetryAfter("120")) == "120")
       }
     ),
     suite("Allow")(
@@ -84,6 +100,9 @@ object MiscHeadersSpec extends ZIOSpecDefault {
           result == Right(Expect("100-continue")),
           result.map(_.headerName) == Right("expect")
         )
+      },
+      test("render") {
+        assertTrue(Expect.render(Expect("100-continue")) == "100-continue")
       }
     ),
     suite("Range")(

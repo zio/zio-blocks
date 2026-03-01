@@ -40,6 +40,13 @@ object AuthHeadersSpec extends ZIOSpecDefault {
       test("parse no space returns Left") {
         assertTrue(Authorization.parse("Bearer").isLeft)
       },
+      test("parse invalid base64 returns Left") {
+        assertTrue(Authorization.parse("Basic !!invalid!!").isLeft)
+      },
+      test("parse basic without colon returns Left") {
+        val encoded = java.util.Base64.getEncoder.encodeToString("nocolon".getBytes("UTF-8"))
+        assertTrue(Authorization.parse(s"Basic $encoded").isLeft)
+      },
       test("render Basic") {
         val h        = Authorization.Basic("user", "pass")
         val rendered = Authorization.render(h)
@@ -93,6 +100,37 @@ object AuthHeadersSpec extends ZIOSpecDefault {
         val original = ProxyAuthorization.Bearer("xyz")
         val rendered = ProxyAuthorization.render(original)
         assertTrue(ProxyAuthorization.parse(rendered) == Right(original))
+      },
+      test("parse Digest") {
+        val result = ProxyAuthorization.parse("""Digest username="bob", realm="proxy"""")
+        assertTrue(
+          result.isRight,
+          result.map(_.asInstanceOf[ProxyAuthorization.Digest].params("username")) == Right("bob")
+        )
+      },
+      test("parse unknown scheme as Unparsed") {
+        val result = ProxyAuthorization.parse("Custom data123")
+        assertTrue(result == Right(ProxyAuthorization.Unparsed("Custom", "data123")))
+      },
+      test("parse no space returns Left") {
+        assertTrue(ProxyAuthorization.parse("Bearer").isLeft)
+      },
+      test("parse invalid base64 returns Left") {
+        assertTrue(ProxyAuthorization.parse("Basic !!invalid!!").isLeft)
+      },
+      test("parse basic without colon returns Left") {
+        val encoded = java.util.Base64.getEncoder.encodeToString("nocolon".getBytes("UTF-8"))
+        assertTrue(ProxyAuthorization.parse(s"Basic $encoded").isLeft)
+      },
+      test("render Bearer") {
+        assertTrue(ProxyAuthorization.render(ProxyAuthorization.Bearer("tok")) == "Bearer tok")
+      },
+      test("render Digest") {
+        val h = ProxyAuthorization.Digest(Map("username" -> "alice"))
+        assertTrue(ProxyAuthorization.render(h).startsWith("Digest "))
+      },
+      test("render Unparsed") {
+        assertTrue(ProxyAuthorization.render(ProxyAuthorization.Unparsed("Scheme", "val")) == "Scheme val")
       }
     ),
     suite("WWWAuthenticate")(
@@ -121,6 +159,11 @@ object AuthHeadersSpec extends ZIOSpecDefault {
         val original = WWWAuthenticate("Negotiate", Map.empty)
         val rendered = WWWAuthenticate.render(original)
         assertTrue(WWWAuthenticate.parse(rendered) == Right(original))
+      },
+      test("round-trip scheme with params") {
+        val original = WWWAuthenticate("Bearer", Map("realm" -> "test"))
+        val rendered = WWWAuthenticate.render(original)
+        assertTrue(WWWAuthenticate.parse(rendered) == Right(original))
       }
     ),
     suite("ProxyAuthenticate")(
@@ -140,6 +183,15 @@ object AuthHeadersSpec extends ZIOSpecDefault {
       },
       test("render scheme only") {
         assertTrue(ProxyAuthenticate.render(ProxyAuthenticate("Basic", Map.empty)) == "Basic")
+      },
+      test("render scheme with params") {
+        val h = ProxyAuthenticate("Bearer", Map("realm" -> "proxy"))
+        assertTrue(ProxyAuthenticate.render(h).startsWith("Bearer "))
+      },
+      test("round-trip with params") {
+        val original = ProxyAuthenticate("Bearer", Map("realm" -> "proxy"))
+        val rendered = ProxyAuthenticate.render(original)
+        assertTrue(ProxyAuthenticate.parse(rendered) == Right(original))
       },
       test("round-trip") {
         val original = ProxyAuthenticate("Basic", Map.empty)

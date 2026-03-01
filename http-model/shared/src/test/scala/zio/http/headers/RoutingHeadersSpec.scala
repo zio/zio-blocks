@@ -38,6 +38,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
           result == Right(Location("/redirect")),
           result.map(_.headerName) == Right("location")
         )
+      },
+      test("render") {
+        assertTrue(Location.render(Location("/redirect")) == "/redirect")
       }
     ),
     suite("Origin")(
@@ -80,6 +83,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
           result == Right(Referer("https://example.com/page")),
           result.map(_.headerName) == Right("referer")
         )
+      },
+      test("render") {
+        assertTrue(Referer.render(Referer("https://example.com/page")) == "https://example.com/page")
       }
     ),
     suite("Via")(
@@ -108,6 +114,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
           result == Right(Forwarded("for=192.0.2.43")),
           result.map(_.headerName) == Right("forwarded")
         )
+      },
+      test("render") {
+        assertTrue(Forwarded.render(Forwarded("for=192.0.2.43")) == "for=192.0.2.43")
       }
     ),
     suite("MaxForwards")(
@@ -137,6 +146,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
           result == Right(From("user@example.com")),
           result.map(_.headerName) == Right("from")
         )
+      },
+      test("render") {
+        assertTrue(From.render(From("user@example.com")) == "user@example.com")
       }
     )
   )

@@ -53,6 +53,80 @@ object StatusSpec extends HttpModelBaseSpec {
       },
       test("unknown code returns \"Unknown\"") {
         assertTrue(Status(999).text == "Unknown")
+      },
+      test("text for all informational codes") {
+        assertTrue(
+          Status(100).text == "Continue",
+          Status(101).text == "Switching Protocols",
+          Status(102).text == "Processing",
+          Status(103).text == "Early Hints"
+        )
+      },
+      test("text for all success codes") {
+        assertTrue(
+          Status(200).text == "OK",
+          Status(201).text == "Created",
+          Status(202).text == "Accepted",
+          Status(203).text == "Non-Authoritative Information",
+          Status(204).text == "No Content",
+          Status(205).text == "Reset Content",
+          Status(206).text == "Partial Content",
+          Status(207).text == "Multi-Status"
+        )
+      },
+      test("text for all redirection codes") {
+        assertTrue(
+          Status(300).text == "Multiple Choices",
+          Status(301).text == "Moved Permanently",
+          Status(302).text == "Found",
+          Status(303).text == "See Other",
+          Status(304).text == "Not Modified",
+          Status(307).text == "Temporary Redirect",
+          Status(308).text == "Permanent Redirect"
+        )
+      },
+      test("text for all client error codes") {
+        assertTrue(
+          Status(400).text == "Bad Request",
+          Status(401).text == "Unauthorized",
+          Status(402).text == "Payment Required",
+          Status(403).text == "Forbidden",
+          Status(404).text == "Not Found",
+          Status(405).text == "Method Not Allowed",
+          Status(406).text == "Not Acceptable",
+          Status(407).text == "Proxy Authentication Required",
+          Status(408).text == "Request Timeout",
+          Status(409).text == "Conflict",
+          Status(410).text == "Gone",
+          Status(411).text == "Length Required",
+          Status(412).text == "Precondition Failed",
+          Status(413).text == "Payload Too Large",
+          Status(414).text == "URI Too Long",
+          Status(415).text == "Unsupported Media Type",
+          Status(416).text == "Range Not Satisfiable",
+          Status(417).text == "Expectation Failed",
+          Status(418).text == "I'm a Teapot",
+          Status(421).text == "Misdirected Request",
+          Status(422).text == "Unprocessable Entity",
+          Status(425).text == "Too Early",
+          Status(426).text == "Upgrade Required",
+          Status(428).text == "Precondition Required",
+          Status(429).text == "Too Many Requests",
+          Status(431).text == "Request Header Fields Too Large",
+          Status(451).text == "Unavailable For Legal Reasons"
+        )
+      },
+      test("text for all server error codes") {
+        assertTrue(
+          Status(500).text == "Internal Server Error",
+          Status(501).text == "Not Implemented",
+          Status(502).text == "Bad Gateway",
+          Status(503).text == "Service Unavailable",
+          Status(504).text == "Gateway Timeout",
+          Status(505).text == "HTTP Version Not Supported",
+          Status(507).text == "Insufficient Storage",
+          Status(511).text == "Network Authentication Required"
+        )
       }
     ),
     suite("well-known codes")(

@@ -35,6 +35,9 @@ object SecurityHeadersSpec extends ZIOSpecDefault {
           result == Right(XRequestedWith("XMLHttpRequest")),
           result.map(_.headerName) == Right("x-requested-with")
         )
+      },
+      test("render") {
+        assertTrue(XRequestedWith.render(XRequestedWith("XMLHttpRequest")) == "XMLHttpRequest")
       }
     ),
     suite("DNT")(

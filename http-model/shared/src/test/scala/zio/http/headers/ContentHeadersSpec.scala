@@ -142,6 +142,20 @@ object ContentHeadersSpec extends ZIOSpecDefault {
         val original = ContentDisposition.Attachment(Some("test.csv"))
         val rendered = ContentDisposition.render(original)
         assertTrue(ContentDisposition.parse(rendered) == Right(original))
+      },
+      test("render attachment no filename") {
+        assertTrue(ContentDisposition.render(ContentDisposition.Attachment(None)) == "attachment")
+      },
+      test("render inline with filename") {
+        val h = ContentDisposition.Inline(Some("image.png"))
+        assertTrue(ContentDisposition.render(h) == "inline; filename=\"image.png\"")
+      },
+      test("render form-data no filename") {
+        val h = ContentDisposition.FormData("field", None)
+        assertTrue(ContentDisposition.render(h) == "form-data; name=\"field\"")
+      },
+      test("parse invalid form-data returns Left") {
+        assertTrue(ContentDisposition.parse("form-data; invalid").isLeft)
       }
     ),
     suite("ContentLanguage")(
@@ -152,6 +166,9 @@ object ContentHeadersSpec extends ZIOSpecDefault {
           result.map(_.headerName) == Right("content-language"),
           result.map(_.renderedValue) == Right("en-US")
         )
+      },
+      test("render") {
+        assertTrue(ContentLanguage.render(ContentLanguage("en-US")) == "en-US")
       }
     ),
     suite("ContentLocation")(
@@ -162,6 +179,9 @@ object ContentHeadersSpec extends ZIOSpecDefault {
           result.map(_.headerName) == Right("content-location"),
           result.map(_.renderedValue) == Right("/documents/foo")
         )
+      },
+      test("render") {
+        assertTrue(ContentLocation.render(ContentLocation("/documents/foo")) == "/documents/foo")
       }
     ),
     suite("ContentRange")(
@@ -196,6 +216,10 @@ object ContentHeadersSpec extends ZIOSpecDefault {
         val original = ContentRange("bytes", Some((100L, 200L)), Some(500L))
         val rendered = ContentRange.render(original)
         assertTrue(ContentRange.parse(rendered) == Right(original))
+      },
+      test("render */*") {
+        val h = ContentRange("bytes", None, None)
+        assertTrue(ContentRange.render(h) == "bytes */*")
       }
     ),
     suite("ContentSecurityPolicy")(
@@ -206,6 +230,9 @@ object ContentHeadersSpec extends ZIOSpecDefault {
           result == Right(ContentSecurityPolicy(csp)),
           result.map(_.headerName) == Right("content-security-policy")
         )
+      },
+      test("render") {
+        assertTrue(ContentSecurityPolicy.render(ContentSecurityPolicy("default-src 'self'")) == "default-src 'self'")
       }
     ),
     suite("ContentTransferEncoding")(
@@ -232,9 +259,17 @@ object ContentHeadersSpec extends ZIOSpecDefault {
       test("parse invalid returns Left") {
         assertTrue(ContentTransferEncoding.parse("unknown").isLeft)
       },
-      test("render round-trip") {
-        val rendered = ContentTransferEncoding.render(ContentTransferEncoding.QuotedPrintable)
-        assertTrue(ContentTransferEncoding.parse(rendered) == Right(ContentTransferEncoding.QuotedPrintable))
+      test("render all variants") {
+        assertTrue(
+          ContentTransferEncoding.render(ContentTransferEncoding.SevenBit) == "7bit",
+          ContentTransferEncoding.render(ContentTransferEncoding.EightBit) == "8bit",
+          ContentTransferEncoding.render(ContentTransferEncoding.Binary) == "binary",
+          ContentTransferEncoding.render(ContentTransferEncoding.QuotedPrintable) == "quoted-printable",
+          ContentTransferEncoding.render(ContentTransferEncoding.Base64) == "base64"
+        )
+      },
+      test("header name") {
+        assertTrue(ContentTransferEncoding.SevenBit.headerName == "content-transfer-encoding")
       }
     ),
     suite("ContentMd5")(
@@ -245,6 +280,9 @@ object ContentHeadersSpec extends ZIOSpecDefault {
           result == Right(ContentMd5(md5)),
           result.map(_.headerName) == Right("content-md5")
         )
+      },
+      test("render") {
+        assertTrue(ContentMd5.render(ContentMd5("abc123")) == "abc123")
       }
     ),
     suite("ContentBase")(
@@ -255,6 +293,9 @@ object ContentHeadersSpec extends ZIOSpecDefault {
           result == Right(ContentBase(uri)),
           result.map(_.headerName) == Right("content-base")
         )
+      },
+      test("render") {
+        assertTrue(ContentBase.render(ContentBase("http://www.example.com/")) == "http://www.example.com/")
       }
     )
   )

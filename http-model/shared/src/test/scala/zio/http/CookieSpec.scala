@@ -219,6 +219,66 @@ object CookieSpec extends HttpModelBaseSpec {
         val s: SameSite = SameSite.None_
         assertTrue(s == SameSite.None_)
       }
+    ),
+    suite("parseRequest edge cases")(
+      test("skips parts without equals sign") {
+        val cookies = Cookie.parseRequest("name=value; invalid; other=ok")
+        assertTrue(
+          cookies == Chunk(RequestCookie("name", "value"), RequestCookie("other", "ok"))
+        )
+      },
+      test("skips empty parts from trailing semicolons") {
+        val cookies = Cookie.parseRequest("a=1; ; b=2")
+        assertTrue(
+          cookies == Chunk(RequestCookie("a", "1"), RequestCookie("b", "2"))
+        )
+      }
+    ),
+    suite("parseResponse edge cases")(
+      test("invalid max-age is ignored") {
+        val result = Cookie.parseResponse("a=b; Max-Age=notanumber")
+        assertTrue(
+          result == Right(ResponseCookie("a", "b", maxAge = None))
+        )
+      },
+      test("unknown SameSite value is ignored") {
+        val result = Cookie.parseResponse("a=b; SameSite=Invalid")
+        assertTrue(
+          result == Right(ResponseCookie("a", "b", sameSite = None))
+        )
+      },
+      test("unknown attribute is ignored") {
+        val result = Cookie.parseResponse("a=b; Unknown=xyz")
+        assertTrue(result == Right(ResponseCookie("a", "b")))
+      },
+      test("cookie with only name-value no attributes") {
+        val result = Cookie.parseResponse("simple=cookie")
+        assertTrue(result == Right(ResponseCookie("simple", "cookie")))
+      },
+      test("returns Left for no equals in name-value pair") {
+        val result = Cookie.parseResponse("noequalssign")
+        assertTrue(result.isLeft)
+      },
+      test("attribute without value (like Secure) parsed via key") {
+        val result = Cookie.parseResponse("a=b; Secure; HttpOnly")
+        assertTrue(
+          result == Right(ResponseCookie("a", "b", isSecure = true, isHttpOnly = true))
+        )
+      }
+    ),
+    suite("renderResponse edge cases")(
+      test("renders cookie with domain only") {
+        val rendered = Cookie.renderResponse(
+          ResponseCookie("a", "b", domain = Some("example.com"))
+        )
+        assertTrue(rendered == "a=b; Domain=example.com")
+      },
+      test("renders cookie with max-age only") {
+        val rendered = Cookie.renderResponse(
+          ResponseCookie("a", "b", maxAge = Some(0L))
+        )
+        assertTrue(rendered == "a=b; Max-Age=0")
+      }
     )
   )
 }

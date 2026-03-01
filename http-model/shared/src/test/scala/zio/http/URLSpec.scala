@@ -373,6 +373,166 @@ object URLSpec extends HttpModelBaseSpec {
           url.isRelative
         )
       }
+    ),
+    suite("parse IPv6 edge cases")(
+      test("IPv6 without port") {
+        val result = URL.parse("http://[::1]/path")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("[::1]"),
+          result.toOption.get.port == None,
+          result.toOption.get.path.segments == Chunk("path")
+        )
+      },
+      test("IPv6 with unclosed bracket") {
+        val result = URL.parse("http://[::1/path")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("[::1")
+        )
+      },
+      test("IPv6 with invalid port") {
+        val result = URL.parse("http://[::1]:abc/path")
+        assertTrue(result.isLeft)
+      },
+      test("IPv6 with port out of range") {
+        val result = URL.parse("http://[::1]:99999/path")
+        assertTrue(result.isLeft)
+      },
+      test("IPv6 with empty port after colon") {
+        val result = URL.parse("http://[::1]:/path")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("[::1]"),
+          result.toOption.get.port == None
+        )
+      }
+    ),
+    suite("parse port edge cases")(
+      test("port out of range (high)") {
+        val result = URL.parse("http://example.com:70000/path")
+        assertTrue(result.isLeft)
+      },
+      test("port out of range (negative via overflow)") {
+        val result = URL.parse("http://example.com:-1/path")
+        assertTrue(result.isLeft)
+      },
+      test("empty host before colon") {
+        val result = URL.parse("http://:8080/path")
+        assertTrue(result.isLeft)
+      },
+      test("host with empty port") {
+        val result = URL.parse("http://example.com:/path")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("example.com"),
+          result.toOption.get.port == None
+        )
+      }
+    ),
+    suite("parse authority end calculation")(
+      test("authority ends at query when no slash") {
+        val result = URL.parse("http://example.com?key=val")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("example.com"),
+          result.toOption.get.queryParams.getFirst("key") == Some("val")
+        )
+      },
+      test("authority ends at fragment when no slash or query") {
+        val result = URL.parse("http://example.com#frag")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("example.com"),
+          result.toOption.get.fragment == Some("frag")
+        )
+      },
+      test("authority ends at earlier of query and fragment") {
+        val result = URL.parse("http://example.com?q=1#f")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("example.com"),
+          result.toOption.get.queryParams.getFirst("q") == Some("1"),
+          result.toOption.get.fragment == Some("f")
+        )
+      },
+      test("authority ends at fragment before query in URL string") {
+        val result = URL.parse("http://example.com#f?notquery")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.host == Some("example.com"),
+          result.toOption.get.fragment == Some("f?notquery")
+        )
+      }
+    ),
+    suite("parse path variants")(
+      test("relative path without scheme has decoded segments") {
+        val result = URL.parse("foo")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.path.segments == Chunk("foo"),
+          result.toOption.get.scheme == None
+        )
+      },
+      test("encoded fragment is decoded") {
+        val result = URL.parse("http://example.com/page#sec%20tion")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.fragment == Some("sec tion")
+        )
+      }
+    ),
+    suite("encode edge cases")(
+      test("encode URL with host and empty path appends slash") {
+        val url = URL(
+          scheme = Some(Scheme.HTTP),
+          host = Some("example.com"),
+          port = None,
+          path = Path.empty,
+          queryParams = QueryParams.empty,
+          fragment = None
+        )
+        assertTrue(url.encode == "http://example.com/")
+      },
+      test("encode URL without host and empty path") {
+        val url = URL(
+          scheme = None,
+          host = None,
+          port = None,
+          path = Path.empty,
+          queryParams = QueryParams.empty,
+          fragment = None
+        )
+        assertTrue(url.encode == "")
+      },
+      test("encode URL with only query params") {
+        val url = URL(
+          scheme = None,
+          host = None,
+          port = None,
+          path = Path.empty,
+          queryParams = QueryParams("k" -> "v"),
+          fragment = None
+        )
+        assertTrue(url.encode == "?k=v")
+      },
+      test("encode URL with only fragment") {
+        val url = URL(
+          scheme = None,
+          host = None,
+          port = None,
+          path = Path.empty,
+          queryParams = QueryParams.empty,
+          fragment = Some("top")
+        )
+        assertTrue(url.encode == "#top")
+      }
+    ),
+    suite("toString")(
+      test("delegates to encode") {
+        val url = URL.parse("http://example.com/path").toOption.get
+        assertTrue(url.toString == url.encode)
+      }
     )
   )
 }

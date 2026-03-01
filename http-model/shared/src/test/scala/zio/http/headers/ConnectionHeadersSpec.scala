@@ -26,6 +26,9 @@ object ConnectionHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Connection.Close.headerName == "connection")
+      },
+      test("render other") {
+        assertTrue(Connection.render(Connection.Other("upgrade")) == "upgrade")
       }
     ),
     suite("Upgrade")(
@@ -35,6 +38,9 @@ object ConnectionHeadersSpec extends ZIOSpecDefault {
           result == Right(Upgrade("websocket")),
           result.map(_.headerName) == Right("upgrade")
         )
+      },
+      test("render") {
+        assertTrue(Upgrade.render(Upgrade("websocket")) == "websocket")
       }
     ),
     suite("Te")(
@@ -44,6 +50,9 @@ object ConnectionHeadersSpec extends ZIOSpecDefault {
           result == Right(Te("trailers")),
           result.map(_.headerName) == Right("te")
         )
+      },
+      test("render") {
+        assertTrue(Te.render(Te("trailers")) == "trailers")
       }
     ),
     suite("Trailer")(

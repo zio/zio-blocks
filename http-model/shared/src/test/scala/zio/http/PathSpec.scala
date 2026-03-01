@@ -146,6 +146,78 @@ object PathSpec extends HttpModelBaseSpec {
         val p = Path("/foo/bar")
         assertTrue(p.toString == "/foo/bar")
       }
+    ),
+    suite("render edge cases")(
+      test("render without leading slash") {
+        val p = Path(Chunk("foo", "bar"), hasLeadingSlash = false, trailingSlash = false)
+        assertTrue(p.render == "foo/bar")
+      },
+      test("render with trailing slash") {
+        val p = Path(Chunk("foo"), hasLeadingSlash = true, trailingSlash = true)
+        assertTrue(p.render == "/foo/")
+      },
+      test("render empty segments no trailing slash") {
+        val p = Path(Chunk.empty[String], hasLeadingSlash = false, trailingSlash = true)
+        assertTrue(p.render == "")
+      }
+    ),
+    suite("encode edge cases")(
+      test("encode without leading slash") {
+        val p = Path(Chunk("a", "b"), hasLeadingSlash = false, trailingSlash = false)
+        assertTrue(p.encode == "a/b")
+      },
+      test("encode empty segments with trailing slash") {
+        val p = Path(Chunk.empty[String], hasLeadingSlash = true, trailingSlash = true)
+        assertTrue(p.encode == "/")
+      }
+    ),
+    suite("fromEncoded edge cases")(
+      test("fromEncoded with trailing slash") {
+        val p = Path.fromEncoded("/foo/bar/")
+        assertTrue(
+          p.segments == Chunk("foo", "bar"),
+          p.hasLeadingSlash,
+          p.trailingSlash
+        )
+      },
+      test("fromEncoded empty string") {
+        assertTrue(Path.fromEncoded("") == Path.empty)
+      },
+      test("fromEncoded just slash") {
+        val p = Path.fromEncoded("/")
+        assertTrue(p.hasLeadingSlash, p.segments.isEmpty)
+      },
+      test("fromEncoded relative with encoding") {
+        val p = Path.fromEncoded("a%20b/c%20d")
+        assertTrue(
+          p.segments == Chunk("a b", "c d"),
+          !p.hasLeadingSlash
+        )
+      }
+    ),
+    suite("++ edge cases")(
+      test("empty ++ empty") {
+        val p = Path.empty ++ Path.empty
+        assertTrue(p == Path.empty)
+      },
+      test("root ++ path preserves leading slash from left") {
+        val p = Path.root ++ Path("bar")
+        assertTrue(p.hasLeadingSlash, p.segments == Chunk("bar"))
+      },
+      test("no trailing from left when other has no trailing") {
+        val p = Path("/foo/") ++ Path("bar")
+        assertTrue(!p.trailingSlash)
+      }
+    ),
+    suite("Path companion")(
+      test("render static method delegates to instance") {
+        val p = Path("/foo/bar")
+        assertTrue(Path.render(p) == p.render)
+      },
+      test("apply with slash-only trailing") {
+        val p = Path("/foo/bar/")
+        assertTrue(p.trailingSlash, p.hasLeadingSlash, p.segments == Chunk("foo", "bar"))
+      }
     )
   )
 }

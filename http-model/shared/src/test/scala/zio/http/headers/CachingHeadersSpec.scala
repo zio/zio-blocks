@@ -99,6 +99,37 @@ object CachingHeadersSpec extends ZIOSpecDefault {
         val original = CacheControl.MaxAge(7200L)
         val rendered = CacheControl.render(original)
         assertTrue(CacheControl.parse(rendered) == Right(original))
+      },
+      test("render all simple directives") {
+        assertTrue(
+          CacheControl.render(CacheControl.NoStore) == "no-store",
+          CacheControl.render(CacheControl.NoTransform) == "no-transform",
+          CacheControl.render(CacheControl.Public) == "public",
+          CacheControl.render(CacheControl.Private) == "private",
+          CacheControl.render(CacheControl.MustRevalidate) == "must-revalidate",
+          CacheControl.render(CacheControl.ProxyRevalidate) == "proxy-revalidate",
+          CacheControl.render(CacheControl.Immutable) == "immutable",
+          CacheControl.render(CacheControl.OnlyIfCached) == "only-if-cached",
+          CacheControl.render(CacheControl.MustUnderstand) == "must-understand"
+        )
+      },
+      test("render s-maxage") {
+        assertTrue(CacheControl.render(CacheControl.SMaxAge(600L)) == "s-maxage=600")
+      },
+      test("render min-fresh") {
+        assertTrue(CacheControl.render(CacheControl.MinFresh(60L)) == "min-fresh=60")
+      },
+      test("render stale-while-revalidate") {
+        assertTrue(CacheControl.render(CacheControl.StaleWhileRevalidate(30L)) == "stale-while-revalidate=30")
+      },
+      test("render stale-if-error") {
+        assertTrue(CacheControl.render(CacheControl.StaleIfError(300L)) == "stale-if-error=300")
+      },
+      test("parse invalid number returns Left") {
+        assertTrue(CacheControl.parse("max-age=abc").isLeft)
+      },
+      test("parse unknown with = returns Left") {
+        assertTrue(CacheControl.parse("unknown-key=123").isLeft)
       }
     ),
     suite("ETag")(
@@ -173,6 +204,24 @@ object CachingHeadersSpec extends ZIOSpecDefault {
       },
       test("render *") {
         assertTrue(IfNoneMatch.render(IfNoneMatch.Any) == "*")
+      },
+      test("render etags") {
+        val h = IfNoneMatch.ETags(Chunk(ETag("v1", weak = false), ETag("v2", weak = true)))
+        assertTrue(IfNoneMatch.render(h) == "\"v1\", W/\"v2\"")
+      },
+      test("parse multiple etags") {
+        val result = IfNoneMatch.parse("\"a\", \"b\"")
+        assertTrue(
+          result == Right(IfNoneMatch.ETags(Chunk(ETag("a", weak = false), ETag("b", weak = false))))
+        )
+      },
+      test("parse empty returns Left") {
+        assertTrue(IfNoneMatch.parse("").isLeft)
+      },
+      test("round-trip") {
+        val original = IfNoneMatch.ETags(Chunk(ETag("test", weak = false)))
+        val rendered = IfNoneMatch.render(original)
+        assertTrue(IfNoneMatch.parse(rendered) == Right(original))
       }
     ),
     suite("IfModifiedSince")(
@@ -184,6 +233,11 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result.map(_.headerName) == Right("if-modified-since"),
           result.map(_.renderedValue) == Right(date)
         )
+      },
+      test("render") {
+        assertTrue(
+          IfModifiedSince.render(IfModifiedSince("Sat, 29 Oct 1994 19:43:31 GMT")) == "Sat, 29 Oct 1994 19:43:31 GMT"
+        )
       }
     ),
     suite("IfUnmodifiedSince")(
@@ -194,6 +248,9 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result == Right(IfUnmodifiedSince(date)),
           result.map(_.headerName) == Right("if-unmodified-since")
         )
+      },
+      test("render") {
+        assertTrue(IfUnmodifiedSince.render(IfUnmodifiedSince("Sat, 29 Oct 1994")) == "Sat, 29 Oct 1994")
       }
     ),
     suite("IfRange")(
@@ -204,6 +261,9 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result == Right(IfRange(value)),
           result.map(_.headerName) == Right("if-range")
         )
+      },
+      test("render") {
+        assertTrue(IfRange.render(IfRange("\"etag123\"")) == "\"etag123\"")
       }
     ),
     suite("Expires")(
@@ -214,6 +274,9 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result == Right(Expires(date)),
           result.map(_.headerName) == Right("expires")
         )
+      },
+      test("render") {
+        assertTrue(Expires.render(Expires("Thu, 01 Dec 1994 16:00:00 GMT")) == "Thu, 01 Dec 1994 16:00:00 GMT")
       }
     ),
     suite("Age")(
@@ -251,6 +314,11 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result == Right(LastModified(date)),
           result.map(_.headerName) == Right("last-modified")
         )
+      },
+      test("render") {
+        assertTrue(
+          LastModified.render(LastModified("Tue, 15 Nov 1994 12:45:26 GMT")) == "Tue, 15 Nov 1994 12:45:26 GMT"
+        )
       }
     ),
     suite("Pragma")(
@@ -260,6 +328,9 @@ object CachingHeadersSpec extends ZIOSpecDefault {
           result == Right(Pragma("no-cache")),
           result.map(_.headerName) == Right("pragma")
         )
+      },
+      test("render") {
+        assertTrue(Pragma.render(Pragma("no-cache")) == "no-cache")
       }
     ),
     suite("Vary")(
