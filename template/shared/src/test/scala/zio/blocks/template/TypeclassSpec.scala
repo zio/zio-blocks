@@ -1,7 +1,7 @@
 package zio.blocks.template
 
 import zio.test._
-import CssLength.CssLengthIntOps
+import CssLength.{CssLengthIntOps, CssLengthDoubleOps}
 
 object TypeclassSpec extends ZIOSpecDefault {
   def spec = suite("Typeclasses")(
@@ -57,6 +57,28 @@ object TypeclassSpec extends ZIOSpecDefault {
       test("Map[String, Int]") {
         val result = ToJs[Map[String, Int]].toJs(Map("a" -> 1))
         assertTrue(result == "{\"a\":1}")
+      },
+      test("Float normal") {
+        assertTrue(ToJs[Float].toJs(1.5f) == "1.5")
+      },
+      test("Float NaN") {
+        assertTrue(ToJs[Float].toJs(Float.NaN) == "NaN")
+      },
+      test("Float positive Infinity") {
+        assertTrue(ToJs[Float].toJs(Float.PositiveInfinity) == "Infinity")
+      },
+      test("Float negative Infinity") {
+        assertTrue(ToJs[Float].toJs(Float.NegativeInfinity) == "-Infinity")
+      },
+      test("List[String] with escaping") {
+        assertTrue(ToJs[List[String]].toJs(List("a\"b", "c")) == "[\"a\\\"b\",\"c\"]")
+      },
+      test("Map[String, String] with key escaping") {
+        val result = ToJs[Map[String, String]].toJs(Map("k" -> "v"))
+        assertTrue(result == "{\"k\":\"v\"}")
+      },
+      test("Map empty") {
+        assertTrue(ToJs[Map[String, Int]].toJs(Map.empty) == "{}")
       }
     ),
     suite("ToCss")(
@@ -86,6 +108,18 @@ object TypeclassSpec extends ZIOSpecDefault {
       },
       test("CssColor Rgb") {
         assertTrue(ToCss[CssColor].toCss(CssColor.Rgb(255, 0, 0)) == "rgb(255,0,0)")
+      },
+      test("Long ToCss") {
+        assertTrue(ToCss[Long].toCss(100L) == "100")
+      },
+      test("Float ToCss") {
+        assertTrue(ToCss[Float].toCss(1.5f) == "1.5")
+      },
+      test("Option[CssLength] Some") {
+        assertTrue(ToCss[Option[CssLength]].toCss(Some(CssLength(10, "px"))) == "10px")
+      },
+      test("Option[CssLength] None") {
+        assertTrue(ToCss[Option[CssLength]].toCss(None) == "")
       }
     ),
     suite("ToText")(
@@ -106,6 +140,21 @@ object TypeclassSpec extends ZIOSpecDefault {
       },
       test("BigDecimal") {
         assertTrue(ToText[BigDecimal].toText(BigDecimal("3.14")) == "3.14")
+      },
+      test("Long") {
+        assertTrue(ToText[Long].toText(100L) == "100")
+      },
+      test("Double") {
+        assertTrue(ToText[Double].toText(3.14) == "3.14")
+      },
+      test("Float") {
+        assertTrue(ToText[Float].toText(1.5f) == "1.5")
+      },
+      test("Byte") {
+        assertTrue(ToText[Byte].toText(42.toByte) == "42")
+      },
+      test("Short") {
+        assertTrue(ToText[Short].toText(100.toShort) == "100")
       }
     ),
     suite("ToElements")(
@@ -132,6 +181,22 @@ object TypeclassSpec extends ZIOSpecDefault {
       test("Vector[Dom]") {
         val elems = Vector(Dom.Text("x"), Dom.Empty)
         assertTrue(ToElements[Vector[Dom]].toElements(elems) == Vector(Dom.Text("x"), Dom.Empty))
+      },
+      test("Long to text element") {
+        assertTrue(ToElements[Long].toElements(100L) == Vector(Dom.Text("100")))
+      },
+      test("Double to text element") {
+        assertTrue(ToElements[Double].toElements(3.14) == Vector(Dom.Text("3.14")))
+      },
+      test("Boolean to text element") {
+        assertTrue(ToElements[Boolean].toElements(true) == Vector(Dom.Text("true")))
+      },
+      test("Char to text element") {
+        assertTrue(ToElements[Char].toElements('x') == Vector(Dom.Text("x")))
+      },
+      test("Iterable[Dom] to elements") {
+        val elems: Iterable[Dom] = List(Dom.Text("a"), Dom.Text("b"))
+        assertTrue(ToElements[Iterable[Dom]].toElements(elems) == Vector(Dom.Text("a"), Dom.Text("b")))
       }
     ),
     suite("ToTagName")(
@@ -162,6 +227,30 @@ object TypeclassSpec extends ZIOSpecDefault {
       },
       test("Css is HTML-escaped") {
         assertTrue(ToAttrValue[Css].toAttrValue(Css("color: red")) == "color: red")
+      },
+      test("Long renders as string") {
+        assertTrue(ToAttrValue[Long].toAttrValue(100L) == "100")
+      },
+      test("Double renders as string") {
+        assertTrue(ToAttrValue[Double].toAttrValue(3.14) == "3.14")
+      },
+      test("Char is HTML-escaped") {
+        assertTrue(ToAttrValue[Char].toAttrValue('<') == "&lt;")
+      },
+      test("Css with special chars is HTML-escaped") {
+        assertTrue(ToAttrValue[Css].toAttrValue(Css("a&b")) == "a&amp;b")
+      },
+      test("Option[String] Some") {
+        assertTrue(ToAttrValue[Option[String]].toAttrValue(Some("x")) == "x")
+      },
+      test("Option[String] None") {
+        assertTrue(ToAttrValue[Option[String]].toAttrValue(None) == "")
+      },
+      test("Iterable[String]") {
+        assertTrue(ToAttrValue[Iterable[String]].toAttrValue(List("a", "b")) == "a b")
+      },
+      test("Iterable[String] with escaping") {
+        assertTrue(ToAttrValue[Iterable[String]].toAttrValue(List("a&b", "c<d")) == "a&amp;b c&lt;d")
       }
     ),
     suite("CssLength")(
@@ -188,6 +277,24 @@ object TypeclassSpec extends ZIOSpecDefault {
       },
       test("Int extension vw") {
         assertTrue(100.vw == CssLength(100, "vw"))
+      },
+      test("Double extension px") {
+        assertTrue(1.5.px == CssLength(1.5, "px"))
+      },
+      test("Double extension em") {
+        assertTrue(2.5.em == CssLength(2.5, "em"))
+      },
+      test("Double extension rem") {
+        assertTrue(1.5.rem == CssLength(1.5, "rem"))
+      },
+      test("Double extension pct") {
+        assertTrue(50.5.pct == CssLength(50.5, "%"))
+      },
+      test("Double extension vh") {
+        assertTrue(33.3.vh == CssLength(33.3, "vh"))
+      },
+      test("Double extension vw") {
+        assertTrue(66.6.vw == CssLength(66.6, "vw"))
       }
     ),
     suite("CssColor")(

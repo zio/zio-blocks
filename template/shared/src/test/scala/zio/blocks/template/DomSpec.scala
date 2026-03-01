@@ -164,6 +164,27 @@ object DomSpec extends ZIOSpecDefault {
       test("renderMinified produces same output as render for basic elements") {
         val el = Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("hi")))
         assertTrue(el.renderMinified == "<div>hi</div>")
+      },
+      test("renderMinified for script element") {
+        val s = Dom.Element.Script(Vector.empty, Vector(Dom.Text("var x = 1 < 2;")))
+        assertTrue(s.renderMinified == "<script>var x = 1 < 2;</script>")
+      },
+      test("renderMinified for style element") {
+        val s = Dom.Element.Style(Vector.empty, Vector(Dom.Text("div > p {}")))
+        assertTrue(s.renderMinified == "<style>div > p {}</style>")
+      },
+      test("renderMinified for fragment") {
+        val f = Dom.Fragment(Vector(Dom.Text("a"), Dom.Text("b")))
+        assertTrue(f.renderMinified == "ab")
+      },
+      test("renderMinified for empty") {
+        assertTrue(Dom.Empty.renderMinified == "")
+      },
+      test("renderMinified for RawHtml") {
+        assertTrue(Dom.RawHtml("<b>raw</b>").renderMinified == "<b>raw</b>")
+      },
+      test("renderMinified for void element") {
+        assertTrue(Dom.Element.Generic("br", Vector.empty, Vector.empty).renderMinified == "<br/>")
       }
     ),
     suite("indentation rendering")(
@@ -210,6 +231,83 @@ object DomSpec extends ZIOSpecDefault {
           )
         )
         assertTrue(el.render(indentation = false) == el.render)
+      },
+      test("indented rendering of empty element") {
+        val el = Dom.Element.Generic("div", Vector.empty, Vector.empty)
+        assertTrue(el.render(indentation = true) == "<div></div>")
+      },
+      test("indented rendering with attributes") {
+        val attr = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
+        val el   = Dom.Element.Generic(
+          "div",
+          Vector(attr),
+          Vector(
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("hi"))),
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("there")))
+          )
+        )
+        val result = el.render(indentation = true)
+        assertTrue(
+          result.contains("id=\"main\""),
+          result.contains("\n  <p>hi</p>")
+        )
+      },
+      test("indented rendering of Fragment") {
+        val f = Dom.Fragment(
+          Vector(
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("a"))),
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("b")))
+          )
+        )
+        val result = f.render(indentation = true)
+        assertTrue(
+          result.contains("<p>a</p>"),
+          result.contains("<p>b</p>"),
+          result.contains("\n")
+        )
+      },
+      test("indented rendering of void elements") {
+        val el = Dom.Element.Generic(
+          "div",
+          Vector.empty,
+          Vector(
+            Dom.Element.Generic("br", Vector.empty, Vector.empty),
+            Dom.Element.Generic("hr", Vector.empty, Vector.empty)
+          )
+        )
+        val result = el.render(indentation = true)
+        assertTrue(result.contains("<br/>"), result.contains("<hr/>"))
+      },
+      test("indented rendering of RawHtml child") {
+        val el = Dom.Element.Generic("div", Vector.empty, Vector(Dom.RawHtml("<b>raw</b>")))
+        assertTrue(el.render(indentation = true) == "<div><b>raw</b></div>")
+      },
+      test("indented rendering of script element") {
+        val s = Dom.Element.Script(Vector.empty, Vector(Dom.Text("var x = 1 < 2;")))
+        assertTrue(s.render(indentation = true) == "<script>var x = 1 < 2;</script>")
+      },
+      test("indented rendering of style element") {
+        val s = Dom.Element.Style(Vector.empty, Vector(Dom.Text("p { color: red; }")))
+        assertTrue(s.render(indentation = true) == "<style>p { color: red; }</style>")
+      },
+      test("indented rendering of Empty") {
+        assertTrue(Dom.Empty.render(indentation = true) == "")
+      },
+      test("indented rendering of Text") {
+        assertTrue(Dom.Text("hello").render(indentation = true) == "hello")
+      },
+      test("indented rendering of RawHtml") {
+        assertTrue(Dom.RawHtml("<b>bold</b>").render(indentation = true) == "<b>bold</b>")
+      },
+      test("indented script with multiple children does not escape") {
+        val s      = Dom.Element.Script(Vector.empty, Vector(Dom.Text("a < b;"), Dom.Text("c > d;")))
+        val result = s.render(indentation = true)
+        assertTrue(result.contains("a < b;"), result.contains("c > d;"))
+      },
+      test("indented style with multiple children does not escape") {
+        val s      = Dom.Element.Style(Vector.empty, Vector(Dom.Text("a > b {}"), Dom.Text("c > d {}")))
+        val result = s.render(indentation = true)
+        assertTrue(result.contains("a > b {}"), result.contains("c > d {}"))
       }
     ),
     suite("boolAttr")(
@@ -309,13 +407,102 @@ object DomSpec extends ZIOSpecDefault {
         }
         assertTrue(transformed.render == "<div>world</div>")
       },
+      test("collect with nested Fragment") {
+        val tree = Dom.Fragment(
+          Vector(
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("a"))),
+            Dom.Fragment(Vector(Dom.Element.Generic("span", Vector.empty, Vector(Dom.Text("b")))))
+          )
+        )
+        val found = tree.collect { case el: Dom.Element if el.tag == "span" => el }
+        assertTrue(found.length == 1)
+      },
+      test("filter on Fragment") {
+        val f = Dom.Fragment(
+          Vector(
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("keep"))),
+            Dom.Text("remove")
+          )
+        )
+        val filtered = f.filter {
+          case _: Dom.Text => false
+          case _           => true
+        }
+        assertTrue(filtered.render.contains("<p>"), !filtered.render.contains("remove"))
+      },
+      test("find returning None") {
+        val tree  = Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("hello")))
+        val found = tree.find {
+          case el: Dom.Element => el.tag == "nonexistent"
+          case _               => false
+        }
+        assertTrue(found.isEmpty)
+      },
+      test("find in Fragment") {
+        val tree = Dom.Fragment(
+          Vector(
+            Dom.Text("a"),
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("found")))
+          )
+        )
+        val found = tree.find {
+          case el: Dom.Element => el.tag == "p"
+          case _               => false
+        }
+        assertTrue(found.isDefined)
+      },
+      test("transform on nested structures") {
+        val tree = Dom.Element.Generic(
+          "div",
+          Vector.empty,
+          Vector(
+            Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("old"))),
+            Dom.Element.Generic("span", Vector.empty, Vector(Dom.Text("old")))
+          )
+        )
+        val transformed = tree.transform {
+          case Dom.Text("old") => Dom.Text("new")
+          case other           => other
+        }
+        assertTrue(!transformed.render.contains("old"), transformed.render.contains("new"))
+      },
+      test("transform on Fragment") {
+        val f           = Dom.Fragment(Vector(Dom.Text("a"), Dom.Text("b")))
+        val transformed = f.transform {
+          case Dom.Text("a") => Dom.Text("x")
+          case other         => other
+        }
+        assertTrue(transformed.render.contains("x"), transformed.render.contains("b"))
+      },
       test("isEmpty") {
         assertTrue(
           Dom.Empty.isEmpty,
           Dom.Text("").isEmpty,
           !Dom.Text("hi").isEmpty,
-          !Dom.Element.Generic("div", Vector.empty, Vector.empty).isEmpty
+          !Dom.Element.Generic("div", Vector.empty, Vector.empty).isEmpty,
+          Dom.RawHtml("").isEmpty,
+          !Dom.RawHtml("x").isEmpty,
+          Dom.Fragment(Vector(Dom.Empty, Dom.Text(""))).isEmpty,
+          !Dom.Fragment(Vector(Dom.Empty, Dom.Text("x"))).isEmpty
         )
+      }
+    ),
+    suite("Dom.element factory")(
+      test("creates element with tag, attributes, and children") {
+        val attr = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
+        val el   = Dom.element("div", Vector(attr), Vector(Dom.Text("hello")))
+        assertTrue(el.render == "<div id=\"main\">hello</div>")
+      }
+    ),
+    suite("Dom.text and Dom.raw and Dom.empty factories")(
+      test("Dom.text creates Text node") {
+        assertTrue(Dom.text("hello").render == "hello")
+      },
+      test("Dom.raw creates RawHtml node") {
+        assertTrue(Dom.raw("<b>bold</b>").render == "<b>bold</b>")
+      },
+      test("Dom.empty is Empty") {
+        assertTrue(Dom.empty == Dom.Empty)
       }
     ),
     suite("Element apply for curried modifiers")(
@@ -381,6 +568,56 @@ object DomSpec extends ZIOSpecDefault {
         val attr = cls("foo", "bar")
         val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
         assertTrue(el.render == "<div class=\"foo bar\"></div>")
+      },
+      test("PartialMultiAttribute := single string") {
+        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+        val attr = cls := "single"
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div class=\"single\"></div>")
+      },
+      test("PartialMultiAttribute := Vector[String]") {
+        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+        val attr = cls := Vector("a", "b")
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div class=\"a b\"></div>")
+      },
+      test("PartialMultiAttribute apply with Iterable") {
+        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+        val attr = cls(List("x", "y"))
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div class=\"x y\"></div>")
+      },
+      test("PartialMultiAttribute apply with single value") {
+        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+        val attr = cls("single")
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div class=\"single\"></div>")
+      }
+    ),
+    suite("PartialAttribute")(
+      test(":= with Long") {
+        val pa   = new PartialAttribute("tabindex")
+        val attr = pa := 100L
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div tabindex=\"100\"></div>")
+      },
+      test(":= with Double") {
+        val pa   = new PartialAttribute("data-ratio")
+        val attr = pa := 3.14
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div data-ratio=\"3.14\"></div>")
+      },
+      test(":= with Js") {
+        val pa   = new PartialAttribute("onclick")
+        val attr = pa := Js("alert('hi')")
+        val el   = Dom.Element.Generic("button", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<button onclick=\"alert('hi')\"></button>")
+      },
+      test("withSeparator") {
+        val pa   = new PartialAttribute("class")
+        val attr = pa.withSeparator(Vector("a", "b", "c"), Dom.AttributeSeparator.Comma)
+        val el   = Dom.Element.Generic("div", Vector(attr), Vector.empty)
+        assertTrue(el.render == "<div class=\"a,b,c\"></div>")
       }
     )
   )
