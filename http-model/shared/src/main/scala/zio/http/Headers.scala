@@ -22,7 +22,7 @@ final class Headers private[http] (
   def isEmpty: Boolean  = size == 0
   def nonEmpty: Boolean = size > 0
 
-  def get[H <: Header](headerType: HeaderType[H]): Option[H] = {
+  def get[H <: Header](headerType: Header.Typed[H]): Option[H] = {
     val target = headerType.name
     var i      = 0
     while (i < size) {
@@ -52,7 +52,18 @@ final class Headers private[http] (
     None
   }
 
-  def getAll[H <: Header](headerType: HeaderType[H]): Chunk[H] = {
+  def rawGetAll(name: String): Chunk[String] = {
+    val target  = name.toLowerCase
+    val builder = Chunk.newBuilder[String]
+    var i       = 0
+    while (i < size) {
+      if (names(i) == target) builder += rawValues(i)
+      i += 1
+    }
+    builder.result()
+  }
+
+  def getAll[H <: Header](headerType: Header.Typed[H]): Chunk[H] = {
     val target  = headerType.name
     val builder = Chunk.newBuilder[H]
     var i       = 0

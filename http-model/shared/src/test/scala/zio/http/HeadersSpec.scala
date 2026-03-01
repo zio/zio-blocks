@@ -53,61 +53,92 @@ object HeadersSpec extends HttpModelBaseSpec {
         assertTrue(h.rawGet("content-type") == Some("text/html"))
       }
     ),
+    suite("rawGetAll")(
+      test("returns empty Chunk when header not present") {
+        val h = Headers("content-type" -> "text/html")
+        assertTrue(h.rawGetAll("accept").isEmpty)
+      },
+      test("returns single value when one header present") {
+        val h      = Headers("content-type" -> "text/html")
+        val result = h.rawGetAll("content-type")
+        assertTrue(
+          result.length == 1,
+          result(0) == "text/html"
+        )
+      },
+      test("returns all values when multiple headers with same name exist") {
+        val h      = Headers("Set-Cookie" -> "a=1", "Host" -> "example.com", "Set-Cookie" -> "b=2")
+        val result = h.rawGetAll("set-cookie")
+        assertTrue(
+          result.length == 2,
+          result(0) == "a=1",
+          result(1) == "b=2"
+        )
+      },
+      test("is case-insensitive") {
+        val h = Headers("Content-Type" -> "text/html")
+        assertTrue(
+          h.rawGetAll("CONTENT-TYPE").length == 1,
+          h.rawGetAll("content-type").length == 1,
+          h.rawGetAll("Content-Type").length == 1
+        )
+      }
+    ),
     suite("get (typed)")(
       test("parses ContentType header") {
         val h      = Headers("Content-Type" -> "text/html")
-        val result = h.get(Header.ContentType)
+        val result = h.get(headers.ContentType)
         assertTrue(result.isDefined)
       },
       test("parses ContentLength header") {
         val h      = Headers("Content-Length" -> "42")
-        val result = h.get(Header.ContentLength)
-        assertTrue(result == Some(Header.ContentLength(42L)))
+        val result = h.get(headers.ContentLength)
+        assertTrue(result == Some(headers.ContentLength(42L)))
       },
       test("parses Host header") {
         val h      = Headers("Host" -> "example.com:8080")
-        val result = h.get(Header.Host)
-        assertTrue(result == Some(Header.Host("example.com", Some(8080))))
+        val result = h.get(headers.Host)
+        assertTrue(result == Some(headers.Host("example.com", Some(8080))))
       },
       test("returns None for missing header type") {
         val h = Headers("accept" -> "text/html")
-        assertTrue(h.get(Header.ContentLength) == None)
+        assertTrue(h.get(headers.ContentLength) == None)
       },
       test("returns None when parse fails") {
         val h = Headers("content-length" -> "not-a-number")
-        assertTrue(h.get(Header.ContentLength) == None)
+        assertTrue(h.get(headers.ContentLength) == None)
       },
       test("caches parsed result on second call") {
         val h      = Headers("Content-Length" -> "42")
-        val first  = h.get(Header.ContentLength)
-        val second = h.get(Header.ContentLength)
+        val first  = h.get(headers.ContentLength)
+        val second = h.get(headers.ContentLength)
         assertTrue(
-          first == Some(Header.ContentLength(42L)),
-          second == Some(Header.ContentLength(42L))
+          first == Some(headers.ContentLength(42L)),
+          second == Some(headers.ContentLength(42L))
         )
       }
     ),
     suite("getAll")(
       test("returns all matching entries") {
         val h       = Headers("Set-Cookie" -> "a=1", "Host" -> "example.com", "Set-Cookie" -> "b=2")
-        val cookies = h.getAll(Header.SetCookie)
+        val cookies = h.getAll(headers.SetCookieHeader)
         assertTrue(
           cookies.length == 2,
-          cookies(0) == Header.SetCookie("a=1"),
-          cookies(1) == Header.SetCookie("b=2")
+          cookies(0) == headers.SetCookieHeader("a=1"),
+          cookies(1) == headers.SetCookieHeader("b=2")
         )
       },
       test("returns empty Chunk when no matches") {
         val h       = Headers("content-type" -> "text/html")
-        val cookies = h.getAll(Header.SetCookie)
+        val cookies = h.getAll(headers.SetCookieHeader)
         assertTrue(cookies.isEmpty)
       },
       test("returns single-element Chunk for one match") {
         val h     = Headers("Host" -> "example.com")
-        val hosts = h.getAll(Header.Host)
+        val hosts = h.getAll(headers.Host)
         assertTrue(
           hosts.length == 1,
-          hosts(0) == Header.Host("example.com", None)
+          hosts(0) == headers.Host("example.com", None)
         )
       }
     ),
@@ -132,11 +163,11 @@ object HeadersSpec extends HttpModelBaseSpec {
       },
       test("does not carry parsed cache") {
         val h  = Headers("Content-Length" -> "42")
-        val _  = h.get(Header.ContentLength) // trigger parse
+        val _  = h.get(headers.ContentLength) // trigger parse
         val h2 = h.add("accept", "text/html")
         // h2 is a fresh Headers, its parsed cache is all-null
         // but get should still work after re-parsing
-        assertTrue(h2.get(Header.ContentLength) == Some(Header.ContentLength(42L)))
+        assertTrue(h2.get(headers.ContentLength) == Some(headers.ContentLength(42L)))
       }
     ),
     suite("set")(

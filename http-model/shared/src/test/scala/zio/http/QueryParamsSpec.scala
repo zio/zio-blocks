@@ -178,6 +178,78 @@ object QueryParamsSpec extends HttpModelBaseSpec {
         assertTrue(qp1 != qp2)
       }
     ),
+    suite("++(")(
+      test("combines two QueryParams") {
+        val qp1      = QueryParams("a" -> "1", "b" -> "2")
+        val qp2      = QueryParams("b" -> "3", "c" -> "4")
+        val combined = qp1 ++ qp2
+        assertTrue(
+          combined.get("a") == Some(Chunk("1")),
+          combined.get("b") == Some(Chunk("2", "3")),
+          combined.get("c") == Some(Chunk("4"))
+        )
+      },
+      test("empty ++ qp returns qp") {
+        val qp = QueryParams("a" -> "1")
+        assertTrue(QueryParams.empty ++ qp == qp)
+      },
+      test("qp ++ empty returns qp") {
+        val qp = QueryParams("a" -> "1")
+        assertTrue(qp ++ QueryParams.empty == qp)
+      }
+    ),
+    suite("addAll")(
+      test("merges all entries") {
+        val qp1    = QueryParams("a" -> "1")
+        val qp2    = QueryParams("a" -> "2", "b" -> "3")
+        val merged = qp1.addAll(qp2)
+        assertTrue(
+          merged.get("a") == Some(Chunk("1", "2")),
+          merged.get("b") == Some(Chunk("3"))
+        )
+      },
+      test("empty.addAll(qp) returns qp") {
+        val qp = QueryParams("x" -> "1")
+        assertTrue(QueryParams.empty.addAll(qp) == qp)
+      }
+    ),
+    suite("toMap")(
+      test("converts to Map[String, Chunk[String]]") {
+        val qp  = QueryParams("a" -> "1", "a" -> "2", "b" -> "3")
+        val map = qp.toMap
+        assertTrue(
+          map.get("a") == Some(Chunk("1", "2")),
+          map.get("b") == Some(Chunk("3")),
+          map.size == 2
+        )
+      },
+      test("empty.toMap is empty") {
+        assertTrue(QueryParams.empty.toMap.isEmpty)
+      }
+    ),
+    suite("filter")(
+      test("keeps matching entries") {
+        val qp       = QueryParams("a" -> "1", "b" -> "2", "c" -> "3")
+        val filtered = qp.filter((k, _) => k != "b")
+        assertTrue(
+          filtered.has("a"),
+          !filtered.has("b"),
+          filtered.has("c")
+        )
+      },
+      test("filter with multi-value predicate") {
+        val qp       = QueryParams("a" -> "1", "a" -> "2", "b" -> "3")
+        val filtered = qp.filter((_, vs) => vs.length > 1)
+        assertTrue(
+          filtered.has("a"),
+          !filtered.has("b")
+        )
+      },
+      test("filter all returns empty") {
+        val qp = QueryParams("a" -> "1")
+        assertTrue(qp.filter((_, _) => false).isEmpty)
+      }
+    ),
     suite("QueryParamsBuilder")(
       test("builds from scratch") {
         val builder = QueryParamsBuilder.make()

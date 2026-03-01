@@ -7,9 +7,9 @@ final case class Request(
   body: Body,
   version: Version
 ) {
-  def header[H <: Header](headerType: HeaderType[H]): Option[H] = headers.get(headerType)
+  def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
-  def contentType: Option[ContentType] = header(Header.ContentType).map(_.value)
+  def contentType: Option[ContentType] = header(zio.http.headers.ContentType).map(_.value)
 
   def path: Path = url.path
 

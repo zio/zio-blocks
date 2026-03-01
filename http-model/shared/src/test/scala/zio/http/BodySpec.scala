@@ -33,11 +33,11 @@ object BodySpec extends HttpModelBaseSpec {
           body.toArray(2) == 3.toByte
         )
       },
-      test("makes defensive copy") {
+      test("does not make defensive copy") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte
-        assertTrue(body.toArray(0) == 1.toByte)
+        assertTrue(body.toArray(0) == 99.toByte)
       },
       test("preserves content type") {
         val ct   = Some(ContentType.`application/json`)

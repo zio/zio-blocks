@@ -59,7 +59,7 @@ object RequestSpec extends HttpModelBaseSpec {
       test("returns typed header from headers") {
         val headers = Headers("host" -> "example.com:8080")
         val request = Request(Method.GET, URL.fromPath(Path.root), headers, Body.empty, Version.`Http/1.1`)
-        val host    = request.header(Header.Host)
+        val host    = request.header(zio.http.headers.Host)
         assertTrue(
           host.isDefined,
           host.get.host == "example.com",
@@ -68,7 +68,7 @@ object RequestSpec extends HttpModelBaseSpec {
       },
       test("returns None for missing header") {
         val request = Request.get(URL.fromPath(Path.root))
-        assertTrue(request.header(Header.Host).isEmpty)
+        assertTrue(request.header(zio.http.headers.Host).isEmpty)
       }
     ),
     suite("contentType")(

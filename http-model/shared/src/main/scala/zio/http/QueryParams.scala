@@ -93,6 +93,55 @@ final class QueryParams private[http] (
     builder.result()
   }
 
+  def ++(other: QueryParams): QueryParams = {
+    if (other.isEmpty) return this
+    if (isEmpty) return other
+    val builder = QueryParamsBuilder.make(size + other.size)
+    var i       = 0
+    while (i < size) {
+      val values = vals(i)
+      var j      = 0
+      while (j < values.length) {
+        builder.add(keys(i), values(j))
+        j += 1
+      }
+      i += 1
+    }
+    i = 0
+    while (i < other.size) {
+      val values = other.vals(i)
+      var j      = 0
+      while (j < values.length) {
+        builder.add(other.keys(i), values(j))
+        j += 1
+      }
+      i += 1
+    }
+    builder.build()
+  }
+
+  def addAll(other: QueryParams): QueryParams = this ++ other
+
+  def toMap: Map[String, Chunk[String]] = {
+    val builder = Map.newBuilder[String, Chunk[String]]
+    var i       = 0
+    while (i < size) {
+      builder += ((keys(i), vals(i)))
+      i += 1
+    }
+    builder.result()
+  }
+
+  def filter(f: (String, Chunk[String]) => Boolean): QueryParams = {
+    val builder = QueryParamsBuilder.make(size)
+    var i       = 0
+    while (i < size) {
+      if (f(keys(i), vals(i))) builder.addEntry(keys(i), vals(i))
+      i += 1
+    }
+    builder.build()
+  }
+
   override def equals(that: Any): Boolean = that match {
     case q: QueryParams => toList == q.toList
     case _              => false

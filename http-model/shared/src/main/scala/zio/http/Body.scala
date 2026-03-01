@@ -3,7 +3,7 @@ package zio.http
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaTypes
 
-final class Body private (private val data: Array[Byte], val contentType: Option[ContentType]) {
+final class Body private (val data: Array[Byte], val contentType: Option[ContentType]) {
 
   override def equals(that: Any): Boolean = that match {
     case b: Body => java.util.Arrays.equals(data, b.data) && contentType == b.contentType
@@ -16,11 +16,7 @@ final class Body private (private val data: Array[Byte], val contentType: Option
 
   def asChunk: Chunk[Byte] = Chunk.fromArray(data)
 
-  def toArray: Array[Byte] = {
-    val copy = new Array[Byte](data.length)
-    System.arraycopy(data, 0, copy, 0, data.length)
-    copy
-  }
+  def toArray: Array[Byte] = data
 
   def length: Int = data.length
 
@@ -35,11 +31,8 @@ object Body {
 
   val empty: Body = new Body(Array.emptyByteArray, None)
 
-  def fromArray(bytes: Array[Byte], contentType: Option[ContentType] = None): Body = {
-    val copy = new Array[Byte](bytes.length)
-    System.arraycopy(bytes, 0, copy, 0, bytes.length)
-    new Body(copy, contentType)
-  }
+  def fromArray(bytes: Array[Byte], contentType: Option[ContentType] = None): Body =
+    new Body(bytes, contentType)
 
   def fromChunk(chunk: Chunk[Byte], contentType: Option[ContentType] = None): Body =
     new Body(chunk.toArray, contentType)

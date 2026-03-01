@@ -68,14 +68,14 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("returns typed header from headers") {
         val headers  = Headers("content-length" -> "42")
         val response = Response(Status.Ok, headers, Body.empty, Version.`Http/1.1`)
-        val cl       = response.header(Header.ContentLength)
+        val cl       = response.header(zio.http.headers.ContentLength)
         assertTrue(
           cl.isDefined,
           cl.get.length == 42L
         )
       },
       test("returns None for missing header") {
-        assertTrue(Response.ok.header(Header.ContentLength).isEmpty)
+        assertTrue(Response.ok.header(zio.http.headers.ContentLength).isEmpty)
       }
     ),
     suite("contentType")(
