@@ -109,6 +109,16 @@ object SafeAttrName {
     "start",
     "summary",
     "translate",
-    "usemap"
+    "usemap",
+    "async",
+    "autoplay",
+    "controls",
+    "defer",
+    "formnovalidate",
+    "novalidate",
+    "reversed",
+    "spellcheck",
+    "xmlns",
+    "slot"
   )
 }
