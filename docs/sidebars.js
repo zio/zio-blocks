@@ -38,6 +38,7 @@ const sidebars = {
          "reference/json-schema",
          "reference/syntax",
          "reference/media-type",
+         "reference/http-model",
       ]
     },
     {
