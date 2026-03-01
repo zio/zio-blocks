@@ -33,8 +33,8 @@ sealed trait Expr[S, A]
 object Expr {
 
   // --- Core nodes (superset of SchemaExpr's nodes) ---
-  final case class Column[S, A](optic: Optic[S, A])       extends Expr[S, A]
-  final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
+  final case class Column[S, A](path: DynamicOptic) extends Expr[S, A]
+  final case class Lit[S, A](value: DynamicValue)   extends Expr[S, A]
 
   // Relational
   final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
@@ -68,8 +68,8 @@ object Expr {
   ) extends Expr[S, A]
 
   // --- Factory methods ---
-  def col[S, A](optic: Optic[S, A]): Expr[S, A]                   = Column(optic)
-  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
+  def col[S, A](optic: Optic[S, A]): Expr[S, A]                   = Column(optic.toDynamic)
+  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(schema.toDynamicValue(value))
 
   def count[S, A](expr: Expr[S, A]): Expr[S, Long]   = Agg(AggFunction.Count(), expr)
   def sum[S](expr: Expr[S, Double]): Expr[S, Double] = Agg(AggFunction.Sum, expr)
@@ -87,42 +87,53 @@ object Expr {
 
   // --- Translation from SchemaExpr ---
   def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result = se match {
-      case SchemaExpr.Optic(optic)     => Column(optic)
-      case l: SchemaExpr.Literal[_, _] => Lit(l.value, l.schema)
-
-      case SchemaExpr.Relational(l, r, op) =>
-        val relOp = op match {
-          case SchemaExpr.RelationalOperator.Equal              => RelOp.Equal
-          case SchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
-          case SchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
-          case SchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
-          case SchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
-          case SchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
-        }
-        Relational(fromSchemaExpr(l), fromSchemaExpr(r), relOp)
-
-      case SchemaExpr.Logical(l, r, op) =>
-        op match {
-          case SchemaExpr.LogicalOperator.And => And(fromSchemaExpr(l), fromSchemaExpr(r))
-          case SchemaExpr.LogicalOperator.Or  => Or(fromSchemaExpr(l), fromSchemaExpr(r))
-        }
-
-      case SchemaExpr.Not(inner) => Not(fromSchemaExpr(inner))
-
-      case SchemaExpr.Arithmetic(l, r, op, _) =>
-        val arithOp = op match {
-          case SchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
-          case SchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
-          case SchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-        }
-        Arithmetic(fromSchemaExpr(l), fromSchemaExpr(r), arithOp)
-
-      case SchemaExpr.StringConcat(l, r)              => StringConcat(fromSchemaExpr(l), fromSchemaExpr(r))
-      case SchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromSchemaExpr(regex), fromSchemaExpr(string))
-      case SchemaExpr.StringLength(string)            => StringLength(fromSchemaExpr(string))
-    }
+    val result = fromDynamic[S](se.dynamic)
     result.asInstanceOf[Expr[S, A]]
+  }
+
+  private def fromDynamic[S](dse: DynamicSchemaExpr): Expr[S, ?] = dse match {
+    case DynamicSchemaExpr.Select(path)   => Column[S, Any](path)
+    case DynamicSchemaExpr.Literal(value) => Lit[S, Any](value)
+
+    case DynamicSchemaExpr.Relational(l, r, op) =>
+      val relOp = op match {
+        case DynamicSchemaExpr.RelationalOperator.Equal              => RelOp.Equal
+        case DynamicSchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
+        case DynamicSchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
+        case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
+        case DynamicSchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
+        case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
+      }
+      Relational(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], relOp)
+
+    case DynamicSchemaExpr.Logical(l, r, op) =>
+      op match {
+        case DynamicSchemaExpr.LogicalOperator.And =>
+          And(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
+        case DynamicSchemaExpr.LogicalOperator.Or =>
+          Or(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
+      }
+
+    case DynamicSchemaExpr.Not(inner) => Not(fromDynamic[S](inner).asInstanceOf[Expr[S, Boolean]])
+
+    case DynamicSchemaExpr.Arithmetic(l, r, op, _) =>
+      val arithOp = op match {
+        case DynamicSchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
+        case DynamicSchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
+        case DynamicSchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
+        case _                                             => ArithOp.Add
+      }
+      Arithmetic(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], arithOp)
+
+    case DynamicSchemaExpr.StringConcat(l, r) =>
+      StringConcat(fromDynamic[S](l).asInstanceOf[Expr[S, String]], fromDynamic[S](r).asInstanceOf[Expr[S, String]])
+    case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
+      StringRegexMatch(
+        fromDynamic[S](regex).asInstanceOf[Expr[S, String]],
+        fromDynamic[S](string).asInstanceOf[Expr[S, String]]
+      )
+    case DynamicSchemaExpr.StringLength(string) => StringLength(fromDynamic[S](string).asInstanceOf[Expr[S, String]])
+    case _                                      => Lit[S, Any](DynamicValue.Null)
   }
 }
 
