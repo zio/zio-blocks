@@ -35,20 +35,20 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
 )
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
 )
 addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
 )
 
 lazy val root = project
@@ -75,6 +75,8 @@ lazy val root = project
     `schema-toon`.js,
     `schema-xml`.jvm,
     `schema-xml`.js,
+    `schema-csv`.js,
+    `schema-csv`.jvm,
     streams.jvm,
     streams.js,
     chunk.jvm,
@@ -459,6 +461,30 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 81,
     coverageMinimumBranchTotal := 72
+  )
+
+lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-csv"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.csv"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)

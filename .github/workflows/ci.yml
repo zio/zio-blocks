@@ -107,7 +107,7 @@ jobs:
 
   testJS:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -129,7 +129,14 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Run tests and compile docs
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
+        # Scala 3 + Scala.js linker accumulates memory across module compilations
+        # within a single JVM. With 11 modules and -Xmx6g (max for 7GB runner),
+        # a single sbt run exhausts heap on 3.3.x. Two sbt invocations give each
+        # a fresh JVM heap. The testJS/docJS aliases include all modules for local
+        # dev (where RAM is plentiful); CI splits them here.
+        run: |
+          sbt ++${{ matrix.scala }} 'typeid${{ matrix.platform }}/test; chunk${{ matrix.platform }}/test; schema${{ matrix.platform }}/test; streams${{ matrix.platform }}/test; schema-toon${{ matrix.platform }}/test; schema-messagepack${{ matrix.platform }}/test; schema-xml${{ matrix.platform }}/test; context${{ matrix.platform }}/test; scope${{ matrix.platform }}/test; mediatype${{ matrix.platform }}/test' 'typeid${{ matrix.platform }}/doc; chunk${{ matrix.platform }}/doc; schema${{ matrix.platform }}/doc; streams${{ matrix.platform }}/doc; schema-toon${{ matrix.platform }}/doc; schema-messagepack${{ matrix.platform }}/doc; schema-xml${{ matrix.platform }}/doc; context${{ matrix.platform }}/doc; scope${{ matrix.platform }}/doc; mediatype${{ matrix.platform }}/doc'
+          sbt ++${{ matrix.scala }} 'schema-csv${{ matrix.platform }}/test; schema-csv${{ matrix.platform }}/doc'
 
   ci:
     runs-on: ubuntu-latest
