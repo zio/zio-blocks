@@ -724,50 +724,53 @@ Each header type has a companion object implementing `HeaderType[H]` for parsing
 ### Predefined Header Types
 
 ```scala mdoc:compile-only
-import zio.http.Header
+import zio.http.{Header => _, *}
+import zio.http.headers
 
-val contentType   = Header.ContentType
-val accept        = Header.Accept
-val authorization = Header.Authorization
-val host          = Header.Host
-val userAgent     = Header.UserAgent
-val cacheControl  = Header.CacheControl
-val contentLength = Header.ContentLength
-val location      = Header.Location
-val setCookie     = Header.SetCookie
-val cookie        = Header.Cookie
+val contentType   = headers.ContentType
+val accept        = headers.Accept
+val authorization = headers.Authorization
+val host          = headers.Host
+val userAgent     = headers.UserAgent
+val cacheControl  = headers.CacheControl
+val contentLength = headers.ContentLength
+val location      = headers.Location
+val setCookie     = headers.SetCookieHeader
+val cookie        = headers.CookieHeader
 ```
 
 ### Creating Typed Headers
 
 ```scala mdoc:compile-only
-import zio.http.{Header, ContentType, Charset}
+import zio.http.{Header => _, ContentType, Charset, *}
+import zio.http.headers
 import zio.blocks.mediatype.MediaTypes
 
-val ct = Header.ContentType(
+val ct = headers.ContentType(
   ContentType(MediaTypes.application.`json`, charset = Some(Charset.UTF8))
 )
 
-val auth = Header.Authorization("Bearer token123")
+val auth = headers.Authorization.Bearer("token123")
 
-val host = Header.Host("api.example.com", Some(8080))
+val host = headers.Host("api.example.com", Some(8080))
 ```
 
 ### Parsing Headers
 
 ```scala mdoc:compile-only
-import zio.http.Header
+import zio.http.{Header => _, *}
+import zio.http.headers
 
-Header.ContentType.parse("application/json; charset=utf-8")
-// Right(Header.ContentType(...))
+headers.ContentType.parse("application/json; charset=utf-8")
+// Right(headers.ContentType(...))
 
-Header.Host.parse("example.com:443")
-// Right(Header.Host("example.com", Some(443)))
+headers.Host.parse("example.com:443")
+// Right(headers.Host("example.com", Some(443)))
 
-Header.ContentLength.parse("1024")
-// Right(Header.ContentLength(1024))
+headers.ContentLength.parse("1024")
+// Right(headers.ContentLength(1024))
 
-Header.ContentLength.parse("-1")
+headers.ContentLength.parse("-1")
 // Left("Invalid content-length: -1")
 ```
 
@@ -813,20 +816,21 @@ val headers = Headers(
 ### Getting Typed Headers
 
 ```scala mdoc:compile-only
-import zio.http.{Headers, Header}
+import zio.http.{Headers, *}
+import zio.http.{headers => h}
 
 val headers = Headers(
   "content-type" -> "application/json",
   "content-length" -> "1024"
 )
 
-val ct = headers.get(Header.ContentType)
-// Some(Header.ContentType(...)) (parsed and cached)
+val ct = headers.get(h.ContentType)
+// Some(h.ContentType(...)) (parsed and cached)
 
-val cl = headers.get(Header.ContentLength)
-// Some(Header.ContentLength(1024)) (parsed and cached)
+val cl = headers.get(h.ContentLength)
+// Some(h.ContentLength(1024)) (parsed and cached)
 
-val auth = headers.get(Header.Authorization)
+val auth = headers.get(h.Authorization)
 // None (not present)
 ```
 
@@ -846,15 +850,16 @@ headers.rawGet("missing")   // None
 Some headers can appear multiple times (like `Set-Cookie`):
 
 ```scala mdoc:compile-only
-import zio.http.{Headers, Header}
+import zio.http.{Headers, *}
+import zio.http.{headers => h}
 
 val headers = Headers(
   "set-cookie" -> "session=abc",
   "set-cookie" -> "preference=dark"
 )
 
-val cookies = headers.getAll(Header.SetCookie)
-// Chunk(Header.SetCookie("session=abc"), Header.SetCookie("preference=dark"))
+val cookies = headers.getAll(h.SetCookieHeader)
+// Chunk(h.SetCookieHeader(...), h.SetCookieHeader(...))
 ```
 
 ### Modifying Headers
@@ -1127,13 +1132,14 @@ val request = Request(
 
 ```scala mdoc:compile-only
 import zio.http._
+import zio.http.{headers => h}
 
 val request = Request.get(URL.parse("/api/users?page=1").toOption.get)
 
 request.path         // Path("/api/users")
 request.queryParams  // QueryParams("page" -> "1")
 request.contentType  // Option[ContentType]
-request.header(Header.Authorization)  // Option[Header.Authorization]
+request.header(h.Authorization)  // Option[h.Authorization]
 ```
 
 ## Response
@@ -1181,14 +1187,15 @@ val response = Response(
 
 ```scala mdoc:compile-only
 import zio.http._
+import zio.http.{headers => h}
 
 val response = Response.ok
 
 response.status.code                      // 200
 response.status.isSuccess                 // true
 response.contentType                      // Option[ContentType]
-response.header(Header.ContentType)       // Option[Header.ContentType]
-response.header(Header.Location)          // Option[Header.Location]
+response.header(h.ContentType)       // Option[h.ContentType]
+response.header(h.Location)          // Option[h.Location]
 ```
 
 ## Advanced Usage
@@ -1245,6 +1252,7 @@ extended.encode
 
 ```scala mdoc:compile-only
 import zio.http._
+import zio.http.{headers => h}
 
 val headers = Headers(
   "content-type" -> "application/json; charset=utf-8",
@@ -1253,10 +1261,10 @@ val headers = Headers(
 )
 
 // Type-safe header access with parsing
-val ct = headers.get(Header.ContentType)
+val ct = headers.get(h.ContentType)
 ct.map(_.value.charset)  // Some(Some(Charset.UTF8))
 
-val cl = headers.get(Header.ContentLength)
+val cl = headers.get(h.ContentLength)
 cl.map(_.length)  // Some(1024)
 
 // Raw access
