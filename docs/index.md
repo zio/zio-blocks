@@ -77,6 +77,7 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 - **High Performance**: Register-based design stores primitives directly in byte arrays, enabling zero-allocation serialization.
 - **Reflective Optics**: Type-safe lenses, prisms, and traversals with embedded structural metadata.
 - **Automatic Derivation**: Derive type class instances for any type with a schema.
+- **Schema Migration**: Pure, algebraic migrations that are serializable and introspectable.
 
 ### Installation
 
@@ -109,6 +110,30 @@ object Person extends CompanionOptics[Person] {
 
 val person = Person("Alice", 30, Address("123 Main St", "Springfield"))
 val updated = Person.age.replace(person, 31)
+```
+
+### Example: Schema Migration
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+case class PersonV1(name: String, age: Int)
+case class PersonV2(fullName: String, age: Int, country: String)
+
+// Build a type-safe migration
+val migration = MigrationBuilder.withFieldTracking[PersonV1, PersonV2]
+  .renameField(select(_.name), select(_.fullName))
+  .keepField(select(_.age))
+  .addField(select(_.country), "US")
+  .build
+
+// Apply migration
+val v1 = PersonV1("Alice", 30)
+val v2 = migration.apply(v1)  // Right(PersonV2("Alice", 30, "US"))
+
+// Migrations are pure data - fully serializable and introspectable
+val actions = migration.dynamicMigration.actions
 ```
 
 ---

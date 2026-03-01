@@ -35,6 +35,20 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
+  /**
+   * Get the parent optic by removing the last node. Returns None if this is the
+   * root optic (no nodes).
+   *
+   * Example:
+   * {{{
+   * DynamicOptic.root.field("address").field("street").parent
+   * // returns Some(DynamicOptic.root.field("address"))
+   * }}}
+   */
+  def parent: Option[DynamicOptic] =
+    if (nodes.isEmpty) None
+    else Some(new DynamicOptic(nodes.init))
+
   override lazy val toString: String = {
     val sb = new java.lang.StringBuilder
     DynamicOptic.renderString(sb, nodes)
