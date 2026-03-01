@@ -8,7 +8,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Optic, Schema}
  * The builder accumulates [[MigrationAction]]s and produces either a validated
  * migration (via `build`) or an unvalidated one (via `buildPartial`).
  *
- * {{{
+ * {{{}
  * val migration = Migration.newBuilder[PersonV0, Person]
  *   .renameField("firstName", "fullName")
  *   .addField("age", 0)
@@ -45,7 +45,7 @@ final class MigrationBuilder[A, B](
    * Add a new field with a DynamicValue default.
    */
   def addFieldDynamic(fieldName: String, default: DynamicValue): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.AddField(DynamicOptic.root, fieldName, default))
+    appendAction(MigrationAction.AddField(DynamicOptic.root.field(fieldName), DynamicSchemaExpr.Literal(default)))
 
   /**
    * Drop a field from the source type.
@@ -54,7 +54,7 @@ final class MigrationBuilder[A, B](
    *   name of the field to drop
    */
   def dropField(fieldName: String): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.DropField(DynamicOptic.root, fieldName, None))
+    appendAction(MigrationAction.DropField(DynamicOptic.root.field(fieldName), DynamicSchemaExpr.DefaultValue))
 
   /**
    * Drop a field with a default for reverse migration.
@@ -67,9 +67,8 @@ final class MigrationBuilder[A, B](
   def dropField[V](fieldName: String, defaultForReverse: V)(implicit schema: Schema[V]): MigrationBuilder[A, B] =
     appendAction(
       MigrationAction.DropField(
-        DynamicOptic.root,
-        fieldName,
-        Some(schema.toDynamicValue(defaultForReverse))
+        DynamicOptic.root.field(fieldName),
+        DynamicSchemaExpr.Literal(schema.toDynamicValue(defaultForReverse))
       )
     )
 
@@ -82,20 +81,28 @@ final class MigrationBuilder[A, B](
    *   new field name in the target
    */
   def renameField(from: String, to: String): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.Rename(DynamicOptic.root, from, to))
+    appendAction(MigrationAction.Rename(DynamicOptic.root.field(from), to))
 
   /**
-   * Transform a field's value using a primitive conversion.
+   * Transform a field's value using a pure expression.
    *
    * @param from
    *   source field name
    * @param to
-   *   target field name
+   *   target field name (may differ from source)
    * @param transform
-   *   the conversion to apply
+   *   the conversion expression to apply
    */
-  def transformField(from: String, to: String, transform: PrimitiveTransform): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.TransformValue(DynamicOptic.root, from, to, transform))
+  def transformField(from: String, to: String, transform: DynamicSchemaExpr): MigrationBuilder[A, B] = {
+    val transformAction = MigrationAction.TransformValue(DynamicOptic.root.field(from), transform)
+    if (from != to) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ transformAction :+ MigrationAction.Rename(DynamicOptic.root.field(from), to)
+      )
+    } else appendAction(transformAction)
+  }
 
   /**
    * Make an optional field mandatory.
@@ -107,15 +114,19 @@ final class MigrationBuilder[A, B](
    * @param default
    *   value to use when source is None
    */
-  def mandateField[V](source: String, target: String, default: V)(implicit schema: Schema[V]): MigrationBuilder[A, B] =
-    appendAction(
-      MigrationAction.Mandate(
-        DynamicOptic.root,
-        source,
-        target,
-        schema.toDynamicValue(default)
+  def mandateField[V](source: String, target: String, default: V)(implicit
+    schema: Schema[V]
+  ): MigrationBuilder[A, B] = {
+    val mandateAction =
+      MigrationAction.Mandate(DynamicOptic.root.field(source), DynamicSchemaExpr.Literal(schema.toDynamicValue(default)))
+    if (source != target) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ mandateAction :+ MigrationAction.Rename(DynamicOptic.root.field(source), target)
       )
-    )
+    } else appendAction(mandateAction)
+  }
 
   /**
    * Make a mandatory field optional.
@@ -125,8 +136,16 @@ final class MigrationBuilder[A, B](
    * @param target
    *   target field name (Option type)
    */
-  def optionalizeField(source: String, target: String): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.Optionalize(DynamicOptic.root, source, target))
+  def optionalizeField(source: String, target: String): MigrationBuilder[A, B] = {
+    val optAction = MigrationAction.Optionalize(DynamicOptic.root.field(source))
+    if (source != target) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ optAction :+ MigrationAction.Rename(DynamicOptic.root.field(source), target)
+      )
+    } else appendAction(optAction)
+  }
 
   /**
    * Change a field's primitive type.
@@ -136,10 +155,18 @@ final class MigrationBuilder[A, B](
    * @param target
    *   target field name
    * @param converter
-   *   the type conversion
+   *   the type conversion expression
    */
-  def changeFieldType(source: String, target: String, converter: PrimitiveTransform): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.ChangeType(DynamicOptic.root, source, target, converter))
+  def changeFieldType(source: String, target: String, converter: DynamicSchemaExpr): MigrationBuilder[A, B] = {
+    val changeAction = MigrationAction.ChangeType(DynamicOptic.root.field(source), converter)
+    if (source != target) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ changeAction :+ MigrationAction.Rename(DynamicOptic.root.field(source), target)
+      )
+    } else appendAction(changeAction)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Selector-based operations (using typed optics)
@@ -148,44 +175,52 @@ final class MigrationBuilder[A, B](
   /**
    * Add a new field identified by a typed optic on the target type.
    *
-   * {{{
+   * {{{}
    * Migration.newBuilder[PersonV0, PersonV1]
    *   .addField(targetOptic, defaultValue)
    * }}}
    */
   def addField[V](target: Optic[B, V], default: V)(implicit schema: Schema[V]): MigrationBuilder[A, B] = {
-    val (at, fieldName) = splitOptic(target.toDynamic)
-    appendAction(MigrationAction.AddField(at, fieldName, schema.toDynamicValue(default)))
+    val dynPath = target.toDynamic
+    appendAction(MigrationAction.AddField(dynPath, DynamicSchemaExpr.Literal(schema.toDynamicValue(default))))
   }
 
   /**
    * Drop a field identified by a typed optic on the source type.
    */
   def dropField(source: Optic[A, ?]): MigrationBuilder[A, B] = {
-    val (at, fieldName) = splitOptic(source.toDynamic)
-    appendAction(MigrationAction.DropField(at, fieldName, None))
+    val dynPath = source.toDynamic
+    appendAction(MigrationAction.DropField(dynPath, DynamicSchemaExpr.DefaultValue))
   }
 
   /**
    * Rename a field from the source type to the target type using typed optics.
    */
   def renameField(from: Optic[A, ?], to: Optic[B, ?]): MigrationBuilder[A, B] = {
-    val (fromAt, fromName) = splitOptic(from.toDynamic)
-    val (_, toName)        = splitOptic(to.toDynamic)
-    appendAction(MigrationAction.Rename(fromAt, fromName, toName))
+    val fromDyn              = from.toDynamic
+    val (_, toName)          = splitOptic(to.toDynamic)
+    appendAction(MigrationAction.Rename(fromDyn, toName))
   }
 
   /**
-   * Change a field's type using typed optics and a primitive transform.
+   * Change a field's type using typed optics and a pure expression.
    */
   def changeFieldType(
     source: Optic[A, ?],
     target: Optic[B, ?],
-    converter: PrimitiveTransform
+    converter: DynamicSchemaExpr
   ): MigrationBuilder[A, B] = {
-    val (at, sourceName) = splitOptic(source.toDynamic)
-    val (_, targetName)  = splitOptic(target.toDynamic)
-    appendAction(MigrationAction.ChangeType(at, sourceName, targetName, converter))
+    val sourceDyn           = source.toDynamic
+    val (_, targetName)     = splitOptic(target.toDynamic)
+    val (_, sourceName)     = splitOptic(sourceDyn)
+    val changeAction = MigrationAction.ChangeType(sourceDyn, converter)
+    if (sourceName != targetName) {
+      new MigrationBuilder(
+        sourceSchema,
+        targetSchema,
+        actions :+ changeAction :+ MigrationAction.Rename(sourceDyn, targetName)
+      )
+    } else appendAction(changeAction)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -200,19 +235,21 @@ final class MigrationBuilder[A, B](
     fieldName: String,
     default: V
   )(implicit schema: Schema[V]): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.AddField(at, fieldName, schema.toDynamicValue(default)))
+    appendAction(
+      MigrationAction.AddField(at.field(fieldName), DynamicSchemaExpr.Literal(schema.toDynamicValue(default)))
+    )
 
   /**
    * Drop a field at a nested path.
    */
   def dropFieldAt(at: DynamicOptic, fieldName: String): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.DropField(at, fieldName, None))
+    appendAction(MigrationAction.DropField(at.field(fieldName), DynamicSchemaExpr.DefaultValue))
 
   /**
    * Rename a field at a nested path.
    */
   def renameFieldAt(at: DynamicOptic, from: String, to: String): MigrationBuilder[A, B] =
-    appendAction(MigrationAction.Rename(at, from, to))
+    appendAction(MigrationAction.Rename(at.field(from), to))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Enum Operations
@@ -269,19 +306,19 @@ final class MigrationBuilder[A, B](
   /**
    * Transform all elements in a sequence at the given path.
    */
-  def transformElements(at: DynamicOptic, transform: PrimitiveTransform): MigrationBuilder[A, B] =
+  def transformElements(at: DynamicOptic, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
     appendAction(MigrationAction.TransformElements(at, transform))
 
   /**
    * Transform all keys in a map at the given path.
    */
-  def transformMapKeys(at: DynamicOptic, transform: PrimitiveTransform): MigrationBuilder[A, B] =
+  def transformMapKeys(at: DynamicOptic, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
     appendAction(MigrationAction.TransformKeys(at, transform))
 
   /**
    * Transform all values in a map at the given path.
    */
-  def transformMapValues(at: DynamicOptic, transform: PrimitiveTransform): MigrationBuilder[A, B] =
+  def transformMapValues(at: DynamicOptic, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
     appendAction(MigrationAction.TransformValues(at, transform))
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -306,23 +343,30 @@ final class MigrationBuilder[A, B](
       var currentFields  = sourceFields
 
       actions.foreach {
-        case MigrationAction.AddField(_, fieldName, _) =>
+        case MigrationAction.AddField(at, _) =>
+          val fieldName = extractFieldNameFromPath(at)
           unmappedTarget = unmappedTarget - fieldName
           currentFields = currentFields + fieldName
-        case MigrationAction.DropField(_, fieldName, _) =>
+        case MigrationAction.DropField(at, _) =>
+          val fieldName = extractFieldNameFromPath(at)
           currentFields = currentFields - fieldName
-        case MigrationAction.Rename(_, from, to) =>
+        case MigrationAction.Rename(at, to) =>
+          val from = extractFieldNameFromPath(at)
           currentFields = (currentFields - from) + to
           unmappedTarget = unmappedTarget - to
-        case MigrationAction.TransformValue(_, _, toField, _) =>
-          unmappedTarget = unmappedTarget - toField
-        case MigrationAction.Mandate(_, _, targetFieldName, _) =>
-          unmappedTarget = unmappedTarget - targetFieldName
-        case MigrationAction.Optionalize(_, _, targetFieldName) =>
-          unmappedTarget = unmappedTarget - targetFieldName
-        case MigrationAction.ChangeType(_, _, targetFieldName, _) =>
-          unmappedTarget = unmappedTarget - targetFieldName
-        case _ => // enum/collection actions don't affect field mapping
+        case MigrationAction.TransformValue(at, _) =>
+          val fieldName = extractFieldNameFromPath(at)
+          unmappedTarget = unmappedTarget - fieldName
+        case MigrationAction.Mandate(at, _) =>
+          val fieldName = extractFieldNameFromPath(at)
+          unmappedTarget = unmappedTarget - fieldName
+        case MigrationAction.Optionalize(at) =>
+          val fieldName = extractFieldNameFromPath(at)
+          unmappedTarget = unmappedTarget - fieldName
+        case MigrationAction.ChangeType(at, _) =>
+          val fieldName = extractFieldNameFromPath(at)
+          unmappedTarget = unmappedTarget - fieldName
+        case _ => // enum/collection/join/split actions don't affect field mapping
       }
 
       // Fields that exist in both source and target are implicitly mapped
@@ -370,6 +414,12 @@ final class MigrationBuilder[A, B](
       else new DynamicOptic(nodes.dropRight(1))
     (parent, last)
   }
+
+  private def extractFieldNameFromPath(at: DynamicOptic): String =
+    at.nodes.last match {
+      case f: DynamicOptic.Node.Field => f.name
+      case _ => throw new IllegalStateException("Expected field path but got non-field node")
+    }
 
   private def extractFieldNames(schema: Schema[?]): Set[String] =
     schema.reflect.asRecord match {

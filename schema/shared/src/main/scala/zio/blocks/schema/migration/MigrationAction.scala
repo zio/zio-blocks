@@ -1,13 +1,14 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue}
+import zio.blocks.schema.DynamicOptic
 
 /**
  * A pure, serializable description of a single structural transformation.
  *
- * All actions operate at a path represented by [[DynamicOptic]]. Actions form
- * the atoms of a [[DynamicMigration]] and can be reversed to support
- * bidirectional schema evolution.
+ * All record actions encode the target field in the [[DynamicOptic]] path
+ * (i.e., the path terminates in the field being operated on). Actions form the
+ * atoms of a [[DynamicMigration]] and can be reversed to support bidirectional
+ * schema evolution.
  *
  * No user functions, closures, or runtime code generation — only pure data.
  */
@@ -30,134 +31,148 @@ object MigrationAction {
    * Add a new field to a record.
    *
    * @param at
-   *   path to the record (or root)
-   * @param fieldName
-   *   name of the field to add
+   *   path to the field to add (terminates in the field name)
    * @param default
-   *   default value for the new field
+   *   expression that produces the default value for the new field
    */
   final case class AddField(
     at: DynamicOptic,
-    fieldName: String,
-    default: DynamicValue
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = DropField(at, fieldName, Some(default))
+    def reverse: MigrationAction = DropField(at, default)
   }
 
   /**
    * Drop a field from a record.
    *
    * @param at
-   *   path to the record (or root)
-   * @param fieldName
-   *   name of the field to drop
+   *   path to the field to drop (terminates in the field name)
    * @param defaultForReverse
-   *   value to use when reversing (adding the field back)
+   *   expression used when reversing (re-adding the field)
    */
   final case class DropField(
     at: DynamicOptic,
-    fieldName: String,
-    defaultForReverse: Option[DynamicValue]
+    defaultForReverse: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = defaultForReverse match {
-      case Some(dv) => AddField(at, fieldName, dv)
-      case None     => AddField(at, fieldName, DynamicValue.Null)
-    }
+    def reverse: MigrationAction = AddField(at, defaultForReverse)
   }
 
   /**
    * Rename a field in a record.
    *
    * @param at
-   *   path to the record (or root)
-   * @param from
-   *   current field name
+   *   path to the field to rename (terminates in the old field name)
    * @param to
    *   new field name
    */
   final case class Rename(
     at: DynamicOptic,
-    from: String,
     to: String
   ) extends MigrationAction {
-    def reverse: MigrationAction = Rename(at, to, from)
+    def reverse: MigrationAction = {
+      val nodes   = at.nodes
+      val oldName = nodes.last.asInstanceOf[DynamicOptic.Node.Field].name
+      val newPath = new DynamicOptic(nodes.updated(nodes.length - 1, DynamicOptic.Node.Field(to)))
+      Rename(newPath, oldName)
+    }
   }
 
   /**
-   * Transform a field's value using a primitive conversion.
+   * Transform a field's value using a pure expression.
    *
    * @param at
-   *   path to the record (or root)
-   * @param fromField
-   *   source field name
-   * @param toField
-   *   target field name (may differ from source if also renaming)
+   *   path to the field to transform (terminates in the field name)
    * @param transform
-   *   a [[PrimitiveTransform]] describing the conversion
+   *   a [[DynamicSchemaExpr]] describing the conversion
    */
   final case class TransformValue(
     at: DynamicOptic,
-    fromField: String,
-    toField: String,
-    transform: PrimitiveTransform
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = TransformValue(at, toField, fromField, transform.reverse)
+    def reverse: MigrationAction = TransformValue(at, transform.reverse)
   }
 
   /**
    * Make an optional field mandatory by providing a default for None values.
    *
    * @param at
-   *   path to the record (or root)
-   * @param fieldName
-   *   the field to mandate
+   *   path to the optional field (terminates in the field name)
    * @param default
-   *   value to substitute when the source is None/Null
+   *   expression to evaluate when the source is None/Null
    */
   final case class Mandate(
     at: DynamicOptic,
-    fieldName: String,
-    targetFieldName: String,
-    default: DynamicValue
+    default: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = Optionalize(at, targetFieldName, fieldName)
+    def reverse: MigrationAction = Optionalize(at)
   }
 
   /**
    * Make a mandatory field optional (wrapping its value).
    *
    * @param at
-   *   path to the record (or root)
-   * @param fieldName
-   *   the field to optionalize
+   *   path to the field to optionalize (terminates in the field name)
    */
   final case class Optionalize(
-    at: DynamicOptic,
-    fieldName: String,
-    targetFieldName: String
+    at: DynamicOptic
   ) extends MigrationAction {
-    def reverse: MigrationAction = Mandate(at, targetFieldName, fieldName, DynamicValue.Null)
+    def reverse: MigrationAction =
+      Mandate(at, DynamicSchemaExpr.Literal(zio.blocks.schema.DynamicValue.Null))
   }
 
   /**
    * Change a field's primitive type.
    *
    * @param at
-   *   path to the record (or root)
-   * @param fieldName
-   *   the field whose type changes
-   * @param targetFieldName
-   *   the target field name
+   *   path to the field whose type changes (terminates in the field name)
    * @param converter
-   *   a [[PrimitiveTransform]] for the type conversion
+   *   a [[DynamicSchemaExpr]] for the type conversion
    */
   final case class ChangeType(
     at: DynamicOptic,
-    fieldName: String,
-    targetFieldName: String,
-    converter: PrimitiveTransform
+    converter: DynamicSchemaExpr
   ) extends MigrationAction {
-    def reverse: MigrationAction = ChangeType(at, targetFieldName, fieldName, converter.reverse)
+    def reverse: MigrationAction = ChangeType(at, converter.reverse)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Join / Split Actions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Join multiple source fields into a single target field.
+   *
+   * @param at
+   *   path to the target field (terminates in the target field name)
+   * @param sourcePaths
+   *   paths to the source fields to combine
+   * @param combiner
+   *   expression describing how to combine the source values
+   */
+  final case class Join(
+    at: DynamicOptic,
+    sourcePaths: Vector[DynamicOptic],
+    combiner: DynamicSchemaExpr
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Split(at, sourcePaths, combiner.reverse)
+  }
+
+  /**
+   * Split a single source field into multiple target fields.
+   *
+   * @param at
+   *   path to the source field (terminates in the source field name)
+   * @param targetPaths
+   *   paths to the target fields
+   * @param splitter
+   *   expression describing how to split the source value
+   */
+  final case class Split(
+    at: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: DynamicSchemaExpr
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Join(at, targetPaths, splitter.reverse)
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -210,11 +225,11 @@ object MigrationAction {
    * @param at
    *   path to the sequence
    * @param transform
-   *   a [[PrimitiveTransform]] to apply to each element
+   *   a [[DynamicSchemaExpr]] to apply to each element
    */
   final case class TransformElements(
     at: DynamicOptic,
-    transform: PrimitiveTransform
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformElements(at, transform.reverse)
   }
@@ -225,11 +240,11 @@ object MigrationAction {
    * @param at
    *   path to the map
    * @param transform
-   *   a [[PrimitiveTransform]] to apply to each key
+   *   a [[DynamicSchemaExpr]] to apply to each key
    */
   final case class TransformKeys(
     at: DynamicOptic,
-    transform: PrimitiveTransform
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformKeys(at, transform.reverse)
   }
@@ -240,11 +255,11 @@ object MigrationAction {
    * @param at
    *   path to the map
    * @param transform
-   *   a [[PrimitiveTransform]] to apply to each value
+   *   a [[DynamicSchemaExpr]] to apply to each value
    */
   final case class TransformValues(
     at: DynamicOptic,
-    transform: PrimitiveTransform
+    transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformValues(at, transform.reverse)
   }

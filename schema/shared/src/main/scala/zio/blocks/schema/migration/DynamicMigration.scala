@@ -1,7 +1,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.ChunkBuilder
-import zio.blocks.schema.{DynamicOptic, DynamicValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
 
 /**
  * A pure, serializable migration that transforms [[DynamicValue]] instances.
@@ -15,8 +15,9 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue}
  *
  * {{{
  * val migration = DynamicMigration(Vector(
- *   MigrationAction.Rename(DynamicOptic.root, "firstName", "fullName"),
- *   MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(PrimitiveValue.Int(0)))
+ *   MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
+ *   MigrationAction.AddField(DynamicOptic.root.field("age"),
+ *     DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))))
  * ))
  *
  * migration(oldRecord) // Right(newRecord)
@@ -65,6 +66,10 @@ object DynamicMigration {
   def single(action: MigrationAction): DynamicMigration =
     new DynamicMigration(Vector(action))
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Action Execution
+  // ─────────────────────────────────────────────────────────────────────────
+
   /**
    * Apply a single [[MigrationAction]] to a [[DynamicValue]].
    */
@@ -73,28 +78,34 @@ object DynamicMigration {
     action: MigrationAction
   ): Either[MigrationError, DynamicValue] =
     action match {
-      case MigrationAction.AddField(at, fieldName, default) =>
-        applyAtRecord(
-          value,
-          at,
-          { record =>
-            val fields = record.fields
-            val len    = fields.length
-            var idx    = 0
-            var exists = false
-            while (idx < len && !exists) {
-              if (fields(idx)._1 == fieldName) exists = true
-              idx += 1
-            }
-            if (exists) Left(MigrationError.UnexpectedField(at.field(fieldName), fieldName))
-            else Right(new DynamicValue.Record(fields.appended((fieldName, default))))
-          }
-        )
+      case MigrationAction.AddField(at, default) =>
+        val (parentPath, fieldName) = splitPath(at)
+        evalExpr(default, DynamicValue.Null) match {
+          case Left(err)          => Left(err)
+          case Right(defaultValue) =>
+            applyAtRecord(
+              value,
+              parentPath,
+              { record =>
+                val fields = record.fields
+                val len    = fields.length
+                var idx    = 0
+                var exists = false
+                while (idx < len && !exists) {
+                  if (fields(idx)._1 == fieldName) exists = true
+                  idx += 1
+                }
+                if (exists) Left(MigrationError.UnexpectedField(at, fieldName))
+                else Right(new DynamicValue.Record(fields.appended((fieldName, defaultValue))))
+              }
+            )
+        }
 
-      case MigrationAction.DropField(at, fieldName, _) =>
+      case MigrationAction.DropField(at, _) =>
+        val (parentPath, fieldName) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields = record.fields
             val len    = fields.length
@@ -107,15 +118,16 @@ object DynamicMigration {
               else cb += kv
               idx += 1
             }
-            if (!found) Left(MigrationError.MissingField(at.field(fieldName), fieldName))
+            if (!found) Left(MigrationError.MissingField(at, fieldName))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
 
-      case MigrationAction.Rename(at, from, to) =>
+      case MigrationAction.Rename(at, to) =>
+        val (parentPath, from) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields = record.fields
             val len    = fields.length
@@ -130,15 +142,16 @@ object DynamicMigration {
               } else cb += kv
               idx += 1
             }
-            if (!found) Left(MigrationError.MissingField(at.field(from), from))
+            if (!found) Left(MigrationError.MissingField(at, from))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
 
-      case MigrationAction.TransformValue(at, fromField, toField, transform) =>
+      case MigrationAction.TransformValue(at, transform) =>
+        val (parentPath, fieldName) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields                                      = record.fields
             val len                                         = fields.length
@@ -148,25 +161,26 @@ object DynamicMigration {
             var idx                                         = 0
             while (idx < len && error == null) {
               val kv = fields(idx)
-              if (kv._1 == fromField) {
+              if (kv._1 == fieldName) {
                 found = true
-                transform(kv._2) match {
-                  case Right(transformed) => cb += ((toField, transformed))
+                evalExpr(transform, kv._2) match {
+                  case Right(transformed) => cb += ((fieldName, transformed))
                   case left               => error = left
                 }
               } else cb += kv
               idx += 1
             }
             if (error != null) error
-            else if (!found) Left(MigrationError.MissingField(at.field(fromField), fromField))
+            else if (!found) Left(MigrationError.MissingField(at, fieldName))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
 
-      case MigrationAction.Mandate(at, fieldName, targetFieldName, default) =>
+      case MigrationAction.Mandate(at, default) =>
+        val (parentPath, fieldName) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields = record.fields
             val len    = fields.length
@@ -178,29 +192,38 @@ object DynamicMigration {
               if (kv._1 == fieldName) {
                 found = true
                 val mandated = kv._2 match {
-                  case DynamicValue.Null => default
+                  case DynamicValue.Null =>
+                    evalExpr(default, DynamicValue.Null) match {
+                      case Right(v) => v
+                      case Left(_)  => DynamicValue.Null
+                    }
                   // Handle Option-like wrapping: Variant("Some", value) / Variant("None", ...)
                   case v: DynamicValue.Variant =>
                     v.caseNameValue match {
-                      case "None" | "none" => default
+                      case "None" | "none" =>
+                        evalExpr(default, DynamicValue.Null) match {
+                          case Right(v) => v
+                          case Left(_)  => DynamicValue.Null
+                        }
                       case "Some" | "some" => v.value
                       case _               => v
                     }
                   case other => other
                 }
-                cb += ((targetFieldName, mandated))
+                cb += ((fieldName, mandated))
               } else cb += kv
               idx += 1
             }
-            if (!found) Left(MigrationError.MissingField(at.field(fieldName), fieldName))
+            if (!found) Left(MigrationError.MissingField(at, fieldName))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
 
-      case MigrationAction.Optionalize(at, fieldName, targetFieldName) =>
+      case MigrationAction.Optionalize(at) =>
+        val (parentPath, fieldName) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields = record.fields
             val len    = fields.length
@@ -211,24 +234,24 @@ object DynamicMigration {
               val kv = fields(idx)
               if (kv._1 == fieldName) {
                 found = true
-                // Wrap in Option-like Variant("Some", value) for non-null values
                 val optionalized = kv._2 match {
                   case DynamicValue.Null => DynamicValue.Null
                   case other             => other
                 }
-                cb += ((targetFieldName, optionalized))
+                cb += ((fieldName, optionalized))
               } else cb += kv
               idx += 1
             }
-            if (!found) Left(MigrationError.MissingField(at.field(fieldName), fieldName))
+            if (!found) Left(MigrationError.MissingField(at, fieldName))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
 
-      case MigrationAction.ChangeType(at, fieldName, targetFieldName, converter) =>
+      case MigrationAction.ChangeType(at, converter) =>
+        val (parentPath, fieldName) = splitPath(at)
         applyAtRecord(
           value,
-          at,
+          parentPath,
           { record =>
             val fields                                      = record.fields
             val len                                         = fields.length
@@ -240,15 +263,15 @@ object DynamicMigration {
               val kv = fields(idx)
               if (kv._1 == fieldName) {
                 found = true
-                converter(kv._2) match {
-                  case Right(converted) => cb += ((targetFieldName, converted))
+                evalExpr(converter, kv._2) match {
+                  case Right(converted) => cb += ((fieldName, converted))
                   case left             => error = left
                 }
               } else cb += kv
               idx += 1
             }
             if (error != null) error
-            else if (!found) Left(MigrationError.MissingField(at.field(fieldName), fieldName))
+            else if (!found) Left(MigrationError.MissingField(at, fieldName))
             else Right(new DynamicValue.Record(cb.result()))
           }
         )
@@ -287,7 +310,7 @@ object DynamicMigration {
             var error: Either[MigrationError, DynamicValue] = null
             var idx                                         = 0
             while (idx < len && error == null) {
-              transform(elems(idx)) match {
+              evalExpr(transform, elems(idx)) match {
                 case Right(transformed) => cb += transformed
                 case left               => error = left
               }
@@ -310,7 +333,7 @@ object DynamicMigration {
             var idx                                         = 0
             while (idx < len && error == null) {
               val kv = entries(idx)
-              transform(kv._1) match {
+              evalExpr(transform, kv._1) match {
                 case Right(newKey) => cb += ((newKey, kv._2))
                 case Left(err)     => error = Left(err)
               }
@@ -333,7 +356,7 @@ object DynamicMigration {
             var idx                                         = 0
             while (idx < len && error == null) {
               val kv = entries(idx)
-              transform(kv._2) match {
+              evalExpr(transform, kv._2) match {
                 case Right(newVal) => cb += ((kv._1, newVal))
                 case Left(err)     => error = Left(err)
               }
@@ -343,7 +366,153 @@ object DynamicMigration {
             else Right(new DynamicValue.Map(cb.result()))
           }
         )
+
+      case _: MigrationAction.Join =>
+        Left(MigrationError.failed("Join actions are not yet supported at runtime"))
+
+      case _: MigrationAction.Split =>
+        Left(MigrationError.failed("Split actions are not yet supported at runtime"))
     }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Expression Evaluation
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Evaluate a [[DynamicSchemaExpr]] against an input value.
+   *
+   * This is the sole interpreter for the pure data expressions — the
+   * expressions themselves contain no logic.
+   */
+  private[migration] def evalExpr(
+    expr: DynamicSchemaExpr,
+    input: DynamicValue
+  ): Either[MigrationError, DynamicValue] = {
+    val root = DynamicOptic.root
+    expr match {
+      case DynamicSchemaExpr.Literal(v)    => Right(v)
+      case DynamicSchemaExpr.Identity      => Right(input)
+      case DynamicSchemaExpr.DefaultValue  => Right(input)
+
+      case DynamicSchemaExpr.IntToString =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.Int) =>
+            Right(new DynamicValue.Primitive(new PrimitiveValue.String(pv.value.toString)))
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "String", "Expected Int primitive"))
+        }
+
+      case DynamicSchemaExpr.StringToInt =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
+            try Right(new DynamicValue.Primitive(new PrimitiveValue.Int(pv.value.toInt)))
+            catch {
+              case _: NumberFormatException =>
+                Left(MigrationError.ConversionFailed(root, "String", "Int", "Cannot parse '" + pv.value + "' as Int"))
+            }
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "Int", "Expected String primitive"))
+        }
+
+      case DynamicSchemaExpr.LongToString =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.Long) =>
+            Right(new DynamicValue.Primitive(new PrimitiveValue.String(pv.value.toString)))
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "String", "Expected Long primitive"))
+        }
+
+      case DynamicSchemaExpr.StringToLong =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
+            try Right(new DynamicValue.Primitive(new PrimitiveValue.Long(pv.value.toLong)))
+            catch {
+              case _: NumberFormatException =>
+                Left(
+                  MigrationError.ConversionFailed(root, "String", "Long", "Cannot parse '" + pv.value + "' as Long")
+                )
+            }
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "Long", "Expected String primitive"))
+        }
+
+      case DynamicSchemaExpr.IntToLong =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.Int) =>
+            Right(new DynamicValue.Primitive(new PrimitiveValue.Long(pv.value.toLong)))
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "Long", "Expected Int primitive"))
+        }
+
+      case DynamicSchemaExpr.LongToInt =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.Long) =>
+            Right(new DynamicValue.Primitive(new PrimitiveValue.Int(pv.value.toInt)))
+          case _ =>
+            Left(MigrationError.ConversionFailed(root, input.valueType.toString, "Int", "Expected Long primitive"))
+        }
+
+      case DynamicSchemaExpr.BooleanToString =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.Boolean) =>
+            Right(new DynamicValue.Primitive(new PrimitiveValue.String(pv.value.toString)))
+          case _ =>
+            Left(
+              MigrationError.ConversionFailed(root, input.valueType.toString, "String", "Expected Boolean primitive")
+            )
+        }
+
+      case DynamicSchemaExpr.StringToBoolean =>
+        input match {
+          case DynamicValue.Primitive(pv: PrimitiveValue.String) =>
+            pv.value.toLowerCase match {
+              case "true"  => Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(true)))
+              case "false" => Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(false)))
+              case _ =>
+                Left(
+                  MigrationError.ConversionFailed(
+                    root,
+                    "String",
+                    "Boolean",
+                    "Cannot parse '" + pv.value + "' as Boolean"
+                  )
+                )
+            }
+          case _ =>
+            Left(
+              MigrationError.ConversionFailed(root, input.valueType.toString, "Boolean", "Expected String primitive")
+            )
+        }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Path Utilities
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Split a record action path into parent path and field name.
+   *
+   * Record actions encode the target field as the last node in the path.
+   */
+  private def splitPath(optic: DynamicOptic): (DynamicOptic, String) = {
+    val nodes = optic.nodes
+    nodes.last match {
+      case f: DynamicOptic.Node.Field =>
+        val parent =
+          if (nodes.length == 1) DynamicOptic.root
+          else new DynamicOptic(nodes.dropRight(1))
+        (parent, f.name)
+      case other =>
+        throw new IllegalStateException(
+          "Record action path must terminate in a field node, got: " + other.getClass.getSimpleName
+        )
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Path Navigation
+  // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * Navigate to the target path and apply a transformation to the record found
