@@ -117,8 +117,11 @@ object URL {
             if (closeBracket + 1 < authority.length && authority.charAt(closeBracket + 1) == ':') {
               val portStr = authority.substring(closeBracket + 2)
               if (portStr.nonEmpty)
-                try port = Some(portStr.toInt)
-                catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
+                try {
+                  val p = portStr.toInt
+                  if (p < 0 || p > 65535) return Left(s"Invalid port: $p")
+                  port = Some(p)
+                } catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
             }
           } else {
             host = Some(authority)
@@ -126,11 +129,16 @@ object URL {
         } else {
           val colonIdx = authority.lastIndexOf(':')
           if (colonIdx >= 0) {
-            host = Some(authority.substring(0, colonIdx))
+            val hostPart = authority.substring(0, colonIdx)
+            if (hostPart.isEmpty) return Left("Invalid host: cannot be empty")
+            host = Some(hostPart)
             val portStr = authority.substring(colonIdx + 1)
             if (portStr.nonEmpty)
-              try port = Some(portStr.toInt)
-              catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
+              try {
+                val p = portStr.toInt
+                if (p < 0 || p > 65535) return Left(s"Invalid port: $p")
+                port = Some(p)
+              } catch { case _: NumberFormatException => return Left(s"Invalid port: $portStr") }
           } else {
             host = Some(authority)
           }

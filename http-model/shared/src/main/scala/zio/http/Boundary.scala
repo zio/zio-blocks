@@ -5,14 +5,12 @@ final case class Boundary(value: String) {
 }
 
 object Boundary {
-  private val rng: java.util.Random = new java.util.Random()
-  def generate: Boundary            = {
+  def generate: Boundary = {
     val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     val sb    = new StringBuilder(24)
-    val rng   = Boundary.rng
     var i     = 0
     while (i < 24) {
-      sb.append(chars.charAt(rng.nextInt(chars.length)))
+      sb.append(chars.charAt(scala.util.Random.nextInt(chars.length)))
       i += 1
     }
     Boundary(sb.toString)

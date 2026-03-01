@@ -31,12 +31,14 @@ object Cookie {
     val builder = Chunk.newBuilder[RequestCookie]
     var i       = 0
     while (i < parts.length) {
-      val part  = parts(i).trim
-      val eqIdx = part.indexOf('=')
-      if (eqIdx > 0) {
-        val name  = part.substring(0, eqIdx).trim
-        val value = part.substring(eqIdx + 1).trim
-        builder += RequestCookie(name, value)
+      val part = parts(i).trim
+      if (part.nonEmpty) {
+        val eqIdx = part.indexOf('=')
+        if (eqIdx > 0) {
+          val name  = part.substring(0, eqIdx).trim
+          val value = part.substring(eqIdx + 1).trim
+          builder += RequestCookie(name, value)
+        }
       }
       i += 1
     }

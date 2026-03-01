@@ -33,8 +33,7 @@ final class Headers private[http] (
           case Right(h) =>
             parsed(i) = h.asInstanceOf[AnyRef]
             return Some(h)
-          case Left(_) =>
-            return None
+          case Left(_) => // skip unparseable, continue scanning
         }
       }
       i += 1
