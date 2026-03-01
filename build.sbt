@@ -569,8 +569,13 @@ lazy val template = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     }),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*TemplateInterpolators.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    coverageMinimumStmtTotal   := 95,
+    coverageMinimumBranchTotal := 90
   )
 
 lazy val `schema-avro` = project
