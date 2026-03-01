@@ -28,6 +28,15 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
     val aTpe = TypeRepr.of[A]
     val bTpe = TypeRepr.of[B]
 
+    // Handle DynamicValue conversions first - skip all compatibility checks
+    val dynamicValueTpe = TypeRepr.of[DynamicValue]
+    if (bTpe =:= dynamicValueTpe) {
+      return deriveToDynamicValue[A, B]
+    }
+    if (aTpe =:= dynamicValueTpe) {
+      return deriveFromDynamicValue[A, B]
+    }
+
     val aIsProduct    = aTpe.classSymbol.exists(isProductType)
     val bIsProduct    = bTpe.classSymbol.exists(isProductType)
     val aIsTuple      = isTupleType(aTpe)
@@ -87,6 +96,49 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
         def into(input: A): Either[SchemaError, B] = intoAB.into(input)
         def from(input: B): Either[SchemaError, A] = intoBA.into(input)
       }
+    }
+  }
+
+  private def deriveToDynamicValue[A: Type, B: Type]: Expr[As[A, B]] = {
+    val aTpe   = TypeRepr.of[A]
+    val schema = findImplicitOrDeriveSchema[A](aTpe)
+    '{
+      new As[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          Right($schema.toDynamicValue(a).asInstanceOf[B])
+        def from(b: B): Either[SchemaError, A] =
+          $schema.fromDynamicValue(b.asInstanceOf[DynamicValue])
+      }
+    }
+  }
+
+  private def deriveFromDynamicValue[A: Type, B: Type]: Expr[As[A, B]] = {
+    val bTpe   = TypeRepr.of[B]
+    val schema = findImplicitOrDeriveSchema[B](bTpe)
+    '{
+      new As[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          $schema.fromDynamicValue(a.asInstanceOf[DynamicValue])
+        def from(b: B): Either[SchemaError, A] =
+          Right($schema.toDynamicValue(b).asInstanceOf[A])
+      }
+    }
+  }
+
+  private def findImplicitOrDeriveSchema[T: Type](tpe: TypeRepr): Expr[Schema[T]] = {
+    val schemaTpe = TypeRepr.of[Schema].appliedTo(tpe)
+    Implicits.search(schemaTpe) match {
+      case success: ImplicitSearchSuccess =>
+        success.tree.asExprOf[Schema[T]]
+      case failure: ImplicitSearchFailure =>
+        val explanation = failure.explanation.toLowerCase
+        if (explanation.contains("ambiguous") || explanation.contains("diverging")) {
+          report.errorAndAbort(
+            s"Failed to summon Schema[${tpe.show}]: ${failure.explanation}"
+          )
+        } else {
+          '{ Schema.derived[T] }
+        }
     }
   }
 

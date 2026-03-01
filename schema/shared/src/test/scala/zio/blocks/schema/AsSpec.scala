@@ -22,6 +22,25 @@ object AsSpec extends SchemaBaseSpec {
       roundTripProduct,
       roundTripTuple
     ),
+    suite("DynamicValue conversions")(
+      test("As[CaseClass, DynamicValue] provides roundtrip conversion") {
+        case class Item(id: Long, name: String)
+        val original = Item(123L, "widget")
+        val as       = As.derived[Item, DynamicValue]
+        val forward  = as.into(original)
+        assertTrue(forward.flatMap(as.from) == Right(original))
+      },
+      test("As[DynamicValue, CaseClass] provides roundtrip conversion") {
+        case class Item(id: Long, name: String)
+        val dv = DynamicValue.Record(
+          "id"   -> DynamicValue.long(456L),
+          "name" -> DynamicValue.string("gadget")
+        )
+        val as      = As.derived[DynamicValue, Item]
+        val forward = as.into(dv)
+        assertTrue(forward.flatMap(as.from) == Right(dv))
+      }
+    ),
     suite("validation")(
       asCompileTimeRules,
       numericNarrowingRoundTrip,

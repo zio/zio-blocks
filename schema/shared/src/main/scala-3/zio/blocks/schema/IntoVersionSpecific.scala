@@ -37,6 +37,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
+    val dynamicValueTpe = TypeRepr.of[DynamicValue]
+    if (bTpe =:= dynamicValueTpe) {
+      return deriveToDynamicValue[A, B]
+    }
+    if (aTpe =:= dynamicValueTpe) {
+      return deriveFromDynamicValue[A, B]
+    }
+
     def isContainerType(tpe: TypeRepr): Boolean = {
       val dealiased = tpe.dealias
       dealiased <:< TypeRepr.of[Option[Any]] ||
@@ -194,6 +202,28 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         def into(a: A): Either[SchemaError, B] = Right(a.asInstanceOf[B])
       }
     }
+
+  private def deriveToDynamicValue[A: Type, B: Type]: Expr[Into[A, B]] = {
+    val aTpe   = TypeRepr.of[A]
+    val schema = findImplicitOrDeriveSchema[A](aTpe)
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          Right($schema.toDynamicValue(a).asInstanceOf[B])
+      }
+    }
+  }
+
+  private def deriveFromDynamicValue[A: Type, B: Type]: Expr[Into[A, B]] = {
+    val bTpe   = TypeRepr.of[B]
+    val schema = findImplicitOrDeriveSchema[B](bTpe)
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          $schema.fromDynamicValue(a.asInstanceOf[DynamicValue])
+      }
+    }
+  }
 
   private def deriveNewtypeConversion[A: Type, B: Type](bTpe: TypeRepr): Expr[Into[A, B]] = {
     val aTpe = TypeRepr.of[A]
@@ -1360,7 +1390,24 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  // Find or derive an Into instance (also looks for As instances)
+  private def findImplicitOrDeriveSchema[T: Type](tpe: TypeRepr): Expr[Schema[T]] = {
+    val schemaTpe = TypeRepr.of[Schema].appliedTo(tpe)
+    Implicits.search(schemaTpe) match {
+      case success: ImplicitSearchSuccess =>
+        success.tree.asExprOf[Schema[T]]
+      case failure: ImplicitSearchFailure =>
+        val explanation = failure.explanation.toLowerCase
+        if (explanation.contains("ambiguous") || explanation.contains("diverging")) {
+          report.errorAndAbort(
+            s"Failed to summon Schema[${tpe.show}]: ${failure.explanation}"
+          )
+        } else {
+          // No Schema[T] in scope, fall back to automatic derivation
+          '{ Schema.derived[T] }
+        }
+    }
+  }
+
   private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] =
     // Check cache first
     intoRefs.get((sourceTpe, targetTpe)) match {
