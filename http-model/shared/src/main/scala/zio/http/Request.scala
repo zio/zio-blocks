@@ -1,5 +1,11 @@
 package zio.http
 
+/**
+ * Immutable HTTP request consisting of method, URL, headers, body, and protocol
+ * version.
+ *
+ * Convenience accessors `path` and `queryParams` delegate to the `url` field.
+ */
 final case class Request(
   method: Method,
   url: URL,

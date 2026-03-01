@@ -2,6 +2,13 @@ package zio.http
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Immutable multi-map of query parameters, backed by parallel arrays.
+ *
+ * Keys may appear at most once; each key maps to one or more values stored as a
+ * `Chunk[String]`. Values are stored decoded; use `encode` to produce a
+ * percent-encoded query string and `QueryParams.fromEncoded` to parse one.
+ */
 final class QueryParams private[http] (
   private val keys: Array[String],
   private val vals: Array[Chunk[String]],

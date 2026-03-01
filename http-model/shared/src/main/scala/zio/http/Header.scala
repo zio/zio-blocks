@@ -17,9 +17,5 @@ object Header {
     def renderedValue: String = rawValue
   }
 
-  object Custom extends Header.Typed[Custom] {
-    val name: String                                 = "x-custom"
-    def parse(value: String): Either[String, Custom] = Right(Custom(name, value))
-    def render(h: Custom): String                    = h.renderedValue
-  }
+  object Custom
 }

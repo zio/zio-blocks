@@ -1,5 +1,9 @@
 package zio.http
 
+/**
+ * Immutable HTTP response consisting of status, headers, body, and protocol
+ * version.
+ */
 final case class Response(
   status: Status,
   headers: Headers = Headers.empty,

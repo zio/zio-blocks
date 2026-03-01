@@ -2,6 +2,13 @@ package zio.http
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Decoded URL path, stored as individual decoded segments.
+ *
+ * Segments are stored without percent-encoding; use `encode` to produce a
+ * percent-encoded path string and `render` for the decoded form. Parse
+ * already-encoded paths with `Path.fromEncoded`.
+ */
 final case class Path(segments: Chunk[String], hasLeadingSlash: Boolean, trailingSlash: Boolean) {
 
   def isEmpty: Boolean  = segments.isEmpty && !hasLeadingSlash

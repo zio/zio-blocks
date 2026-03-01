@@ -1,5 +1,10 @@
 package zio.http
 
+/**
+ * HTTP request method as defined by RFC 9110.
+ *
+ * Each method has a unique `ordinal` for efficient array-based dispatch.
+ */
 sealed abstract class Method(val name: String, val ordinal: Int) {
   override def toString: String = name
 }

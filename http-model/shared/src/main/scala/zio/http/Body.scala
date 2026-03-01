@@ -3,6 +3,12 @@ package zio.http
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaTypes
 
+/**
+ * Materialized, immutable HTTP message body backed by a byte array.
+ *
+ * The underlying `data` array is exposed directly for zero-copy access; callers
+ * must not mutate it.
+ */
 final class Body private (val data: Array[Byte], val contentType: Option[ContentType]) {
 
   override def equals(that: Any): Boolean = that match {
