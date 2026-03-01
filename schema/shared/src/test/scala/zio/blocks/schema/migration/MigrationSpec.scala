@@ -489,46 +489,56 @@ object MigrationSpec extends SchemaBaseSpec {
 
   val mandateOptionalSuite: Spec[Any, Any] = suite("MandateAndOptionalize")(
     test("mandate replaces Null with default") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-        MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+        )
+      )
       val input    = DynamicValue.Record("opt" -> DynamicValue.Null)
       val expected = DynamicValue.Record("req" -> DynamicValue.int(0))
       assert(dm(input))(isRight(equalTo(expected)))
     },
     test("mandate extracts value from Some variant") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-        MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+        )
+      )
       val input    = DynamicValue.Record("opt" -> new DynamicValue.Variant("Some", DynamicValue.int(42)))
       val expected = DynamicValue.Record("req" -> DynamicValue.int(42))
       assert(dm(input))(isRight(equalTo(expected)))
     },
     test("mandate uses default for None variant") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-        MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+        )
+      )
       val input    = DynamicValue.Record("opt" -> new DynamicValue.Variant("None", DynamicValue.Record.empty))
       val expected = DynamicValue.Record("req" -> DynamicValue.int(0))
       assert(dm(input))(isRight(equalTo(expected)))
     },
     test("mandate passes through non-Option variant") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-        MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+        )
+      )
       val input    = DynamicValue.Record("opt" -> new DynamicValue.Variant("Active", DynamicValue.int(1)))
       val expected = DynamicValue.Record("req" -> new DynamicValue.Variant("Active", DynamicValue.int(1)))
       assert(dm(input))(isRight(equalTo(expected)))
     },
     test("mandate passes through regular value") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-        MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+        )
+      )
       val input    = DynamicValue.Record("opt" -> DynamicValue.int(42))
       val expected = DynamicValue.Record("req" -> DynamicValue.int(42))
       assert(dm(input))(isRight(equalTo(expected)))
@@ -541,19 +551,23 @@ object MigrationSpec extends SchemaBaseSpec {
       assert(dm(input))(isLeft)
     },
     test("optionalize passes through non-null") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Optionalize(DynamicOptic.root.field("req")),
-        MigrationAction.Rename(DynamicOptic.root.field("req"), "opt")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Optionalize(DynamicOptic.root.field("req")),
+          MigrationAction.Rename(DynamicOptic.root.field("req"), "opt")
+        )
+      )
       val input    = DynamicValue.Record("req" -> DynamicValue.int(42))
       val expected = DynamicValue.Record("opt" -> DynamicValue.int(42))
       assert(dm(input))(isRight(equalTo(expected)))
     },
     test("optionalize passes through Null") {
-      val dm = DynamicMigration(Vector(
-        MigrationAction.Optionalize(DynamicOptic.root.field("req")),
-        MigrationAction.Rename(DynamicOptic.root.field("req"), "opt")
-      ))
+      val dm = DynamicMigration(
+        Vector(
+          MigrationAction.Optionalize(DynamicOptic.root.field("req")),
+          MigrationAction.Rename(DynamicOptic.root.field("req"), "opt")
+        )
+      )
       val input    = DynamicValue.Record("req" -> DynamicValue.Null)
       val expected = DynamicValue.Record("opt" -> DynamicValue.Null)
       assert(dm(input))(isRight(equalTo(expected)))
@@ -866,8 +880,8 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("NestedCollections")(
       test("rename case at nested field path") {
-        val path = DynamicOptic.root.field("status")
-        val dm   = DynamicMigration.single(MigrationAction.RenameCase(path, "Active", "Enabled"))
+        val path  = DynamicOptic.root.field("status")
+        val dm    = DynamicMigration.single(MigrationAction.RenameCase(path, "Active", "Enabled"))
         val input = DynamicValue.Record(
           "status" -> new DynamicValue.Variant("Active", DynamicValue.Record.empty)
         )
@@ -877,14 +891,14 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(dm(input))(isRight(equalTo(expected)))
       },
       test("variant operation at nested path fails on non-variant leaf") {
-        val path = DynamicOptic.root.field("data")
-        val dm   = DynamicMigration.single(MigrationAction.RenameCase(path, "A", "B"))
+        val path  = DynamicOptic.root.field("data")
+        val dm    = DynamicMigration.single(MigrationAction.RenameCase(path, "A", "B"))
         val input = DynamicValue.Record("data" -> DynamicValue.int(42))
         assert(dm(input))(isLeft)
       },
       test("transform elements at nested path") {
-        val path = DynamicOptic.root.field("items")
-        val dm   = DynamicMigration.single(MigrationAction.TransformElements(path, DynamicSchemaExpr.IntToString))
+        val path  = DynamicOptic.root.field("items")
+        val dm    = DynamicMigration.single(MigrationAction.TransformElements(path, DynamicSchemaExpr.IntToString))
         val input = DynamicValue.Record(
           "items" -> new DynamicValue.Sequence(Chunk(DynamicValue.int(1), DynamicValue.int(2)))
         )
@@ -894,14 +908,14 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(dm(input))(isRight(equalTo(expected)))
       },
       test("sequence operation at nested path fails on non-sequence leaf") {
-        val path = DynamicOptic.root.field("data")
-        val dm   = DynamicMigration.single(MigrationAction.TransformElements(path, DynamicSchemaExpr.Identity))
+        val path  = DynamicOptic.root.field("data")
+        val dm    = DynamicMigration.single(MigrationAction.TransformElements(path, DynamicSchemaExpr.Identity))
         val input = DynamicValue.Record("data" -> DynamicValue.int(42))
         assert(dm(input))(isLeft)
       },
       test("transform map keys at nested path") {
-        val path = DynamicOptic.root.field("mapping")
-        val dm   = DynamicMigration.single(MigrationAction.TransformKeys(path, DynamicSchemaExpr.IntToString))
+        val path  = DynamicOptic.root.field("mapping")
+        val dm    = DynamicMigration.single(MigrationAction.TransformKeys(path, DynamicSchemaExpr.IntToString))
         val input = DynamicValue.Record(
           "mapping" -> new DynamicValue.Map(Chunk((DynamicValue.int(1), DynamicValue.string("one"))))
         )
@@ -911,8 +925,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(dm(input))(isRight(equalTo(expected)))
       },
       test("map operation at nested path fails on non-map leaf") {
-        val path = DynamicOptic.root.field("data")
-        val dm   = DynamicMigration.single(MigrationAction.TransformKeys(path, DynamicSchemaExpr.Identity))
+        val path  = DynamicOptic.root.field("data")
+        val dm    = DynamicMigration.single(MigrationAction.TransformKeys(path, DynamicSchemaExpr.Identity))
         val input = DynamicValue.Record("data" -> DynamicValue.int(42))
         assert(dm(input))(isLeft)
       }
@@ -950,19 +964,23 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("LowercaseVariants")(
       test("mandate extracts value from lowercase 'some' variant") {
-        val dm = DynamicMigration(Vector(
-          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-        ))
+        val dm = DynamicMigration(
+          Vector(
+            MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+            MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+          )
+        )
         val input    = DynamicValue.Record("opt" -> new DynamicValue.Variant("some", DynamicValue.int(42)))
         val expected = DynamicValue.Record("req" -> DynamicValue.int(42))
         assert(dm(input))(isRight(equalTo(expected)))
       },
       test("mandate uses default for lowercase 'none' variant") {
-        val dm = DynamicMigration(Vector(
-          MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
-          MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
-        ))
+        val dm = DynamicMigration(
+          Vector(
+            MigrationAction.Mandate(DynamicOptic.root.field("opt"), DynamicSchemaExpr.Literal(DynamicValue.int(0))),
+            MigrationAction.Rename(DynamicOptic.root.field("opt"), "req")
+          )
+        )
         val input    = DynamicValue.Record("opt" -> new DynamicValue.Variant("none", DynamicValue.Record.empty))
         val expected = DynamicValue.Record("req" -> DynamicValue.int(0))
         assert(dm(input))(isRight(equalTo(expected)))

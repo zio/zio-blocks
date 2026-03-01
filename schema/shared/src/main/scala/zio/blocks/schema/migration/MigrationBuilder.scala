@@ -8,12 +8,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Optic, Schema}
  * The builder accumulates [[MigrationAction]]s and produces either a validated
  * migration (via `build`) or an unvalidated one (via `buildPartial`).
  *
- * {{{}
- * val migration = Migration.newBuilder[PersonV0, Person]
- *   .renameField("firstName", "fullName")
- *   .addField("age", 0)
- *   .build
- * }}}
+ * {{{} val migration = Migration.newBuilder[PersonV0, Person]
+ * .renameField("firstName", "fullName") .addField("age", 0) .build }}}
  *
  * @tparam A
  *   the source type
@@ -118,7 +114,10 @@ final class MigrationBuilder[A, B](
     schema: Schema[V]
   ): MigrationBuilder[A, B] = {
     val mandateAction =
-      MigrationAction.Mandate(DynamicOptic.root.field(source), DynamicSchemaExpr.Literal(schema.toDynamicValue(default)))
+      MigrationAction.Mandate(
+        DynamicOptic.root.field(source),
+        DynamicSchemaExpr.Literal(schema.toDynamicValue(default))
+      )
     if (source != target) {
       new MigrationBuilder(
         sourceSchema,
@@ -175,10 +174,8 @@ final class MigrationBuilder[A, B](
   /**
    * Add a new field identified by a typed optic on the target type.
    *
-   * {{{}
-   * Migration.newBuilder[PersonV0, PersonV1]
-   *   .addField(targetOptic, defaultValue)
-   * }}}
+   * {{{} Migration.newBuilder[PersonV0, PersonV1] .addField(targetOptic,
+   * defaultValue) }}}
    */
   def addField[V](target: Optic[B, V], default: V)(implicit schema: Schema[V]): MigrationBuilder[A, B] = {
     val dynPath = target.toDynamic
@@ -197,8 +194,8 @@ final class MigrationBuilder[A, B](
    * Rename a field from the source type to the target type using typed optics.
    */
   def renameField(from: Optic[A, ?], to: Optic[B, ?]): MigrationBuilder[A, B] = {
-    val fromDyn              = from.toDynamic
-    val (_, toName)          = splitOptic(to.toDynamic)
+    val fromDyn     = from.toDynamic
+    val (_, toName) = splitOptic(to.toDynamic)
     appendAction(MigrationAction.Rename(fromDyn, toName))
   }
 
@@ -210,10 +207,10 @@ final class MigrationBuilder[A, B](
     target: Optic[B, ?],
     converter: DynamicSchemaExpr
   ): MigrationBuilder[A, B] = {
-    val sourceDyn           = source.toDynamic
-    val (_, targetName)     = splitOptic(target.toDynamic)
-    val (_, sourceName)     = splitOptic(sourceDyn)
-    val changeAction = MigrationAction.ChangeType(sourceDyn, converter)
+    val sourceDyn       = source.toDynamic
+    val (_, targetName) = splitOptic(target.toDynamic)
+    val (_, sourceName) = splitOptic(sourceDyn)
+    val changeAction    = MigrationAction.ChangeType(sourceDyn, converter)
     if (sourceName != targetName) {
       new MigrationBuilder(
         sourceSchema,
@@ -418,7 +415,7 @@ final class MigrationBuilder[A, B](
   private def extractFieldNameFromPath(at: DynamicOptic): String =
     at.nodes.last match {
       case f: DynamicOptic.Node.Field => f.name
-      case _ => throw new IllegalStateException("Expected field path but got non-field node")
+      case _                          => throw new IllegalStateException("Expected field path but got non-field node")
     }
 
   private def extractFieldNames(schema: Schema[?]): Set[String] =

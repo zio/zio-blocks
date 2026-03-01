@@ -81,7 +81,7 @@ object DynamicMigration {
       case MigrationAction.AddField(at, default) =>
         val (parentPath, fieldName) = splitPath(at)
         evalExpr(default, DynamicValue.Null) match {
-          case Left(err)          => Left(err)
+          case Left(err)           => Left(err)
           case Right(defaultValue) =>
             applyAtRecord(
               value,
@@ -390,9 +390,9 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] = {
     val root = DynamicOptic.root
     expr match {
-      case DynamicSchemaExpr.Literal(v)    => Right(v)
-      case DynamicSchemaExpr.Identity      => Right(input)
-      case DynamicSchemaExpr.DefaultValue  => Right(input)
+      case DynamicSchemaExpr.Literal(v)   => Right(v)
+      case DynamicSchemaExpr.Identity     => Right(input)
+      case DynamicSchemaExpr.DefaultValue => Right(input)
 
       case DynamicSchemaExpr.IntToString =>
         input match {
@@ -468,7 +468,7 @@ object DynamicMigration {
             pv.value.toLowerCase match {
               case "true"  => Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(true)))
               case "false" => Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(false)))
-              case _ =>
+              case _       =>
                 Left(
                   MigrationError.ConversionFailed(
                     root,
