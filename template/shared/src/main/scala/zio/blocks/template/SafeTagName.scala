@@ -115,6 +115,12 @@ object SafeTagName {
     "meter",
     "output",
     "noscript",
-    "base"
+    "base",
+    "datalist",
+    "iframe",
+    "math",
+    "optgroup",
+    "search",
+    "svg"
   )
 }

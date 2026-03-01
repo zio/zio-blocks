@@ -21,11 +21,17 @@ final class PartialAttribute(val attrName: String) extends Modifier {
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.JsValue(value))
 
   def :=(values: Vector[String]): Dom.Attribute =
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, ' '))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, Dom.AttributeSeparator.Space))
 
-  def withSeparator(values: Vector[String], separator: Char): Dom.Attribute =
+  def :=(value1: String, value2: String, rest: String*): Dom.Attribute =
+    Dom.Attribute.KeyValue(
+      attrName,
+      Dom.AttributeValue.MultiValue((value1 +: value2 +: rest).toVector, Dom.AttributeSeparator.Space)
+    )
+
+  def withSeparator(values: Vector[String], separator: Dom.AttributeSeparator): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, separator))
 
   def applyTo(element: Dom.Element): Dom.Element =
-    element.copy(attributes = element.attributes :+ Dom.Attribute.BooleanAttribute(attrName))
+    element.withAttributes(element.attributes :+ Dom.Attribute.BooleanAttribute(attrName))
 }
