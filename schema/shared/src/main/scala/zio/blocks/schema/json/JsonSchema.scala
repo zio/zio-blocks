@@ -167,8 +167,10 @@ private[json] object FormatValidator {
     Pattern.compile("^\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?(Z|[+-]\\d{2}(:\\d{2}(:\\d{2})?)?)?$")
   private[this] val emailPattern: Pattern =
     // Hardened to avoid Cross-Site Scripting (XSS) / Injection Risks when rendered on the web page without sanitization
+    // and to avoid Server-Side Request Forgery (SSRF) when routing emails directly to IP addresses, this regex
+    // explicitly disallows the domain part to be an IPv4 literal or an IPv6 literal
     Pattern.compile(
-      "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+      "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\\.[a-zA-Z]{2,63}$"
     )
   private[this] val uuidPattern: Pattern =
     Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
