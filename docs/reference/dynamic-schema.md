@@ -70,9 +70,15 @@ object Person  { implicit val schema: Schema[Person]  = Schema.derived[Person]  
 
 val dynamic: DynamicSchema = Schema[Person].toDynamicSchema
 
-// The reflect tree contains the full structure — no constructors or deconstructors
-println(dynamic.reflect.getClass.getSimpleName)  // "Record"
-println(dynamic.typeId.name)                     // "Person"
+println(dynamic)
+//DynamicSchema(record Person {
+//  name: String
+//  age: Int
+//  address: record Address {
+//    street: String
+//    city: String
+//  }
+//})
 ```
 
 ### `DynamicSchema.fromDynamicValue`
@@ -382,7 +388,11 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 ## Converting to a Typed Schema
 
-`DynamicSchema#toSchema` returns a `Schema[DynamicValue]` that wraps the base `DynamicValue` schema with a validation layer: any value that fails `DynamicSchema#check` is rejected at decode time:
+`DynamicSchema#toSchema` returns a `Schema[DynamicValue]` — it stays fully in the dynamic world and requires no bindings. Use it when you have received a `DynamicSchema` over the wire and need a codec-compatible schema that enforces structural conformance without binding any Scala types.
+
+After transporting a `DynamicSchema` you may not have the Scala types that `DynamicSchema#rebind` requires — the consumer is a validation gateway or format converter that handles arbitrary event shapes. Any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly, making `DynamicSchema#toSchema` the right choice for schema validation middleware, event-store gateways, and format converters that must enforce structure without knowing the concrete type. Use `DynamicSchema#rebind` instead when you have a `BindingResolver` and need a fully operational `Schema[A]` for typed encoding and decoding.
+
+`DynamicSchema#toSchema` is defined as:
 
 ```scala
 final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
@@ -390,16 +400,30 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 }
 ```
 
-This is useful when you need a `Schema[DynamicValue]` that enforces a specific structure for use with codecs:
+The following example shows a schema-validation gateway: we receive a `DynamicSchema` from a registry, convert it to a `Schema[DynamicValue]`, and use the result to validate an incoming payload, rejecting it on structural mismatch:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
-case class Slot(key: String, value: String)
-object Slot { implicit val schema: Schema[Slot] = Schema.derived[Slot] }
+case class OrderEvent(orderId: String, amount: Double)
+object OrderEvent { implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent] }
 
-// A Schema[DynamicValue] that only accepts Slot-shaped values
-val slotSchema: Schema[DynamicValue] = Schema[Slot].toDynamicSchema.toSchema
+// Simulate receiving a DynamicSchema from a registry (e.g. deserialised from a blob)
+val blob: DynamicValue      = DynamicSchema.toDynamicValue(Schema[OrderEvent].toDynamicSchema)
+val received: DynamicSchema = DynamicSchema.fromDynamicValue(blob)
+
+// Convert to a Schema[DynamicValue] — no Scala types or BindingResolver needed
+val gatewaySchema: Schema[DynamicValue] = received.toSchema
+
+// Validate an incoming payload: fromDynamicValue returns Left on structural mismatch
+val incoming: DynamicValue = DynamicValue.Record(
+  zio.blocks.chunk.Chunk(
+    "orderId" -> DynamicValue.string("ORD-42"),
+    "amount"  -> DynamicValue.double(99.95)
+  )
+)
+
+val result: Either[SchemaError, DynamicValue] = gatewaySchema.fromDynamicValue(incoming)
 ```
 
 ## Integration
