@@ -1,5 +1,5 @@
 ---
-name: write-how-to-guide
+name: docs-how-to-guide
 description: Write a how-to guide on a specific topic in ZIO Blocks. Use when the user asks to write a guide, tutorial, or walkthrough that teaches how to accomplish a concrete goal using ZIO Blocks data types and APIs.
 argument-hint: "[guide title or topic description]"
 allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)

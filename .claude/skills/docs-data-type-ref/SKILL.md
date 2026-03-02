@@ -1,5 +1,5 @@
 ---
-name: write-data-type-ref
+name: docs-data-type-ref
 description: Write a reference documentation page for a specific data type in ZIO Blocks. Use when the user asks to document a data type, write an API reference for a type, or create a reference page for a class/trait/object.
 argument-hint: "[fully-qualified-type-name or simple-type-name]"
 allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
@@ -199,6 +199,39 @@ Show how this type integrates with other ZIO Blocks data types and module. For e
 - How `DynamicValue` connects to `Schema` and formats
 
 Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](./reflect.md)`) after explaining the integration of each related type.
+
+#### 11. Running the Examples (required when examples exist)
+
+Add this section at the very end of the page, after Integration. It tells readers where the examples live and how to run them. Use this template verbatim, substituting the package name, module name, and a bullet for each `App` written in Step 3:
+
+```markdown
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `schema-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+```bash
+# <Short description of what this App demonstrates>
+sbt "schema-examples/runMain <package>.<ObjectName>"
+
+# <Short description of the next App>
+sbt "schema-examples/runMain <package>.<ObjectName>"
+```
+```
+
+Rules for this section:
+- List **every `App` object** written in Step 3, one `sbt runMain` line per object.
+- The comment above each `sbt` line must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
+- Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
+- If no example `App` objects were written (rare), omit this section entirely.
 
 ### Compile-Checked Code Blocks with mdoc
 
