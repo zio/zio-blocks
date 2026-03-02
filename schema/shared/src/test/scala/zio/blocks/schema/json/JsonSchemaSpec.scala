@@ -627,9 +627,18 @@ object JsonSchemaSpec extends SchemaBaseSpec {
         assertTrue(
           schema.conforms(Json.String("user@example.com")),
           schema.conforms(Json.String("user.name@sub.domain.org")),
+          schema.conforms(Json.String("1@a.com")),
+          schema.conforms(Json.String("1@a.b.com")),
+          schema.conforms(Json.String("1user@example.com")),
+          schema.conforms(Json.String("user@example.museum")),
+          schema.conforms(Json.String("user@example.technology")),
           !schema.conforms(Json.String("not-an-email")),
-          !schema.conforms(Json.String("@missing-local.com")),
           !schema.conforms(Json.String("<script>alert(1)</script>@example.com")),
+          !schema.conforms(Json.String("👎@gmail.com")),
+          !schema.conforms(Json.String("admin@127.0.0.1")),
+          !schema.conforms(Json.String("admin@[127.0.0.1]")),
+          !schema.conforms(Json.String("jonny@[ipv6:7e95:0559:10f2:21e9:9dab:7309:c116:ca3b]")),
+          !schema.conforms(Json.String("@missing-local.com")),
           !schema.conforms(Json.String("missing-at.com"))
         )
       },
