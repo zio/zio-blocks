@@ -51,26 +51,7 @@ Apply these conventions consistently in all prose, section headings, and inline 
   - After a heading: write at least one sentence before the first code block.
   - Between two consecutive code blocks: write a short bridging sentence.
   - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing).
-
-  **Wrong:**
-  ```
-  #### `Option`
-
-  ```scala
-  implicit def optionInto[A, B](...): Into[Option[A], Option[B]]
-  ```
-  ```
-
-  **Right:**
-  ```
-  #### `Option`
-
-  `optionInto` coerces the element type of an `Option`, passing `None` through unchanged:
-
-  ```scala
-  implicit def optionInto[A, B](...): Into[Option[A], Option[B]]
-  ```
-  ```
+  - **The sentence must end with a colon (`:`)**. A colon signals to the reader that code follows.
 
 ## Code Block Rules
 
