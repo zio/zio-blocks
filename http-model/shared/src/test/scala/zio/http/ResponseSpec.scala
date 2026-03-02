@@ -8,12 +8,12 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("can be constructed with all fields") {
         val headers  = Headers("content-type" -> "text/html")
         val body     = Body.fromString("<h1>Hello</h1>")
-        val response = Response(Status.Ok, headers, body, Version.`Http/1.1`)
+        val response = Response(Status.Ok, headers, body, Version.`HTTP/1.1`)
         assertTrue(
           response.status == Status.Ok,
           response.headers == headers,
           response.body == body,
-          response.version == Version.`Http/1.1`
+          response.version == Version.`HTTP/1.1`
         )
       },
       test("is immutable via copy") {
@@ -36,7 +36,7 @@ object ResponseSpec extends HttpModelBaseSpec {
         assertTrue(Response.ok.headers == Headers.empty)
       },
       test("has HTTP/1.1 version") {
-        assertTrue(Response.ok.version == Version.`Http/1.1`)
+        assertTrue(Response.ok.version == Version.`HTTP/1.1`)
       }
     ),
     suite("Response.notFound")(
@@ -50,7 +50,7 @@ object ResponseSpec extends HttpModelBaseSpec {
         assertTrue(Response.notFound.headers == Headers.empty)
       },
       test("has HTTP/1.1 version") {
-        assertTrue(Response.notFound.version == Version.`Http/1.1`)
+        assertTrue(Response.notFound.version == Version.`HTTP/1.1`)
       }
     ),
     suite("Response.apply(status)")(
@@ -60,14 +60,14 @@ object ResponseSpec extends HttpModelBaseSpec {
           response.status == Status.BadRequest,
           response.headers == Headers.empty,
           response.body == Body.empty,
-          response.version == Version.`Http/1.1`
+          response.version == Version.`HTTP/1.1`
         )
       }
     ),
     suite("header")(
       test("returns typed header from headers") {
         val headers  = Headers("content-length" -> "42")
-        val response = Response(Status.Ok, headers, Body.empty, Version.`Http/1.1`)
+        val response = Response(Status.Ok, headers, Body.empty, Version.`HTTP/1.1`)
         val cl       = response.header(zio.http.headers.ContentLength)
         assertTrue(
           cl.isDefined,
@@ -81,7 +81,7 @@ object ResponseSpec extends HttpModelBaseSpec {
     suite("contentType")(
       test("returns ContentType from headers") {
         val headers  = Headers("content-type" -> "text/plain")
-        val response = Response(Status.Ok, headers, Body.empty, Version.`Http/1.1`)
+        val response = Response(Status.Ok, headers, Body.empty, Version.`HTTP/1.1`)
         val ct       = response.contentType
         assertTrue(
           ct.isDefined,

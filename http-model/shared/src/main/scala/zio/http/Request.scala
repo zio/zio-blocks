@@ -25,8 +25,8 @@ final case class Request(
 object Request {
 
   def get(url: URL): Request =
-    Request(Method.GET, url, Headers.empty, Body.empty, Version.`Http/1.1`)
+    Request(Method.GET, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
 
   def post(url: URL, body: Body): Request =
-    Request(Method.POST, url, Headers.empty, body, Version.`Http/1.1`)
+    Request(Method.POST, url, Headers.empty, body, Version.`HTTP/1.1`)
 }

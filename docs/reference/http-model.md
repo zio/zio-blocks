@@ -228,10 +228,10 @@ sealed abstract class Version(val major: Int, val minor: Int)
 ```scala mdoc:compile-only
 import zio.http.Version
 
-val v10 = Version.`Http/1.0`
-val v11 = Version.`Http/1.1`
-val v20 = Version.`Http/2.0`
-val v30 = Version.`Http/3.0`
+val v10 = Version.`HTTP/1.0`
+val v11 = Version.`HTTP/1.1`
+val v20 = Version.`HTTP/2.0`
+val v30 = Version.`HTTP/3.0`
 ```
 
 ### Parsing and Rendering
@@ -239,12 +239,12 @@ val v30 = Version.`Http/3.0`
 ```scala mdoc:compile-only
 import zio.http.Version
 
-Version.fromString("HTTP/1.1") // Some(Version.`Http/1.1`)
-Version.fromString("HTTP/2")   // Some(Version.`Http/2.0`)
-Version.fromString("HTTP/3")   // Some(Version.`Http/3.0`)
+Version.fromString("HTTP/1.1") // Some(Version.`HTTP/1.1`)
+Version.fromString("HTTP/2")   // Some(Version.`HTTP/2.0`)
+Version.fromString("HTTP/3")   // Some(Version.`HTTP/3.0`)
 
-Version.render(Version.`Http/1.1`) // "HTTP/1.1"
-Version.`Http/2.0`.text            // "HTTP/2.0"
+Version.render(Version.`HTTP/1.1`) // "HTTP/1.1"
+Version.`HTTP/2.0`.text            // "HTTP/2.0"
 ```
 
 ## Scheme
@@ -1158,7 +1158,7 @@ val request = Request(
     "authorization" -> "Bearer token123"
   ),
   body = body,
-  version = Version.`Http/1.1`
+  version = Version.`HTTP/1.1`
 )
 ```
 
@@ -1213,7 +1213,7 @@ val response = Response(
     "location" -> "/users/123"
   ),
   body = jsonBody,
-  version = Version.`Http/1.1`
+  version = Version.`HTTP/1.1`
 )
 ```
 
@@ -1252,7 +1252,7 @@ val request = Request(
     "user-agent" -> "MyClient/1.0"
   ),
   body = requestBody,
-  version = Version.`Http/1.1`
+  version = Version.`HTTP/1.1`
 )
 
 // Build response
@@ -1265,7 +1265,7 @@ val response = Response(
     "location" -> "/users/123"
   ),
   body = responseBody,
-  version = Version.`Http/1.1`
+  version = Version.`HTTP/1.1`
 )
 ```
 
@@ -1355,7 +1355,7 @@ val request = Request(
     "content-type" -> "application/x-www-form-urlencoded"
   ),
   body = formBody,
-  version = Version.`Http/1.1`
+  version = Version.`HTTP/1.1`
 )
 ```
 

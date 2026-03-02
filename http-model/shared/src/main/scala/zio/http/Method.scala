@@ -1,5 +1,7 @@
 package zio.http
 
+import zio.blocks.chunk.Chunk
+
 /**
  * HTTP request method as defined by RFC 9110.
  *
@@ -20,7 +22,7 @@ object Method {
   case object TRACE   extends Method("TRACE", 7)
   case object CONNECT extends Method("CONNECT", 8)
 
-  val values: Array[Method] = Array(GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT)
+  val values: Chunk[Method] = Chunk(GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT)
 
   private val byName: Map[String, Method] = values.iterator.map(m => m.name -> m).toMap
 

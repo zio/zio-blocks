@@ -10,13 +10,13 @@ object RequestSpec extends HttpModelBaseSpec {
           URL(Some(Scheme.HTTPS), Some("example.com"), Some(443), Path("/api/users"), QueryParams("page" -> "1"), None)
         val headers = Headers("content-type" -> "application/json")
         val body    = Body.fromString("hello")
-        val request = Request(Method.POST, url, headers, body, Version.`Http/1.1`)
+        val request = Request(Method.POST, url, headers, body, Version.`HTTP/1.1`)
         assertTrue(
           request.method == Method.POST,
           request.url == url,
           request.headers == headers,
           request.body == body,
-          request.version == Version.`Http/1.1`
+          request.version == Version.`HTTP/1.1`
         )
       },
       test("is immutable via copy") {
@@ -37,7 +37,7 @@ object RequestSpec extends HttpModelBaseSpec {
           request.url == url,
           request.headers == Headers.empty,
           request.body == Body.empty,
-          request.version == Version.`Http/1.1`
+          request.version == Version.`HTTP/1.1`
         )
       }
     ),
@@ -51,14 +51,14 @@ object RequestSpec extends HttpModelBaseSpec {
           request.url == url,
           request.headers == Headers.empty,
           request.body == body,
-          request.version == Version.`Http/1.1`
+          request.version == Version.`HTTP/1.1`
         )
       }
     ),
     suite("header")(
       test("returns typed header from headers") {
         val headers = Headers("host" -> "example.com:8080")
-        val request = Request(Method.GET, URL.fromPath(Path.root), headers, Body.empty, Version.`Http/1.1`)
+        val request = Request(Method.GET, URL.fromPath(Path.root), headers, Body.empty, Version.`HTTP/1.1`)
         val host    = request.header(zio.http.headers.Host)
         assertTrue(
           host.isDefined,
@@ -74,7 +74,7 @@ object RequestSpec extends HttpModelBaseSpec {
     suite("contentType")(
       test("returns ContentType from headers") {
         val headers = Headers("content-type" -> "application/json")
-        val request = Request(Method.POST, URL.fromPath(Path.root), headers, Body.empty, Version.`Http/1.1`)
+        val request = Request(Method.POST, URL.fromPath(Path.root), headers, Body.empty, Version.`HTTP/1.1`)
         val ct      = request.contentType
         assertTrue(
           ct.isDefined,

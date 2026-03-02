@@ -17,5 +17,4 @@ object Header {
     def renderedValue: String = rawValue
   }
 
-  object Custom
 }

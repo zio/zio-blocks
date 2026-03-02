@@ -8,7 +8,7 @@ final case class Response(
   status: Status,
   headers: Headers = Headers.empty,
   body: Body = Body.empty,
-  version: Version = Version.`Http/1.1`
+  version: Version = Version.`HTTP/1.1`
 ) {
   def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
