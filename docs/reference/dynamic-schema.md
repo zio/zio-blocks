@@ -11,10 +11,10 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_])
 
 `DynamicSchema`:
 
-- holds the full structural shape of a type without capturing constructors or deconstructors
-- can validate any `DynamicValue` against its structure using `DynamicSchema#check` and `DynamicSchema#conforms`
-- can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network
-- can be rehydrated into a fully operational `Schema[A]` by supplying runtime bindings via `DynamicSchema#rebind`
+- Holds the full structural shape of a type without capturing constructors or deconstructors
+- Can validate any `DynamicValue` against its structure using `DynamicSchema#check` and `DynamicSchema#conforms`
+- Can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network
+- Can be rehydrated into a fully operational `Schema[A]` by supplying runtime bindings via `DynamicSchema#rebind`
 
 ## Motivation
 
@@ -44,6 +44,8 @@ Schema[OrderPlaced]   ←── operational again, can encode and decode
 This pattern enables schema registries: the Checkout Service registers its event schema on startup; the Fulfillment Service fetches it and rebinds it against its own type definitions, guaranteeing it uses the exact schema that was in effect when the event was encoded. See [BindingResolver](./binding-resolver.md) for the complete rebinding API.
 
 ## Creating a DynamicSchema
+
+There are two ways to obtain a `DynamicSchema`: strip bindings from an existing typed schema, or reconstruct one from a serialized blob.
 
 ### `Schema[A]#toDynamicSchema`
 
@@ -103,8 +105,6 @@ println(restored.typeId.name)  // "Product"
 
 ## Serializing a DynamicSchema
 
-### `DynamicSchema.toDynamicValue`
-
 `DynamicSchema.toDynamicValue` converts a `DynamicSchema` to a `DynamicValue` for storage or transmission. The result contains only field names, type names, validations, and annotations — no Scala closures:
 
 ```scala
@@ -112,6 +112,8 @@ object DynamicSchema {
   def toDynamicValue(ds: DynamicSchema): DynamicValue
 }
 ```
+
+The following example converts a simple case class schema and stores the blob:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -139,6 +141,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   def check(value: DynamicValue): Option[SchemaError]
 }
 ```
+
+The following example shows all three outcomes — a valid value, a missing field, and a type mismatch:
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
@@ -187,6 +191,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 }
 ```
 
+We pass a well-formed record to confirm the return value:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
@@ -201,8 +207,6 @@ dynSchema.conforms(value)  // true
 ```
 
 ## Rebinding to a Typed Schema
-
-### `DynamicSchema#rebind`
 
 `DynamicSchema#rebind` converts a structural `DynamicSchema` back into a fully operational `Schema[A]` by walking the `Reflect.Unbound` tree and attaching runtime bindings from a `BindingResolver`:
 
@@ -254,8 +258,6 @@ See [BindingResolver](./binding-resolver.md) for the full resolver API including
 
 ## Structural Navigation
 
-### `DynamicSchema#get`
-
 `DynamicSchema#get` navigates into the schema tree using a `DynamicOptic` path, returning the nested `Reflect.Unbound[_]` at that location:
 
 ```scala
@@ -263,6 +265,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   def get(optic: DynamicOptic): Option[Reflect.Unbound[_]]
 }
 ```
+
+The following example navigates to a field nested two levels deep:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -314,6 +318,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 }
 ```
 
+We attach a description and read it back to confirm it was applied:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
@@ -346,6 +352,8 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 }
 ```
 
+We attach a default value and then retrieve it:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
@@ -374,8 +382,6 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 ## Converting to a Typed Schema
 
-### `DynamicSchema#toSchema`
-
 `DynamicSchema#toSchema` returns a `Schema[DynamicValue]` that wraps the base `DynamicValue` schema with a validation layer: any value that fails `DynamicSchema#check` is rejected at decode time:
 
 ```scala
@@ -397,6 +403,8 @@ val slotSchema: Schema[DynamicValue] = Schema[Slot].toDynamicSchema.toSchema
 ```
 
 ## Integration
+
+`DynamicSchema` connects to several other ZIO Blocks types, each serving a distinct role in the dynamic layer.
 
 ### With `DynamicValue`
 

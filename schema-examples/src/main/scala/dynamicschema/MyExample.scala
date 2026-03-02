@@ -1,0 +1,5 @@
+package dynamicschema
+
+object MyExample {
+
+}
