@@ -218,18 +218,27 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-```bash
-# <Short description of what this App demonstrates>
-sbt "schema-examples/runMain <package>.<ObjectName>"
+**<Short description of what this App demonstrates>**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala))
 
-# <Short description of the next App>
+```bash
 sbt "schema-examples/runMain <package>.<ObjectName>"
+```
+
+**<Short description of the next App>**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName2>.scala))
+
+```bash
+sbt "schema-examples/runMain <package>.<ObjectName2>"
 ```
 ```
 
 Rules for this section:
-- List **every `App` object** written in Step 3, one `sbt runMain` line per object.
-- The comment above each `sbt` line must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
+- List **every `App` object** written in Step 3, one entry per object.
+- Each entry has a bolded plain-English description on one line, a clickable `([source](...))` link
+  to `https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala`,
+  followed by a separate `bash` block with the `sbt` command.
+- The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
 - If no example `App` objects were written (rare), omit this section entirely.
 

@@ -59,7 +59,7 @@ trait Schema[A] {
 
 This is the standard entry point. All structural information — field names, case names, type IDs, `Validation` constraints, `Modifier` annotations, docs, default values, and examples — is preserved:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Address(street: String, city: String)
@@ -69,16 +69,12 @@ object Address { implicit val schema: Schema[Address] = Schema.derived[Address] 
 object Person  { implicit val schema: Schema[Person]  = Schema.derived[Person]  }
 
 val dynamic: DynamicSchema = Schema[Person].toDynamicSchema
+```
 
-println(dynamic)
-//DynamicSchema(record Person {
-//  name: String
-//  age: Int
-//  address: record Address {
-//    street: String
-//    city: String
-//  }
-//})
+We can inspect the schema's structure by printing it:
+
+```scala mdoc
+dynamic
 ```
 
 ### `DynamicSchema.fromDynamicValue`
@@ -480,17 +476,31 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
+**Validate DynamicValues against a DynamicSchema**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaValidationExample.scala))
+
 ```bash
-# Validate DynamicValues against a DynamicSchema
 sbt "schema-examples/runMain dynamicschema.DynamicSchemaValidationExample"
+```
 
-# Serialize and deserialize a DynamicSchema
+**Serialize and deserialize a DynamicSchema**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaSerializationExample.scala))
+
+```bash
 sbt "schema-examples/runMain dynamicschema.DynamicSchemaSerializationExample"
+```
 
-# Rebind a restored DynamicSchema to a typed Schema
+**Rebind a restored DynamicSchema to a typed Schema**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaRebindExample.scala))
+
+```bash
 sbt "schema-examples/runMain dynamicschema.DynamicSchemaRebindExample"
+```
 
-# Complete schema registry pipeline
+**Complete schema registry pipeline**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaRegistryExample.scala))
+
+```bash
 sbt "schema-examples/runMain dynamicschema.DynamicSchemaRegistryExample"
 ```
 
