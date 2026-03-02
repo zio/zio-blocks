@@ -18,7 +18,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_])
 
 ## Motivation
 
-A `Schema[A]` carries both *structure* (field names, type identities, validations) and *behaviour* (constructors and deconstructors as Scala closures). Closures cannot cross process boundaries. `DynamicSchema` is the structural half — a schema stripped of all Scala functions.
+A `Schema[A]` carries both *structure* (field names, type identities, validations) and *behaviour* (constructors and deconstructors as Scala closures). Closures cannot cross process boundaries. `DynamicSchema` is the structural half — a schema stripped of all Scala functions:
 
 ```
 Schema[OrderPlaced]   ←── compile-time type, closures attached
@@ -93,20 +93,21 @@ object DynamicSchema {
 
 Example showing the full store/retrieve round-trip:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Product(id: Long, name: String, price: Double)
 object Product { implicit val schema: Schema[Product] = Schema.derived[Product] }
 
-// Producer side: convert schema to a storable blob
-val original: DynamicSchema  = Schema[Product].toDynamicSchema
-val blob:     DynamicValue   = DynamicSchema.toDynamicValue(original)
+val original: DynamicSchema = Schema[Product].toDynamicSchema
+val blob:     DynamicValue  = DynamicSchema.toDynamicValue(original)
+val restored: DynamicSchema = DynamicSchema.fromDynamicValue(blob)
+```
 
-// Consumer side: reconstruct the schema from the stored blob
-val restored: DynamicSchema  = DynamicSchema.fromDynamicValue(blob)
+We inspect the restored schema's type name to confirm the round-trip preserved it:
 
-println(restored.typeId.name)  // "Product"
+```scala mdoc
+restored.typeId.name
 ```
 
 ## Serializing a DynamicSchema
@@ -121,7 +122,7 @@ object DynamicSchema {
 
 The following example converts a simple case class schema and stores the blob:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Tag(name: String)
@@ -129,9 +130,12 @@ object Tag { implicit val schema: Schema[Tag] = Schema.derived[Tag] }
 
 val ds:   DynamicSchema = Schema[Tag].toDynamicSchema
 val blob: DynamicValue  = DynamicSchema.toDynamicValue(ds)
+```
 
-// blob can now be stored in a database, written to a file, or sent over HTTP
-println(blob.valueType)  // "Record"
+We inspect the blob's value type to confirm the record structure was preserved:
+
+```scala mdoc
+blob.valueType
 ```
 
 ## Validating DynamicValues
@@ -150,7 +154,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 The following example shows all three outcomes — a valid value, a missing field, and a type mismatch:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
@@ -173,10 +177,14 @@ val wrongType = DynamicValue.Record(Chunk(
   "x" -> DynamicValue.int(3),
   "y" -> DynamicValue.string("not an int")
 ))
+```
 
-dynSchema.check(valid)     // None — value is valid
-dynSchema.check(missing)   // Some(SchemaError) — missing field "y"
-dynSchema.check(wrongType) // Some(SchemaError) — type mismatch at field "y"
+We evaluate all three cases to observe the outcomes:
+
+```scala mdoc
+dynSchema.check(valid)
+dynSchema.check(missing)
+dynSchema.check(wrongType)
 ```
 
 Validation rules:
@@ -199,7 +207,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 We pass a well-formed record to confirm the return value:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 
@@ -208,8 +216,10 @@ object Tag { implicit val schema: Schema[Tag] = Schema.derived[Tag] }
 
 val dynSchema = Schema[Tag].toDynamicSchema
 val value     = DynamicValue.Record(Chunk("name" -> DynamicValue.string("scala")))
+```
 
-dynSchema.conforms(value)  // true
+```scala mdoc
+dynSchema.conforms(value)
 ```
 
 ## Rebinding to a Typed Schema
@@ -224,7 +234,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 The resolver must provide a binding for every concrete type referenced in the schema tree: record types, variant types, and wrapper types must be covered explicitly; primitives, sequences, and maps are covered by `BindingResolver.defaults`:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 
@@ -236,11 +246,9 @@ object OrderId  { implicit val schema: Schema[OrderId]  = Schema.derived[OrderId
 object LineItem { implicit val schema: Schema[LineItem] = Schema.derived[LineItem] }
 object Order    { implicit val schema: Schema[Order]    = Schema.derived[Order]    }
 
-// Simulate schema transport: strip bindings, serialize, restore
-val blob: DynamicValue = DynamicSchema.toDynamicValue(Schema[Order].toDynamicSchema)
+val blob: DynamicValue     = DynamicSchema.toDynamicValue(Schema[Order].toDynamicSchema)
 val dynamic: DynamicSchema = DynamicSchema.fromDynamicValue(blob)
 
-// Rebind on the consumer side
 val resolver: BindingResolver =
   BindingResolver.empty
     .bind(Binding.of[OrderId])
@@ -249,11 +257,14 @@ val resolver: BindingResolver =
     ++ BindingResolver.defaults
 
 val rebound: Schema[Order] = dynamic.rebind[Order](resolver)
+val order                  = Order(OrderId("ORD-1"), List(LineItem("SKU-A", 2)))
+val encoded                = rebound.toDynamicValue(order)
+```
 
-// The rebound schema can encode and decode Order values
-val order   = Order(OrderId("ORD-1"), List(LineItem("SKU-A", 2)))
-val encoded = rebound.toDynamicValue(order)
-val decoded = rebound.fromDynamicValue(encoded)  // Right(order)
+We decode the encoded value to confirm the round-trip is lossless:
+
+```scala mdoc
+rebound.fromDynamicValue(encoded)
 ```
 
 :::warning
@@ -274,7 +285,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 The following example navigates to a field nested two levels deep:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Address(street: String, city: String)
@@ -284,12 +295,14 @@ object Address { implicit val schema: Schema[Address] = Schema.derived[Address] 
 object Person  { implicit val schema: Schema[Person]  = Schema.derived[Person]  }
 
 val dynSchema = Schema[Person].toDynamicSchema
-
-// Navigate to the "address.street" nested schema
-val streetSchema: Option[Reflect.Unbound[?]] =
+val streetSchema: Option[Reflect.Unbound[_]] =
   dynSchema.get(DynamicOptic.root.field("address").field("street"))
+```
 
-streetSchema.foreach(s => println(s.typeId.name))  // "String"
+We map over the result to read the type name at that path:
+
+```scala mdoc
+streetSchema.map(_.typeId.name)
 ```
 
 See [DynamicOptic](./dynamic-optic.md) for the full path DSL.
@@ -302,15 +315,18 @@ See [DynamicOptic](./dynamic-optic.md) for the full path DSL.
 
 Returns the `TypeId` of the root type:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Event(id: Long, kind: String)
 object Event { implicit val schema: Schema[Event] = Schema.derived[Event] }
 
 val dynSchema = Schema[Event].toDynamicSchema
-println(dynSchema.typeId.name)      // "Event"
-println(dynSchema.typeId.fullName)  // fully-qualified class name
+```
+
+```scala mdoc
+dynSchema.typeId.name
+dynSchema.typeId.fullName
 ```
 
 ### `DynamicSchema#doc`
@@ -326,14 +342,17 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 We attach a description and read it back to confirm it was applied:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Event(id: Long, kind: String)
 object Event { implicit val schema: Schema[Event] = Schema.derived[Event] }
 
 val updated: DynamicSchema = Schema[Event].toDynamicSchema.doc("An event in the event log")
-println(updated.doc)  // "An event in the event log"
+```
+
+```scala mdoc
+updated.doc
 ```
 
 ### `DynamicSchema#modifiers` and `DynamicSchema#modifier`
@@ -360,7 +379,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 We attach a default value and then retrieve it:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class Config(retries: Int)
@@ -371,8 +390,10 @@ val withDefault: DynamicSchema =
     .defaultValue(DynamicValue.Record(
       zio.blocks.chunk.Chunk("retries" -> DynamicValue.int(3))
     ))
+```
 
-withDefault.getDefaultValue  // Some(DynamicValue.Record(...))
+```scala mdoc
+withDefault.getDefaultValue
 ```
 
 ### `DynamicSchema#examples`
@@ -402,28 +423,28 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 The following example shows a schema-validation gateway: we receive a `DynamicSchema` from a registry, convert it to a `Schema[DynamicValue]`, and use the result to validate an incoming payload, rejecting it on structural mismatch:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 
 case class OrderEvent(orderId: String, amount: Double)
 object OrderEvent { implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent] }
 
-// Simulate receiving a DynamicSchema from a registry (e.g. deserialised from a blob)
-val blob: DynamicValue      = DynamicSchema.toDynamicValue(Schema[OrderEvent].toDynamicSchema)
-val received: DynamicSchema = DynamicSchema.fromDynamicValue(blob)
-
-// Convert to a Schema[DynamicValue] — no Scala types or BindingResolver needed
+val blob: DynamicValue          = DynamicSchema.toDynamicValue(Schema[OrderEvent].toDynamicSchema)
+val received: DynamicSchema     = DynamicSchema.fromDynamicValue(blob)
 val gatewaySchema: Schema[DynamicValue] = received.toSchema
 
-// Validate an incoming payload: fromDynamicValue returns Left on structural mismatch
 val incoming: DynamicValue = DynamicValue.Record(
   zio.blocks.chunk.Chunk(
     "orderId" -> DynamicValue.string("ORD-42"),
     "amount"  -> DynamicValue.double(99.95)
   )
 )
+```
 
-val result: Either[SchemaError, DynamicValue] = gatewaySchema.fromDynamicValue(incoming)
+We validate the payload and observe the result:
+
+```scala mdoc
+gatewaySchema.fromDynamicValue(incoming)
 ```
 
 ## Integration
@@ -473,8 +494,3 @@ sbt "schema-examples/runMain dynamicschema.DynamicSchemaRebindExample"
 sbt "schema-examples/runMain dynamicschema.DynamicSchemaRegistryExample"
 ```
 
-**3. Or compile all examples at once:**
-
-```bash
-sbt "schema-examples/compile"
-```
