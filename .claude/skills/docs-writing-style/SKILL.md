@@ -60,8 +60,17 @@ Apply these conventions consistently in all prose, section headings, and inline 
 - **Prefer `val` over `var`**: Use immutable patterns everywhere.
 - **Never hardcode expression output in comments**: Do not annotate expression results with inline
   comments such as `// None`, `// Some(SchemaError)`, or `// "hello"` — these go stale and can be
-  wrong. Let mdoc evaluate expressions and render output automatically. Use `mdoc:silent` to
-  suppress intermediate bindings and a bare `mdoc` block to show the evaluated result.
+  wrong. The fix is **not** to remove the comment and leave the block as `mdoc:compile-only` — that
+  still hides the result. The fix is to restructure the block so mdoc evaluates and renders the
+  output:
+  1. Move all type definitions and setup `val`s into a `mdoc:silent:reset` block (or `mdoc:silent`
+     if scope continuity is needed). Use `mdoc:silent:reset` in reference pages to avoid name
+     conflicts between independent sections.
+  2. Add a short bridging sentence ending in `:`.
+  3. Put the expressions whose results matter in a bare `mdoc` block — mdoc renders them as
+     REPL-style output automatically.
+  See **`docs-mdoc-conventions`** for the complete modifier table and the Setup + Evaluated Output
+  pattern.
 - **Code snippet description**: When showing example code snippets, explain what they do and why
   they are relevant. Don't just show code without context.
 
