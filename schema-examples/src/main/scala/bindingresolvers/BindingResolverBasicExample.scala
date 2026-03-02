@@ -21,9 +21,9 @@ object BindingResolverBasicExample extends App {
 
   val registry: BindingResolver.Registry =
     BindingResolver.empty
-      .bind(Binding.of[Person])  // Binding.Record[Person]
-      .bind(Binding.of[Status])  // Binding.Variant[Status]
-      .bind(Binding.of[Int])     // Binding.Primitive[Int]
+      .bind(Binding.of[Person]) // Binding.Record[Person]
+      .bind(Binding.of[Status]) // Binding.Variant[Status]
+      .bind(Binding.of[Int])    // Binding.Primitive[Int]
 
   show(registry.resolveRecord[Person].isDefined)
   show(registry.resolveVariant[Status].isDefined)

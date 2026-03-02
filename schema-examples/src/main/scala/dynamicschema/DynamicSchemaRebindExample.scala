@@ -11,7 +11,8 @@ import util.ShowExpr.show
  * structural schema to produce a fully operational Schema[A] that can encode
  * and decode values.
  *
- * Run with: sbt "schema-examples/runMain dynamicschema.DynamicSchemaRebindExample"
+ * Run with: sbt "schema-examples/runMain
+ * dynamicschema.DynamicSchemaRebindExample"
  */
 object DynamicSchemaRebindExample extends App {
 
@@ -22,8 +23,8 @@ object DynamicSchemaRebindExample extends App {
   case class Order(customerId: CustomerId, items: List[LineItem], total: Double)
 
   object CustomerId { implicit val schema: Schema[CustomerId] = Schema.derived[CustomerId] }
-  object LineItem   { implicit val schema: Schema[LineItem]   = Schema.derived[LineItem]   }
-  object Order      { implicit val schema: Schema[Order]      = Schema.derived[Order]      }
+  object LineItem   { implicit val schema: Schema[LineItem] = Schema.derived[LineItem]     }
+  object Order      { implicit val schema: Schema[Order] = Schema.derived[Order]           }
 
   // ── Step 1: strip bindings and serialize ──────────────────────────────────
 
@@ -52,17 +53,17 @@ object DynamicSchemaRebindExample extends App {
 
   val order = Order(
     customerId = CustomerId("CUST-42"),
-    items      = List(
+    items = List(
       LineItem("SKU-A", quantity = 2, unitPrice = 29.99),
-      LineItem("SKU-B", quantity = 1, unitPrice =  9.99)
+      LineItem("SKU-B", quantity = 1, unitPrice = 9.99)
     ),
-    total      = 69.97
+    total = 69.97
   )
 
   val encoded = rebound.toDynamicValue(order)
   val decoded = rebound.fromDynamicValue(encoded)
 
   println("=== Rebind + round-trip ===")
-  show(decoded)             // Right(Order(...))
-  show(decoded == Right(order))  // true
+  show(decoded)                 // Right(Order(...))
+  show(decoded == Right(order)) // true
 }

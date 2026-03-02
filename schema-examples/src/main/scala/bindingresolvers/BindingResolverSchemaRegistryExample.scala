@@ -51,7 +51,7 @@ object BindingResolverSchemaRegistryExample extends App {
   // DynamicSchema#rebind walks the unbound Reflect tree and attaches Binding
   // instances from the resolver to each node, producing a fully operational Schema.
   val customerSchema: Schema[Customer] = registry("customer").rebind[Customer](resolver)
-  val invoiceSchema:  Schema[Invoice]  = registry("invoice").rebind[Invoice](resolver)
+  val invoiceSchema: Schema[Invoice]   = registry("invoice").rebind[Invoice](resolver)
 
   // ── Round-trip: encode then decode through the rebound schemas ─────────────────
 

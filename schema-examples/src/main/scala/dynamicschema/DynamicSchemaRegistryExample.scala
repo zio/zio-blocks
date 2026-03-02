@@ -7,11 +7,12 @@ import util.ShowExpr.show
 /**
  * DynamicSchema Reference — Schema Registry Pipeline
  *
- * End-to-end demonstration of the schema registry pattern: producer registers
- * a schema as a DynamicValue blob; consumer fetches the blob, restores the
+ * End-to-end demonstration of the schema registry pattern: producer registers a
+ * schema as a DynamicValue blob; consumer fetches the blob, restores the
  * DynamicSchema, rebinds it, and decodes incoming events.
  *
- * Run with: sbt "schema-examples/runMain dynamicschema.DynamicSchemaRegistryExample"
+ * Run with: sbt "schema-examples/runMain
+ * dynamicschema.DynamicSchemaRegistryExample"
  */
 object DynamicSchemaRegistryExample extends App {
 
@@ -21,8 +22,8 @@ object DynamicSchemaRegistryExample extends App {
   case class OrderItem(itemId: ItemId, quantity: Int)
   case class OrderCreated(orderId: String, customerId: String, items: List[OrderItem])
 
-  object ItemId       { implicit val schema: Schema[ItemId]       = Schema.derived[ItemId]       }
-  object OrderItem    { implicit val schema: Schema[OrderItem]    = Schema.derived[OrderItem]    }
+  object ItemId       { implicit val schema: Schema[ItemId] = Schema.derived[ItemId]             }
+  object OrderItem    { implicit val schema: Schema[OrderItem] = Schema.derived[OrderItem]       }
   object OrderCreated { implicit val schema: Schema[OrderCreated] = Schema.derived[OrderCreated] }
 
   // ── Schema registry (in-memory simulation) ────────────────────────────────
@@ -57,17 +58,21 @@ object DynamicSchemaRegistryExample extends App {
     println(s"[Producer] Published OrderCreated(orderId=${event.orderId})")
   }
 
-  publishEvent(OrderCreated(
-    orderId    = "ORD-001",
-    customerId = "CUST-42",
-    items      = List(OrderItem(ItemId("ITEM-A"), 2), OrderItem(ItemId("ITEM-B"), 1))
-  ))
+  publishEvent(
+    OrderCreated(
+      orderId = "ORD-001",
+      customerId = "CUST-42",
+      items = List(OrderItem(ItemId("ITEM-A"), 2), OrderItem(ItemId("ITEM-B"), 1))
+    )
+  )
 
-  publishEvent(OrderCreated(
-    orderId    = "ORD-002",
-    customerId = "CUST-17",
-    items      = List(OrderItem(ItemId("ITEM-C"), 5))
-  ))
+  publishEvent(
+    OrderCreated(
+      orderId = "ORD-002",
+      customerId = "CUST-17",
+      items = List(OrderItem(ItemId("ITEM-C"), 5))
+    )
+  )
 
   // ── Consumer side ─────────────────────────────────────────────────────────
 
@@ -82,9 +87,9 @@ object DynamicSchemaRegistryExample extends App {
       ++ BindingResolver.defaults
 
   queue.foreach { msg =>
-    val dynamic    = fetchSchema(msg.schemaId)
-    val rebound    = dynamic.rebind[OrderCreated](resolver)
-    val decoded    = rebound.fromDynamicValue(msg.payload)
+    val dynamic = fetchSchema(msg.schemaId)
+    val rebound = dynamic.rebind[OrderCreated](resolver)
+    val decoded = rebound.fromDynamicValue(msg.payload)
     show(decoded)
   }
 }

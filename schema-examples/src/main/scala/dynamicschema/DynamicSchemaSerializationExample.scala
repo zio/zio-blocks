@@ -9,7 +9,8 @@ import util.ShowExpr.show
  * Demonstrates converting a DynamicSchema to a DynamicValue for storage or
  * transmission, and reconstructing it on the other side.
  *
- * Run with: sbt "schema-examples/runMain dynamicschema.DynamicSchemaSerializationExample"
+ * Run with: sbt "schema-examples/runMain
+ * dynamicschema.DynamicSchemaSerializationExample"
  */
 object DynamicSchemaSerializationExample extends App {
 
@@ -21,11 +22,11 @@ object DynamicSchemaSerializationExample extends App {
   // The blob contains only field names, type names, and annotations — no closures.
 
   val original: DynamicSchema = Schema[Product].toDynamicSchema
-  val blob:     DynamicValue  = DynamicSchema.toDynamicValue(original)
+  val blob: DynamicValue      = DynamicSchema.toDynamicValue(original)
 
   println("=== Serialized schema ===")
-  show(blob.valueType)               // "Record" — the DynamicValue encoding of the schema
-  show(original.typeId.name)         // "Product"
+  show(blob.valueType)       // "Record" — the DynamicValue encoding of the schema
+  show(original.typeId.name) // "Product"
 
   // ── Consumer side ─────────────────────────────────────────────────────────
   // Restore the schema from the stored blob.
@@ -33,12 +34,12 @@ object DynamicSchemaSerializationExample extends App {
   val restored: DynamicSchema = DynamicSchema.fromDynamicValue(blob)
 
   println("\n=== Restored schema ===")
-  show(restored.typeId.name)          // "Product" — type identity is preserved
-  show(restored.reflect.getClass.getSimpleName)  // reflects the Reflect.Record shape
+  show(restored.typeId.name)                    // "Product" — type identity is preserved
+  show(restored.reflect.getClass.getSimpleName) // reflects the Reflect.Record shape
 
   // ── Verify structural equivalence ─────────────────────────────────────────
   // Re-serialize and compare the blobs to show the round-trip is lossless.
 
   val blob2: DynamicValue = DynamicSchema.toDynamicValue(restored)
-  show(blob == blob2)  // true — round-trip is lossless
+  show(blob == blob2) // true — round-trip is lossless
 }
