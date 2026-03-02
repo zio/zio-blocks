@@ -58,9 +58,10 @@ Apply these conventions consistently in all prose, section headings, and inline 
 - **Always include imports**: Every code block must start with the necessary import statements.
 - **One concept per code block**: Each code block demonstrates one cohesive idea.
 - **Prefer `val` over `var`**: Use immutable patterns everywhere.
-- **Show evaluated output with mdoc, not comments**: When expressions have results that are
-  meaningful to the reader, use `mdoc:silent` + `mdoc` so mdoc renders the real output. Do **not**
-  write `// Right(42L)` or `// Some("hello")` manually — these go stale and can be wrong.
+- **Never hardcode expression output in comments**: Do not annotate expression results with inline
+  comments such as `// None`, `// Some(SchemaError)`, or `// "hello"` — these go stale and can be
+  wrong. Let mdoc evaluate expressions and render output automatically. Use `mdoc:silent` to
+  suppress intermediate bindings and a bare `mdoc` block to show the evaluated result.
 - **Code snippet description**: When showing example code snippets, explain what they do and why
   they are relevant. Don't just show code without context.
 
