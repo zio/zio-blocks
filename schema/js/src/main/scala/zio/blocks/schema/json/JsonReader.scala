@@ -240,7 +240,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsDuration(): Duration = {
     nextTokenOrError('"', head)
-    val x = parseDuration()
+    val x = parseDuration(false)
     nextTokenOrError(':', head)
     x
   }
@@ -255,7 +255,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsInstant(): Instant = {
     nextTokenOrError('"', head)
-    val x = parseInstant()
+    val x = parseInstant(false)
     nextTokenOrError(':', head)
     x
   }
@@ -270,7 +270,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsLocalDate(): LocalDate = {
     nextTokenOrError('"', head)
-    val x = parseLocalDate()
+    val x = parseLocalDate(false)
     nextTokenOrError(':', head)
     x
   }
@@ -285,7 +285,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsLocalDateTime(): LocalDateTime = {
     nextTokenOrError('"', head)
-    val x = parseLocalDateTime()
+    val x = parseLocalDateTime(false)
     nextTokenOrError(':', head)
     x
   }
@@ -300,7 +300,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsLocalTime(): LocalTime = {
     nextTokenOrError('"', head)
-    val x = parseLocalTime()
+    val x = parseLocalTime(false)
     nextTokenOrError(':', head)
     x
   }
@@ -315,7 +315,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsMonthDay(): MonthDay = {
     nextTokenOrError('"', head)
-    val x = parseMonthDay(head)
+    val x = parseMonthDay(head, false)
     nextTokenOrError(':', head)
     x
   }
@@ -330,7 +330,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsOffsetDateTime(): OffsetDateTime = {
     nextTokenOrError('"', head)
-    val x = parseOffsetDateTime()
+    val x = parseOffsetDateTime(false)
     nextTokenOrError(':', head)
     x
   }
@@ -345,7 +345,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsOffsetTime(): OffsetTime = {
     nextTokenOrError('"', head)
-    val x = parseOffsetTime()
+    val x = parseOffsetTime(false)
     nextTokenOrError(':', head)
     x
   }
@@ -360,7 +360,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsPeriod(): Period = {
     nextTokenOrError('"', head)
-    val x = parsePeriod()
+    val x = parsePeriod(false)
     nextTokenOrError(':', head)
     x
   }
@@ -390,7 +390,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsYearMonth(): YearMonth = {
     nextTokenOrError('"', head)
-    val x = parseYearMonth()
+    val x = parseYearMonth(false)
     nextTokenOrError(':', head)
     x
   }
@@ -405,7 +405,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsZonedDateTime(): ZonedDateTime = {
     nextTokenOrError('"', head)
-    val x = parseZonedDateTime()
+    val x = parseZonedDateTime(false)
     nextTokenOrError(':', head)
     x
   }
@@ -420,7 +420,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsZoneId(): ZoneId = {
     nextTokenOrError('"', head)
-    val x = parseZoneId()
+    val x = parseZoneId(false)
     nextTokenOrError(':', head)
     x
   }
@@ -435,7 +435,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsZoneOffset(): ZoneOffset = {
     nextTokenOrError('"', head)
-    val x = parseZoneOffset()
+    val x = parseZoneOffset(false)
     nextTokenOrError(':', head)
     x
   }
@@ -868,7 +868,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readDuration(default: Duration): Duration =
-    if (isNextToken('"', head)) parseDuration()
+    if (isNextToken('"', head)) parseDuration(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -890,7 +890,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readInstant(default: Instant): Instant =
-    if (isNextToken('"', head)) parseInstant()
+    if (isNextToken('"', head)) parseInstant(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -912,7 +912,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readLocalDate(default: LocalDate): LocalDate =
-    if (isNextToken('"', head)) parseLocalDate()
+    if (isNextToken('"', head)) parseLocalDate(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -934,7 +934,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readLocalDateTime(default: LocalDateTime): LocalDateTime =
-    if (isNextToken('"', head)) parseLocalDateTime()
+    if (isNextToken('"', head)) parseLocalDateTime(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -956,7 +956,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readLocalTime(default: LocalTime): LocalTime =
-    if (isNextToken('"', head)) parseLocalTime()
+    if (isNextToken('"', head)) parseLocalTime(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -978,7 +978,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readMonthDay(default: MonthDay): MonthDay =
-    if (isNextToken('"', head)) parseMonthDay(head)
+    if (isNextToken('"', head)) parseMonthDay(head, false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1000,7 +1000,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readOffsetDateTime(default: OffsetDateTime): OffsetDateTime =
-    if (isNextToken('"', head)) parseOffsetDateTime()
+    if (isNextToken('"', head)) parseOffsetDateTime(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1022,7 +1022,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readOffsetTime(default: OffsetTime): OffsetTime =
-    if (isNextToken('"', head)) parseOffsetTime()
+    if (isNextToken('"', head)) parseOffsetTime(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1044,7 +1044,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readPeriod(default: Period): Period =
-    if (isNextToken('"', head)) parsePeriod()
+    if (isNextToken('"', head)) parsePeriod(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1088,7 +1088,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readYearMonth(default: YearMonth): YearMonth =
-    if (isNextToken('"', head)) parseYearMonth()
+    if (isNextToken('"', head)) parseYearMonth(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1110,7 +1110,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readZonedDateTime(default: ZonedDateTime): ZonedDateTime =
-    if (isNextToken('"', head)) parseZonedDateTime()
+    if (isNextToken('"', head)) parseZonedDateTime(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1132,7 +1132,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readZoneId(default: ZoneId): ZoneId =
-    if (isNextToken('"', head)) parseZoneId()
+    if (isNextToken('"', head)) parseZoneId(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1154,7 +1154,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readZoneOffset(default: ZoneOffset): ZoneOffset =
-    if (isNextToken('"', head)) parseZoneOffset()
+    if (isNextToken('"', head)) parseZoneOffset(false)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1432,6 +1432,146 @@ final class JsonReader private[json] (
     System.arraycopy(buf, from, x, 0, len)
     x
   } finally markNum -= 1
+
+  /**
+   * Reads a raw JSON value into an [[java.time.Duration]] instance.
+   *
+   * @return
+   *   an [[java.time.Duration]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsDuration(): Duration = parseDuration(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.Instant]] instance.
+   *
+   * @return
+   *   an [[java.time.Instant]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsInstant(): Instant = parseInstant(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.LocalDate]] instance.
+   *
+   * @return
+   *   an [[java.time.LocalDate]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsLocalDate(): LocalDate = parseLocalDate(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.LocalDateTime]] instance.
+   *
+   * @return
+   *   an [[java.time.LocalDateTime]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsLocalDateTime(): LocalDateTime = parseLocalDateTime(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.LocalTime]] instance.
+   *
+   * @return
+   *   an [[java.time.LocalTime]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsLocalTime(): LocalTime = parseLocalTime(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.MonthDay]] instance.
+   *
+   * @return
+   *   an [[java.time.MonthDay]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsMonthDay(): MonthDay = parseMonthDay(head, true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.OffsetDateTime]] instance.
+   *
+   * @return
+   *   an [[java.time.OffsetDateTime]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsOffsetDateTime(): OffsetDateTime = parseOffsetDateTime(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.OffsetTime]] instance.
+   *
+   * @return
+   *   an [[java.time.OffsetTime]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsOffsetTime(): OffsetTime = parseOffsetTime(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.Period]] instance.
+   *
+   * @return
+   *   an [[java.time.Period]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsPeriod(): Period = parsePeriod(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.Year]] instance.
+   *
+   * @return
+   *   an [[java.time.Year]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsYear(): Year = Year.of(parseYear(9, head))
+
+  /**
+   * Reads a raw JSON value into an [[java.time.YearMonth]] instance.
+   *
+   * @return
+   *   an [[java.time.YearMonth]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsYearMonth(): YearMonth = parseYearMonth(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.ZoneOffset]] instance.
+   *
+   * @return
+   *   an [[java.time.ZoneOffset]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsZoneOffset(): ZoneOffset = parseZoneOffset(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.ZoneId]] instance.
+   *
+   * @return
+   *   an [[java.time.ZoneId]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsZoneId(): ZoneId = parseZoneId(true)
+
+  /**
+   * Reads a raw JSON value into an [[java.time.ZonedDateTime]] instance.
+   *
+   * @return
+   *   an [[java.time.ZonedDateTime]] instance of the raw JSON value.
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  private[json] def readRawValAsZonedDateTime(): ZonedDateTime = parseZonedDateTime(true)
 
   /**
    * Finishes reading the `null` JSON value and returns the provided default
@@ -1780,8 +1920,8 @@ final class JsonReader private[json] (
   ): A = {
     top = 0
     maxTop = 0
-    markNum = 0
     totalRead = 0
+    markNum = 0
     val currBuf = this.buf
     try {
       this.buf = buf
@@ -1820,12 +1960,12 @@ final class JsonReader private[json] (
    */
   private[json] def read[A](codec: JsonBinaryCodec[A], in: InputStream, config: ReaderConfig): A =
     try {
-      head = 0
-      tail = 0
       top = 0
       maxTop = 0
-      markNum = 0
+      head = 0
+      tail = 0
       totalRead = 0
+      markNum = 0
       this.config = config
       this.in = in
       if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
@@ -2090,6 +2230,57 @@ final class JsonReader private[json] (
   }
 
   @tailrec
+  private[this] def parseYear(maxDigits: Int, pos: Int): Int =
+    if (pos + 3 < tail) {
+      val buf = this.buf
+      val b1  = buf(pos)
+      if (b1 >= '0' && b1 <= '9') {
+        val b2 = buf(pos + 1)
+        val b3 = buf(pos + 2)
+        val b4 = buf(pos + 3)
+        head = pos + 4
+        if (b2 < '0' || b2 > '9' || b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9') digitError()
+        b1 * 1000 + b2 * 100 + b3 * 10 + b4 - 53328 // 53328 == '0' * 1111
+      } else parseNon4DigitYear(maxDigits, b1, pos)
+    } else parseYear(maxDigits, loadMoreOrError(pos))
+
+  private[this] def parseNon4DigitYear(maxDigits: Int, b1: Byte, p: Int): Int = {
+    var pos = p
+    var buf = this.buf
+    val b2  = buf(pos + 1)
+    val b3  = buf(pos + 2)
+    val b4  = buf(pos + 3)
+    val b5  = buf(pos + 4)
+    if (b1 != '-' && b1 != '+') decodeError("expected '-' or '+' or digit")
+    if (b2 < '0' || b2 > '9' || b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9' || b5 < '0' || b5 > '9') digitError()
+    var year       = b2 * 1000 + b3 * 100 + b4 * 10 + b5 - 53328 // 53328 == '0' * 1111
+    var yearDigits = 4
+    var b: Byte    = 0
+    pos += 5
+    while (
+      (pos < tail || {
+        pos = loadMore(pos)
+        buf = this.buf
+        pos < tail
+      }) && {
+        b = buf(pos)
+        (b >= '0' && b <= '9') && yearDigits < maxDigits
+      }
+    ) {
+      year =
+        if (year > 100000000) 2147483647
+        else year * 10 + (b - '0')
+      yearDigits += 1
+      pos += 1
+    }
+    head = pos
+    if (b1 == '-' && year == 0 || yearDigits == 10 && year > 1000000000) yearError()
+    if (b1 == '-') year = -year
+    if (year >= 0 && year < 10000) digitError()
+    year
+  }
+
+  @tailrec
   private[this] def parseMonthWithByte(t: Byte, pos: Int): Int =
     if (pos + 2 < tail) {
       val buf   = this.buf
@@ -2105,6 +2296,19 @@ final class JsonReader private[json] (
     } else parseMonthWithByte(t, loadMoreOrError(pos))
 
   @tailrec
+  private[this] def parseMonth(pos: Int): Int =
+    if (pos + 1 < tail) {
+      val buf   = this.buf
+      val b1    = buf(pos)
+      val b2    = buf(pos + 1)
+      val month = b1 * 10 + b2 - 528 // 528 == '0' * 11
+      head = pos + 2
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (month < 1 || month > 12) monthError()
+      month
+    } else parseMonth(loadMoreOrError(pos))
+
+  @tailrec
   private[this] def parseDayWithByte(year: Int, month: Int, t: Byte, pos: Int): Int =
     if (pos + 2 < tail) {
       val buf = this.buf
@@ -2118,6 +2322,19 @@ final class JsonReader private[json] (
       if (b3 != t) tokenError(t)
       day
     } else parseDayWithByte(year, month, t, loadMoreOrError(pos))
+
+  @tailrec
+  private[this] def parseDay(year: Int, month: Int, pos: Int): Int =
+    if (pos + 1 < tail) {
+      val buf = this.buf
+      val b1  = buf(pos)
+      val b2  = buf(pos + 1)
+      val day = b1 * 10 + b2 - 528 // 528 == '0' * 11
+      head = pos + 2
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (day == 0 || (day > 28 && day > maxDayForYearMonth(year, month))) dayError()
+      day
+    } else parseDay(year, month, loadMoreOrError(pos))
 
   @tailrec
   private[this] def parseHourWithColon(pos: Int): Int =
@@ -2197,6 +2414,34 @@ final class JsonReader private[json] (
     nano
   }
 
+  private[this] def parseOptionalNano(): Int = {
+    var b =
+      if (hasRemaining()) nextByte(head)
+      else -1
+    var nano = 0
+    if (b == '.') {
+      var pos             = head
+      var buf             = this.buf
+      var nanoDigitWeight = 100000000
+      while (
+        (pos < tail || {
+          pos = loadMore(pos)
+          buf = this.buf
+          pos < tail
+        }) && {
+          b = buf(pos)
+          pos += 1
+          (b >= '0' && b <= '9') && nanoDigitWeight != 0
+        }
+      ) {
+        nano += (b - '0') * nanoDigitWeight
+        nanoDigitWeight /= 10
+      }
+      head = pos
+    } else if (b >= 0) tokenError('.')
+    nano
+  }
+
   @tailrec
   private[this] def parseOffsetHour(pos: Int): Int =
     if (pos + 1 < tail) {
@@ -2251,28 +2496,42 @@ final class JsonReader private[json] (
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseOffsetSecondWithDoubleQuotes(loadMoreOrError(pos))
 
-  private[this] def parseZoneId(): ZoneId = {
+  private[this] def parseZoneId(isRaw: Boolean): ZoneId = {
     var pos = head
     var buf = this.buf
     setMark(pos)
     try {
       var hash    = 0
       var b: Byte = 0
-      while ({
-        if (pos >= tail) {
-          pos = loadMoreOrError(pos)
-          buf = this.buf
-        }
-        b = buf(pos)
-        pos += 1
-        b != '"'
-      }) hash = (hash << 5) - hash + b
+      if (isRaw) {
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            pos += 1
+            b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != ']' && b != '}'
+          }
+        ) hash = (hash << 5) - hash + b
+      } else {
+        while ({
+          if (pos >= tail) {
+            pos = loadMoreOrError(pos)
+            buf = this.buf
+          }
+          b = buf(pos)
+          pos += 1
+          b != '"'
+        }) hash = (hash << 5) - hash + b
+      }
       var k = zoneIdKey
       if (k eq null) {
         k = new Key
         zoneIdKey = k
       }
-      k.set(hash, buf, marks(markNum - 1), pos - 1)
+      k.set(hash, buf, marks(markNum - 1), if (isRaw) pos else pos - 1)
       var zoneId = zoneIds.get(k)
       if (zoneId eq null) zoneId = toZoneId(k)
       head = pos
@@ -3204,7 +3463,7 @@ final class JsonReader private[json] (
 
   private[this] def longOverflowError(): Nothing = decodeError("value is too large for long")
 
-  private[this] def parseDuration(): Duration = {
+  private[this] def parseDuration(isRaw: Boolean): Duration = {
     var b = nextByte(head)
     var s = 0
     if (b == '-') {
@@ -3303,8 +3562,16 @@ final class JsonReader private[json] (
           nano = (nano ^ sx) - sx
         }
       } else durationError(state)
-      b = nextByte(pos + 1)
-      b != '"'
+      if (isRaw) {
+        head = pos + 1
+        if (hasRemaining()) {
+          b = nextByte(head)
+          b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != ']' && b != '}'
+        } else false
+      } else {
+        b = nextByte(pos + 1)
+        b != '"'
+      }
     }) {
       if (state == 0) {
         if (b != 'T') tokensError('T', '"')
@@ -3322,7 +3589,7 @@ final class JsonReader private[json] (
     s
   }
 
-  private[this] def parseInstant(): Instant = {
+  private[this] def parseInstant(isRaw: Boolean): Instant = {
     val year            = parseYearWithByte('-', 10, head)
     val month           = parseMonthWithByte('-', head)
     val day             = parseDayWithByte(year, month, 'T', head)
@@ -3348,10 +3615,17 @@ final class JsonReader private[json] (
       }
       head = pos
     }
-    if (b == 'Z') nextByteOrError('"', head)
-    else if (b == '-') epochSecond += parseOffsetTotalWithDoubleQuotes(head)
-    else if (b == '+') epochSecond -= parseOffsetTotalWithDoubleQuotes(head)
-    else timeError(nanoDigitWeight)
+    if (b == 'Z') {
+      if (!isRaw) nextByteOrError('"', head)
+    } else if (b == '-') {
+      epochSecond +=
+        (if (isRaw) parseOffsetTotal(head)
+         else parseOffsetTotalWithDoubleQuotes(head))
+    } else if (b == '+') {
+      epochSecond -=
+        (if (isRaw) parseOffsetTotal(head)
+         else parseOffsetTotalWithDoubleQuotes(head))
+    } else timeError(nanoDigitWeight)
     if (nano == 0) Instant.ofEpochSecond(epochSecond)
     else Instant.ofEpochSecond(epochSecond, nano.toLong)
   }
@@ -3360,74 +3634,127 @@ final class JsonReader private[json] (
   private[this] def parseSecondOfDay(pos: Int): Long =
     (parseHourWithColon(pos) * 3600 + parseMinuteWithColon(head) * 60 + parseSecond(head)).toLong
 
-  private[this] def parseLocalDate(): LocalDate = {
+  private[this] def parseLocalDate(isRaw: Boolean): LocalDate = {
     val year  = parseYearWithByte('-', 9, head)
     val month = parseMonthWithByte('-', head)
-    val day   = parseDayWithByte(year, month, '"', head)
+    val day   =
+      if (isRaw) parseDay(year, month, head)
+      else parseDayWithByte(year, month, '"', head)
     LocalDate.of(year, month, day)
   }
 
-  private[this] def parseLocalDateTime(): LocalDateTime = {
-    val year         = parseYearWithByte('-', 9, head)
-    val month        = parseMonthWithByte('-', head)
-    val day          = parseDayWithByte(year, month, 'T', head)
-    val hour         = parseHourWithColon(head)
-    val minute       = parseMinute(head)
-    val b            = nextByte(head)
+  private[this] def parseLocalDateTime(isRaw: Boolean): LocalDateTime = {
+    val year   = parseYearWithByte('-', 9, head)
+    val month  = parseMonthWithByte('-', head)
+    val day    = parseDayWithByte(year, month, 'T', head)
+    val hour   = parseHourWithColon(head)
+    val minute = parseMinute(head)
+    val b      =
+      if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else -1
+      } else nextByte(head)
     var second, nano = 0
     if (b == ':') {
       second = parseSecond(head)
-      nano = parseOptionalNanoWithDoubleQuotes()
-    } else if (b != '"') tokensError(':', '"')
+      nano =
+        if (isRaw) parseOptionalNano()
+        else parseOptionalNanoWithDoubleQuotes()
+    } else {
+      if (isRaw) {
+        if (b >= 0) tokenError(':')
+      } else {
+        if (b != '"') tokensError(':', '"')
+      }
+    }
     LocalDateTime.of(year, month, day, hour, minute, second, nano)
   }
 
-  private[this] def parseLocalTime(): LocalTime = {
-    val hour         = parseHourWithColon(head)
-    val minute       = parseMinute(head)
-    val b            = nextByte(head)
+  private[this] def parseLocalTime(isRaw: Boolean): LocalTime = {
+    val hour   = parseHourWithColon(head)
+    val minute = parseMinute(head)
+    val b      =
+      if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else -1
+      } else nextByte(head)
     var second, nano = 0
     if (b == ':') {
       second = parseSecond(head)
-      nano = parseOptionalNanoWithDoubleQuotes()
-    } else if (b != '"') tokensError(':', '"')
+      nano =
+        if (isRaw) parseOptionalNano()
+        else parseOptionalNanoWithDoubleQuotes()
+    } else {
+      if (isRaw) {
+        if (b >= 0) tokenError(':')
+      } else {
+        if (b != '"') tokensError(':', '"')
+      }
+    }
     LocalTime.of(hour, minute, second, nano)
   }
 
   @tailrec
-  private[this] def parseMonthDay(pos: Int): MonthDay =
-    if (pos + 7 < tail) {
-      val buf = this.buf
-      if (buf(pos) != '-' || buf(pos + 1) != '-') tokenError('-')
-      val b3    = buf(pos + 2)
-      val b4    = buf(pos + 3)
-      val month = b3 * 10 + b4 - 528 // 528 == '0' * 11
-      if (b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9') digitError()
-      if (month < 1 || month > 12) monthError()
-      if (buf(pos + 4) != '-') tokenError('-')
-      val b6  = buf(pos + 5)
-      val b7  = buf(pos + 6)
-      val day = b6 * 10 + b7 - 528 // 528 == '0' * 11
-      head = pos + 8
-      if (b6 < '0' || b6 > '9' || b7 < '0' || b7 > '9') digitError()
-      if (day == 0 || (day > 28 && day > maxDayForMonth(month))) dayError()
-      if (buf(pos + 7) != '"') tokenError('"')
-      MonthDay.of(month, day)
-    } else parseMonthDay(loadMoreOrError(pos))
+  private[this] def parseMonthDay(pos: Int, isRaw: Boolean): MonthDay =
+    if (isRaw) {
+      if (pos + 6 < tail) {
+        val buf = this.buf
+        if (buf(pos) != '-' || buf(pos + 1) != '-') tokenError('-')
+        val b3    = buf(pos + 2)
+        val b4    = buf(pos + 3)
+        val month = b3 * 10 + b4 - 528 // 528 == '0' * 11
+        if (b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9') digitError()
+        if (month < 1 || month > 12) monthError()
+        if (buf(pos + 4) != '-') tokenError('-')
+        val b6  = buf(pos + 5)
+        val b7  = buf(pos + 6)
+        val day = b6 * 10 + b7 - 528 // 528 == '0' * 11
+        head = pos + 7
+        if (b6 < '0' || b6 > '9' || b7 < '0' || b7 > '9') digitError()
+        if (day == 0 || (day > 28 && day > maxDayForMonth(month))) dayError()
+        MonthDay.of(month, day)
+      } else parseMonthDay(loadMoreOrError(pos), isRaw)
+    } else {
+      if (pos + 7 < tail) {
+        val buf = this.buf
+        if (buf(pos) != '-' || buf(pos + 1) != '-') tokenError('-')
+        val b3    = buf(pos + 2)
+        val b4    = buf(pos + 3)
+        val month = b3 * 10 + b4 - 528 // 528 == '0' * 11
+        if (b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9') digitError()
+        if (month < 1 || month > 12) monthError()
+        if (buf(pos + 4) != '-') tokenError('-')
+        val b6  = buf(pos + 5)
+        val b7  = buf(pos + 6)
+        val day = b6 * 10 + b7 - 528 // 528 == '0' * 11
+        head = pos + 8
+        if (b6 < '0' || b6 > '9' || b7 < '0' || b7 > '9') digitError()
+        if (day == 0 || (day > 28 && day > maxDayForMonth(month))) dayError()
+        if (buf(pos + 7) != '"') tokenError('"')
+        MonthDay.of(month, day)
+      } else parseMonthDay(loadMoreOrError(pos), isRaw)
+    }
 
-  private[this] def parseOffsetDateTime(): OffsetDateTime = {
-    val year            = parseYearWithByte('-', 9, head)
-    val month           = parseMonthWithByte('-', head)
-    val day             = parseDayWithByte(year, month, 'T', head)
-    val hour            = parseHourWithColon(head)
-    val minute          = parseMinute(head)
-    var b               = nextByte(head)
+  private[this] def parseOffsetDateTime(isRaw: Boolean): OffsetDateTime = {
+    val year   = parseYearWithByte('-', 9, head)
+    val month  = parseMonthWithByte('-', head)
+    val day    = parseDayWithByte(year, month, 'T', head)
+    val hour   = parseHourWithColon(head)
+    val minute = parseMinute(head)
+    var b      =
+      if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
     var second, nano    = 0
     var nanoDigitWeight = -1
     if (b == ':') {
       nanoDigitWeight = -2
       second = parseSecond(head)
-      b = nextByte(head)
+      b = if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
       if (b == '.') {
         nanoDigitWeight = 100000000
         var pos = head
@@ -3449,23 +3776,35 @@ final class JsonReader private[json] (
     }
     val zoneOffset =
       if (b == 'Z') {
-        nextByteOrError('"', head)
+        if (!isRaw) nextByteOrError('"', head)
         ZoneOffset.UTC
-      } else if (b == '-' || b == '+') toZoneOffset(b, parseOffsetTotalWithDoubleQuotes(head))
-      else timeError(nanoDigitWeight)
+      } else if (b == '-' || b == '+') {
+        toZoneOffset(
+          b,
+          if (isRaw) parseOffsetTotal(head)
+          else parseOffsetTotalWithDoubleQuotes(head)
+        )
+      } else timeError(nanoDigitWeight)
     OffsetDateTime.of(year, month, day, hour, minute, second, nano, zoneOffset)
   }
 
-  private[this] def parseOffsetTime(): OffsetTime = {
-    val hour            = parseHourWithColon(head)
-    val minute          = parseMinute(head)
-    var b               = nextByte(head)
+  private[this] def parseOffsetTime(isRaw: Boolean): OffsetTime = {
+    val hour   = parseHourWithColon(head)
+    val minute = parseMinute(head)
+    var b      =
+      if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
     var second, nano    = 0
     var nanoDigitWeight = -1
     if (b == ':') {
       nanoDigitWeight = -2
       second = parseSecond(head)
-      b = nextByte(head)
+      b = if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
       if (b == '.') {
         nanoDigitWeight = 100000000
         var pos = head
@@ -3487,14 +3826,19 @@ final class JsonReader private[json] (
     }
     val zoneOffset =
       if (b == 'Z') {
-        nextByteOrError('"', head)
+        if (!isRaw) nextByteOrError('"', head)
         ZoneOffset.UTC
-      } else if (b == '-' || b == '+') toZoneOffset(b, parseOffsetTotalWithDoubleQuotes(head))
-      else timeError(nanoDigitWeight)
+      } else if (b == '-' || b == '+') {
+        toZoneOffset(
+          b,
+          if (isRaw) parseOffsetTotal(head)
+          else parseOffsetTotalWithDoubleQuotes(head)
+        )
+      } else timeError(nanoDigitWeight)
     OffsetTime.of(hour, minute, second, nano, zoneOffset)
   }
 
-  private[this] def parsePeriod(): Period = {
+  private[this] def parsePeriod(isRaw: Boolean): Period = {
     var b = nextByte(head)
     var s = 0
     if (b == '-') {
@@ -3550,45 +3894,81 @@ final class JsonReader private[json] (
         state = 4
         if (((x ^ days) & (d ^ days)) < 0) periodError()
       } else periodError(state)
-      b = nextByte(pos + 1)
-      b != '"'
+      if (isRaw) {
+        head = pos + 1
+        if (hasRemaining()) {
+          b = nextByte(head)
+          b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != '}' && b != ']'
+        } else false
+      } else {
+        b = nextByte(pos + 1)
+        b != '"'
+      }
     }) {
       if (state == 4) tokenError('"')
     }
     Period.of(years, months, days)
   }
 
-  private[this] def parseYearMonth(): YearMonth =
-    YearMonth.of(parseYearWithByte('-', 9, head), parseMonthWithByte('"', head))
+  private[this] def parseYearMonth(isRaw: Boolean): YearMonth =
+    YearMonth.of(
+      parseYearWithByte('-', 9, head),
+      if (isRaw) parseMonth(head)
+      else parseMonthWithByte('"', head)
+    )
 
-  private[this] def parseZonedDateTime(): ZonedDateTime = {
-    val year            = parseYearWithByte('-', 9, head)
-    val month           = parseMonthWithByte('-', head)
-    val day             = parseDayWithByte(year, month, 'T', head)
-    val hour            = parseHourWithColon(head)
-    val minute          = parseMinute(head)
-    var b               = nextByte(head)
+  private[this] def parseZonedDateTime(isRaw: Boolean): ZonedDateTime = {
+    val year   = parseYearWithByte('-', 9, head)
+    val month  = parseMonthWithByte('-', head)
+    val day    = parseDayWithByte(year, month, 'T', head)
+    val hour   = parseHourWithColon(head)
+    val minute = parseMinute(head)
+    var b      =
+      if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
     var second, nano    = 0
     var nanoDigitWeight = -1
     if (b == ':') {
       nanoDigitWeight = -2
       second = parseSecond(head)
-      b = nextByte(head)
+      b = if (isRaw) {
+        if (hasRemaining()) nextByte(head)
+        else (0: Byte)
+      } else nextByte(head)
       if (b == '.') {
         nanoDigitWeight = 100000000
         var pos = head
         var buf = this.buf
-        while ({
-          if (pos >= tail) {
-            pos = loadMoreOrError(pos)
-            buf = this.buf
+        if (isRaw) {
+          while (
+            (pos < tail || {
+              pos = loadMore(pos)
+              buf = this.buf
+              pos < tail
+            }) && {
+              b = buf(pos)
+              pos += 1
+              (b >= '0' && b <= '9') && nanoDigitWeight != 0
+            }
+          ) {
+            nano += (b - '0') * nanoDigitWeight
+            nanoDigitWeight /= 10
           }
-          b = buf(pos)
-          pos += 1
-          (b >= '0' && b <= '9') && nanoDigitWeight != 0
-        }) {
-          nano += (b - '0') * nanoDigitWeight
-          nanoDigitWeight /= 10
+        } else {
+          while ({
+            if (pos >= tail) {
+              pos = loadMoreOrError(pos)
+              buf = this.buf
+            }
+            b = buf(pos)
+            pos += 1
+            (b >= '0' && b <= '9') && nanoDigitWeight != 0
+          }) {
+            nano += (b - '0') * nanoDigitWeight
+            nanoDigitWeight /= 10
+          }
         }
         head = pos
       }
@@ -3596,27 +3976,47 @@ final class JsonReader private[json] (
     val localDateTime = LocalDateTime.of(year, month, day, hour, minute, second, nano)
     val zoneOffset    =
       if (b == 'Z') {
-        b = nextByte(head)
+        if (isRaw) {
+          if (hasRemaining()) b = nextByte(head)
+        } else b = nextByte(head)
         ZoneOffset.UTC
       } else if (b == '-' || b == '+') {
         val sb = b
         nanoDigitWeight = -3
         var offsetTotal = parseOffsetHour(head) * 3600
-        b = nextByte(head)
-        if (b == ':') {
-          offsetTotal += parseOffsetMinute(head) * 60
+        if (isRaw) {
+          if (hasRemaining()) {
+            b = nextByte(head)
+            if (b == ':') {
+              offsetTotal += parseOffsetMinute(head) * 60
+              if (hasRemaining()) {
+                b = nextByte(head)
+                if (b == ':') {
+                  nanoDigitWeight = -4
+                  offsetTotal += parseOffsetSecond(head)
+                  if (hasRemaining()) {
+                    b = nextByte(head)
+                  }
+                }
+              }
+            }
+          }
+        } else {
           b = nextByte(head)
           if (b == ':') {
-            nanoDigitWeight = -4
-            offsetTotal += parseOffsetSecond(head)
+            offsetTotal += parseOffsetMinute(head) * 60
             b = nextByte(head)
+            if (b == ':') {
+              nanoDigitWeight = -4
+              offsetTotal += parseOffsetSecond(head)
+              b = nextByte(head)
+            }
           }
         }
         if (offsetTotal > 64800) timezoneOffsetError() // 64800 == 18 * 60 * 60
         toZoneOffset(sb, offsetTotal)
       } else timeError(nanoDigitWeight)
-    if (b == '"') ZonedDateTime.ofLocal(localDateTime, zoneOffset, null)
-    else if (b == '[') {
+    if (b == '[') {
       var pos = head
       var buf = this.buf
       setMark(pos)
@@ -3639,15 +4039,19 @@ final class JsonReader private[json] (
         k.set(hash, buf, marks(markNum - 1), pos - 1)
         var zoneId = zoneIds.get(k)
         if (zoneId eq null) zoneId = toZoneId(k)
-        if (pos >= tail) {
-          pos = loadMoreOrError(pos)
-          buf = this.buf
+        if (isRaw) head = pos
+        else {
+          if (pos >= tail) {
+            pos = loadMoreOrError(pos)
+            buf = this.buf
+          }
+          if (buf(pos) != '"') tokenError('"')
+          head = pos + 1
         }
-        if (buf(pos) != '"') tokenError('"')
-        head = pos + 1
         ZonedDateTime.ofInstant(localDateTime, zoneOffset, zoneId)
       } finally markNum -= 1
-    } else zonedDateTimeError(nanoDigitWeight)
+    } else if (isRaw || b == '"') ZonedDateTime.ofLocal(localDateTime, zoneOffset, null)
+    else zonedDateTimeError(nanoDigitWeight)
   }
 
   private[this] def toZoneId(k: Key): ZoneId =
@@ -3664,12 +4068,17 @@ final class JsonReader private[json] (
       case _: DateTimeException => timezoneError()
     }
 
-  private[this] def parseZoneOffset(): ZoneOffset = {
+  private[this] def parseZoneOffset(isRaw: Boolean): ZoneOffset = {
     val b = nextByte(head)
     if (b == 'Z') {
-      nextByteOrError('"', head)
+      if (!isRaw) nextByteOrError('"', head)
       ZoneOffset.UTC
-    } else if (b == '-' || b == '+') toZoneOffset(b, parseOffsetTotalWithDoubleQuotes(head))
+    } else if (b == '-' || b == '+')
+      toZoneOffset(
+        b,
+        if (isRaw) parseOffsetTotal(head)
+        else parseOffsetTotalWithDoubleQuotes(head)
+      )
     else decodeError("expected '+' or '-' or 'Z'")
   }
 
@@ -3684,6 +4093,24 @@ final class JsonReader private[json] (
       }
     ) offsetTotal += parseOffsetSecondWithDoubleQuotes(head)
     else if (b != '"') tokensError(':', '"')
+    if (offsetTotal > 64800) timezoneOffsetError() // 64800 == 18 * 60 * 60
+    offsetTotal
+  }
+
+  private[this] def parseOffsetTotal(pos: Int): Int = {
+    var offsetTotal = parseOffsetHour(pos) * 3600
+    if (hasRemaining()) {
+      var b = nextByte(head)
+      if (b != ':') rollbackToken()
+      else {
+        offsetTotal += parseOffsetMinute(head) * 60
+        if (hasRemaining()) {
+          b = nextByte(head)
+          if (b != ':') rollbackToken()
+          else offsetTotal += parseOffsetSecond(head)
+        }
+      }
+    }
     if (offsetTotal > 64800) timezoneOffsetError() // 64800 == 18 * 60 * 60
     offsetTotal
   }

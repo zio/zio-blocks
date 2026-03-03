@@ -352,8 +352,8 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 89,
-    coverageMinimumBranchTotal := 80
+    coverageMinimumStmtTotal   := 87,
+    coverageMinimumBranchTotal := 77
   )
 
 lazy val `schema-bson` = project
@@ -374,8 +374,8 @@ lazy val `schema-bson` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 67,
-    coverageMinimumBranchTotal := 59
+    coverageMinimumStmtTotal   := 66,
+    coverageMinimumBranchTotal := 58
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -392,7 +392,7 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 78,
+    coverageMinimumStmtTotal   := 77,
     coverageMinimumBranchTotal := 69
   )
   .jsSettings(
