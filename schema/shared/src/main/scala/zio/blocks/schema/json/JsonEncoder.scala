@@ -73,7 +73,7 @@ object JsonEncoder {
   }
 
   implicit val bigDecimalEncoder: JsonEncoder[BigDecimal] = new JsonEncoder[BigDecimal] {
-    def encode(bd: BigDecimal): Json = Json.Number(bd)
+    def encode(bd: BigDecimal): Json = new Json.Number(bd)
   }
 
   implicit val bigIntEncoder: JsonEncoder[BigInt] = new JsonEncoder[BigInt] {
@@ -246,23 +246,23 @@ object JsonEncoder {
   }
 
   implicit val durationEncoder: JsonEncoder[Duration] = new JsonEncoder[Duration] {
-    def encode(d: Duration): Json = new Json.String(d.toString)
+    def encode(d: Duration): Json = new Json.String(Json.durationRawCodec.encodeToString(d))
   }
 
   implicit val instantEncoder: JsonEncoder[Instant] = new JsonEncoder[Instant] {
-    def encode(i: Instant): Json = new Json.String(i.toString)
+    def encode(i: Instant): Json = new Json.String(Json.instantRawCodec.encodeToString(i))
   }
 
   implicit val localDateEncoder: JsonEncoder[LocalDate] = new JsonEncoder[LocalDate] {
-    def encode(ld: LocalDate): Json = new Json.String(ld.toString)
-  }
-
-  implicit val localTimeEncoder: JsonEncoder[LocalTime] = new JsonEncoder[LocalTime] {
-    def encode(lt: LocalTime): Json = new Json.String(lt.toString)
+    def encode(ld: LocalDate): Json = new Json.String(Json.localDateRawCodec.encodeToString(ld))
   }
 
   implicit val localDateTimeEncoder: JsonEncoder[LocalDateTime] = new JsonEncoder[LocalDateTime] {
-    def encode(ldt: LocalDateTime): Json = new Json.String(ldt.toString)
+    def encode(ldt: LocalDateTime): Json = new Json.String(Json.localDateTimeRawCodec.encodeToString(ldt))
+  }
+
+  implicit val localTimeEncoder: JsonEncoder[LocalTime] = new JsonEncoder[LocalTime] {
+    def encode(lt: LocalTime): Json = new Json.String(Json.localTimeRawCodec.encodeToString(lt))
   }
 
   implicit val monthEncoder: JsonEncoder[Month] = new JsonEncoder[Month] {
@@ -270,39 +270,39 @@ object JsonEncoder {
   }
 
   implicit val monthDayEncoder: JsonEncoder[MonthDay] = new JsonEncoder[MonthDay] {
-    def encode(md: MonthDay): Json = new Json.String(md.toString)
+    def encode(md: MonthDay): Json = new Json.String(Json.monthDayRawCodec.encodeToString(md))
   }
 
   implicit val offsetDateTimeEncoder: JsonEncoder[OffsetDateTime] = new JsonEncoder[OffsetDateTime] {
-    def encode(c: OffsetDateTime): Json = new Json.String(c.toString)
+    def encode(odt: OffsetDateTime): Json = new Json.String(Json.offsetDateTimeRawCodec.encodeToString(odt))
   }
 
   implicit val offsetTimeEncoder: JsonEncoder[OffsetTime] = new JsonEncoder[OffsetTime] {
-    def encode(ot: OffsetTime): Json = new Json.String(ot.toString)
+    def encode(ot: OffsetTime): Json = new Json.String(Json.offsetTimeRawCodec.encodeToString(ot))
   }
 
   implicit val periodEncoder: JsonEncoder[Period] = new JsonEncoder[Period] {
-    def encode(p: Period): Json = new Json.String(p.toString)
+    def encode(p: Period): Json = new Json.String(Json.periodRawCodec.encodeToString(p))
   }
 
   implicit val yearEncoder: JsonEncoder[Year] = new JsonEncoder[Year] {
-    def encode(y: Year): Json = new Json.String(y.toString)
+    def encode(y: Year): Json = new Json.String(Json.yearRawCodec.encodeToString(y))
   }
 
   implicit val yearMonthEncoder: JsonEncoder[YearMonth] = new JsonEncoder[YearMonth] {
-    def encode(ym: YearMonth): Json = new Json.String(ym.toString)
+    def encode(ym: YearMonth): Json = new Json.String(Json.yearMonthRawCodec.encodeToString(ym))
   }
 
   implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset] = new JsonEncoder[ZoneOffset] {
-    def encode(zo: ZoneOffset): Json = new Json.String(zo.toString)
+    def encode(zo: ZoneOffset): Json = new Json.String(zo.getId)
   }
 
   implicit val zoneIdEncoder: JsonEncoder[ZoneId] = new JsonEncoder[ZoneId] {
-    def encode(zi: ZoneId): Json = new Json.String(zi.toString)
+    def encode(zi: ZoneId): Json = new Json.String(zi.getId)
   }
 
   implicit val zonedDateTimeEncoder: JsonEncoder[ZonedDateTime] = new JsonEncoder[ZonedDateTime] {
-    def encode(zdt: ZonedDateTime): Json = new Json.String(zdt.toString)
+    def encode(zdt: ZonedDateTime): Json = new Json.String(Json.zonedDateTimeRawCodec.encodeToString(zdt))
   }
 
   // ─────────────────────────────────────────────────────────────────────────

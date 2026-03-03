@@ -2,6 +2,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
+import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.SchemaError
 import zio.test._
 import zio.test.Assertion.{equalTo, isRight}
@@ -2471,183 +2472,205 @@ object JsonSpec extends SchemaBaseSpec {
       }
     ),
     suite("JsonDecoder Java time types")(
-      test("dayOfWeekDecoder decodes valid day") {
-        assertTrue(JsonDecoder.dayOfWeekDecoder.decode(Json.String("MONDAY")) == Right(DayOfWeek.MONDAY))
+      test("dayOfWeekDecoder decodes day") {
+        check(genDayOfWeek) { x =>
+          assertTrue(JsonDecoder.dayOfWeekDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
+        assertTrue(JsonDecoder.dayOfWeekDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("dayOfWeekDecoder fails on invalid day") {
-        assertTrue(JsonDecoder.dayOfWeekDecoder.decode(Json.String("NOTADAY")).isLeft)
-      },
-      test("durationDecoder decodes valid duration") {
-        assertTrue(JsonDecoder.durationDecoder.decode(Json.String("PT1H30M")) == Right(Duration.parse("PT1H30M")))
-      },
-      test("durationDecoder fails on invalid duration") {
+      test("durationDecoder decodes duration") {
+        check(genDuration) { x =>
+          assertTrue(JsonDecoder.durationDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.durationDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("instantDecoder decodes valid instant") {
-        val result = JsonDecoder.instantDecoder.decode(Json.String("2023-01-01T00:00:00Z"))
-        assertTrue(result == Right(Instant.parse("2023-01-01T00:00:00Z")))
-      },
-      test("instantDecoder fails on invalid instant") {
+      test("instantDecoder decodes instant") {
+        check(genInstant) { x =>
+          assertTrue(JsonDecoder.instantDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.instantDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("localDateDecoder decodes valid date") {
-        val result = JsonDecoder.localDateDecoder.decode(Json.String("2023-01-01"))
-        assertTrue(result == Right(LocalDate.parse("2023-01-01")))
-      },
-      test("localDateDecoder fails on invalid date") {
+      test("localDateDecoder decodes local date") {
+        check(genLocalDate) { x =>
+          assertTrue(JsonDecoder.localDateDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.localDateDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("localTimeDecoder decodes valid time") {
-        assertTrue(JsonDecoder.localTimeDecoder.decode(Json.String("12:30:45")) == Right(LocalTime.parse("12:30:45")))
-      },
-      test("localTimeDecoder fails on invalid time") {
-        assertTrue(JsonDecoder.localTimeDecoder.decode(Json.String("invalid")).isLeft)
-      },
-      test("localDateTimeDecoder decodes valid datetime") {
-        val result = JsonDecoder.localDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45"))
-        assertTrue(result == Right(LocalDateTime.parse("2023-01-01T12:30:45")))
-      },
-      test("localDateTimeDecoder fails on invalid datetime") {
+      test("localDateTimeDecoder decodes local datetime") {
+        check(genLocalDateTime) { x =>
+          assertTrue(JsonDecoder.localDateTimeDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.localDateTimeDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("monthDecoder decodes valid month") {
-        assertTrue(JsonDecoder.monthDecoder.decode(Json.String("JANUARY")) == Right(Month.JANUARY))
+      test("localTimeDecoder decodes local time") {
+        check(genLocalTime) { x =>
+          assertTrue(JsonDecoder.localTimeDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
+        assertTrue(JsonDecoder.localTimeDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("monthDecoder fails on invalid month") {
-        assertTrue(JsonDecoder.monthDecoder.decode(Json.String("NOTAMONTH")).isLeft)
+      test("monthDecoder decodes month") {
+        check(genMonth) { x =>
+          assertTrue(JsonDecoder.monthDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
+        assertTrue(JsonDecoder.monthDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("monthDayDecoder decodes valid month-day") {
-        assertTrue(JsonDecoder.monthDayDecoder.decode(Json.String("--01-15")) == Right(MonthDay.parse("--01-15")))
-      },
-      test("monthDayDecoder fails on invalid month-day") {
+      test("monthDayDecoder decodes month-day") {
+        check(genMonthDay) { x =>
+          assertTrue(JsonDecoder.monthDayDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.monthDayDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("offsetDateTimeDecoder decodes valid offset datetime") {
-        val result = JsonDecoder.offsetDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45+01:00"))
-        assertTrue(result == Right(OffsetDateTime.parse("2023-01-01T12:30:45+01:00")))
-      },
-      test("offsetDateTimeDecoder fails on invalid offset datetime") {
+      test("offsetDateTimeDecoder decodes offset datetime") {
+        check(genOffsetDateTime) { x =>
+          assertTrue(JsonDecoder.offsetDateTimeDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.offsetDateTimeDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("offsetTimeDecoder decodes valid offset time") {
-        val result = JsonDecoder.offsetTimeDecoder.decode(Json.String("12:30:45+01:00"))
-        assertTrue(result == Right(OffsetTime.parse("12:30:45+01:00")))
-      },
-      test("offsetTimeDecoder fails on invalid offset time") {
+      test("offsetTimeDecoder decodes offset time") {
+        check(genOffsetTime) { x =>
+          assertTrue(JsonDecoder.offsetTimeDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.offsetTimeDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("periodDecoder decodes valid period") {
-        assertTrue(JsonDecoder.periodDecoder.decode(Json.String("P1Y2M3D")) == Right(Period.parse("P1Y2M3D")))
-      },
-      test("periodDecoder fails on invalid period") {
+      test("periodDecoder decodes period") {
+        check(genPeriod) { x =>
+          assertTrue(JsonDecoder.periodDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.periodDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("yearDecoder decodes valid year") {
-        assertTrue(JsonDecoder.yearDecoder.decode(Json.String("2023")) == Right(Year.parse("2023")))
-      },
-      test("yearDecoder fails on invalid year") {
+      test("yearDecoder decodes year") {
+        check(genYear) { x =>
+          assertTrue(JsonDecoder.yearDecoder.decode(Json.String(toISO8601(x))) == Right(x))
+        } &&
         assertTrue(JsonDecoder.yearDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("yearMonthDecoder decodes valid year-month") {
-        assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String("2023-01")) == Right(YearMonth.parse("2023-01")))
-      },
-      test("yearMonthDecoder fails on invalid year-month") {
+      test("yearMonthDecoder decodes year-month") {
+        check(genYearMonth) { x =>
+          assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String(toISO8601(x))) == Right(x))
+        } &&
         assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("zoneOffsetDecoder decodes valid zone offset") {
-        assertTrue(JsonDecoder.zoneOffsetDecoder.decode(Json.String("+01:00")) == Right(ZoneOffset.of("+01:00")))
-      },
-      test("zoneOffsetDecoder fails on invalid zone offset") {
+      test("zoneOffsetDecoder decodes zone offset") {
+        check(genZoneOffset) { x =>
+          assertTrue(JsonDecoder.zoneOffsetDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.zoneOffsetDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("zoneIdDecoder decodes valid zone id") {
-        assertTrue(JsonDecoder.zoneIdDecoder.decode(Json.String("UTC")) == Right(ZoneId.of("UTC")))
+      test("zoneIdDecoder decodes zone id") {
+        check(genZoneId) { x =>
+          assertTrue(JsonDecoder.zoneIdDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
+        assertTrue(JsonDecoder.zoneIdDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("zoneIdDecoder fails on invalid zone id") {
-        assertTrue(JsonDecoder.zoneIdDecoder.decode(Json.String("Invalid/Zone")).isLeft)
-      },
-      test("zonedDateTimeDecoder decodes valid zoned datetime") {
-        val result = JsonDecoder.zonedDateTimeDecoder.decode(Json.String("2023-01-01T12:30:45+01:00[Europe/Paris]"))
-        assertTrue(result == Right(ZonedDateTime.parse("2023-01-01T12:30:45+01:00[Europe/Paris]")))
-      },
-      test("zonedDateTimeDecoder fails on invalid zoned datetime") {
+      test("zonedDateTimeDecoder decodes zoned datetime") {
+        check(genZonedDateTime) { x =>
+          assertTrue(JsonDecoder.zonedDateTimeDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.zonedDateTimeDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("uuidDecoder decodes valid UUID") {
-        val result = JsonDecoder.uuidDecoder.decode(Json.String("550e8400-e29b-41d4-a716-446655440000"))
-        assertTrue(result == Right(UUID.fromString("550e8400-e29b-41d4-a716-446655440000")))
-      },
-      test("uuidDecoder fails on invalid UUID") {
+      test("uuidDecoder decodes UUID") {
+        check(Gen.uuid) { x =>
+          assertTrue(JsonDecoder.uuidDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
         assertTrue(JsonDecoder.uuidDecoder.decode(Json.String("invalid")).isLeft)
       },
-      test("currencyDecoder decodes valid currency") {
-        assertTrue(JsonDecoder.currencyDecoder.decode(Json.String("USD")) == Right(Currency.getInstance("USD")))
-      },
-      test("currencyDecoder fails on invalid currency") {
-        assertTrue(JsonDecoder.currencyDecoder.decode(Json.String("INVALID")).isLeft)
+      test("currencyDecoder decodes currency") {
+        check(Gen.currency) { x =>
+          assertTrue(JsonDecoder.currencyDecoder.decode(Json.String(x.toString)) == Right(x))
+        } &&
+        assertTrue(JsonDecoder.currencyDecoder.decode(Json.String("invalid")).isLeft)
       }
     ),
     suite("JsonEncoder Java time types")(
       test("dayOfWeekEncoder encodes day") {
-        assertTrue(JsonEncoder.dayOfWeekEncoder.encode(DayOfWeek.MONDAY) == Json.String("MONDAY"))
+        check(genDayOfWeek) { x =>
+          assertTrue(JsonEncoder.dayOfWeekEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("durationEncoder encodes duration") {
-        assertTrue(JsonEncoder.durationEncoder.encode(Duration.parse("PT1H30M")) == Json.String("PT1H30M"))
+        check(genDuration) { x =>
+          assertTrue(JsonEncoder.durationEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("instantEncoder encodes instant") {
-        val result = JsonEncoder.instantEncoder.encode(Instant.parse("2023-01-01T00:00:00Z"))
-        assertTrue(result == Json.String("2023-01-01T00:00:00Z"))
+        check(genInstant) { x =>
+          assertTrue(JsonEncoder.instantEncoder.encode(x) == Json.String(x.toString))
+        }
       },
-      test("localDateEncoder encodes date") {
-        assertTrue(JsonEncoder.localDateEncoder.encode(LocalDate.parse("2023-01-01")) == Json.String("2023-01-01"))
+      test("localDateEncoder encodes local date") {
+        check(genLocalDate) { x =>
+          assertTrue(JsonEncoder.localDateEncoder.encode(x) == Json.String(x.toString))
+        }
       },
-      test("localTimeEncoder encodes time") {
-        assertTrue(JsonEncoder.localTimeEncoder.encode(LocalTime.parse("12:30:45")) == Json.String("12:30:45"))
+      test("localDateTimeEncoder encodes local datetime") {
+        check(genLocalDateTime) { x =>
+          assertTrue(JsonEncoder.localDateTimeEncoder.encode(x) == Json.String(x.toString))
+        }
       },
-      test("localDateTimeEncoder encodes datetime") {
-        val result = JsonEncoder.localDateTimeEncoder.encode(LocalDateTime.parse("2023-01-01T12:30:45"))
-        assertTrue(result == Json.String("2023-01-01T12:30:45"))
+      test("localTimeEncoder encodes local time") {
+        check(genLocalTime) { x =>
+          assertTrue(JsonEncoder.localTimeEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("monthEncoder encodes month") {
-        assertTrue(JsonEncoder.monthEncoder.encode(Month.JANUARY) == Json.String("JANUARY"))
+        check(genMonth) { x =>
+          assertTrue(JsonEncoder.monthEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("monthDayEncoder encodes month-day") {
-        assertTrue(JsonEncoder.monthDayEncoder.encode(MonthDay.parse("--01-15")) == Json.String("--01-15"))
+        check(genMonthDay) { x =>
+          assertTrue(JsonEncoder.monthDayEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("offsetDateTimeEncoder encodes offset datetime") {
-        val result = JsonEncoder.offsetDateTimeEncoder.encode(OffsetDateTime.parse("2023-01-01T12:30:45+01:00"))
-        assertTrue(result == Json.String("2023-01-01T12:30:45+01:00"))
+        check(genOffsetDateTime) { x =>
+          assertTrue(JsonEncoder.offsetDateTimeEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("offsetTimeEncoder encodes offset time") {
-        val result = JsonEncoder.offsetTimeEncoder.encode(OffsetTime.parse("12:30:45+01:00"))
-        assertTrue(result == Json.String("12:30:45+01:00"))
+        check(genOffsetTime) { x =>
+          assertTrue(JsonEncoder.offsetTimeEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("periodEncoder encodes period") {
-        assertTrue(JsonEncoder.periodEncoder.encode(Period.parse("P1Y2M3D")) == Json.String("P1Y2M3D"))
+        check(genPeriod) { x =>
+          assertTrue(JsonEncoder.periodEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("yearEncoder encodes year") {
-        assertTrue(JsonEncoder.yearEncoder.encode(Year.parse("2023")) == Json.String("2023"))
+        check(genYear) { x =>
+          assertTrue(JsonEncoder.yearEncoder.encode(x) == Json.String(toISO8601(x)))
+        }
       },
       test("yearMonthEncoder encodes year-month") {
-        assertTrue(JsonEncoder.yearMonthEncoder.encode(YearMonth.parse("2023-01")) == Json.String("2023-01"))
+        check(genYearMonth) { x =>
+          assertTrue(JsonEncoder.yearMonthEncoder.encode(x) == Json.String(toISO8601(x)))
+        }
       },
       test("zoneOffsetEncoder encodes zone offset") {
-        assertTrue(JsonEncoder.zoneOffsetEncoder.encode(ZoneOffset.of("+01:00")) == Json.String("+01:00"))
+        check(genZoneOffset) { x =>
+          assertTrue(JsonEncoder.zoneOffsetEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("zoneIdEncoder encodes zone id") {
-        assertTrue(JsonEncoder.zoneIdEncoder.encode(ZoneId.of("America/New_York")) == Json.String("America/New_York"))
+        check(genZoneId) { x =>
+          assertTrue(JsonEncoder.zoneIdEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("zonedDateTimeEncoder encodes zoned datetime") {
-        val result =
-          JsonEncoder.zonedDateTimeEncoder.encode(ZonedDateTime.parse("2023-01-01T12:30:45+01:00[Europe/Paris]"))
-        assertTrue(result == Json.String("2023-01-01T12:30:45+01:00[Europe/Paris]"))
+        check(genZonedDateTime) { x =>
+          assertTrue(JsonEncoder.zonedDateTimeEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("uuidEncoder encodes UUID") {
-        val result = JsonEncoder.uuidEncoder.encode(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
-        assertTrue(result == Json.String("550e8400-e29b-41d4-a716-446655440000"))
+        check(Gen.uuid) { x =>
+          assertTrue(JsonEncoder.uuidEncoder.encode(x) == Json.String(x.toString))
+        }
       },
       test("currencyEncoder encodes currency") {
-        assertTrue(JsonEncoder.currencyEncoder.encode(Currency.getInstance("USD")) == Json.String("USD"))
+        check(Gen.currency) { x =>
+          assertTrue(JsonEncoder.currencyEncoder.encode(x) == Json.String(x.toString))
+        }
       }
     ),
     suite("JsonDecoder error paths")(

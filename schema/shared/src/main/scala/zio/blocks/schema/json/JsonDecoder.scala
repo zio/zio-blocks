@@ -402,37 +402,52 @@ object JsonDecoder {
     }
   }
 
+  private[this] def parseString[A](name: String, jsonBinaryCodec: JsonBinaryCodec[A]): JsonDecoder[A] =
+    new JsonDecoder[A] {
+      def decode(json: Json): Either[SchemaError, A] = json match {
+        case str: Json.String =>
+          jsonBinaryCodec.decode(str.value) match {
+            case _: Left[_, _] => new Left(SchemaError(s"Invalid $name"))
+            case r             => r
+          }
+        case _ => new Left(SchemaError(s"Expected String for $name"))
+      }
+    }
+
   implicit val dayOfWeekDecoder: JsonDecoder[DayOfWeek] = parseString("DayOfWeek")(DayOfWeek.valueOf)
 
-  implicit val durationDecoder: JsonDecoder[Duration] = parseString("Duration")(Duration.parse)
+  implicit val durationDecoder: JsonDecoder[Duration] = parseString("Duration", Json.durationRawCodec)
 
-  implicit val instantDecoder: JsonDecoder[Instant] = parseString("Instant")(Instant.parse)
+  implicit val instantDecoder: JsonDecoder[Instant] = parseString("Instant", Json.instantRawCodec)
 
-  implicit val localDateDecoder: JsonDecoder[LocalDate] = parseString("LocalDate")(LocalDate.parse)
+  implicit val localDateDecoder: JsonDecoder[LocalDate] = parseString("LocalDate", Json.localDateRawCodec)
 
-  implicit val localTimeDecoder: JsonDecoder[LocalTime] = parseString("LocalTime")(LocalTime.parse)
+  implicit val localDateTimeDecoder: JsonDecoder[LocalDateTime] =
+    parseString("LocalDateTime", Json.localDateTimeRawCodec)
 
-  implicit val localDateTimeDecoder: JsonDecoder[LocalDateTime] = parseString("LocalDateTime")(LocalDateTime.parse)
+  implicit val localTimeDecoder: JsonDecoder[LocalTime] = parseString("LocalTime", Json.localTimeRawCodec)
 
   implicit val monthDecoder: JsonDecoder[Month] = parseString("Month")(Month.valueOf)
 
-  implicit val monthDayDecoder: JsonDecoder[MonthDay] = parseString("MonthDay")(MonthDay.parse)
+  implicit val monthDayDecoder: JsonDecoder[MonthDay] = parseString("MonthDay", Json.monthDayRawCodec)
 
-  implicit val offsetDateTimeDecoder: JsonDecoder[OffsetDateTime] = parseString("OffsetDateTime")(OffsetDateTime.parse)
+  implicit val offsetDateTimeDecoder: JsonDecoder[OffsetDateTime] =
+    parseString("OffsetDateTime", Json.offsetDateTimeRawCodec)
 
-  implicit val offsetTimeDecoder: JsonDecoder[OffsetTime] = parseString("OffsetTime")(OffsetTime.parse)
+  implicit val offsetTimeDecoder: JsonDecoder[OffsetTime] = parseString("OffsetTime", Json.offsetTimeRawCodec)
 
-  implicit val periodDecoder: JsonDecoder[Period] = parseString("Period")(Period.parse)
+  implicit val periodDecoder: JsonDecoder[Period] = parseString("Period", Json.periodRawCodec)
 
-  implicit val yearDecoder: JsonDecoder[Year] = parseString("Year")(Year.parse)
+  implicit val yearDecoder: JsonDecoder[Year] = parseString("Year", Json.yearRawCodec)
 
-  implicit val yearMonthDecoder: JsonDecoder[YearMonth] = parseString("YearMonth")(YearMonth.parse)
+  implicit val yearMonthDecoder: JsonDecoder[YearMonth] = parseString("YearMonth", Json.yearMonthRawCodec)
 
-  implicit val zoneOffsetDecoder: JsonDecoder[ZoneOffset] = parseString("ZoneOffset")(ZoneOffset.of)
+  implicit val zoneOffsetDecoder: JsonDecoder[ZoneOffset] = parseString("ZoneOffset", Json.zoneOffsetRawCodec)
 
-  implicit val zoneIdDecoder: JsonDecoder[ZoneId] = parseString("ZoneId")(ZoneId.of)
+  implicit val zoneIdDecoder: JsonDecoder[ZoneId] = parseString("ZoneId", Json.zoneIdRawCodec)
 
-  implicit val zonedDateTimeDecoder: JsonDecoder[ZonedDateTime] = parseString("ZonedDateTime")(ZonedDateTime.parse)
+  implicit val zonedDateTimeDecoder: JsonDecoder[ZonedDateTime] =
+    parseString("ZonedDateTime", Json.zonedDateTimeRawCodec)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Other Standard Types
@@ -440,7 +455,7 @@ object JsonDecoder {
 
   implicit val uuidDecoder: JsonDecoder[UUID] = parseString("UUID")(UUID.fromString)
 
-  implicit val currencyDecoder: JsonDecoder[Currency] = parseString("Currency")(Currency.getInstance)
+  implicit val currencyDecoder: JsonDecoder[Currency] = parseString("Currency")(x => Currency.getInstance(x))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Schema-derived Decoder (lower priority)

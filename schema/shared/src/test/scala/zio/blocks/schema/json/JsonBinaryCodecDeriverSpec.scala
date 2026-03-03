@@ -3304,26 +3304,6 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     )
   )
 
-  private[this] def toISO8601(year: Year): String = {
-    val x = year.getValue
-    if (x > 9999) s"+$x"
-    else if (x > 99 && x <= 999) s"0$x"
-    else if (x > 9 && x <= 99) s"00$x"
-    else if (x >= 0 && x <= 9) s"000$x"
-    else if (x >= -9 && x < 0) s"-000${-x}"
-    else if (x >= -99 && x < 9) s"-00${-x}"
-    else if (x >= -999 && x < 99) s"-0${-x}"
-    else x.toString
-  }
-
-  private[this] def toISO8601(x: YearMonth): String = {
-    val s = x.toString
-    if (x.getYear < 0 && !s.startsWith("-")) s"-$s"
-    else if (x.getYear > 9999 && !s.startsWith("+"))
-      s"+$s" // '+' is required for years that exceed 4 digits, see ISO 8601:2004 sections 3.4.2, 4.1.2.4
-    else s
-  }
-
   case class Record1(
     bl: Boolean,
     b: Byte,

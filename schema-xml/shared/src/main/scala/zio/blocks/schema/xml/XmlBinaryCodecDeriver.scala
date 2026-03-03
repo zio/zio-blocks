@@ -6,6 +6,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
+import zio.blocks.schema.json.{Json, JsonBinaryCodec}
 import zio.blocks.typeid.TypeId
 import java.time._
 import java.util.{Currency, UUID}
@@ -619,33 +620,34 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
   }
 
   private val durationCodec: XmlBinaryCodec[Duration] = new XmlBinaryCodec[Duration]() {
-    def decodeValue(xml: Xml): Either[XmlError, Duration] = decodeText(xml)(Duration.parse)
+    def decodeValue(xml: Xml): Either[XmlError, Duration] = decodeText(xml, Json.durationRawCodec)
 
-    def encodeValue(x: Duration): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: Duration): Xml = Xml.Element("value", new Xml.Text(Json.durationRawCodec.encodeToString(x)))
   }
 
   private val instantCodec: XmlBinaryCodec[Instant] = new XmlBinaryCodec[Instant]() {
-    def decodeValue(xml: Xml): Either[XmlError, Instant] = decodeText(xml)(Instant.parse)
+    def decodeValue(xml: Xml): Either[XmlError, Instant] = decodeText(xml, Json.instantRawCodec)
 
-    def encodeValue(x: Instant): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: Instant): Xml = Xml.Element("value", new Xml.Text(Json.instantRawCodec.encodeToString(x)))
   }
 
   private val localDateCodec: XmlBinaryCodec[LocalDate] = new XmlBinaryCodec[LocalDate]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalDate] = decodeText(xml)(LocalDate.parse)
+    def decodeValue(xml: Xml): Either[XmlError, LocalDate] = decodeText(xml, Json.localDateRawCodec)
 
-    def encodeValue(x: LocalDate): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: LocalDate): Xml = Xml.Element("value", new Xml.Text(Json.localDateRawCodec.encodeToString(x)))
   }
 
   private val localDateTimeCodec: XmlBinaryCodec[LocalDateTime] = new XmlBinaryCodec[LocalDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalDateTime] = decodeText(xml)(LocalDateTime.parse)
+    def decodeValue(xml: Xml): Either[XmlError, LocalDateTime] = decodeText(xml, Json.localDateTimeRawCodec)
 
-    def encodeValue(x: LocalDateTime): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: LocalDateTime): Xml =
+      Xml.Element("value", new Xml.Text(Json.localDateTimeRawCodec.encodeToString(x)))
   }
 
   private val localTimeCodec: XmlBinaryCodec[LocalTime] = new XmlBinaryCodec[LocalTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalTime] = decodeText(xml)(LocalTime.parse)
+    def decodeValue(xml: Xml): Either[XmlError, LocalTime] = decodeText(xml, Json.localTimeRawCodec)
 
-    def encodeValue(x: LocalTime): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: LocalTime): Xml = Xml.Element("value", new Xml.Text(Json.localTimeRawCodec.encodeToString(x)))
   }
 
   private val monthCodec: XmlBinaryCodec[Month] = new XmlBinaryCodec[Month]() {
@@ -655,57 +657,59 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
   }
 
   private val monthDayCodec: XmlBinaryCodec[MonthDay] = new XmlBinaryCodec[MonthDay]() {
-    def decodeValue(xml: Xml): Either[XmlError, MonthDay] = decodeText(xml)(MonthDay.parse)
+    def decodeValue(xml: Xml): Either[XmlError, MonthDay] = decodeText(xml, Json.monthDayRawCodec)
 
-    def encodeValue(x: MonthDay): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: MonthDay): Xml = Xml.Element("value", new Xml.Text(Json.monthDayRawCodec.encodeToString(x)))
   }
 
   private val offsetDateTimeCodec: XmlBinaryCodec[OffsetDateTime] = new XmlBinaryCodec[OffsetDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, OffsetDateTime] = decodeText(xml)(OffsetDateTime.parse)
+    def decodeValue(xml: Xml): Either[XmlError, OffsetDateTime] = decodeText(xml, Json.offsetDateTimeRawCodec)
 
-    def encodeValue(x: OffsetDateTime): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: OffsetDateTime): Xml =
+      Xml.Element("value", new Xml.Text(Json.offsetDateTimeRawCodec.encodeToString(x)))
   }
 
   private val offsetTimeCodec: XmlBinaryCodec[OffsetTime] = new XmlBinaryCodec[OffsetTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, OffsetTime] = decodeText(xml)(OffsetTime.parse)
+    def decodeValue(xml: Xml): Either[XmlError, OffsetTime] = decodeText(xml, Json.offsetTimeRawCodec)
 
-    def encodeValue(x: OffsetTime): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: OffsetTime): Xml = Xml.Element("value", new Xml.Text(Json.offsetTimeRawCodec.encodeToString(x)))
   }
 
   private val periodCodec: XmlBinaryCodec[Period] = new XmlBinaryCodec[Period]() {
-    def decodeValue(xml: Xml): Either[XmlError, Period] = decodeText(xml)(Period.parse)
+    def decodeValue(xml: Xml): Either[XmlError, Period] = decodeText(xml, Json.periodRawCodec)
 
-    def encodeValue(x: Period): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: Period): Xml = Xml.Element("value", new Xml.Text(Json.periodRawCodec.encodeToString(x)))
   }
 
   private val yearCodec: XmlBinaryCodec[Year] = new XmlBinaryCodec[Year]() {
-    def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml)(Year.parse)
+    def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml, Json.yearRawCodec)
 
-    def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(Json.yearRawCodec.encodeToString(x)))
   }
 
   private val yearMonthCodec: XmlBinaryCodec[YearMonth] = new XmlBinaryCodec[YearMonth]() {
-    def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml)(YearMonth.parse)
+    def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml, Json.yearMonthRawCodec)
 
-    def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(Json.yearMonthRawCodec.encodeToString(x)))
   }
 
   private val zoneIdCodec: XmlBinaryCodec[ZoneId] = new XmlBinaryCodec[ZoneId]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml)(ZoneId.of)
+    def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml, Json.zoneIdRawCodec)
 
-    def encodeValue(x: ZoneId): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: ZoneId): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }
 
   private val zoneOffsetCodec: XmlBinaryCodec[ZoneOffset] = new XmlBinaryCodec[ZoneOffset]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml)(ZoneOffset.of)
+    def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml, Json.zoneOffsetRawCodec)
 
-    def encodeValue(x: ZoneOffset): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: ZoneOffset): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }
 
   private val zonedDateTimeCodec: XmlBinaryCodec[ZonedDateTime] = new XmlBinaryCodec[ZonedDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZonedDateTime] = decodeText(xml)(ZonedDateTime.parse)
+    def decodeValue(xml: Xml): Either[XmlError, ZonedDateTime] = decodeText(xml, Json.zonedDateTimeRawCodec)
 
-    def encodeValue(x: ZonedDateTime): Xml = Xml.Element("value", new Xml.Text(x.toString))
+    def encodeValue(x: ZonedDateTime): Xml =
+      Xml.Element("value", new Xml.Text(Json.zonedDateTimeRawCodec.encodeToString(x)))
   }
 
   private val currencyCodec: XmlBinaryCodec[Currency] = new XmlBinaryCodec[Currency]() {
@@ -734,6 +738,19 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
           try new Right(parse(t.value.trim))
           catch {
             case e: Exception => new Left(XmlError.parseError(s"Invalid value: ${e.getMessage}", 0, 0))
+          }
+        case _ => new Left(XmlError.parseError("Expected text content in <value> element", 0, 0))
+      }
+    case _ => new Left(XmlError.parseError("Expected <value> element", 0, 0))
+  }
+
+  private[this] def decodeText[A](xml: Xml, codec: JsonBinaryCodec[A]): Either[XmlError, A] = xml match {
+    case e: Xml.Element if e.name.localName == "value" =>
+      e.children.headOption match {
+        case Some(t: Xml.Text) =>
+          codec.decode(t.value.trim) match {
+            case Left(e) => new Left(XmlError.parseError(s"Invalid value: ${e.getMessage}", 0, 0))
+            case r       => r.asInstanceOf[Either[XmlError, A]]
           }
         case _ => new Left(XmlError.parseError("Expected text content in <value> element", 0, 0))
       }
