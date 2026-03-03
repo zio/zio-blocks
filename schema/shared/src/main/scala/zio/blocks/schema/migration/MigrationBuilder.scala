@@ -319,6 +319,46 @@ final class MigrationBuilder[A, B](
     appendAction(MigrationAction.TransformValues(at, transform))
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Join / Split Operations
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Join multiple source fields into a single target field (as a nested
+   * record).
+   *
+   * @param sourceFields
+   *   names of the source fields to combine
+   * @param targetField
+   *   name of the new combined field
+   */
+  def joinFields(sourceFields: Vector[String], targetField: String): MigrationBuilder[A, B] =
+    appendAction(MigrationAction.Join(DynamicOptic.root, sourceFields, targetField))
+
+  /**
+   * Join multiple source fields at a nested path.
+   */
+  def joinFieldsAt(at: DynamicOptic, sourceFields: Vector[String], targetField: String): MigrationBuilder[A, B] =
+    appendAction(MigrationAction.Join(at, sourceFields, targetField))
+
+  /**
+   * Split a single source field (expected to contain a record) into multiple
+   * target fields.
+   *
+   * @param sourceField
+   *   the field to split
+   * @param targetFields
+   *   names of the fields to extract
+   */
+  def splitField(sourceField: String, targetFields: Vector[String]): MigrationBuilder[A, B] =
+    appendAction(MigrationAction.Split(DynamicOptic.root, sourceField, targetFields))
+
+  /**
+   * Split a field at a nested path.
+   */
+  def splitFieldAt(at: DynamicOptic, sourceField: String, targetFields: Vector[String]): MigrationBuilder[A, B] =
+    appendAction(MigrationAction.Split(at, sourceField, targetFields))
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Build
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -363,7 +403,13 @@ final class MigrationBuilder[A, B](
         case MigrationAction.ChangeType(at, _) =>
           val fieldName = extractFieldNameFromPath(at)
           unmappedTarget = unmappedTarget - fieldName
-        case _ => // enum/collection/join/split actions don't affect field mapping
+        case MigrationAction.Join(_, joinSourceFields, joinTargetField) =>
+          currentFields = currentFields -- joinSourceFields + joinTargetField
+          unmappedTarget = unmappedTarget - joinTargetField
+        case MigrationAction.Split(_, splitSourceField, splitTargetFields) =>
+          currentFields = currentFields - splitSourceField ++ splitTargetFields
+          unmappedTarget = unmappedTarget -- splitTargetFields
+        case _ => // enum/collection actions don't affect field mapping
       }
 
       // Fields that exist in both source and target are implicitly mapped
@@ -393,10 +439,10 @@ final class MigrationBuilder[A, B](
   // Internal
   // ─────────────────────────────────────────────────────────────────────────
 
-  private def appendAction(action: MigrationAction): MigrationBuilder[A, B] =
+  private[migration] def appendAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 
-  private def splitOptic(optic: DynamicOptic): (DynamicOptic, String) = {
+  private[migration] def splitOptic(optic: DynamicOptic): (DynamicOptic, String) = {
     val nodes = optic.nodes
     if (nodes.isEmpty) throw new IllegalArgumentException("Optic must target at least one field")
     val last = nodes.last match {

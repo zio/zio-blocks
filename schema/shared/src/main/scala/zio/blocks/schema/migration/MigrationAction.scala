@@ -136,46 +136,6 @@ object MigrationAction {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Join / Split Actions
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Join multiple source fields into a single target field.
-   *
-   * @param at
-   *   path to the target field (terminates in the target field name)
-   * @param sourcePaths
-   *   paths to the source fields to combine
-   * @param combiner
-   *   expression describing how to combine the source values
-   */
-  final case class Join(
-    at: DynamicOptic,
-    sourcePaths: Vector[DynamicOptic],
-    combiner: DynamicSchemaExpr
-  ) extends MigrationAction {
-    def reverse: MigrationAction = Split(at, sourcePaths, combiner.reverse)
-  }
-
-  /**
-   * Split a single source field into multiple target fields.
-   *
-   * @param at
-   *   path to the source field (terminates in the source field name)
-   * @param targetPaths
-   *   paths to the target fields
-   * @param splitter
-   *   expression describing how to split the source value
-   */
-  final case class Split(
-    at: DynamicOptic,
-    targetPaths: Vector[DynamicOptic],
-    splitter: DynamicSchemaExpr
-  ) extends MigrationAction {
-    def reverse: MigrationAction = Join(at, targetPaths, splitter.reverse)
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
   // Enum Actions
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -262,5 +222,53 @@ object MigrationAction {
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
     def reverse: MigrationAction = TransformValues(at, transform.reverse)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Join / Split Actions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Join multiple source fields into a single target field (as a nested
+   * record).
+   *
+   * The source fields are removed from the record and combined into a new
+   * [[DynamicValue.Record]] stored under `targetField`.
+   *
+   * @param at
+   *   path to the record (or root)
+   * @param sourceFields
+   *   names of the fields to join
+   * @param targetField
+   *   name of the combined target field
+   */
+  final case class Join(
+    at: DynamicOptic,
+    sourceFields: Vector[String],
+    targetField: String
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Split(at, targetField, sourceFields)
+  }
+
+  /**
+   * Split a single source field (expected to be a record) into multiple target
+   * fields.
+   *
+   * The source field is removed and its inner fields are spread into the parent
+   * record. Only fields listed in `targetFields` are extracted.
+   *
+   * @param at
+   *   path to the record (or root)
+   * @param sourceField
+   *   name of the field to split (must contain a record)
+   * @param targetFields
+   *   names of the fields to extract from the nested record
+   */
+  final case class Split(
+    at: DynamicOptic,
+    sourceField: String,
+    targetFields: Vector[String]
+  ) extends MigrationAction {
+    def reverse: MigrationAction = Join(at, targetFields, sourceField)
   }
 }

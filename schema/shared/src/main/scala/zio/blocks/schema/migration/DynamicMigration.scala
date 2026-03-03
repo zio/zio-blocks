@@ -367,11 +367,68 @@ object DynamicMigration {
           }
         )
 
-      case _: MigrationAction.Join =>
-        Left(MigrationError.failed("Join actions are not yet supported at runtime"))
+      case MigrationAction.Join(at, sourceFields, targetField) =>
+        applyAtRecord(
+          value,
+          at,
+          { record =>
+            val fields    = record.fields
+            val len       = fields.length
+            val joinedCb  = ChunkBuilder.make[(String, DynamicValue)]()
+            val remainCb  = ChunkBuilder.make[(String, DynamicValue)]()
+            val sourceSet = sourceFields.toSet
+            var idx       = 0
+            while (idx < len) {
+              val kv = fields(idx)
+              if (sourceSet.contains(kv._1)) joinedCb += kv
+              else remainCb += kv
+              idx += 1
+            }
+            val joined = joinedCb.result()
+            if (joined.length != sourceFields.length) {
+              val missing = sourceFields.filterNot(n => joined.exists(_._1 == n))
+              Left(MigrationError.MissingField(at, missing.mkString(", ")))
+            } else {
+              Right(new DynamicValue.Record(remainCb.result().appended((targetField, new DynamicValue.Record(joined)))))
+            }
+          }
+        )
 
-      case _: MigrationAction.Split =>
-        Left(MigrationError.failed("Split actions are not yet supported at runtime"))
+      case MigrationAction.Split(at, sourceField, targetFields) =>
+        applyAtRecord(
+          value,
+          at,
+          { record =>
+            val fields                  = record.fields
+            val len                     = fields.length
+            val cb                      = ChunkBuilder.make[(String, DynamicValue)]()
+            var sourceVal: DynamicValue = null
+            var idx                     = 0
+            while (idx < len) {
+              val kv = fields(idx)
+              if (kv._1 == sourceField) sourceVal = kv._2
+              else cb += kv
+              idx += 1
+            }
+            if (sourceVal == null) Left(MigrationError.MissingField(at.field(sourceField), sourceField))
+            else
+              sourceVal match {
+                case r: DynamicValue.Record =>
+                  val innerFields = r.fields
+                  val targetSet   = targetFields.toSet
+                  val innerLen    = innerFields.length
+                  var i           = 0
+                  while (i < innerLen) {
+                    val sf = innerFields(i)
+                    if (targetSet.contains(sf._1)) cb += sf
+                    i += 1
+                  }
+                  Right(new DynamicValue.Record(cb.result()))
+                case other =>
+                  Left(MigrationError.TypeMismatch(at.field(sourceField), "Record", other.valueType.toString))
+              }
+          }
+        )
     }
 
   // ─────────────────────────────────────────────────────────────────────────

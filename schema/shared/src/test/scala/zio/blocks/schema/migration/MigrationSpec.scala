@@ -70,7 +70,8 @@ object MigrationSpec extends SchemaBaseSpec {
     errorMessageSuite,
     changeTypeEdgeCases,
     builderValidationSuite,
-    exhaustiveCoverageSuite
+    exhaustiveCoverageSuite,
+    joinSplitSuite
   )
 
   val identitySuite: Spec[Any, Any] = suite("Identity")(
@@ -1324,5 +1325,148 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       assertTrue(result)
     }
+  )
+
+  // ─── Join / Split tests ──────────────────────────────────────────────────
+  // (Selector macro tests are in the Scala 3 specific test directory)
+
+  val joinSplitSuite: Spec[Any, Any] = suite("JoinSplit")(
+    suite("Join")(
+      test("join two fields into a nested record") {
+        val dm = DynamicMigration.single(
+          MigrationAction.Join(
+            DynamicOptic.root,
+            Vector("first", "last"),
+            "name"
+          )
+        )
+        val input = DynamicValue.Record(
+          "first" -> DynamicValue.string("Alice"),
+          "last"  -> DynamicValue.string("Smith"),
+          "age"   -> DynamicValue.int(30)
+        )
+        val result   = dm(input)
+        val expected = DynamicValue.Record(
+          "age"  -> DynamicValue.int(30),
+          "name" -> DynamicValue.Record(
+            "first" -> DynamicValue.string("Alice"),
+            "last"  -> DynamicValue.string("Smith")
+          )
+        )
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("join fails when source field is missing") {
+        val dm = DynamicMigration.single(
+          MigrationAction.Join(
+            DynamicOptic.root,
+            Vector("first", "nonexistent"),
+            "name"
+          )
+        )
+        val input = DynamicValue.Record("first" -> DynamicValue.string("Alice"))
+        assert(dm(input))(isLeft)
+      },
+      test("join via builder") {
+        val dm = Migration
+          .newBuilder[SimpleRecord, SimpleRecord]
+          .joinFields(Vector("x", "y"), "combined")
+          .buildPartial
+          .dynamicMigration
+        val input = DynamicValue.Record(
+          "x" -> DynamicValue.int(42),
+          "y" -> DynamicValue.string("hello")
+        )
+        val result = dm(input)
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("Split")(
+      test("split a nested record into parent fields") {
+        val dm = DynamicMigration.single(
+          MigrationAction.Split(
+            DynamicOptic.root,
+            "name",
+            Vector("first", "last")
+          )
+        )
+        val input = DynamicValue.Record(
+          "age"  -> DynamicValue.int(30),
+          "name" -> DynamicValue.Record(
+            "first" -> DynamicValue.string("Alice"),
+            "last"  -> DynamicValue.string("Smith")
+          )
+        )
+        val result   = dm(input)
+        val expected = DynamicValue.Record(
+          "age"   -> DynamicValue.int(30),
+          "first" -> DynamicValue.string("Alice"),
+          "last"  -> DynamicValue.string("Smith")
+        )
+        assert(result)(isRight(equalTo(expected)))
+      },
+      test("split fails when source field is missing") {
+        val dm = DynamicMigration.single(
+          MigrationAction.Split(
+            DynamicOptic.root,
+            "nonexistent",
+            Vector("a", "b")
+          )
+        )
+        val input = DynamicValue.Record("x" -> DynamicValue.int(1))
+        assert(dm(input))(isLeft)
+      },
+      test("split fails when source field is not a record") {
+        val dm = DynamicMigration.single(
+          MigrationAction.Split(
+            DynamicOptic.root,
+            "x",
+            Vector("a", "b")
+          )
+        )
+        val input = DynamicValue.Record("x" -> DynamicValue.int(42))
+        assert(dm(input))(isLeft)
+      },
+      test("split via builder") {
+        val dm = Migration
+          .newBuilder[SimpleRecord, SimpleRecord]
+          .splitField("nested", Vector("a", "b"))
+          .buildPartial
+          .dynamicMigration
+        val input = DynamicValue.Record(
+          "nested" -> DynamicValue.Record(
+            "a" -> DynamicValue.int(1),
+            "b" -> DynamicValue.int(2)
+          )
+        )
+        val result = dm(input)
+        assertTrue(result.isRight)
+      }
+    ),
+    suite("JoinSplitReversibility")(
+      test("join.reverse produces split") {
+        val join = MigrationAction.Join(DynamicOptic.root, Vector("a", "b"), "combined")
+        val rev  = join.reverse
+        assertTrue(rev == MigrationAction.Split(DynamicOptic.root, "combined", Vector("a", "b")))
+      },
+      test("split.reverse produces join") {
+        val split = MigrationAction.Split(DynamicOptic.root, "combined", Vector("a", "b"))
+        val rev   = split.reverse
+        assertTrue(rev == MigrationAction.Join(DynamicOptic.root, Vector("a", "b"), "combined"))
+      },
+      test("join then split roundtrips") {
+        val join = DynamicMigration.single(
+          MigrationAction.Join(DynamicOptic.root, Vector("x", "y"), "combined")
+        )
+        val split = DynamicMigration.single(
+          MigrationAction.Split(DynamicOptic.root, "combined", Vector("x", "y"))
+        )
+        val composed = join ++ split
+        val input    = DynamicValue.Record(
+          "x" -> DynamicValue.int(1),
+          "y" -> DynamicValue.string("two")
+        )
+        assert(composed(input))(isRight(equalTo(input)))
+      }
+    )
   )
 }
