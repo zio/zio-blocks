@@ -218,7 +218,7 @@ val structural = schema.structural
 // ]
 ```
 
-Cases appear in **alphabetical order** in the union type.
+Cases appear in **alphabetical order** in the union type. This alphabetical ordering (applied to fields in products and case names in unions) ensures **deterministic, normalized type identity**: two structural types with the same fields but different declaration order produce the same structural type and normalized name. This is essential for predictable schema evolution and cross-system interop.
 
 ## Direct Structural Derivation (Scala 3)
 
@@ -286,7 +286,7 @@ Structural types require reflection and are only available on the JVM:
 error: Structural types require reflection which is only available on JVM.
 ```
 
-This applies to all platforms outside JVM (JS, Native).
+This applies to all platforms outside JVM (JS, Native). The implementation uses `Platform.supportsReflection` to detect and reject structural types at compile time on non-JVM platforms.
 
 ### Recursive Types
 
@@ -324,6 +324,40 @@ Sealed traits and enums require Scala 3.
 
 Additionally, **Scala 2** returns `Schema[ts.StructuralType]` (path-dependent type), not the fully-refined union type visible in Scala 3.
 
+### Scala 2 Deeply Nested Types Limitation
+
+In **Scala 2**, accessing fields on deeply nested structural types requires explicit casting. While nested structures are supported, reflection limitations prevent field chaining:
+
+```scala
+import scala.language.reflectiveCalls
+import zio.blocks.schema.Schema
+
+case class Address(street: String)
+case class Company(name: String, address: Address)
+case class Employee(name: String, company: Company)
+
+val schema = Schema.derived[Employee]
+val structural = schema.structural
+
+// Create a structural value
+val employee: { def name: String; def company: { def address: { def street: String } } } = ???
+
+// ✅ Works - direct field access
+employee.name
+
+// ✅ Works - first level of nesting
+employee.company
+
+// ❌ Fails - cannot chain field access to nested structural types
+// employee.company.address.street
+
+// ✅ Workaround - cast to StructuralRecord
+val companyStruct = employee.company.asInstanceOf[StructuralRecord]
+companyStruct.selectDynamic("address")  // returns the Address structural object
+```
+
+This limitation does **not** apply to Scala 3, where `Selectable` provides seamless field access across arbitrary nesting depth.
+
 ## Integration
 
 ### With Schema Evolution Macros
@@ -350,6 +384,33 @@ val dtoSchema = Schema.derived[PersonDTO]
 // They share the same structural shape:
 // Schema[{ def name: String; def age: Int }]
 ```
+
+### With Binding.of (Serialization)
+
+Structural types are also supported by the `Binding.of` macro for high-performance serialization via register-based encoding:
+
+```scala
+import zio.blocks.schema.binding.Binding
+
+// Direct structural type serialization (JVM only)
+val binding = Binding.of[{ def name: String; def age: Int }]
+
+// Works with nested structural types
+val nestedBinding = Binding.of[{
+  def name: String
+  def address: { def street: String; def city: String }
+}]
+
+// Works with containers
+val containerBinding = Binding.of[{
+  def name: String
+  def emails: List[String]
+}]
+```
+
+This enables anonymous structural types to benefit from ZIO Blocks' high-performance serialization without requiring nominal case class definitions. Like `Schema.structural`, this is **JVM-only**.
+
+See [Binding](./binding.md) for detailed serialization documentation.
 
 ### With DynamicValue
 
