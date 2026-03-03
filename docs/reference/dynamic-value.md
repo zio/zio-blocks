@@ -825,4 +825,5 @@ val patch: DynamicPatch = old.diff(new_)
 
 ## See Also
 
+- [Into and As](./into-as.md) — Seamlessly convert between typed data and `DynamicValue` for polyglot serialization
 - [DynamicSchema](./dynamic-schema.md) — validate `DynamicValue` instances against a structural schema, or transport schemas as `DynamicValue` blobs.
