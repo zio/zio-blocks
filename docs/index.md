@@ -538,6 +538,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Schema](./reference/schema.md) - Core schema definitions and derivation
 - [Reflect](./reference/reflect.md) - Structural reflection API
 - [Binding](./reference/binding.md) - Runtime constructors and deconstructors
+- [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
 - [Registers](./reference/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
@@ -546,6 +547,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
