@@ -669,22 +669,38 @@ res match {
 
 `Into` has special macro support for converting any type with a `Schema` to or from `DynamicValue`, a semi-structured data representation. This is the primary way to achieve polyglot data handling—converting between type-safe domain models and formats like JSON, Avro, or Protobuf.
 
-### Converting to DynamicValue
+### Converting to DynamicValue and JSON
 
-Any type `A` with a `Schema[A]` can be converted to `DynamicValue`:
+The complete polyglot workflow: type-safe data → DynamicValue → JSON → DynamicValue → type-safe data:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.{Into, DynamicValue}
+```scala mdoc:silent:nest
+import zio.blocks.schema.{Into, DynamicValue, JsonFormat}
 
 case class Person(name: String, age: Int)
 
 val toDynamic = Into.derived[Person, DynamicValue]
+val fromDynamic = Into.derived[DynamicValue, Person]
+
 val person = Person("Alice", 30)
-val result = toDynamic.into(person)
-// result == Right(DynamicValue.Record(
-//   "name" -> DynamicValue.string("Alice"),
-//   "age"  -> DynamicValue.int(30)
-// ))
+
+// Step 1: Convert to DynamicValue
+val asDynamicValue = toDynamic.into(person)
+// Right(DynamicValue.Record("name" -> ..., "age" -> ...))
+
+// Step 2: Serialize DynamicValue to JSON
+val asJsonString = asDynamicValue.flatMap { dv =>
+  JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
+}
+// Right("{\"name\":\"Alice\",\"age\":30}")
+
+// Step 3: Deserialize JSON back to DynamicValue
+val backFromJson = asJsonString.flatMap { json =>
+  JsonFormat.decode(json.getBytes("UTF-8"))
+}
+
+// Step 4: Round-trip back to typed data
+val roundTripped = backFromJson.flatMap(fromDynamic.into)
+// Right(Person("Alice", 30))
 ```
 
 The conversion uses `Schema[A].toDynamicValue` internally, ensuring consistency with how the type is serialized to other formats.
@@ -695,11 +711,11 @@ The conversion uses `Schema[A].toDynamicValue` internally, ensuring consistency 
 - **Dynamic pipelines**: Accept or produce semi-structured data in systems that don't have compile-time type information
 - **Schema-driven workflows**: Use the same schema definition for both type-safe operations and dynamic transformations
 
-### Converting from DynamicValue
+### Converting from DynamicValue with Round-Trip
 
 Given a `DynamicValue` with a matching structure, convert it back to a strongly-typed value:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.{Into, DynamicValue}
 
 case class Person(name: String, age: Int)
@@ -710,41 +726,73 @@ val dv = DynamicValue.Record(
   "age"  -> DynamicValue.int(25)
 )
 val result = fromDynamic.into(dv)
-// result == Right(Person("Bob", 25))
+```
+
+The conversion completes successfully:
+
+```scala mdoc
+result
 ```
 
 Conversion fails gracefully if the structure doesn't match:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.{Into, DynamicValue}
+```scala mdoc:silent:nest
+import zio.blocks.schema.{Into, DynamicValue, PrimitiveValue}
 
 case class Person(name: String, age: Int)
 
 val fromDynamic = Into.derived[DynamicValue, Person]
 val badDV = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
 val result = fromDynamic.into(badDV)
-// result == Left(SchemaError(...structure mismatch...))
 ```
 
-### Collections and DynamicValue
+```scala mdoc
+result
+```
 
-Conversions work seamlessly through collections:
+### Collections and DynamicValue Round-Trip
 
-```scala mdoc:compile-only
+Conversions work seamlessly through collections. Here's a complete round-trip:
+
+```scala mdoc:silent:nest
 import zio.blocks.schema.{Into, DynamicValue}
 
 case class Item(id: Int, name: String)
 
-// List[Item] → DynamicValue.Sequence
 val listToDynamic = Into.derived[List[Item], DynamicValue]
-val items = List(Item(1, "A"), Item(2, "B"))
-val result = listToDynamic.into(items)
-// result == Right(DynamicValue.Sequence(...))
+val listFromDynamic = Into.derived[DynamicValue, List[Item]]
 
-// Map conversions also supported
+val items = List(Item(1, "A"), Item(2, "B"))
+
+// Forward: List[Item] → DynamicValue
+val asDV = listToDynamic.into(items)
+
+// Round-trip: DynamicValue → List[Item]
+val backToList = asDV.flatMap(listFromDynamic.into)
+```
+
+The round-trip restores the original data:
+
+```scala mdoc
+backToList
+```
+
+Similarly for maps:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.{Into, DynamicValue}
+
 val mapToDynamic = Into.derived[Map[String, Int], DynamicValue]
-val result2 = mapToDynamic.into(Map("count" -> 42))
-// result2 == Right(DynamicValue.Map(...))
+val mapFromDynamic = Into.derived[DynamicValue, Map[String, Int]]
+
+val data = Map("count" -> 42, "total" -> 100)
+
+val asDV = mapToDynamic.into(data)
+val backToMap = asDV.flatMap(mapFromDynamic.into)
+```
+
+```scala mdoc
+backToMap
 ```
 
 ## Related Type: `As[A, B]`

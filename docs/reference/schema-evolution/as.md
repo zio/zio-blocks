@@ -398,68 +398,112 @@ As.derived[Short_, Long2_]  // compiles — extra is Optional
 
 Like `Into`, `As` supports bidirectional conversions with `DynamicValue`, allowing you to define a single schema and use it for both type-safe operations and polyglot data handling.
 
-### Bidirectional DynamicValue Support
+### Bidirectional DynamicValue Support with JSON Round-Trip
 
-You can derive `As[A, DynamicValue]` for any type with a `Schema[A]`:
+You can derive `As[A, DynamicValue]` for any type with a `Schema[A]` and achieve full polyglot round-trips:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.{As, DynamicValue}
+```scala mdoc:silent:nest
+import zio.blocks.schema.{As, DynamicValue, JsonFormat}
 
 case class Config(host: String, port: Int)
 
 val asDynamic = As.derived[Config, DynamicValue]
 
-// Forward: Config → DynamicValue
 val config = Config("localhost", 8080)
-val forward = asDynamic.into(config)
-// forward == Right(DynamicValue.Record(...))
 
-// Reverse: DynamicValue → Config
-val dv = DynamicValue.Record(
-  "host" -> DynamicValue.string("example.com"),
-  "port" -> DynamicValue.int(9000)
-)
-val backward = asDynamic.from(dv)
-// backward == Right(Config("example.com", 9000))
+// Step 1: Forward conversion to DynamicValue
+val forward = asDynamic.into(config)
+// Right(DynamicValue.Record("host" -> ..., "port" -> ...))
+
+// Step 2: Serialize to JSON
+val asJson = forward.flatMap { dv =>
+  JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
+}
+// Right("{\"host\":\"localhost\",\"port\":8080}")
+
+// Step 3: Deserialize JSON back to DynamicValue
+val fromJson = asJson.flatMap { json =>
+  JsonFormat.decode(json.getBytes("UTF-8"))
+}
+
+// Step 4: Round-trip back to Config
+val roundTripped = fromJson.flatMap(asDynamic.from)
+// Right(Config("localhost", 8080))
 ```
 
-This enables true round-trip conversions: serialize to DynamicValue, transform it, and deserialize back to the original type with full type safety.
+This demonstrates the full cycle: **Type → DynamicValue → JSON → DynamicValue → Type**, ensuring that the original value is perfectly preserved through serialization and deserialization.
 
 ### Use Cases
 
-**Polyglot configuration systems:** Accept configuration in JSON/YAML, deserialize to DynamicValue, transform, and re-serialize:
+**Polyglot configuration systems:** Accept configuration in JSON/YAML, deserialize to DynamicValue, validate, and re-serialize:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.{As, DynamicValue}
+```scala mdoc:silent:nest
+import zio.blocks.schema.{As, DynamicValue, JsonFormat}
 
 case class DatabaseConfig(host: String, port: Int, timeout: Long)
 
 val asDynamic: As[DatabaseConfig, DynamicValue] = As.derived
 
-// Ingest from external format via DynamicValue
-val fromExternal = asDynamic.from(externalDV)
+// Ingest JSON configuration
+val jsonInput = "{\"host\":\"db.example.com\",\"port\":5432,\"timeout\":3000}"
+val loaded = for {
+  dv <- JsonFormat.decode(jsonInput.getBytes("UTF-8"))
+  config <- asDynamic.from(dv)
+} yield config
 
-// Transform and re-export
-val transformed = asDynamic.into(fromExternal.getOrElse(...))
+// Validate and transform the config
+val validated = loaded.map(_.copy(timeout = 5000))
+
+// Export back to JSON
+val exported = validated.flatMap { config =>
+  asDynamic.into(config).flatMap { dv =>
+    JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
+  }
+}
 ```
 
-**Schema-driven migrations:** When both old and new formats are representable as structured data:
+The result:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.{As, DynamicValue}
+```scala mdoc
+exported
+```
+
+**Schema-driven bidirectional migrations:** When you need to migrate data while preserving the ability to roll back:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.{As, DynamicValue, JsonFormat}
 
 case class PersonOld(name: String, age: Int)
 case class PersonNew(name: String, age: Int, email: Option[String])
 
-val oldToDynamic: As[PersonOld, DynamicValue] = As.derived
-val dynToNew: As[DynamicValue, PersonNew] = As.derived
+val oldAsDynamic: As[PersonOld, DynamicValue] = As.derived
+val newAsDynamic: As[PersonNew, DynamicValue] = As.derived
 
-// Chained migration: PersonOld → DynamicValue → PersonNew
-val person: PersonOld = ???
-val result = for {
-  dv   <- oldToDynamic.into(person)
-  newPerson <- dynToNew.into(dv)
-} yield newPerson
+val originalJson = "{\"name\":\"Alice\",\"age\":30}"
+
+// Migrate: PersonOld → JSON → DynamicValue → PersonNew
+val migrated = for {
+  oldDV <- JsonFormat.decode(originalJson.getBytes("UTF-8"))
+  oldPerson <- oldAsDynamic.from(oldDV)
+  newPerson = oldPerson.copy(
+    name = oldPerson.name,
+    age = oldPerson.age,
+    email = Some("alice@example.com")
+  )
+  newDV <- newAsDynamic.into(newPerson)
+  newJson = new String(JsonFormat.encode(newDV).getOrElse(Array()), "UTF-8")
+} yield newJson
+
+// Rollback: PersonNew → JSON → DynamicValue → PersonOld (if structure allows)
+val canRollback = migrated.flatMap { json =>
+  for {
+    newDV <- JsonFormat.decode(json.getBytes("UTF-8"))
+    newPerson <- newAsDynamic.from(newDV)
+    oldPerson = PersonOld(newPerson.name, newPerson.age)
+    oldDV <- oldAsDynamic.into(oldPerson)
+    oldJson = new String(JsonFormat.encode(oldDV).getOrElse(Array()), "UTF-8")
+  } yield oldJson
+}
 ```
 
 ## Scala 2 vs Scala 3 Differences
