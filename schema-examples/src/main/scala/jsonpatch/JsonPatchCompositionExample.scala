@@ -94,8 +94,8 @@ object JsonPatchCompositionExample extends App {
   // roundtrip: toDynamicPatch then fromDynamicPatch recovers the original patch
   show(recovered == Right(originalPatch))
 
-  import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp as DynPrimOp, Operation as DynOp, DynamicPatchOp}
-  import zio.blocks.schema.DynamicOptic as DOp
+  import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp => DynPrimOp, Operation => DynOp, DynamicPatchOp}
+  import zio.blocks.schema.{DynamicOptic => DOp}
 
   val temporalOp = new DynamicPatch(
     Chunk(
