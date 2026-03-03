@@ -10,7 +10,7 @@ integrate it into the Docusaurus site.
 
 ## Step 1: Add to `sidebars.js`
 
-Add the page's `id` to the sidebar in `website/sidebars.js`. Place it in the appropriate category:
+Add the page's `id` to the sidebar in `docs/sidebars.js`. Place it in the appropriate category:
 
 - **Reference pages**: add under the `"Reference"` category, maintaining alphabetical or logical
   order.

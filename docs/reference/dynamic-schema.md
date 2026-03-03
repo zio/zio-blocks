@@ -28,7 +28,7 @@ Schema[OrderPlaced]   ←── compile-time type, closures attached
 DynamicSchema         ←── serializable, no closures
 (Reflect.Unbound[_])       stored in registry or sent over the wire
        │
-       │  DynamicSchema#toDynamicValue / DynamicSchema#fromDynamicValue
+       │  DynamicSchema.toDynamicValue / DynamicSchema.fromDynamicValue
        ▼
 DynamicValue          ←── uniform, format-neutral blob
        │
