@@ -9,9 +9,9 @@ import zio.blocks.schema.patch.PatchMode
 /**
  * JsonPatch — Complete Example: Collaborative Document Editing
  *
- * A realistic end-to-end scenario: a collaborative editor where multiple
- * users make changes to a shared JSON document. Each change is recorded as
- * a JsonPatch, forming an append-only log that can be:
+ * A realistic end-to-end scenario: a collaborative editor where multiple users
+ * make changes to a shared JSON document. Each change is recorded as a
+ * JsonPatch, forming an append-only log that can be:
  *   - Applied to reconstruct any historical version of the document
  *   - Serialized and sent over the network to sync remote clients
  *   - Composed to create a single patch representing multiple changes
@@ -57,9 +57,9 @@ object CompleteJsonPatchExample extends App {
     "content" -> Json.String("ZIO Blocks is a library for building type-safe applications."),
     "tags"    -> Json.Array(Json.String("scala"), Json.String("zio")),
     "meta"    -> Json.Object(
-      "author"   -> Json.String("alice"),
-      "version"  -> Json.Number(1),
-      "draft"    -> Json.Boolean(true)
+      "author"  -> Json.String("alice"),
+      "version" -> Json.Number(1),
+      "draft"   -> Json.Boolean(true)
     )
   )
 
@@ -109,9 +109,12 @@ object CompleteJsonPatchExample extends App {
 
   val publishPatch =
     // Flip draft → false at the path meta.draft
-    JsonPatch(DynamicOptic.root.field("meta").field("draft"),   Op.Set(Json.Boolean(false))) ++
-    // Increment meta.version by 1 (NumberDelta stores the delta, not the new value)
-    JsonPatch(DynamicOptic.root.field("meta").field("version"), Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1))))
+    JsonPatch(DynamicOptic.root.field("meta").field("draft"), Op.Set(Json.Boolean(false))) ++
+      // Increment meta.version by 1 (NumberDelta stores the delta, not the new value)
+      JsonPatch(
+        DynamicOptic.root.field("meta").field("version"),
+        Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1)))
+      )
 
   commit("alice", publishPatch)
   println(s"  meta.draft   = ${asObj(doc).get("meta").get("draft").one}")
@@ -129,15 +132,26 @@ object CompleteJsonPatchExample extends App {
   printSection("Bob adds a tag and refines the title")
 
   val editPatch =
-    JsonPatch.root(Op.ObjectEdit(Chunk(
-      // Append two new tags to the existing array; Insert/Append never
-      // remove existing elements, making this safe to apply in any order.
-      ObjectOp.Modify("tags", JsonPatch.root(Op.ArrayEdit(Chunk(
-        ArrayOp.Append(Chunk(Json.String("functional"), Json.String("typesafe")))
-      )))),
-      // Replace the title with a more specific string
-      ObjectOp.Modify("title", JsonPatch.root(Op.Set(Json.String("Introduction to ZIO Blocks Schema"))))
-    )))
+    JsonPatch.root(
+      Op.ObjectEdit(
+        Chunk(
+          // Append two new tags to the existing array; Insert/Append never
+          // remove existing elements, making this safe to apply in any order.
+          ObjectOp.Modify(
+            "tags",
+            JsonPatch.root(
+              Op.ArrayEdit(
+                Chunk(
+                  ArrayOp.Append(Chunk(Json.String("functional"), Json.String("typesafe")))
+                )
+              )
+            )
+          ),
+          // Replace the title with a more specific string
+          ObjectOp.Modify("title", JsonPatch.root(Op.Set(Json.String("Introduction to ZIO Blocks Schema"))))
+        )
+      )
+    )
 
   commit("bob", editPatch)
   println(s"  title = ${asObj(doc).get("title").one}")
@@ -212,7 +226,7 @@ object CompleteJsonPatchExample extends App {
   // so foldLeft with it as the starting value is the idiomatic fold.
   val aggregate = log.map(_._2).foldLeft(JsonPatch.empty)(_ ++ _)
   println(s"  Log size     : ${log.length} patches")
-  println(s"  Aggregate ops: ${aggregate.ops.length}")   // sum of all individual op counts
+  println(s"  Aggregate ops: ${aggregate.ops.length}") // sum of all individual op counts
 
   // Verify: applying the aggregate from scratch equals the current state
   val fromAggregate = aggregate.apply(initialDoc)
@@ -235,14 +249,18 @@ object CompleteJsonPatchExample extends App {
   // Dave computed a patch against the initial document before Bob's commit.
   // He tries to Add "tags" — but "tags" already exists in the current doc.
   // He also adds "summary", which is genuinely new and should succeed.
-  val stalePatch = JsonPatch.root(Op.ObjectEdit(Chunk(
-    ObjectOp.Add("summary", Json.String("A great library")),  // new field — OK in all modes
-    ObjectOp.Add("tags", Json.Array())                        // already exists — conflict!
-  )))
+  val stalePatch = JsonPatch.root(
+    Op.ObjectEdit(
+      Chunk(
+        ObjectOp.Add("summary", Json.String("A great library")), // new field — OK in all modes
+        ObjectOp.Add("tags", Json.Array())                       // already exists — conflict!
+      )
+    )
+  )
 
   // Strict: the entire patch fails because "tags" already exists.
   // No partial application — either all ops succeed or none do.
-  val strictResult  = doc.patch(stalePatch, PatchMode.Strict)
+  val strictResult = doc.patch(stalePatch, PatchMode.Strict)
 
   // Lenient: the conflicting Add("tags") is silently skipped;
   // Add("summary") still goes through. Good for best-effort merges.

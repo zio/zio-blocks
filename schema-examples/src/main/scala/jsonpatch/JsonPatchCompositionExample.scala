@@ -18,9 +18,10 @@ object JsonPatchCompositionExample extends App {
   )
 
   val renamePatch = JsonPatch(DynamicOptic.root.field("name"), Op.Set(Json.String("Bob")))
-  val scorePatch  = JsonPatch(DynamicOptic.root.field("score"), Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(50))))
-  val cityPatch   = JsonPatch(DynamicOptic.root.field("city"), Op.Set(Json.String("SF")))
-  val combined    = renamePatch ++ scorePatch ++ cityPatch
+  val scorePatch  =
+    JsonPatch(DynamicOptic.root.field("score"), Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(50))))
+  val cityPatch = JsonPatch(DynamicOptic.root.field("city"), Op.Set(Json.String("SF")))
+  val combined  = renamePatch ++ scorePatch ++ cityPatch
 
   // ++ sequences patches left-to-right; all three fields are updated in one step
   show(combined)
@@ -45,10 +46,14 @@ object JsonPatchCompositionExample extends App {
 
   val obj = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
 
-  val conflictPatch = JsonPatch.root(Op.ObjectEdit(Chunk(
-    ObjectOp.Add("a", Json.Number(99)),
-    ObjectOp.Add("c", Json.Number(3))
-  )))
+  val conflictPatch = JsonPatch.root(
+    Op.ObjectEdit(
+      Chunk(
+        ObjectOp.Add("a", Json.Number(99)),
+        ObjectOp.Add("c", Json.Number(3))
+      )
+    )
+  )
 
   // Strict fails when a field already exists and Add would overwrite it
   show(obj.patch(conflictPatch, PatchMode.Strict))
@@ -70,8 +75,8 @@ object JsonPatchCompositionExample extends App {
 
   // ── 3. JsonPatch → DynamicPatch ───────────────────────────────────────────
 
-  val numPatch: JsonPatch    = JsonPatch.diff(Json.Number(10), Json.Number(15))
-  val dyn:      DynamicPatch = numPatch.toDynamicPatch
+  val numPatch: JsonPatch = JsonPatch.diff(Json.Number(10), Json.Number(15))
+  val dyn: DynamicPatch   = numPatch.toDynamicPatch
 
   // toDynamicPatch converts a JsonPatch to the generic DynamicPatch representation
   show(numPatch)
@@ -79,9 +84,9 @@ object JsonPatchCompositionExample extends App {
 
   // ── 4. DynamicPatch → JsonPatch ───────────────────────────────────────────
 
-  val originalPatch: JsonPatch          = JsonPatch.diff(Json.Number(1), Json.Number(5))
-  val dynPatch:      DynamicPatch       = originalPatch.toDynamicPatch
-  val recovered:     Either[_, JsonPatch] = JsonPatch.fromDynamicPatch(dynPatch)
+  val originalPatch: JsonPatch        = JsonPatch.diff(Json.Number(1), Json.Number(5))
+  val dynPatch: DynamicPatch          = originalPatch.toDynamicPatch
+  val recovered: Either[_, JsonPatch] = JsonPatch.fromDynamicPatch(dynPatch)
 
   // fromDynamicPatch reconstructs the original JsonPatch from a DynamicPatch
   show(recovered)
@@ -92,10 +97,14 @@ object JsonPatchCompositionExample extends App {
   import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp as DynPrimOp, Operation as DynOp, DynamicPatchOp}
   import zio.blocks.schema.DynamicOptic as DOp
 
-  val temporalOp = new DynamicPatch(Chunk(new DynamicPatchOp(
-    DOp.root,
-    new DynOp.PrimitiveDelta(new DynPrimOp.InstantDelta(java.time.Duration.ofSeconds(60)))
-  )))
+  val temporalOp = new DynamicPatch(
+    Chunk(
+      new DynamicPatchOp(
+        DOp.root,
+        new DynOp.PrimitiveDelta(new DynPrimOp.InstantDelta(java.time.Duration.ofSeconds(60)))
+      )
+    )
+  )
 
   // non-Json primitive ops (e.g. InstantDelta) are rejected by fromDynamicPatch
   show(JsonPatch.fromDynamicPatch(temporalOp).isLeft)

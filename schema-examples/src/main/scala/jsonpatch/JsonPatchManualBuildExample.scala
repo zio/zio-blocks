@@ -63,10 +63,11 @@ object JsonPatchManualBuildExample extends App {
 
   // ── 4. Conditional composition with empty as the neutral element ───────────
 
-  val value        = Json.Object("x" -> Json.Number(5))
-  val maybeNeg     = if (true) JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(-1)))) else JsonPatch.empty
-  val maybeAddY    = if (false) JsonPatch(DynamicOptic.root.field("y"), Op.Set(Json.Number(0))) else JsonPatch.empty
-  val conditional  = maybeNeg ++ maybeAddY
+  val value    = Json.Object("x" -> Json.Number(5))
+  val maybeNeg =
+    if (true) JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(-1)))) else JsonPatch.empty
+  val maybeAddY   = if (false) JsonPatch(DynamicOptic.root.field("y"), Op.Set(Json.Number(0))) else JsonPatch.empty
+  val conditional = maybeNeg ++ maybeAddY
 
   // only the active branch (decrement x) is applied; the false branch is a no-op
   show(conditional.apply(value))

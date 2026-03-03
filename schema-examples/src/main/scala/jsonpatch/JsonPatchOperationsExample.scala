@@ -64,10 +64,16 @@ object JsonPatchOperationsExample extends App {
   // multiple StringOps are applied in sequence within a single patch
   show(
     JsonPatch
-      .root(Op.PrimitiveDelta(PrimitiveOp.StringEdit(Chunk(
-        StringOp.Delete(0, 6),
-        StringOp.Append("!")
-      ))))
+      .root(
+        Op.PrimitiveDelta(
+          PrimitiveOp.StringEdit(
+            Chunk(
+              StringOp.Delete(0, 6),
+              StringOp.Append("!")
+            )
+          )
+        )
+      )
       .apply(base)
   )
 
@@ -90,11 +96,15 @@ object JsonPatchOperationsExample extends App {
   // multiple ArrayOps compose into a single atomic edit
   show(
     JsonPatch
-      .root(Op.ArrayEdit(Chunk(
-        ArrayOp.Insert(0, Chunk(Json.Number(0))),
-        ArrayOp.Delete(3, 1),
-        ArrayOp.Append(Chunk(Json.Number(4)))
-      )))
+      .root(
+        Op.ArrayEdit(
+          Chunk(
+            ArrayOp.Insert(0, Chunk(Json.Number(0))),
+            ArrayOp.Delete(3, 1),
+            ArrayOp.Append(Chunk(Json.Number(4)))
+          )
+        )
+      )
       .apply(arr)
   )
 
@@ -115,20 +125,28 @@ object JsonPatchOperationsExample extends App {
   // ObjectOp.Modify applies a sub-patch to the value of the named field
   show(
     JsonPatch
-      .root(Op.ObjectEdit(Chunk(
-        ObjectOp.Modify("age", JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1)))))
-      )))
+      .root(
+        Op.ObjectEdit(
+          Chunk(
+            ObjectOp.Modify("age", JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1)))))
+          )
+        )
+      )
       .apply(obj)
   )
 
   // multiple ObjectOps compose into a single atomic edit
   show(
     JsonPatch
-      .root(Op.ObjectEdit(Chunk(
-        ObjectOp.Remove("city"),
-        ObjectOp.Add("country", Json.String("USA")),
-        ObjectOp.Modify("name", JsonPatch.root(Op.Set(Json.String("Bob"))))
-      )))
+      .root(
+        Op.ObjectEdit(
+          Chunk(
+            ObjectOp.Remove("city"),
+            ObjectOp.Add("country", Json.String("USA")),
+            ObjectOp.Modify("name", JsonPatch.root(Op.Set(Json.String("Bob"))))
+          )
+        )
+      )
       .apply(obj)
   )
 }
