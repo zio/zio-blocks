@@ -1,4 +1,22 @@
-# Skill: pr-to-docs
+---
+name: docs-document-pr
+description: >
+  Generates documentation from a GitHub pull request. Automatically gathers
+  related issues, commits, and PR metadata, then creates a new reference page,
+  how-to guide, or appends a subsection to an existing page based on the PR's
+  content type and scope. Delegates to specialized documentation skills
+  (docs-data-type-ref, docs-how-to-guide) to ensure consistent style and
+  formatting across all ZIO Blocks docs.
+triggers:
+  - "document PR"
+  - "doc this PR"
+  - "write docs for PR"
+  - "generate documentation from"
+  - "create docs from"
+  - "document this pull request"
+---
+
+# Skill: docs-document-pr
 
 ## Description
 
