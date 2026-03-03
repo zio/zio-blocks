@@ -1,5 +1,0 @@
-package dynamicschema
-
-object MyExample {
-
-}

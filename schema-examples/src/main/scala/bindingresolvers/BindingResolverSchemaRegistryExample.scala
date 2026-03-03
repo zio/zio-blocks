@@ -29,7 +29,7 @@ object BindingResolverSchemaRegistryExample extends App {
 
   // ── Schema registry (simulated) ───────────────────────────────────────────────
 
-  // Normally loaded from storage on startup. DynamicSchema#toDynamicSchema strips
+  // Normally loaded from storage on startup. Schema[A]#toDynamicSchema strips
   // all Scala functions, leaving only serializable structural metadata.
   val registry: Map[String, DynamicSchema] = Map(
     "customer" -> Schema[Customer].toDynamicSchema,
