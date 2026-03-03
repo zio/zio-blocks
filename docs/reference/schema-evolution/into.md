@@ -665,6 +665,88 @@ res match {
 } 
 ```
 
+## DynamicValue Conversions
+
+`Into` has special macro support for converting any type with a `Schema` to or from `DynamicValue`, a semi-structured data representation. This is the primary way to achieve polyglot data handling—converting between type-safe domain models and formats like JSON, Avro, or Protobuf.
+
+### Converting to DynamicValue
+
+Any type `A` with a `Schema[A]` can be converted to `DynamicValue`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, DynamicValue}
+
+case class Person(name: String, age: Int)
+
+val toDynamic = Into.derived[Person, DynamicValue]
+val person = Person("Alice", 30)
+val result = toDynamic.into(person)
+// result == Right(DynamicValue.Record(
+//   "name" -> DynamicValue.string("Alice"),
+//   "age"  -> DynamicValue.int(30)
+// ))
+```
+
+The conversion uses `Schema[A].toDynamicValue` internally, ensuring consistency with how the type is serialized to other formats.
+
+**Why this matters:**
+
+- **Format independence**: Convert typed data once to DynamicValue, then serialize to any format (JSON, Avro, MessagePack, etc.)
+- **Dynamic pipelines**: Accept or produce semi-structured data in systems that don't have compile-time type information
+- **Schema-driven workflows**: Use the same schema definition for both type-safe operations and dynamic transformations
+
+### Converting from DynamicValue
+
+Given a `DynamicValue` with a matching structure, convert it back to a strongly-typed value:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, DynamicValue}
+
+case class Person(name: String, age: Int)
+
+val fromDynamic = Into.derived[DynamicValue, Person]
+val dv = DynamicValue.Record(
+  "name" -> DynamicValue.string("Bob"),
+  "age"  -> DynamicValue.int(25)
+)
+val result = fromDynamic.into(dv)
+// result == Right(Person("Bob", 25))
+```
+
+Conversion fails gracefully if the structure doesn't match:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, DynamicValue}
+
+case class Person(name: String, age: Int)
+
+val fromDynamic = Into.derived[DynamicValue, Person]
+val badDV = DynamicValue.Primitive(PrimitiveValue.String("not a record"))
+val result = fromDynamic.into(badDV)
+// result == Left(SchemaError(...structure mismatch...))
+```
+
+### Collections and DynamicValue
+
+Conversions work seamlessly through collections:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Into, DynamicValue}
+
+case class Item(id: Int, name: String)
+
+// List[Item] → DynamicValue.Sequence
+val listToDynamic = Into.derived[List[Item], DynamicValue]
+val items = List(Item(1, "A"), Item(2, "B"))
+val result = listToDynamic.into(items)
+// result == Right(DynamicValue.Sequence(...))
+
+// Map conversions also supported
+val mapToDynamic = Into.derived[Map[String, Int], DynamicValue]
+val result2 = mapToDynamic.into(Map("count" -> 42))
+// result2 == Right(DynamicValue.Map(...))
+```
+
 ## Related Type: `As[A, B]`
 
 `As[A, B]` extends `Into[A, B]` with a reverse direction, enabling round-trip safe bidirectional conversions. Because `As` must guarantee that `A → B → A` restores the original value, it applies stricter derivation constraints than `Into`. See [As](./as.md) for the full reference.

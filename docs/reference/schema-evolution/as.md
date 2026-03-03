@@ -394,6 +394,74 @@ case class Long2_(name: String, extra: Option[String])
 As.derived[Short_, Long2_]  // compiles — extra is Optional
 ```
 
+## DynamicValue Conversions
+
+Like `Into`, `As` supports bidirectional conversions with `DynamicValue`, allowing you to define a single schema and use it for both type-safe operations and polyglot data handling.
+
+### Bidirectional DynamicValue Support
+
+You can derive `As[A, DynamicValue]` for any type with a `Schema[A]`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{As, DynamicValue}
+
+case class Config(host: String, port: Int)
+
+val asDynamic = As.derived[Config, DynamicValue]
+
+// Forward: Config → DynamicValue
+val config = Config("localhost", 8080)
+val forward = asDynamic.into(config)
+// forward == Right(DynamicValue.Record(...))
+
+// Reverse: DynamicValue → Config
+val dv = DynamicValue.Record(
+  "host" -> DynamicValue.string("example.com"),
+  "port" -> DynamicValue.int(9000)
+)
+val backward = asDynamic.from(dv)
+// backward == Right(Config("example.com", 9000))
+```
+
+This enables true round-trip conversions: serialize to DynamicValue, transform it, and deserialize back to the original type with full type safety.
+
+### Use Cases
+
+**Polyglot configuration systems:** Accept configuration in JSON/YAML, deserialize to DynamicValue, transform, and re-serialize:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{As, DynamicValue}
+
+case class DatabaseConfig(host: String, port: Int, timeout: Long)
+
+val asDynamic: As[DatabaseConfig, DynamicValue] = As.derived
+
+// Ingest from external format via DynamicValue
+val fromExternal = asDynamic.from(externalDV)
+
+// Transform and re-export
+val transformed = asDynamic.into(fromExternal.getOrElse(...))
+```
+
+**Schema-driven migrations:** When both old and new formats are representable as structured data:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{As, DynamicValue}
+
+case class PersonOld(name: String, age: Int)
+case class PersonNew(name: String, age: Int, email: Option[String])
+
+val oldToDynamic: As[PersonOld, DynamicValue] = As.derived
+val dynToNew: As[DynamicValue, PersonNew] = As.derived
+
+// Chained migration: PersonOld → DynamicValue → PersonNew
+val person: PersonOld = ???
+val result = for {
+  dv   <- oldToDynamic.into(person)
+  newPerson <- dynToNew.into(dv)
+} yield newPerson
+```
+
 ## Scala 2 vs Scala 3 Differences
 
 | Feature | Scala 2 | Scala 3 |
@@ -404,6 +472,7 @@ As.derived[Short_, Long2_]  // compiles — extra is Optional
 | Structural types | JVM only (reflection) | JVM only (reflection) |
 | ZIO Prelude newtypes | ✅ `assert { between(...) }` | ✅ `override def assertion` |
 | Error messages | Detailed macro errors | Detailed macro errors |
+| DynamicValue ambiguity detection | ✅ Two-pass implicit resolution | ✅ Built-in ambiguity reporting |
 
 ## Integration
 
