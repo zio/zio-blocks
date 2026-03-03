@@ -89,7 +89,13 @@ object CompleteJsonPatchExample extends App {
   // rather than silently producing a wrong result.
   def commit(author: String, patch: JsonPatch): Unit = {
     log = log :+ (author -> patch)
-    doc = patch.apply(doc).getOrElse(doc)
+    doc = patch.apply(doc) match {
+      case Right(updated) =>
+        updated
+      case Left(error) =>
+        System.err.println(s"Failed to apply patch in Strict mode for author '$author': $error")
+        throw new RuntimeException(s"JsonPatch application failed in Strict mode: $error")
+    }
     println(s"  [$author committed ${patch.ops.length} op(s)]")
   }
 
