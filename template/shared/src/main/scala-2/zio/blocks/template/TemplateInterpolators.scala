@@ -24,10 +24,10 @@ private[template] object TemplateMacros {
     import c.universe._
 
     val processedArgs = args.map { argExpr =>
-      val argType    = argExpr.actualType.widen
-      val toCssTc    = typeOf[ToCss[_]].typeConstructor
-      val toCssType  = appliedType(toCssTc, argType)
-      val instance   = c.inferImplicitValue(toCssType, silent = true)
+      val argType   = argExpr.actualType.widen
+      val toCssTc   = typeOf[ToCss[_]].typeConstructor
+      val toCssType = appliedType(toCssTc, argType)
+      val instance  = c.inferImplicitValue(toCssType, silent = true)
       if (instance == EmptyTree) {
         c.abort(argExpr.tree.pos, s"No ToCss instance found for type $argType")
       }
@@ -43,10 +43,10 @@ private[template] object TemplateMacros {
     import c.universe._
 
     val processedArgs = args.map { argExpr =>
-      val argType   = argExpr.actualType.widen
-      val toJsTc    = typeOf[ToJs[_]].typeConstructor
-      val toJsType  = appliedType(toJsTc, argType)
-      val instance  = c.inferImplicitValue(toJsType, silent = true)
+      val argType  = argExpr.actualType.widen
+      val toJsTc   = typeOf[ToJs[_]].typeConstructor
+      val toJsType = appliedType(toJsTc, argType)
+      val instance = c.inferImplicitValue(toJsType, silent = true)
       if (instance == EmptyTree) {
         c.abort(argExpr.tree.pos, s"No ToJs instance found for type $argType")
       }
@@ -62,10 +62,10 @@ private[template] object TemplateMacros {
     import c.universe._
 
     val processedArgs = args.map { argExpr =>
-      val argType         = argExpr.actualType.widen
-      val toElementsTc    = typeOf[ToElements[_]].typeConstructor
-      val toElementsType  = appliedType(toElementsTc, argType)
-      val instance        = c.inferImplicitValue(toElementsType, silent = true)
+      val argType        = argExpr.actualType.widen
+      val toElementsTc   = typeOf[ToElements[_]].typeConstructor
+      val toElementsType = appliedType(toElementsTc, argType)
+      val instance       = c.inferImplicitValue(toElementsType, silent = true)
       if (instance == EmptyTree) {
         c.abort(argExpr.tree.pos, s"No ToElements instance found for type $argType")
       }
