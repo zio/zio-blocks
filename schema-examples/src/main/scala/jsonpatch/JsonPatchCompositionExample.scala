@@ -1,7 +1,7 @@
 package jsonpatch
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch.*
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
@@ -84,9 +84,9 @@ object JsonPatchCompositionExample extends App {
 
   // ── 4. DynamicPatch → JsonPatch ───────────────────────────────────────────
 
-  val originalPatch: JsonPatch        = JsonPatch.diff(Json.Number(1), Json.Number(5))
-  val dynPatch: DynamicPatch          = originalPatch.toDynamicPatch
-  val recovered: Either[_, JsonPatch] = JsonPatch.fromDynamicPatch(dynPatch)
+  val originalPatch: JsonPatch                  = JsonPatch.diff(Json.Number(1), Json.Number(5))
+  val dynPatch: DynamicPatch                    = originalPatch.toDynamicPatch
+  val recovered: Either[SchemaError, JsonPatch] = JsonPatch.fromDynamicPatch(dynPatch)
 
   // fromDynamicPatch reconstructs the original JsonPatch from a DynamicPatch
   show(recovered)
@@ -94,14 +94,14 @@ object JsonPatchCompositionExample extends App {
   // roundtrip: toDynamicPatch then fromDynamicPatch recovers the original patch
   show(recovered == Right(originalPatch))
 
-  import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp => DynPrimOp, Operation => DynOp, DynamicPatchOp}
-  import zio.blocks.schema.{DynamicOptic => DOp}
+  import zio.blocks.schema.patch.DynamicPatch.{PrimitiveOp, Operation, DynamicPatchOp}
+  import zio.blocks.schema.DynamicOptic
 
   val temporalOp = new DynamicPatch(
     Chunk(
       new DynamicPatchOp(
-        DOp.root,
-        new DynOp.PrimitiveDelta(new DynPrimOp.InstantDelta(java.time.Duration.ofSeconds(60)))
+        DynamicOptic.root,
+        new Operation.PrimitiveDelta(new PrimitiveOp.InstantDelta(java.time.Duration.ofSeconds(60)))
       )
     )
   )

@@ -203,14 +203,14 @@ object CompleteJsonPatchExample extends App {
   // Full replay: apply every patch in order to arrive at the current state.
   // This proves the log is consistent with `doc`.
   val replayed = log.foldLeft(initialDoc: Json) { case (state, (_, patch)) =>
-    patch.apply(state).getOrElse(state)
+    patch.apply(state).fold(err => throw new RuntimeException(s"Replay failed: $err"), identity)
   }
   println(s"  Replayed == current: ${replayed == doc}")
 
   // Partial replay: apply only the first commit (Alice's) to inspect the
   // intermediate state without modifying `doc` or `log`.
   val afterAlice = log.take(1).foldLeft(initialDoc: Json) { case (state, (_, patch)) =>
-    patch.apply(state).getOrElse(state)
+    patch.apply(state).fold(err => throw new RuntimeException(s"Replay failed: $err"), identity)
   }
   // Alice only touched meta — tags should still be the original two
   println(s"  After Alice — draft: ${asObj(afterAlice).get("meta").get("draft").one}")

@@ -43,16 +43,18 @@ object ShowExpr {
   private def commentsAbove(filePath: String, lineNum: Int): List[String] = {
     val f = new JFile(filePath)
     if (!f.exists()) return Nil
-    val lines = Source.fromFile(f).getLines().toArray
-    // Walk backwards from the line above the call site, collecting // comment lines.
-    // lineNum is 1-indexed, so the line above is at 0-indexed position lineNum - 2.
-    var idx    = lineNum - 2
-    var result = List.empty[String]
-    while (idx >= 0 && lines(idx).trim.startsWith("//")) {
-      result = lines(idx).trim :: result
-      idx -= 1
-    }
-    result
+    val source = Source.fromFile(f)
+    try {
+      // Only load lines up to the call site to minimize memory usage
+      val lines  = source.getLines().take(lineNum).toList
+      var idx    = Math.min(lineNum - 2, lines.length - 1)
+      var result = List.empty[String]
+      while (idx >= 0 && lines(idx).trim.startsWith("//")) {
+        result = lines(idx).trim :: result
+        idx -= 1
+      }
+      result
+    } finally source.close()
   }
 
 }
