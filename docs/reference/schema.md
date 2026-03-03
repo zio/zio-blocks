@@ -647,9 +647,3 @@ def toJson[A: Schema](doc: A)(using
 When a type does not satisfy the grammar, the user gets a precise compile-time error naming the violating field and suggesting a fix. No runtime surprises.
 
 See the [`Allows` reference](./allows.md) for the full grammar node table, union syntax, `Self` for recursive types, newtypes, and error message examples.
-
-## See Also
-
-- [Into and As](./into-as.md) — Derive type-safe conversions between schema-compatible types, including DynamicValue conversions
-- [DynamicValue](./dynamic-value.md) — Schema-less dynamic values for polyglot data handling
-- [DynamicSchema](./dynamic-schema.md) — Type-erased schemas for validation and cross-process transport
