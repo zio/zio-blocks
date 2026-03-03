@@ -10,8 +10,8 @@ object MigrationMacros {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Provides selector-based methods (`_.field` syntax) on
-   * [[MigrationBuilder]] via macro expansion.
+   * Provides selector-based methods (`_.field` syntax) on [[MigrationBuilder]]
+   * via macro expansion.
    *
    * {{{
    * import zio.blocks.schema.migration.MigrationMacros._
