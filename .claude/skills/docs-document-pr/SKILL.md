@@ -86,98 +86,129 @@ Extract issue numbers and fetch them. This catches manually-added issue referenc
 
 ## Phase 3: Write Documentation
 
-### Path 3a — NEW PAGE
+### Decision: Delegate to Specialized Skills
 
-**File path:** `docs/reference/<kebab-id>.md` or `docs/guides/<kebab-id>.md`
+**Do NOT write documentation directly.** Instead, determine the doc type and use the appropriate ZIO Blocks documentation skill:
 
-Choose `reference/` for API docs, technical features, and modules. Choose `guides/` for tutorials and "how to use" content.
+#### Path 3a — NEW REFERENCE PAGE (API / Data Type)
 
-**Content template:**
+**When:** PR introduces a new data type, module, codec, or technical feature
+- Labels: `feat`, `new-module`, `schema-*`
+- No existing parent doc to extend
 
-```markdown
----
-id: <kebab-case-id>
-title: "<Feature Title from PR>"
----
+**Invoke:** Use the **`docs-data-type-ref`** skill
 
-## Overview
-
-<1–2 sentences from PR motivation and linked issues. Answer: "Why was this needed?">
-
-## Usage
-
-<Code example(s) derived from PR commits or PR diff. Show the key use case.>
-
-### Example
-
-\`\`\`scala
-<brief runnable example>
-\`\`\`
-
-## Key Types
-
-<List the main types, classes, or functions introduced. Brief description of each.>
-
-## See Also
-
-- [Related feature](#) — if there's a closely related doc page
+```
+User: "Create a reference page for this new Schema type from PR #1234"
 ```
 
-### Path 3b — SUBSECTION in existing page
+**The skill will:**
+- Gather the feature info from the PR (title, body, linked issues)
+- Write a structured reference page with Overview, Usage, Examples, API Reference
+- Follow ZIO Blocks documentation conventions (style, code blocks, frontmatter)
+- Return the file path
 
-**File path:** `docs/reference/<existing-id>.md` or `docs/guides/<existing-id>.md`
+#### Path 3b — NEW HOW-TO GUIDE
 
-**Append to the matched page:**
+**When:** PR introduces a workflow, pattern, or tutorial-style feature
+- Labels: `guide`, `enhancement`, `tutorial`
+- Teaches "how to accomplish X" with the new feature
 
-```markdown
-## <Feature Name or "New Feature: Name">
+**Invoke:** Use the **`docs-how-to-guide`** skill
 
-<Context from linked issues — what problem does this solve?>
-
-### Changes in this PR
-
-- <Bullet 1: What changed>
-- <Bullet 2: What changed>
-
-### Example
-
-\`\`\`scala
-<brief code example showing the new feature>
-\`\`\`
-
-### API Reference
-
-<If applicable, list new types/methods. Link to reference docs if they exist.>
+```
+User: "Create a how-to guide for the new temporal processing feature from PR #1234"
 ```
 
-### Guidelines for both paths:
+**The skill will:**
+- Extract motivation and use-cases from PR and linked issues
+- Write a step-by-step guide with concrete examples
+- Follow ZIO Blocks style and code block conventions
+- Return the file path
 
-1. **Use content from the PR:**
+#### Path 3c — ADD SUBSECTION to existing page
+
+**When:** PR enhances an existing feature or fixes a documented area
+- Labels: `enhancement`, `fix`
+- Existing doc page covers the parent topic
+
+**Manual process:**
+1. Read the existing page at `docs/reference/<id>.md` or `docs/guides/<id>.md`
+2. Extract PR context (issues, motivation, commits)
+3. Append a new section using this structure:
+   ```markdown
+   ## <Feature Name or "New Feature: Name">
+
+   <Context from linked issues — what problem does this solve?>
+
+   ### Changes in this PR
+
+   - <Bullet 1: What changed>
+   - <Bullet 2: What changed>
+
+   ### Example
+
+   \`\`\`scala
+   <brief code example showing the new feature>
+   \`\`\`
+
+   ### API Reference
+
+   <If applicable, list new types/methods. Link to reference docs if they exist.>
+   ```
+4. Follow `docs-writing-style` for prose (refer to the skill for rules)
+5. Follow `docs-mdoc-conventions` for code block syntax (refer to the skill for modifiers and admonitions)
+
+### Guidelines Across All Paths
+
+1. **Source content from the PR:**
    - PR title → doc title
-   - PR body + linked issue bodies → motivation and context
+   - PR body + linked issue bodies → motivation, use-cases, context
    - Commit messages → what changed (summarize key commits)
-   - Labels → topic categorization
+   - Labels → doc type and categorization
 
-2. **Code examples:**
-   - Extract from PR commits or PR diff if available
-   - Keep examples short and focused on the new feature
-   - Use `scala` or `bash` code blocks
+2. **Integrate with existing skills:**
+   - Consult **`docs-writing-style`** for prose rules and tone
+   - Consult **`docs-mdoc-conventions`** for code block modifiers (`:mdoc` markers) and Docusaurus admonitions (:::note, :::warning)
+   - These skills provide shared guidelines used across all ZIO Blocks docs
 
-3. **Structure:**
-   - Start with "Why?" (Overview)
-   - Then "How?" (Usage/Examples)
-   - Then "What?" (API Reference, types introduced)
+3. **File naming and frontmatter:**
+   - Use kebab-case for file names and `id` fields
+   - Always include frontmatter: `id`, `title`, optional `sidebar_label`
+   - Example:
+     ```markdown
+     ---
+     id: schema-xml
+     title: "XML Schema Support"
+     sidebar_label: "XML"
+     ---
+     ```
 
 ---
 
-## Phase 4: Update Sidebar (if new page)
+## Phase 4: Integrate with Docs Site
 
-If a **new page** was created, add its `id` to `docs/sidebars.js`:
+### For new reference or how-to pages:
 
-1. **Open** `docs/sidebars.js`
-2. **Find the appropriate category** (e.g., "Reference", "Guides")
-3. **Insert the `id`** in the correct alphabetical or logical position
-4. **Example:**
+After the `docs-data-type-ref` or `docs-how-to-guide` skill returns the file path, use **`docs-integrate`** to finalize:
+
+```
+User: "Integrate the new schema-xml docs page"
+```
+
+**The skill will:**
+- Check that frontmatter (id, title) is correct
+- Verify the page exists at the correct path
+- Update `docs/sidebars.js` in the appropriate category
+- Confirm the sidebar entry is in alphabetical or logical position
+- Provide verification steps
+
+**Manual backup:** If you need to update the sidebar yourself:
+
+1. Open `docs/sidebars.js`
+2. Find the appropriate category (e.g., "Reference", "Guides")
+3. Insert the `id` in correct alphabetical or logical position
+4. Example:
    ```javascript
    {
      type: 'category',
@@ -191,7 +222,9 @@ If a **new page** was created, add its `id` to `docs/sidebars.js`:
    }
    ```
 
-If a **subsection** was added to an existing page, no sidebar changes are needed.
+### For subsection additions:
+
+No sidebar changes needed—the subsection is part of an existing page that's already in the sidebar.
 
 ---
 
@@ -227,24 +260,65 @@ When you invoke this skill:
 - [ ] **Phase 1:** Use `gh issue view` for each linked issue (max ~5 issues per PR is typical)
 - [ ] **Phase 2:** Check existing docs in `docs/reference/` and `docs/guides/` to decide new page vs. subsection
 - [ ] **Phase 2:** Use PR labels and title as tiebreakers
-- [ ] **Phase 3:** Create new file or Edit existing file with frontmatter and content
-- [ ] **Phase 4:** If new page, update `docs/sidebars.js`
+- [ ] **Phase 3a:** If new reference/API page → invoke `docs-data-type-ref` skill with PR context
+- [ ] **Phase 3b:** If new how-to guide → invoke `docs-how-to-guide` skill with PR context
+- [ ] **Phase 3c:** If subsection → manually edit existing page, consult `docs-writing-style` and `docs-mdoc-conventions` skills
+- [ ] **Phase 4:** If new page → invoke `docs-integrate` skill to update sidebar
 - [ ] **Phase 5:** Report findings and file paths to user
 
 ---
 
 ## Example Invocation
 
-**User:** "Document PR #1138"
+### Example 1: New Reference Page
+
+**User:** "Document PR #1016 - Add XML support module"
 
 **Your response:**
-1. Run `gh pr view 1138 --json title,body,labels,commits,closingIssuesReferences`
-2. Parse the PR (e.g., "CI: Replace JDK 11 with JDK 17")
-3. Fetch any linked issues
-4. Decide: Is this substantial enough for a new page? (Probably not — it's a CI fix. Plan for subsection in docs/guides/setup.md or similar, *if* one exists. If no existing setup guide, create docs/guides/ci-setup.md as a new page, or skip docs if it's purely internal CI.)
-5. Write or append docs
-6. Update sidebar if new page
-7. Report: "Created docs/guides/ci-setup.md" or "Added subsection to docs/guides/setup.md" or "This PR is a CI improvement; documentation not needed in user-facing docs."
+1. Run `gh pr view 1016 --json title,body,labels,commits,closingIssuesReferences`
+2. Parse: "feat(schema-xml): Add XML support module with schema-driven codec derivation" + label `feat`
+3. Fetch linked issues for motivation
+4. **Decision:** New reference page (substantial feature, no existing XML doc)
+5. **Invoke** `docs-data-type-ref` skill:
+   ```
+   "Create a reference page for the new Schema XML type from PR #1016.
+    The PR introduces XML codec support.
+    Key motivation: [from issues].
+    Key types: [from commits]."
+   ```
+6. Skill returns: `docs/reference/schema-xml.md` created
+7. **Invoke** `docs-integrate` skill to add to sidebar
+8. **Report:** "Created `docs/reference/schema-xml.md` and added to sidebar under Reference"
+
+### Example 2: How-To Guide
+
+**User:** "Document PR #1032 - Schema derivation improvements"
+
+**Your response:**
+1. Fetch PR metadata
+2. **Decision:** New how-to guide (teaches users a technique)
+3. **Invoke** `docs-how-to-guide` skill:
+   ```
+   "Create a how-to guide for deriving schemas using the Derivable type class.
+    From PR #1032. Key example from commits: [extract example]."
+   ```
+4. Skill returns: `docs/guides/deriving-schemas.md` created
+5. **Invoke** `docs-integrate` skill
+6. **Report:** "Created `docs/guides/deriving-schemas.md`"
+
+### Example 3: Subsection Addition
+
+**User:** "Document PR #1138 - CI improvements"
+
+**Your response:**
+1. Fetch PR metadata
+2. **Decision:** CI fix, not user-facing docs (or add subsection to setup guide if one exists)
+3. If subsection needed:
+   - Find existing page: `docs/guides/setup.md`
+   - Read it, consult `docs-writing-style` skill for prose rules
+   - Append section: "## CI Configuration" with the CI changes
+   - Consult `docs-mdoc-conventions` skill for any code block formatting
+4. **Report:** "Added subsection to `docs/guides/setup.md`" or "This PR is a CI-only change; no user-facing docs needed."
 
 ---
 
