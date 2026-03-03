@@ -407,7 +407,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 `DynamicSchema#toSchema` returns a `Schema[DynamicValue]` — it stays fully in the dynamic world and requires no bindings. Use it when you have received a `DynamicSchema` over the wire and need a codec-compatible schema that enforces structural conformance without binding any Scala types.
 
-After transporting a `DynamicSchema` you may not have the Scala types that `DynamicSchema#rebind` requires, for example when the consumer is a validation gateway or format converter that handles arbitrary event shapes. Any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly, making `DynamicSchema#toSchema` the right choice for schema validation middleware, event-store gateways, and format converters that must enforce structure without knowing the concrete type.
+After transporting a `DynamicSchema`, you may not have the Scala types that `DynamicSchema#rebind` requires. For example, when the consumer is a validation gateway or format converter that handles arbitrary event shapes, any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly. `DynamicSchema#toSchema` is the right choice for schema validation middleware, event-store gateways, and format converters that must enforce structure without knowing the concrete type.
 
 :::warning
 Use `DynamicSchema#rebind` instead when you have a `BindingResolver` and need a fully operational `Schema[A]` for typed encoding and decoding.

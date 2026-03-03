@@ -31,34 +31,32 @@ object DynamicSchemaRegistryExample extends App {
   // DynamicSchema.toDynamicValue strips all Scala closures, so the blob can be
   // stored as JSON or bytes without any issue.
 
-  var registry: Map[String, DynamicValue] = Map.empty
-
-  def registerSchema(id: String, schema: Schema[_]): Unit = {
+  def registerSchema(registry: Map[String, DynamicValue], id: String, schema: Schema[_]): Map[String, DynamicValue] = {
     val blob = DynamicSchema.toDynamicValue(schema.toDynamicSchema)
-    registry = registry + (id -> blob)
     println(s"[Registry] Registered '$id'")
+    registry + (id -> blob)
   }
 
-  def fetchSchema(id: String): DynamicSchema =
+  def fetchSchema(registry: Map[String, DynamicValue], id: String): DynamicSchema =
     DynamicSchema.fromDynamicValue(registry(id))
 
   // ── Message queue (in-memory simulation) ──────────────────────────────────
 
   case class Message(schemaId: String, payload: DynamicValue)
-  var queue: List[Message] = Nil
 
   // ── Producer side ─────────────────────────────────────────────────────────
 
   println("=== Producer startup ===")
-  registerSchema("order-created-v1", Schema[OrderCreated])
+  var registry = registerSchema(Map.empty, "order-created-v1", Schema[OrderCreated])
 
-  def publishEvent(event: OrderCreated): Unit = {
+  def publishEvent(queue: List[Message], event: OrderCreated): List[Message] = {
     val payload = Schema[OrderCreated].toDynamicValue(event)
-    queue = queue :+ Message("order-created-v1", payload)
     println(s"[Producer] Published OrderCreated(orderId=${event.orderId})")
+    queue :+ Message("order-created-v1", payload)
   }
 
-  publishEvent(
+  var queue = publishEvent(
+    Nil,
     OrderCreated(
       orderId = "ORD-001",
       customerId = "CUST-42",
@@ -66,7 +64,8 @@ object DynamicSchemaRegistryExample extends App {
     )
   )
 
-  publishEvent(
+  queue = publishEvent(
+    queue,
     OrderCreated(
       orderId = "ORD-002",
       customerId = "CUST-17",
@@ -87,7 +86,7 @@ object DynamicSchemaRegistryExample extends App {
       ++ BindingResolver.defaults
 
   queue.foreach { msg =>
-    val dynamic = fetchSchema(msg.schemaId)
+    val dynamic = fetchSchema(registry, msg.schemaId)
     val rebound = dynamic.rebind[OrderCreated](resolver)
     val decoded = rebound.fromDynamicValue(msg.payload)
     show(decoded)
