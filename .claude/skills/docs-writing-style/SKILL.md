@@ -78,3 +78,5 @@ Apply these conventions consistently in all prose, section headings, and inline 
 
 All code in documentation and companion example files **must use Scala 2.13.x syntax**. When in
 doubt, check the companion example files — they are the source of truth for syntax style.
+
+---
