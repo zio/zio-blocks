@@ -157,7 +157,7 @@ agePatch.apply(nested)
 
 ### `JsonPatch.empty`
 
-The empty patch. Applying it to any `Json` value returns that value unchanged. `empty` is the identity element for `++`:
+The empty patch. Applying it to any `Json` value returns that value unchanged. `JsonPatch.empty` is the identity element for `++`:
 
 ```scala
 object JsonPatch {
@@ -171,7 +171,7 @@ object JsonPatch {
 import zio.blocks.schema.json.{Json, JsonPatch}
 ```
 
-Both `isEmpty` and applying `empty` confirm the identity property:
+Both `JsonPatch#isEmpty` and applying `JsonPatch.empty` confirm the identity property:
 
 ```scala mdoc
 JsonPatch.empty.isEmpty
@@ -185,7 +185,7 @@ Converts a generic `DynamicPatch` to a `JsonPatch`. Returns `Left[SchemaError]` 
 - Temporal deltas (`InstantDelta`, `DurationDelta`, etc.) — JSON has no native time type
 - Non-string map keys — JSON object keys must always be strings
 
-All numeric delta types (`IntDelta`, `LongDelta`, `DoubleDelta`, etc.) are widened to `NumberDelta(BigDecimal)`.
+All numeric delta types (`IntDelta`, `LongDelta`, `DoubleDelta`, etc.) are widened to `NumberDelta(BigDecimal)`:
 
 ```scala
 object JsonPatch {
@@ -391,7 +391,7 @@ Op (sealed trait)
 
 ### `Op.Set`
 
-Replaces the target value with a new `Json` value, regardless of the current value. Works on any `Json` type.
+Replaces the target value with a new `Json` value, regardless of the current value. Works on any `Json` type:
 
 ```scala
 final case class Set(value: Json) extends Op
@@ -418,7 +418,7 @@ setNull.apply(withStatus)
 
 ### `Op.PrimitiveDelta`
 
-Applies a primitive mutation to a scalar value — either a numeric increment (`NumberDelta`) or a sequence of string edits (`StringEdit`).
+Applies a primitive mutation to a scalar value — either a numeric increment (`NumberDelta`) or a sequence of string edits (`StringEdit`):
 
 ```scala
 final case class PrimitiveDelta(op: PrimitiveOp) extends Op
@@ -426,7 +426,7 @@ final case class PrimitiveDelta(op: PrimitiveOp) extends Op
 
 #### `PrimitiveOp.NumberDelta`
 
-Adds `delta` to a `Json.Number`. Use a negative value to subtract. Fails if the target is not a `Json.Number`.
+Adds `delta` to a `Json.Number`. Use a negative value to subtract. Fails if the target is not a `Json.Number`:
 
 ```scala
 final case class NumberDelta(delta: BigDecimal) extends PrimitiveOp
@@ -449,7 +449,7 @@ dec.apply(Json.Number(10))
 
 #### `PrimitiveOp.StringEdit`
 
-Applies a sequence of `StringOp` operations to a `Json.String`. `JsonPatch.diff` generates `StringEdit` automatically when it is more compact than a full `Set`.
+Applies a sequence of `StringOp` operations to a `Json.String`. `JsonPatch.diff` generates `StringEdit` automatically when it is more compact than a full `Set`:
 
 ```scala
 final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
@@ -486,7 +486,7 @@ For most use cases, let `JsonPatch.diff` generate `StringEdit` automatically. Th
 
 ### `Op.ArrayEdit`
 
-Applies a sequence of `ArrayOp` operations to a `Json.Array`. Operations are applied in order, and each one sees the result of the previous.
+Applies a sequence of `ArrayOp` operations to a `Json.Array`. Operations are applied in order, and each one sees the result of the previous:
 
 ```scala
 final case class ArrayEdit(ops: Chunk[ArrayOp]) extends Op
@@ -526,7 +526,7 @@ Array indices in `ArrayOp.Delete` and `ArrayOp.Modify` refer to the state of the
 
 ### `Op.ObjectEdit`
 
-Applies a sequence of `ObjectOp` operations to a `Json.Object`. Operations are applied in order.
+Applies a sequence of `ObjectOp` operations to a `Json.Object`. Operations are applied in order:
 
 ```scala
 final case class ObjectEdit(ops: Chunk[ObjectOp]) extends Op
@@ -566,7 +566,7 @@ objPatch.apply(originalObj)
 
 ### `Op.Nested`
 
-Groups a sub-patch under a shared path prefix. `JsonPatch.diff` emits `Nested` automatically when multiple operations share a common navigation path — this avoids repeating the full path in each `JsonPatchOp`.
+Groups a sub-patch under a shared path prefix. `JsonPatch.diff` emits `Nested` automatically when multiple operations share a common navigation path — this avoids repeating the full path in each `JsonPatchOp`:
 
 ```scala
 final case class Nested(patch: JsonPatch) extends Op
