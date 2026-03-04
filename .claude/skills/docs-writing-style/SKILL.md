@@ -1,7 +1,6 @@
 ---
 name: docs-writing-style
-description: Shared prose style rules for ZIO Blocks documentation. Include when writing any ZIO Blocks documentation page — reference pages, how-to guides, or tutorials. Also include docs-mdoc-conventions for code block modifiers.
-allowed-tools: Read, Glob, Grep
+description: Use when writing any ZIO Blocks documentation page — reference pages, how-to guides, or tutorials. Provides shared prose style rules.
 ---
 
 # ZIO Blocks Documentation Writing Style

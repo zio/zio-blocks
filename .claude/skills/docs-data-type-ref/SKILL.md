@@ -1,8 +1,6 @@
 ---
 name: docs-data-type-ref
-description: Use when the user asks to write a reference page for a ZIO Blocks data type, API documentation, or class/trait/object documentation.
-argument-hint: "[fully-qualified-type-name or simple-type-name]"
-allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
+description: Use when the user asks to document a data type, write an API reference for a type, or create a reference page for a ZIO Blocks class, trait, or object.
 ---
 
 # Write Data Type Reference Page
