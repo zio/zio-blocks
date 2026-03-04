@@ -414,39 +414,23 @@ object BsonCodec {
   )
 
   val year: BsonCodec[Year] = stringBased[Year](
-    Json.yearRawCodec.encodeToString,
-    x =>
-      Json.yearRawCodec.decode(x) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    _.toString,
+    Year.parse
   )
 
   val yearMonth: BsonCodec[YearMonth] = stringBased[YearMonth](
-    Json.yearMonthRawCodec.encodeToString,
-    x =>
-      Json.yearMonthRawCodec.decode(x) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    _.toString,
+    YearMonth.parse
   )
 
   val zoneId: BsonCodec[ZoneId] = stringBased[ZoneId](
-    _.getId,
-    x =>
-      Json.zoneIdRawCodec.decode(x) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    _.toString,
+    ZoneId.of
   )
 
   val zoneOffset: BsonCodec[ZoneOffset] = stringBased[ZoneOffset](
-    _.getId,
-    x =>
-      Json.zoneOffsetRawCodec.decode(x) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    _.toString,
+    ZoneOffset.of
   )
 
   val zonedDateTime: BsonCodec[ZonedDateTime] = stringBased[ZonedDateTime](

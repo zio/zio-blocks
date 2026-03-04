@@ -438,13 +438,18 @@ object JsonDecoder {
 
   implicit val periodDecoder: JsonDecoder[Period] = parseString("Period", Json.periodRawCodec)
 
-  implicit val yearDecoder: JsonDecoder[Year] = parseString("Year", Json.yearRawCodec)
+  implicit val yearDecoder: JsonDecoder[Year] = parseString("Year") { s =>
+    try java.time.Year.of(s.toInt)
+    catch {
+      case _: NumberFormatException => java.time.Year.parse(s)
+    }
+  }
 
-  implicit val yearMonthDecoder: JsonDecoder[YearMonth] = parseString("YearMonth", Json.yearMonthRawCodec)
+  implicit val yearMonthDecoder: JsonDecoder[YearMonth] = parseString("YearMonth")(YearMonth.parse)
 
-  implicit val zoneOffsetDecoder: JsonDecoder[ZoneOffset] = parseString("ZoneOffset", Json.zoneOffsetRawCodec)
+  implicit val zoneOffsetDecoder: JsonDecoder[ZoneOffset] = parseString("ZoneOffset")(ZoneOffset.of)
 
-  implicit val zoneIdDecoder: JsonDecoder[ZoneId] = parseString("ZoneId", Json.zoneIdRawCodec)
+  implicit val zoneIdDecoder: JsonDecoder[ZoneId] = parseString("ZoneId")(ZoneId.of)
 
   implicit val zonedDateTimeDecoder: JsonDecoder[ZonedDateTime] =
     parseString("ZonedDateTime", Json.zonedDateTimeRawCodec)

@@ -374,8 +374,7 @@ final class JsonReader private[json] (
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsYear(): Year = {
-    nextTokenOrError('"', head)
-    val x = Year.of(parseYearWithByte('"', head))
+    val x = readYear(null)
     nextTokenOrError(':', head)
     x
   }
@@ -390,7 +389,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsYearMonth(): YearMonth = {
     nextTokenOrError('"', head)
-    val x = parseYearMonth(head, false)
+    val x = parseYearMonth(head)
     nextTokenOrError(':', head)
     x
   }
@@ -420,7 +419,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsZoneId(): ZoneId = {
     nextTokenOrError('"', head)
-    val x = parseZoneId(false)
+    val x = parseZoneId()
     nextTokenOrError(':', head)
     x
   }
@@ -435,7 +434,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsZoneOffset(): ZoneOffset = {
     nextTokenOrError('"', head)
-    val x = parseZoneOffset(false)
+    val x = parseZoneOffset()
     nextTokenOrError(':', head)
     x
   }
@@ -1060,7 +1059,56 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readYear(default: Year): Year =
-    if (isNextToken('"', head)) Year.of(parseYearWithByte('"', head))
+    if (isNextToken('"', head)) Year.of {
+      var year = 0
+      var pos  = head
+      if (
+        pos + 4 < tail && {
+          val buf =
+            this.buf // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+          year = ByteArrayAccess.getInt(buf, pos) - 0x30303030
+          ((year + 0x76767676 | year) & 0x80808080) == 0 && buf(pos + 4) == '"'
+        }
+      ) {
+        year = (year * 2561 >> 8 & 0xff00ff) * 6553601 >> 16
+        head = pos + 5
+        year
+      } else {
+        val b1  = nextByte(head)
+        var buf = this.buf
+        pos = head
+        year = 0
+        var yearDigits = 0
+        var b          = b1
+        if (b >= '0' && b <= '9') {
+          yearDigits = 1
+          year = b - '0'
+        } else if (b != '-' && b != '+') decodeError("expected '-' or '+' or digit")
+        while ({
+          if (pos >= tail) {
+            pos = loadMoreOrError(pos)
+            buf = this.buf
+          }
+          b = buf(pos)
+          (b >= '0' && b <= '9') && yearDigits < 9
+        }) {
+          year = year * 10 + (b - '0')
+          yearDigits += 1
+          pos += 1
+        }
+        head = pos + 1
+        if (b != '"') {
+          if (yearDigits == 0) digitError()
+          if (yearDigits == 9) tokenError('"')
+          tokenOrDigitError('"')
+        }
+        if (b1 == '-') {
+          if (year == 0) yearError()
+          year = -year
+        }
+        year
+      }
+    }
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1082,7 +1130,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readYearMonth(default: YearMonth): YearMonth =
-    if (isNextToken('"', head)) parseYearMonth(head, false)
+    if (isNextToken('"', head)) parseYearMonth(head)
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1126,7 +1174,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readZoneId(default: ZoneId): ZoneId =
-    if (isNextToken('"', head)) parseZoneId(false)
+    if (isNextToken('"', head)) parseZoneId()
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1148,7 +1196,7 @@ final class JsonReader private[json] (
    *   when both the JSON value and the provided default value are `null`
    */
   def readZoneOffset(default: ZoneOffset): ZoneOffset =
-    if (isNextToken('"', head)) parseZoneOffset(false)
+    if (isNextToken('"', head)) parseZoneOffset()
     else {
       head -= 1
       readNullOrTokenError(default, '"')
@@ -1516,46 +1564,6 @@ final class JsonReader private[json] (
    *   in cases of reaching the end of input or invalid type of JSON value
    */
   private[json] def readRawValAsPeriod(): Period = parsePeriod(true)
-
-  /**
-   * Reads a raw JSON value into an [[java.time.Year]] instance.
-   *
-   * @return
-   *   an [[java.time.Year]] instance of the raw JSON value.
-   * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
-   */
-  private[json] def readRawValAsYear(): Year = Year.of(parseYear(head))
-
-  /**
-   * Reads a raw JSON value into an [[java.time.YearMonth]] instance.
-   *
-   * @return
-   *   an [[java.time.YearMonth]] instance of the raw JSON value.
-   * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
-   */
-  private[json] def readRawValAsYearMonth(): YearMonth = parseYearMonth(head, true)
-
-  /**
-   * Reads a raw JSON value into an [[java.time.ZoneOffset]] instance.
-   *
-   * @return
-   *   an [[java.time.ZoneOffset]] instance of the raw JSON value.
-   * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
-   */
-  private[json] def readRawValAsZoneOffset(): ZoneOffset = parseZoneOffset(true)
-
-  /**
-   * Reads a raw JSON value into an [[java.time.ZoneId]] instance.
-   *
-   * @return
-   *   an [[java.time.ZoneId]] instance of the raw JSON value.
-   * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
-   */
-  private[json] def readRawValAsZoneId(): ZoneId = parseZoneId(true)
 
   /**
    * Reads a raw JSON value into an [[java.time.ZonedDateTime]] instance.
@@ -2214,54 +2222,6 @@ final class JsonReader private[json] (
   }
 
   @tailrec
-  private[this] def parseYear(pos: Int): Int =
-    if (pos + 3 < tail) {
-      val buf  = this.buf
-      var year = ByteArrayAccess.getInt(buf, pos) - 0x30303030
-      if (((year + 0x76767676 | year) & 0x80808080) == 0) { // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-        year = (year * 2561 >> 8 & 0xff00ff) * 6553601 >> 16
-        head = pos + 4
-        year
-      } else parseNon4DigitYear(9, year, pos)
-    } else parseYear(loadMoreOrError(pos))
-
-  private[this] def parseNon4DigitYear(maxDigits: Int, y: Int, p: Int): Int = {
-    val b1 = (y + 0x30).toByte
-    if (b1 != '-' && b1 != '+') fourDigitYearError(p, y)
-    var pos  = p + 1
-    var buf  = this.buf
-    var year = ByteArrayAccess.getInt(buf, pos) - 0x30303030
-    val m    =
-      (year + 0x76767676 | year) & 0x80808080 // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-    if (m != 0) digitError()
-    year = (year * 2561 >> 8 & 0xff00ff) * 6553601 >> 16
-    pos += 4
-    var yearDigits = 4
-    var b: Byte    = 0
-    while (
-      (pos < tail || {
-        pos = loadMore(pos)
-        buf = this.buf
-        pos < tail
-      }) && {
-        b = buf(pos)
-        (b >= '0' && b <= '9') && yearDigits < maxDigits
-      }
-    ) {
-      year =
-        if (year > 100000000) 2147483647
-        else year * 10 + (b - '0')
-      yearDigits += 1
-      pos += 1
-    }
-    head = pos
-    if (b1 == '-' && year == 0 || yearDigits == 10 && year > 1000000000) yearError()
-    if (b1 == '-') year = -year
-    if (year >= 0 && year < 10000) digitError()
-    year
-  }
-
-  @tailrec
   private[this] def parseMonthWithByte(t: Byte, pos: Int): Int =
     if (pos + 2 < tail) {
       val buf   = this.buf
@@ -2275,19 +2235,6 @@ final class JsonReader private[json] (
       if (b3 != t) tokenError(t)
       month
     } else parseMonthWithByte(t, loadMoreOrError(pos))
-
-  @tailrec
-  private[this] def parseMonth(pos: Int): Int =
-    if (pos + 1 < tail) {
-      val buf   = this.buf
-      val b1    = buf(pos)
-      val b2    = buf(pos + 1)
-      val month = b1 * 10 + b2 - 528 // 528 == '0' * 11
-      head = pos + 2
-      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
-      if (month < 1 || month > 12) monthError()
-      month
-    } else parseMonth(loadMoreOrError(pos))
 
   @tailrec
   private[this] def parseDayWithByte(year: Int, month: Int, t: Byte, pos: Int): Int =
@@ -2424,42 +2371,28 @@ final class JsonReader private[json] (
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseOffsetSecondWithDoubleQuotes(loadMoreOrError(pos))
 
-  private[this] def parseZoneId(isRaw: Boolean): ZoneId = {
+  private[this] def parseZoneId(): ZoneId = {
     var pos = head
     var buf = this.buf
     setMark(pos)
     try {
       var hash    = 0
       var b: Byte = 0
-      if (isRaw) {
-        while (
-          (pos < tail || {
-            pos = loadMore(pos)
-            buf = this.buf
-            pos < tail
-          }) && {
-            b = buf(pos)
-            pos += 1
-            b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != ']' && b != '}'
-          }
-        ) hash = (hash << 5) - hash + b
-      } else {
-        while ({
-          if (pos >= tail) {
-            pos = loadMoreOrError(pos)
-            buf = this.buf
-          }
-          b = buf(pos)
-          pos += 1
-          b != '"'
-        }) hash = (hash << 5) - hash + b
-      }
+      while ({
+        if (pos >= tail) {
+          pos = loadMoreOrError(pos)
+          buf = this.buf
+        }
+        b = buf(pos)
+        pos += 1
+        b != '"'
+      }) hash = (hash << 5) - hash + b
       var k = zoneIdKey
       if (k eq null) {
         k = new Key
         zoneIdKey = k
       }
-      k.set(hash, buf, marks(markNum - 1), if (isRaw) pos else pos - 1)
+      k.set(hash, buf, marks(markNum - 1), pos - 1)
       var zoneId = zoneIds.get(k)
       if (zoneId eq null) zoneId = toZoneId(k)
       head = pos
@@ -4340,7 +4273,7 @@ final class JsonReader private[json] (
     Period.of(years, months, days)
   }
 
-  private[this] def parseYearMonth(pos: Int, isRaw: Boolean): YearMonth = {
+  private[this] def parseYearMonth(pos: Int): YearMonth = {
     var year, month = 0
     if (
       pos + 7 < tail && {
@@ -4355,8 +4288,7 @@ final class JsonReader private[json] (
     ) head = pos + 8
     else {
       year = parseYearWithByte('-', pos)
-      if (isRaw) month = parseMonth(head)
-      else month = parseMonthWithByte('"', head)
+      month = parseMonthWithByte('"', head)
     }
     YearMonth.of(year, month)
   }
@@ -4580,11 +4512,11 @@ final class JsonReader private[json] (
       case _: DateTimeException => timezoneError()
     }
 
-  private[this] def parseZoneOffset(isRaw: Boolean): ZoneOffset = {
+  private[this] def parseZoneOffset(): ZoneOffset = {
     val b   = nextByte(head)
     val pos = head
     if (b == 'Z') {
-      if (!isRaw) nextByteOrError('"', pos)
+      nextByteOrError('"', pos)
       ZoneOffset.UTC
     } else if (b == '-' || b == '+') {
       var offsetTotal = 0
@@ -4597,10 +4529,7 @@ final class JsonReader private[json] (
           (bs & 0xfff0f0fff0f0L) == 0x2230303a3030L && offsetTotal <= 64800                 // 64800 == 18 * 60 * 60
         }
       ) head = pos + 6
-      else {
-        if (isRaw) offsetTotal = parseOffsetTotal(pos)
-        else offsetTotal = parseOffsetTotalWithDoubleQuotes(pos)
-      }
+      else offsetTotal = parseOffsetTotalWithDoubleQuotes(pos)
       toZoneOffset(b, offsetTotal)
     } else decodeError("expected '+' or '-' or 'Z'")
   }
@@ -4678,12 +4607,6 @@ final class JsonReader private[json] (
     val m = (y + 0x76767676 | y) & 0x80808080
     if (m == 0) tokenError(t)
     else if (m.toByte != 0) decodeError("expected '-' or '+' or digit")
-    else digitError()
-  }
-
-  private[this] def fourDigitYearError(pos: Int, y: Int): Nothing = {
-    val m = (y + 0x76767676 | y) & 0x80808080
-    if (m.toByte != 0) decodeError("expected '-' or '+' or digit")
     else digitError()
   }
 

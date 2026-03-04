@@ -415,7 +415,7 @@ final class JsonWriter private[json] (
   def writeKey(x: Year): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeKey()
-    writeYear(x, false)
+    writeYear(x)
     writeColon()
   }
 
@@ -428,7 +428,7 @@ final class JsonWriter private[json] (
   def writeKey(x: YearMonth): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeKey()
-    writeYearMonth(x, false)
+    writeYearMonth(x)
     writeColon()
   }
 
@@ -454,7 +454,7 @@ final class JsonWriter private[json] (
   def writeKey(x: ZoneId): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeKey()
-    writeZoneId(x, false)
+    writeZoneId(x)
     writeColon()
   }
 
@@ -467,7 +467,7 @@ final class JsonWriter private[json] (
   def writeKey(x: ZoneOffset): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeKey()
-    writeZoneOffset(x, false)
+    writeZoneOffset(x)
     writeColon()
   }
 
@@ -712,7 +712,7 @@ final class JsonWriter private[json] (
   def writeVal(x: Year): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
-    writeYear(x, false)
+    writeYear(x)
   }
 
   /**
@@ -724,7 +724,7 @@ final class JsonWriter private[json] (
   def writeVal(x: YearMonth): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
-    writeYearMonth(x, false)
+    writeYearMonth(x)
   }
 
   /**
@@ -748,7 +748,7 @@ final class JsonWriter private[json] (
   def writeVal(x: ZoneId): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneId(x, false)
+    writeZoneId(x)
   }
 
   /**
@@ -760,7 +760,7 @@ final class JsonWriter private[json] (
   def writeVal(x: ZoneOffset): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneOffset(x, false)
+    writeZoneOffset(x)
   }
 
   /**
@@ -1096,28 +1096,6 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Year]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.Year]] value to write
-   */
-  private[json] def writeRawVal(x: Year): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeYear(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.YearMonth]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.YearMonth]] value to write
-   */
-  private[json] def writeRawVal(x: YearMonth): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeYearMonth(x, true)
-  }
-
-  /**
    * Writes a [[java.time.ZonedDateTime]] value as a JSON raw binary value.
    *
    * @param x
@@ -1126,28 +1104,6 @@ final class JsonWriter private[json] (
   private[json] def writeRawVal(x: ZonedDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeZonedDateTime(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.ZoneId]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.ZoneId]] value to write
-   */
-  private[json] def writeRawVal(x: ZoneId): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneId(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.ZoneOffset]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.ZoneOffset]] value to write
-   */
-  private[json] def writeRawVal(x: ZoneOffset): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneOffset(x, true)
   }
 
   /**
@@ -1480,26 +1436,21 @@ final class JsonWriter private[json] (
     writeBytes('"')
   }
 
-  private[this] def writeZoneId(x: ZoneId, isRaw: Boolean): Unit = {
+  private[this] def writeZoneId(x: ZoneId): Unit = {
     val s   = x.getId
     val len = s.length
     var pos = ensureBufCapacity(len + 2)
     val buf = this.buf
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
+    buf(pos) = '"'
+    pos += 1
     var i = 0
     while (i < len) {
       buf(pos) = s.charAt(i).toByte
       pos += 1
       i += 1
     }
-    if (isRaw) count = pos
-    else {
-      buf(pos) = '"'
-      count = pos + 1
-    }
+    buf(pos) = '"'
+    count = pos + 1
   }
 
   private[this] def writeUUID(mostSigBits: Long, leastSigBits: Long): Unit = {
@@ -2294,39 +2245,24 @@ final class JsonWriter private[json] (
     }
   }
 
-  private[this] def writeYear(x: Year, isRaw: Boolean): Unit = {
-    var pos = ensureBufCapacity(12) // 12 == "+999999999".length + 2
-    val buf = this.buf
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
-    pos = writeYear(x.getValue, pos, buf, digits)
-    if (isRaw) count = pos
-    else {
-      buf(pos) = '"'
-      count = pos + 1
-    }
+  private[this] def writeYear(x: Year): Unit = {
+    writeBytes('"')
+    writeInt(x.getValue)
+    writeBytes('"')
   }
 
-  private[this] def writeYearMonth(x: YearMonth, isRaw: Boolean): Unit = {
+  private[this] def writeYearMonth(x: YearMonth): Unit = {
     var pos = ensureBufCapacity(15) // 15 == "+999999999-12".length + 2
     val buf = this.buf
     val ds  = digits
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
-    pos = writeYear(x.getYear, pos, buf, ds)
+    buf(pos) = '"'
+    pos = writeYear(x.getYear, pos + 1, buf, ds)
     buf(pos) = '-'
     val d = ds(x.getMonthValue)
     buf(pos + 1) = d.toByte
     buf(pos + 2) = (d >> 8).toByte
-    if (isRaw) count = pos + 3
-    else {
-      buf(pos + 3) = '"'
-      count = pos + 4
-    }
+    buf(pos + 3) = '"'
+    count = pos + 4
   }
 
   private[this] def writeZonedDateTime(x: ZonedDateTime, isRaw: Boolean): Unit = {
@@ -2367,20 +2303,14 @@ final class JsonWriter private[json] (
     }
   }
 
-  private[this] def writeZoneOffset(x: ZoneOffset, isRaw: Boolean): Unit = {
+  private[this] def writeZoneOffset(x: ZoneOffset): Unit = {
     var pos = ensureBufCapacity(12) // 12 == "+10:10:10".length + 2
     val buf = this.buf
     val ds  = digits
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
-    pos = writeOffset(x, pos, buf, ds)
-    if (isRaw) count = pos
-    else {
-      buf(pos) = '"'
-      count = pos + 1
-    }
+    buf(pos) = '"'
+    pos = writeOffset(x, pos + 1, buf, ds)
+    buf(pos) = '"'
+    count = pos + 1
   }
 
   private[this] def writeLocalDate(x: LocalDate, p: Int, buf: Array[Byte], ds: Array[Short]): Int = {

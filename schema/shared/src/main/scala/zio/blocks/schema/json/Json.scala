@@ -2444,30 +2444,6 @@ object Json {
     override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val yearRawCodec = new JsonBinaryCodec[Year] {
-    override def decodeValue(in: JsonReader, default: Year): Year = in.readRawValAsYear()
-
-    override def encodeValue(x: Year, out: JsonWriter): Unit = out.writeRawVal(x)
-  }
-
-  private[schema] val yearMonthRawCodec = new JsonBinaryCodec[YearMonth] {
-    override def decodeValue(in: JsonReader, default: YearMonth): YearMonth = in.readRawValAsYearMonth()
-
-    override def encodeValue(x: YearMonth, out: JsonWriter): Unit = out.writeRawVal(x)
-  }
-
-  private[schema] val zoneOffsetRawCodec = new JsonBinaryCodec[ZoneOffset] {
-    override def decodeValue(in: JsonReader, default: ZoneOffset): ZoneOffset = in.readRawValAsZoneOffset()
-
-    override def encodeValue(x: ZoneOffset, out: JsonWriter): Unit = out.writeRawVal(x)
-  }
-
-  private[schema] val zoneIdRawCodec = new JsonBinaryCodec[ZoneId] {
-    override def decodeValue(in: JsonReader, default: ZoneId): ZoneId = in.readRawValAsZoneId()
-
-    override def encodeValue(x: ZoneId, out: JsonWriter): Unit = out.writeRawVal(x)
-  }
-
   private[schema] val zonedDateTimeRawCodec = new JsonBinaryCodec[ZonedDateTime] {
     override def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readRawValAsZonedDateTime()
 
