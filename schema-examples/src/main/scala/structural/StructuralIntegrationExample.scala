@@ -9,11 +9,11 @@ import util.ShowExpr.show
  * Demonstrates how structural types integrate with other ZIO Blocks features,
  * particularly schema evolution (Into macro) and dynamic value manipulation.
  *
- * Run with:
- *   sbt "schema-examples/runMain structural.StructuralIntegrationExample"
+ * Run with: sbt "schema-examples/runMain
+ * structural.StructuralIntegrationExample"
  */
 
-object StructuralIntoExample extends App {
+object StructuralIntegrationExample extends App {
 
   // Two nominally different types with the same shape
   case class Person(name: String, age: Int)
@@ -29,21 +29,21 @@ object StructuralIntoExample extends App {
   println("=== Structural Types with Into Macro ===\n")
 
   // Both types have identical structural shape
-  val personSchema: Schema[Person] = Schema.derived[Person]
+  val personSchema: Schema[Person]     = Schema.derived[Person]
   val employeeSchema: Schema[Employee] = Schema.derived[Employee]
 
-  val personStructural = personSchema.structural
+  val personStructural   = personSchema.structural
   val employeeStructural = employeeSchema.structural
 
   println("Both types convert to the same structural shape:")
   show("Person structural type fields")
-  val person = Person("Alice", 30)
+  val person        = Person("Alice", 30)
   val personDynamic = personStructural.toDynamicValue(person)
   show(personDynamic)
 
   println("\nEmployee structural type fields:")
   show("Employee structural type fields")
-  val employee = Employee("Bob", 28)
+  val employee        = Employee("Bob", 28)
   val employeeDynamic = employeeStructural.toDynamicValue(employee)
   show(employeeDynamic)
 
@@ -57,7 +57,7 @@ object StructuralIntoExample extends App {
   // Demonstrate DynamicValue manipulation with structural schemas
   println("\n=== Manipulating Structural Values via DynamicValue ===\n")
 
-  val original = Person("Charlie", 35)
+  val original        = Person("Charlie", 35)
   val originalDynamic = personStructural.toDynamicValue(original)
 
   println("Original person:")
@@ -82,7 +82,7 @@ object StructuralIntoExample extends App {
 
   val anonymousEmployee: { def name: String; def age: Int } = new {
     def name: String = "Diana"
-    def age: Int = 27
+    def age: Int     = 27
   }
 
   // Even though it's an anonymous object, it has the right structural shape

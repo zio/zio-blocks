@@ -9,9 +9,9 @@ import util.ShowExpr.show
  * Demonstrates converting sealed traits and enums to structural union schemas.
  * This example is Scala 3 only.
  *
- * Run with:
- *   sbt "schema-examples/runMain structural.StructuralSealedTraitExample"
- *   sbt "schema-examples/runMain structural.StructuralEnumExample"
+ * Run with: sbt "schema-examples/runMain
+ * structural.StructuralSealedTraitExample" sbt "schema-examples/runMain
+ * structural.StructuralEnumExample"
  */
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -22,14 +22,14 @@ object StructuralSealedTraitExample extends App {
 
   sealed trait Shape
   object Shape {
-    case class Circle(radius: Double) extends Shape
+    case class Circle(radius: Double)                   extends Shape
     case class Rectangle(width: Double, height: Double) extends Shape
   }
 
   implicit val shapeSchema: Schema[Shape] = Schema.derived[Shape]
 
   val nominalSchema: Schema[Shape] = Schema.derived[Shape]
-  val structuralSchema = nominalSchema.structural
+  val structuralSchema             = nominalSchema.structural
 
   println("=== Sum Type: Shape (Sealed Trait) ===\n")
 
@@ -97,7 +97,7 @@ object StructuralEnumExample extends App {
   println("=== Sum Type: Color (Simple Enum) ===\n")
 
   val colorSchema: Schema[Color] = Schema.derived[Color]
-  val colorStructural = colorSchema.structural
+  val colorStructural            = colorSchema.structural
 
   val red: Color = Color.Red
   val redDynamic = colorSchema.toDynamicValue(red)
@@ -108,10 +108,10 @@ object StructuralEnumExample extends App {
   println("\n=== Sum Type: Status (Simple Enum) ===\n")
 
   val statusSchema: Schema[Status] = Schema.derived[Status]
-  val statusStructural = statusSchema.structural
+  val statusStructural             = statusSchema.structural
 
   val active: Status = Status.Active
-  val activeDynamic = statusSchema.toDynamicValue(active)
+  val activeDynamic  = statusSchema.toDynamicValue(active)
 
   println("Status.Active as DynamicValue:")
   show(activeDynamic)
@@ -119,7 +119,7 @@ object StructuralEnumExample extends App {
   println("\n=== Sum Type: Fruit (Parameterized Enum) ===\n")
 
   val fruitSchema: Schema[Fruit] = Schema.derived[Fruit]
-  val fruitStructural = fruitSchema.structural
+  val fruitStructural            = fruitSchema.structural
 
   // Parameterized enum cases
   val apple: Fruit = Fruit.Apple("Granny Smith")

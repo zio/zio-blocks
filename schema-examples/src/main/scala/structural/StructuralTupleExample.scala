@@ -6,11 +6,10 @@ import util.ShowExpr.show
 /**
  * Structural Types Reference — Tuples
  *
- * Demonstrates converting tuples to structural schemas. Tuples are converted
- * to records with positional field names (_1, _2, _3, ...).
+ * Demonstrates converting tuples to structural schemas. Tuples are converted to
+ * records with positional field names (_1, _2, _3, ...).
  *
- * Run with:
- *   sbt "schema-examples/runMain structural.StructuralTupleExample"
+ * Run with: sbt "schema-examples/runMain structural.StructuralTupleExample"
  */
 
 object StructuralTupleExample extends App {
@@ -18,7 +17,7 @@ object StructuralTupleExample extends App {
   println("=== Structural Tuples ===\n")
 
   // Tuple of String, Int, Boolean
-  val tupleSchema = Schema.derived[(String, Int, Boolean)]
+  val tupleSchema      = Schema.derived[(String, Int, Boolean)]
   val structuralSchema = tupleSchema.structural
 
   val tuple: (String, Int, Boolean) = ("Alice", 30, true)
@@ -31,7 +30,7 @@ object StructuralTupleExample extends App {
   println("\n=== Nested Tuples ===\n")
 
   val nestedTupleSchema = Schema.derived[((String, Int), (Double, Boolean))]
-  val nestedStructural = nestedTupleSchema.structural
+  val nestedStructural  = nestedTupleSchema.structural
 
   val nestedTuple: ((String, Int), (Double, Boolean)) = (("Bob", 25), (3.14, false))
 

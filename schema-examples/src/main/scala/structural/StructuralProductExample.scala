@@ -6,12 +6,12 @@ import util.ShowExpr.show
 /**
  * Structural Types Reference — Product Types
  *
- * Demonstrates converting case classes to structural schemas, and working
- * with anonymous objects that match the structural shape.
+ * Demonstrates converting case classes to structural schemas, and working with
+ * anonymous objects that match the structural shape.
  *
- * Run with:
- *   sbt "schema-examples/runMain structural.StructuralSimpleProductExample"
- *   sbt "schema-examples/runMain structural.StructuralNestedProductExample"
+ * Run with: sbt "schema-examples/runMain
+ * structural.StructuralSimpleProductExample" sbt "schema-examples/runMain
+ * structural.StructuralNestedProductExample"
  */
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ object StructuralSimpleProductExample extends App {
   }
 
   val nominalSchema: Schema[Person] = Schema.derived[Person]
-  val structuralSchema = nominalSchema.structural
+  val structuralSchema              = nominalSchema.structural
 
   println("=== Simple Product: Person ===\n")
 
@@ -62,7 +62,7 @@ object StructuralNestedProductExample extends App {
   }
 
   val nominalSchema: Schema[Person] = Schema.derived[Person]
-  val structuralSchema = nominalSchema.structural
+  val structuralSchema              = nominalSchema.structural
 
   println("=== Nested Product: Person with Address ===\n")
 
