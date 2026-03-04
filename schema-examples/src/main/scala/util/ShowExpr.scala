@@ -23,23 +23,38 @@ object ShowExpr {
   def show[A](expr: Text[A])(implicit file: File, line: Line): Unit = {
     commentsAbove(file.value, line.value).foreach(println)
     println(expr.source)
-    println(s"// ${expr.value}")
+    val it = expr.value.toString.linesIterator
+    if (it.hasNext) {
+      val first = it.next()
+      if (!it.hasNext) {
+        // Single-line result
+        println(s"// $first")
+      } else {
+        // Multi-line result
+        println(s"// $first")
+        while (it.hasNext) {
+          println(s"// ${it.next()}")
+        }
+      }
+    }
     println()
   }
 
   private def commentsAbove(filePath: String, lineNum: Int): List[String] = {
     val f = new JFile(filePath)
     if (!f.exists()) return Nil
-    val lines = Source.fromFile(f).getLines().toArray
-    // Walk backwards from the line above the call site, collecting // comment lines.
-    // lineNum is 1-indexed, so the line above is at 0-indexed position lineNum - 2.
-    var idx    = lineNum - 2
-    var result = List.empty[String]
-    while (idx >= 0 && lines(idx).trim.startsWith("//")) {
-      result = lines(idx).trim :: result
-      idx -= 1
-    }
-    result
+    val source = Source.fromFile(f)
+    try {
+      // Only load lines up to the call site to minimize memory usage
+      val lines  = source.getLines().take(lineNum).toList
+      var idx    = Math.min(lineNum - 2, lines.length - 1)
+      var result = List.empty[String]
+      while (idx >= 0 && lines(idx).trim.startsWith("//")) {
+        result = lines(idx).trim :: result
+        idx -= 1
+      }
+      result
+    } finally source.close()
   }
 
 }
