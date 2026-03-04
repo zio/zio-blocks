@@ -470,11 +470,7 @@ object MessagePackBinaryCodec {
   }
 
   val zoneIdCodec: MessagePackBinaryCodec[ZoneId] = new MessagePackBinaryCodec[ZoneId]() {
-    def decodeValue(in: MessagePackReader): ZoneId =
-      Json.zoneIdRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): ZoneId = ZoneId.of(in.readString())
 
     def encodeValue(x: ZoneId, out: MessagePackWriter): Unit = out.writeString(x.getId)
   }

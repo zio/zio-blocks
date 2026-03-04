@@ -682,25 +682,25 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
   }
 
   private val yearCodec: XmlBinaryCodec[Year] = new XmlBinaryCodec[Year]() {
-    def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml, Json.yearRawCodec)
+    def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml)(Year.parse)
 
-    def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(Json.yearRawCodec.encodeToString(x)))
+    def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
   private val yearMonthCodec: XmlBinaryCodec[YearMonth] = new XmlBinaryCodec[YearMonth]() {
-    def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml, Json.yearMonthRawCodec)
+    def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml)(YearMonth.parse)
 
-    def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(Json.yearMonthRawCodec.encodeToString(x)))
+    def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
   private val zoneIdCodec: XmlBinaryCodec[ZoneId] = new XmlBinaryCodec[ZoneId]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml, Json.zoneIdRawCodec)
+    def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml)(ZoneId.of)
 
     def encodeValue(x: ZoneId): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }
 
   private val zoneOffsetCodec: XmlBinaryCodec[ZoneOffset] = new XmlBinaryCodec[ZoneOffset]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml, Json.zoneOffsetRawCodec)
+    def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml)(ZoneOffset.of)
 
     def encodeValue(x: ZoneOffset): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }

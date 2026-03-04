@@ -1059,36 +1059,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Period](""""P1Y1M1W1DX""", """expected '"' at: .""")
       },
       test("Year") {
-        check(genYear)(x => roundTrip(x, s""""${toISO8601(x)}"""")) &&
+        check(genYear)(x => roundTrip(x, s""""$x"""")) &&
         check(Gen.char) { ch =>
-          val nonNumber              = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
-          val nonDigit               = if (ch >= '0' && ch <= '9') 'X' else ch
-          val nonDigitOrDoubleQuotes = if (ch >= '0' && ch <= '9' || ch == '"') 'X' else ch
+          val nonNumber = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
+          val nonDigit  = if (ch >= '0' && ch <= '9') 'X' else ch
           decodeError[Year](s""""${nonNumber}008"""", "expected '-' or '+' or digit at: .") &&
-          decodeError[Year](s""""2${nonDigit}08"""", "expected digit at: .") &&
-          decodeError[Year](s""""20${nonDigit}8"""", "expected digit at: .") &&
-          decodeError[Year](s""""200${nonDigit}"""", "expected digit at: .") &&
-          decodeError[Year](s""""+${nonDigit}0000"""", "expected digit at: .") &&
-          decodeError[Year](s""""+1${nonDigit}000"""", "expected digit at: .") &&
-          decodeError[Year](s""""+10${nonDigit}00"""", "expected digit at: .") &&
-          decodeError[Year](s""""+100${nonDigit}0"""", "expected digit at: .") &&
-          decodeError[Year](s""""+1000${nonDigit}"""", "expected digit at: .") &&
-          decodeError[Year](s""""-1000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+10000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+100000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+1000000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+10000000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""")
+          decodeError[Year](s""""+${nonDigit}0000"""", "expected digit at: .")
         } &&
         decodeError[Year]("""null""", "expected '\"' at: .") &&
         decodeError[Year](""""""", "unexpected end of input at: .") &&
-        decodeError[Year](""""2008""", "unexpected end of input at: .") &&
-        decodeError[Year](""""+2008"""", "expected digit at: .") &&
-        decodeError[Year](""""+1000000000"""", """expected '"' at: .""") &&
-        decodeError[Year](""""-1000000000"""", """expected '"' at: .""") &&
         decodeError[Year](""""-0000"""", "illegal year at: .")
       },
       test("YearMonth") {
-        check(genYearMonth)(x => roundTrip(x, s""""${toISO8601(x)}"""")) &&
+        check(genYearMonth)(x => roundTrip(x, s""""$x"""")) &&
         check(Gen.char) { ch =>
           val nonNumber       = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
           val nonDigit        = if (ch >= '0' && ch <= '9') 'X' else ch

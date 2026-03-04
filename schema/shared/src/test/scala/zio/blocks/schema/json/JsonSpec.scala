@@ -2540,13 +2540,13 @@ object JsonSpec extends SchemaBaseSpec {
       },
       test("yearDecoder decodes year") {
         check(genYear) { x =>
-          assertTrue(JsonDecoder.yearDecoder.decode(Json.String(toISO8601(x))) == Right(x))
+          assertTrue(JsonDecoder.yearDecoder.decode(Json.String(x.toString)) == Right(x))
         } &&
         assertTrue(JsonDecoder.yearDecoder.decode(Json.String("invalid")).isLeft)
       },
       test("yearMonthDecoder decodes year-month") {
         check(genYearMonth) { x =>
-          assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String(toISO8601(x))) == Right(x))
+          assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String(x.toString)) == Right(x))
         } &&
         assertTrue(JsonDecoder.yearMonthDecoder.decode(Json.String("invalid")).isLeft)
       },
@@ -2639,12 +2639,12 @@ object JsonSpec extends SchemaBaseSpec {
       },
       test("yearEncoder encodes year") {
         check(genYear) { x =>
-          assertTrue(JsonEncoder.yearEncoder.encode(x) == Json.String(toISO8601(x)))
+          assertTrue(JsonEncoder.yearEncoder.encode(x) == Json.String(x.toString))
         }
       },
       test("yearMonthEncoder encodes year-month") {
         check(genYearMonth) { x =>
-          assertTrue(JsonEncoder.yearMonthEncoder.encode(x) == Json.String(toISO8601(x)))
+          assertTrue(JsonEncoder.yearMonthEncoder.encode(x) == Json.String(x.toString))
         }
       },
       test("zoneOffsetEncoder encodes zone offset") {

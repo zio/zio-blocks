@@ -385,7 +385,7 @@ final class JsonWriter private[json] (
    */
   def writeKey(x: Year): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
-    writeYear(x, false)
+    writeYear(x)
     writeColon()
   }
 
@@ -397,7 +397,7 @@ final class JsonWriter private[json] (
    */
   def writeKey(x: YearMonth): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
-    writeYearMonth(x, false)
+    writeYearMonth(x)
     writeColon()
   }
 
@@ -421,7 +421,7 @@ final class JsonWriter private[json] (
    */
   def writeKey(x: ZoneId): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
-    writeZoneId(x, false)
+    writeZoneId(x)
     writeColon()
   }
 
@@ -433,7 +433,7 @@ final class JsonWriter private[json] (
    */
   def writeKey(x: ZoneOffset): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
-    writeZoneOffset(x, false)
+    writeZoneOffset(x)
     writeColon()
   }
 
@@ -659,7 +659,7 @@ final class JsonWriter private[json] (
    */
   def writeVal(x: Year): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
-    writeYear(x, false)
+    writeYear(x)
   }
 
   /**
@@ -670,7 +670,7 @@ final class JsonWriter private[json] (
    */
   def writeVal(x: YearMonth): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
-    writeYearMonth(x, false)
+    writeYearMonth(x)
   }
 
   /**
@@ -692,7 +692,7 @@ final class JsonWriter private[json] (
    */
   def writeVal(x: ZoneId): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneId(x, false)
+    writeZoneId(x)
   }
 
   /**
@@ -703,7 +703,7 @@ final class JsonWriter private[json] (
    */
   def writeVal(x: ZoneOffset): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneOffset(x, false)
+    writeZoneOffset(x)
   }
 
   /**
@@ -1033,28 +1033,6 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Year]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.Year]] value to write
-   */
-  private[json] def writeRawVal(x: Year): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeYear(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.YearMonth]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.YearMonth]] value to write
-   */
-  private[json] def writeRawVal(x: YearMonth): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeYearMonth(x, true)
-  }
-
-  /**
    * Writes a [[java.time.ZonedDateTime]] value as a JSON raw binary value.
    *
    * @param x
@@ -1063,28 +1041,6 @@ final class JsonWriter private[json] (
   private[json] def writeRawVal(x: ZonedDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeZonedDateTime(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.ZoneId]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.ZoneId]] value to write
-   */
-  private[json] def writeRawVal(x: ZoneId): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneId(x, true)
-  }
-
-  /**
-   * Writes a [[java.time.ZoneOffset]] value as a JSON raw binary value.
-   *
-   * @param x
-   *   the [[java.time.ZoneOffset]] value to write
-   */
-  private[json] def writeRawVal(x: ZoneOffset): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeZoneOffset(x, true)
   }
 
   /**
@@ -2072,32 +2028,20 @@ final class JsonWriter private[json] (
     }
   }
 
-  private[this] def writeYear(x: Year, isRaw: Boolean): Unit = {
-    var pos = ensureBufCapacity(12) // 12 == "+999999999".length + 2
-    val buf = this.buf
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
-    pos = writeYear(x.getValue, pos, buf, digits)
-    if (isRaw) count = pos
-    else {
-      buf(pos) = '"'
-      count = pos + 1
-    }
+  private[this] def writeYear(x: Year): Unit = {
+    writeBytes('"')
+    writeInt(x.getValue)
+    writeBytes('"')
   }
 
-  private[this] def writeYearMonth(x: YearMonth, isRaw: Boolean): Unit = {
+  private[this] def writeYearMonth(x: YearMonth): Unit = {
     var pos = ensureBufCapacity(15) // 15 == "+999999999-12".length + 2
     val buf = this.buf
     val ds  = digits
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
-    pos = writeYear(x.getYear, pos, buf, ds)
+    buf(pos) = '"'
+    pos = writeYear(x.getYear, pos + 1, buf, ds)
     ByteArrayAccess.setInt(buf, pos, ds(x.getMonthValue) << 8 | 0x2200002d)
-    count = pos + (if (isRaw) 3 else 4)
+    count = pos + 4
   }
 
   private[this] def writeZonedDateTime(x: ZonedDateTime, isRaw: Boolean): Unit = {
@@ -2133,78 +2077,47 @@ final class JsonWriter private[json] (
     count = pos
   }
 
-  private[this] def writeZoneOffset(x: ZoneOffset, isRaw: Boolean): Unit = {
+  private[this] def writeZoneOffset(x: ZoneOffset): Unit = {
     var pos = ensureBufCapacity(12) // 12 == number of bytes in Long and Int
     val buf = this.buf
     var y   = x.getTotalSeconds
-    if (isRaw) {
-      if (y == 0) {
-        buf(pos) = 'Z'
-        pos += 1
-      } else {
-        val ds = digits
-        val s  = y >> 31
-        y =
-          ((y + s) ^ s) * 37283 // Based on James Anhalt's algorithm: https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
-        val m = ds(y >>> 27) << 8 | 0x30303a00002bL - (s << 1)
-        if ((y & 0x7ff8000) == 0) { // check if totalSeconds is divisible by 3600
-          ByteArrayAccess.setLong(buf, pos, m)
-          pos += 6
-        } else {
-          y &= 0x7ffffff
-          y *= 15
-          ByteArrayAccess.setLong(buf, pos, ds(y >> 25).toLong << 32 | m)
-          pos += 6
-          if ((y & 0x1f80000) != 0) { // check if totalSeconds is divisible by 60
-            ByteArrayAccess.setInt(buf, pos, ds((y & 0x1ffffff) * 15 >> 23) << 8 | 0x00003a)
-            pos += 3
-          }
-        }
-      }
+    if (y == 0) {
+      ByteArrayAccess.setInt(buf, pos, 0x225a22)
+      pos += 3
     } else {
-      if (y == 0) {
-        ByteArrayAccess.setInt(buf, pos, 0x225a22)
-        pos += 3
+      val ds = digits
+      val s  = y >> 31
+      y =
+        ((y + s) ^ s) * 37283 // Based on James Anhalt's algorithm: https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
+      val m = ds(y >>> 27) << 16 | 0x2230303a00002b22L - (s << 9)
+      if ((y & 0x7ff8000) == 0) { // check if totalSeconds is divisible by 3600
+        ByteArrayAccess.setLong(buf, pos, m)
+        pos += 8
       } else {
-        val ds = digits
-        val s  = y >> 31
-        y =
-          ((y + s) ^ s) * 37283 // Based on James Anhalt's algorithm: https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
-        val m = ds(y >>> 27) << 16 | 0x2230303a00002b22L - (s << 9)
-        if ((y & 0x7ff8000) == 0) { // check if totalSeconds is divisible by 3600
-          ByteArrayAccess.setLong(buf, pos, m)
-          pos += 8
-        } else {
-          y &= 0x7ffffff
-          y *= 15
-          ByteArrayAccess.setLong(buf, pos, ds(y >> 25).toLong << 40 | m)
-          if ((y & 0x1f80000) == 0) pos += 8 // check if totalSeconds is divisible by 60
-          else {
-            ByteArrayAccess.setInt(buf, pos + 7, ds((y & 0x1ffffff) * 15 >> 23) << 8 | 0x2200003a)
-            pos += 11
-          }
+        y &= 0x7ffffff
+        y *= 15
+        ByteArrayAccess.setLong(buf, pos, ds(y >> 25).toLong << 40 | m)
+        if ((y & 0x1f80000) == 0) pos += 8 // check if totalSeconds is divisible by 60
+        else {
+          ByteArrayAccess.setInt(buf, pos + 7, ds((y & 0x1ffffff) * 15 >> 23) << 8 | 0x2200003a)
+          pos += 11
         }
       }
     }
     count = pos
   }
 
-  private[this] def writeZoneId(x: ZoneId, isRaw: Boolean): Unit = {
+  private[this] def writeZoneId(x: ZoneId): Unit = {
     val s   = x.getId
     val len = s.length
     var pos = ensureBufCapacity(len + 2)
     val buf = this.buf
-    if (!isRaw) {
-      buf(pos) = '"'
-      pos += 1
-    }
+    buf(pos) = '"'
+    pos += 1
     s.getBytes(0, len, buf, pos): @nowarn
     pos += len
-    if (isRaw) count = pos
-    else {
-      buf(pos) = '"'
-      count = pos + 1
-    }
+    buf(pos) = '"'
+    count = pos + 1
   }
 
   private[this] def writeLocalDateWithT(x: LocalDate, p: Int, buf: Array[Byte], ds: Array[Short]): Int = {
