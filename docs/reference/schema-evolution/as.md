@@ -446,7 +446,11 @@ The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` 
 
 ### Use Cases
 
-**Polyglot configuration systems:** Use `As` to maintain bidirectional sync between configuration and DynamicValue:
+**Polyglot configuration systems:** A config service (Consul, etcd, a JSON file) stores
+settings as raw JSON. Your app reads that JSON into `DynamicValue`, hydrates it into a
+typed `DatabaseConfig`, applies business logic, then writes the updated value back to the
+store — all as `DynamicValue`. Because both directions are needed in the same pipeline,
+`As` is the right abstraction; a one-way `Into` would only cover half the cycle.
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.*
@@ -460,12 +464,17 @@ object DatabaseConfig {
 ```
 
 ```scala mdoc
-// Validate and transform configuration
-val config = DatabaseConfig("db.example.com", 5432, 3000)
-val validated = config.copy(timeout = 5000)
+// Simulate JSON arriving from the config store (e.g. Consul, etcd, a JSON file)
+val storedJson = """{"host":"db.prod.example.com","port":5432,"timeout":30000}"""
 
-// Convert to DynamicValue and display as JSON
-DatabaseConfig.asDynamic.into(validated).map(_.toJsonString)
+val result = for {
+  stored  <- storedJson.fromJson[DynamicValue]          // config store delivers DynamicValue
+  config  <- DatabaseConfig.asDynamic.from(stored)      // hydrate into typed DatabaseConfig
+  updated  = config.copy(timeout = 60000)               // business logic: double the timeout
+  written <- DatabaseConfig.asDynamic.into(updated)     // serialize back for the config store
+} yield written.toJsonString
+
+result
 ```
 
 **Schema-driven bidirectional migrations:** Migrate between schema versions using `As`:
