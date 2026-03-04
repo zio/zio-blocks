@@ -1,7 +1,6 @@
 ---
 name: docs-mdoc-conventions
-description: Shared reference for mdoc code block modifiers and Docusaurus admonitions used across ZIO Blocks documentation skills. Include when writing any documentation that contains Scala code blocks.
-allowed-tools: Read, Glob, Grep
+description: Use when writing any ZIO Blocks documentation that contains Scala code blocks. Provides shared reference for mdoc code block modifiers and Docusaurus admonitions.
 ---
 
 # ZIO Blocks Documentation Conventions
