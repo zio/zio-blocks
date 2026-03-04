@@ -486,7 +486,15 @@ result
 
 #### Schema-driven bidirectional migrations
 
-Migrate between schema versions using `As`:
+When a service has stored data in an old schema and must upgrade to a new one, `As` enables safe, reversible migration paths. A naive approach uses a one-way `Into[Old, New]` to migrate forward, but offers no way to roll back: if the migration introduces a subtle defect, you cannot reliably undo it. `As` provides both `As#into` (migrate forward) and `As#from` (roll back), with compile-time verification that the two directions preserve data fidelity.
+
+**When to use `As` for migrations**: You need to migrate records that might require rollback, or you want to support bidirectional schema evolution (e.g., a database migration that can be reversed, or a data warehouse that must support both old and new schemas simultaneously). **When to use `Into` instead**: The migration is unidirectional and permanent (e.g., a single-run transformation where rollback is impossible or irrelevant).
+
+Here's a scenario: A user database holds records in `PersonOld` schema. A new feature requires an `email` field. The migration tool must:
+1. Read old records (PersonOld) from disk
+2. Migrate to PersonNew (adding a default email)
+3. Write new records back
+4. Support rollback: read PersonNew and downgrade to PersonOld (dropping email) if needed
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.*
@@ -494,26 +502,32 @@ import zio.blocks.schema.*
 case class PersonOld(name: String, age: Int)
 case class PersonNew(name: String, age: Int, email: Option[String])
 
-object Migration {
+object UserMigration {
   implicit val schemaOld: Schema[PersonOld] = Schema.derived[PersonOld]
   implicit val schemaNew: Schema[PersonNew] = Schema.derived[PersonNew]
 
-  val oldAsDynamic: As[PersonOld, DynamicValue] = As.derived[PersonOld, DynamicValue]
-  val newAsDynamic: As[PersonNew, DynamicValue] = As.derived[PersonNew, DynamicValue]
+  // As enables both directions with round-trip guarantees
+  val oldToNew: As[PersonOld, PersonNew] = As.derived[PersonOld, PersonNew]
 }
 ```
 
-```scala mdoc
-// Forward migration: PersonOld → PersonNew
-val oldPerson = PersonOld("Alice", 30)
-val newPerson = PersonNew(oldPerson.name, oldPerson.age, Some("alice@example.com"))
+The migration pipeline can read old records, upgrade them, and also roll them back if needed:
 
-// Show both directions as JSON
-for {
-  oldDV <- Migration.oldAsDynamic.into(oldPerson)
-  newDV <- Migration.newAsDynamic.into(newPerson)
-} yield (oldDV.toJsonString, newDV.toJsonString)
+```scala mdoc
+// Simulate reading an old record from disk
+val oldRecord = PersonOld("Bob", 35)
+
+// Forward migration: PersonOld → PersonNew (add default email)
+val upgradeResult = UserMigration.oldToNew.into(oldRecord)
+
+// Rollback: PersonNew → PersonOld (remove email, preserve core fields)
+val downgradeResult = upgradeResult.flatMap(UserMigration.oldToNew.from)
+
+// Show the round-trip: PersonOld → PersonNew → PersonOld
+downgradeResult
 ```
+
+This demonstrates the key value: `As` guarantees the round-trip restores the original record, so if the new schema is ever rolled back, data is not lost.
 
 ## Scala 2 vs Scala 3 Differences
 
