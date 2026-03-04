@@ -1,8 +1,6 @@
 ---
 name: docs-find-documentation-gaps
-description: Find and report undocumented areas of the ZIO Blocks project that need documentation coverage in the docs directory. Generates a TODO-style report.
-argument-hint: "[optional: module-name or 'all']"
-allowed-tools: Read, Glob, Grep, Bash(scan-undocumented:*), Bash(bash:*)
+description: Use when you want to find undocumented or poorly documented areas of the ZIO Blocks project that need documentation coverage.
 ---
 
 # Finding Undocumented Areas
