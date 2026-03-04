@@ -442,7 +442,7 @@ for {
 } yield config
 ```
 
-The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` converts back to the strongly-typed `Config`. This demonstrates the full cycle: **JSON → DynamicValue → Type**, ensuring perfect round-trip fidelity.
+The call to `jsonString.fromJson[DynamicValue]` parses the JSON string into a `DynamicValue`, and `asDynamic.from` converts it back to the strongly-typed `Config`. (Equivalently, you could use `Schema[DynamicValue].getInstance(JsonFormat).decode(jsonString)` for the same decoding step.) This demonstrates the full cycle: **JSON → DynamicValue → Type**, ensuring perfect round-trip fidelity.
 
 ### Use Cases
 
