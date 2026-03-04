@@ -437,7 +437,7 @@ object Config {
 ```scala mdoc
 // Reverse: JSON → DynamicValue → Config
 for {
-  dv <- DynamicValue.fromJsonString(Config.jsonString)
+  dv <- Config.jsonString.fromJson[DynamicValue]
   config <- Config.asDynamic.from(dv)
 } yield config
 ```
@@ -446,75 +446,55 @@ The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` 
 
 ### Use Cases
 
-**Polyglot configuration systems:** Accept configuration in JSON/YAML, deserialize to DynamicValue, validate, and re-serialize:
+**Polyglot configuration systems:** Use `As` to maintain bidirectional sync between configuration and DynamicValue:
 
 ```scala mdoc:silent:nest
-import zio.blocks.schema.{As, DynamicValue, JsonFormat}
+import zio.blocks.schema.*
 
 case class DatabaseConfig(host: String, port: Int, timeout: Long)
 
-val asDynamic: As[DatabaseConfig, DynamicValue] = As.derived
-
-// Ingest JSON configuration
-val jsonInput = "{\"host\":\"db.example.com\",\"port\":5432,\"timeout\":3000}"
-val loaded = for {
-  dv <- JsonFormat.decode(jsonInput.getBytes("UTF-8"))
-  config <- asDynamic.from(dv)
-} yield config
-
-// Validate and transform the config
-val validated = loaded.map(_.copy(timeout = 5000))
-
-// Export back to JSON
-val exported = validated.flatMap { config =>
-  asDynamic.into(config).flatMap { dv =>
-    JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
-  }
+object DatabaseConfig {
+  implicit val schema: Schema[DatabaseConfig] = Schema.derived[DatabaseConfig]
+  val asDynamic: As[DatabaseConfig, DynamicValue] = As.derived[DatabaseConfig, DynamicValue]
 }
 ```
 
-The result:
-
 ```scala mdoc
-exported
+// Validate and transform configuration
+val config = DatabaseConfig("db.example.com", 5432, 3000)
+val validated = config.copy(timeout = 5000)
+
+// Convert to DynamicValue and display as JSON
+DatabaseConfig.asDynamic.into(validated).map(_.toJsonString)
 ```
 
-**Schema-driven bidirectional migrations:** When you need to migrate data while preserving the ability to roll back:
+**Schema-driven bidirectional migrations:** Migrate between schema versions using `As`:
 
 ```scala mdoc:silent:nest
-import zio.blocks.schema.{As, DynamicValue, JsonFormat}
+import zio.blocks.schema.*
 
 case class PersonOld(name: String, age: Int)
 case class PersonNew(name: String, age: Int, email: Option[String])
 
-val oldAsDynamic: As[PersonOld, DynamicValue] = As.derived
-val newAsDynamic: As[PersonNew, DynamicValue] = As.derived
+object Migration {
+  implicit val schemaOld: Schema[PersonOld] = Schema.derived[PersonOld]
+  implicit val schemaNew: Schema[PersonNew] = Schema.derived[PersonNew]
 
-val originalJson = "{\"name\":\"Alice\",\"age\":30}"
-
-// Migrate: PersonOld → JSON → DynamicValue → PersonNew
-val migrated = for {
-  oldDV <- JsonFormat.decode(originalJson.getBytes("UTF-8"))
-  oldPerson <- oldAsDynamic.from(oldDV)
-  newPerson = oldPerson.copy(
-    name = oldPerson.name,
-    age = oldPerson.age,
-    email = Some("alice@example.com")
-  )
-  newDV <- newAsDynamic.into(newPerson)
-  newJson = new String(JsonFormat.encode(newDV).getOrElse(Array()), "UTF-8")
-} yield newJson
-
-// Rollback: PersonNew → JSON → DynamicValue → PersonOld (if structure allows)
-val canRollback = migrated.flatMap { json =>
-  for {
-    newDV <- JsonFormat.decode(json.getBytes("UTF-8"))
-    newPerson <- newAsDynamic.from(newDV)
-    oldPerson = PersonOld(newPerson.name, newPerson.age)
-    oldDV <- oldAsDynamic.into(oldPerson)
-    oldJson = new String(JsonFormat.encode(oldDV).getOrElse(Array()), "UTF-8")
-  } yield oldJson
+  val oldAsDynamic: As[PersonOld, DynamicValue] = As.derived[PersonOld, DynamicValue]
+  val newAsDynamic: As[PersonNew, DynamicValue] = As.derived[PersonNew, DynamicValue]
 }
+```
+
+```scala mdoc
+// Forward migration: PersonOld → PersonNew
+val oldPerson = PersonOld("Alice", 30)
+val newPerson = PersonNew(oldPerson.name, oldPerson.age, Some("alice@example.com"))
+
+// Show both directions as JSON
+for {
+  oldDV <- Migration.oldAsDynamic.into(oldPerson)
+  newDV <- Migration.newAsDynamic.into(newPerson)
+} yield (oldDV.toJsonString, newDV.toJsonString)
 ```
 
 ## Scala 2 vs Scala 3 Differences
