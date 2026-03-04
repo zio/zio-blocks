@@ -418,7 +418,31 @@ object Config {
 Config.asDynamic.into(Config("localhost", 8080)).map(_.toJsonString)
 ```
 
-The `toJsonString` method provides a human-readable JSON representation. This demonstrates the cycle: **Type → DynamicValue → JSON**, ensuring that the original value is perfectly preserved through serialization.
+Now in the reverse direction, deserialize JSON back to Config:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.*
+
+case class Config(host: String, port: Int)
+
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived[Config]
+  val asDynamic: As[Config, DynamicValue] = As.derived[Config, DynamicValue]
+
+  // JSON string to parse
+  val jsonString = """{"host":"example.com","port":9000}"""
+}
+```
+
+```scala mdoc
+// Reverse: JSON → DynamicValue → Config
+for {
+  dv <- DynamicValue.fromJsonString(Config.jsonString)
+  config <- Config.asDynamic.from(dv)
+} yield config
+```
+
+The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` converts back to the strongly-typed `Config`. This demonstrates the full cycle: **JSON → DynamicValue → Type**, ensuring perfect round-trip fidelity.
 
 ### Use Cases
 
