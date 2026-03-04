@@ -296,10 +296,9 @@ object Dom {
         sb.append(' ')
         sb.append(name)
         sb.append("=\"")
-        sb.append(js.value)
+        sb.append(Escape.html(js.value))
         sb.append('"')
     }
-
   // --- Indented rendering ---
 
   private val Indent = "  "
