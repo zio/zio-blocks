@@ -671,39 +671,24 @@ res match {
 
 ### Converting to DynamicValue and JSON
 
-The complete polyglot workflow: type-safe data → DynamicValue → JSON → DynamicValue → type-safe data:
+The simplest way to convert to DynamicValue and view as JSON:
 
 ```scala mdoc:silent:nest
-import zio.blocks.schema.{Into, DynamicValue, JsonFormat}
+import zio.blocks.schema.*
 
 case class Person(name: String, age: Int)
 
-val toDynamic = Into.derived[Person, DynamicValue]
-val fromDynamic = Into.derived[DynamicValue, Person]
-
-val person = Person("Alice", 30)
-
-// Step 1: Convert to DynamicValue
-val asDynamicValue = toDynamic.into(person)
-// Right(DynamicValue.Record("name" -> ..., "age" -> ...))
-
-// Step 2: Serialize DynamicValue to JSON
-val asJsonString = asDynamicValue.flatMap { dv =>
-  JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+  val toDynamic: Into[Person, DynamicValue] = Into.derived[Person, DynamicValue]
 }
-// Right("{\"name\":\"Alice\",\"age\":30}")
-
-// Step 3: Deserialize JSON back to DynamicValue
-val backFromJson = asJsonString.flatMap { json =>
-  JsonFormat.decode(json.getBytes("UTF-8"))
-}
-
-// Step 4: Round-trip back to typed data
-val roundTripped = backFromJson.flatMap(fromDynamic.into)
-// Right(Person("Alice", 30))
 ```
 
-The conversion uses `Schema[A].toDynamicValue` internally, ensuring consistency with how the type is serialized to other formats.
+```scala mdoc
+Person.toDynamic.into(Person("Alice", 30)).map(_.toJsonString)
+```
+
+The `toJsonString` method on `DynamicValue` provides a human-readable JSON representation (Extended JSON format with type annotations). The conversion uses `Schema[A].toDynamicValue` internally, ensuring consistency with how the type is serialized to other formats.
 
 **Why this matters:**
 

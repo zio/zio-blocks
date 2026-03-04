@@ -403,35 +403,22 @@ Like `Into`, `As` supports bidirectional conversions with `DynamicValue`, allowi
 You can derive `As[A, DynamicValue]` for any type with a `Schema[A]` and achieve full polyglot round-trips:
 
 ```scala mdoc:silent:nest
-import zio.blocks.schema.{As, DynamicValue, JsonFormat}
+import zio.blocks.schema.*
 
 case class Config(host: String, port: Int)
 
-val asDynamic = As.derived[Config, DynamicValue]
-
-val config = Config("localhost", 8080)
-
-// Step 1: Forward conversion to DynamicValue
-val forward = asDynamic.into(config)
-// Right(DynamicValue.Record("host" -> ..., "port" -> ...))
-
-// Step 2: Serialize to JSON
-val asJson = forward.flatMap { dv =>
-  JsonFormat.encode(dv).map(bytes => new String(bytes, "UTF-8"))
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived[Config]
+  val asDynamic: As[Config, DynamicValue] = As.derived[Config, DynamicValue]
 }
-// Right("{\"host\":\"localhost\",\"port\":8080}")
-
-// Step 3: Deserialize JSON back to DynamicValue
-val fromJson = asJson.flatMap { json =>
-  JsonFormat.decode(json.getBytes("UTF-8"))
-}
-
-// Step 4: Round-trip back to Config
-val roundTripped = fromJson.flatMap(asDynamic.from)
-// Right(Config("localhost", 8080))
 ```
 
-This demonstrates the full cycle: **Type → DynamicValue → JSON → DynamicValue → Type**, ensuring that the original value is perfectly preserved through serialization and deserialization.
+```scala mdoc
+// Forward: Config → DynamicValue → JSON
+Config.asDynamic.into(Config("localhost", 8080)).map(_.toJsonString)
+```
+
+The `toJsonString` method provides a human-readable JSON representation. This demonstrates the cycle: **Type → DynamicValue → JSON**, ensuring that the original value is perfectly preserved through serialization.
 
 ### Use Cases
 
