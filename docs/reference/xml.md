@@ -503,6 +503,153 @@ val patch2 = XmlPatch.add(
 val combined = patch1 ++ patch2
 ```
 
+## XmlEncoder and XmlDecoder
+
+For more fine-grained control over XML serialization, use the separate `XmlEncoder` and `XmlDecoder` traits:
+
+### XmlEncoder
+
+`XmlEncoder[A]` provides type-safe XML encoding:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+// Automatic derivation from Schema
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+  implicit val encoder: XmlEncoder[Person] = XmlEncoder.fromSchema
+}
+
+val person = Person("Alice", 30)
+val xml: Xml = XmlEncoder[Person].encode(person)
+```
+
+**Creating custom encoders:**
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+
+// Create from a function
+val customEncoder: XmlEncoder[Int] = XmlEncoder.instance(n =>
+  Xml.Element("number", Xml.Text(n.toString))
+)
+
+// Map with contravariance - encode a wrapper type
+case class UserId(value: Int)
+
+val userIdEncoder: XmlEncoder[UserId] =
+  customEncoder.contramap[UserId](_.value)
+```
+
+**Using implicit resolution:**
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Product(id: String, price: Double)
+object Product {
+  implicit val schema: Schema[Product] = Schema.derived
+}
+
+// No explicit encoder needed - derives automatically
+def encodeProduct[A](value: A)(implicit encoder: XmlEncoder[A]): Xml =
+  encoder.encode(value)
+
+val result = encodeProduct(Product("item-1", 99.99))
+```
+
+### XmlDecoder
+
+`XmlDecoder[A]` provides type-safe XML decoding with error handling:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+// Automatic derivation from Schema
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+  implicit val decoder: XmlDecoder[Person] = XmlDecoder.fromSchema
+}
+
+val xml = Xml.Element("Person",
+  Xml.Element("name", Xml.Text("Alice")),
+  Xml.Element("age", Xml.Text("30"))
+)
+
+val result: Either[XmlError, Person] = XmlDecoder[Person].decode(xml)
+// Right(Person("Alice", 30))
+```
+
+**Creating custom decoders:**
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+
+// Create from a function
+val numberDecoder: XmlDecoder[Int] = XmlDecoder.instance { xml =>
+  xml match {
+    case Xml.Element(_, _, Chunk(Xml.Text(text), _*)) =>
+      text.toIntOption.toRight(XmlError("Invalid number"))
+    case _ => Left(XmlError("Expected number element"))
+  }
+}
+
+// Map for covariance - decode to a wrapper type
+case class UserId(value: Int)
+
+val userIdDecoder: XmlDecoder[UserId] =
+  numberDecoder.map(UserId(_))
+```
+
+**Error handling with decoders:**
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+def decodeWithFallback[A](
+  xml: Xml,
+  fallback: A
+)(implicit decoder: XmlDecoder[A]): A = {
+  decoder.decode(xml).getOrElse(fallback)
+}
+
+val invalidXml = Xml.Element("Empty")
+val defaultPerson = Person("Unknown", 0)
+val result = decodeWithFallback(invalidXml, defaultPerson)
+// Person("Unknown", 0)
+```
+
+**Combining encoders and decoders:**
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Message(id: String, text: String)
+object Message {
+  implicit val schema: Schema[Message] = Schema.derived
+}
+
+// Round-trip: encode then decode
+val message = Message("msg-1", "Hello")
+val encoded: Xml = message.toXml
+
+val result: Either[XmlError, Message] =
+  implicitly[XmlDecoder[Message]].decode(encoded)
+// Right(Message("msg-1", "Hello"))
+```
+
 ## Extension Syntax
 
 When a `Schema` is in scope, use convenient extension methods:
@@ -608,9 +755,43 @@ All standard ZIO Blocks Schema types are supported:
 - Options (`Option[A]`)
 - Wrappers (newtypes)
 
+## XmlBinaryCodec
+
+`XmlBinaryCodec[A]` is the low-level codec interface that bridges Schema definitions with XML serialization. While usually derived automatically, you can work with it directly:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+// Get the underlying binary codec
+val codec: XmlBinaryCodec[Person] =
+  schema.derive(XmlBinaryCodecDeriver)
+
+// Encode to Xml directly
+val person = Person("Alice", 30)
+val xml: Xml = codec.encodeValue(person)
+
+// Decode from Xml directly
+val decoded: Either[XmlError, Person] = codec.decodeValue(xml)
+```
+
+**XmlBinaryCodec supports all Schema types:**
+- Primitives (Int, String, Boolean, etc.)
+- Java time types (Instant, LocalDate, Duration, etc.)
+- Records (case classes with field-level configuration)
+- Variants (sealed traits with discriminators)
+- Collections (List, Vector, Map, etc.)
+- Optional fields (Option[A])
+- Custom wrappers and dynamic values
+
 ## Error Handling
 
-All decoding operations return `Either[SchemaError, A]` or `Either[XmlError, A]`:
+All decoding operations return `Either[SchemaError, A]` or `Either[XmlError, A]`. The `XmlError` type provides detailed error information:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -629,9 +810,45 @@ val result = codec.decode(invalid)
 
 result match {
   case Right(person) => println(s"Decoded: $person")
-  case Left(error) => 
+  case Left(error) =>
     println(s"Error: ${error.getMessage}")
     // Error information includes parse location and context
+}
+```
+
+### XmlError Details
+
+`XmlError` provides detailed error information for debugging:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+
+val error = XmlError("Parse failed")
+
+// Error message
+val message: String = error.getMessage
+
+// Get error with position information (line/column)
+val withSpan = error.atSpan(line = 5, column = 10)
+// Message will include position: "Parse failed (at line 5, column 10)"
+```
+
+Error handling best practices:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Config(database: String, port: Int)
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived
+}
+
+def loadConfig(xml: String): Either[String, Config] = {
+  val codec = Schema[Config].derive(XmlFormat)
+  codec.decode(xml).left.map { error =>
+    s"Configuration error: ${error.getMessage}\nCheck XML format and required fields."
+  }
 }
 ```
 
@@ -741,3 +958,183 @@ val patch = XmlPatch.add(
 
 val updated = patch(xml)
 ```
+
+## Real-World Examples
+
+### RSS Feed Parsing
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
+case class Item(
+  @xmlAttribute() guid: String,
+  title: String,
+  link: String,
+  pubDate: String,
+  description: String
+)
+
+@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
+case class Channel(
+  title: String,
+  link: String,
+  description: String,
+  items: List[Item]
+)
+
+object Channel {
+  implicit val itemSchema: Schema[Item] = Schema.derived
+  implicit val schema: Schema[Channel] = Schema.derived
+}
+
+// Parse RSS feed from string
+val feedXml = """<rss:Channel xmlns:rss="http://www.rss.org/">
+  <title>Tech Blog</title>
+  <link>https://example.com</link>
+  <description>Latest tech articles</description>
+  <items>
+    <Item guid="1">
+      <title>Functional Programming in Scala</title>
+      <link>https://example.com/fp</link>
+      <pubDate>2024-01-01</pubDate>
+      <description>Deep dive into FP concepts</description>
+    </Item>
+  </items>
+</rss:Channel>"""
+
+val codec = Schema[Channel].derive(XmlFormat)
+val result: Either[SchemaError, Channel] = codec.decode(feedXml)
+```
+
+### Atom Feed with Advanced Features
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+case class Entry(
+  @xmlAttribute() id: String,
+  title: String,
+  author: String,
+  updated: String,
+  @xmlAttribute("href") link: String
+)
+
+@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+case class Feed(
+  @xmlAttribute() id: String,
+  title: String,
+  updated: String,
+  entries: List[Entry]
+)
+
+object Feed {
+  implicit val entrySchema: Schema[Entry] = Schema.derived
+  implicit val schema: Schema[Feed] = Schema.derived
+}
+
+// Encode feed to XML with custom formatting
+val feed = Feed(
+  id = "urn:uuid:60a76c80-d399-11d9-b91C-0003939e0af6",
+  title = "Example Feed",
+  updated = "2024-01-01T18:30:02Z",
+  entries = List(
+    Entry(
+      id = "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
+      title = "Atom-Powered Robots Run Amok",
+      author = "John Doe",
+      updated = "2024-01-01T18:30:02Z",
+      link = "http://example.org/2024/01/entry"
+    )
+  )
+)
+
+val codec = Schema[Feed].derive(XmlFormat)
+val xmlOutput = codec.encodeToString(feed, WriterConfig.pretty)
+```
+
+### Sitemap XML
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Url(
+  loc: String,
+  lastmod: Option[String],
+  changefreq: Option[String],
+  priority: Option[Double]
+)
+
+case class Urlset(
+  urls: List[Url]
+)
+
+object Urlset {
+  implicit val urlSchema: Schema[Url] = Schema.derived
+  implicit val schema: Schema[Urlset] = Schema.derived
+}
+
+// Build and encode sitemap
+val sitemap = Urlset(List(
+  Url("https://example.com", Some("2024-01-01"), Some("monthly"), Some(1.0)),
+  Url("https://example.com/about", Some("2024-01-01"), Some("monthly"), Some(0.8)),
+  Url("https://example.com/contact", None, Some("monthly"), Some(0.5))
+))
+
+val codec = Schema[Urlset].derive(XmlFormat)
+val sitemapXml = codec.encodeToString(sitemap, WriterConfig(
+  indentStep = 2,
+  includeDeclaration = true
+))
+```
+
+## Implementation Details
+
+### Zero Dependencies
+
+The schema-xml module is **completely self-contained** with zero external dependencies:
+
+- **XmlReader**: Hand-written pull-based parser with comprehensive XML support
+- **XmlWriter**: Streaming XML serializer with proper entity escaping
+- **Cross-platform**: Both implementations work identically on JVM and Scala.js
+- **No reflection**: Uses compile-time schema derivation for performance
+
+### Cross-Scala Compatibility
+
+Full support for both Scala versions with platform-specific optimizations:
+
+```scala mdoc:compile-only
+// Scala 2.13 syntax
+implicit class XmlSyntax[A](value: A)(implicit encoder: XmlEncoder[A]) {
+  def toXml: Xml = encoder.encode(value)
+}
+
+// Scala 3 syntax
+extension [A](value: A)(using encoder: XmlEncoder[A]) {
+  def toXml: Xml = encoder.encode(value)
+}
+```
+
+### Performance Characteristics
+
+- **Encoding**: O(n) time where n is total size of output
+- **Decoding**: O(n) time where n is input size
+- **Memory**: Streaming for both parsing and writing (constant memory for large documents)
+- **Chunk-based**: Uses efficient Chunk data structures throughout
+
+## Comparison with Java XML Libraries
+
+| Feature | schema-xml | JAXB | DOM4j |
+|---------|-----------|------|-------|
+| **Dependencies** | Zero | Jakarta | Yes |
+| **Scala Native** | ✅ | ❌ | ❌ |
+| **Scala.js** | ✅ | ❌ | ❌ |
+| **Type Safety** | ✅ | Limited | ❌ |
+| **Schema-driven** | ✅ | ✅ | ❌ |
+| **Functional** | ✅ | ❌ | ❌ |
+| **Fluent API** | ✅ | ❌ | ✅ |
+| **Memory Efficient** | ✅ | ✅ | ❌ |
