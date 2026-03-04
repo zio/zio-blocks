@@ -51,6 +51,8 @@ object Escape {
       else if (c == '<') sb.append("\\u003c")
       else if (c == '>') sb.append("\\u003e")
       else if (c == '&') sb.append("\\u0026")
+      else if (c == '\u2028') sb.append("\\u2028")
+      else if (c == '\u2029') sb.append("\\u2029")
       else if (c < 32) {
         sb.append("\\u")
         val hex = Integer.toHexString(c.toInt)

@@ -65,10 +65,10 @@ object DomSpec extends ZIOSpecDefault {
         val el = Dom.Element.Generic("div", Vector(attr), Vector.empty)
         assertTrue(el.render == "<div></div>")
       },
-      test("renders JsValue attribute unescaped") {
+      test("renders JsValue attribute HTML-escaped") {
         val attr = Dom.Attribute.KeyValue("onclick", Dom.AttributeValue.JsValue(Js("alert('hi')")))
         val el   = Dom.Element.Generic("button", Vector(attr), Vector.empty)
-        assertTrue(el.render == "<button onclick=\"alert('hi')\"></button>")
+        assertTrue(el.render == "<button onclick=\"alert(&#x27;hi&#x27;)\"></button>")
       },
       test("BooleanValue(false) omits attribute") {
         val attr = Dom.Attribute.KeyValue("disabled", Dom.AttributeValue.BooleanValue(false))
@@ -611,7 +611,7 @@ object DomSpec extends ZIOSpecDefault {
         val pa   = new PartialAttribute("onclick")
         val attr = pa := Js("alert('hi')")
         val el   = Dom.Element.Generic("button", Vector(attr), Vector.empty)
-        assertTrue(el.render == "<button onclick=\"alert('hi')\"></button>")
+        assertTrue(el.render == "<button onclick=\"alert(&#x27;hi&#x27;)\"></button>")
       },
       test("withSeparator") {
         val pa   = new PartialAttribute("class")

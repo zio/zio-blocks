@@ -69,6 +69,11 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes greater-than sign") {
         assertTrue(Escape.jsString("a>b").contains("\\u003e"))
+      },
+      test("jsString escapes Unicode line separators") {
+        assertTrue(
+          Escape.jsString("a\u2028b\u2029c") == "a\\u2028b\\u2029c"
+        )
       }
     ),
     suite("cssString")(

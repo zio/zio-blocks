@@ -222,8 +222,11 @@ object TypeclassSpec extends ZIOSpecDefault {
       test("Boolean renders as string") {
         assertTrue(ToAttrValue[Boolean].toAttrValue(true) == "true")
       },
-      test("Js passthrough (no escaping)") {
+      test("Js is HTML-escaped") {
         assertTrue(ToAttrValue[Js].toAttrValue(Js("fn()")) == "fn()")
+      },
+      test("Js with HTML special chars is escaped") {
+        assertTrue(ToAttrValue[Js].toAttrValue(Js("alert(\"xss\")")) == "alert(&quot;xss&quot;)")
       },
       test("Css is HTML-escaped") {
         assertTrue(ToAttrValue[Css].toAttrValue(Css("color: red")) == "color: red")

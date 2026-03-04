@@ -3,6 +3,7 @@ package zio.blocks.template
 object InterpolatorRuntime {
 
   def buildCss(sc: StringContext, args: Seq[String]): Css = {
+    require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb        = new java.lang.StringBuilder
     val partsIter = sc.parts.iterator
     val argsIter  = args.iterator
@@ -14,6 +15,7 @@ object InterpolatorRuntime {
   }
 
   def buildJs(sc: StringContext, args: Seq[String]): Js = {
+    require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb        = new java.lang.StringBuilder
     val partsIter = sc.parts.iterator
     val argsIter  = args.iterator
@@ -25,6 +27,7 @@ object InterpolatorRuntime {
   }
 
   def buildHtml(sc: StringContext, args: Seq[Vector[Dom]]): Dom = {
+    require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val children  = Vector.newBuilder[Dom]
     val partsIter = sc.parts.iterator
     val argsIter  = args.iterator
