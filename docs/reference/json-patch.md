@@ -67,11 +67,11 @@ patch.apply(source) == Right(target)
 
 ## Creating Patches
 
-There are three ways to create a `JsonPatch`: compute one automatically with `diff`, construct one manually with `root` or `apply`, or start from the identity patch `empty`.
+There are three ways to create a `JsonPatch`: compute one automatically with `JsonPatch.diff`, construct one manually with `JsonPatch.root` or `JsonPatch.apply`, or start from the identity patch `JsonPatch.empty`.
 
 ### `JsonPatch.diff`
 
-Computes the minimal `JsonPatch` that transforms `source` into `target`. Uses a smart diff strategy per value type — see the [Diffing Algorithm](#diffing-algorithm) section for details.
+Computes the minimal `JsonPatch` that transforms `source` into `target`. Uses a smart diff strategy per value type — see the [Diffing Algorithm](#diffing-algorithm) section for details:
 
 ```scala
 object JsonPatch {
@@ -100,7 +100,7 @@ val p3 = JsonPatch.diff(
 
 ### `JsonPatch.root`
 
-Creates a patch with a single operation applied at the root of the value.
+Creates a patch with a single operation applied at the root of the value:
 
 ```scala
 object JsonPatch {
@@ -127,7 +127,7 @@ val addField = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("active", Json.Bo
 
 ### `JsonPatch.apply`
 
-Creates a patch with a single operation applied at the specified `DynamicOptic` path. Use this when targeting a nested location within the value.
+Creates a patch with a single operation applied at the specified `DynamicOptic` path. Use this when targeting a nested location within the value:
 
 ```scala
 object JsonPatch {
@@ -155,7 +155,7 @@ agePatch.apply(nested)
 
 ### `JsonPatch.empty`
 
-The empty patch. Applying it to any `Json` value returns that value unchanged. `empty` is the identity element for `++`.
+The empty patch. Applying it to any `Json` value returns that value unchanged. `empty` is the identity element for `++`:
 
 ```scala
 object JsonPatch {
@@ -219,7 +219,7 @@ The primary way to use a `JsonPatch` is to call `apply` or the `Json#patch` exte
 
 #### `apply`
 
-Applies this patch to a `Json` value. Returns `Right` with the patched value on success, or `Left[SchemaError]` on failure. The `mode` parameter controls failure handling — see [`PatchMode`](#patchmode).
+Applies this patch to a `Json` value. Returns `Right` with the patched value on success, or `Left[SchemaError]` on failure. The `mode` parameter controls failure handling — see [`PatchMode`](#patchmode):
 
 ```scala
 case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
@@ -251,7 +251,7 @@ applyJson.patch(applyPatch, PatchMode.Lenient)
 
 #### `isEmpty`
 
-Returns `true` if this patch contains no operations.
+Returns `true` if this patch contains no operations:
 
 ```scala
 case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
@@ -307,7 +307,7 @@ combinedPatch.apply(personJson)
 
 ### Converting
 
-`toDynamicPatch` converts a `JsonPatch` to a [`DynamicPatch`](./patch.md). This is always safe — every JSON operation maps to a corresponding dynamic operation. `NumberDelta` widens to `BigDecimalDelta`.
+`toDynamicPatch` converts a `JsonPatch` to a [`DynamicPatch`](./patch.md). This is always safe — every JSON operation maps to a corresponding dynamic operation. `NumberDelta` widens to `BigDecimalDelta`:
 
 ```scala
 case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
@@ -315,7 +315,7 @@ case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
 }
 ```
 
-To convert in the opposite direction, use `JsonPatch.fromDynamicPatch` — see [Creating Patches](#creating-patches) above.
+To convert in the opposite direction, use `JsonPatch.fromDynamicPatch` — see [Creating Patches](#creating-patches) above:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonPatch}
