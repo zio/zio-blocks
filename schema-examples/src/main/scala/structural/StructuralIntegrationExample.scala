@@ -10,7 +10,7 @@ import util.ShowExpr.show
  * particularly schema evolution (Into macro) and dynamic value manipulation.
  *
  * Run with:
- *   sbt "schema-examples/runMain structural.StructuralIntoExample"
+ *   sbt "schema-examples/runMain structural.StructuralIntegrationExample"
  */
 
 object StructuralIntoExample extends App {
