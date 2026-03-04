@@ -30,6 +30,15 @@ object AsSpec extends SchemaBaseSpec {
         val forward  = as.into(original)
         assertTrue(forward.flatMap(as.from) == Right(original))
       },
+      test("As[CaseClass, DynamicValue] with widening of field values") {
+        case class DatabaseConfig(host: String, port: Int, timeout: Long)
+        object DatabaseConfig {
+          val asDynamic = As.derived[DatabaseConfig, DynamicValue]
+        }
+        val storedJson = """{"host":"db.prod.example.com","port":5432,"timeout":30000}"""
+        val result     = storedJson.fromJson[DynamicValue].flatMap(dv => DatabaseConfig.asDynamic.from(dv))
+        assertTrue(result == Right(DatabaseConfig("db.prod.example.com", 5432, 30000L)))
+      },
       test("As[DynamicValue, CaseClass] provides roundtrip conversion") {
         case class Item(id: Long, name: String)
         val dv = DynamicValue.Record(
