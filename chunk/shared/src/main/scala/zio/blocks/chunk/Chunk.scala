@@ -567,8 +567,8 @@ object ChunkBuilder {
 
 private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
   final def from[A](source: IterableOnce[A]): Chunk[A] = source match {
-    case iterable: Iterable[A] => Chunk.fromIterable(iterable)
-    case iterableOnce          => Chunk.fromIterator(iterableOnce.iterator)
+    case iterable: Iterable[A] @unchecked => Chunk.fromIterable(iterable)
+    case iterableOnce                     => Chunk.fromIterator(iterableOnce.iterator)
   }
 }
 
@@ -1226,7 +1226,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Int]])
+        } else {
+          implicit val ordering: Ordering[Int] = ord.asInstanceOf[Ordering[Int]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Long] =>
         if (ord eq Ordering.Long) util.Arrays.sort(xs)
         else if (ord.isReverseOf(Ordering.Long)) {
@@ -1240,7 +1243,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Long]])
+        } else {
+          implicit val ordering: Ordering[Long] = ord.asInstanceOf[Ordering[Long]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Double] =>
         if (
           (ord eq Ordering.Double.IeeeOrdering) || (ord eq Ordering.Double.TotalOrdering) || (ord eq Ordering.DeprecatedDoubleOrdering)
@@ -1259,7 +1265,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Double]])
+        } else {
+          implicit val ordering: Ordering[Double] = ord.asInstanceOf[Ordering[Double]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Float] =>
         if (
           (ord eq Ordering.Float.IeeeOrdering) || (ord eq Ordering.Float.TotalOrdering) || (ord eq Ordering.DeprecatedFloatOrdering)
@@ -1278,7 +1287,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Float]])
+        } else {
+          implicit val ordering: Ordering[Float] = ord.asInstanceOf[Ordering[Float]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Byte] =>
         if (ord eq Ordering.Byte) util.Arrays.sort(xs)
         else if (ord.isReverseOf(Ordering.Byte)) {
@@ -1292,7 +1304,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Byte]])
+        } else {
+          implicit val ordering: Ordering[Byte] = ord.asInstanceOf[Ordering[Byte]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Short] =>
         if (ord eq Ordering.Short) util.Arrays.sort(xs)
         else if (ord.isReverseOf(Ordering.Short)) {
@@ -1306,7 +1321,10 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Short]])
+        } else {
+          implicit val ordering: Ordering[Short] = ord.asInstanceOf[Ordering[Short]]
+          scala.util.Sorting.stableSort(xs)
+        }
       case xs: Array[Char] =>
         if (ord eq Ordering.Char) util.Arrays.sort(xs)
         else if (ord.isReverseOf(Ordering.Char)) {
@@ -1320,10 +1338,17 @@ sealed abstract class Chunk[+A]
             idx1 += 1
             idx2 -= 1
           }
-        } else scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Char]])
-      case xs: Array[Boolean] => scala.util.Sorting.stableSort(xs)(ord.asInstanceOf[Ordering[Boolean]])
-      case xs: Array[AnyRef]  => util.Arrays.sort(xs, ord.asInstanceOf[Ordering[AnyRef]])
-      case _                  => scala.util.Sorting.stableSort(array)(ord.asInstanceOf[Ordering[A]])
+        } else {
+          implicit val ordering: Ordering[Char] = ord.asInstanceOf[Ordering[Char]]
+          scala.util.Sorting.stableSort(xs)
+        }
+      case xs: Array[Boolean] =>
+        implicit val ordering: Ordering[Boolean] = ord.asInstanceOf[Ordering[Boolean]]
+        scala.util.Sorting.stableSort(xs)
+      case xs: Array[AnyRef] => util.Arrays.sort(xs, ord.asInstanceOf[Ordering[AnyRef]])
+      case _                 =>
+        implicit val ordering: Ordering[A] = ord.asInstanceOf[Ordering[A]]
+        scala.util.Sorting.stableSort(array)
     }
     Chunk.fromArray(array).asInstanceOf[Chunk[A]]
   }
