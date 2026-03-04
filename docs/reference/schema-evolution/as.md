@@ -394,6 +394,96 @@ case class Long2_(name: String, extra: Option[String])
 As.derived[Short_, Long2_]  // compiles — extra is Optional
 ```
 
+## DynamicValue Conversions
+
+Like `Into`, `As` supports bidirectional conversions with `DynamicValue`, allowing you to define a single schema and use it for both type-safe operations and polyglot data handling.
+
+### Bidirectional DynamicValue Support with JSON Round-Trip
+
+You can derive `As[A, DynamicValue]` for any type with a `Schema[A]` and achieve full polyglot round-trips:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.*
+
+case class Config(host: String, port: Int)
+
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived[Config]
+  val asDynamic: As[Config, DynamicValue] = As.derived[Config, DynamicValue]
+}
+```
+
+```scala mdoc
+// Forward: Config → DynamicValue → JSON
+Config.asDynamic.into(Config("localhost", 8080)).map(_.toJsonString)
+```
+
+Now in the reverse direction, deserialize JSON back to Config:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.*
+
+case class Config(host: String, port: Int)
+
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived[Config]
+  val asDynamic: As[Config, DynamicValue] = As.derived[Config, DynamicValue]
+
+  // JSON string to parse
+  val jsonString = """{"host":"example.com","port":9000}"""
+}
+```
+
+```scala mdoc
+// Reverse: JSON → DynamicValue → Config
+for {
+  dv <- Config.jsonString.fromJson[DynamicValue]
+  config <- Config.asDynamic.from(dv)
+} yield config
+```
+
+The call to `jsonString.fromJson[DynamicValue]` parses the JSON string into a `DynamicValue`, and `asDynamic.from` converts it back to the strongly-typed `Config`. (Equivalently, you could use `Schema[DynamicValue].getInstance(JsonFormat).decode(jsonString)` for the same decoding step.) This demonstrates the full cycle: **JSON → DynamicValue → Type**, ensuring perfect round-trip fidelity.
+
+### Use Cases
+
+`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently loses or corrupts data.
+
+#### Polyglot configuration systems
+
+Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
+
+Consider a service that:
+1. Reads config from an external store (JSON → `DynamicValue` → typed `DatabaseConfig`)
+2. Applies business logic to the typed config (validate, scale, migrate)
+3. Writes the updated config back to the store (typed `DatabaseConfig` → `DynamicValue` → JSON)
+
+Without `As`, step 3 might serialize data differently than step 1 read it, causing silent corruption or misalignment. With `As`, the macro guarantees that `config → DynamicValue → config'` preserves the structure.
+
+```scala mdoc:silent:nest
+import zio.blocks.schema.*
+
+case class DatabaseConfig(host: String, port: Int, timeout: Long)
+
+object DatabaseConfig {
+  implicit val schema: Schema[DatabaseConfig] = Schema.derived[DatabaseConfig]
+  val asDynamic: As[DatabaseConfig, DynamicValue] = As.derived[DatabaseConfig, DynamicValue]
+}
+```
+
+```scala mdoc
+// Simulate JSON arriving from the config store (e.g. Consul, etcd, a JSON file)
+val storedJson = """{"host":"db.prod.example.com","port":5432,"timeout":30000}"""
+
+val result = for {
+  stored  <- storedJson.fromJson[DynamicValue]          // Step 1: Read from store
+  config  <- DatabaseConfig.asDynamic.from(stored)      // Step 2a: Hydrate into typed config
+  updated  = config.copy(timeout = 60000)               // Step 2b: Apply business logic
+  written <- DatabaseConfig.asDynamic.into(updated)     // Step 3: Serialize back to store (guaranteed round-trip)
+} yield written.toJsonString
+
+result
+```
+
 ## Scala 2 vs Scala 3 Differences
 
 | Feature | Scala 2 | Scala 3 |
@@ -404,6 +494,7 @@ As.derived[Short_, Long2_]  // compiles — extra is Optional
 | Structural types | JVM only (reflection) | JVM only (reflection) |
 | ZIO Prelude newtypes | ✅ `assert { between(...) }` | ✅ `override def assertion` |
 | Error messages | Detailed macro errors | Detailed macro errors |
+| DynamicValue ambiguity detection | ✅ Two-pass implicit resolution | ✅ Built-in ambiguity reporting |
 
 ## Integration
 

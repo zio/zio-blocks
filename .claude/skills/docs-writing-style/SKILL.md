@@ -39,12 +39,18 @@ Apply these conventions consistently in all prose, section headings, and inline 
 
 ## Heading and Code Block Layout Rules
 
+- **Heading hierarchy**: Use `##` for major sections, `###` for subsections, and `####` for subsubsections.
+  All three levels are fully supported and encouraged.
 - **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header
   with nothing in between. Always write at least one sentence of explanation before the first
   subheader.
 - **No lone subheaders**: Never create a subsection with only one child. If a `##` section would
   have only one `###`, remove the subheader entirely and place the content directly under the
-  parent heading.
+  parent heading. The same rule applies to `###` → `####`.
+- **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a
+  single `###` heading by using `####` for each item. This creates visual hierarchy and makes
+  the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` →
+  `#### Schema-driven migrations`.
 - **Every code block must be preceded by an introductory prose sentence**: The content immediately
   before a code block's opening fence must always be a prose sentence — never a heading alone and
   never blank space alone. This applies universally:
