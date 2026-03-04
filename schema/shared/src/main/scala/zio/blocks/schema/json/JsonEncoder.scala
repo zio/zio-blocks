@@ -286,11 +286,11 @@ object JsonEncoder {
   }
 
   implicit val yearEncoder: JsonEncoder[Year] = new JsonEncoder[Year] {
-    def encode(y: Year): Json = new Json.String(Json.yearRawCodec.encodeToString(y))
+    def encode(y: Year): Json = new Json.String(y.toString)
   }
 
   implicit val yearMonthEncoder: JsonEncoder[YearMonth] = new JsonEncoder[YearMonth] {
-    def encode(ym: YearMonth): Json = new Json.String(Json.yearMonthRawCodec.encodeToString(ym))
+    def encode(ym: YearMonth): Json = new Json.String(ym.toString)
   }
 
   implicit val zoneOffsetEncoder: JsonEncoder[ZoneOffset] = new JsonEncoder[ZoneOffset] {

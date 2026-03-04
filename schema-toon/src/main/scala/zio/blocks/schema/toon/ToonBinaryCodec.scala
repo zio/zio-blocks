@@ -724,14 +724,11 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.YearMonth): java.time.YearMonth = {
       in.skipBlankLines()
       val s = in.readString()
-      Json.yearMonthRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid year-month: $s")
-      }
+      try java.time.YearMonth.parse(s)
+      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year-month: $s") }
     }
 
-    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit =
-      out.writeString(Json.yearMonthRawCodec.encodeToString(x))
+    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
   }
   val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
     override def isPrimitive: Boolean = true
@@ -739,10 +736,8 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.ZoneId): java.time.ZoneId = {
       in.skipBlankLines()
       val s = in.readString()
-      Json.zoneIdRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid zone id: $s")
-      }
+      try java.time.ZoneId.of(s)
+      catch { case _: java.time.DateTimeException => in.decodeError(s"Invalid zone id: $s") }
     }
 
     def encodeValue(x: java.time.ZoneId, out: ToonWriter): Unit = out.writeString(x.getId)
@@ -753,10 +748,8 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.ZoneOffset): java.time.ZoneOffset = {
       in.skipBlankLines()
       val s = in.readString()
-      Json.zoneOffsetRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid zone offset: $s")
-      }
+      try java.time.ZoneOffset.of(s)
+      catch { case _: java.time.DateTimeException => in.decodeError(s"Invalid zone offset: $s") }
     }
 
     def encodeValue(x: java.time.ZoneOffset, out: ToonWriter): Unit = out.writeString(x.getId)

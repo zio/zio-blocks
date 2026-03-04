@@ -375,22 +375,13 @@ object ThriftBinaryCodec {
   }
 
   val yearMonthCodec: ThriftBinaryCodec[YearMonth] = new ThriftBinaryCodec[YearMonth]() {
-    def decodeUnsafe(protocol: TProtocol): YearMonth =
-      Json.yearMonthRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeUnsafe(protocol: TProtocol): YearMonth = YearMonth.parse(protocol.readString())
 
-    def encode(value: YearMonth, protocol: TProtocol): Unit =
-      protocol.writeString(Json.yearMonthRawCodec.encodeToString(value))
+    def encode(value: YearMonth, protocol: TProtocol): Unit = protocol.writeString(value.toString)
   }
 
   val zoneIdCodec: ThriftBinaryCodec[ZoneId] = new ThriftBinaryCodec[ZoneId]() {
-    def decodeUnsafe(protocol: TProtocol): ZoneId =
-      Json.zoneIdRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeUnsafe(protocol: TProtocol): ZoneId = ZoneId.of(protocol.readString())
 
     def encode(value: ZoneId, protocol: TProtocol): Unit = protocol.writeString(value.getId)
   }
