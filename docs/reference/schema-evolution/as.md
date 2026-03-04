@@ -446,11 +446,14 @@ The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` 
 
 ### Use Cases
 
-**Polyglot configuration systems:** A config service (Consul, etcd, a JSON file) stores
-settings as raw JSON. Your app reads that JSON into `DynamicValue`, hydrates it into a
-typed `DatabaseConfig`, applies business logic, then writes the updated value back to the
-store — all as `DynamicValue`. Because both directions are needed in the same pipeline,
-`As` is the right abstraction; a one-way `Into` would only cover half the cycle.
+**Polyglot configuration systems:** Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
+
+Consider a service that:
+1. Reads config from an external store (JSON → `DynamicValue` → typed `DatabaseConfig`)
+2. Applies business logic to the typed config (validate, scale, migrate)
+3. Writes the updated config back to the store (typed `DatabaseConfig` → `DynamicValue` → JSON)
+
+Without `As`, step 3 might serialize data differently than step 1 read it, causing silent corruption or misalignment. With `As`, the macro guarantees that `config → DynamicValue → config'` preserves the structure.
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.*
@@ -468,10 +471,10 @@ object DatabaseConfig {
 val storedJson = """{"host":"db.prod.example.com","port":5432,"timeout":30000}"""
 
 val result = for {
-  stored  <- storedJson.fromJson[DynamicValue]          // config store delivers DynamicValue
-  config  <- DatabaseConfig.asDynamic.from(stored)      // hydrate into typed DatabaseConfig
-  updated  = config.copy(timeout = 60000)               // business logic: double the timeout
-  written <- DatabaseConfig.asDynamic.into(updated)     // serialize back for the config store
+  stored  <- storedJson.fromJson[DynamicValue]          // Step 1: Read from store
+  config  <- DatabaseConfig.asDynamic.from(stored)      // Step 2a: Hydrate into typed config
+  updated  = config.copy(timeout = 60000)               // Step 2b: Apply business logic
+  written <- DatabaseConfig.asDynamic.into(updated)     // Step 3: Serialize back to store (guaranteed round-trip)
 } yield written.toJsonString
 
 result
