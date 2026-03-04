@@ -21,7 +21,10 @@ trait HtmlElements {
       elem = modifiers(i).applyTo(elem)
       i += 1
     }
-    elem.asInstanceOf[Dom.Element.Script]
+    elem match {
+      case s: Dom.Element.Script => s
+      case other                 => Dom.Element.Script(other.attributes, other.children)
+    }
   }
 
   private def elStyle(modifiers: Seq[Modifier]): Dom.Element.Style = {
@@ -31,7 +34,10 @@ trait HtmlElements {
       elem = modifiers(i).applyTo(elem)
       i += 1
     }
-    elem.asInstanceOf[Dom.Element.Style]
+    elem match {
+      case s: Dom.Element.Style => s
+      case other                => Dom.Element.Style(other.attributes, other.children)
+    }
   }
 
   def html(modifiers: Modifier*): Dom.Element                 = el("html", modifiers)
