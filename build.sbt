@@ -425,7 +425,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -438,7 +438,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -490,10 +490,10 @@ lazy val benchmarks = project
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.8.1",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.9",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
-      "dev.zio"                               %% "zio-json"              % "0.7.45",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
-      "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
+      "dev.zio"                               %% "zio-json"              % "0.9.0",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.2",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.2", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
