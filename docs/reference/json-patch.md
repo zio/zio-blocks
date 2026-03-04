@@ -12,6 +12,8 @@ title: "JsonPatch"
 - carries its own `Schema` instances for full serialization support
 - converts bidirectionally to/from `DynamicPatch` for use in generic patching pipelines
 
+The `JsonPatch` type wraps a sequence of operations:
+
 ```scala
 final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp])
 ```
@@ -79,7 +81,7 @@ object JsonPatch {
 }
 ```
 
-`diff` is also available as an extension method `Json#diff`:
+`JsonPatch.diff` is also available as the `Json#diff` extension method:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonPatch}
@@ -215,7 +217,7 @@ back == Right(original)
 
 ### Applying Patches
 
-The primary way to use a `JsonPatch` is to call `apply` or the `Json#patch` extension method, both of which accept an optional `PatchMode` argument.
+The primary way to use a `JsonPatch` is to call `JsonPatch#apply` or the `Json#patch` extension method, both of which accept an optional `PatchMode` argument.
 
 #### `apply`
 
@@ -272,7 +274,7 @@ JsonPatch.diff(Json.Number(1), Json.Number(1)).isEmpty
 
 ### Composing Patches
 
-`++` is the principal operator for building complex patches from smaller, focused ones. The `JsonPatch.empty` value is the identity element for `++`.
+`++` is the principal operator for building complex patches from smaller, focused ones. The `JsonPatch.empty` value is the identity element for `++`:
 
 ```scala
 case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
@@ -327,7 +329,7 @@ val dyn: DynamicPatch = patch.toDynamicPatch
 
 ## PatchMode
 
-`PatchMode` controls how `apply` reacts when an operation's precondition is not met (e.g., a field is missing, or `ObjectOp.Add` targets a key that already exists):
+`PatchMode` controls how `JsonPatch#apply` reacts when an operation's precondition is not met (e.g., a field is missing, or `ObjectOp.Add` targets a key that already exists):
 
 | Mode | Behaviour |
 |------|-----------|
@@ -586,7 +588,7 @@ You rarely need to construct `Nested` manually; it is primarily an internal opti
 | Any | Type changed | `Set` — full replacement |
 
 :::tip
-`diff` followed by `apply` is always a lossless roundtrip: for any `source` and `target`, `JsonPatch.diff(source, target).apply(source) == Right(target)`.
+`JsonPatch.diff` followed by `JsonPatch#apply` is always a lossless roundtrip: for any `source` and `target`, `JsonPatch.diff(source, target).apply(source) == Right(target)`.
 :::
 
 ## JsonPatch vs RFC 6902 JSON Patch
