@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.{Binding, BindingType}
+import zio.blocks.schema.json.JsonWriter
 import zio.blocks.typeid.{TypeId, TypeRepr}
 
 sealed trait PrimitiveType[A] {
@@ -59,11 +60,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Byte] =
+    ): Either[SchemaError, scala.Byte] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Byte(b)) => new Right(b)
-        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Byte"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Byte(b)    => return new Right(b)
+            case PrimitiveValue.Short(s)   => if (s.toByte.toShort == s) return new Right(s.toByte)
+            case PrimitiveValue.Char(ch)   => if (ch.toByte.toChar == ch) return new Right(ch.toByte)
+            case PrimitiveValue.Int(i)     => if (i.toByte.toInt == i) return new Right(i.toByte)
+            case PrimitiveValue.Float(f)   => if (f.toByte.toFloat == f) return new Right(f.toByte)
+            case PrimitiveValue.Long(l)    => if (l.toByte.toLong == l) return new Right(l.toByte)
+            case PrimitiveValue.Double(d)  => if (d.toByte.toDouble == d) return new Right(d.toByte)
+            case PrimitiveValue.BigInt(bi) =>
+              val b = bi.toByte
+              if (scala.BigInt(b) == bi) return new Right(b)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val b = bd.toByte
+              if (scala.BigDecimal(b) == bd) return new Right(b)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Byte"))
+    }
   }
 
   case class Short(validation: Validation[scala.Short]) extends PrimitiveType[scala.Short] {
@@ -74,11 +93,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Short] =
+    ): Either[SchemaError, scala.Short] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Short(s)) => new Right(s)
-        case _                                               => new Left(SchemaError.expectationMismatch(trace, "Expected Short"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Short(s)   => return new Right(s)
+            case PrimitiveValue.Byte(b)    => return new Right(b.toShort)
+            case PrimitiveValue.Char(ch)   => if (ch.toShort.toChar == ch) return new Right(ch.toShort)
+            case PrimitiveValue.Int(i)     => if (i.toShort.toInt == i) return new Right(i.toShort)
+            case PrimitiveValue.Float(f)   => if (f.toShort.toFloat == f) return new Right(f.toShort)
+            case PrimitiveValue.Long(l)    => if (l.toShort.toLong == l) return new Right(l.toShort)
+            case PrimitiveValue.Double(d)  => if (d.toShort.toDouble == d) return new Right(d.toShort)
+            case PrimitiveValue.BigInt(bi) =>
+              val sh = bi.toShort
+              if (scala.BigInt(sh) == bi) return new Right(sh)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val sh = bd.toShort
+              if (scala.BigDecimal(sh) == bd) return new Right(sh)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Short"))
+    }
   }
 
   case class Int(validation: Validation[scala.Int]) extends PrimitiveType[scala.Int] {
@@ -89,11 +126,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Int] =
+    ): Either[SchemaError, scala.Int] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Int(i)) => new Right(i)
-        case _                                             => new Left(SchemaError.expectationMismatch(trace, "Expected Int"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Int(i)     => return new Right(i)
+            case PrimitiveValue.Byte(b)    => return new Right(b.toInt)
+            case PrimitiveValue.Short(s)   => return new Right(s.toInt)
+            case PrimitiveValue.Char(ch)   => return new Right(ch.toInt)
+            case PrimitiveValue.Float(f)   => if (f.toInt.toFloat == f) return new Right(f.toInt)
+            case PrimitiveValue.Long(l)    => if (l.toInt.toLong == l) return new Right(l.toInt)
+            case PrimitiveValue.Double(d)  => if (d.toInt.toDouble == d) return new Right(d.toInt)
+            case PrimitiveValue.BigInt(bi) =>
+              val i = bi.toInt
+              if (scala.BigInt(i) == bi) return new Right(i)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val i = bd.toInt
+              if (scala.BigDecimal(i) == bd) return new Right(i)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Int"))
+    }
   }
 
   case class Long(validation: Validation[scala.Long]) extends PrimitiveType[scala.Long] {
@@ -104,11 +159,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Long] =
+    ): Either[SchemaError, scala.Long] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Long(l)) => new Right(l)
-        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Long"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Long(l)    => return new Right(l)
+            case PrimitiveValue.Byte(b)    => return new Right(b.toLong)
+            case PrimitiveValue.Short(s)   => return new Right(s.toLong)
+            case PrimitiveValue.Char(ch)   => return new Right(ch.toLong)
+            case PrimitiveValue.Int(i)     => return new Right(i.toLong)
+            case PrimitiveValue.Float(f)   => if (f.toLong.toFloat == f) return new Right(f.toLong)
+            case PrimitiveValue.Double(d)  => if (d.toLong.toDouble == d) return new Right(d.toLong)
+            case PrimitiveValue.BigInt(bi) =>
+              val l = bi.toLong
+              if (scala.BigInt(l) == bi) return new Right(l)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val l = bd.toLong
+              if (scala.BigDecimal(l) == bd) return new Right(l)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Long"))
+    }
   }
 
   case class Float(validation: Validation[scala.Float]) extends PrimitiveType[scala.Float] {
@@ -119,11 +192,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Float] =
+    ): Either[SchemaError, scala.Float] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Float(f)) => Right(f)
-        case _                                               => Left(SchemaError.expectationMismatch(trace, "Expected Float"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Float(f)   => return new Right(f)
+            case PrimitiveValue.Byte(b)    => return new Right(b.toFloat)
+            case PrimitiveValue.Short(s)   => return new Right(s.toFloat)
+            case PrimitiveValue.Char(ch)   => return new Right(ch.toFloat)
+            case PrimitiveValue.Int(i)     => if (i.toFloat.toInt == i) return new Right(i.toFloat)
+            case PrimitiveValue.Double(d)  => if (d.toFloat.toDouble == d) return new Right(d.toFloat)
+            case PrimitiveValue.Long(l)    => if (l.toFloat.toLong == l) return new Right(l.toFloat)
+            case PrimitiveValue.BigInt(bi) =>
+              val f = scala.BigDecimal(bi).toFloat
+              if (JsonWriter.toBigDecimal(f).toBigInt == bi) return new Right(f)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val f = bd.toFloat
+              if (scala.BigDecimal(f) == bd) return new Right(f)
+            case _ =>
+          }
+        case _ =>
       }
+      Left(SchemaError.expectationMismatch(trace, "Expected Float"))
+    }
   }
 
   case class Double(validation: Validation[scala.Double]) extends PrimitiveType[scala.Double] {
@@ -134,11 +225,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Double] =
+    ): Either[SchemaError, scala.Double] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Double(d)) => new Right(d)
-        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected Double"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Double(d)  => return new Right(d)
+            case PrimitiveValue.Byte(b)    => return new Right(b.toDouble)
+            case PrimitiveValue.Short(s)   => return new Right(s.toDouble)
+            case PrimitiveValue.Char(ch)   => return new Right(ch.toDouble)
+            case PrimitiveValue.Int(i)     => return new Right(i.toDouble)
+            case PrimitiveValue.Float(f)   => return new Right(f.toDouble)
+            case PrimitiveValue.Long(l)    => if (l.toDouble.toLong == l) return new Right(l.toDouble)
+            case PrimitiveValue.BigInt(bi) =>
+              val d = scala.BigDecimal(bi).toDouble
+              if (JsonWriter.toBigDecimal(d).toBigInt == bi) return new Right(d)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val d = bd.toDouble
+              if (scala.BigDecimal(d) == bd) return new Right(d)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Double"))
+    }
   }
 
   case class Char(validation: Validation[scala.Char]) extends PrimitiveType[scala.Char] {
@@ -149,11 +258,29 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.Char] =
+    ): Either[SchemaError, scala.Char] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.Char(c)) => new Right(c)
-        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Char"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.Char(ch)   => return new Right(ch)
+            case PrimitiveValue.Byte(b)    => if (b.toChar.toByte == b) return new Right(b.toChar)
+            case PrimitiveValue.Short(s)   => if (s.toChar.toShort == s) return new Right(s.toChar)
+            case PrimitiveValue.Int(i)     => if (i.toChar.toInt == i) return new Right(i.toChar)
+            case PrimitiveValue.Long(l)    => if (l.toChar.toLong == l) return new Right(l.toChar)
+            case PrimitiveValue.Float(f)   => if (f.toChar.toFloat == f) return new Right(f.toChar)
+            case PrimitiveValue.Double(d)  => if (d.toChar.toDouble == d) return new Right(d.toChar)
+            case PrimitiveValue.BigInt(bi) =>
+              val ch = bi.toChar
+              if (scala.BigInt(ch) == bi) return new Right(ch)
+            case PrimitiveValue.BigDecimal(bd) =>
+              val ch = bd.toInt.toChar
+              if (scala.BigDecimal(ch) == bd) return new Right(ch)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected Char"))
+    }
   }
 
   case class String(validation: Validation[Predef.String]) extends PrimitiveType[Predef.String] {
@@ -180,11 +307,35 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.BigInt] =
+    ): Either[SchemaError, scala.BigInt] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.BigInt(b)) => new Right(b)
-        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected BigInt"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.BigInt(bi) => return new Right(bi)
+            case PrimitiveValue.Byte(b)    => return new Right(scala.BigInt(b))
+            case PrimitiveValue.Short(s)   => return new Right(scala.BigInt(s))
+            case PrimitiveValue.Char(ch)   => return new Right(scala.BigInt(ch))
+            case PrimitiveValue.Int(i)     => return new Right(scala.BigInt(i))
+            case PrimitiveValue.Long(l)    => return new Right(scala.BigInt(l))
+            case PrimitiveValue.Float(f)   =>
+              if (java.lang.Float.isFinite(f)) {
+                val bi = JsonWriter.toBigDecimal(f).toBigInt
+                if (bi.toFloat == f) return new Right(bi)
+              }
+            case PrimitiveValue.Double(d) =>
+              if (java.lang.Double.isFinite(d)) {
+                val bi = JsonWriter.toBigDecimal(d).toBigInt
+                if (bi.toDouble == d) return new Right(bi)
+              }
+            case PrimitiveValue.BigDecimal(bd) =>
+              val bi = bd.toBigInt
+              if (scala.BigDecimal(bi) == bd) return new Right(bi)
+            case _ =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected BigInt"))
+    }
   }
 
   case class BigDecimal(validation: Validation[scala.BigDecimal]) extends PrimitiveType[scala.BigDecimal] {
@@ -196,11 +347,27 @@ object PrimitiveType {
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
-    ): Either[SchemaError, scala.BigDecimal] =
+    ): Either[SchemaError, scala.BigDecimal] = {
       value match {
-        case DynamicValue.Primitive(PrimitiveValue.BigDecimal(b)) => new Right(b)
-        case _                                                    => new Left(SchemaError.expectationMismatch(trace, "Expected BigDecimal"))
+        case DynamicValue.Primitive(pv) =>
+          pv match {
+            case PrimitiveValue.BigDecimal(bd) => return new Right(bd)
+            case PrimitiveValue.Byte(b)        => return new Right(scala.BigDecimal(b))
+            case PrimitiveValue.Char(ch)       => return new Right(scala.BigDecimal(ch))
+            case PrimitiveValue.Short(s)       => return new Right(scala.BigDecimal(s))
+            case PrimitiveValue.Int(i)         => return new Right(scala.BigDecimal(i))
+            case PrimitiveValue.Float(f)       =>
+              if (java.lang.Float.isFinite(f)) return new Right(JsonWriter.toBigDecimal(f))
+            case PrimitiveValue.Long(l)   => return new Right(scala.BigDecimal(l))
+            case PrimitiveValue.Double(d) =>
+              if (java.lang.Double.isFinite(d)) return new Right(JsonWriter.toBigDecimal(d))
+            case PrimitiveValue.BigInt(bi) => return new Right(scala.BigDecimal(bi))
+            case _                         =>
+          }
+        case _ =>
       }
+      new Left(SchemaError.expectationMismatch(trace, "Expected BigDecimal"))
+    }
   }
 
   case class DayOfWeek(validation: Validation[java.time.DayOfWeek]) extends PrimitiveType[java.time.DayOfWeek] {
