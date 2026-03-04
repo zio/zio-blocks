@@ -239,7 +239,27 @@ This is only supported in **Scala 3** with the right macro machinery.
 
 ### Round-tripping Through DynamicValue
 
-Convert a typed value to/from `DynamicValue` using the nominal schema (structural schemas work with DynamicValue automatically):
+Structural schemas enable **cross-type conversion through `DynamicValue`** — encode a value of one nominal type and decode it as a *different* nominal type with the same structural shape. This is the core benefit of structural types for system integration.
+
+#### Motivation
+
+In real integrations, you often receive data from an external system shaped like one type, but you need to work with it as a different type in your system. Without structural types, field-by-field translation is required. With structural types, if both types have identical shape, `DynamicValue` acts as the seamless bridge.
+
+Common scenarios:
+- **API gateways** — receive a `PersonDTO` from an external API, decode as your internal `Person` type
+- **Message brokers** — consume an event shaped like `UserEvent`, convert to your domain `Account` type
+- **Data pipelines** — records with identical fields but different class names from different services
+
+#### When to use
+
+| Scenario | Use this | Don't use |
+|----------|----------|-----------|
+| Two nominal types have identical shape; convert between them | Encode with one schema, decode with the other | Manual translation |
+| Convert same type to/from DynamicValue | Use nominal schema directly | Structural schema (unnecessary) |
+
+#### Cross-type conversion in action
+
+Encode using one nominal schema, decode using a different nominal schema — both have the same structural shape:
 
 ```scala
 import zio.blocks.schema.Schema
@@ -250,17 +270,26 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived[Person]
 }
 
-val schema = Schema.derived[Person]
+case class Employee(name: String, age: Int)
+object Employee {
+  implicit val schema: Schema[Employee] = Schema.derived[Employee]
+}
 
-// Encode to DynamicValue
+// Both types have identical structural shape: { def name: String; def age: Int }
+
+val personSchema = Schema.derived[Person]
+val employeeSchema = Schema.derived[Employee]
+
+// Encode a Person to DynamicValue
 val person = Person("Alice", 30)
-val dynamic = schema.toDynamicValue(person)
-// DynamicValue.Record("name" -> String("Alice"), "age" -> Int(30))
+val dynamic = personSchema.toDynamicValue(person)
 
-// Decode from DynamicValue
-val reconstructed: Either[SchemaError, Person] =
-  schema.fromDynamicValue(dynamic)
+// Decode the same DynamicValue as Employee — works because shapes match
+val employee: Either[SchemaError, Employee] =
+  employeeSchema.fromDynamicValue(dynamic)
 ```
+
+The structural shape guarantee ensures type-safe conversion: at compile time, you know both schemas accept the same fields, so round-tripping through `DynamicValue` is safe and zero-cost.
 
 ### Accessing Structural Values
 
