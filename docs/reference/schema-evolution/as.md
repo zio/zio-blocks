@@ -446,7 +446,11 @@ The `fromJsonString` method on `DynamicValue` parses JSON, and `asDynamic.from` 
 
 ### Use Cases
 
-**Polyglot configuration systems:** Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
+`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently loses or corrupts data.
+
+#### Polyglot configuration systems
+
+Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
 
 Consider a service that:
 1. Reads config from an external store (JSON → `DynamicValue` → typed `DatabaseConfig`)
@@ -480,7 +484,9 @@ val result = for {
 result
 ```
 
-**Schema-driven bidirectional migrations:** Migrate between schema versions using `As`:
+#### Schema-driven bidirectional migrations
+
+Migrate between schema versions using `As`:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema.*
