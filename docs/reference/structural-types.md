@@ -308,7 +308,7 @@ val containerBinding = Binding.of[{
 }]
 ```
 
-This enables anonymous structural types to benefit from ZIO Blocks' high-performance serialization without requiring nominal case class definitions. Like `Schema.structural`, this is **JVM-only**.
+This enables anonymous structural types to benefit from ZIO Blocks' high-performance serialization without requiring nominal case class definitions. Like `Schema#structural`, this is **JVM-only**.
 
 See [Binding](./binding.md) for detailed serialization documentation.
 
