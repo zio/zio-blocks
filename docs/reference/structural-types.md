@@ -262,6 +262,8 @@ The structural shape guarantee ensures type-safe conversion: at compile time, yo
 
 ## Integration
 
+Structural types integrate seamlessly with ZIO Blocks' broader ecosystem:
+
 ### With Schema Evolution Macros
 
 Structural schemas work with [Schema Evolution](./schema-evolution/into.md) macros for cross-type conversion. When two types share the same structural shape, the conversion machinery can work across type boundaries:
