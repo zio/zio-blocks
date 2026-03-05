@@ -11,6 +11,9 @@ trait ForkDemo extends BaseAgent[String] {
 
   @description("Forks the agent, joins via a promise, and returns info about both branches.")
   def runFork(): Future[String]
+
+  @description("Forks the agent and joins using JSON-encoded promise (awaitPromiseJson/completePromiseJson).")
+  def runForkJson(): Future[String]
 }
 
 object ForkDemo extends AgentCompanion[ForkDemo, String]

@@ -268,14 +268,10 @@ object AgentHostApi {
   trait GetPromiseResultHandle extends js.Object {
     def subscribe(): Pollable = js.native
 
-    def get(): PromiseResult = js.native
-  }
-
-  @js.native
-  trait PromiseResult extends js.Object {
-    @JSName("is_some")
-    def isSome: Boolean = js.native
-
+    /**
+     * Returns `Uint8Array` if the promise is completed, or `undefined` if not
+     * yet.
+     */
     def get(): Uint8Array = js.native
   }
 
@@ -284,6 +280,12 @@ object AgentHostApi {
     def ready(): Boolean = js.native
 
     def block(): Unit = js.native
+
+    /**
+     * Converts this WASI pollable into a JS Promise that resolves when ready.
+     */
+    @JSName("promise")
+    def promise(): js.Promise[Unit] = js.native
   }
 
   @js.native

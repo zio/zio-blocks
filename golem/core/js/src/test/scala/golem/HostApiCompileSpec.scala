@@ -69,32 +69,20 @@ final class HostApiCompileSpec extends AnyFunSuite {
   }
 
   // ---------------------------------------------------------------------------
-  // ForkResult / ForkDetails
+  // ForkResult
   // ---------------------------------------------------------------------------
 
-  test("ForkDetails construction") {
-    val details = HostApi.ForkDetails(
-      forkedPhantomId = Uuid(BigInt(1), BigInt(2)),
-      agentId = null.asInstanceOf[HostApi.AgentIdLiteral],
-      oplogIndex = BigInt(100),
-      componentRevision = BigInt(5)
-    )
-    assert(details.forkedPhantomId == Uuid(BigInt(1), BigInt(2)))
-    assert(details.oplogIndex == BigInt(100))
-    assert(details.componentRevision == BigInt(5))
-  }
-
   test("ForkResult.Original and Forked variants compile") {
-    val details                      = HostApi.ForkDetails(Uuid(BigInt(0), BigInt(0)), null, BigInt(0), BigInt(0))
-    val original: HostApi.ForkResult = HostApi.ForkResult.Original(details)
-    val forked: HostApi.ForkResult   = HostApi.ForkResult.Forked(details)
-    assert(original.details eq details)
-    assert(forked.details eq details)
+    val phantomId                    = Uuid(BigInt(1), BigInt(2))
+    val original: HostApi.ForkResult = HostApi.ForkResult.Original(phantomId)
+    val forked: HostApi.ForkResult   = HostApi.ForkResult.Forked(phantomId)
+    assert(original.forkedPhantomId == phantomId)
+    assert(forked.forkedPhantomId == phantomId)
   }
 
   test("ForkResult pattern match compiles") {
     val result: HostApi.ForkResult =
-      HostApi.ForkResult.Original(HostApi.ForkDetails(Uuid(BigInt(0), BigInt(0)), null, BigInt(0), BigInt(0)))
+      HostApi.ForkResult.Original(Uuid(BigInt(0), BigInt(0)))
     val label = result match {
       case HostApi.ForkResult.Original(_) => "original"
       case HostApi.ForkResult.Forked(_)   => "forked"

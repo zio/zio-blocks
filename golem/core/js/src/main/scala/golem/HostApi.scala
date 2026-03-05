@@ -7,10 +7,8 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
 
 import scala.concurrent.Future
-import scala.concurrent.Promise
 import scala.scalajs.js
 import scala.scalajs.js.Dictionary
-import scala.scalajs.js.timers
 import scala.scalajs.js.typedarray.Uint8Array
 
 /**
@@ -145,24 +143,16 @@ object HostApi {
   type AgentConfigVarsFilter  = AgentHostApi.AgentConfigVarsFilter
   type AgentAllFilter         = AgentHostApi.AgentAllFilter
   type AgentAnyFilter         = AgentHostApi.AgentAnyFilter
-  final case class ForkDetails(
-    forkedPhantomId: Uuid,
-    agentId: AgentIdLiteral,
-    oplogIndex: BigInt,
-    componentRevision: BigInt
-  )
-
   sealed trait ForkResult {
-    def details: ForkDetails
+    def forkedPhantomId: Uuid
   }
 
   object ForkResult {
-    final case class Original(details: ForkDetails) extends ForkResult
-    final case class Forked(details: ForkDetails)   extends ForkResult
+    final case class Original(forkedPhantomId: Uuid) extends ForkResult
+    final case class Forked(forkedPhantomId: Uuid)   extends ForkResult
   }
   type GetAgentsHandle        = AgentHostApi.GetAgentsHandle
   type GetPromiseResultHandle = AgentHostApi.GetPromiseResultHandle
-  type PromiseResult          = AgentHostApi.PromiseResult
   type Pollable               = AgentHostApi.Pollable
   type UuidLiteral            = AgentHostApi.UuidLiteral
   val UuidLiteral: AgentHostApi.UuidLiteral.type               = AgentHostApi.UuidLiteral
@@ -245,16 +235,10 @@ object HostApi {
 
   def fork(): ForkResult = {
     val (tag, phantomIdLit) = AgentHostApi.fork()
-    val selfMeta            = AgentHostApi.getSelfMetadata()
-    val details             = ForkDetails(
-      forkedPhantomId = fromUuidLiteral(phantomIdLit),
-      agentId = selfMeta.agentId,
-      oplogIndex = fromJsBigInt(AgentHostApi.getOplogIndex()),
-      componentRevision = fromJsBigInt(selfMeta.componentRevision)
-    )
+    val phantomId           = fromUuidLiteral(phantomIdLit)
     tag match {
-      case "original" => ForkResult.Original(details)
-      case "forked"   => ForkResult.Forked(details)
+      case "original" => ForkResult.Original(phantomId)
+      case "forked"   => ForkResult.Forked(phantomId)
       case other      => throw new IllegalStateException(s"Unknown fork result tag: $other")
     }
   }
@@ -390,25 +374,44 @@ object HostApi {
     fromUint8Array(awaitPromiseBlockingRaw(promiseId))
 
   /** Low-level await using `Uint8Array` (internal; prefer `Array[Byte]`). */
-  private[golem] def awaitPromiseRaw(promiseId: PromiseId): Future[Uint8Array] =
-    awaitPromiseImpl(promiseId, initialDelayMs = 0)
+  private[golem] def awaitPromiseRaw(promiseId: PromiseId): Future[Uint8Array] = {
+    val handle   = AgentHostApi.getPromise(promiseId)
+    val pollable = handle.subscribe()
+    golem.runtime.util.FutureInterop
+      .fromPromise(pollable.promise())
+      .map { _ =>
+        val result = handle.get()
+        if (result == null || js.isUndefined(result))
+          throw new IllegalStateException("Promise completed but result is empty")
+        result
+      }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
+  }
 
   /**
    * Low-level blocking await using `Uint8Array` (internal; prefer
    * `Array[Byte]`).
+   *
+   * Uses WASI `pollable.block()` for synchronous blocking. This should only be
+   * used from synchronous (non-async) code paths. For async code, use
+   * `awaitPromiseRaw` which uses `pollable.promise()`.
    */
   private[golem] def awaitPromiseBlockingRaw(promiseId: PromiseId): Uint8Array = {
     val handle   = AgentHostApi.getPromise(promiseId)
     val pollable = handle.subscribe()
     pollable.block()
     val result = handle.get()
-    if (!result.isSome) throw new IllegalStateException("Promise completed but result is empty (unexpected)")
-    result.get()
+    if (result == null || js.isUndefined(result))
+      throw new IllegalStateException("Promise completed but result is empty")
+    result
   }
 
   /**
    * Await a promise and decode the payload as JSON using
    * `zio.blocks.schema.json`.
+   *
+   * This is the '''non-blocking''' variant that polls via `setTimeout`. For
+   * fork+join patterns (where the Golem runtime must know the worker is
+   * suspended), use [[awaitPromiseBlockingJson]] instead.
    *
    * By default, decoding is lenient (extra JSON fields are ignored). If you
    * want strict decoding, set `rejectExtraFields = true`.
@@ -423,6 +426,28 @@ object HostApi {
         case Left(err)    => throw new IllegalArgumentException(err.toString)
       }
     }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
+
+  /**
+   * Blocks until a promise is completed, then decodes the payload as JSON.
+   *
+   * Uses WASI `pollable.block()` under the hood, which properly signals to the
+   * Golem runtime that this worker is suspended. This is required for fork+join
+   * patterns where the forked worker must complete the promise before the
+   * original worker can proceed.
+   *
+   * @see
+   *   [[awaitPromiseJson]] for the non-blocking variant
+   */
+  def awaitPromiseBlockingJson[A](promiseId: PromiseId, rejectExtraFields: Boolean = false)(implicit
+    schema: Schema[A]
+  ): A = {
+    val bytes = awaitPromiseBlocking(promiseId)
+    val codec = jsonCodec[A](rejectExtraFields)
+    codec.decode(bytes) match {
+      case Right(value) => value
+      case Left(err)    => throw new IllegalArgumentException(err.toString)
+    }
+  }
 
   /**
    * Encode a value as JSON and complete the promise with the encoded bytes.
@@ -451,31 +476,6 @@ object HostApi {
       highBits = BigInt(uuid.highBits.toString),
       lowBits = BigInt(uuid.lowBits.toString)
     )
-
-  private def awaitPromiseImpl(promiseId: PromiseId, initialDelayMs: Int): Future[Uint8Array] = {
-    val p        = Promise[Uint8Array]()
-    val handle   = AgentHostApi.getPromise(promiseId)
-    val pollable = handle.subscribe()
-
-    def finishOrFail(): Unit = {
-      val result = handle.get()
-      if (!result.isSome) p.failure(new IllegalStateException("Promise completed but result is empty (unexpected)"))
-      else p.success(result.get())
-    }
-
-    def loop(delayMs: Int): Unit =
-      timers.setTimeout(delayMs.toDouble) {
-        if (pollable.ready()) finishOrFail()
-        else {
-          // Small backoff to avoid hot-spinning; keep latency low for typical quick completions.
-          val next = if (delayMs <= 0) 1 else Math.min(delayMs * 2, 50)
-          loop(next)
-        }
-      }
-
-    loop(initialDelayMs)
-    p.future
-  }
 
   private def jsonCodec[A](rejectExtraFields: Boolean)(implicit schema: Schema[A]): JsonBinaryCodec[A] = {
     val deriver =
