@@ -7,6 +7,8 @@ description: >
   content type and scope. Delegates to specialized documentation skills
   (docs-data-type-ref, docs-how-to-guide) to ensure consistent style and
   formatting across all ZIO Blocks docs.
+argument-hint: "[PR number (e.g., #1016 or 1016)]"
+allowed-tools: Read, Glob, Grep, Bash(gh:*)
 triggers:
   - "document PR"
   - "doc this PR"
