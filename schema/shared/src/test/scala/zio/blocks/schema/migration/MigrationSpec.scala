@@ -12,6 +12,75 @@ object MigrationSpec extends ZIOSpecDefault {
     SchemaExpr.literal(value)
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
+    suite("Laws")(
+      test("identity element - left") {
+        case class V1(name: String)
+        case class V2(name: String, age: Int)
+
+        implicit val s1: Schema[V1] = Schema.derived
+        implicit val s2: Schema[V2] = Schema.derived
+
+        val m     = Migration.newBuilder[V1, V2].addField(_.age, literal(0)).build
+        val input = V1("Alice")
+        assertTrue((Migration.identity[V1] ++ m)(input) == m(input))
+      },
+
+      test("identity element - right") {
+        case class V1(name: String)
+        case class V2(name: String, age: Int)
+
+        implicit val s1: Schema[V1] = Schema.derived
+        implicit val s2: Schema[V2] = Schema.derived
+
+        val m     = Migration.newBuilder[V1, V2].addField(_.age, literal(0)).build
+        val input = V1("Alice")
+        assertTrue((m ++ Migration.identity[V2])(input) == m(input))
+      },
+
+      test("associativity") {
+        case class V1(name: String)
+        case class V2(name: String, age: Int)
+        case class V3(name: String, age: Int, city: String)
+        case class V4(fullName: String, age: Int, city: String)
+
+        implicit val s1: Schema[V1] = Schema.derived
+        implicit val s2: Schema[V2] = Schema.derived
+        implicit val s3: Schema[V3] = Schema.derived
+        implicit val s4: Schema[V4] = Schema.derived
+
+        val m1 = Migration.newBuilder[V1, V2].addField(_.age, literal(0)).build
+        val m2 = Migration.newBuilder[V2, V3].addField(_.city, literal("")).build
+        val m3 = Migration.newBuilder[V3, V4].renameField(_.name, _.fullName).build
+
+        val input = V1("Alice")
+        assertTrue(((m1 ++ m2) ++ m3)(input) == (m1 ++ (m2 ++ m3))(input))
+      },
+
+      test("double-reverse involution") {
+        case class V1(name: String)
+        case class V2(name: String, age: Int)
+
+        implicit val s1: Schema[V1] = Schema.derived
+        implicit val s2: Schema[V2] = Schema.derived
+
+        val m = Migration.newBuilder[V1, V2].addField(_.age, literal(0)).build
+        assertTrue(m.reverse.reverse.actions == m.actions)
+      },
+
+      test("semantic inverse for rename") {
+        case class V1(firstName: String)
+        case class V2(fullName: String)
+
+        implicit val s1: Schema[V1] = Schema.derived
+        implicit val s2: Schema[V2] = Schema.derived
+
+        val m         = Migration.newBuilder[V1, V2].renameField(_.firstName, _.fullName).build
+        val input     = V1("Alice")
+        val roundTrip = m(input).flatMap(m.reverse(_))
+        assertTrue(roundTrip == Right(input))
+      }
+    ),
+
     suite("Selector Syntax")(
       test("simple field selector") {
         case class PersonV1(name: String)

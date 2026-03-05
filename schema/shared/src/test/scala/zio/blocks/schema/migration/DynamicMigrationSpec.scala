@@ -172,6 +172,28 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val innerActions = Vector(MigrationAction.Rename(DynamicOptic.root.field("old"), "new"))
         val m            = DynamicMigration.single(MigrationAction.TransformCase(DynamicOptic.root, innerActions))
         assertTrue(m(input).flatMap(m.reverse(_)) == Right(input))
+      },
+
+      test("identity element - left") {
+        val m = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            dynamicLiteral(0)
+          )
+        )
+        val input = DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        assertTrue((DynamicMigration.empty ++ m)(input) == m(input))
+      },
+
+      test("identity element - right") {
+        val m = DynamicMigration.single(
+          MigrationAction.AddField(
+            DynamicOptic.root.field("age"),
+            dynamicLiteral(0)
+          )
+        )
+        val input = DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("John")))
+        assertTrue((m ++ DynamicMigration.empty)(input) == m(input))
       }
     ),
 
@@ -1997,6 +2019,21 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration(actions: _*)
         val reversed  = migration.reverse
         assertTrue(reversed.size == 3)
+      }
+    ),
+
+    suite("Depth Protection")(
+      test("path exceeding max depth fails gracefully") {
+        val deepNodes = (0 to 65).map(i => DynamicOptic.Node.Field(s"f$i")).toVector
+        val deepOptic = DynamicOptic(deepNodes)
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValue(deepOptic, dynamicLiteral(1))
+        )
+        var value: DynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(0))
+        for (i <- (0 to 65).reverse) {
+          value = DynamicValue.Record(s"f$i" -> value)
+        }
+        assertTrue(migration(value).isLeft)
       }
     )
   )
