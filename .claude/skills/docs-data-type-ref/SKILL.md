@@ -341,11 +341,28 @@ cross-references, link verification).
 Additional note for reference pages: if creating a new file, place it in the appropriate
 `docs/reference/` subdirectory based on where it logically belongs.
 
-## Step 5: Review
+## Step 5: Review and Verify Compilation
 
 After writing, re-read the document and verify:
 - All method signatures match the actual source code
-- All code examples would compile with `mdoc`
 - The frontmatter `id` matches what `sidebars.js` expects (if an entry exists)
 - The document is self-contained—a reader shouldn't need to look at the source code to understand the type's API
 - The example file compiles and runs without errors
+
+### Mandatory: Run mdoc Compilation Check
+
+Before claiming the page is complete, run the full mdoc compilation check:
+
+```bash
+sbt docs/mdoc
+```
+
+**Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
+
+**What this verifies:**
+- All Scala code blocks in the page are syntactically correct and type-check
+- Imports and type references are valid
+- Cross-references to other documentation pages are unbroken
+- Readers can copy-paste any example from the page without errors
+
+**If mdoc reports errors:** Fix them immediately. Do not mark the page as complete until all errors are resolved.
