@@ -311,7 +311,7 @@ The `@xmlAttribute` annotation accepts an optional custom name:
 
 Support for XML namespaces with the `@xmlNamespace` annotation:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
