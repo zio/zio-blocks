@@ -154,6 +154,189 @@ object InterpolatorSpec extends ZIOSpecDefault {
         val fromHtml = html"<p>Hello ${name}</p>"
         assertTrue(fromHtml.render == "<p>Hello World</p>")
       }
+    ),
+    suite("parseHtml edge cases")(
+      test("empty input") {
+        val result = InterpolatorRuntime.parseHtml("")
+        assertTrue(result.isEmpty)
+      },
+      test("text only input") {
+        val result = InterpolatorRuntime.parseHtml("just text")
+        assertTrue(result == Vector(Dom.Text("just text")))
+      },
+      test("malformed closing tag without >") {
+        val result = InterpolatorRuntime.parseHtml("</div")
+        assertTrue(result == Vector(Dom.Text("</div")))
+      },
+      test("DOCTYPE is skipped") {
+        val result = InterpolatorRuntime.parseHtml("<!DOCTYPE html><p>ok</p>")
+        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+      },
+      test("HTML comment is skipped") {
+        val result = InterpolatorRuntime.parseHtml("<!-- comment --><div>x</div>")
+        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("x")))))
+      },
+      test("malformed DOCTYPE without >") {
+        val result = InterpolatorRuntime.parseHtml("<!DOCTYPE html")
+        assertTrue(result == Vector(Dom.Text("<!DOCTYPE html")))
+      },
+      test("processing instruction is skipped") {
+        val result = InterpolatorRuntime.parseHtml("<?xml version='1.0'?><p>ok</p>")
+        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+      },
+      test("invalid tag name starting with number") {
+        val result = InterpolatorRuntime.parseHtml("<3tag>text</3tag>")
+        assertTrue(result.head == Dom.Text("<"))
+      },
+      test("script without closing tag") {
+        val result = InterpolatorRuntime.parseHtml("<script>var x = 1")
+        assertTrue(result == Vector(Dom.Element.Script(Vector.empty, Vector(Dom.Text("var x = 1")))))
+      },
+      test("style without closing tag") {
+        val result = InterpolatorRuntime.parseHtml("<style>.cls{color:red}")
+        assertTrue(result == Vector(Dom.Element.Style(Vector.empty, Vector(Dom.Text(".cls{color:red}")))))
+      },
+      test("script with empty content") {
+        val result = InterpolatorRuntime.parseHtml("<script></script>")
+        assertTrue(result == Vector(Dom.Element.Script(Vector.empty, Vector.empty)))
+      },
+      test("unclosed element at end of input") {
+        val result = InterpolatorRuntime.parseHtml("<div>content")
+        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("content")))))
+      },
+      test("multiple unclosed elements at end") {
+        val result = InterpolatorRuntime.parseHtml("<div><span>text")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector.empty,
+              Vector(Dom.Element.Generic("span", Vector.empty, Vector(Dom.Text("text"))))
+            )
+          )
+        )
+      },
+      test("stray closing tag is ignored") {
+        val result = InterpolatorRuntime.parseHtml("</nonexistent><p>ok</p>")
+        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+      },
+      test("mismatched closing tag closes inner elements") {
+        val result = InterpolatorRuntime.parseHtml("<div><span><b>x</b></div>")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector.empty,
+              Vector(
+                Dom.Element.Generic(
+                  "span",
+                  Vector.empty,
+                  Vector(Dom.Element.Generic("b", Vector.empty, Vector(Dom.Text("x"))))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("single-quoted attribute value") {
+        val result = InterpolatorRuntime.parseHtml("<div class='foo'>bar</div>")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("foo"))),
+              Vector(Dom.Text("bar"))
+            )
+          )
+        )
+      },
+      test("unquoted attribute value") {
+        val result = InterpolatorRuntime.parseHtml("<div id=main>text</div>")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+              Vector(Dom.Text("text"))
+            )
+          )
+        )
+      },
+      test("attribute with whitespace around equals") {
+        val result = InterpolatorRuntime.parseHtml("<div id = \"main\">text</div>")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+              Vector(Dom.Text("text"))
+            )
+          )
+        )
+      },
+      test("tag at end of input without >") {
+        val result = InterpolatorRuntime.parseHtml("<div")
+        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector.empty)))
+      },
+      test("tag with attr at end of input without >") {
+        val result = InterpolatorRuntime.parseHtml("<div class")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.BooleanAttribute("class")),
+              Vector.empty
+            )
+          )
+        )
+      },
+      test("tag with attr value at end of input") {
+        val result = InterpolatorRuntime.parseHtml("<div class=\"x\"")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("x"))),
+              Vector.empty
+            )
+          )
+        )
+      },
+      test("attribute equals at end of input") {
+        val result = InterpolatorRuntime.parseHtml("<div class=")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(Dom.Attribute.BooleanAttribute("class")),
+              Vector.empty
+            )
+          )
+        )
+      },
+      test("second attribute at end of input without >") {
+        val result = InterpolatorRuntime.parseHtml("<div id=\"x\" class")
+        assertTrue(
+          result == Vector(
+            Dom.Element.Generic(
+              "div",
+              Vector(
+                Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")),
+                Dom.Attribute.BooleanAttribute("class")
+              ),
+              Vector.empty
+            )
+          )
+        )
+      },
+      test("self-closing with space before />") {
+        val result = InterpolatorRuntime.parseHtml("<br />")
+        assertTrue(result == Vector(Dom.Element.Generic("br", Vector.empty, Vector.empty)))
+      },
+      test("bare < treated as text") {
+        val result = InterpolatorRuntime.parseHtml("a < b")
+        assertTrue(result.nonEmpty, result.head.isInstanceOf[Dom.Text])
+      }
     )
   )
 }
