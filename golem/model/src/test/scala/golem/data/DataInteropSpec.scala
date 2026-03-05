@@ -107,10 +107,10 @@ object DataInteropSpec extends ZIOSpecDefault {
         val encoded = DataInterop.toData(value)
         assert(DataInterop.fromData[Primitives](encoded))(isRight(equalTo(value)))
       },
-      test("reports narrow primitive decoding failures") {
+      test("round trips narrow primitive fields via numeric widening") {
         val value   = NarrowPrimitives(1, 2, 1.25f)
         val encoded = DataInterop.toData(value)
-        assert(DataInterop.fromData[NarrowPrimitives](encoded))(isLeft)
+        assert(DataInterop.fromData[NarrowPrimitives](encoded))(isRight(equalTo(value)))
       },
       test("round trips collection-heavy records") {
         val value = Collections(
