@@ -617,7 +617,7 @@ val result = encodeProduct(Product("item-1", 99.99))
 
 `XmlDecoder[A]` provides type-safe XML decoding with error handling:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
