@@ -5,33 +5,6 @@ title: "Structural Types"
 
 Structural types enable **duck typing** with ZIO Blocks schemas. Instead of requiring a nominal type name (like `class Person`), a structural schema validates based on the **shape** of an object — the fields it provides, regardless of how it was defined.
 
-## Overview
-
-The `ToStructural[A]` type class converts any `Schema[A]` (for a nominal type) into a schema for the corresponding structural type. This is useful for:
-
-- **Cross-system interop** — Convert between types with the same shape but different names
-- **Anonymous objects** — Work with objects defined inline using `new { def ... }`
-- **Schema evolution** — Validate only the fields you care about
-- **Duck typing** — Accept any object "shaped like" the expected type
-
-### Type Signature
-
-The `ToStructural` type class converts a nominal `Schema[A]` into a schema for the corresponding structural type:
-
-```scala mdoc:compile-only
-trait ToStructural[A] {
-  type StructuralType
-  def apply(schema: Schema[A]): Schema[StructuralType]
-}
-```
-
-Key characteristics:
-
-- **JVM-only** — Structural types require reflection, only available on the JVM
-- **Compile-time macro derivation** — The structural schema is generated at compile time
-- **Dependent type** — `StructuralType` is a path-dependent type capturing the exact shape
-- **Supports products, tuples, and sum types** — Case classes, sealed traits, enums
-
 ## Motivation
 
 Consider a common integration scenario:
@@ -238,13 +211,11 @@ val personStructural = Schema.derived[{ def name: String; def age: Int }]
 
 This is only supported in **Scala 3** with the right macro machinery.
 
-## Working with Structural Schemas
-
-### Round-tripping Through DynamicValue
+## Round-tripping Through DynamicValue
 
 Structural schemas enable **cross-type conversion through `DynamicValue`** — encode a value of one nominal type and decode it as a *different* nominal type with the same structural shape. This is the core benefit of structural types for system integration.
 
-#### Motivation
+### Motivation
 
 In real integrations, you often receive data from an external system shaped like one type, but you need to work with it as a different type in your system. Without structural types, field-by-field translation is required. With structural types, if both types have identical shape, `DynamicValue` acts as the seamless bridge.
 
@@ -253,14 +224,7 @@ Common scenarios:
 - **Message brokers** — consume an event shaped like `UserEvent`, convert to your domain `Account` type
 - **Data pipelines** — records with identical fields but different class names from different services
 
-#### When to use
-
-| Scenario | Use this | Don't use |
-|----------|----------|-----------|
-| Two nominal types have identical shape; convert between them | Encode with one schema, decode with the other | Manual translation |
-| Convert same type to/from DynamicValue | Use nominal schema directly | Structural schema (unnecessary) |
-
-#### Cross-type conversion in action
+### Cross-type conversion in action
 
 Set up two types with identical structural shape:
 
@@ -293,102 +257,6 @@ val employee: Either[SchemaError, Employee] =
 ```
 
 The structural shape guarantee ensures type-safe conversion: at compile time, you know both schemas accept the same fields, so round-tripping through `DynamicValue` is safe and zero-cost.
-
-### Accessing Structural Values
-
-Accessing fields on a structural type requires importing `scala.language.reflectiveCalls` or using Scala 3's `Selectable` extension methods:
-
-In Scala 3, structural types work through the `Selectable` trait, which provides safe reflective access to fields. You can access fields on objects with the matching structure directly:
-
-```scala
-// After decoding from DynamicValue, you have an object with the structural shape
-val person: { def name: String; def age: Int } = ???
-val name = person.name  // Safe reflective access in Scala 3
-```
-
-For more details, see the [Scala documentation on structural types](https://docs.scala-lang.org/scala3/reference/other-new-features/structural-types.html).
-
-## Compile-Time Errors and Limitations
-
-### JVM Only
-
-Structural types require reflection and are only available on the JVM:
-
-```
-error: Structural types require reflection which is only available on JVM.
-```
-
-This applies to all platforms outside JVM (JS, Native). The implementation uses `Platform.supportsReflection` to detect and reject structural types at compile time on non-JVM platforms.
-
-### Recursive Types
-
-Cannot derive structural schemas for recursive types:
-
-```
-error: Cannot generate structural type for recursive type X.
-```
-
-Example:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-
-case class LinkedList(value: Int, next: Option[LinkedList])
-
-// This fails at compile time: LinkedList refers to itself
-val schema = Schema.derived[LinkedList]
-val structural = schema.structural
-// error: Cannot generate structural type for recursive type LinkedList
-```
-
-### Mutually Recursive Types
-
-Types that are mutually recursive also fail at compile time.
-
-### Scala 2 Sum Type Limitation
-
-In **Scala 2**, only product types (case classes) and tuples are supported:
-
-```
-error: Only product types (case classes) and tuples are currently supported.
-Sealed traits and enums require Scala 3.
-```
-
-Additionally, **Scala 2** returns `Schema[ts.StructuralType]` (path-dependent type), not the fully-refined union type visible in Scala 3.
-
-### Scala 2 Deeply Nested Types Limitation
-
-In **Scala 2**, accessing fields on deeply nested structural types requires explicit casting. While nested structures are supported, reflection limitations prevent field chaining:
-
-```scala mdoc:compile-only
-import scala.language.reflectiveCalls
-import zio.blocks.schema.Schema
-
-case class Address(street: String)
-case class Company(name: String, address: Address)
-case class Employee(name: String, company: Company)
-
-val schema = Schema.derived[Employee]
-val structural = schema.structural
-
-// Create a structural value
-val employee: { def name: String; def company: { def address: { def street: String } } } = ???
-
-// Direct field access — this works
-employee.name
-
-// First level of nesting — this works
-employee.company
-
-// Cannot chain field access to nested structural types
-// employee.company.address.street
-
-// Workaround — cast to StructuralRecord
-val companyStruct = employee.company.asInstanceOf[StructuralRecord]
-companyStruct.selectDynamic("address")  // returns the Address structural object
-```
-
-This limitation does **not** apply to Scala 3, where `Selectable` provides seamless field access across arbitrary nesting depth.
 
 ## Integration
 
@@ -444,34 +312,6 @@ This enables anonymous structural types to benefit from ZIO Blocks' high-perform
 
 See [Binding](./binding.md) for detailed serialization documentation.
 
-### With DynamicValue
-
-Structural schemas integrate with `DynamicValue` for dynamic value manipulation:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-import zio.blocks.schema.DynamicValue
-import zio.blocks.schema.DynamicOptic
-
-case class Config(host: String, port: Int, debug: Boolean)
-
-val schema = Schema.derived[Config]
-
-val config = Config("localhost", 8080, true)
-val dynamic = schema.toDynamicValue(config)
-
-// Modify using DynamicOptic
-val updated = dynamic.set(
-  DynamicOptic.root.field("port"),
-  DynamicValue.int(9000)
-)
-
-// Reconstruct
-val reconstructed = schema.fromDynamicValue(updated)
-```
-
-See [DynamicValue](./dynamic-value.md) for path-based manipulation.
-
 ## Running the Examples
 
 Example applications demonstrating structural types are available in `schema-examples`:
@@ -495,9 +335,3 @@ sbt "schema-examples/runMain structural.StructuralTupleExample"
 # Integration with Into macro
 sbt "schema-examples/runMain structural.StructuralIntoExample"
 ```
-
-## See Also
-
-- [Schema](./schema.md) — Core schema API
-- [DynamicValue](./dynamic-value.md) — Schema-less value representation
-- [Schema Evolution](./schema-evolution/into.md) — Cross-type conversion
