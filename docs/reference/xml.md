@@ -3,9 +3,32 @@ id: xml
 title: "XML"
 ---
 
-Zero-dependency XML codec for ZIO Blocks Schema with cross-platform support.
+## Opening Definition
+
+`Xml` is a **sealed trait representing XML nodes**. It provides a type-safe, immutable representation of all valid XML document structures including elements, text nodes, CDATA sections, comments, and processing instructions.
+
+```scala
+sealed trait Xml {
+  def xmlType: XmlType
+  def is(xmlType: XmlType): Boolean
+  def as(xmlType: XmlType): Option[xmlType.Type]
+  def unwrap(xmlType: XmlType): Option[xmlType.Unwrap]
+  def print: String
+  def printPretty: String
+  def select: XmlSelection
+}
+```
+
+`Xml` supports:
+- Type-safe representation of all XML node types
+- Fluent navigation and querying with XmlSelection
+- Schema-derived automatic codec generation
+- Zero external dependencies
+- Full cross-platform support (JVM and Scala.js)
 
 ## Overview
+
+Zero-dependency XML codec for ZIO Blocks Schema with cross-platform support.
 
 The schema-xml module provides automatic XML codec derivation for any type with a `Schema`. It includes a complete XML AST, fluent navigation API, and support for XML-specific features like attributes and namespaces.
 
