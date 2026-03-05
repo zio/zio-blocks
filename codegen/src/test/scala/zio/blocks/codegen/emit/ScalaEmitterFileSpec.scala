@@ -183,6 +183,23 @@ object ScalaEmitterFileSpec extends ZIOSpecDefault {
                |case class X()
                |""".stripMargin
         )
+      },
+      test("emitPackageDecl returns empty string for empty path") {
+        assertTrue(ScalaEmitter.emitPackageDecl(PackageDecl("")) == "")
+      },
+      test("emitPackageDecl returns package for non-empty path") {
+        assertTrue(ScalaEmitter.emitPackageDecl(PackageDecl("com.example")) == "package com.example")
+      },
+      test("file with empty package produces valid output") {
+        val file = ScalaFile(
+          PackageDecl(""),
+          types = List(CaseClass("Foo", List(Field("x", TypeRef.Int))))
+        )
+        val result = ScalaEmitter.emit(file)
+        assertTrue(
+          !result.startsWith("package"),
+          result.contains("case class Foo(")
+        )
       }
     )
 }

@@ -132,6 +132,24 @@ object ScalaEmitterEnumSpec extends ZIOSpecDefault {
         )
         val result = ScalaEmitter.emitEnum(en, EmitterConfig.scala2)
         assertTrue(result.contains("sealed trait Status extends Serializable"))
+      },
+      test("parameterized case with annotated fields emits single-line") {
+        val en = Enum(
+          "Event",
+          cases = List(
+            EnumCase.ParameterizedCase(
+              "Created",
+              List(Field("name", TypeRef.String, annotations = List(Annotation("required"))))
+            )
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result ==
+            """|enum Event {
+               |  case Created(@required name: String)
+               |}""".stripMargin
+        )
       }
     )
 }

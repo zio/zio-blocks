@@ -19,9 +19,14 @@ object ScalaEmitter {
    * @return
    *   The Scala type string (e.g., "String", "List[Int]", "Map[String, Int]")
    */
-  def emitTypeRef(typeRef: TypeRef): String =
-    if (typeRef.typeArgs.isEmpty) typeRef.name
-    else s"${typeRef.name}[${typeRef.typeArgs.map(emitTypeRef).mkString(", ")}]"
+  def emitTypeRef(typeRef: TypeRef): String = {
+    val safeName =
+      if (typeRef.name.contains('.') || typeRef.name.exists(c => "()[]=>".contains(c)))
+        typeRef.name
+      else escapeName(typeRef.name)
+    if (typeRef.typeArgs.isEmpty) safeName
+    else s"${safeName}[${typeRef.typeArgs.map(emitTypeRef).mkString(", ")}]"
+  }
 
   /**
    * Emits a Scala annotation as a string.
@@ -54,7 +59,7 @@ object ScalaEmitter {
   def emitField(field: Field, @scala.annotation.unused config: EmitterConfig): String = {
     val typeStr    = emitTypeRef(field.typeRef)
     val defaultStr = field.defaultValue.fold("")(d => s" = $d")
-    val fieldStr   = s"${field.name}: $typeStr$defaultStr"
+    val fieldStr   = s"${escapeName(field.name)}: $typeStr$defaultStr"
     if (field.annotations.isEmpty) fieldStr
     else {
       val annotStrs = field.annotations.map(emitAnnotation)
@@ -100,7 +105,8 @@ object ScalaEmitter {
    * @return
    *   The Scala package declaration string (e.g., "package com.example")
    */
-  def emitPackageDecl(pkg: PackageDecl): String = s"package ${pkg.path}"
+  def emitPackageDecl(pkg: PackageDecl): String =
+    if (pkg.path.isEmpty) "" else s"package ${pkg.path}"
 
   /**
    * Organizes imports by deduplicating and optionally sorting them.
@@ -138,9 +144,11 @@ object ScalaEmitter {
    *   The complete Scala source code as a string
    */
   def emit(file: ScalaFile, config: EmitterConfig = EmitterConfig.default): String = {
-    val sb = new StringBuilder
-    sb.append(emitPackageDecl(file.packageDecl))
-    sb.append("\n")
+    val sb     = new StringBuilder
+    val pkgStr = emitPackageDecl(file.packageDecl)
+    if (pkgStr.nonEmpty) {
+      sb.append(pkgStr).append("\n")
+    }
     val organized = organizeImports(file.imports, config)
     if (organized.nonEmpty) {
       sb.append("\n")
@@ -202,7 +210,7 @@ object ScalaEmitter {
       sb.append(prefix).append(emitAnnotation(a)).append("\n")
     }
 
-    sb.append(prefix).append("case class ").append(cc.name)
+    sb.append(prefix).append("case class ").append(escapeName(cc.name))
     if (cc.typeParams.nonEmpty)
       sb.append("[").append(cc.typeParams.map(emitTypeRef).mkString(", ")).append("]")
     sb.append("(")
@@ -262,7 +270,7 @@ object ScalaEmitter {
       sb.append(prefix).append(emitAnnotation(a)).append("\n")
     }
 
-    sb.append(prefix).append("sealed trait ").append(st.name)
+    sb.append(prefix).append("sealed trait ").append(escapeName(st.name))
     if (st.typeParams.nonEmpty)
       sb.append("[").append(st.typeParams.map(emitTypeRef).mkString(", ")).append("]")
     if (st.extendsTypes.nonEmpty)
@@ -317,7 +325,7 @@ object ScalaEmitter {
       sb.append(prefix).append(emitAnnotation(a)).append("\n")
     }
 
-    sb.append(prefix).append("enum ").append(en.name)
+    sb.append(prefix).append("enum ").append(escapeName(en.name))
     if (en.extendsTypes.nonEmpty)
       sb.append(" extends ").append(en.extendsTypes.map(emitTypeRef).mkString(" with "))
     sb.append(" {\n")
@@ -333,7 +341,7 @@ object ScalaEmitter {
           sb.append(inner).append("case ").append(n).append("\n")
         case EnumCase.ParameterizedCase(n, fields) =>
           sb.append(inner).append("case ").append(n).append("(")
-          sb.append(fields.map(f => emitField(f, config)).mkString(", "))
+          sb.append(fields.map(f => emitFieldInline(f, config)).mkString(", "))
           sb.append(")\n")
       }
     }
@@ -386,7 +394,7 @@ object ScalaEmitter {
     sb.append(prefix)
     if (obj.isCaseObject) sb.append("case object ")
     else sb.append("object ")
-    sb.append(obj.name)
+    sb.append(escapeName(obj.name))
 
     if (obj.extendsTypes.nonEmpty)
       sb.append(" extends ").append(obj.extendsTypes.map(emitTypeRef).mkString(" with "))
@@ -425,10 +433,15 @@ object ScalaEmitter {
       sb.append(prefix).append(emitAnnotation(a)).append("\n")
     }
 
-    sb.append(prefix).append("object ").append(nt.name)
+    sb.append(prefix).append("object ").append(escapeName(nt.name))
     sb.append(" extends Newtype[").append(emitTypeRef(nt.wrappedType)).append("]")
     sb.append("\n")
-    sb.append(prefix).append("type ").append(nt.name).append(" = ").append(nt.name).append(".Type")
+    sb.append(prefix)
+      .append("type ")
+      .append(escapeName(nt.name))
+      .append(" = ")
+      .append(escapeName(nt.name))
+      .append(".Type")
     sb.toString
   }
 
@@ -455,7 +468,7 @@ object ScalaEmitter {
     val sb     = new StringBuilder
     val prefix = ind(indent, config)
 
-    sb.append("\n").append(prefix).append("object ").append(name)
+    sb.append("\n").append(prefix).append("object ").append(escapeName(name))
     if (companion.members.isEmpty) {
       sb.toString
     } else {
@@ -493,7 +506,7 @@ object ScalaEmitter {
 
     sb.append(prefix)
     if (method.isOverride) sb.append("override ")
-    sb.append("def ").append(method.name)
+    sb.append("def ").append(escapeName(method.name))
 
     if (method.typeParams.nonEmpty)
       sb.append("[").append(method.typeParams.map(emitTypeRef).mkString(", ")).append("]")
@@ -529,11 +542,11 @@ object ScalaEmitter {
     val prefix = ind(indent, config)
     member match {
       case ObjectMember.ValMember(name, typeRef, value) =>
-        s"${prefix}val $name: ${emitTypeRef(typeRef)} = $value\n"
+        s"${prefix}val ${escapeName(name)}: ${emitTypeRef(typeRef)} = $value\n"
       case ObjectMember.DefMember(method) =>
         emitMethod(method, config, indent) + "\n"
       case ObjectMember.TypeAlias(name, typeRef) =>
-        s"${prefix}type $name = ${emitTypeRef(typeRef)}\n"
+        s"${prefix}type ${escapeName(name)} = ${emitTypeRef(typeRef)}\n"
       case ObjectMember.NestedType(typeDef) =>
         emitTypeDefinition(typeDef, config, indent) + "\n"
     }
@@ -541,6 +554,66 @@ object ScalaEmitter {
 
   private def emitMethodParam(param: MethodParam): String = {
     val defaultStr = param.defaultValue.fold("")(d => s" = $d")
-    s"${param.name}: ${emitTypeRef(param.typeRef)}$defaultStr"
+    s"${escapeName(param.name)}: ${emitTypeRef(param.typeRef)}$defaultStr"
   }
+
+  private def emitFieldInline(field: Field, @scala.annotation.unused config: EmitterConfig): String = {
+    val typeStr    = emitTypeRef(field.typeRef)
+    val defaultStr = field.defaultValue.fold("")(d => s" = $d")
+    val annotStr   =
+      if (field.annotations.isEmpty) ""
+      else field.annotations.map(emitAnnotation).mkString(" ") + " "
+    s"$annotStr${escapeName(field.name)}: $typeStr$defaultStr"
+  }
+
+  private val scalaKeywords: Set[String] = Set(
+    "abstract",
+    "case",
+    "catch",
+    "class",
+    "def",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "final",
+    "finally",
+    "for",
+    "forSome",
+    "given",
+    "if",
+    "implicit",
+    "import",
+    "lazy",
+    "match",
+    "new",
+    "null",
+    "object",
+    "override",
+    "package",
+    "private",
+    "protected",
+    "return",
+    "sealed",
+    "super",
+    "then",
+    "this",
+    "throw",
+    "trait",
+    "true",
+    "try",
+    "type",
+    "val",
+    "var",
+    "while",
+    "with",
+    "yield"
+  )
+
+  private def escapeName(name: String): String =
+    if (scalaKeywords.contains(name) || !name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$"))
+      s"`$name`"
+    else name
 }
