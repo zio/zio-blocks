@@ -107,7 +107,7 @@ object MigrationAction {
     at: DynamicOptic,
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = TransformValue(at, transform) // Note: true reverse needs inverse function
+    override def reverse: MigrationAction = Irreversible(at, "TransformValue")
   }
 
   /**
@@ -155,7 +155,7 @@ object MigrationAction {
     sourcePaths: Vector[DynamicOptic],
     combiner: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Split(at, sourcePaths, combiner) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "Join")
   }
 
   /**
@@ -173,7 +173,7 @@ object MigrationAction {
     targetPaths: Vector[DynamicOptic],
     splitter: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Join(at, targetPaths, splitter) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "Split")
   }
 
   /**
@@ -188,7 +188,7 @@ object MigrationAction {
     at: DynamicOptic,
     converter: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = ChangeType(at, converter) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "ChangeType")
   }
 
   // ==================== Enum Actions ====================
@@ -247,49 +247,73 @@ object MigrationAction {
   // ==================== Collection Actions ====================
 
   /**
-   * Transform each element in a collection.
+   * Replace each element in a collection with the result of evaluating the
+   * expression. The expression is evaluated once against the root input value,
+   * and every element is replaced with the same result.
    *
    * @param at
    *   The path to the collection
    * @param transform
-   *   The transformation expression to apply to each element
+   *   The expression whose result replaces each element
    */
   final case class TransformElements(
     at: DynamicOptic,
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = TransformElements(at, transform) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "TransformElements")
   }
 
   // ==================== Map Actions ====================
 
   /**
-   * Transform each key in a map.
+   * Replace each key in a map with the result of evaluating the expression. The
+   * expression is evaluated once against the root input value, and every key is
+   * replaced with the same result.
    *
    * @param at
    *   The path to the map
    * @param transform
-   *   The transformation expression to apply to each key
+   *   The expression whose result replaces each key
    */
   final case class TransformKeys(
     at: DynamicOptic,
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = TransformKeys(at, transform) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "TransformKeys")
   }
 
   /**
-   * Transform each value in a map.
+   * Replace each value in a map with the result of evaluating the expression.
+   * The expression is evaluated once against the root input value, and every
+   * value is replaced with the same result.
    *
    * @param at
    *   The path to the map
    * @param transform
-   *   The transformation expression to apply to each value
+   *   The expression whose result replaces each value
    */
   final case class TransformValues(
     at: DynamicOptic,
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = TransformValues(at, transform) // Note: true reverse needs inverse
+    override def reverse: MigrationAction = Irreversible(at, "TransformValues")
+  }
+
+  /**
+   * Sentinel action representing a non-invertible operation. Executing this
+   * action always fails with a descriptive error. This is returned by
+   * `.reverse` on actions that cannot be structurally reversed (e.g.,
+   * `TransformValue`, `ChangeType`).
+   *
+   * @param at
+   *   The path where the original action operated
+   * @param originalAction
+   *   The name of the original non-invertible action
+   */
+  final case class Irreversible(
+    at: DynamicOptic,
+    originalAction: String
+  ) extends MigrationAction {
+    override def reverse: MigrationAction = this
   }
 }

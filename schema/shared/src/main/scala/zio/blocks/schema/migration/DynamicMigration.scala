@@ -190,6 +190,9 @@ private[migration] object ActionExecutor {
         evalExpr(transform, value).flatMap { transformValue =>
           executeTransformValues(at, transformValue, value)
         }
+
+      case i: Irreversible =>
+        Left(SchemaError.transformFailed(i.at, s"Cannot execute reverse of irreversible action: ${i.originalAction}"))
     }
 
   /**

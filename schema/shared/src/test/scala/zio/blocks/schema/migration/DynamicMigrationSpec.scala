@@ -1004,7 +1004,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
         assertTrue(migration(input) == Right(expected))
       },
-      test("join and split are structural reverses") {
+      test("join and split reverse to Irreversible") {
         val at     = DynamicOptic.root.field("target")
         val source = DynamicOptic.root.field("source")
         val paths  = Vector(source)
@@ -1014,8 +1014,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val split = MigrationAction.Split(at, paths, expr)
 
         assertTrue(
-          join.reverse.isInstanceOf[MigrationAction.Split] &&
-            split.reverse.isInstanceOf[MigrationAction.Join]
+          join.reverse.isInstanceOf[MigrationAction.Irreversible] &&
+            split.reverse.isInstanceOf[MigrationAction.Irreversible]
         )
       }
     ),
@@ -1658,12 +1658,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(reversed.to == "old" && reversed.from == "new")
       },
 
-      test("reverse of TransformValue is TransformValue") {
+      test("reverse of TransformValue is Irreversible") {
         val action = MigrationAction.TransformValue(
           DynamicOptic.root,
           dynamicLiteral(1)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValue])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
       test("reverse of Mandate is Optionalize") {
@@ -1685,36 +1685,36 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(reversed.from == "New" && reversed.to == "Old")
       },
 
-      test("reverse of ChangeType is ChangeType") {
+      test("reverse of ChangeType is Irreversible") {
         val action = MigrationAction.ChangeType(
           DynamicOptic.root,
           dynamicLiteral(1L)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.ChangeType])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
-      test("reverse of TransformElements is TransformElements") {
+      test("reverse of TransformElements is Irreversible") {
         val action = MigrationAction.TransformElements(
           DynamicOptic.root,
           dynamicLiteral(1)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformElements])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
-      test("reverse of TransformKeys is TransformKeys") {
+      test("reverse of TransformKeys is Irreversible") {
         val action = MigrationAction.TransformKeys(
           DynamicOptic.root,
           dynamicLiteral("key")
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformKeys])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
-      test("reverse of TransformValues is TransformValues") {
+      test("reverse of TransformValues is Irreversible") {
         val action = MigrationAction.TransformValues(
           DynamicOptic.root,
           dynamicLiteral(1)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.TransformValues])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
       test("reverse of TransformCase reverses inner actions") {
@@ -1724,22 +1724,35 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(reversed.actions.nonEmpty)
       },
 
-      test("reverse of Join is Split") {
+      test("reverse of Join is Irreversible") {
         val action = MigrationAction.Join(
           DynamicOptic.root.field("target"),
           Vector(DynamicOptic.root.field("source")),
           dynamicLiteral(1)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Split])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
-      test("reverse of Split is Join") {
+      test("reverse of Split is Irreversible") {
         val action = MigrationAction.Split(
           DynamicOptic.root.field("source"),
           Vector(DynamicOptic.root.field("target")),
           dynamicLiteral(1)
         )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Join])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
+      },
+
+      test("executing reversed irreversible action fails with clear error") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root,
+          dynamicLiteral(1)
+        )
+        val reversed = action.reverse
+        assertTrue(reversed.isInstanceOf[MigrationAction.Irreversible])
+        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val migration = DynamicMigration.single(reversed)
+        val result    = migration(input)
+        assertTrue(result.isLeft)
       }
     ),
 
