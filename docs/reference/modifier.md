@@ -38,12 +38,12 @@ object User extends CompanionOptics[User] {
     .derived[User]
     .modifier(Modifier.config("db.table-name", "users"))
 
-  implicit val jsonCodec: JsonBinaryCodec[User] =
-    schema
-      .deriving[JsonBinaryCodec](JsonBinaryCodecDeriver)
-      .modifier(User.name, Modifier.rename("username"))
-      .modifier(User.cache, Modifier.transient())
-      .derive
+   implicit val jsonCodec: JsonBinaryCodec[User] =
+     schema
+       .deriving(JsonBinaryCodecDeriver)
+       .modifier(User.name, Modifier.rename("username"))
+       .modifier(User.cache, Modifier.transient())
+       .derive
 
   lazy val id   : Lens[User, String]              = $(_.id)
   lazy val name : Lens[User, String]              = $(_.name)
@@ -86,9 +86,9 @@ object User extends CompanionOptics[User] {
   implicit val schema: Schema[User] =
     Schema.derived[User]
 
-  implicit val jsonCodec: JsonBinaryCodec[User] =
-    schema
-      .derive[JsonBinaryCodec](JsonBinaryCodecDeriver)
+   implicit val jsonCodec: JsonBinaryCodec[User] =
+     schema
+       .derive(JsonBinaryCodecDeriver)
 }
 ```
 

@@ -7,4 +7,6 @@ trait PlatformSpecific extends Platform {
   override val isJVM: Boolean = false
   override val isJS: Boolean  = true
   override val name: String   = "JS"
+
+  def idnToAscii(idn: String): Option[String] = new Some(idn) // no IDN translation
 }

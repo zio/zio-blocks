@@ -7,6 +7,7 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.patch.PatchMode
 import java.nio.ByteBuffer
+import java.time._
 import java.util
 import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
@@ -988,21 +989,21 @@ object Json {
     case v: PrimitiveValue.BigInt         => Number(v.value)
     case v: PrimitiveValue.BigDecimal     => Number(v.value)
     case v: PrimitiveValue.DayOfWeek      => new String(v.value.toString)
-    case v: PrimitiveValue.Duration       => new String(v.value.toString)
-    case v: PrimitiveValue.Instant        => new String(v.value.toString)
-    case v: PrimitiveValue.LocalDate      => new String(v.value.toString)
-    case v: PrimitiveValue.LocalDateTime  => new String(v.value.toString)
-    case v: PrimitiveValue.LocalTime      => new String(v.value.toString)
+    case v: PrimitiveValue.Duration       => new String(Json.durationRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Instant        => new String(Json.instantRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalDate      => new String(Json.localDateRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalDateTime  => new String(Json.localDateTimeRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalTime      => new String(Json.localTimeRawCodec.encodeToString(v.value))
     case v: PrimitiveValue.Month          => new String(v.value.toString)
-    case v: PrimitiveValue.MonthDay       => new String(v.value.toString)
-    case v: PrimitiveValue.OffsetDateTime => new String(v.value.toString)
-    case v: PrimitiveValue.OffsetTime     => new String(v.value.toString)
-    case v: PrimitiveValue.Period         => new String(v.value.toString)
+    case v: PrimitiveValue.MonthDay       => new String(Json.monthDayRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetDateTime => new String(Json.offsetDateTimeRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetTime     => new String(Json.offsetTimeRawCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Period         => new String(Json.periodRawCodec.encodeToString(v.value))
     case v: PrimitiveValue.Year           => new String(v.value.toString)
     case v: PrimitiveValue.YearMonth      => new String(v.value.toString)
-    case v: PrimitiveValue.ZoneId         => new String(v.value.toString)
-    case v: PrimitiveValue.ZoneOffset     => new String(v.value.toString)
-    case v: PrimitiveValue.ZonedDateTime  => new String(v.value.toString)
+    case v: PrimitiveValue.ZoneId         => new String(v.value.getId)
+    case v: PrimitiveValue.ZoneOffset     => new String(v.value.getId)
+    case v: PrimitiveValue.ZonedDateTime  => new String(Json.zonedDateTimeRawCodec.encodeToString(v.value))
     case v: PrimitiveValue.Currency       => new String(v.value.toString)
     case v: PrimitiveValue.UUID           => new String(v.value.toString)
     case _: PrimitiveValue.Unit.type      => Object.empty
@@ -1054,8 +1055,8 @@ object Json {
     val rightFields = right.value
     val leftLen     = leftFields.length
     val rightLen    = rightFields.length
-    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen)
-    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen)
+    val leftSeenAt  = new util.HashMap[java.lang.String, Int](leftLen << 1)
+    val rightSeenAt = new util.HashMap[java.lang.String, Int](rightLen << 1)
     val rightDedup  = new scala.Array[(java.lang.String, Json)](rightLen)
     var merged      = new scala.Array[(java.lang.String, Json)](leftLen + rightLen)
     var idx         = 0
@@ -1607,7 +1608,7 @@ object Json {
           }
         case atMapKeys: DynamicOptic.Node.AtMapKeys =>
           val keys    = atMapKeys.keys
-          val keyStrs = new util.HashSet[java.lang.String](keys.size)
+          val keyStrs = new util.HashSet[java.lang.String](keys.size << 1)
           keys.foreach {
             case DynamicValue.Primitive(pv: PrimitiveValue.String) => keyStrs.add(pv.value)
             case _                                                 => ()
@@ -2387,5 +2388,65 @@ object Json {
     }
 
     override def nullValue: Json = Null
+  }
+
+  private[schema] val durationRawCodec = new JsonBinaryCodec[Duration] {
+    override def decodeValue(in: JsonReader, default: Duration): Duration = in.readRawValAsDuration()
+
+    override def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val instantRawCodec = new JsonBinaryCodec[Instant] {
+    override def decodeValue(in: JsonReader, default: Instant): Instant = in.readRawValAsInstant()
+
+    override def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val localDateRawCodec = new JsonBinaryCodec[LocalDate] {
+    override def decodeValue(in: JsonReader, default: LocalDate): LocalDate = in.readRawValAsLocalDate()
+
+    override def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val localDateTimeRawCodec = new JsonBinaryCodec[LocalDateTime] {
+    override def decodeValue(in: JsonReader, default: LocalDateTime): LocalDateTime = in.readRawValAsLocalDateTime()
+
+    override def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val localTimeRawCodec = new JsonBinaryCodec[LocalTime] {
+    override def decodeValue(in: JsonReader, default: LocalTime): LocalTime = in.readRawValAsLocalTime()
+
+    override def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val monthDayRawCodec = new JsonBinaryCodec[MonthDay] {
+    override def decodeValue(in: JsonReader, default: MonthDay): MonthDay = in.readRawValAsMonthDay()
+
+    override def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val offsetDateTimeRawCodec = new JsonBinaryCodec[OffsetDateTime] {
+    override def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = in.readRawValAsOffsetDateTime()
+
+    override def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val offsetTimeRawCodec = new JsonBinaryCodec[OffsetTime] {
+    override def decodeValue(in: JsonReader, default: OffsetTime): OffsetTime = in.readRawValAsOffsetTime()
+
+    override def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val periodRawCodec = new JsonBinaryCodec[Period] {
+    override def decodeValue(in: JsonReader, default: Period): Period = in.readRawValAsPeriod()
+
+    override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  private[schema] val zonedDateTimeRawCodec = new JsonBinaryCodec[ZonedDateTime] {
+    override def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readRawValAsZonedDateTime()
+
+    override def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 }

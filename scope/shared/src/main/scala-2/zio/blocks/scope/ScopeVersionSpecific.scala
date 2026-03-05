@@ -79,7 +79,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   the output value type
    * @return
    *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`; returns a default value if the scope is closed
+   *   otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   def $[A, B](sa: $[A])(f: A => B): Any = macro ScopeMacros.useImpl
 

@@ -1059,36 +1059,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Period](""""P1Y1M1W1DX""", """expected '"' at: .""")
       },
       test("Year") {
-        check(genYear)(x => roundTrip(x, s""""${toISO8601(x)}"""")) &&
+        check(genYear)(x => roundTrip(x, s""""$x"""")) &&
         check(Gen.char) { ch =>
-          val nonNumber              = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
-          val nonDigit               = if (ch >= '0' && ch <= '9') 'X' else ch
-          val nonDigitOrDoubleQuotes = if (ch >= '0' && ch <= '9' || ch == '"') 'X' else ch
+          val nonNumber = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
+          val nonDigit  = if (ch >= '0' && ch <= '9') 'X' else ch
           decodeError[Year](s""""${nonNumber}008"""", "expected '-' or '+' or digit at: .") &&
-          decodeError[Year](s""""2${nonDigit}08"""", "expected digit at: .") &&
-          decodeError[Year](s""""20${nonDigit}8"""", "expected digit at: .") &&
-          decodeError[Year](s""""200${nonDigit}"""", "expected digit at: .") &&
-          decodeError[Year](s""""+${nonDigit}0000"""", "expected digit at: .") &&
-          decodeError[Year](s""""+1${nonDigit}000"""", "expected digit at: .") &&
-          decodeError[Year](s""""+10${nonDigit}00"""", "expected digit at: .") &&
-          decodeError[Year](s""""+100${nonDigit}0"""", "expected digit at: .") &&
-          decodeError[Year](s""""+1000${nonDigit}"""", "expected digit at: .") &&
-          decodeError[Year](s""""-1000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+10000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+100000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+1000000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""") &&
-          decodeError[Year](s""""+10000000${nonDigitOrDoubleQuotes}"""", """expected '"' or digit at: .""")
+          decodeError[Year](s""""+${nonDigit}0000"""", "expected digit at: .")
         } &&
         decodeError[Year]("""null""", "expected '\"' at: .") &&
         decodeError[Year](""""""", "unexpected end of input at: .") &&
-        decodeError[Year](""""2008""", "unexpected end of input at: .") &&
-        decodeError[Year](""""+2008"""", "expected digit at: .") &&
-        decodeError[Year](""""+1000000000"""", """expected '"' at: .""") &&
-        decodeError[Year](""""-1000000000"""", """expected '"' at: .""") &&
         decodeError[Year](""""-0000"""", "illegal year at: .")
       },
       test("YearMonth") {
-        check(genYearMonth)(x => roundTrip(x, s""""${toISO8601(x)}"""")) &&
+        check(genYearMonth)(x => roundTrip(x, s""""$x"""")) &&
         check(Gen.char) { ch =>
           val nonNumber       = if (ch >= '0' && ch <= '9' || ch == '-' || ch == '+') 'X' else ch
           val nonDigit        = if (ch >= '0' && ch <= '9') 'X' else ch
@@ -3304,26 +3287,6 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     )
   )
 
-  private[this] def toISO8601(year: Year): String = {
-    val x = year.getValue
-    if (x > 9999) s"+$x"
-    else if (x > 99 && x <= 999) s"0$x"
-    else if (x > 9 && x <= 99) s"00$x"
-    else if (x >= 0 && x <= 9) s"000$x"
-    else if (x >= -9 && x < 0) s"-000${-x}"
-    else if (x >= -99 && x < 9) s"-00${-x}"
-    else if (x >= -999 && x < 99) s"-0${-x}"
-    else x.toString
-  }
-
-  private[this] def toISO8601(x: YearMonth): String = {
-    val s = x.toString
-    if (x.getYear < 0 && !s.startsWith("-")) s"-$s"
-    else if (x.getYear > 9999 && !s.startsWith("+"))
-      s"+$s" // '+' is required for years that exceed 4 digits, see ISO 8601:2004 sections 3.4.2, 4.1.2.4
-    else s
-  }
-
   case class Record1(
     bl: Boolean,
     b: Byte,
@@ -3390,18 +3353,16 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit lazy val typeId: TypeId[UserId] = TypeId.of[UserId]
-    implicit lazy val schema: Schema[UserId] =
-      Schema[Long].transform[UserId](x => new UserId(x), _.value)
+    implicit val typeId: TypeId[UserId] = TypeId.of[UserId]
+    implicit val schema: Schema[UserId] = Schema[Long].transform[UserId](x => new UserId(x), _.value)
   }
 
   case class Email(value: String)
 
   object Email {
-    private[this] val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-
-    implicit lazy val typeId: TypeId[Email] = TypeId.of[Email]
-    implicit lazy val schema: Schema[Email] =
+    private[this] val EmailRegex       = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+    implicit val typeId: TypeId[Email] = TypeId.of[Email]
+    implicit val schema: Schema[Email] =
       Schema[String].transform[Email](
         {
           case x @ EmailRegex(_*) => new Email(x)

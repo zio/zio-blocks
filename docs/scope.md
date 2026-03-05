@@ -417,16 +417,52 @@ A `scoped { ... }` block can only return pure data (or `Nothing`). Resources and
 
 **Pragmatic safety.** The type-level tagging prevents *accidental* scope misuse in normal code, but it is not a security boundary. A determined developer can bypass it via `leak` (which emits a compiler warning), unsafe casts (`asInstanceOf`), or storing scoped references in mutable state (`var`).
 
-### Closed-scope defense (runtime)
+### Closed-scope safety (runtime)
 
-If a scope escapes and is used after closing, operations become **no-ops returning default values**:
+If a scope reference escapes its `scoped { }` block and an operation is attempted after closing, Scope throws `IllegalStateException` with a detailed, actionable error message:
 
-- `$`, `allocate`, `open`, `lower` return defaults (`null`, `0`, `false`, …)
-- `$` does not run the lambda when closed
-- `defer` on a closed scope is ignored
-- `scoped` creates a born-closed child if the parent is already closed
+- **`allocate`** on a closed scope:
 
-This prevents post-close interaction with released resources, but can produce surprising default values if scopes are misused across threads.
+  ```
+  ── Scope Error ─────────────────────────────────────────────────────────────────
+
+    Cannot allocate resource: scope is already closed.
+
+    Scope: Scope.Child
+
+    What happened:
+      A call to allocate was made on a scope whose finalizers have
+      already run. The resource was never acquired.
+
+    Common causes:
+      • A scope reference escaped a scoped { } block (e.g. stored in a
+        field, captured in a Future or passed to another thread).
+      • close() was called on an OpenScope before all
+        allocations inside it completed.
+
+    Fix:
+      Call allocate only inside a live scoped { } block, or before
+      calling close() on an OpenScope.
+
+      // Correct usage:
+      Scope.global.scoped { scope =>
+        import scope.*
+        val db = allocate(Resource(new Database))
+        $(db)(_.query("SELECT 1"))
+      }
+
+  ────────────────────────────────────────────────────────────────────────────────
+  ```
+
+- **`open()`** on a closed scope gives the same treatment, explaining that no child scope was created and directing the user to call `open()` only on a live scope.
+
+- **`$`** on a closed scope explains that the resource may have already been released and accessing it would be undefined behaviour.
+
+The following operations on a closed scope do **not** throw:
+
+- `defer` — silently ignored (no-op)
+- `scoped` — runs normally but creates a born-closed child scope
+- `lower` — zero-cost cast, no closed check needed
 
 ### Thread ownership rule (JVM)
 
@@ -780,6 +816,112 @@ val appResource: Resource[App] =
 
 ---
 
+## Common runtime errors (and what they mean)
+
+These `IllegalStateException`s are thrown when a scope operation is attempted on a closed scope. Each message identifies the scope type, explains what went wrong, lists common causes, and shows a correct usage example.
+
+### `allocate` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot allocate resource: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    A call to allocate was made on a scope whose finalizers have
+    already run. The resource was never acquired.
+
+  Common causes:
+    • A scope reference escaped a scoped { } block (e.g. stored in a
+      field, captured in a Future or passed to another thread).
+    • close() was called on an OpenScope before all
+      allocations inside it completed.
+
+  Fix:
+    Call allocate only inside a live scoped { } block, or before
+    calling close() on an OpenScope.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val db = allocate(Resource(new Database))
+      $(db)(_.query("SELECT 1"))
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### `open()` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot open child scope: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    A call to open() was made on a scope whose finalizers have
+    already run. No child scope was created.
+
+  Common causes:
+    • A scope reference escaped a scoped { } block and open()
+      was called after the block exited.
+    • close() was called on the parent OpenScope before
+      open() was called on it.
+
+  Fix:
+    Call open() only on a live (not yet closed) scope.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val child = open()
+      $(child)(_.scope.allocate(Resource(new Database)))
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### `$` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot access scoped value: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    The $ operator was called on a scope whose finalizers have
+    already run. The underlying resource may have been released.
+    Accessing it would be undefined behavior.
+
+  Common causes:
+    • A $[A] value or its owning scope escaped a scoped { }
+      block (e.g. captured in a Future, stored in a field, or
+      passed to another thread).
+    • close() was called on an OpenScope that still has
+      live $[A] values being accessed.
+
+  Fix:
+    Ensure all $ calls occur strictly within the scoped { }
+    block that owns the value, and that the scope has not been closed.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val db = allocate(Resource(new Database))
+      $(db)(_.query("SELECT 1"))  // $ used inside the block
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+---
+
 ## Common compile errors (and what they mean)
 
 This module produces two kinds of compile-time feedback:
@@ -1028,7 +1170,7 @@ Notes:
 
 - `$` requires a **lambda literal** and enforces safe receiver-only usage.
 - `$` returns `B` if `Unscoped[B]` exists; otherwise returns `$[B]`.
-- If the scope is closed, `$` / `allocate` / `open` / `lower` return default values and perform no work.
+- If the scope is closed, `$`, `allocate`, and `open` throw `IllegalStateException` with a detailed error message. `defer` and `lower` are unaffected.
 
 Syntax enrichments available after `import scope.*` inside a scope:
 

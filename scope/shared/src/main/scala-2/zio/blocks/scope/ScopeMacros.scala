@@ -87,13 +87,21 @@ private[scope] object ScopeMacros {
     if (hasUnscoped) {
       // B is Unscoped — return B directly (auto-unwrap)
       q"""
-        if ($self.isClosed) null.asInstanceOf[$returnType]
+        if ($self.isClosed)
+          throw new _root_.java.lang.IllegalStateException(
+            _root_.zio.blocks.scope.internal.ErrorMessages
+              .renderUseOnClosedScope($self.scopeDisplayName, color = false)
+          )
         else $fTyped($sa.asInstanceOf[$inputType])
       """
     } else {
       // B is not Unscoped — return $[B]
       q"""
-        if ($self.isClosed) null.asInstanceOf[$returnType].asInstanceOf[$self.$$[$returnType]]
+        if ($self.isClosed)
+          throw new _root_.java.lang.IllegalStateException(
+            _root_.zio.blocks.scope.internal.ErrorMessages
+              .renderUseOnClosedScope($self.scopeDisplayName, color = false)
+          )
         else $fTyped($sa.asInstanceOf[$inputType]).asInstanceOf[$self.$$[$returnType]]
       """
     }

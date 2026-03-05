@@ -1,21 +1,21 @@
 package zio.blocks.schema.bson
 
 import org.bson.{
+  BsonArray,
+  BsonBoolean,
   BsonDocument,
+  BsonDouble,
+  BsonInt32,
+  BsonInt64,
   BsonReader,
   BsonString,
   BsonValue,
-  BsonWriter,
-  BsonInt32,
-  BsonInt64,
-  BsonDouble,
-  BsonBoolean,
-  BsonArray
+  BsonWriter
 }
 import org.bson.types.{Decimal128, ObjectId}
+import zio.blocks.schema.json.Json
 import java.math.{BigDecimal => JBigDecimal, BigInteger => JBigInteger}
 import java.time._
-
 import java.util.{Currency, UUID}
 import scala.util.control.NoStackTrace
 import scala.jdk.CollectionConverters._
@@ -328,28 +328,48 @@ object BsonCodec {
   )
 
   val duration: BsonCodec[Duration] = stringBased[Duration](
-    _.toString,
-    Duration.parse
+    Json.durationRawCodec.encodeToString,
+    x =>
+      Json.durationRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val instant: BsonCodec[Instant] = stringBased[Instant](
-    _.toString,
-    Instant.parse
+    Json.instantRawCodec.encodeToString,
+    x =>
+      Json.instantRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val localDate: BsonCodec[LocalDate] = stringBased[LocalDate](
-    _.toString,
-    LocalDate.parse
+    Json.localDateRawCodec.encodeToString,
+    x =>
+      Json.localDateRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val localDateTime: BsonCodec[LocalDateTime] = stringBased[LocalDateTime](
-    _.toString,
-    LocalDateTime.parse
+    Json.localDateTimeRawCodec.encodeToString,
+    x =>
+      Json.localDateTimeRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val localTime: BsonCodec[LocalTime] = stringBased[LocalTime](
-    _.toString,
-    LocalTime.parse
+    Json.localTimeRawCodec.encodeToString,
+    x =>
+      Json.localTimeRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val month: BsonCodec[Month] = stringBased[Month](
@@ -358,23 +378,39 @@ object BsonCodec {
   )
 
   val monthDay: BsonCodec[MonthDay] = stringBased[MonthDay](
-    _.toString,
-    MonthDay.parse
+    Json.monthDayRawCodec.encodeToString,
+    x =>
+      Json.monthDayRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val offsetDateTime: BsonCodec[OffsetDateTime] = stringBased[OffsetDateTime](
-    _.toString,
-    OffsetDateTime.parse
+    Json.offsetDateTimeRawCodec.encodeToString,
+    x =>
+      Json.offsetDateTimeRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val offsetTime: BsonCodec[OffsetTime] = stringBased[OffsetTime](
-    _.toString,
-    OffsetTime.parse
+    Json.offsetTimeRawCodec.encodeToString,
+    x =>
+      Json.offsetTimeRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val period: BsonCodec[Period] = stringBased[Period](
-    _.toString,
-    Period.parse
+    Json.periodRawCodec.encodeToString,
+    x =>
+      Json.periodRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val year: BsonCodec[Year] = stringBased[Year](
@@ -398,8 +434,12 @@ object BsonCodec {
   )
 
   val zonedDateTime: BsonCodec[ZonedDateTime] = stringBased[ZonedDateTime](
-    _.toString,
-    ZonedDateTime.parse
+    Json.zonedDateTimeRawCodec.encodeToString,
+    x =>
+      Json.zonedDateTimeRawCodec.decode(x) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
   )
 
   val currency: BsonCodec[Currency] = stringBased[Currency](

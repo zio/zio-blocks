@@ -230,7 +230,7 @@ class ToonBinaryCodecDeriver private[toon] (
               val fieldReflect = field.value
               infos(idx) = new ToonFieldInfo(
                 DynamicOptic.Node.Field(field.name),
-                defaultValueConstructor(fieldReflect),
+                getDefaultValue(fieldReflect),
                 idx,
                 isOptional(fieldReflect),
                 isCollection(fieldReflect)
@@ -1296,9 +1296,9 @@ class ToonBinaryCodecDeriver private[toon] (
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireCollectionFields && reflect.isCollection
 
-  private[this] def defaultValueConstructor[F[_, _], A](fieldReflect: Reflect[F, A]): () => ? =
-    if (requireDefaultValueFields) null
-    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue.map(v => () => v).orNull
+  private[this] def getDefaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[?] =
+    if (requireDefaultValueFields) None
+    else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
 
   private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
     enumValuesAsStrings && cases.forall { case_ =>

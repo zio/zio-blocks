@@ -99,24 +99,25 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   the output value type
    * @return
    *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`; returns a default value if the scope is closed
+   *   otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   infix transparent inline def $[A, B](sa: $[A])(inline f: A => B) = {
     UseMacros.check[A, B](f)
+    if (self.isClosed)
+      throw new IllegalStateException(
+        zio.blocks.scope.internal.ErrorMessages
+          .renderUseOnClosedScope(self.scopeDisplayName, color = false)
+      )
     scala.compiletime.summonFrom {
       case _: Unscoped[B] =>
-        if (self.isClosed) null.asInstanceOf[B]
-        else {
-          val unwrapped = sa.asInstanceOf[A]
-          f(unwrapped)
-        }
+        val unwrapped = sa.asInstanceOf[A]
+        f(unwrapped)
       case _ =>
-        if (self.isClosed) null.asInstanceOf[$[B]]
-        else {
-          val unwrapped = sa.asInstanceOf[A]
-          val result    = f(unwrapped)
-          result.asInstanceOf[$[B]]
-        }
+        val unwrapped = sa.asInstanceOf[A]
+        val result    = f(unwrapped)
+        result.asInstanceOf[$[B]]
     }
   }
 
