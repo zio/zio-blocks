@@ -365,7 +365,7 @@ val xml = codec.encodeToString(feed)
 
 Navigate to child elements, filter by type, and extract content:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.xml._
 
 val xml = XmlReader.read("""
@@ -398,7 +398,7 @@ val title: Either[XmlError, String] = firstBook.get("title").text
 
 You can also navigate descendants recursively:
 
-```scala mdoc:silent
+```scala mdoc
 val allTitles = xml.select.descendant("title")
 ```
 
@@ -695,7 +695,7 @@ val result = decodeWithFallback(invalidXml, defaultPerson)
 
 Round-trip values by encoding and decoding:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -754,7 +754,7 @@ val fromBytes: Either[SchemaError, Person] = bytes.fromXml[Person]
 
 Format XML documents using compact or pretty-printed output. You can convert XML to string with different formatting options:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema.xml._
 
 val xml = Xml.Element("person", Xml.Element("name", Xml.Text("Alice")))
@@ -978,7 +978,6 @@ val xml = codec.encodeToString(entry, WriterConfig.pretty)
 Decode the XML back to a typed value:
 
 ```scala mdoc
-val xml = codec.encodeToString(entry, WriterConfig.pretty)
 val decoded = codec.decode(xml)
 ```
 
