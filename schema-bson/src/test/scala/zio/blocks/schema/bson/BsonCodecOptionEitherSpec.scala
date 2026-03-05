@@ -23,6 +23,13 @@ object BsonCodecOptionEitherSpec extends SchemaBaseSpec {
 
     implicit val schema: Schema[ApiResponse] = Schema.derived[ApiResponse]
   }
+
+  final case class Result(value: Either[String, Int])
+
+  object Result {
+    implicit val schema: Schema[Result] = Schema.derived[Result]
+  }
+
   def spec = suite("BsonCodecOptionEitherSpec")(
     suite("Option encoding/decoding")(
       test("encode/decode Some(value)") {
@@ -98,6 +105,26 @@ object BsonCodecOptionEitherSpec extends SchemaBaseSpec {
         val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
 
         assertTrue(decoded == response)
+      }
+    ),
+    suite("Either encoding/decoding")(
+      test("encode/decode Left") {
+        val result = Result(Left("error message"))
+        val codec  = BsonSchemaCodec.bsonCodec(Schema[Result])
+
+        val encoded = codec.encoder.toBsonValue(result)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(decoded == result)
+      },
+      test("encode/decode Right") {
+        val result = Result(Right(42))
+        val codec  = BsonSchemaCodec.bsonCodec(Schema[Result])
+
+        val encoded = codec.encoder.toBsonValue(result)
+        val decoded = codec.decoder.fromBsonValueUnsafe(encoded, Nil, BsonDecoder.BsonDecoderContext.default)
+
+        assertTrue(decoded == result)
       }
     )
   )
