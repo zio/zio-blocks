@@ -889,8 +889,6 @@ result match {
 }
 ```
 
-### XmlError Details
-
 `XmlError` provides detailed error information for debugging:
 
 ```scala mdoc:compile-only
