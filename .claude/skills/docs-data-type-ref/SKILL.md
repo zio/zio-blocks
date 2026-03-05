@@ -61,7 +61,7 @@ Follow this structure precisely. Every section below marked **(required)** must 
 
 #### 1. Opening Definition (required)
 
-Start with a concise, technical definition. Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences.
+Start with a concise, technical definition immediately after the frontmatter. Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences. **Do not create a separate "## Opening Definition" heading** — this content forms the natural opening of the document.
 
 Pattern:
 
@@ -85,6 +85,8 @@ After the definition paragraph, include the source definition of the data type i
 - Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
 - Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
 
+Follow the opening definition with a section header (e.g., `## Overview`, `## Introduction`, or another appropriate heading) to continue the document.
+
 #### 2. Motivation / Use Case (if applicable)
 
 This section answers the following questions:
@@ -96,7 +98,7 @@ This section answers the following questions:
 Tools:
 
 1. Use an ASCII art diagram showing the type structure.
-2. For comparing with alternatives, use a comparison table showing key differences and advantages or use bullet points to list advantages.
+2. Use bullet points to list key advantages and how this type compares with alternatives.
 3. Include a short code example showing the type in action — the "hello world" for this type.
 
 #### 3. Installation (if applicable)
