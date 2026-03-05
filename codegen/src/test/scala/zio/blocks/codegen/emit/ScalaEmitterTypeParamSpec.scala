@@ -84,40 +84,40 @@ object ScalaEmitterTypeParamSpec extends ZIOSpecDefault {
       }
     ) @@ TestAspect.tag("existing"),
     suite("HKT type params")(
-      test("F[_] renders as just F (typeParams not yet emitted)") {
+      test("F[_] renders correctly") {
         val tp     = TypeParam("F", typeParams = List(TypeParam("_")))
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "F")
+        assertTrue(result == "F[_]")
       },
-      test("+F with nested type params renders as +F") {
+      test("+F[_] with nested type params renders correctly") {
         val tp     = TypeParam("F", Variance.Covariant, typeParams = List(TypeParam("_")))
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "+F")
+        assertTrue(result == "+F[_]")
       },
-      test("trait with HKT type param renders without brackets on type param") {
+      test("trait with HKT type param renders with brackets on type param") {
         val t = Trait(
           "Functor",
           typeParams = List(TypeParam("F", typeParams = List(TypeParam("_"))))
         )
         val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
-        assertTrue(result == "trait Functor[F]")
+        assertTrue(result == "trait Functor[F[_]]")
       }
     ),
     suite("context bounds")(
-      test("context bound on type param is not yet emitted") {
+      test("context bound on type param") {
         val tp     = TypeParam("A", contextBounds = List(TypeRef("Ordering")))
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "A")
+        assertTrue(result == "A: Ordering")
       },
-      test("multiple context bounds are not yet emitted") {
+      test("multiple context bounds") {
         val tp     = TypeParam("A", contextBounds = List(TypeRef("Ordering"), TypeRef("Show")))
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "A")
+        assertTrue(result == "A: Ordering: Show")
       },
       test("context bound with variance") {
         val tp     = TypeParam("A", Variance.Covariant, contextBounds = List(TypeRef("Schema")))
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "+A")
+        assertTrue(result == "+A: Schema")
       },
       test("context bound combined with upper bound") {
         val tp = TypeParam(
@@ -126,7 +126,7 @@ object ScalaEmitterTypeParamSpec extends ZIOSpecDefault {
           contextBounds = List(TypeRef("Schema"))
         )
         val result = ScalaEmitter.emitTypeParam(tp)
-        assertTrue(result == "A <: Serializable")
+        assertTrue(result == "A <: Serializable: Schema")
       }
     ),
     suite("type param edge cases")(

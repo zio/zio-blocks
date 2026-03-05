@@ -47,8 +47,11 @@ object ScalaEmitter {
       case Variance.Invariant     => ()
     }
     sb.append(escapeName(tp.name))
+    if (tp.typeParams.nonEmpty)
+      sb.append("[").append(tp.typeParams.map(emitTypeParam).mkString(", ")).append("]")
     tp.lowerBound.foreach(lb => sb.append(" >: ").append(emitTypeRef(lb)))
     tp.upperBound.foreach(ub => sb.append(" <: ").append(emitTypeRef(ub)))
+    tp.contextBounds.foreach(cb => sb.append(": ").append(emitTypeRef(cb)))
     sb.toString
   }
 
@@ -267,8 +270,11 @@ object ScalaEmitter {
       sb.append(prefix).append(")")
     }
 
-    if (cc.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(cc.extendsTypes.map(emitTypeRef).mkString(" with "))
+    val allExtends =
+      if (cc.isValueClass && !cc.extendsTypes.exists(_.name == "AnyVal")) TypeRef("AnyVal") :: cc.extendsTypes
+      else cc.extendsTypes
+    if (allExtends.nonEmpty)
+      sb.append(" extends ").append(allExtends.map(emitTypeRef).mkString(" with "))
 
     if (config.scala3Syntax && cc.derives.nonEmpty)
       sb.append(" derives ").append(cc.derives.mkString(", "))

@@ -210,7 +210,7 @@ object ScalaEmitterCaseClassSpec extends ZIOSpecDefault {
                |  )""".stripMargin
         )
       },
-      test("value class with isValueClass flag (flag not yet emitted)") {
+      test("value class with isValueClass flag") {
         val cc = CaseClass(
           "Meter",
           fields = List(Field("value", TypeRef.Double)),
@@ -219,7 +219,8 @@ object ScalaEmitterCaseClassSpec extends ZIOSpecDefault {
         val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
         assertTrue(
           result.contains("case class Meter("),
-          result.contains("value: Double")
+          result.contains("value: Double"),
+          result.contains("extends AnyVal")
         )
       },
       test("value class with explicit AnyVal extends") {
