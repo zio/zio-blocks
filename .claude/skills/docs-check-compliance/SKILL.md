@@ -38,7 +38,7 @@ For each rule from the skill:
 
 1. **Identify violations** — Scan the doc file for breaches of this specific rule
 2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
-3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<module>): fix <section> [rule name]`
+3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <section> [rule name]`
 
 Repeat until the rule has no violations.
 
