@@ -37,9 +37,9 @@ val userStructural = userSchema.structural
 // Both schemas accept the same data shape
 ```
 
-## Construction: `.structural` on a Schema
+## Construction: `Schema#structural`
 
-Call `.structural` on any `Schema[A]` to get the corresponding structural schema.
+Use the `Schema#structural` method on any schema to get the corresponding structural schema.
 
 **Scala 3:** Using transparent inline — the return type is inferred to the full refinement type:
 
