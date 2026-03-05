@@ -124,6 +124,8 @@ object DynamicMigration {
 private[migration] object ActionExecutor {
   import MigrationAction._
 
+  private val MaxPathDepth: Int = 64
+
   def execute(action: MigrationAction, value: DynamicValue): Either[SchemaError, DynamicValue] =
     action match {
       case a @ AddField(at, default) =>
@@ -477,6 +479,8 @@ private[migration] object ActionExecutor {
 
     if (idx >= nodes.length) {
       f(value)
+    } else if (idx >= MaxPathDepth) {
+      Left(SchemaError.transformFailed(fullPath, s"Maximum path depth ($MaxPathDepth) exceeded"))
     } else {
       nodes(idx) match {
         case Node.Field(name) =>
