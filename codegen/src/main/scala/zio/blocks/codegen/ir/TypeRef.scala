@@ -149,4 +149,36 @@ object TypeRef {
    */
   def chunk(typeRef: TypeRef): TypeRef =
     TypeRef("Chunk", List(typeRef))
+
+  /**
+   * Creates a union type reference (Scala 3 `A | B`).
+   *
+   * @param types
+   *   The types in the union
+   * @return
+   *   A TypeRef representing the union of the given types
+   *
+   * @example
+   *   {{{
+   * val strOrInt = TypeRef.union(TypeRef.String, TypeRef.Int)
+   * // Represents: String | Int
+   *   }}}
+   */
+  def union(types: TypeRef*): TypeRef = TypeRef("|", types.toList)
+
+  /**
+   * Creates an intersection type reference (Scala 3 `A & B`).
+   *
+   * @param types
+   *   The types in the intersection
+   * @return
+   *   A TypeRef representing the intersection of the given types
+   *
+   * @example
+   *   {{{
+   * val named = TypeRef.intersection(TypeRef("HasName"), TypeRef("HasId"))
+   * // Represents: HasName & HasId
+   *   }}}
+   */
+  def intersection(types: TypeRef*): TypeRef = TypeRef("&", types.toList)
 }

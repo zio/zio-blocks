@@ -19,13 +19,16 @@ object ScalaEmitter {
    * @return
    *   The Scala type string (e.g., "String", "List[Int]", "Map[String, Int]")
    */
-  def emitTypeRef(typeRef: TypeRef): String = {
-    val safeName =
-      if (typeRef.name.contains('.') || typeRef.name.exists(c => "()[]=>".contains(c)))
-        typeRef.name
-      else escapeName(typeRef.name)
-    if (typeRef.typeArgs.isEmpty) safeName
-    else s"${safeName}[${typeRef.typeArgs.map(emitTypeRef).mkString(", ")}]"
+  def emitTypeRef(typeRef: TypeRef): String = typeRef.name match {
+    case "|" => typeRef.typeArgs.map(emitTypeRef).mkString(" | ")
+    case "&" => typeRef.typeArgs.map(emitTypeRef).mkString(" & ")
+    case _   =>
+      val safeName =
+        if (typeRef.name.contains('.') || typeRef.name.exists(c => "()[]=>".contains(c)))
+          typeRef.name
+        else escapeName(typeRef.name)
+      if (typeRef.typeArgs.isEmpty) safeName
+      else s"${safeName}[${typeRef.typeArgs.map(emitTypeRef).mkString(", ")}]"
   }
 
   /**
@@ -119,6 +122,8 @@ object ScalaEmitter {
     case Import.RenameImport(path, from, to) =>
       val arrow = if (config.scala3Syntax) "as" else "=>"
       s"import $path.{$from $arrow $to}"
+    case Import.GroupImport(path, names) =>
+      s"import $path.{${names.mkString(", ")}}"
   }
 
   /**
@@ -152,6 +157,7 @@ object ScalaEmitter {
     case Import.SingleImport(path, name)     => s"$path.$name"
     case Import.WildcardImport(path)         => s"$path.*"
     case Import.RenameImport(path, from, to) => s"$path.$from"
+    case Import.GroupImport(path, names)     => s"$path.${names.head}"
   }
 
   private def ind(level: Int, config: EmitterConfig): String =
@@ -203,11 +209,14 @@ object ScalaEmitter {
    */
   def emitTypeDefinition(typeDef: TypeDefinition, config: EmitterConfig, indent: Int = 0): String =
     typeDef match {
-      case cc: CaseClass   => emitCaseClass(cc, config, indent)
-      case st: SealedTrait => emitSealedTrait(st, config, indent)
-      case en: Enum        => emitEnum(en, config, indent)
-      case od: ObjectDef   => emitObjectDef(od, config, indent)
-      case nt: Newtype     => emitNewtype(nt, config, indent)
+      case cc: CaseClass     => emitCaseClass(cc, config, indent)
+      case st: SealedTrait   => emitSealedTrait(st, config, indent)
+      case en: Enum          => emitEnum(en, config, indent)
+      case od: ObjectDef     => emitObjectDef(od, config, indent)
+      case nt: Newtype       => emitNewtype(nt, config, indent)
+      case t: Trait          => emitTrait(t, config, indent)
+      case ac: AbstractClass => emitAbstractClass(ac, config, indent)
+      case ot: OpaqueType    => emitOpaqueType(ot, config, indent)
     }
 
   /**
@@ -470,6 +479,157 @@ object ScalaEmitter {
       .append(" = ")
       .append(escapeName(nt.name))
       .append(".Type")
+    sb.toString
+  }
+
+  /**
+   * Emits a non-sealed trait definition.
+   *
+   * @param t
+   *   The Trait IR node
+   * @param config
+   *   The emitter configuration
+   * @param indent
+   *   The current indentation level (defaults to 0)
+   * @return
+   *   The emitted Scala trait code
+   */
+  def emitTrait(t: Trait, config: EmitterConfig, indent: Int = 0): String = {
+    val sb     = new StringBuilder
+    val prefix = ind(indent, config)
+
+    t.doc.foreach { d =>
+      sb.append(prefix).append("/** ").append(d).append(" */\n")
+    }
+    t.annotations.foreach { a =>
+      sb.append(prefix).append(emitAnnotation(a)).append("\n")
+    }
+
+    sb.append(prefix).append("trait ").append(escapeName(t.name))
+    if (t.typeParams.nonEmpty)
+      sb.append("[").append(t.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+    if (t.extendsTypes.nonEmpty)
+      sb.append(" extends ").append(t.extendsTypes.map(emitTypeRef).mkString(" with "))
+
+    if (t.members.nonEmpty) {
+      sb.append(" {\n")
+      t.members.foreach { member =>
+        sb.append(emitObjectMember(member, config, indent + 1))
+      }
+      sb.append(prefix).append("}")
+    }
+
+    t.companion.foreach { comp =>
+      sb.append("\n")
+      sb.append(emitCompanionObject(t.name, comp, config, indent))
+    }
+
+    sb.toString
+  }
+
+  /**
+   * Emits an abstract class definition.
+   *
+   * @param ac
+   *   The AbstractClass IR node
+   * @param config
+   *   The emitter configuration
+   * @param indent
+   *   The current indentation level (defaults to 0)
+   * @return
+   *   The emitted Scala abstract class code
+   */
+  def emitAbstractClass(ac: AbstractClass, config: EmitterConfig, indent: Int = 0): String = {
+    val sb     = new StringBuilder
+    val prefix = ind(indent, config)
+    val inner  = ind(indent + 1, config)
+
+    ac.doc.foreach { d =>
+      sb.append(prefix).append("/** ").append(d).append(" */\n")
+    }
+    ac.annotations.foreach { a =>
+      sb.append(prefix).append(emitAnnotation(a)).append("\n")
+    }
+
+    sb.append(prefix).append("abstract class ").append(escapeName(ac.name))
+    if (ac.typeParams.nonEmpty)
+      sb.append("[").append(ac.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+
+    if (ac.fields.nonEmpty) {
+      sb.append("(")
+      sb.append("\n")
+      ac.fields.zipWithIndex.foreach { case (field, idx) =>
+        val fieldStr   = emitField(field, config)
+        val fieldLines = fieldStr.split("\n")
+        fieldLines.init.foreach { line =>
+          sb.append(inner).append(line).append("\n")
+        }
+        sb.append(inner).append(fieldLines.last)
+        if (config.trailingCommas || idx < ac.fields.length - 1)
+          sb.append(",")
+        sb.append("\n")
+      }
+      sb.append(prefix).append(")")
+    }
+
+    if (ac.extendsTypes.nonEmpty)
+      sb.append(" extends ").append(ac.extendsTypes.map(emitTypeRef).mkString(" with "))
+
+    if (ac.members.nonEmpty) {
+      sb.append(" {\n")
+      ac.members.foreach { member =>
+        sb.append(emitObjectMember(member, config, indent + 1))
+      }
+      sb.append(prefix).append("}")
+    }
+
+    ac.companion.foreach { comp =>
+      sb.append("\n")
+      sb.append(emitCompanionObject(ac.name, comp, config, indent))
+    }
+
+    sb.toString
+  }
+
+  /**
+   * Emits an opaque type definition.
+   *
+   * In Scala 3 mode, emits `opaque type Name = UnderlyingType`. In Scala 2
+   * mode, falls back to `type Name = UnderlyingType`.
+   *
+   * @param ot
+   *   The OpaqueType IR node
+   * @param config
+   *   The emitter configuration
+   * @param indent
+   *   The current indentation level (defaults to 0)
+   * @return
+   *   The emitted Scala opaque type code
+   */
+  def emitOpaqueType(ot: OpaqueType, config: EmitterConfig, indent: Int = 0): String = {
+    val sb     = new StringBuilder
+    val prefix = ind(indent, config)
+
+    ot.doc.foreach { d =>
+      sb.append(prefix).append("/** ").append(d).append(" */\n")
+    }
+    ot.annotations.foreach { a =>
+      sb.append(prefix).append(emitAnnotation(a)).append("\n")
+    }
+
+    sb.append(prefix)
+    if (config.scala3Syntax) sb.append("opaque ") else ()
+    sb.append("type ").append(escapeName(ot.name))
+    ot.upperBound.foreach { ub =>
+      sb.append(" <: ").append(emitTypeRef(ub))
+    }
+    sb.append(" = ").append(emitTypeRef(ot.underlyingType))
+
+    ot.companion.foreach { comp =>
+      sb.append("\n")
+      sb.append(emitCompanionObject(ot.name, comp, config, indent))
+    }
+
     sb.toString
   }
 

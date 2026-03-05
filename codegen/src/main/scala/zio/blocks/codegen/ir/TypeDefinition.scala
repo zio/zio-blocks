@@ -107,6 +107,116 @@ final case class SealedTrait(
 ) extends TypeDefinition
 
 /**
+ * Represents a non-sealed Scala trait in the IR.
+ *
+ * @param name
+ *   The name of the trait
+ * @param typeParams
+ *   Type parameters for generic traits (defaults to empty list)
+ * @param extendsTypes
+ *   Types that this trait extends (defaults to empty list)
+ * @param members
+ *   Members defined within the trait body (defaults to empty list)
+ * @param annotations
+ *   Annotations on the trait (defaults to empty list)
+ * @param companion
+ *   Optional companion object (defaults to None)
+ * @param doc
+ *   Optional documentation (defaults to None)
+ *
+ * @example
+ *   {{{
+ * val hasId = Trait(
+ *   "HasId",
+ *   members = List(
+ *     ObjectMember.DefMember(Method("id", TypeRef.Long))
+ *   )
+ * )
+ *   }}}
+ */
+final case class Trait(
+  name: String,
+  typeParams: List[TypeParam] = Nil,
+  extendsTypes: List[TypeRef] = Nil,
+  members: List[ObjectMember] = Nil,
+  annotations: List[Annotation] = Nil,
+  companion: Option[CompanionObject] = None,
+  doc: Option[String] = None
+) extends TypeDefinition
+
+/**
+ * Represents a Scala abstract class in the IR.
+ *
+ * @param name
+ *   The name of the abstract class
+ * @param fields
+ *   The fields (constructor parameters) of the abstract class
+ * @param typeParams
+ *   Type parameters for generic abstract classes (defaults to empty list)
+ * @param extendsTypes
+ *   Types that this abstract class extends (defaults to empty list)
+ * @param members
+ *   Members defined within the class body (defaults to empty list)
+ * @param annotations
+ *   Annotations on the abstract class (defaults to empty list)
+ * @param companion
+ *   Optional companion object (defaults to None)
+ * @param doc
+ *   Optional documentation (defaults to None)
+ *
+ * @example
+ *   {{{
+ * val entity = AbstractClass(
+ *   "Entity",
+ *   fields = List(Field("id", TypeRef.Long))
+ * )
+ *   }}}
+ */
+final case class AbstractClass(
+  name: String,
+  fields: List[Field] = Nil,
+  typeParams: List[TypeParam] = Nil,
+  extendsTypes: List[TypeRef] = Nil,
+  members: List[ObjectMember] = Nil,
+  annotations: List[Annotation] = Nil,
+  companion: Option[CompanionObject] = None,
+  doc: Option[String] = None
+) extends TypeDefinition
+
+/**
+ * Represents a Scala 3 opaque type alias in the IR.
+ *
+ * In Scala 3, emitted as `opaque type Name = UnderlyingType`. In Scala 2, falls
+ * back to a plain type alias `type Name = UnderlyingType`.
+ *
+ * @param name
+ *   The name of the opaque type
+ * @param underlyingType
+ *   The underlying type being aliased
+ * @param upperBound
+ *   Optional upper bound constraint (defaults to None)
+ * @param annotations
+ *   Annotations on the opaque type (defaults to empty list)
+ * @param companion
+ *   Optional companion object (defaults to None)
+ * @param doc
+ *   Optional documentation (defaults to None)
+ *
+ * @example
+ *   {{{
+ * val userId = OpaqueType("UserId", underlyingType = TypeRef.String)
+ *   }}}
+ */
+final case class OpaqueType(
+  name: String,
+  underlyingType: TypeRef,
+  upperBound: Option[TypeRef] = None,
+  annotations: List[Annotation] = Nil,
+  companion: Option[CompanionObject] = None,
+  doc: Option[String] = None
+) extends TypeDefinition
+
+/**
  * Represents a case within a sealed trait hierarchy.
  */
 sealed trait SealedTraitCase

@@ -60,4 +60,20 @@ object Import {
    *   }}}
    */
   final case class RenameImport(path: String, from: String, to: String) extends Import
+
+  /**
+   * A group import that imports multiple names from a package.
+   *
+   * @param path
+   *   The package path (e.g., "com.example")
+   * @param names
+   *   The imported names (e.g., List("Foo", "Bar"))
+   *
+   * @example
+   *   {{{
+   * val imp = GroupImport("com.example", List("Foo", "Bar"))
+   * // Represents: import com.example.{Foo, Bar}
+   *   }}}
+   */
+  final case class GroupImport(path: String, names: List[String]) extends Import
 }
