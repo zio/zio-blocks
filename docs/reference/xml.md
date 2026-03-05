@@ -756,22 +756,27 @@ Format XML documents using compact or pretty-printed output:
 
 Convert XML to string with different formatting options:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema.xml._
 
 val xml = Xml.Element("person", Xml.Element("name", Xml.Text("Alice")))
+```
 
-// Compact output
+Compact output:
+
+```scala mdoc
 val compact: String = xml.print
-// <person><name>Alice</name></person>
+```
 
-// Pretty-printed output
+Pretty-printed output:
+
+```scala mdoc
 val pretty: String = xml.printPretty
-// <person>
-//   <name>Alice</name>
-// </person>
+```
 
-// Custom configuration
+Custom configuration:
+
+```scala mdoc:compile-only
 val custom: String = xml.print(WriterConfig(indentStep = 4))
 ```
 
