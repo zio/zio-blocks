@@ -1,6 +1,7 @@
 package zio.blocks.combinators
 
 import zio.test._
+import scala.compiletime.testing.typeCheckErrors
 
 object TypeInferenceSpec extends ZIOSpecDefault {
 
