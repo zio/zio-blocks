@@ -1,17 +1,12 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a Scala type reference in the IR, supporting generic types with
- * optional and nullable variants.
+ * Represents a Scala type reference in the IR, supporting generic types.
  *
  * @param name
  *   The name of the type (e.g., "String", "List", "Option")
  * @param typeArgs
  *   Type arguments for generic types (defaults to empty list)
- * @param isOptional
- *   Whether this type is wrapped in Option (defaults to false)
- * @param isNullable
- *   Whether this type can be null (defaults to false)
  *
  * @example
  *   {{{
@@ -28,9 +23,7 @@ package zio.blocks.codegen.ir
  */
 final case class TypeRef(
   name: String,
-  typeArgs: List[TypeRef] = Nil,
-  isOptional: Boolean = false,
-  isNullable: Boolean = false
+  typeArgs: List[TypeRef] = Nil
 )
 
 object TypeRef {

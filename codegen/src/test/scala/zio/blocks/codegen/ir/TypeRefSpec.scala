@@ -10,23 +10,13 @@ object TypeRefSpec extends ZIOSpecDefault {
         test("creates simple type ref") {
           val typeRef = TypeRef("String")
           assert(typeRef.name)(equalTo("String")) &&
-          assert(typeRef.typeArgs)(isEmpty) &&
-          assert(typeRef.isOptional)(isFalse) &&
-          assert(typeRef.isNullable)(isFalse)
+          assert(typeRef.typeArgs)(isEmpty)
         },
         test("creates generic type ref with args") {
           val typeRef = TypeRef("List", List(TypeRef("Int")))
           assert(typeRef.name)(equalTo("List")) &&
           assert(typeRef.typeArgs.length)(equalTo(1)) &&
           assert(typeRef.typeArgs(0).name)(equalTo("Int"))
-        },
-        test("handles optional flag") {
-          val typeRef = TypeRef("String", isOptional = true)
-          assert(typeRef.isOptional)(isTrue)
-        },
-        test("handles nullable flag") {
-          val typeRef = TypeRef("String", isNullable = true)
-          assert(typeRef.isNullable)(isTrue)
         }
       ),
       suite("factory methods")(
