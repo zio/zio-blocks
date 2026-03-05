@@ -277,7 +277,7 @@ val custom = ReaderConfig(
 
 Encode case class fields as XML attributes using the `@xmlAttribute` annotation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -294,11 +294,12 @@ object Person {
 
 val codec = Schema[Person].derive(XmlFormat)
 val person = Person("123", "active", "Alice", 30)
+```
+
+Encode the person with attributes:
+
+```scala mdoc
 val xml = codec.encodeToString(person)
-// <Person id="123" status="active">
-//   <name>Alice</name>
-//   <age>30</age>
-// </Person>
 ```
 
 The `@xmlAttribute` annotation accepts an optional custom name:
