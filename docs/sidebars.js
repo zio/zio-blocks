@@ -39,6 +39,7 @@ const sidebars = {
          "reference/json",
          "reference/json-patch",
          "reference/json-schema",
+         "reference/xml",
          "reference/syntax",
          "reference/media-type",
       ]

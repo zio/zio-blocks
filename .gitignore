@@ -36,3 +36,4 @@ schema/jvm/src/test/resources/json-schema-test-suite/
 # Internal working directories (Sisyphus/OpenCode)
 .sisyphus/
 .opencode/
+.claude/settings.local.json
