@@ -11,7 +11,9 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
       scala2VsScala3Suite,
       importDeduplicationSuite,
       complexNestedTypesSuite,
-      multipleTypesInOneFileSuite
+      multipleTypesInOneFileSuite,
+      advancedFeaturesSuite,
+      crossVersionComparisonSuite
     )
 
   private val fullApiModelSuite = suite("full API model")(
@@ -426,6 +428,315 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
         lines.slice(prevIdx + 1, nextIdx).exists(_.trim.isEmpty)
       }
       assertTrue(separatedByBlankLines)
+    }
+  )
+
+  private val advancedFeaturesSuite = suite("advanced features")(
+    test("file with value class, enum with type params, and abstract class") {
+      val file = ScalaFile(
+        PackageDecl("com.example.advanced"),
+        imports = List(
+          Import.SingleImport("zio.blocks.schema", "Schema")
+        ),
+        types = List(
+          CaseClass(
+            "UserId",
+            fields = List(Field("value", TypeRef.Long)),
+            isValueClass = true,
+            extendsTypes = List(TypeRef("AnyVal"))
+          ),
+          AbstractClass(
+            "Entity",
+            fields = List(Field("id", TypeRef.Long)),
+            typeParams = List(TypeParam("A")),
+            isSealed = true
+          ),
+          Enum(
+            "Status",
+            typeParams = List(TypeParam("A")),
+            cases = List(
+              EnumCase.ParameterizedCase("Active", List(Field("value", TypeRef("A")))),
+              EnumCase.SimpleCase("Inactive")
+            )
+          )
+        )
+      )
+
+      val result = ScalaEmitter.emit(file, EmitterConfig.default)
+
+      assertTrue(
+        result.contains("package com.example.advanced"),
+        result.contains("import zio.blocks.schema.Schema"),
+        result.contains("case class UserId("),
+        result.contains("value: Long"),
+        result.contains("extends AnyVal"),
+        result.contains("abstract class Entity"),
+        result.contains("enum Status"),
+        result.contains("case Active(value: A)"),
+        result.contains("case Inactive")
+      )
+    },
+    test("model with opaque types and newtypes together") {
+      val file = ScalaFile(
+        PackageDecl("com.example.types"),
+        types = List(
+          OpaqueType(
+            "Token",
+            underlyingType = TypeRef.String,
+            upperBound = Some(TypeRef("Serializable"))
+          ),
+          Newtype("UserId", wrappedType = TypeRef.Long),
+          CaseClass(
+            "Session",
+            fields = List(
+              Field("token", TypeRef("Token")),
+              Field("userId", TypeRef("UserId"))
+            )
+          )
+        )
+      )
+
+      val result = ScalaEmitter.emit(file, EmitterConfig.default)
+
+      assertTrue(
+        result.contains("opaque type Token <: Serializable = String"),
+        result.contains("object UserId extends Newtype[Long]"),
+        result.contains("case class Session(")
+      )
+    },
+    test("model with opaque types in Scala 2 mode omits 'opaque'") {
+      val ot     = OpaqueType("Token", underlyingType = TypeRef.String)
+      val result = ScalaEmitter.emitTypeDefinition(ot, EmitterConfig.scala2)
+      assertTrue(
+        result.contains("type Token = String"),
+        !result.contains("opaque")
+      )
+    },
+    test("model with methods using all ParamList modifiers") {
+      val file = ScalaFile(
+        PackageDecl("com.example.methods"),
+        types = List(
+          ObjectDef(
+            "Api",
+            members = List(
+              ObjectMember.DefMember(
+                Method(
+                  "fetch",
+                  typeParams = List(TypeParam("A")),
+                  params = List(
+                    ParamList(List(MethodParam("url", TypeRef.String))),
+                    ParamList(
+                      List(MethodParam("ctx", TypeRef("Context"))),
+                      ParamListModifier.Using
+                    )
+                  ),
+                  returnType = TypeRef("A"),
+                  body = Some("???")
+                )
+              ),
+              ObjectMember.DefMember(
+                Method(
+                  "show",
+                  typeParams = List(TypeParam("A")),
+                  params = List(
+                    ParamList(List(MethodParam("value", TypeRef("A")))),
+                    ParamList(
+                      List(MethodParam("ev", TypeRef("Show[A]"))),
+                      ParamListModifier.Using
+                    )
+                  ),
+                  returnType = TypeRef.String,
+                  body = Some("ev.show(value)")
+                )
+              )
+            )
+          )
+        )
+      )
+
+      val scala3 = ScalaEmitter.emit(file, EmitterConfig.default)
+      val scala2 = ScalaEmitter.emit(file, EmitterConfig.scala2)
+
+      assertTrue(
+        scala3.contains("(using ctx: Context)"),
+        scala3.contains("(using ev: Show[A])"),
+        scala2.contains("(implicit ctx: Context)"),
+        scala2.contains("(implicit ev: Show[A])")
+      )
+    },
+    test("trait with method having by-name and varargs params") {
+      val t = Trait(
+        "Logger",
+        members = List(
+          ObjectMember.DefMember(
+            Method(
+              "log",
+              params = List(
+                ParamList(
+                  List(
+                    MethodParam("level", TypeRef.String),
+                    MethodParam("msg", TypeRef.String, isByName = true),
+                    MethodParam("args", TypeRef.Any, isVarargs = true)
+                  )
+                )
+              ),
+              returnType = TypeRef.Unit
+            )
+          )
+        )
+      )
+      val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+      assertTrue(
+        result.contains("def log(level: String, msg: => String, args: Any*): Unit")
+      )
+    },
+    test("complex sealed trait hierarchy with annotations and docs") {
+      val file = ScalaFile(
+        PackageDecl("com.example.events"),
+        types = List(
+          SealedTrait(
+            "Event",
+            typeParams = List(TypeParam("A")),
+            extendsTypes = List(TypeRef("Serializable")),
+            cases = List(
+              SealedTraitCase.CaseClassCase(
+                CaseClass(
+                  "Created",
+                  fields = List(
+                    Field("id", TypeRef.Long, annotations = List(Annotation("required"))),
+                    Field("payload", TypeRef("A")),
+                    Field("timestamp", TypeRef.Long)
+                  ),
+                  doc = Some("Entity was created")
+                )
+              ),
+              SealedTraitCase.CaseClassCase(
+                CaseClass(
+                  "Updated",
+                  fields = List(
+                    Field("id", TypeRef.Long),
+                    Field("changes", TypeRef.map(TypeRef.String, TypeRef("A")))
+                  )
+                )
+              ),
+              SealedTraitCase.CaseObjectCase("Deleted")
+            ),
+            annotations = List(Annotation("serializable")),
+            doc = Some("Domain events")
+          )
+        )
+      )
+
+      val result = ScalaEmitter.emit(file, EmitterConfig.default)
+
+      assertTrue(
+        result.contains("/** Domain events */"),
+        result.contains("@serializable"),
+        result.contains("sealed trait Event[A] extends Serializable"),
+        result.contains("/** Entity was created */"),
+        result.contains("@required"),
+        result.contains("id: Long"),
+        result.contains("payload: A"),
+        result.contains("changes: Map[String, A]"),
+        result.contains("case object Deleted extends Event[A]")
+      )
+    }
+  )
+
+  private val crossVersionComparisonSuite = suite("cross-version comparison")(
+    test("enum with parameterized cases: Scala 3 vs Scala 2") {
+      val en = Enum(
+        "Result",
+        cases = List(
+          EnumCase.ParameterizedCase("Ok", List(Field("value", TypeRef.String))),
+          EnumCase.ParameterizedCase("Err", List(Field("message", TypeRef.String))),
+          EnumCase.SimpleCase("Pending")
+        )
+      )
+
+      val scala3 = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+      val scala2 = ScalaEmitter.emitEnum(en, EmitterConfig.scala2)
+
+      assertTrue(
+        scala3.contains("enum Result {"),
+        scala3.contains("case Ok(value: String)"),
+        scala3.contains("case Err(message: String)"),
+        scala3.contains("case Pending"),
+        scala2.contains("sealed trait Result"),
+        scala2.contains("case class Ok"),
+        scala2.contains("case class Err"),
+        scala2.contains("case object Pending extends Result"),
+        !scala2.contains("enum")
+      )
+    },
+    test("case class with derives: Scala 3 vs Scala 2") {
+      val cc = CaseClass(
+        "Config",
+        fields = List(
+          Field("debug", TypeRef.Boolean, Some("false")),
+          Field("maxRetries", TypeRef.Int, Some("3"))
+        ),
+        derives = List("Schema", "Codec")
+      )
+
+      val scala3 = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+      val scala2 = ScalaEmitter.emitCaseClass(cc, EmitterConfig.scala2)
+
+      assertTrue(
+        scala3.contains("derives Schema, Codec"),
+        scala3.contains("debug: Boolean = false,"),
+        scala3.contains("maxRetries: Int = 3,"),
+        !scala2.contains("derives"),
+        scala2.contains("debug: Boolean = false,"),
+        scala2.contains("maxRetries: Int = 3")
+      )
+    },
+    test("import syntax: Scala 3 vs Scala 2") {
+      val imports = List(
+        Import.WildcardImport("scala.collection"),
+        Import.RenameImport("java.util", "ArrayList", "JList"),
+        Import.GroupImport("zio", List("ZIO", "Task"))
+      )
+
+      val scala3 = imports.map(i => ScalaEmitter.emitImport(i, EmitterConfig.default))
+      val scala2 = imports.map(i => ScalaEmitter.emitImport(i, EmitterConfig.scala2))
+
+      assertTrue(
+        scala3(0) == "import scala.collection.*",
+        scala3(1) == "import java.util.{ArrayList as JList}",
+        scala2(0) == "import scala.collection._",
+        scala2(1) == "import java.util.{ArrayList => JList}",
+        scala3(2) == scala2(2)
+      )
+    },
+    test("opaque type: Scala 3 vs Scala 2") {
+      val ot = OpaqueType("Token", underlyingType = TypeRef.String)
+
+      val scala3 = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.default)
+      val scala2 = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.scala2)
+
+      assertTrue(
+        scala3.contains("opaque type Token = String"),
+        scala2.contains("type Token = String"),
+        !scala2.contains("opaque")
+      )
+    },
+    test("implicit/given: Scala 3 vs Scala 2") {
+      val method = Method(
+        "encode",
+        typeParams = List(TypeParam("A")),
+        returnType = TypeRef.String,
+        isImplicit = true,
+        body = Some("\"\"")
+      )
+
+      val scala3 = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+      val scala2 = ScalaEmitter.emitMethod(method, EmitterConfig.scala2)
+
+      assertTrue(
+        scala3.contains("given def encode"),
+        scala2.contains("implicit def encode")
+      )
     }
   )
 }

@@ -279,6 +279,27 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
             )
           )
         },
+        test("ValMember with lazy") {
+          val vm = ObjectMember.ValMember("x", TypeRef.Int, "42", isLazy = true)
+          assert(vm.isLazy)(isTrue) &&
+          assert(vm.isOverride)(isFalse) &&
+          assert(vm.isImplicit)(isFalse)
+        },
+        test("ValMember with override") {
+          val vm = ObjectMember.ValMember("name", TypeRef.String, "\"default\"", isOverride = true)
+          assert(vm.isOverride)(isTrue) &&
+          assert(vm.isLazy)(isFalse)
+        },
+        test("ValMember with implicit") {
+          val vm = ObjectMember.ValMember("codec", TypeRef("Codec"), "derived", isImplicit = true)
+          assert(vm.isImplicit)(isTrue)
+        },
+        test("ValMember modifiers default to false") {
+          val vm = ObjectMember.ValMember("x", TypeRef.Int, "0")
+          assert(vm.isLazy)(isFalse) &&
+          assert(vm.isOverride)(isFalse) &&
+          assert(vm.isImplicit)(isFalse)
+        },
         test("with DefMember") {
           val method = Method(
             "create",
@@ -467,6 +488,235 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           assert(m.isOverride)(isTrue) &&
           assert(m.annotations.length)(equalTo(1)) &&
           assert(m.doc)(isSome(equalTo("Custom toString")))
+        }
+      ),
+      suite("TypeAlias")(
+        test("basic construction") {
+          val ta = TypeAlias("UserId", typeRef = TypeRef.String)
+          assert(ta.name)(equalTo("UserId")) &&
+          assert(ta.typeRef.name)(equalTo("String")) &&
+          assert(ta.typeParams)(isEmpty) &&
+          assert(ta.annotations)(isEmpty) &&
+          assert(ta.doc)(isNone)
+        },
+        test("with type params") {
+          val ta = TypeAlias(
+            "Result",
+            typeParams = List(TypeParam("E", Variance.Covariant), TypeParam("A", Variance.Covariant)),
+            typeRef = TypeRef.of("Either", TypeRef("E"), TypeRef("A"))
+          )
+          assert(ta.typeParams.length)(equalTo(2)) &&
+          assert(ta.typeParams(0).name)(equalTo("E")) &&
+          assert(ta.typeParams(0).variance)(equalTo(Variance.Covariant)) &&
+          assert(ta.typeRef.name)(equalTo("Either"))
+        },
+        test("with annotations and doc") {
+          val ta = TypeAlias(
+            "Id",
+            typeRef = TypeRef.Long,
+            annotations = List(Annotation("deprecated")),
+            doc = Some("Type alias for ID")
+          )
+          assert(ta.annotations.length)(equalTo(1)) &&
+          assert(ta.doc)(isSome(equalTo("Type alias for ID")))
+        },
+        test("is a TypeDefinition") {
+          val ta: TypeDefinition = TypeAlias("Id", typeRef = TypeRef.Long)
+          assert(ta.name)(equalTo("Id")) &&
+          assert(ta.annotations)(isEmpty) &&
+          assert(ta.doc)(isNone)
+        }
+      ),
+      suite("AbstractClass")(
+        test("basic construction") {
+          val ac = AbstractClass("Base")
+          assert(ac.name)(equalTo("Base")) &&
+          assert(ac.fields)(isEmpty) &&
+          assert(ac.typeParams)(isEmpty) &&
+          assert(ac.extendsTypes)(isEmpty) &&
+          assert(ac.members)(isEmpty) &&
+          assert(ac.annotations)(isEmpty) &&
+          assert(ac.companion)(isNone) &&
+          assert(ac.doc)(isNone) &&
+          assert(ac.isSealed)(isFalse)
+        },
+        test("sealed abstract class") {
+          val ac = AbstractClass("Entity", fields = List(Field("id", TypeRef.Long)), isSealed = true)
+          assert(ac.isSealed)(isTrue) &&
+          assert(ac.fields.length)(equalTo(1))
+        },
+        test("is a TypeDefinition") {
+          val ac: TypeDefinition = AbstractClass("Base")
+          assert(ac.name)(equalTo("Base"))
+        }
+      ),
+      suite("CaseClass value class")(
+        test("isValueClass defaults to false") {
+          val cc = CaseClass("Normal", fields = List(Field("x", TypeRef.Int)))
+          assert(cc.isValueClass)(isFalse)
+        },
+        test("isValueClass can be set to true") {
+          val cc = CaseClass(
+            "Meter",
+            fields = List(Field("value", TypeRef.Double)),
+            isValueClass = true
+          )
+          assert(cc.isValueClass)(isTrue)
+        }
+      ),
+      suite("SealedTrait derives and selfType")(
+        test("derives defaults to empty") {
+          val st = SealedTrait("Shape")
+          assert(st.derives)(isEmpty)
+        },
+        test("with derives") {
+          val st = SealedTrait("Shape", derives = List("Schema", "JsonCodec"))
+          assert(st.derives.length)(equalTo(2)) &&
+          assert(st.derives(0))(equalTo("Schema"))
+        },
+        test("selfType defaults to None") {
+          val st = SealedTrait("Shape")
+          assert(st.selfType)(isNone)
+        },
+        test("with selfType") {
+          val st = SealedTrait("Service", selfType = Some(TypeRef("Logging")))
+          assert(st.selfType)(isSome(equalTo(TypeRef("Logging"))))
+        }
+      ),
+      suite("Trait selfType")(
+        test("selfType defaults to None") {
+          val t = Trait("Marker")
+          assert(t.selfType)(isNone)
+        },
+        test("with selfType") {
+          val t = Trait("Service", selfType = Some(TypeRef("Logger")))
+          assert(t.selfType)(isSome(equalTo(TypeRef("Logger"))))
+        }
+      ),
+      suite("Enum type params and derives")(
+        test("typeParams defaults to empty") {
+          val en = Enum("Color", cases = List(EnumCase.SimpleCase("Red")))
+          assert(en.typeParams)(isEmpty)
+        },
+        test("with typeParams") {
+          val en = Enum(
+            "Option",
+            typeParams = List(TypeParam("A", Variance.Covariant)),
+            cases = List(EnumCase.SimpleCase("None"))
+          )
+          assert(en.typeParams.length)(equalTo(1)) &&
+          assert(en.typeParams(0).variance)(equalTo(Variance.Covariant))
+        },
+        test("derives defaults to empty") {
+          val en = Enum("Color", cases = List(EnumCase.SimpleCase("Red")))
+          assert(en.derives)(isEmpty)
+        },
+        test("with derives") {
+          val en = Enum(
+            "Color",
+            cases = List(EnumCase.SimpleCase("Red")),
+            derives = List("Schema")
+          )
+          assert(en.derives)(equalTo(List("Schema")))
+        },
+        test("companion defaults to None") {
+          val en = Enum("Color", cases = List(EnumCase.SimpleCase("Red")))
+          assert(en.companion)(isNone)
+        },
+        test("with companion") {
+          val en = Enum(
+            "Color",
+            cases = List(EnumCase.SimpleCase("Red")),
+            companion = Some(CompanionObject(List(ObjectMember.ValMember("default", TypeRef("Color"), "Red"))))
+          )
+          assert(en.companion)(isSome)
+        }
+      ),
+      suite("EnumCase.ParameterizedCase extendsTypes")(
+        test("extendsTypes defaults to empty") {
+          val pc = EnumCase.ParameterizedCase("Ok", List(Field("value", TypeRef.String)))
+          assert(pc.extendsTypes)(isEmpty)
+        },
+        test("with extendsTypes") {
+          val pc = EnumCase.ParameterizedCase(
+            "Ok",
+            List(Field("value", TypeRef.String)),
+            extendsTypes = List(TypeRef("Result"))
+          )
+          assert(pc.extendsTypes.length)(equalTo(1)) &&
+          assert(pc.extendsTypes(0).name)(equalTo("Result"))
+        }
+      ),
+      suite("ObjectMember.ExtensionBlock")(
+        test("basic construction") {
+          val eb = ObjectMember.ExtensionBlock(
+            on = MethodParam("s", TypeRef.String),
+            methods = List(
+              Method("greet", returnType = TypeRef.String, body = Some("s\"Hello, $s\""))
+            )
+          )
+          assert(eb.on.name)(equalTo("s")) &&
+          assert(eb.on.typeRef.name)(equalTo("String")) &&
+          assert(eb.methods.length)(equalTo(1)) &&
+          assert(eb.methods(0).name)(equalTo("greet"))
+        },
+        test("with multiple methods") {
+          val eb = ObjectMember.ExtensionBlock(
+            on = MethodParam("n", TypeRef.Int),
+            methods = List(
+              Method("double", returnType = TypeRef.Int, body = Some("n * 2")),
+              Method("triple", returnType = TypeRef.Int, body = Some("n * 3"))
+            )
+          )
+          assert(eb.methods.length)(equalTo(2))
+        }
+      ),
+      suite("OpaqueType")(
+        test("basic construction") {
+          val ot = OpaqueType("Token", underlyingType = TypeRef.String)
+          assert(ot.name)(equalTo("Token")) &&
+          assert(ot.underlyingType.name)(equalTo("String")) &&
+          assert(ot.upperBound)(isNone) &&
+          assert(ot.annotations)(isEmpty) &&
+          assert(ot.companion)(isNone) &&
+          assert(ot.doc)(isNone)
+        },
+        test("with upper bound") {
+          val ot = OpaqueType(
+            "Token",
+            underlyingType = TypeRef.String,
+            upperBound = Some(TypeRef("Serializable"))
+          )
+          assert(ot.upperBound)(isSome(equalTo(TypeRef("Serializable"))))
+        },
+        test("with companion") {
+          val ot = OpaqueType(
+            "Token",
+            underlyingType = TypeRef.String,
+            companion = Some(CompanionObject())
+          )
+          assert(ot.companion)(isSome)
+        },
+        test("is a TypeDefinition") {
+          val ot: TypeDefinition = OpaqueType("Token", underlyingType = TypeRef.String)
+          assert(ot.name)(equalTo("Token"))
+        }
+      ),
+      suite("Trait")(
+        test("basic construction") {
+          val t = Trait("Marker")
+          assert(t.name)(equalTo("Marker")) &&
+          assert(t.typeParams)(isEmpty) &&
+          assert(t.extendsTypes)(isEmpty) &&
+          assert(t.members)(isEmpty) &&
+          assert(t.annotations)(isEmpty) &&
+          assert(t.companion)(isNone) &&
+          assert(t.doc)(isNone) &&
+          assert(t.selfType)(isNone)
+        },
+        test("is a TypeDefinition") {
+          val t: TypeDefinition = Trait("Marker")
+          assert(t.name)(equalTo("Marker"))
         }
       )
     )

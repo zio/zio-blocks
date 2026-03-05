@@ -209,6 +209,123 @@ object ScalaEmitterCaseClassSpec extends ZIOSpecDefault {
                |    value: Int,
                |  )""".stripMargin
         )
+      },
+      test("value class with isValueClass flag (flag not yet emitted)") {
+        val cc = CaseClass(
+          "Meter",
+          fields = List(Field("value", TypeRef.Double)),
+          isValueClass = true
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("case class Meter("),
+          result.contains("value: Double")
+        )
+      },
+      test("value class with explicit AnyVal extends") {
+        val cc = CaseClass(
+          "Meter",
+          fields = List(Field("value", TypeRef.Double)),
+          isValueClass = true,
+          extendsTypes = List(TypeRef("AnyVal"))
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("case class Meter("),
+          result.contains("value: Double"),
+          result.contains("extends AnyVal")
+        )
+      },
+      test("value class with AnyVal and other extends") {
+        val cc = CaseClass(
+          "UserId",
+          fields = List(Field("value", TypeRef.Long)),
+          isValueClass = true,
+          extendsTypes = List(TypeRef("AnyVal"), TypeRef("Serializable"))
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("extends AnyVal with Serializable")
+        )
+      },
+      test("case class with multiple type params and variance") {
+        val cc = CaseClass(
+          "Pair",
+          fields = List(
+            Field("first", TypeRef("A")),
+            Field("second", TypeRef("B"))
+          ),
+          typeParams = List(
+            TypeParam("A", Variance.Covariant),
+            TypeParam("B", Variance.Contravariant)
+          )
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("case class Pair[+A, -B]("),
+          result.contains("first: A"),
+          result.contains("second: B")
+        )
+      },
+      test("case class with both extends and derives") {
+        val cc = CaseClass(
+          "User",
+          fields = List(Field("name", TypeRef.String)),
+          extendsTypes = List(TypeRef("Entity")),
+          derives = List("Schema", "Codec")
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("extends Entity"),
+          result.contains("derives Schema, Codec")
+        )
+      },
+      test("case class with extends and derives in Scala 2 omits derives") {
+        val cc = CaseClass(
+          "User",
+          fields = List(Field("name", TypeRef.String)),
+          extendsTypes = List(TypeRef("Entity")),
+          derives = List("Schema")
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.scala2)
+        assertTrue(
+          result.contains("extends Entity"),
+          !result.contains("derives")
+        )
+      },
+      test("case class with generic field types") {
+        val cc = CaseClass(
+          "Container",
+          fields = List(
+            Field("items", TypeRef.list(TypeRef.String)),
+            Field("metadata", TypeRef.map(TypeRef.String, TypeRef.Int)),
+            Field("optional", TypeRef.optional(TypeRef.Boolean))
+          )
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("items: List[String]"),
+          result.contains("metadata: Map[String, Int]"),
+          result.contains("optional: Option[Boolean]")
+        )
+      },
+      test("case class with doc and multiple annotations") {
+        val cc = CaseClass(
+          "Endpoint",
+          fields = List(Field("path", TypeRef.String)),
+          annotations = List(
+            Annotation("deprecated", List(("message", "\"use v2\""))),
+            Annotation("since", List(("version", "\"1.0\"")))
+          ),
+          doc = Some("An HTTP endpoint")
+        )
+        val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
+        assertTrue(
+          result.contains("/** An HTTP endpoint */"),
+          result.contains("@deprecated"),
+          result.contains("@since"),
+          result.contains("case class Endpoint")
+        )
       }
     )
 }

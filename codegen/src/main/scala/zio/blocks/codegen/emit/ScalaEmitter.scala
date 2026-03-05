@@ -217,6 +217,7 @@ object ScalaEmitter {
       case t: Trait          => emitTrait(t, config, indent)
       case ac: AbstractClass => emitAbstractClass(ac, config, indent)
       case ot: OpaqueType    => emitOpaqueType(ot, config, indent)
+      case ta: TypeAlias     => emitTypeAlias(ta, config, indent)
     }
 
   /**
@@ -308,6 +309,9 @@ object ScalaEmitter {
       sb.append("[").append(st.typeParams.map(emitTypeParam).mkString(", ")).append("]")
     if (st.extendsTypes.nonEmpty)
       sb.append(" extends ").append(st.extendsTypes.map(emitTypeRef).mkString(" with "))
+    st.selfType.foreach { selfTp =>
+      sb.append(" { self: ").append(emitTypeRef(selfTp)).append(" => }")
+    }
     if (st.cases.nonEmpty || st.companion.isDefined) {
       val companionMembers                = st.companion.map(_.members).getOrElse(Nil)
       val caseMembers: List[ObjectMember] = st.cases.map {
@@ -376,7 +380,7 @@ object ScalaEmitter {
       en.cases.foreach {
         case EnumCase.SimpleCase(n) =>
           sb.append(inner).append("case ").append(n).append("\n")
-        case EnumCase.ParameterizedCase(n, fields) =>
+        case EnumCase.ParameterizedCase(n, fields, _) =>
           sb.append(inner).append("case ").append(n).append("(")
           sb.append(fields.map(f => emitFieldInline(f, config)).mkString(", "))
           sb.append(")\n")
@@ -391,7 +395,7 @@ object ScalaEmitter {
     val cases: List[SealedTraitCase] = en.cases.map {
       case EnumCase.SimpleCase(n) =>
         SealedTraitCase.CaseObjectCase(n)
-      case EnumCase.ParameterizedCase(n, fields) =>
+      case EnumCase.ParameterizedCase(n, fields, _) =>
         SealedTraitCase.CaseClassCase(CaseClass(n, fields))
     }
     val st = SealedTrait(
@@ -511,8 +515,12 @@ object ScalaEmitter {
     if (t.extendsTypes.nonEmpty)
       sb.append(" extends ").append(t.extendsTypes.map(emitTypeRef).mkString(" with "))
 
-    if (t.members.nonEmpty) {
+    val hasSelfType = t.selfType.isDefined
+    if (t.members.nonEmpty || hasSelfType) {
       sb.append(" {\n")
+      t.selfType.foreach { st =>
+        sb.append(ind(indent + 1, config)).append("self: ").append(emitTypeRef(st)).append(" =>\n")
+      }
       t.members.foreach { member =>
         sb.append(emitObjectMember(member, config, indent + 1))
       }
@@ -681,6 +689,22 @@ object ScalaEmitter {
    * @return
    *   The emitted Scala method code
    */
+  def emitTypeAlias(ta: TypeAlias, config: EmitterConfig, indent: Int = 0): String = {
+    val sb     = new StringBuilder
+    val prefix = ind(indent, config)
+    ta.doc.foreach { d =>
+      sb.append(prefix).append("/** ").append(d).append(" */\n")
+    }
+    ta.annotations.foreach { a =>
+      sb.append(prefix).append(emitAnnotation(a)).append("\n")
+    }
+    sb.append(prefix).append("type ").append(escapeName(ta.name))
+    if (ta.typeParams.nonEmpty)
+      sb.append("[").append(ta.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+    sb.append(" = ").append(emitTypeRef(ta.typeRef))
+    sb.toString
+  }
+
   def emitMethod(method: Method, config: EmitterConfig, indent: Int = 0): String = {
     val sb     = new StringBuilder
     val prefix = ind(indent, config)
@@ -705,7 +729,14 @@ object ScalaEmitter {
 
     method.params.foreach { paramList =>
       sb.append("(")
-      sb.append(paramList.map(emitMethodParam).mkString(", "))
+      paramList.modifier match {
+        case ParamListModifier.Implicit =>
+          sb.append(if (config.scala3Syntax) "using " else "implicit ")
+        case ParamListModifier.Using =>
+          sb.append(if (config.scala3Syntax) "using " else "implicit ")
+        case ParamListModifier.Normal => ()
+      }
+      sb.append(paramList.params.map(emitMethodParam).mkString(", "))
       sb.append(")")
     }
 
@@ -749,15 +780,40 @@ object ScalaEmitter {
         s"${prefix}type ${escapeName(name)} = ${emitTypeRef(typeRef)}\n"
       case ObjectMember.NestedType(typeDef) =>
         emitTypeDefinition(typeDef, config, indent) + "\n"
+      case ObjectMember.ExtensionBlock(on, methods) =>
+        val sb    = new StringBuilder()
+        val inner = ind(indent + 1, config)
+        if (config.scala3Syntax) {
+          if (methods.size == 1) {
+            sb.append(s"${prefix}extension (${emitMethodParam(on)})\n")
+            sb.append(inner).append(emitMethod(methods.head, config).trim).append("\n")
+          } else {
+            sb.append(s"${prefix}extension (${emitMethodParam(on)}) {\n")
+            methods.foreach { m =>
+              sb.append(inner).append(emitMethod(m, config).trim).append("\n")
+            }
+            sb.append(s"${prefix}}\n")
+          }
+        } else {
+          val typeName  = emitTypeRef(on.typeRef)
+          val className = s"${typeName}Ops"
+          sb.append(s"${prefix}implicit class $className(val ${emitMethodParam(on)}) extends AnyVal {\n")
+          methods.foreach { m =>
+            sb.append(inner).append(emitMethod(m, config).trim).append("\n")
+          }
+          sb.append(s"${prefix}}\n")
+        }
+        sb.toString
     }
   }
 
   private def emitMethodParam(param: MethodParam): String = {
-    val defaultStr = param.defaultValue.fold("")(d => s" = $d")
-    val typeStr = emitTypeRef(param.typeRef)
-    val typeWithMods = if (param.isByName) s"=> $typeStr"
-                       else if (param.isVarargs) s"$typeStr*"
-                       else typeStr
+    val defaultStr   = param.defaultValue.fold("")(d => s" = $d")
+    val typeStr      = emitTypeRef(param.typeRef)
+    val typeWithMods =
+      if (param.isByName) s"=> $typeStr"
+      else if (param.isVarargs) s"$typeStr*"
+      else typeStr
     s"${escapeName(param.name)}: $typeWithMods$defaultStr"
   }
 

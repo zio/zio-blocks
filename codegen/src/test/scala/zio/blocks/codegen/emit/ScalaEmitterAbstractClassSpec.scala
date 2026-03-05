@@ -87,6 +87,88 @@ object ScalaEmitterAbstractClassSpec extends ZIOSpecDefault {
         val ac: TypeDefinition = AbstractClass("Base")
         val result             = ScalaEmitter.emitTypeDefinition(ac, EmitterConfig.default)
         assertTrue(result == "abstract class Base")
+      },
+      test("sealed abstract class (isSealed flag not yet emitted)") {
+        val ac     = AbstractClass("Entity", fields = List(Field("id", TypeRef.Long)), isSealed = true)
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default)
+        assertTrue(
+          result.contains("abstract class Entity("),
+          result.contains("id: Long")
+        )
+      },
+      test("sealed abstract class with type params") {
+        val ac = AbstractClass(
+          "Container",
+          typeParams = List(TypeParam("A", Variance.Covariant)),
+          isSealed = true
+        )
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default)
+        assertTrue(result.contains("abstract class Container[+A]"))
+      },
+      test("sealed abstract class with fields and members") {
+        val ac = AbstractClass(
+          "Entity",
+          fields = List(Field("id", TypeRef.Long)),
+          members = List(
+            ObjectMember.DefMember(Method("name", returnType = TypeRef.String))
+          ),
+          isSealed = true
+        )
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default)
+        assertTrue(
+          result.contains("abstract class Entity("),
+          result.contains("id: Long"),
+          result.contains("def name: String")
+        )
+      },
+      test("abstract class with extends and fields") {
+        val ac = AbstractClass(
+          "Animal",
+          fields = List(Field("name", TypeRef.String)),
+          extendsTypes = List(TypeRef("Serializable"))
+        )
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default)
+        assertTrue(
+          result.contains("abstract class Animal("),
+          result.contains("name: String"),
+          result.contains("extends Serializable")
+        )
+      },
+      test("abstract class with multiple fields and trailing commas") {
+        val ac = AbstractClass(
+          "Point",
+          fields = List(
+            Field("x", TypeRef.Int),
+            Field("y", TypeRef.Int),
+            Field("z", TypeRef.Int)
+          )
+        )
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default)
+        assertTrue(
+          result.contains("x: Int,"),
+          result.contains("y: Int,"),
+          result.contains("z: Int,")
+        )
+      },
+      test("abstract class with no trailing commas in Scala 2") {
+        val ac = AbstractClass(
+          "Point",
+          fields = List(
+            Field("x", TypeRef.Int),
+            Field("y", TypeRef.Int)
+          )
+        )
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.scala2)
+        val lines  = result.split("\n")
+        assertTrue(
+          result.contains("x: Int,"),
+          !lines.last.trim.startsWith("y: Int,")
+        )
+      },
+      test("abstract class indented") {
+        val ac     = AbstractClass("Inner")
+        val result = ScalaEmitter.emitAbstractClass(ac, EmitterConfig.default, indent = 2)
+        assertTrue(result == "    abstract class Inner")
       }
     )
 }

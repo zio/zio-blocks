@@ -118,6 +118,66 @@ object ScalaEmitterTraitSpec extends ZIOSpecDefault {
                |  def run: Unit
                |}""".stripMargin
         )
+      },
+      test("trait with multiple type params and members") {
+        val t = Trait(
+          "Applicative",
+          typeParams = List(TypeParam("F")),
+          members = List(
+            ObjectMember.DefMember(
+              Method(
+                "pure",
+                typeParams = List(TypeParam("A")),
+                params = List(ParamList(List(MethodParam("a", TypeRef("A"))))),
+                returnType = TypeRef("F", List(TypeRef("A")))
+              )
+            )
+          )
+        )
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+        assertTrue(
+          result.contains("trait Applicative[F]"),
+          result.contains("def pure[A](a: A): F[A]")
+        )
+      },
+      test("trait with multiple extends and type params") {
+        val t = Trait(
+          "Service",
+          typeParams = List(TypeParam("F", Variance.Covariant), TypeParam("A")),
+          extendsTypes = List(TypeRef("HasId"), TypeRef("HasName"), TypeRef("Serializable"))
+        )
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+        assertTrue(result == "trait Service[+F, A] extends HasId with HasName with Serializable")
+      },
+      test("trait emitted with indent") {
+        val t      = Trait("Inner")
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default, indent = 1)
+        assertTrue(result == "  trait Inner")
+      },
+      test("trait with companion and members") {
+        val t = Trait(
+          "Codec",
+          typeParams = List(TypeParam("A")),
+          members = List(
+            ObjectMember.DefMember(Method("encode", returnType = TypeRef.String)),
+            ObjectMember.DefMember(Method("decode", returnType = TypeRef("A")))
+          ),
+          companion = Some(
+            CompanionObject(
+              members = List(
+                ObjectMember.ValMember("version", TypeRef.Int, "1")
+              )
+            )
+          )
+        )
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+        assertTrue(
+          result.contains("trait Codec[A] {"),
+          result.contains("def encode: String"),
+          result.contains("def decode: A"),
+          result.contains("object Codec {"),
+          result.contains("val version: Int = 1")
+        )
       }
     )
 }

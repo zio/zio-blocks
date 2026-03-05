@@ -122,6 +122,57 @@ object TypeRefSpec extends ZIOSpecDefault {
           assert(mapOfLists.name)(equalTo("Map")) &&
           assert(mapOfLists.typeArgs(1).name)(equalTo("List"))
         }
+      ),
+      suite("union and intersection")(
+        test("TypeRef.union creates | type") {
+          val tr = TypeRef.union(TypeRef.String, TypeRef.Int)
+          assert(tr.name)(equalTo("|")) &&
+          assert(tr.typeArgs.length)(equalTo(2)) &&
+          assert(tr.typeArgs(0).name)(equalTo("String")) &&
+          assert(tr.typeArgs(1).name)(equalTo("Int"))
+        },
+        test("TypeRef.intersection creates & type") {
+          val tr = TypeRef.intersection(TypeRef("HasName"), TypeRef("HasId"))
+          assert(tr.name)(equalTo("&")) &&
+          assert(tr.typeArgs.length)(equalTo(2))
+        },
+        test("TypeRef.union with three types") {
+          val tr = TypeRef.union(TypeRef.String, TypeRef.Int, TypeRef.Boolean)
+          assert(tr.typeArgs.length)(equalTo(3))
+        }
+      ),
+      suite("tuple, function, wildcard")(
+        test("TypeRef.tuple creates TupleN") {
+          val tr = TypeRef.tuple(TypeRef.Int, TypeRef.String)
+          assert(tr.name)(equalTo("Tuple2")) &&
+          assert(tr.typeArgs.length)(equalTo(2))
+        },
+        test("TypeRef.tuple with three types") {
+          val tr = TypeRef.tuple(TypeRef.Int, TypeRef.String, TypeRef.Boolean)
+          assert(tr.name)(equalTo("Tuple3")) &&
+          assert(tr.typeArgs.length)(equalTo(3))
+        },
+        test("TypeRef.function creates FunctionN") {
+          val tr = TypeRef.function(List(TypeRef.Int), TypeRef.String)
+          assert(tr.name)(equalTo("Function1")) &&
+          assert(tr.typeArgs.length)(equalTo(2)) &&
+          assert(tr.typeArgs(0).name)(equalTo("Int")) &&
+          assert(tr.typeArgs(1).name)(equalTo("String"))
+        },
+        test("TypeRef.function with two params") {
+          val tr = TypeRef.function(List(TypeRef.Int, TypeRef.String), TypeRef.Boolean)
+          assert(tr.name)(equalTo("Function2")) &&
+          assert(tr.typeArgs.length)(equalTo(3))
+        },
+        test("TypeRef.function with zero params") {
+          val tr = TypeRef.function(Nil, TypeRef.Unit)
+          assert(tr.name)(equalTo("Function0")) &&
+          assert(tr.typeArgs.length)(equalTo(1))
+        },
+        test("TypeRef.Wildcard") {
+          assert(TypeRef.Wildcard.name)(equalTo("_")) &&
+          assert(TypeRef.Wildcard.typeArgs)(isEmpty)
+        }
       )
     )
 }

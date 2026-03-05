@@ -150,6 +150,120 @@ object ScalaEmitterEnumSpec extends ZIOSpecDefault {
                |  case Created(@required name: String)
                |}""".stripMargin
         )
+      },
+      test("enum with type params (type params not yet emitted in enum header)") {
+        val en = Enum(
+          "Option",
+          typeParams = List(TypeParam("A", Variance.Covariant)),
+          cases = List(
+            EnumCase.ParameterizedCase("Some", List(Field("value", TypeRef("A")))),
+            EnumCase.SimpleCase("None")
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result.contains("enum Option"),
+          result.contains("case Some(value: A)"),
+          result.contains("case None")
+        )
+      },
+      test("enum with multiple type params") {
+        val en = Enum(
+          "Either",
+          typeParams = List(
+            TypeParam("E", Variance.Covariant),
+            TypeParam("A", Variance.Covariant)
+          ),
+          cases = List(
+            EnumCase.ParameterizedCase("Left", List(Field("value", TypeRef("E")))),
+            EnumCase.ParameterizedCase("Right", List(Field("value", TypeRef("A"))))
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result.contains("enum Either"),
+          result.contains("case Left(value: E)"),
+          result.contains("case Right(value: A)")
+        )
+      },
+      test("enum with type params and extends") {
+        val en = Enum(
+          "Result",
+          typeParams = List(TypeParam("E"), TypeParam("A")),
+          cases = List(EnumCase.SimpleCase("Ok"), EnumCase.SimpleCase("Err")),
+          extendsTypes = List(TypeRef("Serializable"))
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result.contains("enum Result"),
+          result.contains("extends Serializable")
+        )
+      },
+      test("enum with derives (Scala 3)") {
+        val en = Enum(
+          "Color",
+          cases = List(
+            EnumCase.SimpleCase("Red"),
+            EnumCase.SimpleCase("Green")
+          ),
+          derives = List("Schema", "JsonCodec")
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(result.contains("enum Color"))
+      },
+      test("enum with companion object") {
+        val en = Enum(
+          "Priority",
+          cases = List(EnumCase.SimpleCase("Low"), EnumCase.SimpleCase("High")),
+          companion = Some(
+            CompanionObject(
+              List(ObjectMember.ValMember("default", TypeRef("Priority"), "Priority.Low"))
+            )
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(result.contains("enum Priority"))
+      },
+      test("enum with type params in Scala 2 mode becomes sealed trait") {
+        val en = Enum(
+          "Result",
+          typeParams = List(TypeParam("A")),
+          cases = List(
+            EnumCase.ParameterizedCase("Ok", List(Field("value", TypeRef("A")))),
+            EnumCase.SimpleCase("Err")
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.scala2)
+        assertTrue(
+          result.contains("sealed trait Result"),
+          !result.contains("enum")
+        )
+      },
+      test("parameterized case with extendsTypes is emitted (extendsTypes ignored in Scala 3 enum case)") {
+        val en = Enum(
+          "Tree",
+          cases = List(
+            EnumCase.ParameterizedCase(
+              "Leaf",
+              List(Field("value", TypeRef.Int)),
+              extendsTypes = List(TypeRef("Tree"))
+            ),
+            EnumCase.SimpleCase("Empty")
+          )
+        )
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result.contains("case Leaf(value: Int)"),
+          result.contains("case Empty")
+        )
+      },
+      test("empty enum") {
+        val en     = Enum("Empty", cases = Nil)
+        val result = ScalaEmitter.emitEnum(en, EmitterConfig.default)
+        assertTrue(
+          result.contains("enum Empty"),
+          result.contains("{")
+        )
       }
     )
 }

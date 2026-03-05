@@ -56,6 +56,54 @@ object TypeParamSpec extends ZIOSpecDefault {
           val tp2 = TypeParam("A", Variance.Contravariant)
           assert(tp1)(not(equalTo(tp2)))
         }
+      ),
+      suite("HKT type params")(
+        test("creates type param with nested type params (F[_])") {
+          val tp = TypeParam("F", typeParams = List(TypeParam("_")))
+          assert(tp.name)(equalTo("F")) &&
+          assert(tp.typeParams.length)(equalTo(1)) &&
+          assert(tp.typeParams(0).name)(equalTo("_"))
+        },
+        test("creates type param with nested HKT (F[_[_]])") {
+          val tp = TypeParam("F", typeParams = List(TypeParam("G", typeParams = List(TypeParam("_")))))
+          assert(tp.typeParams.length)(equalTo(1)) &&
+          assert(tp.typeParams(0).typeParams.length)(equalTo(1))
+        },
+        test("covariant HKT") {
+          val tp = TypeParam("F", Variance.Covariant, typeParams = List(TypeParam("_")))
+          assert(tp.variance)(equalTo(Variance.Covariant)) &&
+          assert(tp.typeParams.length)(equalTo(1))
+        },
+        test("typeParams defaults to empty") {
+          val tp = TypeParam("A")
+          assert(tp.typeParams)(isEmpty)
+        }
+      ),
+      suite("context bounds")(
+        test("creates type param with context bound") {
+          val tp = TypeParam("A", contextBounds = List(TypeRef("Ordering")))
+          assert(tp.contextBounds.length)(equalTo(1)) &&
+          assert(tp.contextBounds(0).name)(equalTo("Ordering"))
+        },
+        test("creates type param with multiple context bounds") {
+          val tp = TypeParam("A", contextBounds = List(TypeRef("Ordering"), TypeRef("Show")))
+          assert(tp.contextBounds.length)(equalTo(2))
+        },
+        test("contextBounds defaults to empty") {
+          val tp = TypeParam("A")
+          assert(tp.contextBounds)(isEmpty)
+        },
+        test("context bound with variance and upper bound") {
+          val tp = TypeParam(
+            "A",
+            Variance.Covariant,
+            upperBound = Some(TypeRef("AnyRef")),
+            contextBounds = List(TypeRef("Schema"))
+          )
+          assert(tp.variance)(equalTo(Variance.Covariant)) &&
+          assert(tp.upperBound)(isSome) &&
+          assert(tp.contextBounds.length)(equalTo(1))
+        }
       )
     )
 }

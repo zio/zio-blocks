@@ -202,6 +202,71 @@ object ScalaEmitterSealedTraitSpec extends ZIOSpecDefault {
         val st     = SealedTrait("Marker", selfType = Some(TypeRef("HasId")))
         val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
         assertTrue(result == "sealed trait Marker { self: HasId => }")
+      },
+      test("sealed trait with derives (field is on IR but not yet emitted)") {
+        val st = SealedTrait(
+          "Shape",
+          derives = List("Schema"),
+          cases = List(SealedTraitCase.CaseObjectCase("Circle"))
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(
+          result.contains("sealed trait Shape"),
+          result.contains("case object Circle extends Shape")
+        )
+      },
+      test("sealed trait with multiple type params and cases") {
+        val st = SealedTrait(
+          "Validated",
+          typeParams = List(TypeParam("E", Variance.Covariant), TypeParam("A", Variance.Covariant)),
+          cases = List(
+            SealedTraitCase.CaseClassCase(
+              CaseClass("Valid", List(Field("value", TypeRef("A"))))
+            ),
+            SealedTraitCase.CaseClassCase(
+              CaseClass("Invalid", List(Field("error", TypeRef("E"))))
+            )
+          )
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(
+          result.contains("sealed trait Validated[+E, +A]"),
+          result.contains("extends Validated[E, A]")
+        )
+      },
+      test("sealed trait with case class that has generic fields") {
+        val st = SealedTrait(
+          "Response",
+          cases = List(
+            SealedTraitCase.CaseClassCase(
+              CaseClass(
+                "Success",
+                List(
+                  Field("data", TypeRef.list(TypeRef.String)),
+                  Field("metadata", TypeRef.map(TypeRef.String, TypeRef.Int))
+                )
+              )
+            ),
+            SealedTraitCase.CaseObjectCase("NotFound")
+          )
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(
+          result.contains("data: List[String]"),
+          result.contains("metadata: Map[String, Int]"),
+          result.contains("case object NotFound extends Response")
+        )
+      },
+      test("sealed trait with indentation") {
+        val st = SealedTrait(
+          "Inner",
+          cases = List(SealedTraitCase.CaseObjectCase("A"))
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default, indent = 1)
+        assertTrue(
+          result.contains("  sealed trait Inner"),
+          result.contains("  object Inner")
+        )
       }
     )
 }

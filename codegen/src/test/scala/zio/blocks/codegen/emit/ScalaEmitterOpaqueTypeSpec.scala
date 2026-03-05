@@ -66,6 +66,37 @@ object ScalaEmitterOpaqueTypeSpec extends ZIOSpecDefault {
         val ot: TypeDefinition = OpaqueType("UserId", TypeRef.String)
         val result             = ScalaEmitter.emitTypeDefinition(ot, EmitterConfig.default)
         assertTrue(result == "opaque type UserId = String")
+      },
+      test("opaque type with annotations") {
+        val ot = OpaqueType(
+          "Token",
+          underlyingType = TypeRef.String,
+          annotations = List(Annotation("newtype"))
+        )
+        val result = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.default)
+        assertTrue(
+          result.contains("@newtype"),
+          result.contains("opaque type Token = String")
+        )
+      },
+      test("opaque type with complex underlying type") {
+        val ot     = OpaqueType("Ids", underlyingType = TypeRef.list(TypeRef.Long))
+        val result = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.default)
+        assertTrue(result == "opaque type Ids = List[Long]")
+      },
+      test("opaque type with upper bound in Scala 2 omits upper bound") {
+        val ot = OpaqueType(
+          "Age",
+          underlyingType = TypeRef.Int,
+          upperBound = Some(TypeRef.Int)
+        )
+        val result = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.scala2)
+        assertTrue(result == "type Age <: Int = Int")
+      },
+      test("opaque type indented") {
+        val ot     = OpaqueType("Token", underlyingType = TypeRef.String)
+        val result = ScalaEmitter.emitOpaqueType(ot, EmitterConfig.default, indent = 1)
+        assertTrue(result == "  opaque type Token = String")
       }
     )
 }

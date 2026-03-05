@@ -330,6 +330,99 @@ object MethodSpec extends ZIOSpecDefault {
           )
           assert(method.params.length)(equalTo(5))
         }
+      ),
+      suite("MethodParam - by-name and varargs")(
+        test("creates by-name parameter") {
+          val param = MethodParam("x", TypeRef.Int, isByName = true)
+          assert(param.isByName)(isTrue) &&
+          assert(param.isVarargs)(isFalse)
+        },
+        test("creates varargs parameter") {
+          val param = MethodParam("xs", TypeRef.String, isVarargs = true)
+          assert(param.isVarargs)(isTrue) &&
+          assert(param.isByName)(isFalse)
+        },
+        test("isByName defaults to false") {
+          val param = MethodParam("x", TypeRef.Int)
+          assert(param.isByName)(isFalse)
+        },
+        test("isVarargs defaults to false") {
+          val param = MethodParam("x", TypeRef.Int)
+          assert(param.isVarargs)(isFalse)
+        }
+      ),
+      suite("Method - implicit")(
+        test("creates implicit method") {
+          val method = Method("codec", returnType = TypeRef("Codec"), isImplicit = true)
+          assert(method.isImplicit)(isTrue)
+        },
+        test("isImplicit defaults to false") {
+          val method = Method("codec", returnType = TypeRef("Codec"))
+          assert(method.isImplicit)(isFalse)
+        }
+      ),
+      suite("ParamList")(
+        test("creates normal param list") {
+          val pl = ParamList(List(MethodParam("x", TypeRef.Int)))
+          assert(pl.params.length)(equalTo(1)) &&
+          assert(pl.modifier)(equalTo(ParamListModifier.Normal))
+        },
+        test("creates implicit param list") {
+          val pl = ParamList(List(MethodParam("ev", TypeRef("Ordering"))), ParamListModifier.Implicit)
+          assert(pl.modifier)(equalTo(ParamListModifier.Implicit))
+        },
+        test("creates using param list") {
+          val pl = ParamList(List(MethodParam("ctx", TypeRef("Context"))), ParamListModifier.Using)
+          assert(pl.modifier)(equalTo(ParamListModifier.Using))
+        },
+        test("modifier defaults to Normal") {
+          val pl = ParamList(List(MethodParam("x", TypeRef.Int)))
+          assert(pl.modifier)(equalTo(ParamListModifier.Normal))
+        },
+        test("empty param list") {
+          val pl = ParamList(Nil)
+          assert(pl.params)(isEmpty)
+        },
+        test("equality works correctly") {
+          val pl1 = ParamList(List(MethodParam("x", TypeRef.Int)), ParamListModifier.Using)
+          val pl2 = ParamList(List(MethodParam("x", TypeRef.Int)), ParamListModifier.Using)
+          assert(pl1)(equalTo(pl2))
+        },
+        test("inequality when modifier differs") {
+          val pl1 = ParamList(List(MethodParam("x", TypeRef.Int)), ParamListModifier.Using)
+          val pl2 = ParamList(List(MethodParam("x", TypeRef.Int)), ParamListModifier.Implicit)
+          assert(pl1)(not(equalTo(pl2)))
+        }
+      ),
+      suite("Method with ParamList modifiers")(
+        test("method with using param list") {
+          val method = Method(
+            "run",
+            params = List(
+              ParamList(List(MethodParam("x", TypeRef.Int))),
+              ParamList(List(MethodParam("ctx", TypeRef("Context"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          assert(method.params.length)(equalTo(2)) &&
+          assert(method.params(0).modifier)(equalTo(ParamListModifier.Normal)) &&
+          assert(method.params(1).modifier)(equalTo(ParamListModifier.Using))
+        },
+        test("method with all modifier types") {
+          val method = Method(
+            "complex",
+            params = List(
+              ParamList(List(MethodParam("x", TypeRef.Int))),
+              ParamList(List(MethodParam("y", TypeRef.String)), ParamListModifier.Using),
+              ParamList(List(MethodParam("z", TypeRef.Boolean)), ParamListModifier.Implicit)
+            ),
+            returnType = TypeRef.Unit
+          )
+          assert(method.params.length)(equalTo(3)) &&
+          assert(method.params(0).modifier)(equalTo(ParamListModifier.Normal)) &&
+          assert(method.params(1).modifier)(equalTo(ParamListModifier.Using)) &&
+          assert(method.params(2).modifier)(equalTo(ParamListModifier.Implicit))
+        }
       )
     )
 }

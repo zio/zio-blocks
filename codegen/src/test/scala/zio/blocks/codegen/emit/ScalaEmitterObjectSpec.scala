@@ -356,7 +356,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
             returnType = TypeRef.String
           )
           val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
-          assertTrue(result == "def show(value: A)(implicit ev: Show[A]): String")
+          assertTrue(result == "def show(value: A)(using ev: Show[A]): String")
         }
       ),
       suite("emitObjectMember - ExtensionBlock")(
@@ -395,6 +395,282 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
           assertTrue(result.contains("implicit class StringOps"))
           assertTrue(result.contains("extends AnyVal"))
           assertTrue(result.contains("def greet: String"))
+        }
+      ),
+      suite("emitMethodParam modifiers")(
+        test("by-name parameter") {
+          val method = Method(
+            "foo",
+            params = List(ParamList(List(MethodParam("x", TypeRef.Int, isByName = true)))),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def foo(x: => Int): Unit")
+        },
+        test("varargs parameter") {
+          val method = Method(
+            "bar",
+            params = List(ParamList(List(MethodParam("xs", TypeRef.String, isVarargs = true)))),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def bar(xs: String*): Unit")
+        },
+        test("by-name with default value") {
+          val method = Method(
+            "baz",
+            params = List(ParamList(List(MethodParam("x", TypeRef.Int, defaultValue = Some("0"), isByName = true)))),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def baz(x: => Int = 0): Unit")
+        },
+        test("mixed regular, by-name, and varargs params") {
+          val method = Method(
+            "mixed",
+            params = List(
+              ParamList(
+                List(
+                  MethodParam("a", TypeRef.Int),
+                  MethodParam("b", TypeRef.String, isByName = true),
+                  MethodParam("cs", TypeRef.Double, isVarargs = true)
+                )
+              )
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def mixed(a: Int, b: => String, cs: Double*): Unit")
+        }
+      ),
+      suite("emitMethod implicit/given")(
+        test("implicit method in Scala 3 emits given") {
+          val method = Method(
+            "codec",
+            typeParams = List(TypeParam("A")),
+            returnType = TypeRef("Codec", List(TypeRef("A"))),
+            isImplicit = true
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "given def codec[A]: Codec[A]")
+        },
+        test("implicit method in Scala 2 emits implicit") {
+          val method = Method(
+            "codec",
+            typeParams = List(TypeParam("A")),
+            returnType = TypeRef("Codec", List(TypeRef("A"))),
+            isImplicit = true
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.scala2)
+          assertTrue(result == "implicit def codec[A]: Codec[A]")
+        },
+        test("non-implicit method has no modifier") {
+          val method = Method("foo", returnType = TypeRef.Unit)
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def foo: Unit")
+        }
+      ),
+      suite("emitObjectMember ValMember modifiers")(
+        test("lazy val") {
+          val obj = ObjectDef(
+            "Consts",
+            members = List(ObjectMember.ValMember("x", TypeRef.Int, "42", isLazy = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result ==
+              """|object Consts {
+                 |  lazy val x: Int = 42
+                 |}""".stripMargin
+          )
+        },
+        test("override val") {
+          val obj = ObjectDef(
+            "Impl",
+            members = List(ObjectMember.ValMember("name", TypeRef.String, "\"default\"", isOverride = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result ==
+              """|object Impl {
+                 |  override val name: String = "default"
+                 |}""".stripMargin
+          )
+        },
+        test("implicit val in Scala 3 emits given") {
+          val obj = ObjectDef(
+            "Implicits",
+            members = List(ObjectMember.ValMember("codec", TypeRef("Codec"), "derived", isImplicit = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result ==
+              """|object Implicits {
+                 |  given val codec: Codec = derived
+                 |}""".stripMargin
+          )
+        },
+        test("implicit val in Scala 2 emits implicit") {
+          val obj = ObjectDef(
+            "Implicits",
+            members = List(ObjectMember.ValMember("codec", TypeRef("Codec"), "derived", isImplicit = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.scala2)
+          assertTrue(
+            result ==
+              """|object Implicits {
+                 |  implicit val codec: Codec = derived
+                 |}""".stripMargin
+          )
+        },
+        test("override lazy val") {
+          val obj = ObjectDef(
+            "Impl",
+            members =
+              List(ObjectMember.ValMember("data", TypeRef.String, "compute()", isLazy = true, isOverride = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result ==
+              """|object Impl {
+                 |  override lazy val data: String = compute()
+                 |}""".stripMargin
+          )
+        },
+        test("implicit lazy val in Scala 2") {
+          val obj = ObjectDef(
+            "Implicits",
+            members =
+              List(ObjectMember.ValMember("codec", TypeRef("Codec"), "derived", isLazy = true, isImplicit = true))
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.scala2)
+          assertTrue(
+            result ==
+              """|object Implicits {
+                 |  implicit lazy val codec: Codec = derived
+                 |}""".stripMargin
+          )
+        }
+      ),
+      suite("emitMethod - ParamList additional tests")(
+        test("method with normal param list") {
+          val method = Method(
+            "add",
+            params = List(ParamList(List(MethodParam("x", TypeRef.Int), MethodParam("y", TypeRef.Int)))),
+            returnType = TypeRef.Int,
+            body = Some("x + y")
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def add(x: Int, y: Int): Int = x + y")
+        },
+        test("method with multiple param lists with mixed modifiers") {
+          val method = Method(
+            "compute",
+            params = List(
+              ParamList(List(MethodParam("x", TypeRef.Int))),
+              ParamList(List(MethodParam("y", TypeRef.String))),
+              ParamList(List(MethodParam("ctx", TypeRef("Context"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def compute(x: Int)(y: String)(using ctx: Context): Unit")
+        },
+        test("method with multiple using param lists (Scala 3)") {
+          val method = Method(
+            "run",
+            params = List(
+              ParamList(List(MethodParam("a", TypeRef.Int))),
+              ParamList(List(MethodParam("ec", TypeRef("ExecutionContext"))), ParamListModifier.Using),
+              ParamList(List(MethodParam("logger", TypeRef("Logger"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def run(a: Int)(using ec: ExecutionContext)(using logger: Logger): Unit")
+        },
+        test("method with using in Scala 2 mode emits implicit") {
+          val method = Method(
+            "run",
+            params = List(
+              ParamList(List(MethodParam("a", TypeRef.Int))),
+              ParamList(List(MethodParam("ec", TypeRef("ExecutionContext"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.scala2)
+          assertTrue(result == "def run(a: Int)(implicit ec: ExecutionContext): Unit")
+        },
+        test("empty param list") {
+          val method = Method(
+            "noop",
+            params = List(ParamList(Nil)),
+            returnType = TypeRef.Unit,
+            body = Some("()")
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def noop(): Unit = ()")
+        }
+      ),
+      suite("object with nested types")(
+        test("object with nested sealed trait") {
+          val obj = ObjectDef(
+            "Outer",
+            members = List(
+              ObjectMember.NestedType(
+                SealedTrait(
+                  "Color",
+                  cases = List(
+                    SealedTraitCase.CaseObjectCase("Red"),
+                    SealedTraitCase.CaseObjectCase("Blue")
+                  )
+                )
+              )
+            )
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result.contains("object Outer {"),
+            result.contains("sealed trait Color"),
+            result.contains("case object Red extends Color")
+          )
+        },
+        test("object with nested enum") {
+          val obj = ObjectDef(
+            "Outer",
+            members = List(
+              ObjectMember.NestedType(
+                Enum(
+                  "Priority",
+                  cases = List(
+                    EnumCase.SimpleCase("Low"),
+                    EnumCase.SimpleCase("High")
+                  )
+                )
+              )
+            )
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result.contains("object Outer {"),
+            result.contains("enum Priority {"),
+            result.contains("case Low, High")
+          )
+        },
+        test("object with nested abstract class") {
+          val obj = ObjectDef(
+            "Outer",
+            members = List(
+              ObjectMember.NestedType(
+                AbstractClass("Base", fields = List(Field("id", TypeRef.Long)))
+              )
+            )
+          )
+          val result = ScalaEmitter.emitObjectDef(obj, EmitterConfig.default)
+          assertTrue(
+            result.contains("object Outer {"),
+            result.contains("abstract class Base")
+          )
         }
       )
     )
