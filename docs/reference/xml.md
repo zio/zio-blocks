@@ -311,7 +311,7 @@ The `@xmlAttribute` annotation accepts an optional custom name:
 
 Support for XML namespaces with the `@xmlNamespace` annotation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -327,19 +327,17 @@ object Feed {
 
 val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog", "2024-01-01T00:00:00Z")
+```
+
+Encode the feed with a namespace prefix:
+
+```scala mdoc
 val xml = codec.encodeToString(feed)
-// <atom:Feed xmlns:atom="http://www.w3.org/2005/Atom">
-//   <title>My Blog</title>
-//   <updated>2024-01-01T00:00:00Z</updated>
-// </atom:Feed>
 ```
 
 Without a prefix (default namespace):
 
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
+```scala mdoc:silent:nest
 @xmlNamespace(uri = "http://www.w3.org/2005/Atom")
 case class Feed(title: String)
 
@@ -349,10 +347,12 @@ object Feed {
 
 val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog")
+```
+
+Encode the feed with default namespace:
+
+```scala mdoc
 val xml = codec.encodeToString(feed)
-// <Feed xmlns="http://www.w3.org/2005/Atom">
-//   <title>My Blog</title>
-// </Feed>
 ```
 
 ## XmlSelection
