@@ -29,6 +29,30 @@ object ScalaEmitter {
   }
 
   /**
+   * Emits a type parameter with optional variance and bounds.
+   *
+   * @param tp
+   *   The TypeParam to emit
+   * @return
+   *   The Scala type parameter string (e.g., "+A", "A <: Serializable")
+   */
+  def emitTypeParam(tp: TypeParam): String = {
+    val sb = new StringBuilder
+    tp.variance match {
+      case Variance.Covariant     => sb.append("+")
+      case Variance.Contravariant => sb.append("-")
+      case Variance.Invariant     => ()
+    }
+    sb.append(escapeName(tp.name))
+    tp.lowerBound.foreach(lb => sb.append(" >: ").append(emitTypeRef(lb)))
+    tp.upperBound.foreach(ub => sb.append(" <: ").append(emitTypeRef(ub)))
+    sb.toString
+  }
+
+  private def typeParamsToTypeRefs(tps: List[TypeParam]): List[TypeRef] =
+    tps.map(tp => TypeRef(tp.name))
+
+  /**
    * Emits a Scala annotation as a string.
    *
    * @param annotation
@@ -212,7 +236,7 @@ object ScalaEmitter {
 
     sb.append(prefix).append("case class ").append(escapeName(cc.name))
     if (cc.typeParams.nonEmpty)
-      sb.append("[").append(cc.typeParams.map(emitTypeRef).mkString(", ")).append("]")
+      sb.append("[").append(cc.typeParams.map(emitTypeParam).mkString(", ")).append("]")
     sb.append("(")
 
     if (cc.fields.isEmpty) {
@@ -272,7 +296,7 @@ object ScalaEmitter {
 
     sb.append(prefix).append("sealed trait ").append(escapeName(st.name))
     if (st.typeParams.nonEmpty)
-      sb.append("[").append(st.typeParams.map(emitTypeRef).mkString(", ")).append("]")
+      sb.append("[").append(st.typeParams.map(emitTypeParam).mkString(", ")).append("]")
     if (st.extendsTypes.nonEmpty)
       sb.append(" extends ").append(st.extendsTypes.map(emitTypeRef).mkString(" with "))
     if (st.cases.nonEmpty || st.companion.isDefined) {
@@ -281,11 +305,15 @@ object ScalaEmitter {
         case SealedTraitCase.CaseClassCase(cc) =>
           val extended =
             if (cc.extendsTypes.exists(_.name == st.name)) cc
-            else cc.copy(extendsTypes = cc.extendsTypes :+ TypeRef(st.name, st.typeParams))
+            else cc.copy(extendsTypes = cc.extendsTypes :+ TypeRef(st.name, typeParamsToTypeRefs(st.typeParams)))
           ObjectMember.NestedType(extended)
         case SealedTraitCase.CaseObjectCase(name) =>
           ObjectMember.NestedType(
-            ObjectDef(name, extendsTypes = List(TypeRef(st.name, st.typeParams)), isCaseObject = true)
+            ObjectDef(
+              name,
+              extendsTypes = List(TypeRef(st.name, typeParamsToTypeRefs(st.typeParams))),
+              isCaseObject = true
+            )
           )
       }
       val allMembers = caseMembers ++ companionMembers
@@ -509,7 +537,7 @@ object ScalaEmitter {
     sb.append("def ").append(escapeName(method.name))
 
     if (method.typeParams.nonEmpty)
-      sb.append("[").append(method.typeParams.map(emitTypeRef).mkString(", ")).append("]")
+      sb.append("[").append(method.typeParams.map(emitTypeParam).mkString(", ")).append("]")
 
     method.params.foreach { paramList =>
       sb.append("(")

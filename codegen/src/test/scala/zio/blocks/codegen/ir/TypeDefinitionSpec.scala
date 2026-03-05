@@ -36,7 +36,7 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           val cc = CaseClass(
             "Container",
             fields = List(Field("value", TypeRef("A"))),
-            typeParams = List(TypeRef("A"))
+            typeParams = List(TypeParam("A"))
           )
           assert(cc.typeParams.length)(equalTo(1)) &&
           assert(cc.typeParams(0).name)(equalTo("A"))
@@ -157,7 +157,7 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
         test("with type parameters") {
           val st = SealedTrait(
             "Result",
-            typeParams = List(TypeRef("A"), TypeRef("E"))
+            typeParams = List(TypeParam("A"), TypeParam("E"))
           )
           assert(st.typeParams.length)(equalTo(2)) &&
           assert(st.typeParams(0).name)(equalTo("A")) &&
@@ -445,7 +445,7 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
         test("with type parameters and body") {
           val m = Method(
             "identity",
-            typeParams = List(TypeRef("A")),
+            typeParams = List(TypeParam("A")),
             params = List(List(MethodParam("a", TypeRef("A")))),
             returnType = TypeRef("A"),
             body = Some("a")

@@ -22,7 +22,7 @@ package zio.blocks.codegen.ir
  */
 final case class Method(
   name: String,
-  typeParams: List[TypeRef] = Nil,
+  typeParams: List[TypeParam] = Nil,
   params: List[List[MethodParam]] = Nil,
   returnType: TypeRef,
   body: Option[String] = None,

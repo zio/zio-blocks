@@ -59,7 +59,7 @@ sealed trait TypeDefinition {
 final case class CaseClass(
   name: String,
   fields: List[Field],
-  typeParams: List[TypeRef] = Nil,
+  typeParams: List[TypeParam] = Nil,
   extendsTypes: List[TypeRef] = Nil,
   derives: List[String] = Nil,
   annotations: List[Annotation] = Nil,
@@ -98,7 +98,7 @@ final case class CaseClass(
  */
 final case class SealedTrait(
   name: String,
-  typeParams: List[TypeRef] = Nil,
+  typeParams: List[TypeParam] = Nil,
   extendsTypes: List[TypeRef] = Nil,
   cases: List[SealedTraitCase] = Nil,
   annotations: List[Annotation] = Nil,

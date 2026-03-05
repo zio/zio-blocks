@@ -82,7 +82,7 @@ object MethodSpec extends ZIOSpecDefault {
           assert(method.returnType.name)(equalTo("String"))
         },
         test("creates method with single type parameter") {
-          val typeParams = List(TypeRef("T"))
+          val typeParams = List(TypeParam("T"))
           val method     = Method(
             "get",
             typeParams = typeParams,
@@ -92,7 +92,7 @@ object MethodSpec extends ZIOSpecDefault {
           assert(method.typeParams(0).name)(equalTo("T"))
         },
         test("creates method with multiple type parameters") {
-          val typeParams = List(TypeRef("A"), TypeRef("B"), TypeRef("C"))
+          val typeParams = List(TypeParam("A"), TypeParam("B"), TypeParam("C"))
           val method     = Method(
             "convert",
             typeParams = typeParams,
@@ -227,7 +227,7 @@ object MethodSpec extends ZIOSpecDefault {
         test("creates generic method") {
           val method = Method(
             "identity",
-            typeParams = List(TypeRef("T")),
+            typeParams = List(TypeParam("T")),
             params = List(List(MethodParam("value", TypeRef("T")))),
             returnType = TypeRef("T")
           )
@@ -238,7 +238,7 @@ object MethodSpec extends ZIOSpecDefault {
         test("creates complex method with all features") {
           val method = Method(
             "transform",
-            typeParams = List(TypeRef("A"), TypeRef("B")),
+            typeParams = List(TypeParam("A"), TypeParam("B")),
             params = List(
               List(
                 MethodParam("input", TypeRef("A")),
@@ -303,7 +303,7 @@ object MethodSpec extends ZIOSpecDefault {
           assert(method.returnType.typeArgs.length)(equalTo(2))
         },
         test("method with many type parameters") {
-          val typeParams = (1 to 10).map(i => TypeRef(s"T$i")).toList
+          val typeParams = (1 to 10).map(i => TypeParam(s"T$i")).toList
           val method     = Method(
             "complex",
             typeParams = typeParams,

@@ -161,7 +161,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
         test("method with type params") {
           val method = Method(
             "identity",
-            typeParams = List(TypeRef("A")),
+            typeParams = List(TypeParam("A")),
             params = List(List(MethodParam("value", TypeRef("A")))),
             returnType = TypeRef("A"),
             body = Some("value")
@@ -172,7 +172,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
         test("curried method") {
           val method = Method(
             "fold",
-            typeParams = List(TypeRef("B")),
+            typeParams = List(TypeParam("B")),
             params = List(
               List(MethodParam("z", TypeRef("B"))),
               List(MethodParam("f", TypeRef("(B, A) => B")))

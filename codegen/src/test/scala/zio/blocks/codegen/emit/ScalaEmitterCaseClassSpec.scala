@@ -83,7 +83,7 @@ object ScalaEmitterCaseClassSpec extends ZIOSpecDefault {
         val cc = CaseClass(
           "Box",
           fields = List(Field("value", TypeRef("A"))),
-          typeParams = List(TypeRef("A"))
+          typeParams = List(TypeParam("A"))
         )
         val result = ScalaEmitter.emitCaseClass(cc, EmitterConfig.default)
         assertTrue(

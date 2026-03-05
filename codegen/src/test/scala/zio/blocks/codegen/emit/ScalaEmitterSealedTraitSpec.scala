@@ -86,7 +86,7 @@ object ScalaEmitterSealedTraitSpec extends ZIOSpecDefault {
       test("sealed trait with type params") {
         val st = SealedTrait(
           "Result",
-          typeParams = List(TypeRef("A"), TypeRef("E"))
+          typeParams = List(TypeParam("A"), TypeParam("E"))
         )
         val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
         assertTrue(result == "sealed trait Result[A, E]")
@@ -175,7 +175,7 @@ object ScalaEmitterSealedTraitSpec extends ZIOSpecDefault {
       test("generic sealed trait cases get type params in extends") {
         val st = SealedTrait(
           "Result",
-          typeParams = List(TypeRef("A")),
+          typeParams = List(TypeParam("A")),
           cases = List(
             SealedTraitCase.CaseClassCase(
               CaseClass("Ok", List(Field("value", TypeRef("A"))))

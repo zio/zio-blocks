@@ -220,7 +220,7 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
         types = List(
           SealedTrait(
             "Event",
-            typeParams = List(TypeRef("A")),
+            typeParams = List(TypeParam("A")),
             cases = List(
               SealedTraitCase.CaseClassCase(
                 CaseClass(
@@ -269,7 +269,7 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
               ObjectMember.DefMember(
                 Method(
                   "retry",
-                  typeParams = List(TypeRef("A")),
+                  typeParams = List(TypeParam("A")),
                   params = List(
                     List(
                       MethodParam("action", TypeRef.of("Function0", TypeRef("A"))),
@@ -410,18 +410,18 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
 
       val typeStartIndices = lines.zipWithIndex.collect {
         case (line, idx)
-            if line.trim.startsWith("enum ") ||
-              line.trim.startsWith("case class ") ||
-              line.trim.startsWith("sealed trait ") ||
-              line.trim.startsWith("object ") && !line.trim.startsWith("object Notification") &&
-              !line.trim.startsWith("object ItemId extends") =>
+            if line == line.trim && (line.startsWith("enum ") ||
+              line.startsWith("case class ") ||
+              line.startsWith("sealed trait ") ||
+              line.startsWith("object ") && !line.startsWith("object Notification") &&
+              !line.startsWith("object ItemId extends")) =>
           idx
       }
 
       assertTrue(typeStartIndices.length >= 4)
 
-      val separatedByBlankLines = typeStartIndices.zip(typeStartIndices.tail).forall { case (_, next) =>
-        lines.slice(0, next).exists(_.trim.isEmpty)
+      val separatedByBlankLines = typeStartIndices.zip(typeStartIndices.tail).forall { case (prevIdx, nextIdx) =>
+        lines.slice(prevIdx + 1, nextIdx).exists(_.trim.isEmpty)
       }
       assertTrue(separatedByBlankLines)
     }
