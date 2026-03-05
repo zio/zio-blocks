@@ -86,7 +86,7 @@ val prettyXml = codec.encodeToString(person, WriterConfig.pretty)
 
 Decode XML strings or bytes back to your typed values:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
