@@ -152,6 +152,16 @@ object Unions {
         )
       }
 
+      val rRepr = TypeRepr.of[R]
+      rRepr.dealias match {
+        case _: OrType =>
+          report.errorAndAbort(
+            "The right type of a Unions.Separator must not be a union type. " +
+              "Use a simple (non-union) type for R to ensure the separator peels exactly one type."
+          )
+        case _ => // ok
+      }
+
       '{ new UnionSeparator[L, R](using $tt) }
     }
 
