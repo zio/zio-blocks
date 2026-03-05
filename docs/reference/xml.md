@@ -277,7 +277,7 @@ val custom = ReaderConfig(
 
 Encode case class fields as XML attributes using the `@xmlAttribute` annotation:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
