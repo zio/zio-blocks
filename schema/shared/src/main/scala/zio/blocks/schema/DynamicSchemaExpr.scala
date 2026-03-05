@@ -8,6 +8,34 @@ sealed trait DynamicSchemaExpr {
 
 object DynamicSchemaExpr {
 
+  private def extractBoolean(dv: DynamicValue): Either[SchemaError, Boolean] = dv match {
+    case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => Right(b)
+    case _                                                 => Left(SchemaError.conversionFailed(Nil, s"Expected Boolean, got: $dv"))
+  }
+
+  private def extractString(dv: DynamicValue): Either[SchemaError, String] = dv match {
+    case DynamicValue.Primitive(PrimitiveValue.String(s)) => Right(s)
+    case _                                                => Left(SchemaError.conversionFailed(Nil, s"Expected String, got: $dv"))
+  }
+
+  private def extractInt(dv: DynamicValue): Either[SchemaError, Int] = dv match {
+    case DynamicValue.Primitive(PrimitiveValue.Int(i)) => Right(i)
+    case _                                             => Left(SchemaError.conversionFailed(Nil, s"Expected Int, got: $dv"))
+  }
+
+  private def extractIntegral(dv: DynamicValue): Either[SchemaError, (Long, Boolean)] = dv match {
+    case DynamicValue.Primitive(PrimitiveValue.Byte(v))  => Right((v.toLong, false))
+    case DynamicValue.Primitive(PrimitiveValue.Short(v)) => Right((v.toLong, false))
+    case DynamicValue.Primitive(PrimitiveValue.Int(v))   => Right((v.toLong, false))
+    case DynamicValue.Primitive(PrimitiveValue.Long(v))  => Right((v, true))
+    case _                                               => Left(SchemaError.conversionFailed(Nil, s"Bitwise operation requires integral types, got: $dv"))
+  }
+
+  private def sequence(results: Seq[Either[SchemaError, DynamicValue]]): Either[SchemaError, Seq[DynamicValue]] = {
+    val errors = results.collect { case Left(e) => e }
+    if (errors.nonEmpty) Left(errors.head)
+    else Right(results.collect { case Right(v) => v })
+  }
   // ==================== Leaf Expressions ====================
 
   final case class Literal(value: DynamicValue) extends DynamicSchemaExpr {
@@ -215,47 +243,38 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield operator.apply(xs, ys)
+        xs     <- left.eval(input)
+        ys     <- right.eval(input)
+        result <- operator.apply(xs, ys)
+      } yield result
   }
 
   sealed trait LogicalOperator {
-    def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Seq[DynamicValue]
+    def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]]
   }
 
   object LogicalOperator {
     case object And extends LogicalOperator {
-      def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Seq[DynamicValue] =
-        for {
-          x <- xs
-          y <- ys
-        } yield {
-          val xBool = extractBoolean(x)
-          val yBool = extractBoolean(y)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(xBool && yBool))
+      def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]] = {
+        val results = for { x <- xs; y <- ys } yield {
+          for {
+            xBool <- extractBoolean(x)
+            yBool <- extractBoolean(y)
+          } yield DynamicValue.Primitive(PrimitiveValue.Boolean(xBool && yBool))
         }
-
-      private def extractBoolean(dv: DynamicValue): Boolean = dv match {
-        case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-        case _                                                 => throw new IllegalArgumentException(s"Expected Boolean, got: $dv")
+        sequence(results)
       }
     }
 
     case object Or extends LogicalOperator {
-      def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Seq[DynamicValue] =
-        for {
-          x <- xs
-          y <- ys
-        } yield {
-          val xBool = extractBoolean(x)
-          val yBool = extractBoolean(y)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(xBool || yBool))
+      def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]] = {
+        val results = for { x <- xs; y <- ys } yield {
+          for {
+            xBool <- extractBoolean(x)
+            yBool <- extractBoolean(y)
+          } yield DynamicValue.Primitive(PrimitiveValue.Boolean(xBool || yBool))
         }
-
-      private def extractBoolean(dv: DynamicValue): Boolean = dv match {
-        case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-        case _                                                 => throw new IllegalArgumentException(s"Expected Boolean, got: $dv")
+        sequence(results)
       }
     }
   }
@@ -263,14 +282,14 @@ object DynamicSchemaExpr {
   final case class Not(expr: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- expr.eval(input)
-      } yield xs.map { x =>
-        val xBool = x match {
-          case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => b
-          case _                                                 => throw new IllegalArgumentException(s"Expected Boolean, got: $x")
+        xs     <- expr.eval(input)
+        result <- {
+          val mapped = xs.map { x =>
+            extractBoolean(x).map(b => DynamicValue.Primitive(PrimitiveValue.Boolean(!b)))
+          }
+          sequence(mapped)
         }
-        DynamicValue.Primitive(PrimitiveValue.Boolean(!xBool))
-      }
+      } yield result
   }
 
   // ==================== Arithmetic Operators ====================
@@ -543,79 +562,94 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield for { x <- xs; y <- ys } yield operator.apply(x, y)
+        xs      <- left.eval(input)
+        ys      <- right.eval(input)
+        results <- {
+          val computed = for { x <- xs; y <- ys } yield operator.apply(x, y)
+          sequence(computed)
+        }
+      } yield results
   }
 
   sealed trait BitwiseOperator {
-    def apply(x: DynamicValue, y: DynamicValue): DynamicValue
+    def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue]
   }
 
   object BitwiseOperator {
     case object And extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyOp(x, y, _ & _)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ & _)
     }
 
     case object Or extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyOp(x, y, _ | _)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ | _)
     }
 
     case object Xor extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyOp(x, y, _ ^ _)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ ^ _)
     }
 
     case object LeftShift extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyShift(x, y, (a, b) => a << b)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
+        applyShift(x, y, (a, b) => a << b)
     }
 
     case object RightShift extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyShift(x, y, (a, b) => a >> b)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
+        applyShift(x, y, (a, b) => a >> b)
     }
 
     case object UnsignedRightShift extends BitwiseOperator {
-      def apply(x: DynamicValue, y: DynamicValue): DynamicValue = applyShift(x, y, (a, b) => a >>> b)
+      def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
+        applyShift(x, y, (a, b) => a >>> b)
     }
 
-    private def applyOp(x: DynamicValue, y: DynamicValue, op: (Long, Long) => Long): DynamicValue = {
-      val (lVal, lIsLong) = extractIntegral(x)
-      val (rVal, rIsLong) = extractIntegral(y)
-      val result          = op(lVal, rVal)
+    private def applyOp(x: DynamicValue, y: DynamicValue, op: (Long, Long) => Long): Either[SchemaError, DynamicValue] =
+      for {
+        lPair <- extractIntegral(x)
+        rPair <- extractIntegral(y)
+      } yield {
+        val (lVal, lIsLong) = lPair
+        val (rVal, rIsLong) = rPair
+        val result          = op(lVal, rVal)
+        if (lIsLong || rIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
+        else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
+      }
 
-      if (lIsLong || rIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
-      else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
-    }
-
-    private def applyShift(x: DynamicValue, y: DynamicValue, op: (Long, Int) => Long): DynamicValue = {
-      val (lVal, lIsLong) = extractIntegral(x)
-      val (rVal, _)       = extractIntegral(y)
-      val result          = op(lVal, rVal.toInt)
-
-      if (lIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
-      else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
-    }
-
-    private def extractIntegral(dv: DynamicValue): (Long, Boolean) = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.Byte(v))  => (v.toLong, false)
-      case DynamicValue.Primitive(PrimitiveValue.Short(v)) => (v.toLong, false)
-      case DynamicValue.Primitive(PrimitiveValue.Int(v))   => (v.toLong, false)
-      case DynamicValue.Primitive(PrimitiveValue.Long(v))  => (v, true)
-      case _                                               => throw new IllegalArgumentException(s"Bitwise operation requires integral types, got: $dv")
-    }
+    private def applyShift(
+      x: DynamicValue,
+      y: DynamicValue,
+      op: (Long, Int) => Long
+    ): Either[SchemaError, DynamicValue] =
+      for {
+        lPair <- extractIntegral(x)
+        rPair <- extractIntegral(y)
+      } yield {
+        val (lVal, lIsLong) = lPair
+        val (rVal, _)       = rPair
+        val result          = op(lVal, rVal.toInt)
+        if (lIsLong) DynamicValue.Primitive(PrimitiveValue.Long(result))
+        else DynamicValue.Primitive(PrimitiveValue.Int(result.toInt))
+      }
   }
 
   final case class BitwiseNot(expr: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- expr.eval(input)
-      } yield xs.map(applyNot)
+        xs     <- expr.eval(input)
+        result <- {
+          val mapped = xs.map(applyNot)
+          sequence(mapped)
+        }
+      } yield result
 
-    private def applyNot(x: DynamicValue): DynamicValue = x match {
-      case DynamicValue.Primitive(PrimitiveValue.Byte(v))  => DynamicValue.Primitive(PrimitiveValue.Byte((~v).toByte))
-      case DynamicValue.Primitive(PrimitiveValue.Short(v)) => DynamicValue.Primitive(PrimitiveValue.Short((~v).toShort))
-      case DynamicValue.Primitive(PrimitiveValue.Int(v))   => DynamicValue.Primitive(PrimitiveValue.Int(~v))
-      case DynamicValue.Primitive(PrimitiveValue.Long(v))  => DynamicValue.Primitive(PrimitiveValue.Long(~v))
-      case _                                               => throw new IllegalArgumentException(s"Bitwise NOT requires integral type, got: $x")
+    private def applyNot(x: DynamicValue): Either[SchemaError, DynamicValue] = x match {
+      case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
+        Right(DynamicValue.Primitive(PrimitiveValue.Byte((~v).toByte)))
+      case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
+        Right(DynamicValue.Primitive(PrimitiveValue.Short((~v).toShort)))
+      case DynamicValue.Primitive(PrimitiveValue.Int(v))  => Right(DynamicValue.Primitive(PrimitiveValue.Int(~v)))
+      case DynamicValue.Primitive(PrimitiveValue.Long(v)) => Right(DynamicValue.Primitive(PrimitiveValue.Long(~v)))
+      case _                                              => Left(SchemaError.conversionFailed(Nil, s"Bitwise NOT requires integral type, got: $x"))
     }
   }
 
@@ -627,22 +661,18 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- left.eval(input)
-        ys <- right.eval(input)
-      } yield
-        for {
-          x <- xs
-          y <- ys
-        } yield {
-          val xStr = extractString(x)
-          val yStr = extractString(y)
-          DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
+        xs      <- left.eval(input)
+        ys      <- right.eval(input)
+        results <- {
+          val computed = for { x <- xs; y <- ys } yield {
+            for {
+              xStr <- extractString(x)
+              yStr <- extractString(y)
+            } yield DynamicValue.Primitive(PrimitiveValue.String(xStr + yStr))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringRegexMatch(
@@ -651,37 +681,31 @@ object DynamicSchemaExpr {
   ) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- regex.eval(input)
-        ys <- string.eval(input)
-      } yield
-        for {
-          x <- xs
-          y <- ys
-        } yield {
-          val regexStr = extractString(x)
-          val str      = extractString(y)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(str.matches(regexStr)))
+        xs      <- regex.eval(input)
+        ys      <- string.eval(input)
+        results <- {
+          val computed = for { x <- xs; y <- ys } yield {
+            for {
+              regexStr <- extractString(x)
+              str      <- extractString(y)
+            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(str.matches(regexStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringLength(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map { x =>
-        val str = extractString(x)
-        DynamicValue.Primitive(PrimitiveValue.Int(str.length))
-      }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+        xs     <- string.eval(input)
+        result <- {
+          val mapped = xs.map { x =>
+            extractString(x).map(str => DynamicValue.Primitive(PrimitiveValue.Int(str.length)))
+          }
+          sequence(mapped)
+        }
+      } yield result
   }
 
   final case class StringSubstring(
@@ -694,72 +718,56 @@ object DynamicSchemaExpr {
         strings <- string.eval(input)
         starts  <- start.eval(input)
         ends    <- end.eval(input)
-      } yield
-        for {
-          s  <- strings
-          st <- starts
-          en <- ends
-        } yield {
-          val str      = extractString(s)
-          val startInt = extractInt(st)
-          val endInt   = extractInt(en)
-          DynamicValue.Primitive(PrimitiveValue.String(str.substring(startInt, endInt)))
+        results <- {
+          val computed = for { s <- strings; st <- starts; en <- ends } yield {
+            for {
+              str      <- extractString(s)
+              startInt <- extractInt(st)
+              endInt   <- extractInt(en)
+            } yield DynamicValue.Primitive(PrimitiveValue.String(str.substring(startInt, endInt)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
-
-    private def extractInt(dv: DynamicValue): Int = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.Int(i)) => i
-      case _                                             => throw new IllegalArgumentException(s"Expected Int, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringTrim(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map { x =>
-        val str = extractString(x)
-        DynamicValue.Primitive(PrimitiveValue.String(str.trim))
-      }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+        xs     <- string.eval(input)
+        result <- {
+          val mapped = xs.map { x =>
+            extractString(x).map(str => DynamicValue.Primitive(PrimitiveValue.String(str.trim)))
+          }
+          sequence(mapped)
+        }
+      } yield result
   }
 
   final case class StringToUpperCase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map { x =>
-        val str = extractString(x)
-        DynamicValue.Primitive(PrimitiveValue.String(str.toUpperCase))
-      }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+        xs     <- string.eval(input)
+        result <- {
+          val mapped = xs.map { x =>
+            extractString(x).map(str => DynamicValue.Primitive(PrimitiveValue.String(str.toUpperCase)))
+          }
+          sequence(mapped)
+        }
+      } yield result
   }
 
   final case class StringToLowerCase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
-        xs <- string.eval(input)
-      } yield xs.map { x =>
-        val str = extractString(x)
-        DynamicValue.Primitive(PrimitiveValue.String(str.toLowerCase))
-      }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+        xs     <- string.eval(input)
+        result <- {
+          val mapped = xs.map { x =>
+            extractString(x).map(str => DynamicValue.Primitive(PrimitiveValue.String(str.toLowerCase)))
+          }
+          sequence(mapped)
+        }
+      } yield result
   }
 
   final case class StringReplace(
@@ -772,22 +780,17 @@ object DynamicSchemaExpr {
         strings      <- string.eval(input)
         targets      <- target.eval(input)
         replacements <- replacement.eval(input)
-      } yield
-        for {
-          s <- strings
-          t <- targets
-          r <- replacements
-        } yield {
-          val str       = extractString(s)
-          val targetStr = extractString(t)
-          val replStr   = extractString(r)
-          DynamicValue.Primitive(PrimitiveValue.String(str.replace(targetStr, replStr)))
+        results      <- {
+          val computed = for { s <- strings; t <- targets; r <- replacements } yield {
+            for {
+              str       <- extractString(s)
+              targetStr <- extractString(t)
+              replStr   <- extractString(r)
+            } yield DynamicValue.Primitive(PrimitiveValue.String(str.replace(targetStr, replStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringStartsWith(
@@ -798,20 +801,16 @@ object DynamicSchemaExpr {
       for {
         strings  <- string.eval(input)
         prefixes <- prefix.eval(input)
-      } yield
-        for {
-          s <- strings
-          p <- prefixes
-        } yield {
-          val str       = extractString(s)
-          val prefixStr = extractString(p)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(str.startsWith(prefixStr)))
+        results  <- {
+          val computed = for { s <- strings; p <- prefixes } yield {
+            for {
+              str       <- extractString(s)
+              prefixStr <- extractString(p)
+            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(str.startsWith(prefixStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringEndsWith(
@@ -822,20 +821,16 @@ object DynamicSchemaExpr {
       for {
         strings  <- string.eval(input)
         suffixes <- suffix.eval(input)
-      } yield
-        for {
-          s  <- strings
-          sx <- suffixes
-        } yield {
-          val str       = extractString(s)
-          val suffixStr = extractString(sx)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(str.endsWith(suffixStr)))
+        results  <- {
+          val computed = for { s <- strings; sx <- suffixes } yield {
+            for {
+              str       <- extractString(s)
+              suffixStr <- extractString(sx)
+            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(str.endsWith(suffixStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringContains(
@@ -846,20 +841,16 @@ object DynamicSchemaExpr {
       for {
         strings    <- string.eval(input)
         substrings <- substring.eval(input)
-      } yield
-        for {
-          s   <- strings
-          sub <- substrings
-        } yield {
-          val str    = extractString(s)
-          val subStr = extractString(sub)
-          DynamicValue.Primitive(PrimitiveValue.Boolean(str.contains(subStr)))
+        results    <- {
+          val computed = for { s <- strings; sub <- substrings } yield {
+            for {
+              str    <- extractString(s)
+              subStr <- extractString(sub)
+            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(str.contains(subStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 
   final case class StringIndexOf(
@@ -870,19 +861,15 @@ object DynamicSchemaExpr {
       for {
         strings    <- string.eval(input)
         substrings <- substring.eval(input)
-      } yield
-        for {
-          s   <- strings
-          sub <- substrings
-        } yield {
-          val str    = extractString(s)
-          val subStr = extractString(sub)
-          DynamicValue.Primitive(PrimitiveValue.Int(str.indexOf(subStr)))
+        results    <- {
+          val computed = for { s <- strings; sub <- substrings } yield {
+            for {
+              str    <- extractString(s)
+              subStr <- extractString(sub)
+            } yield DynamicValue.Primitive(PrimitiveValue.Int(str.indexOf(subStr)))
+          }
+          sequence(computed)
         }
-
-    private def extractString(dv: DynamicValue): String = dv match {
-      case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
-      case _                                                => throw new IllegalArgumentException(s"Expected String, got: $dv")
-    }
+      } yield results
   }
 }
