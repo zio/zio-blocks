@@ -16,7 +16,9 @@ The `ToStructural[A]` type class converts any `Schema[A]` (for a nominal type) i
 
 ### Type Signature
 
-```scala
+The `ToStructural` type class converts a nominal `Schema[A]` into a schema for the corresponding structural type:
+
+```scala mdoc:compile-only
 trait ToStructural[A] {
   type StructuralType
   def apply(schema: Schema[A]): Schema[StructuralType]
@@ -44,8 +46,9 @@ case class User(name: String, age: Int)
 
 Without structural types, converting between `Person` and `User` requires manual translation. With structural types, they both have the same structural schema:
 
-```scala
+```scala mdoc:compile-only
 import scala.language.reflectiveCalls
+import zio.blocks.schema.Schema
 
 case class Person(name: String, age: Int)
 case class User(name: String, age: Int)
@@ -67,7 +70,7 @@ Call `.structural` on any `Schema[A]` to get the corresponding structural schema
 
 **Scala 3:** Using transparent inline — the return type is inferred to the full refinement type:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class Person(name: String, age: Int)
@@ -81,7 +84,7 @@ val structuralSchema: Schema[{ def name: String; def age: Int }] = personSchema.
 
 **Scala 2:** Implicit derivation — returns `Schema[ts.StructuralType]` (path-dependent type):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class Person(name: String, age: Int)
@@ -100,7 +103,7 @@ val structuralSchema = personSchema.structural
 
 Both Scala 2 and 3 support structural conversion of case classes:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class Address(street: String, city: String, zipCode: Int)
@@ -117,7 +120,7 @@ val structural = schema.structural
 
 Tuples convert to structural records with field names derived from positions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 type StringIntBool = (String, Int, Boolean)
@@ -132,7 +135,7 @@ val structuralSchema = tupleSchema.structural
 
 Field types are recursively structuralized:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class Address(street: String, city: String)
@@ -158,7 +161,7 @@ val structuralSchema = personSchema.structural
 
 Opaque type aliases are unwrapped to their underlying type:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 opaque type UserId = String
@@ -178,7 +181,7 @@ val structural = schema.structural
 
 Sealed traits and enums convert to union types with nested method syntax:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 sealed trait Shape
@@ -199,7 +202,7 @@ val structural = schema.structural
 
 **Enum syntax** (Scala 3):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 enum Color {
@@ -224,7 +227,7 @@ Cases appear in **alphabetical order** in the union type. This alphabetical orde
 
 Create a schema directly for a structural type without a nominal base:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 // No case class needed — define the schema for the shape directly
@@ -259,9 +262,9 @@ Common scenarios:
 
 #### Cross-type conversion in action
 
-Encode using one nominal schema, decode using a different nominal schema — both have the same structural shape:
+Set up two types with identical structural shape:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.schema.Schema
 import zio.blocks.schema.SchemaError
 
@@ -275,16 +278,16 @@ object Employee {
   implicit val schema: Schema[Employee] = Schema.derived[Employee]
 }
 
-// Both types have identical structural shape: { def name: String; def age: Int }
-
 val personSchema = Schema.derived[Person]
 val employeeSchema = Schema.derived[Employee]
+```
 
-// Encode a Person to DynamicValue
+Now encode a `Person` to `DynamicValue` and decode it as an `Employee`:
+
+```scala mdoc
 val person = Person("Alice", 30)
 val dynamic = personSchema.toDynamicValue(person)
 
-// Decode the same DynamicValue as Employee — works because shapes match
 val employee: Either[SchemaError, Employee] =
   employeeSchema.fromDynamicValue(dynamic)
 ```
@@ -327,12 +330,12 @@ error: Cannot generate structural type for recursive type X.
 
 Example:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class LinkedList(value: Int, next: Option[LinkedList])
 
-// ❌ Fails at compile time: LinkedList refers to itself
+// This fails at compile time: LinkedList refers to itself
 val schema = Schema.derived[LinkedList]
 val structural = schema.structural
 // error: Cannot generate structural type for recursive type LinkedList
@@ -357,7 +360,7 @@ Additionally, **Scala 2** returns `Schema[ts.StructuralType]` (path-dependent ty
 
 In **Scala 2**, accessing fields on deeply nested structural types requires explicit casting. While nested structures are supported, reflection limitations prevent field chaining:
 
-```scala
+```scala mdoc:compile-only
 import scala.language.reflectiveCalls
 import zio.blocks.schema.Schema
 
@@ -371,16 +374,16 @@ val structural = schema.structural
 // Create a structural value
 val employee: { def name: String; def company: { def address: { def street: String } } } = ???
 
-// ✅ Works - direct field access
+// Direct field access — this works
 employee.name
 
-// ✅ Works - first level of nesting
+// First level of nesting — this works
 employee.company
 
-// ❌ Fails - cannot chain field access to nested structural types
+// Cannot chain field access to nested structural types
 // employee.company.address.street
 
-// ✅ Workaround - cast to StructuralRecord
+// Workaround — cast to StructuralRecord
 val companyStruct = employee.company.asInstanceOf[StructuralRecord]
 companyStruct.selectDynamic("address")  // returns the Address structural object
 ```
@@ -393,7 +396,7 @@ This limitation does **not** apply to Scala 3, where `Selectable` provides seaml
 
 Structural schemas work with [Schema Evolution](./schema-evolution/into.md) macros for cross-type conversion. When two types share the same structural shape, the conversion machinery can work across type boundaries:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
 case class Person(name: String, age: Int)
@@ -418,7 +421,7 @@ val dtoSchema = Schema.derived[PersonDTO]
 
 Structural types are also supported by the `Binding.of` macro for high-performance serialization via register-based encoding:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.binding.Binding
 
 // Direct structural type serialization (JVM only)
@@ -445,7 +448,7 @@ See [Binding](./binding.md) for detailed serialization documentation.
 
 Structural schemas integrate with `DynamicValue` for dynamic value manipulation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.DynamicOptic
