@@ -752,11 +752,7 @@ val fromBytes: Either[SchemaError, Person] = bytes.fromXml[Person]
 
 ## Printing XML
 
-Format XML documents using compact or pretty-printed output:
-
-### Basic Printing
-
-Convert XML to string with different formatting options:
+Format XML documents using compact or pretty-printed output. You can convert XML to string with different formatting options:
 
 ```scala mdoc:silent
 import zio.blocks.schema.xml._
