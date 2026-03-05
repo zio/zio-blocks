@@ -271,9 +271,11 @@ object CodegenIntegrationSpec extends ZIOSpecDefault {
                   "retry",
                   typeParams = List(TypeParam("A")),
                   params = List(
-                    List(
-                      MethodParam("action", TypeRef.of("Function0", TypeRef("A"))),
-                      MethodParam("times", TypeRef.Int, Some("MaxRetries"))
+                    ParamList(
+                      List(
+                        MethodParam("action", TypeRef.of("Function0", TypeRef("A"))),
+                        MethodParam("times", TypeRef.Int, Some("MaxRetries"))
+                      )
                     )
                   ),
                   returnType = TypeRef("A"),

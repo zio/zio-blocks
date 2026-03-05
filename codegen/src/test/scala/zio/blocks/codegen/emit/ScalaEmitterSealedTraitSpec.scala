@@ -186,6 +186,22 @@ object ScalaEmitterSealedTraitSpec extends ZIOSpecDefault {
         val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
         assertTrue(result.contains("extends Result[A]"))
         assertTrue(result.contains("case object Err extends Result[A]"))
+      },
+      test("sealed trait with selfType") {
+        val st = SealedTrait(
+          "Animal",
+          selfType = Some(TypeRef("Living")),
+          cases = List(
+            SealedTraitCase.CaseObjectCase("Dog")
+          )
+        )
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(result.contains("sealed trait Animal { self: Living =>"))
+      },
+      test("sealed trait with selfType and no cases") {
+        val st     = SealedTrait("Marker", selfType = Some(TypeRef("HasId")))
+        val result = ScalaEmitter.emitSealedTrait(st, EmitterConfig.default)
+        assertTrue(result == "sealed trait Marker { self: HasId => }")
       }
     )
 }

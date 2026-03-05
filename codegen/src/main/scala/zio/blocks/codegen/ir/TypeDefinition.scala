@@ -64,7 +64,8 @@ final case class CaseClass(
   derives: List[String] = Nil,
   annotations: List[Annotation] = Nil,
   companion: Option[CompanionObject] = None,
-  doc: Option[String] = None
+  doc: Option[String] = None,
+  isValueClass: Boolean = false
 ) extends TypeDefinition
 
 /**
@@ -101,9 +102,11 @@ final case class SealedTrait(
   typeParams: List[TypeParam] = Nil,
   extendsTypes: List[TypeRef] = Nil,
   cases: List[SealedTraitCase] = Nil,
+  derives: List[String] = Nil,
   annotations: List[Annotation] = Nil,
   companion: Option[CompanionObject] = None,
-  doc: Option[String] = None
+  doc: Option[String] = None,
+  selfType: Option[TypeRef] = None
 ) extends TypeDefinition
 
 /**
@@ -141,7 +144,8 @@ final case class Trait(
   members: List[ObjectMember] = Nil,
   annotations: List[Annotation] = Nil,
   companion: Option[CompanionObject] = None,
-  doc: Option[String] = None
+  doc: Option[String] = None,
+  selfType: Option[TypeRef] = None
 ) extends TypeDefinition
 
 /**
@@ -180,7 +184,8 @@ final case class AbstractClass(
   members: List[ObjectMember] = Nil,
   annotations: List[Annotation] = Nil,
   companion: Option[CompanionObject] = None,
-  doc: Option[String] = None
+  doc: Option[String] = None,
+  isSealed: Boolean = false
 ) extends TypeDefinition
 
 /**
@@ -269,8 +274,11 @@ object SealedTraitCase {
 final case class Enum(
   name: String,
   cases: List[EnumCase],
+  typeParams: List[TypeParam] = Nil,
   extendsTypes: List[TypeRef] = Nil,
+  derives: List[String] = Nil,
   annotations: List[Annotation] = Nil,
+  companion: Option[CompanionObject] = None,
   doc: Option[String] = None
 ) extends TypeDefinition
 
@@ -297,7 +305,8 @@ object EnumCase {
    * @param fields
    *   The fields of the parameterized case
    */
-  final case class ParameterizedCase(name: String, fields: List[Field]) extends EnumCase
+  final case class ParameterizedCase(name: String, fields: List[Field], extendsTypes: List[TypeRef] = Nil)
+      extends EnumCase
 }
 
 /**
@@ -351,8 +360,22 @@ object ObjectMember {
    *   The type of the val
    * @param value
    *   The value expression as a string
+   * @param isLazy
+   *   Whether this is a lazy val (defaults to false)
+   * @param isOverride
+   *   Whether this val overrides a parent member (defaults to false)
+   * @param isImplicit
+   *   Whether this val is implicit (Scala 2) or given (Scala 3) (defaults to
+   *   false)
    */
-  final case class ValMember(name: String, typeRef: TypeRef, value: String) extends ObjectMember
+  final case class ValMember(
+    name: String,
+    typeRef: TypeRef,
+    value: String,
+    isLazy: Boolean = false,
+    isOverride: Boolean = false,
+    isImplicit: Boolean = false
+  ) extends ObjectMember
 
   /**
    * A def member within an object.
@@ -379,6 +402,19 @@ object ObjectMember {
    *   The nested type definition
    */
   final case class NestedType(typeDef: TypeDefinition) extends ObjectMember
+
+  /**
+   * An extension block for Scala 3 extension methods.
+   *
+   * In Scala 3, emitted as `extension (param) { methods }`. In Scala 2, falls
+   * back to an implicit class wrapping the methods.
+   *
+   * @param on
+   *   The parameter to extend on
+   * @param methods
+   *   The extension methods
+   */
+  final case class ExtensionBlock(on: MethodParam, methods: List[Method]) extends ObjectMember
 }
 
 /**
@@ -411,6 +447,14 @@ final case class CompanionObject(
 final case class Newtype(
   name: String,
   wrappedType: TypeRef,
+  annotations: List[Annotation] = Nil,
+  doc: Option[String] = None
+) extends TypeDefinition
+
+final case class TypeAlias(
+  name: String,
+  typeParams: List[TypeParam] = Nil,
+  typeRef: TypeRef,
   annotations: List[Annotation] = Nil,
   doc: Option[String] = None
 ) extends TypeDefinition

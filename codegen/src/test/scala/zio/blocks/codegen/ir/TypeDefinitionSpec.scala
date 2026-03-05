@@ -282,7 +282,7 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
         test("with DefMember") {
           val method = Method(
             "create",
-            params = List(List(MethodParam("name", TypeRef.String))),
+            params = List(ParamList(List(MethodParam("name", TypeRef.String)))),
             returnType = TypeRef("User")
           )
           val obj = ObjectDef(
@@ -430,23 +430,25 @@ object TypeDefinitionSpec extends ZIOSpecDefault {
           val m = Method(
             "greet",
             params = List(
-              List(
-                MethodParam("name", TypeRef.String),
-                MethodParam("greeting", TypeRef.String, Some("\"Hello\""))
+              ParamList(
+                List(
+                  MethodParam("name", TypeRef.String),
+                  MethodParam("greeting", TypeRef.String, Some("\"Hello\""))
+                )
               )
             ),
             returnType = TypeRef.String
           )
           assert(m.params.length)(equalTo(1)) &&
-          assert(m.params(0).length)(equalTo(2)) &&
-          assert(m.params(0)(0).name)(equalTo("name")) &&
-          assert(m.params(0)(1).defaultValue)(isSome(equalTo("\"Hello\"")))
+          assert(m.params(0).params.length)(equalTo(2)) &&
+          assert(m.params(0).params(0).name)(equalTo("name")) &&
+          assert(m.params(0).params(1).defaultValue)(isSome(equalTo("\"Hello\"")))
         },
         test("with type parameters and body") {
           val m = Method(
             "identity",
             typeParams = List(TypeParam("A")),
-            params = List(List(MethodParam("a", TypeRef("A")))),
+            params = List(ParamList(List(MethodParam("a", TypeRef("A"))))),
             returnType = TypeRef("A"),
             body = Some("a")
           )

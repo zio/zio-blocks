@@ -17,17 +17,21 @@ package zio.blocks.codegen.ir
  *   List of annotations on the method (defaults to empty list)
  * @param isOverride
  *   Whether this method overrides a parent method (defaults to false)
+ * @param isImplicit
+ *   Whether this method is implicit (Scala 2) or given (Scala 3) (defaults to
+ *   false)
  * @param doc
  *   Optional documentation for the method (defaults to None)
  */
 final case class Method(
   name: String,
   typeParams: List[TypeParam] = Nil,
-  params: List[List[MethodParam]] = Nil,
+  params: List[ParamList] = Nil,
   returnType: TypeRef,
   body: Option[String] = None,
   annotations: List[Annotation] = Nil,
   isOverride: Boolean = false,
+  isImplicit: Boolean = false,
   doc: Option[String] = None
 )
 
@@ -40,9 +44,15 @@ final case class Method(
  *   The parameter type
  * @param defaultValue
  *   Optional default value as a string (defaults to None)
+ * @param isByName
+ *   Whether this is a by-name parameter (=> T) (defaults to false)
+ * @param isVarargs
+ *   Whether this is a varargs parameter (T*) (defaults to false)
  */
 final case class MethodParam(
   name: String,
   typeRef: TypeRef,
-  defaultValue: Option[String] = None
+  defaultValue: Option[String] = None,
+  isByName: Boolean = false,
+  isVarargs: Boolean = false
 )

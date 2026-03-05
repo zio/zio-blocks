@@ -41,5 +41,7 @@ final case class TypeParam(
   name: String,
   variance: Variance = Variance.Invariant,
   upperBound: Option[TypeRef] = None,
-  lowerBound: Option[TypeRef] = None
+  lowerBound: Option[TypeRef] = None,
+  typeParams: List[TypeParam] = Nil,
+  contextBounds: List[TypeRef] = Nil
 )

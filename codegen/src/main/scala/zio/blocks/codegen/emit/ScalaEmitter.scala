@@ -694,6 +694,10 @@ object ScalaEmitter {
 
     sb.append(prefix)
     if (method.isOverride) sb.append("override ")
+    if (method.isImplicit) {
+      if (config.scala3Syntax) sb.append("given ")
+      else sb.append("implicit ")
+    }
     sb.append("def ").append(escapeName(method.name))
 
     if (method.typeParams.nonEmpty)
@@ -729,8 +733,16 @@ object ScalaEmitter {
   def emitObjectMember(member: ObjectMember, config: EmitterConfig, indent: Int = 0): String = {
     val prefix = ind(indent, config)
     member match {
-      case ObjectMember.ValMember(name, typeRef, value) =>
-        s"${prefix}val ${escapeName(name)}: ${emitTypeRef(typeRef)} = $value\n"
+      case vm: ObjectMember.ValMember =>
+        val sb = new StringBuilder(prefix)
+        if (vm.isOverride) sb.append("override ")
+        if (vm.isImplicit) {
+          if (config.scala3Syntax) sb.append("given ")
+          else sb.append("implicit ")
+        }
+        if (vm.isLazy) sb.append("lazy ")
+        sb.append(s"val ${escapeName(vm.name)}: ${emitTypeRef(vm.typeRef)} = ${vm.value}\n")
+        sb.toString
       case ObjectMember.DefMember(method) =>
         emitMethod(method, config, indent) + "\n"
       case ObjectMember.TypeAlias(name, typeRef) =>
@@ -742,7 +754,11 @@ object ScalaEmitter {
 
   private def emitMethodParam(param: MethodParam): String = {
     val defaultStr = param.defaultValue.fold("")(d => s" = $d")
-    s"${escapeName(param.name)}: ${emitTypeRef(param.typeRef)}$defaultStr"
+    val typeStr = emitTypeRef(param.typeRef)
+    val typeWithMods = if (param.isByName) s"=> $typeStr"
+                       else if (param.isVarargs) s"$typeStr*"
+                       else typeStr
+    s"${escapeName(param.name)}: $typeWithMods$defaultStr"
   }
 
   private def emitFieldInline(field: Field, @scala.annotation.unused config: EmitterConfig): String = {

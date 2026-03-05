@@ -62,7 +62,7 @@ object ScalaEmitterTypeParamSpec extends ZIOSpecDefault {
         val method = Method(
           "process",
           typeParams = List(TypeParam("A", upperBound = Some(TypeRef("Serializable")))),
-          params = List(List(MethodParam("value", TypeRef("A")))),
+          params = List(ParamList(List(MethodParam("value", TypeRef("A"))))),
           returnType = TypeRef("A"),
           body = Some("value")
         )
@@ -76,7 +76,7 @@ object ScalaEmitterTypeParamSpec extends ZIOSpecDefault {
             TypeParam("A", lowerBound = Some(TypeRef.Nothing)),
             TypeParam("B", upperBound = Some(TypeRef("AnyRef")))
           ),
-          params = List(List(MethodParam("a", TypeRef("A")))),
+          params = List(ParamList(List(MethodParam("a", TypeRef("A"))))),
           returnType = TypeRef("B")
         )
         val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)

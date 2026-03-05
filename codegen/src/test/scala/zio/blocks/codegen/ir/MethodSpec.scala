@@ -64,9 +64,11 @@ object MethodSpec extends ZIOSpecDefault {
           assert(method.body)(isNone)
         },
         test("creates method with parameters") {
-          val params = List(
-            MethodParam("x", TypeRef.Int),
-            MethodParam("y", TypeRef.Int)
+          val params = ParamList(
+            List(
+              MethodParam("x", TypeRef.Int),
+              MethodParam("y", TypeRef.Int)
+            )
           )
           val method = Method(
             "add",
@@ -75,7 +77,7 @@ object MethodSpec extends ZIOSpecDefault {
           )
           assert(method.name)(equalTo("add")) &&
           assert(method.params.length)(equalTo(1)) &&
-          assert(method.params(0).length)(equalTo(2))
+          assert(method.params(0).params.length)(equalTo(2))
         },
         test("creates method with return type") {
           val method = Method("getName", returnType = TypeRef.String)
@@ -103,43 +105,47 @@ object MethodSpec extends ZIOSpecDefault {
       ),
       suite("Method - parameters")(
         test("creates method with single parameter list") {
-          val params = List(MethodParam("name", TypeRef.String))
+          val params = ParamList(List(MethodParam("name", TypeRef.String)))
           val method =
             Method("greet", params = List(params), returnType = TypeRef.Unit)
           assert(method.params.length)(equalTo(1)) &&
-          assert(method.params(0).length)(equalTo(1))
+          assert(method.params(0).params.length)(equalTo(1))
         },
         test("creates method with curried parameters") {
-          val params1 = List(MethodParam("x", TypeRef.Int))
-          val params2 = List(MethodParam("y", TypeRef.Int))
+          val params1 = ParamList(List(MethodParam("x", TypeRef.Int)))
+          val params2 = ParamList(List(MethodParam("y", TypeRef.Int)))
           val method  = Method(
             "curry",
             params = List(params1, params2),
             returnType = TypeRef.Int
           )
           assert(method.params.length)(equalTo(2)) &&
-          assert(method.params(0).length)(equalTo(1)) &&
-          assert(method.params(1).length)(equalTo(1))
+          assert(method.params(0).params.length)(equalTo(1)) &&
+          assert(method.params(1).params.length)(equalTo(1))
         },
         test("creates method with multiple parameters in single list") {
-          val params = List(
-            MethodParam("a", TypeRef.Int),
-            MethodParam("b", TypeRef.String),
-            MethodParam("c", TypeRef.Boolean)
+          val params = ParamList(
+            List(
+              MethodParam("a", TypeRef.Int),
+              MethodParam("b", TypeRef.String),
+              MethodParam("c", TypeRef.Boolean)
+            )
           )
           val method =
             Method("process", params = List(params), returnType = TypeRef.String)
-          assert(method.params(0).length)(equalTo(3))
+          assert(method.params(0).params.length)(equalTo(3))
         },
         test("creates method with parameters with default values") {
-          val params = List(
-            MethodParam("x", TypeRef.Int, Some("0")),
-            MethodParam("y", TypeRef.Int, Some("1"))
+          val params = ParamList(
+            List(
+              MethodParam("x", TypeRef.Int, Some("0")),
+              MethodParam("y", TypeRef.Int, Some("1"))
+            )
           )
           val method =
             Method("calculate", params = List(params), returnType = TypeRef.Int)
-          assert(method.params(0)(0).defaultValue)(isSome(equalTo("0"))) &&
-          assert(method.params(0)(1).defaultValue)(isSome(equalTo("1")))
+          assert(method.params(0).params(0).defaultValue)(isSome(equalTo("0"))) &&
+          assert(method.params(0).params(1).defaultValue)(isSome(equalTo("1")))
         }
       ),
       suite("Method - body and documentation")(
@@ -156,7 +162,7 @@ object MethodSpec extends ZIOSpecDefault {
             """if (x > 0) x else -x"""
           val method = Method(
             "abs",
-            params = List(List(MethodParam("x", TypeRef.Int))),
+            params = List(ParamList(List(MethodParam("x", TypeRef.Int)))),
             returnType = TypeRef.Int,
             body = Some(body)
           )
@@ -214,7 +220,7 @@ object MethodSpec extends ZIOSpecDefault {
         test("creates method with annotations and override") {
           val method = Method(
             "equals",
-            params = List(List(MethodParam("obj", TypeRef.Any))),
+            params = List(ParamList(List(MethodParam("obj", TypeRef.Any)))),
             returnType = TypeRef.Boolean,
             annotations = List(Annotation("Override")),
             isOverride = true
@@ -228,11 +234,11 @@ object MethodSpec extends ZIOSpecDefault {
           val method = Method(
             "identity",
             typeParams = List(TypeParam("T")),
-            params = List(List(MethodParam("value", TypeRef("T")))),
+            params = List(ParamList(List(MethodParam("value", TypeRef("T"))))),
             returnType = TypeRef("T")
           )
           assert(method.typeParams.length)(equalTo(1)) &&
-          assert(method.params(0)(0).typeRef.name)(equalTo("T")) &&
+          assert(method.params(0).params(0).typeRef.name)(equalTo("T")) &&
           assert(method.returnType.name)(equalTo("T"))
         },
         test("creates complex method with all features") {
@@ -240,11 +246,13 @@ object MethodSpec extends ZIOSpecDefault {
             "transform",
             typeParams = List(TypeParam("A"), TypeParam("B")),
             params = List(
-              List(
-                MethodParam("input", TypeRef("A")),
-                MethodParam("options", TypeRef.String, Some("\"default\""))
+              ParamList(
+                List(
+                  MethodParam("input", TypeRef("A")),
+                  MethodParam("options", TypeRef.String, Some("\"default\""))
+                )
               ),
-              List(MethodParam("callback", TypeRef.of("Function1", TypeRef("A"), TypeRef("B"))))
+              ParamList(List(MethodParam("callback", TypeRef.of("Function1", TypeRef("A"), TypeRef("B")))))
             ),
             returnType = TypeRef("B"),
             body = Some("callback(input)"),
@@ -313,7 +321,7 @@ object MethodSpec extends ZIOSpecDefault {
         },
         test("method with many parameter lists (curried)") {
           val paramLists = (1 to 5).map { i =>
-            List(MethodParam(s"p$i", TypeRef.Int))
+            ParamList(List(MethodParam(s"p$i", TypeRef.Int)))
           }.toList
           val method = Method(
             "curried",

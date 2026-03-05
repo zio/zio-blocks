@@ -181,4 +181,12 @@ object TypeRef {
    *   }}}
    */
   def intersection(types: TypeRef*): TypeRef = TypeRef("&", types.toList)
+
+  def tuple(types: TypeRef*): TypeRef = TypeRef(s"Tuple${types.length}", types.toList)
+
+  def function(params: List[TypeRef], returnType: TypeRef): TypeRef =
+    TypeRef(s"Function${params.length}", params :+ returnType)
+
+  val Wildcard: TypeRef = TypeRef("_")
+
 }

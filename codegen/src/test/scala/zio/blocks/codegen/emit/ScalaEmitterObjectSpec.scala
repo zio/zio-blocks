@@ -34,7 +34,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
               ObjectMember.DefMember(
                 Method(
                   "helper",
-                  params = List(List(MethodParam("x", TypeRef.Int))),
+                  params = List(ParamList(List(MethodParam("x", TypeRef.Int)))),
                   returnType = TypeRef.String,
                   body = Some("x.toString")
                 )
@@ -73,7 +73,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
               ObjectMember.DefMember(
                 Method(
                   "helper",
-                  params = List(List(MethodParam("x", TypeRef.Int))),
+                  params = List(ParamList(List(MethodParam("x", TypeRef.Int)))),
                   returnType = TypeRef.String,
                   body = Some("x.toString")
                 )
@@ -151,7 +151,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
         test("simple method with body") {
           val method = Method(
             "greet",
-            params = List(List(MethodParam("name", TypeRef.String))),
+            params = List(ParamList(List(MethodParam("name", TypeRef.String)))),
             returnType = TypeRef.String,
             body = Some("s\"Hello, $name\"")
           )
@@ -162,7 +162,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
           val method = Method(
             "identity",
             typeParams = List(TypeParam("A")),
-            params = List(List(MethodParam("value", TypeRef("A")))),
+            params = List(ParamList(List(MethodParam("value", TypeRef("A"))))),
             returnType = TypeRef("A"),
             body = Some("value")
           )
@@ -174,8 +174,8 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
             "fold",
             typeParams = List(TypeParam("B")),
             params = List(
-              List(MethodParam("z", TypeRef("B"))),
-              List(MethodParam("f", TypeRef("(B, A) => B")))
+              ParamList(List(MethodParam("z", TypeRef("B")))),
+              ParamList(List(MethodParam("f", TypeRef("(B, A) => B"))))
             ),
             returnType = TypeRef("B")
           )
@@ -185,7 +185,7 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
         test("abstract method (no body)") {
           val method = Method(
             "process",
-            params = List(List(MethodParam("input", TypeRef.String))),
+            params = List(ParamList(List(MethodParam("input", TypeRef.String)))),
             returnType = TypeRef.Int
           )
           val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
@@ -205,9 +205,11 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
           val method = Method(
             "connect",
             params = List(
-              List(
-                MethodParam("host", TypeRef.String),
-                MethodParam("port", TypeRef.Int, Some("8080"))
+              ParamList(
+                List(
+                  MethodParam("host", TypeRef.String),
+                  MethodParam("port", TypeRef.Int, Some("8080"))
+                )
               )
             ),
             returnType = TypeRef.Unit,
@@ -317,6 +319,82 @@ object ScalaEmitterObjectSpec extends ZIOSpecDefault {
           val direct = ScalaEmitter.emitNewtype(nt, EmitterConfig.default)
           val via    = ScalaEmitter.emitTypeDefinition(nt, EmitterConfig.default)
           assertTrue(direct == via)
+        }
+      ),
+      suite("emitMethod - ParamList modifiers")(
+        test("method with using parameter list (Scala 3)") {
+          val method = Method(
+            "greet",
+            params = List(
+              ParamList(List(MethodParam("name", TypeRef.String))),
+              ParamList(List(MethodParam("ctx", TypeRef("Context"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def greet(name: String)(using ctx: Context): Unit")
+        },
+        test("method with using parameter list (Scala 2)") {
+          val method = Method(
+            "greet",
+            params = List(
+              ParamList(List(MethodParam("name", TypeRef.String))),
+              ParamList(List(MethodParam("ctx", TypeRef("Context"))), ParamListModifier.Using)
+            ),
+            returnType = TypeRef.Unit
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.scala2)
+          assertTrue(result == "def greet(name: String)(implicit ctx: Context): Unit")
+        },
+        test("method with implicit parameter list") {
+          val method = Method(
+            "show",
+            params = List(
+              ParamList(List(MethodParam("value", TypeRef("A")))),
+              ParamList(List(MethodParam("ev", TypeRef("Show[A]"))), ParamListModifier.Implicit)
+            ),
+            returnType = TypeRef.String
+          )
+          val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)
+          assertTrue(result == "def show(value: A)(implicit ev: Show[A]): String")
+        }
+      ),
+      suite("emitObjectMember - ExtensionBlock")(
+        test("extension block with single method (Scala 3)") {
+          val eb = ObjectMember.ExtensionBlock(
+            on = MethodParam("s", TypeRef.String),
+            methods = List(
+              Method("greet", returnType = TypeRef.String, body = Some("s\"Hello, $s\""))
+            )
+          )
+          val result = ScalaEmitter.emitObjectMember(eb, EmitterConfig.default)
+          assertTrue(result.contains("extension (s: String)"))
+          assertTrue(result.contains("def greet: String = s\"Hello, $s\""))
+        },
+        test("extension block with multiple methods (Scala 3)") {
+          val eb = ObjectMember.ExtensionBlock(
+            on = MethodParam("n", TypeRef.Int),
+            methods = List(
+              Method("double", returnType = TypeRef.Int, body = Some("n * 2")),
+              Method("triple", returnType = TypeRef.Int, body = Some("n * 3"))
+            )
+          )
+          val result = ScalaEmitter.emitObjectMember(eb, EmitterConfig.default)
+          assertTrue(result.contains("extension (n: Int) {"))
+          assertTrue(result.contains("def double: Int = n * 2"))
+          assertTrue(result.contains("def triple: Int = n * 3"))
+        },
+        test("extension block emits implicit class in Scala 2") {
+          val eb = ObjectMember.ExtensionBlock(
+            on = MethodParam("s", TypeRef.String),
+            methods = List(
+              Method("greet", returnType = TypeRef.String, body = Some("s\"Hello, $s\""))
+            )
+          )
+          val result = ScalaEmitter.emitObjectMember(eb, EmitterConfig.scala2)
+          assertTrue(result.contains("implicit class StringOps"))
+          assertTrue(result.contains("extends AnyVal"))
+          assertTrue(result.contains("def greet: String"))
         }
       )
     )

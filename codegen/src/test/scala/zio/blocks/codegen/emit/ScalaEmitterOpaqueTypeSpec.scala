@@ -35,7 +35,7 @@ object ScalaEmitterOpaqueTypeSpec extends ZIOSpecDefault {
                 ObjectMember.DefMember(
                   Method(
                     "apply",
-                    params = List(List(MethodParam("value", TypeRef.String))),
+                    params = List(ParamList(List(MethodParam("value", TypeRef.String)))),
                     returnType = TypeRef("UserId")
                   )
                 )

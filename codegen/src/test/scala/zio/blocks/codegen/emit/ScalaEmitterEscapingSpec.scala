@@ -129,7 +129,7 @@ object ScalaEmitterEscapingSpec extends ZIOSpecDefault {
         test("param named 'type' gets backtick-escaped") {
           val method = Method(
             "process",
-            params = List(List(MethodParam("type", TypeRef.String))),
+            params = List(ParamList(List(MethodParam("type", TypeRef.String)))),
             returnType = TypeRef.Unit
           )
           val result = ScalaEmitter.emitMethod(method, EmitterConfig.default)

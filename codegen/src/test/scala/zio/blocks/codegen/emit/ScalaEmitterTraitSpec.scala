@@ -88,6 +88,36 @@ object ScalaEmitterTraitSpec extends ZIOSpecDefault {
         val t: TypeDefinition = Trait("Marker")
         val result            = ScalaEmitter.emitTypeDefinition(t, EmitterConfig.default)
         assertTrue(result == "trait Marker")
+      },
+      test("trait with selfType and no members") {
+        val t = Trait(
+          "Service",
+          selfType = Some(TypeRef("Logging"))
+        )
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+        assertTrue(
+          result ==
+            """|trait Service {
+               |  self: Logging =>
+               |}""".stripMargin
+        )
+      },
+      test("trait with selfType and members") {
+        val t = Trait(
+          "Service",
+          selfType = Some(TypeRef("Logging")),
+          members = List(
+            ObjectMember.DefMember(Method("run", returnType = TypeRef.Unit))
+          )
+        )
+        val result = ScalaEmitter.emitTrait(t, EmitterConfig.default)
+        assertTrue(
+          result ==
+            """|trait Service {
+               |  self: Logging =>
+               |  def run: Unit
+               |}""".stripMargin
+        )
       }
     )
 }
