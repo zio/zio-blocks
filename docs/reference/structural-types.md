@@ -72,6 +72,8 @@ val structuralSchema = personSchema.structural
 
 ## Supported Conversions
 
+The following type categories can be converted to structural schemas:
+
 ### Product Types (Case Classes)
 
 Both Scala 2 and 3 support structural conversion of case classes:
