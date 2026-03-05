@@ -648,6 +648,7 @@ Create custom decoders from functions or using covariance:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
+import zio.blocks.chunk.Chunk
 
 // Create from a function
 val numberDecoder: XmlDecoder[Int] = XmlDecoder.instance { xml =>
@@ -698,6 +699,7 @@ Round-trip values by encoding and decoding:
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
+import zio.blocks.schema.xml.syntax._
 
 case class Message(id: String, text: String)
 object Message {
@@ -843,7 +845,7 @@ object Person {
 
 // Get the underlying binary codec
 val codec: XmlBinaryCodec[Person] =
-  schema.derive(XmlBinaryCodecDeriver)
+  Schema[Person].derive(XmlBinaryCodecDeriver)
 
 // Encode to Xml directly
 val person = Person("Alice", 30)
@@ -899,9 +901,8 @@ val error = XmlError("Parse failed")
 // Error message
 val message: String = error.getMessage
 
-// Get error with position information (line/column)
-val withSpan = error.atSpan(line = 5, column = 10)
-// Message will include position: "Parse failed (at line 5, column 10)"
+// Get error message for inspection
+val errorMsg: String = error.getMessage
 ```
 
 Error handling best practices:
@@ -972,13 +973,13 @@ val entry = Entry(
 Encode the entry with pretty printing:
 
 ```scala mdoc
-val xml = codec.encodeToString(entry, WriterConfig.pretty)
+val xmlStr = codec.encodeToString(entry, WriterConfig.pretty)
 ```
 
 Decode the XML back to a typed value:
 
 ```scala mdoc
-val decoded = codec.decode(xml)
+val decoded = codec.decode(xmlStr)
 ```
 
 ### Navigation and Transformation

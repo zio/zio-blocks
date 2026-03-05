@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Skill(docs-data-type-ref)",
+      "Bash(sbt:*)",
+      "Bash(grep:*)",
+      "Skill(docs-check-compliance)"
+    ]
+  }
+}
