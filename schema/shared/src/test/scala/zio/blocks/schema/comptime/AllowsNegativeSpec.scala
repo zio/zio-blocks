@@ -588,6 +588,49 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
                 result.left.exists(_.contains("could not find")))
           )
         )
+      },
+      // Regression: Scala 2 macro stored only typeSymbol.fullName for GIsType, so
+      // IsType[List[Int]] incorrectly accepted List[String] (same symbol, different args).
+      // The fix stores the full Type and uses =:= for comparison.
+      test("List[String] does NOT satisfy Sequence.List[IsType[Int]] — applied type args must match") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[String], Sequence.List[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] DOES satisfy Sequence.List[IsType[Int]] — same applied type args") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.List[IsType[Int]]]]
+        """).map(assert(_)(isRight(anything)))
+      }
+    ),
+    // Regression: Scaladoc claimed Nil.type was matched by Sequence.List, but
+    // Nil.type has no type args so element type falls back to Any, which fails
+    // any element constraint. This test proves the correct behaviour.
+    suite("Nil.type is not matched by Sequence.List")(
+      test("Nil.type does NOT satisfy Sequence.List[Primitive] — no element type args") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[scala.collection.immutable.Nil.type, Sequence.List[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Primitive") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
       }
     ),
     suite("Specific primitive violations")(

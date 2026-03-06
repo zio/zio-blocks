@@ -37,7 +37,7 @@ private[comptime] object AllowsMacroImpl {
     case class GMap(key: GrammarNode, value: GrammarNode) extends GrammarNode
     case class GOptional(inner: GrammarNode)              extends GrammarNode
     case class GWrapped(inner: GrammarNode)               extends GrammarNode
-    case class GIsType(scalaFQN: String)                  extends GrammarNode // exact type match
+    case class GIsType(targetType: Type)                  extends GrammarNode // exact type match (=:=)
     case class GUnion(branches: List[GrammarNode])        extends GrammarNode
 
     // In Scala 2 whitebox macros, weakTypeOf[S] and weakTypeOf[A] are abstract type
@@ -120,7 +120,7 @@ private[comptime] object AllowsMacroImpl {
         else if (tc =:= mapBase) GMap(decomposeGrammar(args.head), decomposeGrammar(args.last))
         else if (tc =:= optionalBase) GOptional(decomposeGrammar(args.head))
         else if (tc =:= wrappedBase) GWrapped(decomposeGrammar(args.head))
-        else if (tc =:= isTypeBase) GIsType(args.head.dealias.typeSymbol.fullName)
+        else if (tc =:= isTypeBase) GIsType(args.head.dealias)
         else if (tc =:= pipeBase) GUnion(List(decomposeGrammar(args.head), decomposeGrammar(args.last)))
         else
           c.abort(
@@ -406,10 +406,9 @@ private[comptime] object AllowsMacroImpl {
             err(path, describeType(tpe), "Sequence.Chunk[...]")
           }
 
-        case GIsType(scalaFQN) =>
-          val actualFQN = dt.typeSymbol.fullName
-          if (actualFQN != scalaFQN)
-            err(path, describeType(tpe), s"IsType[${scalaFQN.split('.').last}]")
+        case GIsType(targetType) =>
+          if (!(dt =:= targetType))
+            err(path, describeType(tpe), describeGrammar(GIsType(targetType)))
 
         case GMap(keyG, valG) =>
           if (isMap(dt)) {
@@ -507,18 +506,20 @@ private[comptime] object AllowsMacroImpl {
     }
 
     def describeGrammar(g: GrammarNode): String = g match {
-      case GPrimitive        => "Primitive"
-      case GDynamic          => "Dynamic"
-      case GSelf             => "Self"
-      case GRecord(inner)    => s"Record[${describeGrammar(inner)}]"
-      case GSequence(inner)  => s"Sequence[${describeGrammar(inner)}]"
-      case GSeqList(inner)   => s"Sequence.List[${describeGrammar(inner)}]"
-      case GSeqVector(inner) => s"Sequence.Vector[${describeGrammar(inner)}]"
-      case GSeqSet(inner)    => s"Sequence.Set[${describeGrammar(inner)}]"
-      case GSeqArray(inner)  => s"Sequence.Array[${describeGrammar(inner)}]"
-      case GSeqChunk(inner)  => s"Sequence.Chunk[${describeGrammar(inner)}]"
-      case GIsType(fqn)      =>
-        primitiveNameMap.get(fqn).fold(s"IsType[${fqn.split('.').last}]")(n => s"Primitive.$n")
+      case GPrimitive          => "Primitive"
+      case GDynamic            => "Dynamic"
+      case GSelf               => "Self"
+      case GRecord(inner)      => s"Record[${describeGrammar(inner)}]"
+      case GSequence(inner)    => s"Sequence[${describeGrammar(inner)}]"
+      case GSeqList(inner)     => s"Sequence.List[${describeGrammar(inner)}]"
+      case GSeqVector(inner)   => s"Sequence.Vector[${describeGrammar(inner)}]"
+      case GSeqSet(inner)      => s"Sequence.Set[${describeGrammar(inner)}]"
+      case GSeqArray(inner)    => s"Sequence.Array[${describeGrammar(inner)}]"
+      case GSeqChunk(inner)    => s"Sequence.Chunk[${describeGrammar(inner)}]"
+      case GIsType(targetType) =>
+        primitiveNameMap
+          .get(targetType.typeSymbol.fullName)
+          .fold(s"IsType[${targetType.toString}]")(n => s"Primitive.$n")
       case GMap(k, v)       => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
       case GOptional(inner) => s"Optional[${describeGrammar(inner)}]"
       case GWrapped(inner)  => s"Wrapped[${describeGrammar(inner)}]"

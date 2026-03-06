@@ -364,8 +364,8 @@ object Allows extends AllowsCompanionVersionSpecific {
   object Sequence {
 
     /**
-     * Matches `scala.collection.immutable.List[_]` (and subtypes such as
-     * `scala.collection.immutable.Nil.type`) whose element type satisfies `A`.
+     * Matches `scala.collection.immutable.List[_]` whose element type satisfies
+     * `A`.
      *
      * @tparam A
      *   The constraint that the element type must satisfy.
