@@ -1,5 +1,7 @@
 package zio.http
 
+import zio.blocks.chunk.Chunk
+
 sealed abstract class Charset(val name: String) extends CharsetPlatformSpecific {
   override def toString: String = name
 }
@@ -12,7 +14,7 @@ object Charset {
   case object UTF16BE    extends Charset("UTF-16BE")
   case object UTF16LE    extends Charset("UTF-16LE")
 
-  val values: Array[Charset] = Array(UTF8, ASCII, ISO_8859_1, UTF16, UTF16BE, UTF16LE)
+  val values: Chunk[Charset] = Chunk(UTF8, ASCII, ISO_8859_1, UTF16, UTF16BE, UTF16LE)
 
   def fromString(s: String): Option[Charset] = s.toUpperCase match {
     case "UTF-8" | "UTF8"                    => Some(UTF8)
