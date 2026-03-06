@@ -108,7 +108,7 @@ val structuralSchema = tupleSchema.structural
 
 ### Nested Products
 
-Field types are recursively structuralized:
+Nested product fields keep their nominal types; only the outer product is structuralized:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
