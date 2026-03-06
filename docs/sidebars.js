@@ -21,6 +21,7 @@ const sidebars = {
          "reference/formats",
          "path-interpolator",
          "reference/chunk",
+         "reference/combinators",
          "reference/schema-error",
          "reference/validation",
          {
