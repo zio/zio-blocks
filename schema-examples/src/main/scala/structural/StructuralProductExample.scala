@@ -30,7 +30,7 @@ object StructuralSimpleProductExample extends App {
 
   println("=== Simple Product: Person ===\n")
 
-  // Create a structural value (anonymous object with matching shape)
+  // Create a nominal Person instance that matches the structural schema shape
   val person: Person = Person("Alice", 30)
 
   // Encode to DynamicValue
