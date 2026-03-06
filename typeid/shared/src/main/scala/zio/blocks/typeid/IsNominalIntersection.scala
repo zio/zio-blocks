@@ -10,8 +10,8 @@ import zio.blocks.chunk.Chunk
  * constraints: no union branches, no structural refinements, no unresolved type
  * parameters. Derivation fails at compile time if any member is non-nominal.
  *
- * The primary use-case is `Context`, which keys its internal map by the
- * erased `TypeId` of each member in the intersection.
+ * The primary use-case is `Context`, which keys its internal map by the erased
+ * `TypeId` of each member in the intersection.
  *
  * @tparam A
  *   The intersection type being witnessed. May be a plain nominal type (in
