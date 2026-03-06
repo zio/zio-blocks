@@ -536,6 +536,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Core Schema Concepts
 
 - [Schema](./reference/schema.md) - Core schema definitions and derivation
+- [Allows](./reference/allows.md) - Compile-time structural grammar constraints
 - [Reflect](./reference/reflect.md) - Structural reflection API
 - [Binding](./reference/binding.md) - Runtime constructors and deconstructors
 - [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
