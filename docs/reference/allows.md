@@ -188,14 +188,14 @@ def writeCsv[A](rows: Seq[A])(using
 ): Unit = ???
 ```
 
-**Scala 2** uses the `` `\|` `` infix operator from `Allows`:
+**Scala 2** uses the infix operator `` Primitive `|` Optional[Primitive] `` from `Allows`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.comptime.Allows
 import Allows._
 
 def writeCsv[A](rows: Seq[A])(implicit
-  ev: Allows[A, Record[Primitive `\|` Optional[Primitive]]]
+  ev: Allows[A, Record[Primitive | Optional[Primitive]]]
 ): Unit = ???
 ```
 
@@ -308,8 +308,12 @@ object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`. Here's an example:
 
 ```scala mdoc:compile-only
-// ZIO Prelude Newtype pattern:
 import zio.prelude.Newtype
+import zio.blocks.schema.Schema
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// ZIO Prelude Newtype pattern:
 object ProductCode extends Newtype[String]
 type ProductCode = ProductCode.Type
 
