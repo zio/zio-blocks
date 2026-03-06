@@ -36,7 +36,7 @@ sealed trait Scheme
 // Headers and body
 final class Headers private[http] (...)
 sealed trait Header
-final class Body private (val data: Chunk[Byte], val contentType: Option[ContentType])
+final class Body private (val data: Chunk[Byte], val contentType: ContentType)
 
 // Supporting types
 final case class ContentType(mediaType: MediaType, boundary: Option[Boundary], charset: Option[Charset])
@@ -958,40 +958,63 @@ combined.toChunk                    // Chunk(("authorization", ...), ("access-co
 
 ## Body
 
-`Body` wraps a materialized `Chunk[Byte]` with optional content type:
+`Body` wraps a materialized `Chunk[Byte]` with a content type:
 
 ```scala
 final class Body private (
   val data: Chunk[Byte],
-  val contentType: Option[ContentType]
+  val contentType: ContentType
 )
+```
 
-Bodies are immutable with structural equality via `Chunk`.
 
 ### Creating Bodies
+
+`Body.empty` provides an empty body with default `application/octet-stream` content type:
+
+```scala mdoc:compile-only
+import zio.http.Body
+
+val empty = Body.empty
+// Body(data = Chunk.empty, contentType = application/octet-stream)
+```
+
+`Body.fromString` creates a body with `text/plain` content type:
 
 ```scala mdoc:compile-only
 import zio.http.{Body, Charset}
 
-val empty = Body.empty
-
 val fromString = Body.fromString("Hello, World!", Charset.UTF8)
 // Content-Type: text/plain; charset=UTF-8
-
-val fromBytes = Body.fromArray(Array[Byte](1, 2, 3))
 ```
 
-Using Chunk:
+`Body.fromArray` creates a body with default `application/octet-stream` content type:
 
 ```scala mdoc:compile-only
 import zio.http.Body
+
+val fromBytes = Body.fromArray(Array[Byte](1, 2, 3))
+// Content-Type: application/octet-stream
+```
+
+`Body.fromChunk` creates a body from a `Chunk[Byte]` with optional content type:
+
+```scala mdoc:compile-only
+import zio.http.{Body, ContentType}
 import zio.blocks.chunk.Chunk
+import zio.blocks.mediatype.MediaTypes
 
 val chunk = Chunk[Byte](1, 2, 3, 4, 5)
 val body = Body.fromChunk(chunk)
+// Content-Type: application/octet-stream (default)
+
+val jsonBody = Body.fromChunk(chunk, ContentType(MediaTypes.application.`json`))
+// Content-Type: application/json
 ```
 
 ### Reading Bodies
+
+`Body` provides direct access to data and content type:
 
 ```scala mdoc:compile-only
 import zio.http.{Body, Charset}
@@ -1004,6 +1027,7 @@ body.nonEmpty         // true
 body.asString()       // "Hello!" (UTF-8 default)
 body.asString(Charset.ASCII)  // "Hello!" (explicit charset)
 body.data             // Chunk[Byte](72, 101, 108, 108, 111, 33)
+body.contentType      // ContentType(text/plain; charset=UTF-8)
 ```
 
 ## Cookie
@@ -1328,13 +1352,14 @@ Response.serviceUnavailable    // 503
 
 // Responses with bodies
 Response.text("Hello, World!")    // 200 with text/plain body
-Response.json("""{"ok":true}""")  // 200 with application/json content-type
-
+Response.json("""{'ok':true}""")  // 200 with application/json in headers and body
 // Redirects
 Response.redirect("/new-location")                     // 307 Temporary Redirect
 Response.redirect("/new-location", isPermanent = true) // 308 Permanent Redirect
 Response.seeOther("/other")                            // 303 See Other
 ```
+
+Note that `Response.json` creates bodies with `application/json` content-type on the `Body` itself, not just in the headers.
 
 ### Modifying Responses
 
@@ -1547,3 +1572,145 @@ Bodies are fully materialized `Chunk[Byte]`. Streaming is left to higher-level H
 ### Zero ZIO Dependency
 
 The module uses `zio.blocks.chunk.Chunk` instead of `zio.Chunk`, making it usable in any Scala project without ZIO.
+
+## Schema-Based Typed Access (zio-http-model-schema)
+
+The `zio-http-model-schema` module provides schema-based extraction of query parameters and headers with automatic decoding and validation.
+
+### Installation
+
+Add the following to your `build.sbt`:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "<version>"
+```
+
+For cross-platform projects (Scala.js):
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "<version>"
+```
+
+### Imports
+
+Import the schema module to enable extension methods:
+
+```scala mdoc:compile-only
+import zio.http.schema._
+import zio.blocks.schema.Schema
+```
+
+### Query Parameter Extraction
+
+`QueryParams` gains schema-based extraction methods via implicit conversions:
+
+```scala mdoc:compile-only
+import zio.http.{QueryParams, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val url = URL.parse("/api/users?page=2&tag=scala&tag=fp").toOption.get
+val params = url.queryParams
+
+// Extract single value with automatic decoding
+params.query[Int]("page")
+// Right(2)
+
+// Extract all values for a key
+params.queryAll[String]("tag")
+// Right(Chunk("scala", "fp"))
+
+// Extract with default fallback
+params.queryOrElse[Int]("limit", 10)
+// 10 - uses default since "limit" not present
+```
+
+### Header Extraction
+
+`Headers` gains schema-based extraction methods:
+
+```scala mdoc:compile-only
+import zio.http.{Headers, Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/").toOption.get)
+  .addHeader("x-page", "5")
+  .addHeader("x-tag", "scala")
+  .addHeader("x-tag", "functional")
+
+val headers = request.headers
+
+// Extract single header value
+headers.header[Int]("x-page")
+// Right(5)
+
+// Extract all header values
+headers.headerAll[String]("x-tag")
+// Right(Chunk("scala", "functional"))
+
+// Extract with default fallback
+headers.headerOrElse[Int]("x-limit", 100)
+// 100
+```
+
+### Request and Response Extensions
+
+`Request` and `Response` gain schema-based extraction methods that delegate to their query parameters and headers:
+
+```scala mdoc:compile-only
+import zio.http.{Request, Response, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+// Request query parameter extraction
+val request = Request.get(URL.parse("/search?q=zio&limit=20").toOption.get)
+
+request.query[String]("q")
+// Right("zio")
+
+request.query[Int]("limit")
+// Right(20)
+
+// Response header extraction via schema
+val response = Response.ok.addHeader("x-correlation-id", "abc-123")
+
+val responseOps = new ResponseSchemaOps(response)
+responseOps.header[String]("x-correlation-id")
+```
+
+### Error Handling
+
+Schema-based extraction returns `Either[QueryParamError, A]` or `Either[HeaderError, A]` for explicit error handling:
+
+```scala mdoc:compile-only
+import zio.http.{QueryParams, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val params = QueryParams("name" -> "Alice", "age" -> "invalid")
+
+params.query[String]("name") match {
+  case Right(name) => println(s"Name: $name")
+  case Left(QueryParamError.Missing(key)) => println(s"Missing key: $key")
+  case Left(QueryParamError.Malformed(key, value, cause)) =>
+    println(s"Failed to parse $key=$value: $cause")
+}
+
+params.query[Int]("age") match {
+  case Right(age) => println(s"Age: $age")
+  case Left(QueryParamError.Missing(key)) => println(s"Missing key: $key")
+  case Left(QueryParamError.Malformed(key, value, cause)) =>
+    println(s"Failed to parse $key=$value: $cause")
+}
+```
+
+### Supported Types
+
+The schema module provides built-in `Schema` instances for common types. Any type with a `Schema[T]` can be extracted:
+
+- **Primitives**: `String`, `Int`, `Long`, `Boolean`, `Double`, `Float`, `Short`, `Byte`, `Char`
+- **Big Numbers**: `BigInt`, `BigDecimal`
+- **UUID**: `java.util.UUID`
+
+For custom types, define a `Schema[T]` instance using schema derivation or manual construction.
