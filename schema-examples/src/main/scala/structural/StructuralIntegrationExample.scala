@@ -6,8 +6,8 @@ import util.ShowExpr.show
 /**
  * Structural Types Reference — Integration
  *
- * Demonstrates how structural types integrate with other ZIO Blocks features,
- * particularly schema evolution (Into macro) and dynamic value manipulation.
+ * Demonstrates how structural types enable cross-type interoperability through
+ * DynamicValue manipulation, focusing on structural schemas and dynamic value handling.
  *
  * Run with: sbt "schema-examples/runMain
  * structural.StructuralIntegrationExample"
@@ -26,7 +26,7 @@ object StructuralIntegrationExample extends App {
     implicit val schema: Schema[Employee] = Schema.derived[Employee]
   }
 
-  println("=== Structural Types with Into Macro ===\n")
+  println("=== Structural Types Enable Cross-Type Interop ===\n")
 
   // Both types have identical structural shape
   val personSchema: Schema[Person]     = Schema.derived[Person]
