@@ -1539,9 +1539,39 @@ Email.gen.generate(random)
 Email.gen.generate(random)
 ```
 
-## Custom Type-class Instances
+## Customization: Overrides and Modifiers
 
 While automatic derivation generates type class instances for all substructures of a data type, there are times when you need to override the derived instance for a specific substructure. For example, you might want to use a custom `Show` instance for a particular field, provide a hand-written codec for a specific type that the deriver doesn't handle well, or inject a special implementation for testing purposes.
+
+### Why Customize Derived Instances?
+
+When deriving type class instances automatically, you often encounter scenarios where you need special handling for specific fields without affecting all other fields of the same type.
+
+For example, imagine building a user management system where:
+- Most `Int` fields serialize as regular JSON numbers: `age: 42`
+- But the `age` field specifically should serialize as a string: `age: "42"`
+- While other Int fields like `userId` and `score` remain as numbers
+
+Without instance overrides, you have two unsatisfying options:
+
+1. **Disable auto-derivation completely** and hand-write the codec for the entire type (verbose and brittle)
+2. **Accept uniform behavior** where all Ints serialize the same way (inflexible)
+
+Instance overrides solve this by letting you mix auto-derived instances with custom ones at the right granularity level.
+
+### Overview: Three Levels of Customization
+
+ZIO Blocks offers three distinct levels of customization granularity, allowing you to choose the precision you need:
+
+| Level | Mechanism | Scope | Example |
+|-------|-----------|-------|---------|
+| **Level 1: Type-Based** | Override by `TypeId` | All occurrences of a type globally | All `Int` fields serialize as strings |
+| **Level 2: Term-Name-Based** | Override by parent `TypeId` + field name | Specific field within a parent type | Only the `age` field in `UserProfile` |
+| **Level 3: Optic-Based** | Override by exact path (lens/optic) | Single location, including nested fields | The `zipCode` inside `address.zipCode` |
+
+Each level provides more precision but requires more explicit configuration. Use the coarsest level that meets your needs.
+
+### The Customization API
 
 The `DerivationBuilder` provides an `instance` method that allows you to override the automatically derived type class instance for any part of the schema tree. You access the `DerivationBuilder` by calling `Schema#deriving(deriver)` instead of `Schema#derive(deriver)`:
 
@@ -1569,13 +1599,316 @@ final case class DerivationBuilder[TC[_], A](...) {
 }
 ```
 
-### Overriding by Optic
+### Instance Overrides: Three Levels of Granularity
 
-The first overload takes an `Optic[A, B]` that precisely targets a specific location within the schema tree. This is useful when you want to override the instance for a particular field or case without affecting other occurrences of the same type:
+#### Level 1: Type-Based Overrides (All Occurrences)
+
+**When to use:** Apply the same custom behavior for a type **everywhere** it appears in your schema. This is ideal for cross-cutting concerns where a type should always be handled the same way, regardless of context.
+
+The first method takes a `TypeId[B]` and applies the custom instance to **all occurrences** of type `B` anywhere in the schema tree:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
+import zio.blocks.schema.json._
 import zio.blocks.typeid.TypeId
+
+case class SimpleUser(name: String, email: String)
+
+object SimpleUser {
+  implicit val schema: Schema[SimpleUser] = Schema.derived
+
+  val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+    def decodeValue(in: JsonReader, default: Int): Int =
+      in.readStringAsInt()
+
+    def encodeValue(x: Int, out: JsonWriter): Unit =
+      out.writeVal(x.toString)
+  }
+
+  val codec: JsonBinaryCodec[SimpleUser] = schema
+    .deriving(JsonBinaryCodecDeriver)
+    .instance(
+      TypeId.of[Int],
+      stringifyIntCodec
+    )
+    .derive
+}
+```
+
+**Result:** All `Int` fields in your schema use the custom codec globally.
+
+:::tip
+Type-based overrides are perfect for "cross-cutting concerns" — custom behavior you want everywhere a type appears. For example: custom serialization for `UUID`, special handling for all `LocalDateTime` fields, or global transformations for specific domain types.
+:::
+
+#### Level 2: Term-Name-Based Overrides (Field-Scoped)
+
+**When to use:** Apply custom behavior to a **specific field within a parent type**, without affecting other fields of the same type in other contexts. This is the **new feature in PR #1084** that provides medium-precision customization.
+
+The third method takes a `TypeId[P]` identifying the **parent** record or variant and a `termName` string identifying a field or case within it. This is useful when you want different behavior for the same type in different contexts:
+
+```scala mdoc:silent:nest
+case class Address(city: String, zipCode: String)
+
+object Address extends CompanionOptics[Address] {
+  implicit val schema: Schema[Address] = Schema.derived
+}
+
+case class UserProfile(id: Int, username: String, age: Int, score: Int, address: Address)
+
+object UserProfile extends CompanionOptics[UserProfile] {
+  implicit val schema: Schema[UserProfile] = Schema.derived
+
+  val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+    def decodeValue(in: JsonReader, default: Int): Int =
+      in.readStringAsInt()
+
+    def encodeValue(x: Int, out: JsonWriter): Unit =
+      out.writeVal(x.toString)
+  }
+}
+
+val codec: JsonBinaryCodec[UserProfile] = UserProfile.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .instance(
+    TypeId.of[UserProfile],  // parent type
+    "age",                   // field name
+    UserProfile.stringifyIntCodec        // custom instance
+  )
+  .derive
+```
+
+**Result:**
+- `age` serializes as `"42"` (a string)
+- `id` and `score` serialize as regular numbers: `42`, `100`
+
+:::warning
+The field name must match exactly — if you specify `"ag"` instead of `"age"`, the override is silently ignored. Also, the field must exist in the parent type for the override to apply. This is intentional for safety — you can use a name not present in the type without an error, allowing shared override configurations across multiple types.
+:::
+
+:::tip
+Term-name-based overrides are ideal when you want different behavior for **the same type in different contexts**. For instance, an `Int` field might represent an age in one record, a count in another, and a price in a third — each needing different serialization rules.
+:::
+
+#### Level 3: Optic-Based Overrides (Exact Path)
+
+**When to use:** Target a **specific field at an exact path** in your schema, especially for deeply nested structures or one-off customizations. This is the most precise level.
+
+The first method takes an `Optic[A, B]` that precisely targets a specific location within the schema tree:
+
+```scala mdoc:silent:nest
+case class SimpleUser2(id: Int, age: Int, score: Int)
+
+object SimpleUser2 extends CompanionOptics[SimpleUser2] {
+  implicit val schema: Schema[SimpleUser2] = Schema.derived
+
+  val age: Lens[SimpleUser2, Int] = optic(_.age)
+
+  val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+    def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+    def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toString)
+  }
+
+  val codec: JsonBinaryCodec[SimpleUser2] = schema
+    .deriving(JsonBinaryCodecDeriver)
+    .instance(
+      age,          // exact path via optic
+      stringifyIntCodec        // custom instance
+    )
+    .derive
+}
+```
+
+**For nested fields**, compose optics:
+
+```scala mdoc:silent
+case class Company(name: String, hq: Address)
+case class Address(city: String, zipCode: String)
+
+object Company extends CompanionOptics[Company] {
+  implicit val schema: Schema[Company] = Schema.derived
+  val hq: Lens[Company, Address] = optic(_.hq)
+}
+
+object Address extends CompanionOptics[Address] {
+  implicit val schema: Schema[Address] = Schema.derived
+  val city: Lens[Address, String] = optic(_.city)
+}
+
+// To override the city field inside the hq address:
+val addressCity: Lens[Company, String] = Company.hq(Address.city)
+```
+
+Then use the optic in your derivation:
+
+```scala mdoc:compile-only
+val codec: JsonBinaryCodec[Company] = Company.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .instance(
+    addressCity,
+    new JsonBinaryCodec[String](JsonBinaryCodec.objectType) {
+      def decodeValue(in: JsonReader, default: String): String = in.readString(default)
+      def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x)
+    }
+  )
+  .derive
+```
+
+:::tip
+Optic-based overrides are best for one-off customizations at specific locations. They require knowing the full path through your schema, so they're less reusable than term-name overrides but much more precise.
+:::
+
+### Resolution Order: When Multiple Overrides Match
+
+If multiple overrides could match the same field, ZIO Blocks applies them in this priority order (highest to lowest):
+
+1. **Optic-based** — exact path (most precise)
+2. **Term-name-based** — term name within parent type (medium precision)
+3. **Type-based** — all occurrences of the type (least precise)
+4. **Automatic derivation** — if no override matches
+
+This means an optic-based override always wins if specified, even if a term-name or type-based override also matches.
+
+**Example:** If you define all three levels simultaneously:
+
+```scala mdoc:silent
+case class User3(id: Int, age: Int, score: Int)
+
+object User3 extends CompanionOptics[User3] {
+  implicit val schema: Schema[User3] = Schema.derived
+  val age: Lens[User3, Int] = optic(_.age)
+}
+
+// Three different codecs for Int, each with different output format
+val globalIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+  def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+  def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toString)
+}
+
+val ageCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+  def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+  def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(s"AGE:${x}")
+}
+
+val exactAgeCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+  def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+  def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(s"[AGE:${x}]")
+}
+
+val codec: JsonBinaryCodec[User3] = User3.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .instance(TypeId.of[Int], globalIntCodec)           // matches all Ints
+  .instance(TypeId.of[User3], "age", ageCodec)        // matches age field
+  .instance(User3.age, exactAgeCodec)                 // matches exact path
+  .derive
+```
+
+The `age` field uses `exactAgeCodec` (producing `[AGE:30]`). If you remove the optic override, it uses `ageCodec` (producing `AGE:30`). If you remove both, it uses `globalIntCodec` (producing `30`). The `id` and `score` fields always use `globalIntCodec`.
+
+### Putting It Together: Complete Example
+
+Here's a full, runnable example that combines all three levels:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+// Custom codec: serialize Int as string
+val stringifyInt = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+  def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+  def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toString)
+}
+
+// Domain types
+case class Address(city: String, zipCode: String)
+object Address extends CompanionOptics[Address] {
+  implicit val schema: Schema[Address] = Schema.derived
+  val city: Lens[Address, String] = optic(_.city)
+}
+
+case class UserProfile(id: Int, username: String, age: Int, score: Int, address: Address)
+object UserProfile extends CompanionOptics[UserProfile] {
+  implicit val schema: Schema[UserProfile] = Schema.derived
+  val age: Lens[UserProfile, Int] = optic(_.age)
+  val address: Lens[UserProfile, Address] = optic(_.address)
+}
+
+// Derive with overrides
+val userCodec: JsonBinaryCodec[UserProfile] = UserProfile.schema
+  .deriving(JsonBinaryCodecDeriver)
+  .instance(
+    TypeId.of[UserProfile],  // parent type
+    "age",                   // field name → "age" serializes as string
+    stringifyInt
+  )
+  .derive
+
+// Test it
+val user = UserProfile(
+  id = 123,
+  username = "alice",
+  age = 30,
+  score = 850,
+  address = Address("NYC", "10001")
+)
+
+val encoded: Array[Byte] = userCodec.encode(user)
+val decoded: Either[SchemaError, UserProfile] = userCodec.decode(encoded)
+
+println(s"Encoded (${encoded.length} bytes)")
+println(s"Decoded: $decoded")
+```
+
+**Output:**
+```
+Encoded (53 bytes)
+Decoded: Right(UserProfile(123,alice,30,850,Address(NYC,10001)))
+```
+
+Notice that:
+- `id` and `score` remain numbers in the JSON
+- `age` is a string: `"30"`
+- Other types (String, Address) use default codecs
+
+### Running the Examples
+
+All code from this section is available as runnable examples in the `schema-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+```bash
+# Level 1: Type-based overrides (all Ints globally)
+sbt "schema-examples/runMain deriveroverrides.Level1TypeBased"
+
+# Level 2: Term-name-based overrides (age field only)
+sbt "schema-examples/runMain deriveroverrides.Level2TermNameBased"
+
+# Level 3: Optic-based overrides (exact path)
+sbt "schema-examples/runMain deriveroverrides.Level3OpticBased"
+
+# Complete example combining all three
+sbt "schema-examples/runMain deriveroverrides.CompleteExample"
+```
+
+**3. Or compile all examples at once:**
+
+```bash
+sbt "schema-examples/compile"
+```
+
+### Chaining Multiple Overrides
+
+The `instance` method returns a new `DerivationBuilder`, so you can chain multiple overrides fluently:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
 
@@ -1585,130 +1918,7 @@ object Person extends CompanionOptics[Person] {
   val name: Lens[Person, String] = $(_.name)
   val age: Lens[Person, Int]     = $(_.age)
 }
-```
 
-Now we can override the `Show[String]` instance specifically for the `name` field of `Person`:
-
-```scala mdoc:silent:nest
-val customNameShow: Show[String] = new Show[String] {
-  def show(value: String): String = value.toUpperCase
-}
-
-val personShow: Show[Person] = Person.schema
-  .deriving(DeriveShow)
-  .instance(Person.name, customNameShow)
-  .derive
-```
-
-When we show a `Person`, the `name` field will use the custom `Show[String]` instance (showing it in uppercase), while the `age` field will use the automatically derived `Show[Int]` instance:
-
-```scala mdoc
-personShow.show(Person("Alice", 30))
-```
-
-You can also target deeper nested fields using composed optics. For example, if you have a `Company` that contains a `Person`, you can target the `name` field inside the nested `Person`:
-
-```scala mdoc:silent
-case class Company(ceo: Person, industry: String)
-
-object Company extends CompanionOptics[Company] {
-  implicit val schema: Schema[Company] = Schema.derived[Company]
-
-  val ceo: Lens[Company, Person]       = $(_.ceo)
-  val ceoName: Lens[Company, String]   = $(_.ceo.name)
-  val industry: Lens[Company, String]  = $(_.industry)
-}
-```
-
-```scala mdoc:silent:nest
-val companyShow: Show[Company] = Company.schema
-  .deriving(DeriveShow)
-  .instance(Company.ceoName, customNameShow)
-  .derive
-```
-
-In this case, the custom `Show[String]` instance only applies to the CEO's name. The `industry` field, which is also a `String`, will use the default derived `Show[String]` instance:
-
-```scala mdoc
-companyShow.show(Company(Person("Alice", 30), "tech"))
-```
-
-### Overriding by TypeId
-
-The second overload takes a `TypeId[B]` and applies the custom instance to **all occurrences** of type `B` anywhere in the schema tree. This is useful when you want to override the instance for a type globally, without having to specify each location:
-
-```scala mdoc:silent:nest
-val customIntShow: Show[Int] = new Show[Int] {
-  def show(value: Int): String = s"#$value"
-}
-
-val personShow: Show[Person] = Person.schema
-  .deriving(DeriveShow)
-  .instance(TypeId.int, customIntShow)
-  .derive
-```
-
-All `Int` fields in the `Person` schema (in this case, just `age`) will use the custom `Show[Int]` instance:
-
-```scala mdoc
-personShow.show(Person("Alice", 30))
-```
-
-### Overriding by TypeId and Term Name
-
-The third overload takes a `TypeId[P]` identifying the **parent** record or variant and a `termName` string identifying a field or case within it. This provides medium precision between optic-based (exact path) and type-based (all occurrences) overrides, and is useful when you want to override a specific field across all locations where the parent type appears without having to enumerate each path with an optic:
-
-```scala mdoc:silent:nest
-val customAgeShow: Show[Int] = new Show[Int] {
-  def show(value: Int): String = s"age=$value"
-}
-
-val personShow: Show[Person] = Person.schema
-  .deriving(DeriveShow)
-  .instance(Person.schema.reflect.typeId, "age", customAgeShow)
-  .derive
-```
-
-The `typeId` refers to the parent record/variant type (here `Person`), not the field type. If no term with the given name exists in the parent type, the override is silently ignored.
-
-```scala mdoc
-personShow.show(Person("Alice", 30))
-```
-
-### Resolution Order
-
-When the derivation engine encounters a schema node, it resolves the type class instance using the following priority order:
-
-1. **Optic-based override** (most precise): If an instance override was registered using an optic that matches the current path in the schema tree, that instance is used.
-2. **TypeId + term-name override** (medium precision): If no optic-based match is found, it checks for an override registered by parent type ID and term name.
-3. **TypeId-based override** (more general): If no term-name match is found, it checks for an instance override registered by type ID.
-4. **Automatic derivation** (default): If no override is found, the deriver's method (e.g., `derivePrimitive`, `deriveRecord`) is called to automatically derive the instance.
-
-This means you can set a global override by type and then selectively refine specific fields using optics or term names:
-
-```scala mdoc:silent:nest
-val companyShow: Show[Company] = Company.schema
-  .deriving(DeriveShow)
-  .instance(TypeId.string, new Show[String] {
-    def show(value: String): String = s"'$value'"
-  })
-  .instance(Company.ceoName, new Show[String] {
-    def show(value: String): String = value.toUpperCase
-  })
-  .derive
-```
-
-In this example, all `String` fields use single quotes, except for the CEO's name which is shown in uppercase:
-
-```scala mdoc
-companyShow.show(Company(Person("Alice", 30), "tech"))
-```
-
-### Chaining Multiple Overrides
-
-The `instance` method returns a new `DerivationBuilder`, so you can chain multiple overrides fluently:
-
-```scala mdoc:silent:nest
 val personShow: Show[Person] = Person.schema
   .deriving(DeriveShow)
   .instance(Person.name, new Show[String] {
@@ -1942,3 +2152,10 @@ val result = Person.show.show(Person("Alice", 30))
 The interesting part here is how the `show` method of the derived `Show[Person]` instance works. It uses the `HasInstance` type class to access the derived `Show` instances for each field of the `Person` record (i.e., `Show[String]` for the `name` field and `Show[Int]` for the `age` field). This allows it to recursively display each field using its respective `Show` instance, demonstrating the composability and reusability of type class instances in the derivation system.
 
 Please note that this happens when either the `Deriver` implementation uses the `HasInstance` implicit parameter or uses the centralized recursive approach to access nested derived instances.
+
+## See Also
+
+- **[Schema](./schema.md)** — Complete reference for the Schema type and its operations
+- **[Optics Reference](./optics.md)** — Learn how to work with optics for composable field access
+- **[JSON Schema Reference](./json-schema.md)** — Explore the JSON format and its codec system
+- **[Modifier Reference](./modifier.md)** — Comprehensive guide to all available schema modifiers
