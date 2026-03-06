@@ -104,6 +104,139 @@ object RequestSpec extends HttpModelBaseSpec {
           request.queryParams.getFirst("foo") == Some("bar")
         )
       }
+    ),
+    suite("Request.delete")(
+      test("creates DELETE request") {
+        val url     = URL.fromPath(Path("/resource/1"))
+        val request = Request.delete(url)
+        assertTrue(
+          request.method == Method.DELETE,
+          request.url == url,
+          request.body == Body.empty
+        )
+      }
+    ),
+    suite("Request.put")(
+      test("creates PUT request with body") {
+        val url     = URL.fromPath(Path("/resource/1"))
+        val body    = Body.fromString("updated")
+        val request = Request.put(url, body)
+        assertTrue(
+          request.method == Method.PUT,
+          request.body == body
+        )
+      }
+    ),
+    suite("Request.patch")(
+      test("creates PATCH request with body") {
+        val url     = URL.fromPath(Path("/resource/1"))
+        val body    = Body.fromString("{\"name\": \"updated\"}")
+        val request = Request.patch(url, body)
+        assertTrue(
+          request.method == Method.PATCH,
+          request.body == body
+        )
+      }
+    ),
+    suite("Request.head")(
+      test("creates HEAD request") {
+        val url     = URL.fromPath(Path("/resource"))
+        val request = Request.head(url)
+        assertTrue(
+          request.method == Method.HEAD,
+          request.body == Body.empty
+        )
+      }
+    ),
+    suite("Request.options")(
+      test("creates OPTIONS request") {
+        val url     = URL.fromPath(Path("/resource"))
+        val request = Request.options(url)
+        assertTrue(
+          request.method == Method.OPTIONS,
+          request.body == Body.empty
+        )
+      }
+    ),
+    suite("addHeader")(
+      test("adds a header to request") {
+        val request = Request.get(URL.fromPath(Path.root)).addHeader("Accept", "text/html")
+        assertTrue(request.headers.rawGet("accept") == Some("text/html"))
+      }
+    ),
+    suite("addHeaders")(
+      test("adds multiple headers") {
+        val extra   = Headers("Accept" -> "text/html", "X-Custom" -> "value")
+        val request = Request.get(URL.fromPath(Path.root)).addHeaders(extra)
+        assertTrue(
+          request.headers.rawGet("accept") == Some("text/html"),
+          request.headers.rawGet("x-custom") == Some("value")
+        )
+      }
+    ),
+    suite("removeHeader")(
+      test("removes a header from request") {
+        val request = Request
+          .get(URL.fromPath(Path.root))
+          .addHeader("Accept", "text/html")
+          .removeHeader("Accept")
+        assertTrue(!request.headers.has("accept"))
+      }
+    ),
+    suite("setHeader")(
+      test("sets a header on request") {
+        val request = Request
+          .get(URL.fromPath(Path.root))
+          .addHeader("Accept", "text/html")
+          .setHeader("Accept", "application/json")
+        assertTrue(request.headers.rawGet("accept") == Some("application/json"))
+      }
+    ),
+    suite("body (setter)")(
+      test("replaces body") {
+        val newBody = Body.fromString("new body")
+        val request = Request.get(URL.fromPath(Path.root)).body(newBody)
+        assertTrue(request.body == newBody)
+      }
+    ),
+    suite("url (setter)")(
+      test("replaces url") {
+        val newUrl  = URL.fromPath(Path("/new"))
+        val request = Request.get(URL.fromPath(Path("/old"))).url(newUrl)
+        assertTrue(request.url == newUrl)
+      }
+    ),
+    suite("method (setter)")(
+      test("replaces method") {
+        val request = Request.get(URL.fromPath(Path.root)).method(Method.POST)
+        assertTrue(request.method == Method.POST)
+      }
+    ),
+    suite("version (setter)")(
+      test("replaces version") {
+        val request = Request.get(URL.fromPath(Path.root)).version(Version.`HTTP/1.0`)
+        assertTrue(request.version == Version.`HTTP/1.0`)
+      }
+    ),
+    suite("updateHeaders")(
+      test("transforms headers via function") {
+        val request = Request
+          .get(URL.fromPath(Path.root))
+          .addHeader("Accept", "text/html")
+          .updateHeaders(_.add("X-Custom", "value"))
+        assertTrue(
+          request.headers.rawGet("accept") == Some("text/html"),
+          request.headers.rawGet("x-custom") == Some("value")
+        )
+      }
+    ),
+    suite("updateUrl")(
+      test("transforms url via function") {
+        val request = Request
+          .get(URL.fromPath(Path("/api")))
+          .updateUrl(_ / "users")
+        assertTrue(request.url.path.segments.length == 2)
+      }
     )
   )
 }

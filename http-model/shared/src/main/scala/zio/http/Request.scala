@@ -20,6 +20,19 @@ final case class Request(
   def path: Path = url.path
 
   def queryParams: QueryParams = url.queryParams
+
+  def addHeader(name: String, value: String): Request = copy(headers = headers.add(name, value))
+  def addHeaders(other: Headers): Request             = copy(headers = headers ++ other)
+  def removeHeader(name: String): Request             = copy(headers = headers.remove(name))
+  def setHeader(name: String, value: String): Request = copy(headers = headers.set(name, value))
+
+  def body(body: Body): Request          = copy(body = body)
+  def url(url: URL): Request             = copy(url = url)
+  def method(method: Method): Request    = copy(method = method)
+  def version(version: Version): Request = copy(version = version)
+
+  def updateHeaders(f: Headers => Headers): Request = copy(headers = f(headers))
+  def updateUrl(f: URL => URL): Request             = copy(url = f(url))
 }
 
 object Request {
@@ -29,4 +42,19 @@ object Request {
 
   def post(url: URL, body: Body): Request =
     Request(Method.POST, url, Headers.empty, body, Version.`HTTP/1.1`)
+
+  def delete(url: URL): Request =
+    Request(Method.DELETE, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
+
+  def put(url: URL, body: Body): Request =
+    Request(Method.PUT, url, Headers.empty, body, Version.`HTTP/1.1`)
+
+  def patch(url: URL, body: Body): Request =
+    Request(Method.PATCH, url, Headers.empty, body, Version.`HTTP/1.1`)
+
+  def head(url: URL): Request =
+    Request(Method.HEAD, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
+
+  def options(url: URL): Request =
+    Request(Method.OPTIONS, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
 }
