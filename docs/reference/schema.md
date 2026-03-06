@@ -540,7 +540,19 @@ Here is an example of adding modifiers to a schema:
 
 ### Debug-Friendly toString
 
-`Schema` has a custom `toString` that wraps the underlying `Reflect` output in a `Schema { ... }` block, providing a complete structural view of your data types:
+## Integration
+
+Schema is the primary data type in ZIO Blocks and integrates with several other core types:
+
+**[Reflect](./reflect.md)** — The underlying representation of type structure. `Schema[A]` wraps a `Reflect.Bound[A]`, which combines structural information with construction/deconstruction capabilities. For pure structural information without functions, use `Reflect` directly.
+
+**[Binding](./binding.md)** — The mechanism for building and tearing down values. `Schema` uses `Binding[T, A]` internally to provide `Constructor[A]` and `Deconstructor[A]` methods. See the Binding documentation for custom construction strategies.
+
+**[DynamicValue](./dynamicvalue.md)** — A semi-structured representation of data (superset of JSON). `Schema[DynamicValue]` allows seamless conversion between type-safe data and dynamic representations, enabling flexible serialization to any format (JSON, Avro, Protobuf).
+
+**[TypeId](./typeid.md)** — Reified type information at runtime. Some schema operations use `TypeId` for runtime type checking and reflection. See TypeId for more information on compile-time type constraints.
+
+## Advanced Usage
 
 ```scala
 import zio.blocks.schema._
