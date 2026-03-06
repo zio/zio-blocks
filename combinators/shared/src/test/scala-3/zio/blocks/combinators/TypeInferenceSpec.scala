@@ -1,7 +1,6 @@
 package zio.blocks.combinators
 
 import zio.test._
-import scala.compiletime.testing.typeCheckErrors
 
 object TypeInferenceSpec extends ZIOSpecDefault {
 
@@ -62,44 +61,15 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       }
     ),
     suite("Tuples.separate type inference")(
-      test("separate((1, \"a\")) infers (Int, String)") {
+      test("separate via typeclass instance infers correct types") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Tuples
-          val result: String = Tuples.separate((1, "a"))
+          val t = summon[Tuples.Tuples[Int, String]]
+          val result: Boolean = t.separate((1, "a"))
         """)
         assertTrue(
           errors.nonEmpty,
           errors.exists(e => e.message.contains("Int") && e.message.contains("String"))
-        )
-      },
-      test("separate((1, \"a\", true)) returns tuple of components via Separator") {
-        val errors = typeCheckErrors("""
-          import zio.blocks.combinators.Tuples
-          val result: String = Tuples.separate((1, "a", true))
-        """)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(_.message.contains("Separator"))
-        )
-      },
-      test("separate((1, \"a\", true, 3.0)) infers 4-tuple with proper Separator") {
-        val errors = typeCheckErrors("""
-          import zio.blocks.combinators.Tuples
-          val result: String = Tuples.separate((1, "a", true, 3.0))
-        """)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(_.message.contains("Separator"))
-        )
-      },
-      test("separate on 5-element tuple infers proper Separator with Left and Right") {
-        val errors = typeCheckErrors("""
-          import zio.blocks.combinators.Tuples
-          val result: String = Tuples.separate((1, 2, 3, 4, 5))
-        """)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(_.message.contains("Separator"))
         )
       }
     ),
@@ -121,7 +91,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Either") && e.message.contains("Combiner"))
+          errors.exists(e => e.message.contains("Either") && e.message.contains("Eithers"))
         )
       },
       test("combine on Right(Left(\"mid\")): Either[Int, Either[String, Boolean]] infers Either type") {
@@ -131,7 +101,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Either") && e.message.contains("Combiner"))
+          errors.exists(e => e.message.contains("Either") && e.message.contains("Eithers"))
         )
       },
       test("combine on Left(42): Either[Int, Either[String, Boolean]] infers Either type") {
@@ -151,25 +121,16 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Either") && e.message.contains("Combiner"))
+          errors.exists(e => e.message.contains("Either") && e.message.contains("Eithers"))
         )
       }
     ),
     suite("Eithers.separate type inference")(
-      test("separate(Either[Int, String]) returns Either type") {
+      test("separate via typeclass instance returns Either type") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Eithers
-          val result: String = Eithers.separate(Left(42): Either[Int, String])
-        """)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(_.message.contains("Either"))
-        )
-      },
-      test("separate(Either[Either[Int, String], Boolean]) separates rightmost component") {
-        val errors = typeCheckErrors("""
-          import zio.blocks.combinators.Eithers
-          val result: String = Eithers.separate(Left(Left(42)): Either[Either[Int, String], Boolean])
+          val e = summon[Eithers.Eithers[Int, String]]
+          val result: String = e.separate(Left(42): Either[Int, String])
         """)
         assertTrue(
           errors.nonEmpty,
@@ -210,10 +171,11 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       }
     ),
     suite("Unions.separate type inference")(
-      test("separate(Int | String) with explicit Separator infers Either type") {
+      test("separate(Int | String) with explicit instance infers Either type") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Unions
-          val result: String = Unions.separate(42: (Int | String))(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+          val u = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+          val result: String = u.separate(42: (Int | String))
         """)
         assertTrue(
           errors.nonEmpty,
@@ -223,7 +185,8 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       test("separate preserves union structure in Either type") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Unions
-          val result: String = Unions.separate("hello": (Int | String))(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+          val u = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+          val result: String = u.separate("hello": (Int | String))
         """)
         assertTrue(
           errors.nonEmpty,
@@ -232,10 +195,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       }
     ),
     suite("Generic functions with type inference")(
-      test("generic function using Tuples.Combiner shows type inference") {
+      test("generic function using Tuples.Tuples shows type inference") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Tuples
-          def combine_values[L, R](l: L, r: R)(using c: Tuples.Combiner[L, R]): String = Tuples.combine(l, r)
+          def combine_values[L, R](l: L, r: R)(using c: Tuples.Tuples[L, R]): String = Tuples.combine(l, r)
           combine_values(1, "a")
         """)
         assertTrue(
@@ -243,21 +206,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           errors.exists(e => e.message.contains("Found") && e.message.contains("c.Out"))
         )
       },
-      test("generic function using Tuples.Separator shows type inference") {
-        val errors = typeCheckErrors("""
-          import zio.blocks.combinators.Tuples
-          def separate_value[A](a: A)(using s: Tuples.Separator[A]): String = Tuples.separate(a)
-          separate_value((1, "a", true))
-        """)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(e => e.message.contains("Found") && e.message.contains("Left") && e.message.contains("Right"))
-        )
-      },
-      test("generic function using Eithers.Combiner shows type inference") {
+      test("generic function using Eithers.Eithers shows type inference") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Eithers
-          def canonicalize[L, R](e: Either[L, R])(using c: Eithers.Combiner[L, R]): String = Eithers.combine(e)
+          def canonicalize[L, R](e: Either[L, R])(using c: Eithers.Eithers[L, R]): String = Eithers.combine(e)
           canonicalize(Right(Right(true)): Either[Int, Either[String, Boolean]])
         """)
         assertTrue(
@@ -265,10 +217,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           errors.exists(e => e.message.contains("Found") && e.message.contains("c.Out"))
         )
       },
-      test("generic function using Unions.Combiner shows type inference") {
+      test("generic function using Unions.Unions shows type inference") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Unions
-          def to_union[L, R](e: Either[L, R])(using c: Unions.Combiner[L, R]): String = Unions.combine(e)
+          def to_union[L, R](e: Either[L, R])(using c: Unions.Unions[L, R]): String = Unions.combine(e)
           to_union(Left(42): Either[Int, String])
         """)
         assertTrue(
@@ -286,14 +238,15 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(_.message.contains("Combiner"))
+          errors.exists(_.message.contains("Tuples"))
         )
       },
       test("roundtrip combine/separate preserves type relationship") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Tuples
           val combined: String = Tuples.combine(1, "a")
-          val separated: Boolean = Tuples.separate(combined)
+          val t = summon[Tuples.Tuples[Int, String]]
+          val separated: Boolean = t.separate(combined)
         """)
         assertTrue(
           errors.nonEmpty,
@@ -320,7 +273,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Either") && e.message.contains("Combiner"))
+          errors.exists(e => e.message.contains("Either") && e.message.contains("Eithers"))
         )
       },
       test("union type inference with Either source") {
@@ -330,7 +283,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(_.message.contains("Combiner"))
+          errors.exists(_.message.contains("Unions"))
         )
       },
       test("tuple inference with method calls") {
@@ -342,7 +295,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(_.message.contains("Combiner"))
+          errors.exists(_.message.contains("Tuples"))
         )
       },
       test("Eithers inference maintains Either structure in nested case") {
@@ -353,10 +306,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         """)
         assertTrue(
           errors.nonEmpty,
-          errors.exists(e => e.message.contains("Either") && e.message.contains("Combiner"))
+          errors.exists(e => e.message.contains("Either") && e.message.contains("Eithers"))
         )
       },
-      test("Tuples.Combiner infers correct types for mixed tuple inputs") {
+      test("Tuples.Tuples infers correct types for mixed tuple inputs") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Tuples
           val left: (Int, String) = (1, "a")
@@ -366,7 +319,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         assertTrue(
           errors.nonEmpty,
           errors.exists(e =>
-            e.message.contains("Combiner") && e.message.contains("Int") && e.message.contains("String") && e.message
+            e.message.contains("Tuples") && e.message.contains("Int") && e.message.contains("String") && e.message
               .contains("Boolean") && e.message.contains("Double")
           )
         )

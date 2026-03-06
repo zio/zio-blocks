@@ -4,7 +4,7 @@ import zio.test._
 
 object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
   def spec = suite("Tuples Recursive Flattening")(
-    suite("Combiner recursive flattening")(
+    suite("combine recursive flattening")(
       test("flattens left-nested tuple with right tuple") {
         val result = Tuples.combine(((1, "a"), true), (3.0, 'x'))
         assertTrue(result == (1, "a", true, 3.0, 'x'))
@@ -38,20 +38,23 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         assertTrue(result == (1, "a", true))
       }
     ),
-    suite("Separator")(
+    suite("separate")(
       test("separates flat 3-tuple correctly") {
-        val result = Tuples.separate((1, "a", true))
+        val t      = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val result = t.separate(t.combine((1, "a"), true))
         assertTrue(result == ((1, "a"), true))
       },
       test("separates 4-tuple correctly") {
-        val result = Tuples.separate((1, "a", true, 3.0))
+        val t      = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
+        val result = t.separate(t.combine((1, "a", true), 3.0))
         assertTrue(result == ((1, "a", true), 3.0))
       }
     ),
     suite("Round-trip consistency")(
       test("combine then separate preserves structure") {
-        val combined  = Tuples.combine((1, "a"), true)
-        val separated = Tuples.separate(combined)
+        val t         = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val combined  = t.combine((1, "a"), true)
+        val separated = t.separate(combined)
         assertTrue(separated == ((1, "a"), true))
       }
     ),
@@ -66,8 +69,9 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         val result = Tuples.combine((1, "a"), true)
         assertTrue(result == (1, "a", true))
       },
-      test("Tuples.separate works without explicit separator") {
-        val result = Tuples.separate((1, "a", true))
+      test("Tuples.separate works via typeclass instance") {
+        val t      = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val result = t.separate(t.combine((1, "a"), true))
         assertTrue(result == ((1, "a"), true))
       },
       test("Tuples.combine with nested tuples flattens") {
@@ -75,7 +79,8 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         assertTrue(result == (1, "a", true, 3.0, 'x'))
       },
       test("Tuples.separate canonicalizes nested input") {
-        val result = Tuples.separate(((1, "a"), (true, 3.0)))
+        val tc     = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
+        val result = tc.separate(tc.combine((1, "a", true), 3.0))
         assertTrue(result == ((1, "a", true), 3.0))
       }
     ),
@@ -87,46 +92,47 @@ object TuplesRecursiveFlatteningSpec extends ZIOSpecDefault {
         assertTrue(tuple == (42, "hello"))
       },
       test("separate tuple without type annotations - 3-tuple") {
-        val tuple        = (42, "hello", true)
-        val (init, last) = Tuples.separate(tuple)
+        val t            = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val (init, last) = t.separate(t.combine((42, "hello"), true))
         assertTrue(last == true && init == (42, "hello"))
       },
       test("roundtrip with inferred types") {
-        val a            = 1
-        val b            = "two"
-        val combined     = Tuples.combine(a, b)
-        val (init, last) = Tuples.separate(combined)
-        assertTrue(last == "two" && init == Tuple1(1))
+        val t            = summon[Tuples.Tuples[Int, String]]
+        val combined     = t.combine(1, "two")
+        val (init, last) = t.separate(combined)
+        assertTrue(last == "two" && init == 1)
       },
-      test("generic function using Combiner") {
-        def pair[L, R](l: L, r: R)(using c: Tuples.Combiner[L, R]): c.Out =
-          Tuples.combine(l, r)
+      test("generic function using Tuples") {
+        def pair[L, R](l: L, r: R)(using c: Tuples.Tuples[L, R]): c.Out =
+          c.combine(l, r)
 
         val result = pair(true, 3.14)
         assertTrue(result == (true, 3.14))
       },
-      test("generic function using Separator") {
-        def unpair[A](a: A)(using s: Tuples.Separator[A]): (s.Left, s.Right) =
-          Tuples.separate(a)
-
-        val result = unpair((1, "a", true))
+      test("generic function using Tuples for separate") {
+        val t        = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val combined = t.combine((1, "a"), true)
+        val result   = t.separate(combined)
         assertTrue(result == ((1, "a"), true))
       },
       test("chained operations with inference - building larger tuples") {
-        val step1 = Tuples.combine(1, "a")      // (1, "a")
-        val step2 = Tuples.combine(step1, true) // (1, "a", true) - flattened!
-        val step3 = Tuples.combine(step2, 3.14) // (1, "a", true, 3.14)
+        val step1 = Tuples.combine(1, "a")
+        val step2 = Tuples.combine(step1, true)
+        val step3 = Tuples.combine(step2, 3.14)
         assertTrue(step3 == (1, "a", true, 3.14))
       },
       test("chained separations - decomposing tuples") {
-        val tuple          = (1, "a", true, 3.14)
-        val (rest1, last1) = Tuples.separate(tuple)
-        val (rest2, last2) = Tuples.separate(rest1)
-        val (rest3, last3) = Tuples.separate(rest2)
+        val t4             = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
+        val t3             = summon[Tuples.Tuples[(Int, String), Boolean]]
+        val t2             = summon[Tuples.Tuples[Int, String]]
+        val tuple          = t4.combine(t3.combine(t2.combine(1, "a"), true), 3.14)
+        val (rest1, last1) = t4.separate(tuple)
+        val (rest2, last2) = t3.separate(rest1)
+        val (rest3, last3) = t2.separate(rest2)
         assertTrue(last1 == 3.14 && last2 == true && last3 == "a")
       },
-      test("Combiner in higher-order function") {
-        def zipWith[A, B, C](a: A, b: B, f: (A, B) => C)(using Tuples.Combiner[A, B]): C =
+      test("Tuples in higher-order function") {
+        def zipWith[A, B, C](a: A, b: B, f: (A, B) => C)(using Tuples.Tuples[A, B]): C =
           f(a, b)
 
         val result = zipWith(1, 2, _ + _)

@@ -3,36 +3,8 @@ package zio.blocks.combinators
 import scala.compiletime.constValue
 import scala.util.NotGiven
 
-/**
- * Tuple operations: combining values into flat tuples and separating them.
- *
- * The `Tuples` module provides two complementary typeclasses:
- *   - `Combiner[L, R]`: Combines two values into a flattened output
- *   - `Separator[A]`: Separates a combined value back into its parts
- *
- * Key behaviors:
- *   - Unit identity: `combine((), a)` returns `a`
- *   - EmptyTuple identity: `combine(EmptyTuple, a)` returns `a`
- *   - Tuple flattening: `combine((a, b), c)` returns `(a, b, c)`
- *
- * @example
- *   {{{
- * import zio.blocks.combinators.Tuples._
- *
- * val combined: (Int, String, Boolean) = Combiner.combine((1, "a"), true)
- * val (left, right) = Separator.separate(combined)
- *   }}}
- */
 object Tuples {
 
-  /**
-   * Recursively flattens nested tuples into a flat tuple.
-   *
-   * Examples:
-   *   - `Flatten[(Int, (String, Boolean))]` = `(Int, String, Boolean)`
-   *   - `Flatten[((Int, String), (Boolean, Double))]` =
-   *     `(Int, String, Boolean, Double)`
-   */
   type Flatten[T] <: Tuple = T match {
     case EmptyTuple => EmptyTuple
     case h *: t     =>
@@ -43,75 +15,111 @@ object Tuples {
     case _ => T *: EmptyTuple
   }
 
-  /**
-   * The canonical combined type of A and B, fully flattened.
-   */
   type Combined[A, B] = Flatten[A *: B *: EmptyTuple]
 
-  /**
-   * Returns all elements of a tuple except the last one.
-   *
-   * Examples: Init[(Int, String, Boolean)] = (Int, String) Init[(Int,)] =
-   * EmptyTuple
-   */
   type Init[T <: Tuple] <: Tuple = T match {
     case x *: EmptyTuple => EmptyTuple
     case x *: xs         => x *: Init[xs]
   }
 
-  /**
-   * Returns the last element of a tuple.
-   *
-   * Examples: Last[(Int, String, Boolean)] = Boolean Last[(Int,)] = Int
-   */
   type Last[T <: Tuple] = T match {
     case x *: EmptyTuple => x
     case x *: xs         => Last[xs]
   }
 
-  /**
-   * Combines two values into a single output value with tuple flattening.
-   *
-   * @tparam L
-   *   The left input type
-   * @tparam R
-   *   The right input type
-   */
-  trait Combiner[L, R] {
+  trait Tuples[L, R] {
     type Out
 
-    /**
-     * Combines two values into a single output value.
-     *
-     * @param l
-     *   The left value
-     * @param r
-     *   The right value
-     * @return
-     *   The combined output
-     */
     def combine(l: L, r: R): Out
+
+    def separate(out: Out): (L, R)
   }
 
-  /**
-   * Separates a combined value back into its constituent parts.
-   *
-   * @tparam A
-   *   The combined input type
-   */
-  trait Separator[A] {
-    type Left
-    type Right
+  object Tuples extends TuplesLowPriority {
+    type WithOut[L, R, O] = Tuples[L, R] { type Out = O }
 
-    /**
-     * Separates a combined value back into its constituent parts.
-     *
-     * @param a
-     *   The combined value
-     * @return
-     *   A tuple of the original left and right values
-     */
-    def separate(a: A): (Left, Right)
+    given leftUnit[R]: WithOut[Unit, R, R] = new Tuples[Unit, R] {
+      type Out = R
+      def combine(l: Unit, r: R): R   = r
+      def separate(out: R): (Unit, R) = ((), out)
+    }
+
+    given rightUnit[L]: WithOut[L, Unit, L] = new Tuples[L, Unit] {
+      type Out = L
+      def combine(l: L, r: Unit): L   = l
+      def separate(out: L): (L, Unit) = (out, ())
+    }
+
+    given leftEmptyTuple[R]: WithOut[EmptyTuple, R, R] = new Tuples[EmptyTuple, R] {
+      type Out = R
+      def combine(l: EmptyTuple, r: R): R   = r
+      def separate(out: R): (EmptyTuple, R) = (EmptyTuple, out)
+    }
+
+    given rightEmptyTuple[L]: WithOut[L, EmptyTuple, L] = new Tuples[L, EmptyTuple] {
+      type Out = L
+      def combine(l: L, r: EmptyTuple): L   = l
+      def separate(out: L): (L, EmptyTuple) = (out, EmptyTuple)
+    }
+
+    inline given tupleTuple[L <: NonEmptyTuple, R <: NonEmptyTuple]: WithOut[L, R, Combined[L, R]] =
+      TupleTupleInstance[L, R](constValue[Tuple.Size[Flatten[L]]])
+
+    inline given tupleValue[L <: NonEmptyTuple, R](using
+      NotGiven[R <:< Tuple]
+    ): WithOut[L, R, Tuple.Concat[L, Tuple1[R]]] =
+      TupleValueInstance[L, R](constValue[Tuple.Size[L]])
+
+    given valueTuple[L, R <: NonEmptyTuple](using NotGiven[L <:< Tuple]): WithOut[L, R, Tuple.Concat[Tuple1[L], R]] =
+      ValueTupleInstance[L, R]()
+
+    private[combinators] class TupleTupleInstance[L <: NonEmptyTuple, R <: NonEmptyTuple](flatLeftSize: Int)
+        extends Tuples[L, R] {
+      type Out = Combined[L, R]
+
+      def combine(left: L, right: R): Combined[L, R] =
+        flattenTuple(left ++ right).asInstanceOf[Combined[L, R]]
+
+      def separate(out: Combined[L, R]): (L, R) = {
+        val t      = out.asInstanceOf[Tuple]
+        val (l, r) = t.splitAt(flatLeftSize)
+        (l.asInstanceOf[L], r.asInstanceOf[R])
+      }
+    }
+
+    private[combinators] class TupleValueInstance[L <: NonEmptyTuple, R](leftSize: Int) extends Tuples[L, R] {
+      type Out = Tuple.Concat[L, Tuple1[R]]
+
+      def combine(left: L, right: R): Tuple.Concat[L, Tuple1[R]] =
+        (left ++ Tuple1(right)).asInstanceOf[Tuple.Concat[L, Tuple1[R]]]
+
+      def separate(out: Tuple.Concat[L, Tuple1[R]]): (L, R) = {
+        val t      = out.asInstanceOf[Tuple]
+        val (l, r) = t.splitAt(leftSize)
+        (l.asInstanceOf[L], r.asInstanceOf[Tuple1[R]].head)
+      }
+    }
+
+    private[combinators] class ValueTupleInstance[L, R <: NonEmptyTuple]() extends Tuples[L, R] {
+      type Out = Tuple.Concat[Tuple1[L], R]
+
+      def combine(left: L, right: R): Tuple.Concat[Tuple1[L], R] =
+        (Tuple1(left) ++ right).asInstanceOf[Tuple.Concat[Tuple1[L], R]]
+
+      def separate(out: Tuple.Concat[Tuple1[L], R]): (L, R) = {
+        val t      = out.asInstanceOf[Tuple]
+        val (l, r) = t.splitAt(1)
+        (l.asInstanceOf[Tuple1[L]].head, r.asInstanceOf[R])
+      }
+    }
+  }
+
+  trait TuplesLowPriority {
+    given fallback[L, R]: Tuples.WithOut[L, R, (L, R)] = new Tuples[L, R] {
+      type Out = (L, R)
+      def combine(l: L, r: R): (L, R)   = (l, r)
+      def separate(out: (L, R)): (L, R) = out
+    }
   }
 
   private def flattenTuple(t: Tuple): Tuple = t match {
@@ -120,133 +128,5 @@ object Tuples {
     case head *: tail          => head *: flattenTuple(tail)
   }
 
-  object Combiner extends CombinerLowPriority {
-
-    /**
-     * Type alias for a Combiner with a specific output type.
-     */
-    type WithOut[L, R, O] = Combiner[L, R] { type Out = O }
-
-    given leftUnit[R]: WithOut[Unit, R, R] = new Combiner[Unit, R] {
-      type Out = R
-      def combine(l: Unit, r: R): R = r
-    }
-
-    given rightUnit[L]: WithOut[L, Unit, L] = new Combiner[L, Unit] {
-      type Out = L
-      def combine(l: L, r: Unit): L = l
-    }
-
-    given leftEmptyTuple[R]: WithOut[EmptyTuple, R, R] = new Combiner[EmptyTuple, R] {
-      type Out = R
-      def combine(l: EmptyTuple, r: R): R = r
-    }
-
-    given rightEmptyTuple[L]: WithOut[L, EmptyTuple, L] = new Combiner[L, EmptyTuple] {
-      type Out = L
-      def combine(l: L, r: EmptyTuple): L = l
-    }
-
-    given tupleTuple[L <: NonEmptyTuple, R <: NonEmptyTuple]: WithOut[L, R, Combined[L, R]] =
-      TupleTupleCombiner[L, R]()
-
-    given tupleValue[L <: NonEmptyTuple, R](using NotGiven[R <:< Tuple]): WithOut[L, R, Tuple.Concat[L, Tuple1[R]]] =
-      TupleValueCombiner[L, R]()
-
-    given valueTuple[L, R <: NonEmptyTuple](using NotGiven[L <:< Tuple]): WithOut[L, R, Tuple.Concat[Tuple1[L], R]] =
-      ValueTupleCombiner[L, R]()
-
-    private[combinators] class TupleTupleCombiner[L <: Tuple, R <: Tuple]() extends Combiner[L, R] {
-      type Out = Combined[L, R]
-      def combine(left: L, right: R): Combined[L, R] =
-        flattenTuple(left ++ right).asInstanceOf[Combined[L, R]]
-    }
-
-    private[combinators] class TupleValueCombiner[L <: Tuple, R]() extends Combiner[L, R] {
-      type Out = Tuple.Concat[L, Tuple1[R]]
-      def combine(left: L, right: R): Tuple.Concat[L, Tuple1[R]] =
-        (left ++ Tuple1(right)).asInstanceOf[Tuple.Concat[L, Tuple1[R]]]
-    }
-
-    private[combinators] class ValueTupleCombiner[L, R <: Tuple]() extends Combiner[L, R] {
-      type Out = Tuple.Concat[Tuple1[L], R]
-      def combine(left: L, right: R): Tuple.Concat[Tuple1[L], R] =
-        (Tuple1(left) ++ right).asInstanceOf[Tuple.Concat[Tuple1[L], R]]
-    }
-  }
-
-  trait CombinerLowPriority {
-    given fallback[L, R]: Combiner.WithOut[L, R, (L, R)] = new Combiner[L, R] {
-      type Out = (L, R)
-      def combine(l: L, r: R): (L, R) = (l, r)
-    }
-  }
-
-  object Separator extends SeparatorLowPriority {
-
-    /**
-     * Type alias for a Separator with specific left and right types.
-     */
-    type WithTypes[A, L, R] = Separator[A] { type Left = L; type Right = R }
-
-    /**
-     * Canonicalizing separator for non-empty tuples. Flattens the input tuple
-     * first, then extracts init (all but last) and last.
-     *
-     * Example: `separate(((1, "a"), (true, 3.0)))` first flattens to
-     * `(1, "a", true, 3.0)`, then produces `((1, "a", true), 3.0)`.
-     */
-    inline given canonicalSeparator[A <: NonEmptyTuple](using
-      ev: Flatten[A] <:< NonEmptyTuple
-    ): WithTypes[A, Init[Flatten[A]], Last[Flatten[A]]] =
-      CanonicalSeparator[A, Init[Flatten[A]], Last[Flatten[A]]](
-        constValue[Tuple.Size[Init[Flatten[A]]]]
-      )
-
-    private[combinators] class CanonicalSeparator[A <: Tuple, I <: Tuple, L](sizeInit: Int) extends Separator[A] {
-      type Left  = I
-      type Right = L
-      def separate(a: A): (I, L) = {
-        val flat              = flattenTuple(a)
-        val (init, lastTuple) = flat.splitAt(sizeInit)
-        (init.asInstanceOf[I], lastTuple.asInstanceOf[Tuple1[L]].head)
-      }
-    }
-  }
-
-  trait SeparatorLowPriority {
-    given leftUnit[R]: Separator.WithTypes[R, Unit, R] = new Separator[R] {
-      type Left  = Unit
-      type Right = R
-      def separate(a: R): (Unit, R) = ((), a)
-    }
-
-    given rightUnit[L]: Separator.WithTypes[L, L, Unit] = new Separator[L] {
-      type Left  = L
-      type Right = Unit
-      def separate(a: L): (L, Unit) = (a, ())
-    }
-
-    given leftEmptyTuple[R]: Separator.WithTypes[R, EmptyTuple, R] = new Separator[R] {
-      type Left  = EmptyTuple
-      type Right = R
-      def separate(a: R): (EmptyTuple, R) = (EmptyTuple, a)
-    }
-
-    given rightEmptyTuple[L]: Separator.WithTypes[L, L, EmptyTuple] = new Separator[L] {
-      type Left  = L
-      type Right = EmptyTuple
-      def separate(a: L): (L, EmptyTuple) = (a, EmptyTuple)
-    }
-
-    given fallback[L, R]: Separator.WithTypes[(L, R), L, R] = new Separator[(L, R)] {
-      type Left  = L
-      type Right = R
-      def separate(a: (L, R)): (L, R) = a
-    }
-  }
-
-  def combine[L, R](l: L, r: R)(using c: Combiner[L, R]): c.Out = c.combine(l, r)
-
-  def separate[A](a: A)(using s: Separator[A]): (s.Left, s.Right) = s.separate(a)
+  def combine[L, R](l: L, r: R)(using t: Tuples[L, R]): t.Out = t.combine(l, r)
 }
