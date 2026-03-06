@@ -17,18 +17,16 @@ The gap `Allows` fills is **structural preconditions** at the call site, at comp
 
 ## Motivation
 
-ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But `Allows` is useful even without a Schema — it can enforce structural preconditions on *any* generic function.
+ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But many generic functions have **structural preconditions** that don't require a schema.
 
-The gap is **structural preconditions**. Many generic functions only make sense for a subset of types:
+Consider these real-world scenarios:
 
-- A CSV serializer requires flat records of scalars.
-- An RDBMS layer cannot handle nested records as column values.
-- An event bus expects a sealed trait of flat record cases.
-- A JSON document store allows arbitrarily nested records but not `DynamicValue` leaves.
+- A CSV serializer requires flat records of scalars — nested records should fail at the call site, not deep inside the serializer.
+- An RDBMS layer cannot handle nested records as column values — the error should name the problematic field.
+- An event bus expects a sealed trait of flat record cases — violations should be caught before publishing.
+- A JSON document store allows arbitrarily nested records but not `DynamicValue` leaves — the schema validation should be precise.
 
-Today, these constraints can only be checked at runtime, producing confusing errors deep inside library internals.
-
-`Allows[A, S]` closes this gap: the constraint is verified at the **call site**, at compile time, with precise, path-aware error messages and concrete fix suggestions.
+Without `Allows`, these constraints can only be checked at runtime, producing confusing errors deep inside library internals. With `Allows[A, S]`, the constraint is verified at the **call site**, at compile time, with precise, path-aware error messages and concrete fix suggestions.
 
 ## The Upper Bound Semantics
 
