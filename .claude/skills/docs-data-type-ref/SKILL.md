@@ -243,6 +243,56 @@ Rules for this section:
 - The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
 - If no example `App` objects were written (rare), omit this section entirely.
+- When the full example source is also **embedded earlier in the document** via `SourceFile.print`,
+  the `([source](...))` link in this section serves as a convenient shortcut to the GitHub file;
+  there is no need to embed the source again here.
+
+### Embedding Example Files with `SourceFile`
+
+When the documentation needs to show a **full example file** from the `schema-examples` project
+(written in Step 3), **do not copy-paste the code inline**. Instead, use `mdoc:passthrough` with
+the `SourceFile.print` helper to include it by reference. This keeps the doc and the example in
+sync — any change to the example file automatically appears in the rendered docs on the next
+mdoc build.
+
+Use this pattern:
+
+````markdown
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
+```
+````
+
+**Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use
+`import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print`
+inside mdoc sessions.
+
+`SourceFile.print(path)` reads the file at mdoc compile time and emits a fenced code block with
+the file path shown as the title. The path is relative to the repository root (the helper tries
+`../<path>` first, then `<path>`).
+
+**When to use `SourceFile.print`:**
+- Showing a complete, runnable `App` example from `schema-examples/`
+- Showing a large, self-contained example that would be unwieldy to maintain in two places
+
+**When NOT to use it — use regular mdoc blocks instead:**
+- Short inline snippets (< 20 lines) that illustrate a single method or concept
+- Code that needs `mdoc` evaluated output (e.g., `// res0: Int = 42`)
+- Code that is documentation-specific and doesn't exist as a standalone file
+
+**Optional parameters:**
+- `lines = Seq((from, to))` — include only specific line ranges (1-indexed):
+  ````markdown
+  ```scala mdoc:passthrough
+  import docs.SourceFile
+
+  SourceFile.print("schema-examples/src/main/scala/into/IntoNumericExample.scala", lines = Seq((10, 25)))
+  ```
+  ````
+- `showLineNumbers = true` — render with line numbers in the output
+- `comment = false` — suppress the file path title
 
 ### Compile-Checked Code Blocks with mdoc
 

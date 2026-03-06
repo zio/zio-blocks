@@ -371,11 +371,23 @@ cd zio-blocks
 sbt "schema-examples/runMain comptime.AllowsCsvExample"
 ```
 
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/AllowsCsvExample.scala")
+```
+
 **Event bus with sealed trait auto-unwrap and nested hierarchies**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsEventBusExample.scala))
 
 ```bash
 sbt "schema-examples/runMain comptime.AllowsEventBusExample"
+```
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/AllowsEventBusExample.scala")
 ```
 
 **GraphQL / tree structures using Self for recursive grammars**
@@ -385,6 +397,12 @@ sbt "schema-examples/runMain comptime.AllowsEventBusExample"
 sbt "schema-examples/runMain comptime.AllowsGraphQLTreeExample"
 ```
 
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/AllowsGraphQLTreeExample.scala")
+```
+
 **Sealed trait auto-unwrap with nested hierarchies and case objects**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala))
 
@@ -392,12 +410,26 @@ sbt "schema-examples/runMain comptime.AllowsGraphQLTreeExample"
 sbt "schema-examples/runMain comptime.AllowsSealedTraitExample"
 ```
 
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala")
+```
+
 **RDBMS library with CREATE TABLE and INSERT using flat record constraints**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/RdbmsExample.scala))
 
-> This example is a compile-time demonstration — the `RdbmsDemo` object validates that compatible types compile and incompatible types are rejected. Review the source to see the constraint in action.
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/RdbmsExample.scala")
+```
 
 **JSON document store with specific primitives and recursive Self grammar**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/DocumentStoreExample.scala))
 
-> This example is a compile-time demonstration — the `DocumentStoreDemo` object validates that JSON-compatible types compile and types with non-JSON scalars are rejected. Review the source to see the constraint in action.
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/comptime/DocumentStoreExample.scala")
+```
