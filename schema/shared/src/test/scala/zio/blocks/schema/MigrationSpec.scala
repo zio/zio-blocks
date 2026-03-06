@@ -45,9 +45,9 @@ object MigrationSpec extends SchemaBaseSpec {
   }
 
   sealed trait Color
-  case class Red(shade: Int)     extends Color
-  case class Blue(shade: Int)    extends Color
-  case class Green(shade: Int)   extends Color
+  case class Red(shade: Int)   extends Color
+  case class Blue(shade: Int)  extends Color
+  case class Green(shade: Int) extends Color
   object Color {
     implicit val schema: Schema[Color] = Schema.derived
   }
@@ -72,10 +72,12 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(result)(isRight(equalTo(dv)))
       },
       test("add a field to a record") {
-        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
-        ))
+        val dv        = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+          )
+        )
         val result = migration(dv)
         assertTrue(
           result.isRight,
@@ -84,10 +86,12 @@ object MigrationSpec extends SchemaBaseSpec {
         )
       },
       test("drop a field from a record") {
-        val dv = Schema[PersonV2].toDynamicValue(PersonV2("John", "Doe", 30))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
-        ))
+        val dv        = Schema[PersonV2].toDynamicValue(PersonV2("John", "Doe", 30))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+          )
+        )
         val result = migration(dv)
         assertTrue(
           result.isRight,
@@ -96,10 +100,12 @@ object MigrationSpec extends SchemaBaseSpec {
         )
       },
       test("rename a field") {
-        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.RenameField(DynamicOptic.root, "firstName", "fullName")
-        ))
+        val dv        = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.RenameField(DynamicOptic.root, "firstName", "fullName")
+          )
+        )
         val result = migration(dv)
         assertTrue(
           result.isRight,
@@ -108,15 +114,17 @@ object MigrationSpec extends SchemaBaseSpec {
         )
       },
       test("change field type Int -> Long") {
-        val dv = Schema[Order].toDynamicValue(Order("ord-1", 100))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.ChangeFieldType(
-            DynamicOptic.root,
-            "total",
-            DynamicValue.Primitive(new PrimitiveValue.String("Long")),
-            DynamicValue.Primitive(new PrimitiveValue.String("Int"))
+        val dv        = Schema[Order].toDynamicValue(Order("ord-1", 100))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.ChangeFieldType(
+              DynamicOptic.root,
+              "total",
+              DynamicValue.Primitive(new PrimitiveValue.String("Long")),
+              DynamicValue.Primitive(new PrimitiveValue.String("Int"))
+            )
           )
-        ))
+        )
         val result = migration(dv)
         assertTrue(result.isRight) && {
           val totalDv = result.toOption.get.get("total").one.toOption.get
@@ -124,10 +132,12 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("optionalize a field") {
-        val dv = Schema[WithRequired].toDynamicValue(WithRequired("Alice", "Ali"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Optionalize(DynamicOptic.root, "nickname")
-        ))
+        val dv        = Schema[WithRequired].toDynamicValue(WithRequired("Alice", "Ali"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Optionalize(DynamicOptic.root, "nickname")
+          )
+        )
         val result = migration(dv)
         assertTrue(result.isRight) && {
           val nicknameDv = result.toOption.get.get("nickname").one.toOption.get
@@ -136,14 +146,16 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("mandate a field (unwrap Some)") {
-        val dv = Schema[WithOptional].toDynamicValue(WithOptional("Alice", Some("Ali")))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Mandate(
-            DynamicOptic.root,
-            "nickname",
-            DynamicValue.Primitive(new PrimitiveValue.String("default"))
+        val dv        = Schema[WithOptional].toDynamicValue(WithOptional("Alice", Some("Ali")))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Mandate(
+              DynamicOptic.root,
+              "nickname",
+              DynamicValue.Primitive(new PrimitiveValue.String("default"))
+            )
           )
-        ))
+        )
         val result = migration(dv)
         assertTrue(result.isRight) && {
           val nicknameDv = result.toOption.get.get("nickname").one.toOption.get
@@ -151,14 +163,16 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("mandate a field (use default for None)") {
-        val dv = Schema[WithOptional].toDynamicValue(WithOptional("Alice", None))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.Mandate(
-            DynamicOptic.root,
-            "nickname",
-            DynamicValue.Primitive(new PrimitiveValue.String("default"))
+        val dv        = Schema[WithOptional].toDynamicValue(WithOptional("Alice", None))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.Mandate(
+              DynamicOptic.root,
+              "nickname",
+              DynamicValue.Primitive(new PrimitiveValue.String("default"))
+            )
           )
-        ))
+        )
         val result = migration(dv)
         assertTrue(result.isRight) && {
           val nicknameDv = result.toOption.get.get("nickname").one.toOption.get
@@ -166,23 +180,27 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("rename a variant case") {
-        val dv = Schema[Color].toDynamicValue(Red(5))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
-        ))
+        val dv        = Schema[Color].toDynamicValue(Red(5))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
+          )
+        )
         val result = migration(dv)
         assertTrue(result.isRight) &&
         assert(result.toOption.get.caseName)(isSome(equalTo("Crimson")))
       },
       test("transform a variant case payload") {
-        val dv = Schema[Color].toDynamicValue(Red(5))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.TransformCase(
-            DynamicOptic.root,
-            "Red",
-            Vector(MigrationAction.RenameField(DynamicOptic.root, "shade", "intensity"))
+        val dv        = Schema[Color].toDynamicValue(Red(5))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.TransformCase(
+              DynamicOptic.root,
+              "Red",
+              Vector(MigrationAction.RenameField(DynamicOptic.root, "shade", "intensity"))
+            )
           )
-        ))
+        )
         val result = migration(dv)
         assertTrue(result.isRight) && {
           val payload = result.toOption.get.caseValue.get
@@ -190,37 +208,47 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("non-matching case is left unchanged") {
-        val dv = Schema[Color].toDynamicValue(Blue(3))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
-        ))
+        val dv        = Schema[Color].toDynamicValue(Blue(3))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
+          )
+        )
         val result = migration(dv)
         assertTrue(result.isRight) &&
         assert(result.toOption.get.caseName)(isSome(equalTo("Blue")))
       },
       test("error on dropping non-existent field") {
-        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "nonexistent", DynamicValue.Null)
-        ))
+        val dv        = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "nonexistent", DynamicValue.Null)
+          )
+        )
         assert(migration(dv))(isLeft)
       },
       test("error on adding duplicate field") {
-        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "firstName", DynamicValue.Null)
-        ))
+        val dv        = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "firstName", DynamicValue.Null)
+          )
+        )
         assert(migration(dv))(isLeft)
       }
     ),
     suite("DynamicMigration composition")(
       test("sequential composition applies actions in order") {
-        val m1 = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
-        ))
-        val m2 = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "lastName", DynamicValue.Null)
-        ))
+        val m1 = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+          )
+        )
+        val m2 = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "lastName", DynamicValue.Null)
+          )
+        )
         val combined = m1 ++ m2
         val dv       = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
         val result   = combined(dv)
@@ -232,35 +260,49 @@ object MigrationSpec extends SchemaBaseSpec {
         )
       },
       test("associativity: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
-        val m1 = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(25)))
-        ))
-        val m2 = DynamicMigration(Vector(
-          MigrationAction.RenameField(DynamicOptic.root, "firstName", "name")
-        ))
-        val m3 = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "lastName", DynamicValue.Null)
-        ))
-        val dv  = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val r1  = ((m1 ++ m2) ++ m3)(dv)
-        val r2  = (m1 ++ (m2 ++ m3))(dv)
+        val m1 = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(25)))
+          )
+        )
+        val m2 = DynamicMigration(
+          Vector(
+            MigrationAction.RenameField(DynamicOptic.root, "firstName", "name")
+          )
+        )
+        val m3 = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "lastName", DynamicValue.Null)
+          )
+        )
+        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val r1 = ((m1 ++ m2) ++ m3)(dv)
+        val r2 = (m1 ++ (m2 ++ m3))(dv)
         assert(r1)(equalTo(r2))
       }
     ),
     suite("DynamicMigration reverse")(
       test("structural reverse: m.reverse.reverse == m") {
-        val m = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0))),
-          MigrationAction.RenameField(DynamicOptic.root, "firstName", "name"),
-          MigrationAction.DropField(DynamicOptic.root, "lastName", DynamicValue.Primitive(new PrimitiveValue.String("")))
-        ))
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0))),
+            MigrationAction.RenameField(DynamicOptic.root, "firstName", "name"),
+            MigrationAction.DropField(
+              DynamicOptic.root,
+              "lastName",
+              DynamicValue.Primitive(new PrimitiveValue.String(""))
+            )
+          )
+        )
         assertTrue(m.reverse.reverse.actions == m.actions)
       },
       test("semantic reverse: add + reverse(add) == identity") {
         val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val m = DynamicMigration(Vector(
-          MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
-        ))
+        val m  = DynamicMigration(
+          Vector(
+            MigrationAction.AddField(DynamicOptic.root, "age", DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+          )
+        )
         val forward = m(dv)
         assertTrue(forward.isRight) && {
           val backward = m.reverse(forward.toOption.get)
@@ -269,9 +311,11 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("semantic reverse: rename roundtrip") {
         val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val m = DynamicMigration(Vector(
-          MigrationAction.RenameField(DynamicOptic.root, "firstName", "name")
-        ))
+        val m  = DynamicMigration(
+          Vector(
+            MigrationAction.RenameField(DynamicOptic.root, "firstName", "name")
+          )
+        )
         val forward  = m(dv)
         val backward = m.reverse(forward.toOption.get)
         assert(backward)(isRight(equalTo(dv)))
@@ -279,7 +323,8 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("Migration[A, B] typed API")(
       test("end-to-end migration PersonV1 -> PersonV2") {
-        val migration = Migration.newBuilder[PersonV1, PersonV2]
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
           .addField("age", 0)
           .build
         val result = migration(PersonV1("John", "Doe"))
@@ -290,10 +335,12 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(m(PersonV1("Jane", "Smith")))(isRight(equalTo(PersonV1("Jane", "Smith"))))
       },
       test("migration composition A -> B -> C") {
-        val m1 = Migration.newBuilder[PersonV1, PersonV2]
+        val m1 = Migration
+          .newBuilder[PersonV1, PersonV2]
           .addField("age", 0)
           .build
-        val m2 = Migration.newBuilder[PersonV2, PersonV3]
+        val m2 = Migration
+          .newBuilder[PersonV2, PersonV3]
           .dropField("lastName")
           .renameField("firstName", "fullName")
           .build
@@ -302,7 +349,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(result)(isRight(equalTo(PersonV3("John", 0))))
       },
       test("migration reverse") {
-        val m = Migration.newBuilder[PersonV1, PersonV2]
+        val m = Migration
+          .newBuilder[PersonV1, PersonV2]
           .addField("age", 0)
           .build
         val rev    = m.reverse
@@ -312,7 +360,8 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("MigrationBuilder")(
       test("renameField") {
-        val m = Migration.newBuilder[PersonV1, PersonV1]
+        val m = Migration
+          .newBuilder[PersonV1, PersonV1]
           .renameField("firstName", "givenName")
           .build
         val dv     = m.dynamicMigration(Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe")))
@@ -320,28 +369,32 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(record.get("givenName").one.isRight)
       },
       test("dropField with typed default for reverse") {
-        val m = Migration.newBuilder[PersonV2, PersonV1]
+        val m = Migration
+          .newBuilder[PersonV2, PersonV1]
           .dropField[Int]("age", 0)
           .build
         val result = m(PersonV2("John", "Doe", 30))
         assert(result)(isRight(equalTo(PersonV1("John", "Doe"))))
       },
       test("changeFieldType") {
-        val m = Migration.newBuilder[Order, OrderV2]
+        val m = Migration
+          .newBuilder[Order, OrderV2]
           .changeFieldType("total", "Long", "Int")
           .build
         val result = m(Order("ord-1", 100))
         assert(result)(isRight(equalTo(OrderV2("ord-1", 100L))))
       },
       test("optionalizeField") {
-        val m = Migration.newBuilder[WithRequired, WithOptional]
+        val m = Migration
+          .newBuilder[WithRequired, WithOptional]
           .optionalizeField("nickname")
           .build
         val result = m(WithRequired("Alice", "Ali"))
         assert(result)(isRight(equalTo(WithOptional("Alice", Some("Ali")))))
       },
       test("mandateField") {
-        val m = Migration.newBuilder[WithOptional, WithRequired]
+        val m = Migration
+          .newBuilder[WithOptional, WithRequired]
           .mandateField("nickname", "default")
           .build
         val r1 = m(WithOptional("Alice", Some("Ali")))
@@ -350,7 +403,8 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(r2)(isRight(equalTo(WithRequired("Alice", "default"))))
       },
       test("renameCase") {
-        val m = Migration.newBuilder[Color, Color]
+        val m = Migration
+          .newBuilder[Color, Color]
           .renameCase("Red", "Crimson")
           .build
         val dv     = m.dynamicMigration(Schema[Color].toDynamicValue(Red(5)))
@@ -364,14 +418,16 @@ object MigrationSpec extends SchemaBaseSpec {
           ("name", DynamicValue.Primitive(new PrimitiveValue.String("Widget"))),
           ("price", DynamicValue.Primitive(new PrimitiveValue.Int(10)))
         )
-        val seq = DynamicValue.Sequence(Chunk(DynamicValue.Record(items), DynamicValue.Record(items)))
-        val record = DynamicValue.Record(Chunk(("items", seq)))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.TransformElements(
-            DynamicOptic.root.field("items"),
-            Vector(MigrationAction.RenameField(DynamicOptic.root, "price", "cost"))
+        val seq       = DynamicValue.Sequence(Chunk(DynamicValue.Record(items), DynamicValue.Record(items)))
+        val record    = DynamicValue.Record(Chunk(("items", seq)))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.TransformElements(
+              DynamicOptic.root.field("items"),
+              Vector(MigrationAction.RenameField(DynamicOptic.root, "price", "cost"))
+            )
           )
-        ))
+        )
         val result = migration(record)
         assertTrue(result.isRight) && {
           val elems = result.toOption.get.get("items").one.toOption.get.elements
@@ -385,10 +441,12 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("error reporting")(
       test("error includes path information") {
-        val dv = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
-        val migration = DynamicMigration(Vector(
-          MigrationAction.DropField(DynamicOptic.root, "nonexistent", DynamicValue.Null)
-        ))
+        val dv        = Schema[PersonV1].toDynamicValue(PersonV1("John", "Doe"))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.DropField(DynamicOptic.root, "nonexistent", DynamicValue.Null)
+          )
+        )
         val result = migration(dv)
         assertTrue(result.isLeft) && {
           val err = result.swap.toOption.get

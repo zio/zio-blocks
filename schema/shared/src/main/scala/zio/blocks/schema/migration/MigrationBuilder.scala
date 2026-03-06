@@ -5,13 +5,13 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema}
 /**
  * Fluent builder for constructing [[Migration]]s step by step.
  *
- * Each method adds a [[MigrationAction]] to the action list and returns
- * a new builder. Call `.build` to produce the final [[Migration[A, B]]].
+ * Each method adds a [[MigrationAction]] to the action list and returns a new
+ * builder. Call `.build` to produce the final [[Migration[A, B]]].
  *
  * The selector-accepting overloads (taking `A => Any` / `B => Any`) are
- * intended to be backed by macros that extract a [[DynamicOptic]] at
- * compile time. The `DynamicOptic`-based overloads are the underlying
- * implementation and can be used directly.
+ * intended to be backed by macros that extract a [[DynamicOptic]] at compile
+ * time. The `DynamicOptic`-based overloads are the underlying implementation
+ * and can be used directly.
  */
 final class MigrationBuilder[A, B](
   val sourceSchema: Schema[A],
@@ -27,9 +27,12 @@ final class MigrationBuilder[A, B](
   /**
    * Add a field to the target record with the given default value.
    *
-   * @param at      path to the containing record (use `DynamicOptic.root` for top-level)
-   * @param name    field name to add
-   * @param default value to use for the new field
+   * @param at
+   *   path to the containing record (use `DynamicOptic.root` for top-level)
+   * @param name
+   *   field name to add
+   * @param default
+   *   value to use for the new field
    */
   def addField(at: DynamicOptic, name: String, default: DynamicValue): MigrationBuilder[A, B] =
     copy(actions :+ MigrationAction.AddField(at, name, default))
@@ -41,14 +44,19 @@ final class MigrationBuilder[A, B](
   /**
    * Drop a field from the source record.
    *
-   * @param at               path to the containing record
-   * @param name             field name to drop
-   * @param defaultForReverse value to use when reversing (re-adding) the field
+   * @param at
+   *   path to the containing record
+   * @param name
+   *   field name to drop
+   * @param defaultForReverse
+   *   value to use when reversing (re-adding) the field
    */
   def dropField(at: DynamicOptic, name: String, defaultForReverse: DynamicValue): MigrationBuilder[A, B] =
     copy(actions :+ MigrationAction.DropField(at, name, defaultForReverse))
 
-  /** Drop a top-level field. Uses `DynamicValue.Null` as the reverse default. */
+  /**
+   * Drop a top-level field. Uses `DynamicValue.Null` as the reverse default.
+   */
   def dropField(name: String): MigrationBuilder[A, B] =
     dropField(DynamicOptic.root, name, DynamicValue.Null)
 
@@ -89,9 +97,12 @@ final class MigrationBuilder[A, B](
   /**
    * Change a field's primitive type.
    *
-   * @param name          field name
-   * @param targetType    name of the target primitive type (e.g. "Long", "String")
-   * @param sourceType    name of the source type (for reverse conversion)
+   * @param name
+   *   field name
+   * @param targetType
+   *   name of the target primitive type (e.g. "Long", "String")
+   * @param sourceType
+   *   name of the source type (for reverse conversion)
    */
   def changeFieldType(
     at: DynamicOptic,

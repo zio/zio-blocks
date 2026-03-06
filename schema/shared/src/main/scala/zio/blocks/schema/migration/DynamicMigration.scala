@@ -54,18 +54,18 @@ object DynamicMigration {
     value: DynamicValue,
     action: MigrationAction
   ): Either[MigrationError, DynamicValue] = action match {
-    case a: MigrationAction.AddField         => applyAddField(value, a)
-    case a: MigrationAction.DropField        => applyDropField(value, a)
-    case a: MigrationAction.RenameField      => applyRenameField(value, a)
-    case a: MigrationAction.TransformValue   => applyTransformValue(value, a)
-    case a: MigrationAction.Mandate          => applyMandate(value, a)
-    case a: MigrationAction.Optionalize      => applyOptionalize(value, a)
-    case a: MigrationAction.ChangeFieldType  => applyChangeFieldType(value, a)
-    case a: MigrationAction.RenameCase       => applyRenameCase(value, a)
-    case a: MigrationAction.TransformCase    => applyTransformCase(value, a)
+    case a: MigrationAction.AddField          => applyAddField(value, a)
+    case a: MigrationAction.DropField         => applyDropField(value, a)
+    case a: MigrationAction.RenameField       => applyRenameField(value, a)
+    case a: MigrationAction.TransformValue    => applyTransformValue(value, a)
+    case a: MigrationAction.Mandate           => applyMandate(value, a)
+    case a: MigrationAction.Optionalize       => applyOptionalize(value, a)
+    case a: MigrationAction.ChangeFieldType   => applyChangeFieldType(value, a)
+    case a: MigrationAction.RenameCase        => applyRenameCase(value, a)
+    case a: MigrationAction.TransformCase     => applyTransformCase(value, a)
     case a: MigrationAction.TransformElements => applyTransformElements(value, a)
-    case a: MigrationAction.TransformKeys    => applyTransformKeys(value, a)
-    case a: MigrationAction.TransformValues  => applyTransformValues(value, a)
+    case a: MigrationAction.TransformKeys     => applyTransformKeys(value, a)
+    case a: MigrationAction.TransformValues   => applyTransformValues(value, a)
   }
 
   // ── Record actions ─────────────────────────────────────────────────
@@ -75,8 +75,8 @@ object DynamicMigration {
     action: MigrationAction.AddField
   ): Either[MigrationError, DynamicValue] =
     navigateAndModifyRecord(value, action.at) { record =>
-      val existing = record.fields
-      var idx      = 0
+      val existing  = record.fields
+      var idx       = 0
       var duplicate = false
       while (idx < existing.length && !duplicate) {
         if (existing(idx)._1 == action.fieldName) duplicate = true
@@ -92,9 +92,9 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] =
     navigateAndModifyRecord(value, action.at) { record =>
       val existing = record.fields
-      val buf   = Vector.newBuilder[(String, DynamicValue)]
-      var found = false
-      var idx   = 0
+      val buf      = Vector.newBuilder[(String, DynamicValue)]
+      var found    = false
+      var idx      = 0
       while (idx < existing.length) {
         val pair = existing(idx)
         if (pair._1 == action.fieldName) found = true
@@ -210,11 +210,11 @@ object DynamicMigration {
     action: MigrationAction.ChangeFieldType
   ): Either[MigrationError, DynamicValue] =
     navigateAndModifyRecord(value, action.at) { record =>
-      val existing           = record.fields
-      val updated            = new Array[(String, DynamicValue)](existing.length)
-      var found              = false
+      val existing                        = record.fields
+      val updated                         = new Array[(String, DynamicValue)](existing.length)
+      var found                           = false
       var conversionError: MigrationError = null
-      var idx                = 0
+      var idx                             = 0
       while (idx < existing.length && (conversionError eq null)) {
         val pair = existing(idx)
         if (pair._1 == action.fieldName) {
@@ -269,7 +269,7 @@ object DynamicMigration {
     if (action.at.nodes.isEmpty) transformPayload(value)
     else {
       var error: MigrationError = null
-      val modified = value.modify(action.at) { dv =>
+      val modified              = value.modify(action.at) { dv =>
         transformPayload(dv) match {
           case Right(r) => r
           case Left(e)  => error = e; dv
@@ -289,8 +289,8 @@ object DynamicMigration {
 
     def transformSeq(dv: DynamicValue): Either[MigrationError, DynamicValue] = dv match {
       case seq: DynamicValue.Sequence =>
-        val builder  = Vector.newBuilder[DynamicValue]
-        var idx      = 0
+        val builder             = Vector.newBuilder[DynamicValue]
+        var idx                 = 0
         var err: MigrationError = null
         while (idx < seq.elements.length && (err eq null)) {
           sub(seq.elements(idx)) match {
@@ -307,7 +307,7 @@ object DynamicMigration {
     if (action.at.nodes.isEmpty) transformSeq(value)
     else {
       var error: MigrationError = null
-      val modified = value.modify(action.at) { dv =>
+      val modified              = value.modify(action.at) { dv =>
         transformSeq(dv) match {
           case Right(r) => r
           case Left(e)  => error = e; dv
@@ -325,8 +325,8 @@ object DynamicMigration {
 
     def transformMap(dv: DynamicValue): Either[MigrationError, DynamicValue] = dv match {
       case m: DynamicValue.Map =>
-        val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
-        var idx     = 0
+        val builder             = Vector.newBuilder[(DynamicValue, DynamicValue)]
+        var idx                 = 0
         var err: MigrationError = null
         while (idx < m.entries.length && (err eq null)) {
           val entry = m.entries(idx)
@@ -344,7 +344,7 @@ object DynamicMigration {
     if (action.at.nodes.isEmpty) transformMap(value)
     else {
       var error: MigrationError = null
-      val modified = value.modify(action.at) { dv =>
+      val modified              = value.modify(action.at) { dv =>
         transformMap(dv) match {
           case Right(r) => r
           case Left(e)  => error = e; dv
@@ -362,8 +362,8 @@ object DynamicMigration {
 
     def transformMap(dv: DynamicValue): Either[MigrationError, DynamicValue] = dv match {
       case m: DynamicValue.Map =>
-        val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
-        var idx     = 0
+        val builder             = Vector.newBuilder[(DynamicValue, DynamicValue)]
+        var idx                 = 0
         var err: MigrationError = null
         while (idx < m.entries.length && (err eq null)) {
           val entry = m.entries(idx)
@@ -381,7 +381,7 @@ object DynamicMigration {
     if (action.at.nodes.isEmpty) transformMap(value)
     else {
       var error: MigrationError = null
-      val modified = value.modify(action.at) { dv =>
+      val modified              = value.modify(action.at) { dv =>
         transformMap(dv) match {
           case Right(r) => r
           case Left(e)  => error = e; dv
@@ -394,12 +394,12 @@ object DynamicMigration {
   // ── Helpers ────────────────────────────────────────────────────────
 
   /**
-   * Navigate to the record at `path` (or treat root as a record) and apply
-   * the modification function `f`.
+   * Navigate to the record at `path` (or treat root as a record) and apply the
+   * modification function `f`.
    */
   private def navigateAndModifyRecord(value: DynamicValue, path: DynamicOptic)(
     f: DynamicValue.Record => Either[MigrationError, DynamicValue]
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     if (path.nodes.isEmpty) {
       value match {
         case r: DynamicValue.Record => f(r)
@@ -407,7 +407,7 @@ object DynamicMigration {
       }
     } else {
       var error: MigrationError = null
-      val modified = value.modify(path) {
+      val modified              = value.modify(path) {
         case r: DynamicValue.Record =>
           f(r) match {
             case Right(v) => v
@@ -419,7 +419,6 @@ object DynamicMigration {
       }
       if (error ne null) Left(error) else Right(modified)
     }
-  }
 
   /**
    * Primitive type conversion. The `converter` DynamicValue encodes the target
@@ -436,7 +435,7 @@ object DynamicMigration {
         case DynamicValue.Primitive(pv) =>
           convertPrimitiveValue(pv, targetType) match {
             case Some(converted) => Right(DynamicValue.Primitive(converted))
-            case None =>
+            case None            =>
               Left(MigrationError(s"Cannot convert ${pv.getClass.getSimpleName} to $targetType"))
           }
         case _ => Left(MigrationError("ChangeFieldType only applies to primitive values"))
@@ -447,7 +446,7 @@ object DynamicMigration {
   private def convertPrimitiveValue(pv: PrimitiveValue, targetType: String): Option[PrimitiveValue] =
     targetType match {
       case "String" => Some(new PrimitiveValue.String(primitiveToString(pv)))
-      case "Int" =>
+      case "Int"    =>
         primitiveToLong(pv).map(l => new PrimitiveValue.Int(l.toInt))
       case "Long" =>
         primitiveToLong(pv).map(l => new PrimitiveValue.Long(l))
@@ -462,7 +461,7 @@ object DynamicMigration {
       case "Boolean" =>
         pv match {
           case v: PrimitiveValue.Boolean => Some(v)
-          case v: PrimitiveValue.String =>
+          case v: PrimitiveValue.String  =>
             v.value.toLowerCase match {
               case "true"  => Some(new PrimitiveValue.Boolean(true))
               case "false" => Some(new PrimitiveValue.Boolean(false))
@@ -501,7 +500,7 @@ object DynamicMigration {
     case v: PrimitiveValue.Float      => Some(v.value.toLong)
     case v: PrimitiveValue.BigInt     => Some(v.value.toLong)
     case v: PrimitiveValue.BigDecimal => Some(v.value.toLong)
-    case v: PrimitiveValue.String =>
+    case v: PrimitiveValue.String     =>
       try Some(v.value.toLong)
       catch { case _: NumberFormatException => None }
     case _ => None
@@ -516,7 +515,7 @@ object DynamicMigration {
     case v: PrimitiveValue.Float      => Some(v.value.toDouble)
     case v: PrimitiveValue.BigDecimal => Some(v.value.toDouble)
     case v: PrimitiveValue.BigInt     => Some(v.value.toDouble)
-    case v: PrimitiveValue.String =>
+    case v: PrimitiveValue.String     =>
       try Some(v.value.toDouble)
       catch { case _: NumberFormatException => None }
     case _ => None

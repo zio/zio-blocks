@@ -8,7 +8,7 @@ import zio.blocks.schema.Schema
  * Wraps a [[DynamicMigration]] together with the source and target schemas,
  * providing a type-safe apply method that converts values end-to-end:
  *
- *   A  →  DynamicValue  →  (apply actions)  →  DynamicValue  →  B
+ * A → DynamicValue → (apply actions) → DynamicValue → B
  *
  * Migrations compose sequentially and support structural reversal.
  */
@@ -26,7 +26,7 @@ final case class Migration[A, B](
     val dv = sourceSchema.toDynamicValue(value)
     dynamicMigration(dv).flatMap { migrated =>
       targetSchema.fromDynamicValue(migrated) match {
-        case Right(b) => Right(b)
+        case Right(b)        => Right(b)
         case Left(schemaErr) =>
           Left(MigrationError(s"Failed to materialize target type: ${schemaErr.message}"))
       }
@@ -41,9 +41,9 @@ final case class Migration[A, B](
   def andThen[C](that: Migration[B, C]): Migration[A, C] = this ++ that
 
   /**
-   * Structural reverse. Inverts the action list so the migration goes from
-   * `B` back to `A`. Runtime correctness is best-effort — it works when
-   * sufficient information (defaults, inverse converters) was provided.
+   * Structural reverse. Inverts the action list so the migration goes from `B`
+   * back to `A`. Runtime correctness is best-effort — it works when sufficient
+   * information (defaults, inverse converters) was provided.
    */
   def reverse: Migration[B, A] =
     Migration(dynamicMigration.reverse, targetSchema, sourceSchema)

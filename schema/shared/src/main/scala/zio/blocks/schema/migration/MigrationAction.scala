@@ -3,9 +3,9 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.{DynamicOptic, DynamicValue}
 
 /**
- * A single, path-based transformation step in a migration. Every action
- * targets a location in the source structure via a [[DynamicOptic]] and
- * knows how to produce its structural inverse.
+ * A single, path-based transformation step in a migration. Every action targets
+ * a location in the source structure via a [[DynamicOptic]] and knows how to
+ * produce its structural inverse.
  *
  * Actions are pure data — no closures, no reflection — so they can be
  * serialized, stored, inspected, and used to generate DDL or offline
@@ -33,8 +33,8 @@ object MigrationAction {
   }
 
   /**
-   * Removes a field from a record. `defaultForReverse` is stored so the
-   * inverse `AddField` can reconstruct the dropped field.
+   * Removes a field from a record. `defaultForReverse` is stored so the inverse
+   * `AddField` can reconstruct the dropped field.
    */
   final case class DropField(at: DynamicOptic, fieldName: String, defaultForReverse: DynamicValue)
       extends MigrationAction {
@@ -51,8 +51,8 @@ object MigrationAction {
   /**
    * Replaces the value of a field using a pure, serializable expression
    * represented as a [[DynamicValue]] holding the transformation descriptor.
-   * For the initial implementation, this supports constant replacement;
-   * richer SchemaExpr-backed transforms can be layered on later.
+   * For the initial implementation, this supports constant replacement; richer
+   * SchemaExpr-backed transforms can be layered on later.
    */
   final case class TransformValue(at: DynamicOptic, transform: DynamicValue, inverseTransform: DynamicValue)
       extends MigrationAction {
@@ -60,8 +60,8 @@ object MigrationAction {
   }
 
   /**
-   * Converts an optional field to a required field. `default` is the value
-   * used when the source field is `None` / `Null`.
+   * Converts an optional field to a required field. `default` is the value used
+   * when the source field is `None` / `Null`.
    */
   final case class Mandate(at: DynamicOptic, fieldName: String, default: DynamicValue) extends MigrationAction {
     def reverse: MigrationAction = Optionalize(at, fieldName)
@@ -75,8 +75,8 @@ object MigrationAction {
   }
 
   /**
-   * Changes the type of a field value using a converter expression.
-   * Restricted to primitive-to-primitive conversions for now.
+   * Changes the type of a field value using a converter expression. Restricted
+   * to primitive-to-primitive conversions for now.
    */
   final case class ChangeFieldType(
     at: DynamicOptic,
@@ -97,8 +97,8 @@ object MigrationAction {
   }
 
   /**
-   * Applies a nested sequence of migration actions to a specific variant
-   * case's payload.
+   * Applies a nested sequence of migration actions to a specific variant case's
+   * payload.
    */
   final case class TransformCase(at: DynamicOptic, caseName: String, actions: Vector[MigrationAction])
       extends MigrationAction {
