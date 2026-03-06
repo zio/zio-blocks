@@ -21,16 +21,17 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * or a [[MigrationError]] if something went wrong.
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-    var current = value
-    var idx     = 0
-    while (idx < actions.length) {
+    var current             = value
+    var idx                 = 0
+    var err: MigrationError = null
+    while (idx < actions.length && (err eq null)) {
       DynamicMigration.applyAction(current, actions(idx)) match {
         case Right(next) => current = next
-        case left        => return left
+        case Left(e)     => err = e
       }
       idx += 1
     }
-    Right(current)
+    if (err ne null) Left(err) else Right(current)
   }
 
   /** Sequential composition — apply `this` first, then `that`. */
