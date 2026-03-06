@@ -41,10 +41,10 @@ object SourceFile {
   def print(
     path: String,
     lines: Seq[(Int, Int)] = Seq.empty,
-    comment: Boolean = true,
+    showTitle: Boolean = true,
     showLineNumbers: Boolean = false,
   ) = {
-    val title     = if (comment) s"""title="$path"""" else ""
+    val title     = if (showTitle) s"""title="$path"""" else ""
     val showLines = if (showLineNumbers) "showLineNumbers" else ""
     println(s"""```${fileExtension(path)} $title $showLines""")
     println(read(path, lines))
