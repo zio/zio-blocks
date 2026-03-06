@@ -190,12 +190,12 @@ def writeCsv[A](rows: Seq[A])(using
 
 **Scala 2** uses the `` `\|` `` infix operator from `Allows`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.comptime.Allows
 import Allows._
 
 def writeCsv[A](rows: Seq[A])(implicit
-  ev: Allows[A, Record[Primitive | Optional[Primitive]]]
+  ev: Allows[A, Record[Primitive `\|` Optional[Primitive]]]
 ): Unit = ???
 ```
 
@@ -262,7 +262,7 @@ import Allows._
 type JsonDocument =
   Record[Primitive | Self | Optional[Primitive | Self] | Sequence[Primitive | Self] | Allows.Map[Primitive, Primitive | Self]]
 
-def toJson[A: Schema](doc: A)(implicit ev: Allows[A, JsonDocument]): String = ???
+def toJson[A: Schema](doc: A)(using Allows[A, JsonDocument]): String = ???
 ```
 
 This grammar allows:
@@ -307,7 +307,7 @@ object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 
 The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`. Here's an example:
 
-```scala
+```scala mdoc:compile-only
 // ZIO Prelude Newtype pattern:
 import zio.prelude.Newtype
 object ProductCode extends Newtype[String]
@@ -322,7 +322,7 @@ val ev: Allows[ProductCode, Wrapped[Primitive]] = implicitly
 
 **Scala 3 opaque types** are resolved to their underlying type by the macro (they are transparent), so an opaque alias like this satisfies `Primitive` directly:
 
-```scala
+```scala mdoc:compile-only
 opaque type UserId = java.util.UUID
 // UserId satisfies Allows[UserId, Primitive] — resolved to UUID (a primitive)
 ```
