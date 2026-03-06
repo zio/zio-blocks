@@ -167,7 +167,7 @@ def toJson[A](doc: A)(using Allows[A, Json]): String = ???
 
 `Self` recurses back to `Json` at every nested position, so `List[String]` satisfies `Sequence[JsonPrimitive | Self]` (String is JsonPrimitive), `List[Author]` satisfies it too (Author satisfies `Record[JsonPrimitive | Self]` via Self), and top-level arrays work directly.
 
-A type with a UUID or Instant field fails at compile time:
+A type with a UUID or Instant field fails at compile time with this error:
 
 ```
 [error] Schema shape violation at WithUUID.id: found Primitive(java.util.UUID),
@@ -223,7 +223,7 @@ def insert[A: Schema](value: A)(using
 ): String = ???
 ```
 
-If a user passes a type with nested records, they get a precise compile-time error:
+If a user passes a type with nested records, they get a precise compile-time error like this:
 
 ```
 [error] Schema shape violation at UserWithAddress.address: found Record(Address),
@@ -245,7 +245,7 @@ def publish[A: Schema](event: A)(using
 ): Unit = ???
 ```
 
-If a case of the sealed trait has a nested record field, the error names that case and field:
+If a case of the sealed trait has a nested record field, the error names that case and field like this:
 
 ```
 [error] Schema shape violation at DomainEvent.OrderPlaced.items.<element>:
@@ -298,7 +298,7 @@ object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 
 **Non-recursive types** satisfy `Self`-containing grammars without issue: if no field ever recurses back to the root type, the `Self` position is never reached, and the constraint is vacuously satisfied.
 
-**Mutual recursion** between two or more distinct types is a compile-time error:
+**Mutual recursion** between two or more distinct types is a compile-time error reported as:
 
 ```
 [error] Mutually recursive types are not supported by Allows.
@@ -307,7 +307,7 @@ object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 
 ## `Wrapped[A]` and Newtypes
 
-The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`.
+The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`. Here's an example:
 
 ```scala
 // ZIO Prelude Newtype pattern:
@@ -322,7 +322,7 @@ given Schema[ProductCode] =
 val ev: Allows[ProductCode, Wrapped[Primitive]] = implicitly
 ```
 
-**Scala 3 opaque types** are resolved to their underlying type by the macro (they are transparent), so `opaque type UserId = UUID` satisfies `Primitive` (not `Wrapped[Primitive]`):
+**Scala 3 opaque types** are resolved to their underlying type by the macro (they are transparent), so an opaque alias like this satisfies `Primitive` directly:
 
 ```scala
 opaque type UserId = java.util.UUID
@@ -359,9 +359,7 @@ When a type does not satisfy the grammar, the macro reports:
 3. **What was required**: `Primitive | Sequence[Primitive]`
 4. **A hint** where applicable
 
-Multiple violations are reported in a single compilation pass — the user sees all problems at once.
-
-Example:
+Multiple violations are reported in a single compilation pass — the user sees all problems at once, for example:
 
 ```
 [error] Schema shape violation at UserWithAddress.address: found Record(Address),
