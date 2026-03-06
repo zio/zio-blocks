@@ -7,6 +7,7 @@ const sidebars = {
       link: { type: "doc", id: "index" },
       items: [
          "reference/schema",
+         "reference/allows",
          "reference/reflect",
          "reference/binding",
          "reference/binding-resolver",
