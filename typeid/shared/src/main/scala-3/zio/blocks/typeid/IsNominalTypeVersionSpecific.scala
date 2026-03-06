@@ -1,13 +1,12 @@
-package zio.blocks.context
+package zio.blocks.typeid
 
-import zio.blocks.typeid.TypeId
 import scala.quoted.*
 
-private[context] trait IsNominalTypeVersionSpecific {
+private[typeid] trait IsNominalTypeVersionSpecific {
   inline implicit def derived[A]: IsNominalType[A] = ${ IsNominalTypeMacros.deriveImpl[A] }
 }
 
-private[context] object IsNominalTypeMacros {
+private[typeid] object IsNominalTypeMacros {
   def deriveImpl[A: Type](using Quotes): Expr[IsNominalType[A]] = {
     import quotes.reflect.*
 

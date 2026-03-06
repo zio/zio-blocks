@@ -1,13 +1,13 @@
-package zio.blocks.context
+package zio.blocks.typeid
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
-private[context] trait IsNominalTypeVersionSpecific {
+private[typeid] trait IsNominalTypeVersionSpecific {
   implicit def derived[A]: IsNominalType[A] = macro IsNominalTypeMacros.deriveImpl[A]
 }
 
-private[context] object IsNominalTypeMacros {
+private[typeid] object IsNominalTypeMacros {
   def deriveImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[IsNominalType[A]] = {
     import c.universe._
 
@@ -41,7 +41,7 @@ private[context] object IsNominalTypeMacros {
     }
 
     c.Expr[IsNominalType[A]](q"""
-      new _root_.zio.blocks.context.IsNominalType[$tpe] {
+      new _root_.zio.blocks.typeid.IsNominalType[$tpe] {
         val typeId: _root_.zio.blocks.typeid.TypeId[$tpe] = _root_.zio.blocks.typeid.TypeId.of[$tpe]
         val typeIdErased: _root_.zio.blocks.typeid.TypeId.Erased = typeId.erased
       }
