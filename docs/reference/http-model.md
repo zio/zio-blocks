@@ -36,7 +36,7 @@ sealed trait Scheme
 // Headers and body
 final class Headers private[http] (...)
 sealed trait Header
-final class Body private (val data: Array[Byte], val contentType: Option[ContentType])
+final class Body private (val data: Chunk[Byte], val contentType: Option[ContentType])
 
 // Supporting types
 final case class ContentType(mediaType: MediaType, boundary: Option[Boundary], charset: Option[Charset])
@@ -85,9 +85,7 @@ import zio.http._
 val url = URL.parse("https://api.example.com/users?active=true").toOption.get
 val request = Request.get(url)
 
-val withHeader = request.copy(
-  headers = request.headers.add("authorization", "Bearer token123")
-)
+val withHeader = request.addHeader("authorization", "Bearer token123")
 ```
 
 Creating a JSON response:
@@ -523,6 +521,35 @@ path.hasLeadingSlash   // true
 path.trailingSlash     // true
 ```
 
+### Path Navigation
+
+```scala mdoc:compile-only
+import zio.http.Path
+
+val path = Path("/api/v1/users")
+
+// Slash manipulation
+path.addLeadingSlash     // same (already has one)
+path.dropLeadingSlash    // "api/v1/users" (relative)
+path.addTrailingSlash    // "/api/v1/users/"
+path.dropTrailingSlash   // same (already no trailing slash)
+
+// Inspecting
+path.isRoot              // false (root is "/" with no segments)
+Path.root.isRoot         // true
+
+// Prefix checking
+path.startsWith(Path("api/v1"))  // true
+
+// Slicing
+path.drop(1)       // "/v1/users" (drop first segment)
+path.take(2)       // "/api/v1" (take first 2 segments)
+path.dropRight(1)  // "/api/v1" (drop last segment)
+path.initial       // "/api/v1" (all but last)
+path.last          // Some("users")
+path.reverse       // "/users/v1/api"
+```
+
 ## QueryParams
 
 `QueryParams` stores query parameters with multiple values per key:
@@ -708,6 +735,37 @@ absolute.isAbsolute  // true (has scheme)
 relative.isRelative  // true (no scheme)
 ```
 
+### URL Transformation
+
+```scala mdoc:compile-only
+import zio.http.{URL, Path, Scheme, QueryParams}
+
+val url = URL.parse("https://api.example.com:8080/users?page=1").toOption.get
+
+// Setting components
+url.host("other.com")           // changes host
+url.port(9090)                  // changes port
+url.scheme(Scheme.HTTP)          // changes scheme
+url.path(Path("/v2/users"))      // replaces path
+url.fragment("top")              // sets fragment
+
+// Adding paths
+url.addPath("123")             // appends segment: /users/123
+url.addPath(Path("v2/items"))  // appends multi-segment path
+
+// Query manipulation
+url.addQueryParams(QueryParams("sort" -> "name"))
+url.updateQueryParams(_.remove("page"))
+
+// Slash manipulation (delegates to path)
+url.addLeadingSlash
+url.dropTrailingSlash
+
+// Derived properties
+url.hostPort   // Some("api.example.com:8080")
+url.relative   // strips scheme/host/port, keeps path and query
+```
+
 ## Header
 
 `Header` is a trait representing typed HTTP headers:
@@ -884,18 +942,31 @@ val headers = Headers("a" -> "1", "b" -> "2")
 headers.toList  // List(("a", "1"), ("b", "2"))
 ```
 
+### Combining Headers
+
+```scala mdoc:compile-only
+import zio.http.Headers
+
+val auth = Headers("authorization" -> "Bearer token")
+val cors = Headers("access-control-allow-origin" -> "*")
+
+val combined = auth ++ cors  // Headers(authorization: ..., access-control-allow-origin: ...)
+
+combined.contains("authorization")  // true (alias for `has`)
+combined.toChunk                    // Chunk(("authorization", ...), ("access-control-allow-origin", ...))
+```
+
 ## Body
 
-`Body` wraps a materialized byte array with optional content type:
+`Body` wraps a materialized `Chunk[Byte]` with optional content type:
 
 ```scala
 final class Body private (
-  val data: Array[Byte],
+  val data: Chunk[Byte],
   val contentType: Option[ContentType]
 )
-```
 
-Bodies are immutable and defensively copied on construction.
+Bodies are immutable with structural equality via `Chunk`.
 
 ### Creating Bodies
 
@@ -932,7 +1003,7 @@ body.isEmpty          // false
 body.nonEmpty         // true
 body.asString()       // "Hello!" (UTF-8 default)
 body.asString(Charset.ASCII)  // "Hello!" (explicit charset)
-body.asChunk          // Chunk[Byte](72, 101, 108, 108, 111, 33)
+body.data             // Chunk[Byte](72, 101, 108, 108, 111, 33)
 ```
 
 ## Cookie
@@ -1142,6 +1213,48 @@ val jsonBody = Body.fromString("""{"name":"Alice"}""", Charset.UTF8)
 val postRequest = Request.post(url, jsonBody)
 ```
 
+### Request Factory Methods
+
+```scala mdoc:compile-only
+import zio.http._
+
+val url = URL.parse("https://api.example.com/resource/1").toOption.get
+val body = Body.fromString("""{"name":"updated"}""")
+
+Request.get(url)              // GET with empty body
+Request.post(url, body)       // POST with body
+Request.put(url, body)        // PUT with body
+Request.patch(url, body)      // PATCH with body
+Request.delete(url)           // DELETE with empty body
+Request.head(url)             // HEAD with empty body
+Request.options(url)          // OPTIONS with empty body
+```
+
+### Modifying Requests
+
+All modification methods return a new `Request`—the original is unchanged:
+
+```scala mdoc:compile-only
+import zio.http._
+
+val request = Request.get(URL.parse("https://api.example.com/users").toOption.get)
+
+// Adding/modifying headers
+request.addHeader("Accept", "application/json")
+request.addHeaders(Headers("X-A" -> "1", "X-B" -> "2"))
+request.setHeader("Accept", "text/html")       // replaces existing
+request.removeHeader("Accept")
+
+// Replacing components
+request.body(Body.fromString("data"))
+request.url(URL.parse("/other").toOption.get)
+request.method(Method.POST)
+request.version(Version.`HTTP/2.0`)
+// Functional updates
+request.updateHeaders(_.add("X-Custom", "value"))
+request.updateUrl(_ / "123")   // appends path segment
+```
+
 Full control:
 
 ```scala mdoc:compile-only
@@ -1197,6 +1310,53 @@ import zio.http._
 val ok = Response.ok  // 200 OK, empty body
 
 val notFound = Response.notFound  // 404 Not Found, empty body
+```
+
+### Response Factory Methods
+
+```scala mdoc:compile-only
+import zio.http._
+
+// Status-only responses
+Response.ok                    // 200
+Response.notFound              // 404
+Response.badRequest            // 400
+Response.unauthorized          // 401
+Response.forbidden             // 403
+Response.internalServerError   // 500
+Response.serviceUnavailable    // 503
+
+// Responses with bodies
+Response.text("Hello, World!")    // 200 with text/plain body
+Response.json("""{"ok":true}""")  // 200 with application/json content-type
+
+// Redirects
+Response.redirect("/new-location")                     // 307 Temporary Redirect
+Response.redirect("/new-location", isPermanent = true) // 308 Permanent Redirect
+Response.seeOther("/other")                            // 303 See Other
+```
+
+### Modifying Responses
+
+```scala mdoc:compile-only
+import zio.http._
+
+val response = Response.ok
+
+// Adding/modifying headers
+response.addHeader("X-Custom", "value")
+response.setHeader("X-Custom", "new-value")
+response.removeHeader("X-Custom")
+
+// Replacing components
+response.body(Body.fromString("data"))
+response.status(Status.Created)
+response.version(Version.`HTTP/2.0`)
+// Functional update
+response.updateHeaders(_.add("X-Request-Id", "abc"))
+
+// Add a Set-Cookie header
+response.addCookie(ResponseCookie("session", "abc123"))
 ```
 
 Full control:
@@ -1382,7 +1542,7 @@ This eliminates double-encoding bugs and clarifies responsibilities.
 
 ### No Streaming
 
-Bodies are fully materialized `Array[Byte]`. Streaming is left to higher-level HTTP libraries that compose with this data model. This keeps the model simple and effect-free.
+Bodies are fully materialized `Chunk[Byte]`. Streaming is left to higher-level HTTP libraries that compose with this data model. This keeps the model simple and effect-free.
 
 ### Zero ZIO Dependency
 
