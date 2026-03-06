@@ -29,7 +29,6 @@ object StructuralSealedTraitExample extends App {
   implicit val shapeSchema: Schema[Shape] = Schema.derived[Shape]
 
   val nominalSchema: Schema[Shape] = Schema.derived[Shape]
-  val structuralSchema             = nominalSchema.structural
 
   println("=== Sum Type: Shape (Sealed Trait) ===\n")
 
@@ -97,7 +96,6 @@ object StructuralEnumExample extends App {
   println("=== Sum Type: Color (Simple Enum) ===\n")
 
   val colorSchema: Schema[Color] = Schema.derived[Color]
-  val colorStructural            = colorSchema.structural
 
   val red: Color = Color.Red
   val redDynamic = colorSchema.toDynamicValue(red)
@@ -108,7 +106,6 @@ object StructuralEnumExample extends App {
   println("\n=== Sum Type: Status (Simple Enum) ===\n")
 
   val statusSchema: Schema[Status] = Schema.derived[Status]
-  val statusStructural             = statusSchema.structural
 
   val active: Status = Status.Active
   val activeDynamic  = statusSchema.toDynamicValue(active)
@@ -119,7 +116,6 @@ object StructuralEnumExample extends App {
   println("\n=== Sum Type: Fruit (Parameterized Enum) ===\n")
 
   val fruitSchema: Schema[Fruit] = Schema.derived[Fruit]
-  val fruitStructural            = fruitSchema.structural
 
   // Parameterized enum cases
   val apple: Fruit = Fruit.Apple("Granny Smith")
