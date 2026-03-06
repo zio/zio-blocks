@@ -33,11 +33,11 @@ object BodySpec extends HttpModelBaseSpec {
           body.toArray(2) == 3.toByte
         )
       },
-      test("does not make defensive copy") {
+      test("wraps array without defensive copy") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte
-        assertTrue(body.toArray(0) == 99.toByte)
+        assertTrue(body.data(0) == 99.toByte)
       },
       test("preserves content type") {
         val ct   = Some(ContentType.`application/json`)
@@ -50,7 +50,7 @@ object BodySpec extends HttpModelBaseSpec {
       }
     ),
     suite("fromChunk")(
-      test("converts chunk to array") {
+      test("stores chunk directly") {
         val chunk = Chunk[Byte](10, 20, 30)
         val body  = Body.fromChunk(chunk)
         assertTrue(
@@ -98,11 +98,11 @@ object BodySpec extends HttpModelBaseSpec {
         assertTrue(body.asString() == original)
       }
     ),
-    suite("asChunk")(
+    suite("data")(
       test("returns correct chunk") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
-        val chunk = body.asChunk
+        val chunk = body.data
         assertTrue(
           chunk.length == 3,
           chunk(0) == 1.toByte,
