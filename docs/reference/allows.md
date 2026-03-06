@@ -39,6 +39,37 @@ Today, these constraints can only be checked at runtime, producing confusing err
 // UserRow has no Option fields — the Optional branch is simply never needed.
 ```
 
+## Creating Instances
+
+`Allows[A, S]` is not instantiated directly. Instead, you summon an evidence value at the point where you need the constraint. The macro automatically verifies the constraint at compile time.
+
+In **Scala 3**, use the `using` syntax to summon an implicit:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+def toJson[A](doc: A)(using Allows[A, Record[Primitive]]): String = ???
+
+// Calling the function:
+case class Person(name: String, age: Int)
+val json = toJson(Person("Alice", 30))  // Compiles if Person satisfies Record[Primitive]
+```
+
+In **Scala 2**, use `implicit` parameter with `implicitly`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+def toJson[A](doc: A)(implicit ev: Allows[A, Record[Primitive]]): String = ???
+
+// Or summon at the call site:
+val evidence = implicitly[Allows[Int, Primitive]]
+```
+
+The constraint is checked once, at the call site. If the type `A` does not satisfy `S`, you get a compile-time error with a precise message showing exactly which field violates the grammar.
+
 ## Grammar Nodes
 
 All grammar nodes extend `Allows.Structural`.
