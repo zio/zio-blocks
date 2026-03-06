@@ -23,22 +23,22 @@ private[comptime] object AllowsMacroImpl {
     val color = AllowsErrorMessages.Colors.shouldUseColor
 
     sealed trait GrammarNode
-    case object GPrimitive                          extends GrammarNode // any primitive (catch-all)
-    case object GDynamic                            extends GrammarNode
-    case object GSelf                               extends GrammarNode
-    case class GRecord(inner: GrammarNode)          extends GrammarNode
-    case class GSequence(inner: GrammarNode)        extends GrammarNode // any sequence
-    case class GSeqList(inner: GrammarNode)         extends GrammarNode // List only
-    case class GSeqVector(inner: GrammarNode)       extends GrammarNode // Vector only
-    case class GSeqSet(inner: GrammarNode)          extends GrammarNode // Set only
-    case class GSeqArray(inner: GrammarNode)        extends GrammarNode // Array only
-    case class GSeqChunk(inner: GrammarNode)        extends GrammarNode // Chunk only
+    case object GPrimitive                    extends GrammarNode // any primitive (catch-all)
+    case object GDynamic                      extends GrammarNode
+    case object GSelf                         extends GrammarNode
+    case class GRecord(inner: GrammarNode)    extends GrammarNode
+    case class GSequence(inner: GrammarNode)  extends GrammarNode // any sequence
+    case class GSeqList(inner: GrammarNode)   extends GrammarNode // List only
+    case class GSeqVector(inner: GrammarNode) extends GrammarNode // Vector only
+    case class GSeqSet(inner: GrammarNode)    extends GrammarNode // Set only
+    case class GSeqArray(inner: GrammarNode)  extends GrammarNode // Array only
+    case class GSeqChunk(inner: GrammarNode)  extends GrammarNode // Chunk only
 
     case class GMap(key: GrammarNode, value: GrammarNode) extends GrammarNode
-    case class GOptional(inner: GrammarNode)               extends GrammarNode
-    case class GWrapped(inner: GrammarNode)                extends GrammarNode
-    case class GIsType(scalaFQN: String)                   extends GrammarNode // exact type match
-    case class GUnion(branches: List[GrammarNode])         extends GrammarNode
+    case class GOptional(inner: GrammarNode)              extends GrammarNode
+    case class GWrapped(inner: GrammarNode)               extends GrammarNode
+    case class GIsType(scalaFQN: String)                  extends GrammarNode // exact type match
+    case class GUnion(branches: List[GrammarNode])        extends GrammarNode
 
     // In Scala 2 whitebox macros, weakTypeOf[S] and weakTypeOf[A] are abstract type
     // variables. Extract the concrete types from the macro application's return type.
@@ -53,36 +53,36 @@ private[comptime] object AllowsMacroImpl {
     // Inverse map: Scala type FQN → Primitive.Xxx name, used in describeGrammar
     // to render GIsType(scala.Int) as "Primitive.Int" for readable error messages.
     val primitiveNameMap: Map[String, String] = Map(
-      "scala.Unit"              -> "Unit",
-      "scala.Boolean"           -> "Boolean",
-      "scala.Byte"              -> "Byte",
-      "scala.Short"             -> "Short",
-      "scala.Int"               -> "Int",
-      "scala.Long"              -> "Long",
-      "scala.Float"             -> "Float",
-      "scala.Double"            -> "Double",
-      "scala.Char"              -> "Char",
-      "java.lang.String"        -> "String",
-      "scala.math.BigInt"       -> "BigInt",
-      "scala.math.BigDecimal"   -> "BigDecimal",
-      "java.util.UUID"          -> "UUID",
-      "java.util.Currency"      -> "Currency",
-      "java.time.DayOfWeek"     -> "DayOfWeek",
-      "java.time.Duration"      -> "Duration",
-      "java.time.Instant"       -> "Instant",
-      "java.time.LocalDate"     -> "LocalDate",
-      "java.time.LocalDateTime" -> "LocalDateTime",
-      "java.time.LocalTime"     -> "LocalTime",
-      "java.time.Month"         -> "Month",
-      "java.time.MonthDay"      -> "MonthDay",
-      "java.time.OffsetDateTime"-> "OffsetDateTime",
-      "java.time.OffsetTime"    -> "OffsetTime",
-      "java.time.Period"        -> "Period",
-      "java.time.Year"          -> "Year",
-      "java.time.YearMonth"     -> "YearMonth",
-      "java.time.ZoneId"        -> "ZoneId",
-      "java.time.ZoneOffset"    -> "ZoneOffset",
-      "java.time.ZonedDateTime" -> "ZonedDateTime"
+      "scala.Unit"               -> "Unit",
+      "scala.Boolean"            -> "Boolean",
+      "scala.Byte"               -> "Byte",
+      "scala.Short"              -> "Short",
+      "scala.Int"                -> "Int",
+      "scala.Long"               -> "Long",
+      "scala.Float"              -> "Float",
+      "scala.Double"             -> "Double",
+      "scala.Char"               -> "Char",
+      "java.lang.String"         -> "String",
+      "scala.math.BigInt"        -> "BigInt",
+      "scala.math.BigDecimal"    -> "BigDecimal",
+      "java.util.UUID"           -> "UUID",
+      "java.util.Currency"       -> "Currency",
+      "java.time.DayOfWeek"      -> "DayOfWeek",
+      "java.time.Duration"       -> "Duration",
+      "java.time.Instant"        -> "Instant",
+      "java.time.LocalDate"      -> "LocalDate",
+      "java.time.LocalDateTime"  -> "LocalDateTime",
+      "java.time.LocalTime"      -> "LocalTime",
+      "java.time.Month"          -> "Month",
+      "java.time.MonthDay"       -> "MonthDay",
+      "java.time.OffsetDateTime" -> "OffsetDateTime",
+      "java.time.OffsetTime"     -> "OffsetTime",
+      "java.time.Period"         -> "Period",
+      "java.time.Year"           -> "Year",
+      "java.time.YearMonth"      -> "YearMonth",
+      "java.time.ZoneId"         -> "ZoneId",
+      "java.time.ZoneOffset"     -> "ZoneOffset",
+      "java.time.ZonedDateTime"  -> "ZonedDateTime"
     )
     val recordBase    = typeOf[Allows.Record[_]].typeConstructor
     val sequenceBase  = typeOf[Allows.Sequence[_]].typeConstructor
@@ -519,10 +519,10 @@ private[comptime] object AllowsMacroImpl {
       case GSeqChunk(inner)  => s"Sequence.Chunk[${describeGrammar(inner)}]"
       case GIsType(fqn)      =>
         primitiveNameMap.get(fqn).fold(s"IsType[${fqn.split('.').last}]")(n => s"Primitive.$n")
-      case GMap(k, v)        => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
-      case GOptional(inner)  => s"Optional[${describeGrammar(inner)}]"
-      case GWrapped(inner)   => s"Wrapped[${describeGrammar(inner)}]"
-      case GUnion(branches)  => branches.map(describeGrammar).mkString(" | ")
+      case GMap(k, v)       => s"Map[${describeGrammar(k)}, ${describeGrammar(v)}]"
+      case GOptional(inner) => s"Optional[${describeGrammar(inner)}]"
+      case GWrapped(inner)  => s"Wrapped[${describeGrammar(inner)}]"
+      case GUnion(branches) => branches.map(describeGrammar).mkString(" | ")
     }
 
     // -----------------------------------------------------------------------

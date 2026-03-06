@@ -279,6 +279,6 @@ object ContextSpec extends ZIOSpecDefault {
         val result = cache.putIfAbsent(key, config2)
         assertTrue(result == config1, cache.get(key) == config1)
       }
-    ),
+    )
   )
 }
