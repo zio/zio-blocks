@@ -91,6 +91,141 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("returns None when no content-type header") {
         assertTrue(Response.ok.contentType.isEmpty)
       }
+    ),
+    suite("Response.badRequest")(
+      test("has status 400") {
+        assertTrue(Response.badRequest.status == Status.BadRequest)
+      }
+    ),
+    suite("Response.unauthorized")(
+      test("has status 401") {
+        assertTrue(Response.unauthorized.status == Status.Unauthorized)
+      }
+    ),
+    suite("Response.forbidden")(
+      test("has status 403") {
+        assertTrue(Response.forbidden.status == Status.Forbidden)
+      }
+    ),
+    suite("Response.internalServerError")(
+      test("has status 500") {
+        assertTrue(Response.internalServerError.status == Status.InternalServerError)
+      }
+    ),
+    suite("Response.serviceUnavailable")(
+      test("has status 503") {
+        assertTrue(Response.serviceUnavailable.status == Status.ServiceUnavailable)
+      }
+    ),
+    suite("Response.text")(
+      test("creates text response with correct body and status") {
+        val response = Response.text("hello world")
+        assertTrue(
+          response.status == Status.Ok,
+          response.body == Body.fromString("hello world")
+        )
+      }
+    ),
+    suite("Response.json")(
+      test("creates json response with content-type header") {
+        val response = Response.json("{\"key\": \"value\"}")
+        assertTrue(
+          response.status == Status.Ok,
+          response.headers.rawGet("content-type") == Some("application/json")
+        )
+      }
+    ),
+    suite("Response.redirect")(
+      test("temporary redirect by default") {
+        val response = Response.redirect("/new-location")
+        assertTrue(
+          response.status == Status.TemporaryRedirect,
+          response.headers.rawGet("location") == Some("/new-location")
+        )
+      },
+      test("permanent redirect when isPermanent is true") {
+        val response = Response.redirect("/new-location", isPermanent = true)
+        assertTrue(
+          response.status == Status.PermanentRedirect,
+          response.headers.rawGet("location") == Some("/new-location")
+        )
+      }
+    ),
+    suite("Response.seeOther")(
+      test("creates 303 response") {
+        val response = Response.seeOther("/other")
+        assertTrue(
+          response.status == Status.SeeOther,
+          response.headers.rawGet("location") == Some("/other")
+        )
+      }
+    ),
+    suite("Response addHeader")(
+      test("adds a header") {
+        val response = Response.ok.addHeader("X-Custom", "value")
+        assertTrue(response.headers.rawGet("x-custom") == Some("value"))
+      }
+    ),
+    suite("Response addHeaders")(
+      test("adds multiple headers") {
+        val extra    = Headers("X-A" -> "1", "X-B" -> "2")
+        val response = Response.ok.addHeaders(extra)
+        assertTrue(
+          response.headers.rawGet("x-a") == Some("1"),
+          response.headers.rawGet("x-b") == Some("2")
+        )
+      }
+    ),
+    suite("Response removeHeader")(
+      test("removes a header") {
+        val response = Response.ok.addHeader("X-Custom", "value").removeHeader("X-Custom")
+        assertTrue(!response.headers.has("x-custom"))
+      }
+    ),
+    suite("Response setHeader")(
+      test("sets a header replacing existing") {
+        val response = Response.ok
+          .addHeader("X-Custom", "old")
+          .setHeader("X-Custom", "new")
+        assertTrue(response.headers.rawGet("x-custom") == Some("new"))
+      }
+    ),
+    suite("Response body (setter)")(
+      test("replaces body") {
+        val newBody  = Body.fromString("new body")
+        val response = Response.ok.body(newBody)
+        assertTrue(response.body == newBody)
+      }
+    ),
+    suite("Response status (setter)")(
+      test("replaces status") {
+        val response = Response.ok.status(Status.NotFound)
+        assertTrue(response.status == Status.NotFound)
+      }
+    ),
+    suite("Response version (setter)")(
+      test("replaces version") {
+        val response = Response.ok.version(Version.`HTTP/1.0`)
+        assertTrue(response.version == Version.`HTTP/1.0`)
+      }
+    ),
+    suite("Response updateHeaders")(
+      test("transforms headers via function") {
+        val response = Response.ok
+          .addHeader("X-A", "1")
+          .updateHeaders(_.add("X-B", "2"))
+        assertTrue(
+          response.headers.rawGet("x-a") == Some("1"),
+          response.headers.rawGet("x-b") == Some("2")
+        )
+      }
+    ),
+    suite("Response addCookie")(
+      test("adds Set-Cookie header") {
+        val cookie   = ResponseCookie("session", "abc123")
+        val response = Response.ok.addCookie(cookie)
+        assertTrue(response.headers.has("set-cookie"))
+      }
     )
   )
 }
