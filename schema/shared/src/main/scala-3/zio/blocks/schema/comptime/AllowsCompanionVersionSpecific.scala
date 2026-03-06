@@ -483,7 +483,7 @@ private[comptime] object AllowsMacroImpl {
 
         case GIsType(targetTpe) =>
           if (!(dt =:= targetTpe))
-            err(path, describeType(tpe), s"IsType[${targetTpe.show}]")
+            err(path, describeType(tpe), describeGrammar(GIsType(targetTpe)))
 
         case GMap(keyG, valG) =>
           if (isMapType(dt)) {
