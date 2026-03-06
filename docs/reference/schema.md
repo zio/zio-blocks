@@ -27,6 +27,22 @@ final case class Schema[A](reflect: Reflect.Bound[A])
 └────────────────────────────────────────────────────────────────┘
 ```
 
+## Installation
+
+To use ZIO Blocks schemas, add the dependency to your `build.sbt`:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "<version>"
+```
+
+For Scala.js projects:
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "<version>"
+```
+
+Supported Scala versions: 2.13.x and 3.x.
+
 ## Reflect: Structure vs Binding
 
 The [`Reflect`](./reflect.md) data type represents the structure of Scala types. It is parameterized by `F[_, _]` which allows plugging in different "binding" strategies:
@@ -55,11 +71,13 @@ final case class Schema[A](reflect: Reflect.Bound[A])
 type Bound[A] = Reflect[Binding, A]
 ```
 
-## Schema Derivation
+## Construction / Creating Instances
 
-ZIO Blocks provides both automatic schema derivation and also ways to manually create schemas. As an end user, you will mostly use automatic derivation. So we will focus on automatic derivation here. If you need to go deeper and create schemas manually, check out the [Reflect](./reflect.md) and [Binding](./binding.md) documentation pages.
+### Automatic Schema Derivation
 
-To leverage auto-derivation, simply define an implicit `Schema` for your type using `Schema.derived`:
+ZIO Blocks provides automatic schema derivation for most Scala types. As an end user, you'll primarily use the `Schema.derived` method to automatically generate schemas based on type structure.
+
+For case classes and product types, simply define an implicit `Schema` using `Schema.derived`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -73,7 +91,7 @@ object Person {
 
 It will automatically derive the schema for `Person` based on its structure. After that, you can summon the schema using `Schema[Person]` anywhere in your code.
 
-For sealed traits (ADTs), it will derive the schema for all subtypes as well:
+For sealed traits (algebraic data types), it will derive the schema for all subtypes as well:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -82,18 +100,18 @@ sealed trait Shape
 object Shape {
   case class Circle(radius: Double) extends Shape
   case class Rectangle(width: Double, height: Double) extends Shape
-  
+
   implicit val schema: Schema[Shape] = Schema.derived
 }
 ```
 
-Under the hood, the derivation process includes deriving schemas for cases of enum (i.e. `Circle` and `Rectangle`) and finally creating a schema for the `Shape` trait itself.
+Under the hood, the derivation process includes deriving schemas for each case (i.e. `Circle` and `Rectangle`) and finally creating a schema for the `Shape` trait itself.
 
-## Built-in Schemas
+### Built-in Schemas
 
 ZIO Blocks ships with a comprehensive set of pre-defined schemas for standard Scala and Java types, eliminating boilerplate and ensuring consistent behavior across your application.
 
-### Primitive Types
+#### Primitive Types
 
 The foundational building blocks for all data types. These schemas leverage the [register-based architecture](registers.md) for zero-allocation performance:
 
@@ -112,7 +130,7 @@ Schema[Char]      // 16-bit Unicode character
 Schema[String]    // Immutable character sequence
 ```
 
-### Arbitrary Precision Numbers
+#### Arbitrary Precision Numbers
 
 For financial calculations and scenarios requiring exact decimal representation:
 
@@ -123,7 +141,7 @@ Schema[BigInt]      // Arbitrary precision integer
 Schema[BigDecimal]  // Arbitrary precision decimal
 ```
 
-### Temporal Types (java.time)
+#### Temporal Types (java.time)
 
 Complete coverage of the modern Java Time API for robust date/time handling:
 
@@ -135,7 +153,7 @@ Schema[java.time.LocalDate]      // Date without time (2024-01-15)
 Schema[java.time.LocalTime]      // Time without date (14:30:00)
 Schema[java.time.LocalDateTime]  // Date and time without timezone
 
-// Timezone-aware types  
+// Timezone-aware types
 Schema[java.time.ZonedDateTime]   // Full date-time with timezone
 Schema[java.time.OffsetDateTime]  // Date-time with UTC offset
 Schema[java.time.OffsetTime]      // Time with UTC offset
@@ -155,7 +173,7 @@ Schema[java.time.YearMonth]  // Year and month combination
 Schema[java.time.MonthDay]   // Month and day combination
 ```
 
-### Common Java Utility Types
+#### Common Java Utility Types
 
 There are also schemas for frequently used Java utility types, UUID and Currency:
 
@@ -166,7 +184,7 @@ Schema[java.util.UUID]      // 128-bit universally unique identifier
 Schema[java.util.Currency]  // ISO 4217 currency code
 ```
 
-### Optional Values
+#### Optional Values
 
 ZIO Blocks provides specialized `Option` schemas optimized for primitive types. These avoid boxing overhead by storing primitive values directly in registers:
 
@@ -188,7 +206,7 @@ import zio.blocks.schema.Schema
 Schema[Option[A]]  // Generic option for reference types
 ```
 
-### Collection Types
+#### Collection Types
 
 ZIO Blocks also provides polymorphic schemas for standard Scala collections. You can summon schemas for collections of any element type `A` (and key/value types `K`/`V` for maps):
 
@@ -203,7 +221,7 @@ Schema[Map[K, V]]      // Immutable key-value mapping
 
 To learn how to create custom collection schemas, check out the [`Sequence`](./reflect.md#3-sequence) and [`Map`](./reflect.md#4-map) nodes on the documentation of [`Reflect`](./reflect.md) data type.
 
-### DynamicValue
+#### DynamicValue
 
 ZIO Blocks includes a built-in schema for `DynamicValue`, a semi-structured data representation that serves as a superset of JSON:
 
@@ -256,6 +274,60 @@ object UserId {
     .transform(UserId(_), _.value)
 }
 ```
+
+### DynamicValue toString (EJSON Format)
+
+ZIO Blocks provides the `transform` method for creating schemas for wrapper types, such as newtypes, opaque types and value classes:
+
+```scala
+final case class Schema[A](reflect: Reflect.Bound[A]) {
+  def transform[B](to: A => B, from: B => A): Schema[B] = ???
+}
+```
+
+The `transform` method allows you to define transformations that can fail by throwing `SchemaError` exceptions. Use it for both simple wrapper types and types with validation requirements.
+
+Here are examples of both:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.{Schema, SchemaError}
+
+// For types with validation (may fail)
+case class Email(value: String)
+
+object Email {
+  private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+
+  implicit val schema: Schema[Email] = Schema[String]
+    .transform(
+      {
+        case x @ EmailRegex(_*) => Email(x)
+        case _                  => throw SchemaError.validationFailed("Invalid email format")
+      },
+      _.value
+    )
+}
+
+// For total transformations (never fail)
+case class UserId(value: Long)
+
+object UserId {
+  implicit val schema: Schema[UserId] = Schema[Long]
+    .transform(UserId(_), _.value)
+}
+```
+
+## Core Operations
+
+```scala
+println(Schema[Int])
+// Output:
+// Schema {
+//   Int
+// }
+```
+
+This format makes it easy to inspect complex nested schemas during debugging. See the [Reflect documentation](./reflect.md#debug-friendly-tostring) for details on the SDL format used for the inner structure.
 
 ## Core Operations
 
@@ -311,7 +383,7 @@ object EncodeDecodeExample extends App {
 
 Please note that both `Schema#encode` and `Schema#decode` cache instances, so using encode and decode in multiple places only performs the derivation process once.
 
-## Type Class Derivation
+### Type Class Derivation
 
 To derive type class instances for a type `A` based on its schema, you can use the `derive` method on `Schema[A]`. This method takes a `Deriver` for the desired type class and produces an instance of that type class for `A`.
 
@@ -342,7 +414,7 @@ val decodedPerson = Person.codec.decode(json)
 println(s"Decoded Person: $decodedPerson")
 ```
 
-## Metadata Operations
+### Metadata Operations
 
 ZIO Blocks allows attaching metadata to schemas and their fields, such as documentation, example values, and default values. This metadata can be useful for generating API documentation, client code, or providing hints to serialization formats.
 
@@ -409,7 +481,7 @@ val ageDefault: Option[Int] =
   Schema[Person].getDefaultValue(Person.age)
 ```
 
-## Accessing and Updating Partial Schemas
+### Accessing and Updating Partial Schemas
 
 To access a specific part of a schema, we can use the `Schema#get` method, which takes an optic and returns the reflection of the targeted field. 
 
@@ -446,7 +518,7 @@ val streetSchema: Option[Reflect.Bound[String]] =
   Schema[Person].get(Person.address(Address.street))
 ```
 
-### Updating Nested Schemas
+#### Updating Nested Schemas
 
 To update a specific part of a schema, we can use the `Schema#updated` method, which takes an optic and a function to transform the targeted schema:
 
@@ -466,7 +538,7 @@ val updated: Option[Schema[Person]] = Schema[Person]
   .updated(Person.address)(_.doc("Mailing address"))
 ```
 
-## Schema Aspects
+### Schema Aspects
 
 Schema aspects are a powerful mechanism in ZIO Blocks for transforming schemas. You can think of the schema aspect as a function that takes a reflect and produces a new reflect:
 
@@ -507,7 +579,7 @@ Currently, ZIO Blocks provides the following built-in schema aspects:
 - `SchemaAspect.doc`: Attach documentation to schema or field
 - `SchemaAspect.examples`: Attach example values to schema or field
 
-## Modifiers
+### Modifiers
 
 Modifiers in ZIO Blocks provide a mechanism to attach metadata and configuration to schema elements without polluting the domain types themselves. They serve as the successor to ZIO Schema 1's annotation system, with the critical advantage of being **pure data** so, unlike Scala annotations, modifiers are runtime values that can be serialized.
 
@@ -538,142 +610,10 @@ Here is an example of adding modifiers to a schema:
     )
 ```
 
-### Debug-Friendly toString
-
-## Integration
-
-Schema is the primary data type in ZIO Blocks and integrates with several other core types:
-
-**[Reflect](./reflect.md)** — The underlying representation of type structure. `Schema[A]` wraps a `Reflect.Bound[A]`, which combines structural information with construction/deconstruction capabilities. For pure structural information without functions, use `Reflect` directly.
-
-**[Binding](./binding.md)** — The mechanism for building and tearing down values. `Schema` uses `Binding[T, A]` internally to provide `Constructor[A]` and `Deconstructor[A]` methods. See the Binding documentation for custom construction strategies.
-
-**[DynamicValue](./dynamicvalue.md)** — A semi-structured representation of data (superset of JSON). `Schema[DynamicValue]` allows seamless conversion between type-safe data and dynamic representations, enabling flexible serialization to any format (JSON, Avro, Protobuf).
-
-**[TypeId](./typeid.md)** — Reified type information at runtime. Some schema operations use `TypeId` for runtime type checking and reflection. See TypeId for more information on compile-time type constraints.
 
 ## Advanced Usage
 
-```scala
-import zio.blocks.schema._
-
-case class Person(name: String, age: Int)
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-}
-
-println(Schema[Person])
-// Output:
-// Schema {
-//   record Person {
-//     name: String
-//     age: Int
-//   }
-// }
-```
-
-For primitive schemas:
-
-```scala
-println(Schema[Int])
-// Output:
-// Schema {
-//   Int
-// }
-```
-
-This format makes it easy to inspect complex nested schemas during debugging. See the [Reflect documentation](./reflect.md#debug-friendly-tostring) for details on the SDL format used for the inner structure.
-
-### DynamicValue toString (EJSON Format)
-
-`DynamicValue` has a custom `toString` that produces EJSON (Extended JSON) format - a superset of JSON that handles non-string keys, tagged variants, and typed primitives:
-
-```scala
-import zio.blocks.schema._
-
-// Records have unquoted keys
-val record = DynamicValue.Record(Vector(
-  "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-  "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-))
-println(record)
-// {
-//   name: "Alice",
-//   age: 30
-// }
-
-// Maps have quoted string keys
-val map = DynamicValue.Map(Vector(
-  DynamicValue.Primitive(PrimitiveValue.String("key")) ->
-    DynamicValue.Primitive(PrimitiveValue.String("value"))
-))
-println(map)
-// {
-//   "key": "value"
-// }
-
-// Variants use @ metadata
-val variant = DynamicValue.Variant("Some", DynamicValue.Record(Vector(
-  "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
-)))
-println(variant)
-// {
-//   value: 42
-// } @ {tag: "Some"}
-
-// Typed primitives use @ metadata
-val instant = DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.now))
-println(instant)
-// 1705312800000 @ {type: "instant"}
-```
-
-**Key EJSON properties:**
-- **Records**: unquoted keys (`{ name: "John" }`)
-- **Maps**: quoted string keys (`{ "name": "John" }`) or unquoted non-string keys (`{ 42: "value" }`)
-- **Variants**: postfix `@ {tag: "CaseName"}`
-- **Typed primitives**: postfix `@ {type: "instant"}` for types that would lose precision as JSON
-
-ZIO Blocks provides the `transform` method for creating schemas for wrapper types, such as newtypes, opaque types and value classes:
-
-```scala
-final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def transform[B](to: A => B, from: B => A): Schema[B] = ???
-}
-```
-
-The `transform` method allows you to define transformations that can fail by throwing `SchemaError` exceptions. Use it for both simple wrapper types and types with validation requirements. 
-
-Here are examples of both:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.{Schema, SchemaError}
-
-// For types with validation (may fail)
-case class Email(value: String)
-
-object Email {
-  private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-  
-  implicit val schema: Schema[Email] = Schema[String]
-    .transform(
-      {
-        case x @ EmailRegex(_*) => Email(x)
-        case _                  => throw SchemaError.validationFailed("Invalid email format")
-      },
-      _.value
-    )
-}
-
-// For total transformations (never fail)
-case class UserId(value: Long)
-
-object UserId {
-  implicit val schema: Schema[UserId] = Schema[Long]
-    .transform(UserId(_), _.value)
-}
-```
-
-## Compile-Time Shape Constraints (`Allows`)
+### Compile-Time Shape Constraints (`Allows`)
 
 ZIO Blocks provides `Allows[A, S]` — a phantom-typed capability token that proves, at compile time, that type `A` satisfies the structural grammar `S`. This lets library authors express and enforce structural preconditions on their generic APIs without writing macros themselves.
 
