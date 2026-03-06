@@ -103,6 +103,16 @@ All grammar nodes extend `Allows.Structural`.
 
 Every specific `Primitive.Xxx` node also satisfies the catch-all `Primitive`. This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
 
+## Core Operations
+
+`Allows[A, S]` is a **proof token**, not an ordinary value. It carries zero public methods that you call directly. Instead, you use it in three ways:
+
+1. **As a constraint in function signatures** — Declare `Allows[A, S]` as an implicit/using parameter to require that callers pass only types satisfying the grammar.
+2. **To summon evidence** — Use `implicitly[Allows[A, S]]` (Scala 2) or `summon[Allows[A, S]]` (Scala 3) at a call site to check the constraint and get an error message if it fails.
+3. **In type aliases** — Define type aliases like `type FlatRecord = Allows[?, Record[Primitive | Optional[Primitive]]]` to name constraints and reuse them across functions.
+
+The macro that powers `Allows` checks the constraint **at compile time** and emits nothing but a reference to a single private singleton at runtime, so there is zero per-call-site overhead.
+
 ## Specific Primitives
 
 The `Primitive` parent class is the catch-all: it accepts any of the 30 Schema 2 primitive types. For stricter control — such as when the target serialisation format only supports a subset — use the specific subtype nodes in `Allows.Primitive`:
