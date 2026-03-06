@@ -154,6 +154,28 @@ object AllowsFixtures {
 }
 
 // ---------------------------------------------------------------------------
+// Regression: issue #1145
+// Reproduced verbatim from the bug report. DO NOT MODIFY THIS OBJECT.
+// Allows must be derivable when A is inferred at a call site in a user object
+// that imports Allows._ (wildcard) from an external namespace.
+// ---------------------------------------------------------------------------
+
+object Issue1145Reproducer {
+  import zio.blocks.schema.Schema
+  import zio.blocks.schema.comptime.Allows
+  import Allows._
+
+  def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive | Optional[Primitive]]]): Unit = ()
+
+  final case class Person(age: Int)
+  object Person {
+    implicit val schema: Schema[Person] = Schema.derived
+  }
+
+  val result: Unit = writeCsv(Seq(Person(42)))
+}
+
+// ---------------------------------------------------------------------------
 // Positive tests (positive evidence derivation must compile)
 // Use `implicitly` which works on both Scala 2 and Scala 3.
 // ---------------------------------------------------------------------------
@@ -400,6 +422,12 @@ object AllowsSpec extends SchemaBaseSpec {
         val nilUUID                                                                    = new java.util.UUID(0L, 0L)
         val event: DomainEvent                                                         = AccountOpened(nilUUID, "Alice")
         assertTrue(publish(event) == "ok")
+      },
+      // Regression test for https://github.com/zio/zio-blocks/issues/1145
+      // Issue1145Reproducer is a top-level object with `import Allows._` (wildcard),
+      // exactly matching the reporter's code. The val initialiser is evaluated here.
+      test("Allows is derivable with inferred A under wildcard import (issue #1145)") {
+        assertTrue(Issue1145Reproducer.result == (()))
       }
     )
   )

@@ -37,9 +37,52 @@ private[comptime] object AllowsMacroImpl {
 
     // In Scala 2 whitebox macros, weakTypeOf[S] and weakTypeOf[A] are abstract type
     // variables. Extract the concrete types from the macro application's return type.
-    val appTpe   = c.macroApplication.tpe
-    val sTpe     = appTpe.typeArgs.last // Allows[A, S] — S is second type arg
-    val rootTpe0 = appTpe.typeArgs.head // Allows[A, S] — A is first type arg
+    //
+    // c.macroApplication.tpe is the primary source: it holds the return type of the
+    // macro call as determined by the typer before expansion.  When the macro is
+    // used as an implicit and Scala 2's typer has already committed the expected
+    // type (which is the normal case), this gives us Allows[ConcreteA, ConcreteS]
+    // with both type arguments fully resolved.
+    //
+    // In rare cases c.macroApplication.tpe can be null (e.g. some incremental
+    // compilation states) or its type arguments can contain unresolved type variables
+    // (isAbstract type parameters or existential skolems).  The fallback reads
+    // c.enclosingImplicits: when the macro is triggered as part of an implicit
+    // search, c.enclosingImplicits.head.pt is the "point type" — the expected
+    // type the search is trying to satisfy — which is always concrete.
+    val allowsTypeCon = typeOf[Allows[_, _]].typeConstructor
+
+    // Returns Some((A, S)) only when both type arguments are fully concrete —
+    // i.e. neither is an unresolved type parameter (typeSymbol.isParameter is true
+    // for type-parameter symbols such as the A and S in derived[S, A], but false
+    // for concrete types including abstract classes used as grammar nodes).
+    def isConcrete(t: Type): Boolean =
+      !t.typeSymbol.isParameter
+
+    def typeArgsFromPt(pt: Type): Option[(Type, Type)] = {
+      val dealiased = pt.dealias
+      if (dealiased.typeConstructor =:= allowsTypeCon && dealiased.typeArgs.length == 2) {
+        val a = dealiased.typeArgs.head
+        val s = dealiased.typeArgs.last
+        if (isConcrete(a) && isConcrete(s)) Some((a, s)) else None
+      } else None
+    }
+
+    val (rootTpe0, sTpe): (Type, Type) = {
+      val fromApp: Option[(Type, Type)] =
+        Option(c.macroApplication.tpe).flatMap(t => typeArgsFromPt(t))
+      val fromImplicits: Option[(Type, Type)] =
+        c.enclosingImplicits.headOption.flatMap(ic => typeArgsFromPt(ic.pt))
+      fromApp
+        .orElse(fromImplicits)
+        .getOrElse(
+          c.abort(
+            c.enclosingPosition,
+            "Allows macro: could not determine concrete type arguments A and S. " +
+              "Make sure the full Allows[A, S] type is fully inferred at the call site."
+          )
+        )
+    }
 
     val primitiveBase = typeOf[Allows.Primitive]
     val dynamicBase   = typeOf[Allows.Dynamic]
