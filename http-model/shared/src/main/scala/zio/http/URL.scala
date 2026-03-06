@@ -62,6 +62,26 @@ final case class URL(
   }
 
   override def toString: String = encode
+
+  def host(h: String): URL     = copy(host = Some(h))
+  def port(p: Int): URL        = copy(port = Some(p))
+  def scheme(s: Scheme): URL   = copy(scheme = Some(s))
+  def path(p: Path): URL       = copy(path = p)
+  def fragment(f: String): URL = copy(fragment = Some(f))
+
+  def addPath(segment: String): URL                         = this / segment
+  def addPath(p: Path): URL                                 = copy(path = path ++ p)
+  def addQueryParams(qp: QueryParams): URL                  = copy(queryParams = queryParams ++ qp)
+  def updateQueryParams(f: QueryParams => QueryParams): URL = copy(queryParams = f(queryParams))
+
+  def addLeadingSlash: URL   = copy(path = path.addLeadingSlash)
+  def dropLeadingSlash: URL  = copy(path = path.dropLeadingSlash)
+  def addTrailingSlash: URL  = copy(path = path.addTrailingSlash)
+  def dropTrailingSlash: URL = copy(path = path.dropTrailingSlash)
+
+  def hostPort: Option[String] = host.map(h => port.fold(h)(p => s"$h:$p"))
+
+  def relative: URL = copy(scheme = None, host = None, port = None)
 }
 
 object URL {

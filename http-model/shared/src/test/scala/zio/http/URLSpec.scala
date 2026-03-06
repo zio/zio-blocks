@@ -8,175 +8,195 @@ object URLSpec extends HttpModelBaseSpec {
     suite("parse absolute URLs")(
       test("http with host and path") {
         val result = URL.parse("http://example.com/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.HTTP),
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.port == None,
-          result.toOption.get.path.segments == Chunk("path"),
-          result.toOption.get.path.hasLeadingSlash
+          url.scheme == Some(Scheme.HTTP),
+          url.host == Some("example.com"),
+          url.port == None,
+          url.path.segments == Chunk("path"),
+          url.path.hasLeadingSlash
         )
       },
       test("https with host") {
         val result = URL.parse("https://example.com")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.HTTPS),
-          result.toOption.get.host == Some("example.com")
+          url.scheme == Some(Scheme.HTTPS),
+          url.host == Some("example.com")
         )
       },
       test("custom scheme") {
         val result = URL.parse("ftp://files.example.com/pub")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.Custom("ftp")),
-          result.toOption.get.host == Some("files.example.com"),
-          result.toOption.get.path.segments == Chunk("pub")
+          url.scheme == Some(Scheme.Custom("ftp")),
+          url.host == Some("files.example.com"),
+          url.path.segments == Chunk("pub")
         )
       },
       test("ws scheme") {
         val result = URL.parse("ws://echo.example.com/socket")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.WS),
-          result.toOption.get.host == Some("echo.example.com")
+          url.scheme == Some(Scheme.WS),
+          url.host == Some("echo.example.com")
         )
       },
       test("wss scheme") {
         val result = URL.parse("wss://secure.example.com/socket")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.WSS),
-          result.toOption.get.host == Some("secure.example.com")
+          url.scheme == Some(Scheme.WSS),
+          url.host == Some("secure.example.com")
         )
       }
     ),
     suite("parse with port")(
       test("http with explicit port") {
         val result = URL.parse("http://localhost:8080/api")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("localhost"),
-          result.toOption.get.port == Some(8080),
-          result.toOption.get.path.segments == Chunk("api")
+          url.host == Some("localhost"),
+          url.port == Some(8080),
+          url.path.segments == Chunk("api")
         )
       },
       test("https with port 443") {
         val result = URL.parse("https://example.com:443/secure")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.port == Some(443)
+          url.port == Some(443)
         )
       }
     ),
     suite("parse with query params")(
       test("single query param") {
         val result = URL.parse("http://example.com/path?key=value")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("key") == Some("value")
+          url.queryParams.getFirst("key") == Some("value")
         )
       },
       test("multiple query params") {
         val result = URL.parse("http://example.com/path?a=1&b=2")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("a") == Some("1"),
-          result.toOption.get.queryParams.getFirst("b") == Some("2")
+          url.queryParams.getFirst("a") == Some("1"),
+          url.queryParams.getFirst("b") == Some("2")
         )
       },
       test("encoded query params") {
         val result = URL.parse("http://example.com/search?q=hello%20world")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("q") == Some("hello world")
+          url.queryParams.getFirst("q") == Some("hello world")
         )
       }
     ),
     suite("parse with fragment")(
       test("fragment after path") {
         val result = URL.parse("http://example.com/page#section")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.fragment == Some("section")
+          url.fragment == Some("section")
         )
       },
       test("fragment after query") {
         val result = URL.parse("http://example.com/page?key=value#frag")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("key") == Some("value"),
-          result.toOption.get.fragment == Some("frag")
+          url.queryParams.getFirst("key") == Some("value"),
+          url.fragment == Some("frag")
         )
       },
       test("empty fragment") {
         val result = URL.parse("http://example.com/page#")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.fragment == Some("")
+          url.fragment == Some("")
         )
       }
     ),
     suite("parse relative URLs")(
       test("path only") {
         val result = URL.parse("/path/to/resource")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == None,
-          result.toOption.get.host == None,
-          result.toOption.get.path.segments == Chunk("path", "to", "resource"),
-          result.toOption.get.isRelative
+          url.scheme == None,
+          url.host == None,
+          url.path.segments == Chunk("path", "to", "resource"),
+          url.isRelative
         )
       },
       test("path with query") {
         val result = URL.parse("/search?q=hello")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == None,
-          result.toOption.get.queryParams.getFirst("q") == Some("hello")
+          url.scheme == None,
+          url.queryParams.getFirst("q") == Some("hello")
         )
       },
       test("path with fragment") {
         val result = URL.parse("/page#top")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.fragment == Some("top")
+          url.fragment == Some("top")
         )
       },
       test("path with query and fragment") {
         val result = URL.parse("/page?key=val#bottom")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("key") == Some("val"),
-          result.toOption.get.fragment == Some("bottom")
+          url.queryParams.getFirst("key") == Some("val"),
+          url.fragment == Some("bottom")
         )
       }
     ),
     suite("parse with userinfo")(
       test("userinfo is skipped during parsing") {
         val result = URL.parse("http://user:pass@host.com/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("host.com"),
-          result.toOption.get.path.segments == Chunk("path")
+          url.host == Some("host.com"),
+          url.path.segments == Chunk("path")
         )
       }
     ),
     suite("parse IPv6 hosts")(
       test("IPv6 localhost with port") {
         val result = URL.parse("http://[::1]:8080/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("[::1]"),
-          result.toOption.get.port == Some(8080),
-          result.toOption.get.path.segments == Chunk("path")
+          url.host == Some("[::1]"),
+          url.port == Some(8080),
+          url.path.segments == Chunk("path")
         )
       },
       test("IPv6 full address") {
         val result = URL.parse("http://[2001:db8::1]/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("[2001:db8::1]")
+          url.host == Some("[2001:db8::1]")
         )
       }
     ),
@@ -190,38 +210,42 @@ object URLSpec extends HttpModelBaseSpec {
       },
       test("full URL with all components") {
         val result = URL.parse("http://example.com:8080/path/to/resource?key=value&a=b#frag")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.scheme == Some(Scheme.HTTP),
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.port == Some(8080),
-          result.toOption.get.path.segments == Chunk("path", "to", "resource"),
-          result.toOption.get.queryParams.getFirst("key") == Some("value"),
-          result.toOption.get.queryParams.getFirst("a") == Some("b"),
-          result.toOption.get.fragment == Some("frag")
+          url.scheme == Some(Scheme.HTTP),
+          url.host == Some("example.com"),
+          url.port == Some(8080),
+          url.path.segments == Chunk("path", "to", "resource"),
+          url.queryParams.getFirst("key") == Some("value"),
+          url.queryParams.getFirst("a") == Some("b"),
+          url.fragment == Some("frag")
         )
       },
       test("host without path") {
         val result = URL.parse("http://example.com")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.path == Path.root
+          url.path == Path.root
         )
       },
       test("scheme only with host slash") {
         val result = URL.parse("http://example.com/")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.path == Path.root
+          url.host == Some("example.com"),
+          url.path == Path.root
         )
       },
       test("just query string") {
         val result = URL.parse("?key=value")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.queryParams.getFirst("key") == Some("value"),
-          result.toOption.get.path.isEmpty
+          url.queryParams.getFirst("key") == Some("value"),
+          url.path.isEmpty
         )
       }
     ),
@@ -377,18 +401,20 @@ object URLSpec extends HttpModelBaseSpec {
     suite("parse IPv6 edge cases")(
       test("IPv6 without port") {
         val result = URL.parse("http://[::1]/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("[::1]"),
-          result.toOption.get.port == None,
-          result.toOption.get.path.segments == Chunk("path")
+          url.host == Some("[::1]"),
+          url.port == None,
+          url.path.segments == Chunk("path")
         )
       },
       test("IPv6 with unclosed bracket") {
         val result = URL.parse("http://[::1/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("[::1")
+          url.host == Some("[::1")
         )
       },
       test("IPv6 with invalid port") {
@@ -401,10 +427,11 @@ object URLSpec extends HttpModelBaseSpec {
       },
       test("IPv6 with empty port after colon") {
         val result = URL.parse("http://[::1]:/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("[::1]"),
-          result.toOption.get.port == None
+          url.host == Some("[::1]"),
+          url.port == None
         )
       }
     ),
@@ -423,62 +450,69 @@ object URLSpec extends HttpModelBaseSpec {
       },
       test("host with empty port") {
         val result = URL.parse("http://example.com:/path")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.port == None
+          url.host == Some("example.com"),
+          url.port == None
         )
       }
     ),
     suite("parse authority end calculation")(
       test("authority ends at query when no slash") {
         val result = URL.parse("http://example.com?key=val")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.queryParams.getFirst("key") == Some("val")
+          url.host == Some("example.com"),
+          url.queryParams.getFirst("key") == Some("val")
         )
       },
       test("authority ends at fragment when no slash or query") {
         val result = URL.parse("http://example.com#frag")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.fragment == Some("frag")
+          url.host == Some("example.com"),
+          url.fragment == Some("frag")
         )
       },
       test("authority ends at earlier of query and fragment") {
         val result = URL.parse("http://example.com?q=1#f")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.queryParams.getFirst("q") == Some("1"),
-          result.toOption.get.fragment == Some("f")
+          url.host == Some("example.com"),
+          url.queryParams.getFirst("q") == Some("1"),
+          url.fragment == Some("f")
         )
       },
       test("authority ends at fragment before query in URL string") {
         val result = URL.parse("http://example.com#f?notquery")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.host == Some("example.com"),
-          result.toOption.get.fragment == Some("f?notquery")
+          url.host == Some("example.com"),
+          url.fragment == Some("f?notquery")
         )
       }
     ),
     suite("parse path variants")(
       test("relative path without scheme has decoded segments") {
         val result = URL.parse("foo")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.path.segments == Chunk("foo"),
-          result.toOption.get.scheme == None
+          url.path.segments == Chunk("foo"),
+          url.scheme == None
         )
       },
       test("encoded fragment is decoded") {
         val result = URL.parse("http://example.com/page#sec%20tion")
+        val url    = result.toOption.get
         assertTrue(
           result.isRight,
-          result.toOption.get.fragment == Some("sec tion")
+          url.fragment == Some("sec tion")
         )
       }
     ),
@@ -532,6 +566,115 @@ object URLSpec extends HttpModelBaseSpec {
       test("delegates to encode") {
         val url = URL.parse("http://example.com/path").toOption.get
         assertTrue(url.toString == url.encode)
+      }
+    ),
+    suite("host")(
+      test("sets host") {
+        val url = URL.fromPath(Path.root).host("example.com")
+        assertTrue(url.host == Some("example.com"))
+      }
+    ),
+    suite("port")(
+      test("sets port") {
+        val url = URL.fromPath(Path.root).port(8080)
+        assertTrue(url.port == Some(8080))
+      }
+    ),
+    suite("scheme")(
+      test("sets scheme") {
+        val url = URL.fromPath(Path.root).scheme(Scheme.HTTPS)
+        assertTrue(url.scheme == Some(Scheme.HTTPS))
+      }
+    ),
+    suite("path (setter)")(
+      test("sets path") {
+        val url = URL.root.path(Path("/api/v2"))
+        assertTrue(url.path.segments == Chunk("api", "v2"))
+      }
+    ),
+    suite("fragment (setter)")(
+      test("sets fragment") {
+        val url = URL.root.fragment("section1")
+        assertTrue(url.fragment == Some("section1"))
+      }
+    ),
+    suite("addPath")(
+      test("adds single segment") {
+        val url = URL.parse("http://example.com/api").toOption.get.addPath("users")
+        assertTrue(url.path.segments == Chunk("api", "users"))
+      },
+      test("adds multi-segment path") {
+        val url = URL.parse("http://example.com/api").toOption.get.addPath(Path("v2/users"))
+        assertTrue(url.path.segments == Chunk("api", "v2", "users"))
+      }
+    ),
+    suite("addQueryParams")(
+      test("combines query params") {
+        val url = URL
+          .parse("http://example.com?a=1")
+          .toOption
+          .get
+          .addQueryParams(QueryParams("b" -> "2"))
+        assertTrue(
+          url.queryParams.getFirst("a") == Some("1"),
+          url.queryParams.getFirst("b") == Some("2")
+        )
+      }
+    ),
+    suite("updateQueryParams")(
+      test("updates query params via function") {
+        val url = URL
+          .parse("http://example.com?a=1")
+          .toOption
+          .get
+          .updateQueryParams(_.add("b", "2"))
+        assertTrue(url.queryParams.getFirst("b") == Some("2"))
+      }
+    ),
+    suite("URL addLeadingSlash / dropLeadingSlash")(
+      test("addLeadingSlash delegates to path") {
+        val url = URL.fromPath(Path("foo")).addLeadingSlash
+        assertTrue(url.path.hasLeadingSlash)
+      },
+      test("dropLeadingSlash delegates to path") {
+        val url = URL.fromPath(Path("/foo")).dropLeadingSlash
+        assertTrue(!url.path.hasLeadingSlash)
+      }
+    ),
+    suite("URL addTrailingSlash / dropTrailingSlash")(
+      test("addTrailingSlash delegates to path") {
+        val url = URL.fromPath(Path("/foo")).addTrailingSlash
+        assertTrue(url.path.trailingSlash)
+      },
+      test("dropTrailingSlash delegates to path") {
+        val url = URL.fromPath(Path("/foo/")).dropTrailingSlash
+        assertTrue(!url.path.trailingSlash)
+      }
+    ),
+    suite("hostPort")(
+      test("returns host:port when port is present") {
+        val url = URL.parse("http://example.com:8080/path").toOption.get
+        assertTrue(url.hostPort == Some("example.com:8080"))
+      },
+      test("returns host only when no port") {
+        val url = URL.parse("http://example.com/path").toOption.get
+        assertTrue(url.hostPort == Some("example.com"))
+      },
+      test("returns None when no host") {
+        val url = URL.fromPath(Path("/path"))
+        assertTrue(url.hostPort == None)
+      }
+    ),
+    suite("relative")(
+      test("strips scheme, host, and port") {
+        val url = URL.parse("http://example.com:8080/api?key=val").toOption.get.relative
+        assertTrue(
+          url.scheme == None,
+          url.host == None,
+          url.port == None,
+          url.path.segments == Chunk("api"),
+          url.queryParams.getFirst("key") == Some("val")
+        )
       }
     )
   )
