@@ -7,6 +7,14 @@ title: "Allows"
 
 `Allows` does **not** require or use `Schema[A]`. It inspects the Scala type structure of `A` directly at compile time, using nothing but the Scala type system. Any `Schema[A]` that appears alongside `Allows` in examples is the library author's own separate constraint — it is not imposed by `Allows` itself.
 
+```scala
+sealed abstract class Allows[A, S <: Allows.Structural]
+```
+
+## Overview
+
+The gap `Allows` fills is **structural preconditions** at the call site, at compile time, with precise error messages.
+
 ## Motivation
 
 ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But `Allows` is useful even without a Schema — it can enforce structural preconditions on *any* generic function.
