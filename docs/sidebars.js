@@ -6,152 +6,49 @@ const sidebars = {
       collapsed: false,
       link: { type: "doc", id: "index" },
       items: [
-         {
-           type: "category",
-           label: "ZIO Blocks Schema",
-           link: { type: "doc", id: "reference/schema/index" },
-           items: [
-             {
-               type: "category",
-               label: "Core Type System",
-               collapsed: false,
-               items: [
-                 "reference/schema/schema",
-                 "reference/schema/reflect",
-                 "reference/schema/binding",
-                 "reference/schema/registers",
-                 "reference/schema/binding-resolver",
-                 "reference/schema/modifier",
-                 "reference/schema/structural-types",
-               ]
-             },
-             {
-               type: "category",
-               label: "Dynamic Values",
-               collapsed: false,
-               items: [
-                 "reference/schema/dynamic-value",
-                 "reference/schema/dynamic-schema",
-               ]
-             },
-             {
-               type: "category",
-               label: "Reflective Optics",
-               collapsed: false,
-               items: [
-                 "reference/schema/optics",
-                 "reference/schema/dynamic-optic",
-                 "reference/schema/schema-expr",
-                 "reference/schema/patch",
-               ]
-             },
-             {
-               type: "category",
-               label: "Serialization",
-               collapsed: false,
-               items: [
-                 "reference/schema/type-class-derivation",
-                 "reference/schema/codec",
-                 {
-                   type: "category",
-                   label: "Formats",
-                   link: { type: "doc", id: "reference/schema/formats" },
-                   collapsed: false,
-                   items: [
-                     {
-                       type: "category",
-                       label: "Json Format",
-                       link: { type: "doc", id: "reference/schema/formats" },
-                       collapsed: false,
-                       items: [
-                         "reference/schema/json",
-                         "reference/schema/json-patch",
-                         "reference/schema/json-differ",
-                         "reference/schema/json-schema",
-                       ]
-                     },
-                     "reference/schema/xml",
-                   ]
-                 },
-                 "reference/schema/lazy",
-               ]
-             },
-             {
-               type: "category",
-               label: "Validation & Errors",
-               collapsed: false,
-               items: [
-                 "reference/schema/validation",
-                 "reference/schema/schema-error",
-                 "reference/schema/allows",
-               ]
-             },
-             {
-               type: "category",
-               label: "Schema Evolution",
-               link: { type: "doc", id: "reference/schema/schema-evolution/index" },
-               items: [
-                 "reference/schema/schema-evolution/into",
-                 "reference/schema/schema-evolution/as",
-               ]
-             },
-             "reference/schema/syntax",
-           ]
-         },
+         "reference/schema",
+         "reference/reflect",
+         "reference/binding",
+         "reference/binding-resolver",
+         "reference/registers",
          "reference/typeid",
-         "reference/context",
-         {
-           type: "category",
-           label: "Resource Management & DI",
-           link: { type: "doc", id: "reference/resource-management/index" },
-           items: [
-             "reference/resource-management/scope",
-             "reference/resource-management/resource",
-             "reference/resource-management/wire",
-             "reference/resource-management/unscoped",
-             "reference/resource-management/defer-handle",
-             "reference/resource-management/finalizer",
-             "reference/resource-management/finalization",
-           ]
-         },
-         "reference/combinators",
-         "reference/docs",
-         "reference/media-type",
-         {
-           type: "category",
-           label: "HTTP Model",
-           link: { type: "doc", id: "reference/http-model/index" },
-           items: [
-             "reference/http-model/model",
-             "reference/http-model/schema",
-           ]
-         },
-         "reference/openapi",
-         "reference/chunk",
+         "reference/modifier",
+         "reference/dynamic-value",
+         "reference/dynamic-schema",
+         "reference/structural-types",
+         "reference/optics",
+         "reference/schema-expr",
+         "reference/dynamic-optic",
+         "reference/type-class-derivation",
+         "reference/codec",
+         "reference/formats",
          "path-interpolator",
-         "reference/ringbuffer",
-         "reference/html",
-          {
-            type: "category",
-            label: "Streams",
-            link: { type: "doc", id: "reference/streams/index" },
-            items: [
-              "reference/streams/stream",
-              "reference/streams/pipeline",
-              "reference/streams/sink",
-              "reference/streams/reader",
-              "reference/streams/writer",
-              "reference/streams/zero-boxing",
-              "reference/streams/scala-2-compatibility",
-            ]
-          },
+         "reference/chunk",
+         "reference/schema-error",
+         "reference/validation",
+         {
+           type: "category",
+           label: "Schema Evolution",
+           link: { type: "doc", id: "reference/schema-evolution/index" },
+           items: [
+             "reference/schema-evolution/into",
+             "reference/schema-evolution/as",
+           ]
+         },
+         "reference/context",
+         "reference/docs",
+         "reference/json",
+         "reference/json-patch",
+         "reference/json-schema",
+         "reference/xml",
+         "reference/syntax",
+         "reference/media-type",
       ]
     },
     {
       type: "category",
       label: "Guides",
       items: [
-        "guides/compile-time-resource-safety-with-scope",
         "guides/zio-schema-migration",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
