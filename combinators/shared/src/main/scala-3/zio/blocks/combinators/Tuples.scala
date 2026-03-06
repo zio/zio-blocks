@@ -129,4 +129,14 @@ object Tuples {
   }
 
   def combine[L, R](l: L, r: R)(using t: Tuples[L, R]): t.Out = t.combine(l, r)
+
+  /** Separates a combined tuple `out` back into its original left and right parts.
+    *
+    * @tparam L   the left component type before combining
+    * @tparam R   the right component type before combining
+    * @param t    the typeclass instance that knows how to separate `Out` back into `(L, R)`
+    * @param out  the combined tuple value to separate
+    * @return     a pair `(L, R)` recovered from the combined value
+    */
+  def separate[L, R](using t: Tuples[L, R])(out: t.Out): (L, R) = t.separate(out)
 }

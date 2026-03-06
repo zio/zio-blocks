@@ -32,6 +32,7 @@ const sidebars = {
              "reference/schema-evolution/as",
            ]
          },
+         "reference/combinators",
          "reference/context",
          "reference/docs",
          "reference/json",

@@ -37,6 +37,18 @@ object Tuples {
 
   def combine[L, R](l: L, r: R)(implicit c: Tuples[L, R]): c.Out = c.combine(l, r)
 
+  /** Returns a function that separates a combined tuple value back into its original `(L, R)` parts.
+    *
+    * Because the output type `c.Out` is path-dependent on the implicit `c`, a curried form is
+    * used: obtain the separator by fixing `L` and `R`, then apply it to the combined value.
+    *
+    * @tparam L  the left component type before combining
+    * @tparam R  the right component type before combining
+    * @param c   the implicit typeclass instance
+    * @return    a function from the combined output type back to `(L, R)`
+    */
+  def separate[L, R](implicit c: Tuples[L, R]): c.Out => (L, R) = c.separate(_)
+
   private[combinators] object TuplesMacros {
 
     private def isTuple(c: whitebox.Context)(tpe: c.universe.Type): Boolean = {

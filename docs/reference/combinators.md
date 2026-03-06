@@ -27,7 +27,7 @@ Add the following to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "<version>"
 ```
 
-For cross-platform projects (Scala.js or Scala Native):
+For cross-platform projects (Scala.js):
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
@@ -89,31 +89,28 @@ val result1: (Int, String, Boolean) = Tuples.combine((1, "a"), true)
 val result2: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.14))
 
 // Scala 2 - flattens left tuple only
-val result2: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
+val result3: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
 ```
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and splits a tuple into its init (all but last) and last element.
+`Tuples.separate` splits a combined tuple back into its original `(L, R)` parts. On Scala 3, use the curried form; on Scala 2, `separate` returns a function.
 
 ```scala
 import zio.blocks.combinators.Tuples
 
-// 2-tuple separation
-val t2 = summon[Tuples.Tuples[Int, String]]  // Scala 3
-// or: implicitly[Tuples.Tuples[Int, String]]  // Scala 2
-val (left1, right1): (Int, String) = t2.separate((1, "hello"))
+// Scala 3 — curried form: fix L/R, then apply to the value
+val (left1, right1) = Tuples.separate[Int, String]((1, "hello"))
 // left1 = 1, right1 = "hello"
 
 // 3-tuple separation
-val t3 = summon[Tuples.Tuples[(Int, String), Boolean]]
-val (left2, right2): ((Int, String), Boolean) = t3.separate((1, "hello", true))
+val (left2, right2) = Tuples.separate[(Int, String), Boolean]((1, "hello", true))
 // left2 = (1, "hello"), right2 = true
 
-// 4-tuple separation
-val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
-val (left3, right3): ((Int, String, Boolean), Double) = t4.separate((1, "hello", true, 3.14))
-// left3 = (1, "hello", true), right3 = 3.14
+// Scala 2 — separate returns a function
+val sep = Tuples.separate[Int, String]       // c.Out => (Int, String)
+val (l, r) = sep((1, "hello"))
+```
 
 ### Type-Level Operations
 
@@ -180,14 +177,23 @@ This transformation preserves values while reassociating the structure:
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
+`Eithers.separate` peels the rightmost alternative from a canonical Either, recovering the original `Either[L, R]`. On Scala 3, use the curried form; on Scala 2, `separate` returns a function.
 
 ```scala
 import zio.blocks.combinators.Eithers
 
-val e = summon[Eithers.Eithers[Int, String]]
-val input: Either[Int, String] = Left(42)
-val result: Either[Int, String] = e.separate(e.combine(input))
+// Scala 3 — curried form
+val input: Either[Int, Either[String, Boolean]] = Right(Right(true))
+val canonical = Eithers.combine(input)
+// canonical: Either[Either[Int, String], Boolean] = Right(true)
+
+val original = Eithers.separate[Int, Either[String, Boolean]](canonical)
+// original: Either[Int, Either[String, Boolean]] = Right(Right(true))
+
+// Scala 2 — separate returns a function
+val sep = Eithers.separate[Int, Either[String, Boolean]]
+val back = sep(canonical)
+```
 
 ### Use Cases
 
@@ -218,17 +224,17 @@ val union2: Int | String = Unions.combine(either2)
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and discriminates a union type back to Either:
+`Unions.separate` discriminates a `L | R` union value back to `Either[L, R]` using a runtime type test on `R`. `R` must not itself be a union type.
 
 ```scala
 import zio.blocks.combinators.Unions
 
-val u = summon[Unions.Unions.WithOut[Int, String, Int | String]]
-val result: Either[Int, String] = u.separate(42: Int | String)
+val result: Either[Int, String] = Unions.separate[Int, String](42: Int | String)
 // Result: Left(42)
 
-val result2: Either[Int, String] = u.separate("hello": Int | String)
+val result2: Either[Int, String] = Unions.separate[Int, String]("hello": Int | String)
 // Result: Right("hello")
+```
 
 ### Same-Type Rejection
 
@@ -303,7 +309,7 @@ import zio.blocks.combinators.Tuples
 def process[L, R](l: L, r: R)(using t: Tuples.Tuples[L, R]): (L, R) =
   t.separate(t.combine(l, r))
 
-val result: (Int, String) = process((1, "hello"))
+val result: (Int, String) = process(1, "hello")
 ```
 
 ### Type Aliases for Clarity

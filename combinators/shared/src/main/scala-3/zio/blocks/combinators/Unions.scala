@@ -79,4 +79,18 @@ object Unions {
   }
 
   def combine[L, R](either: Either[L, R])(using u: Unions[L, R]): u.Out = u.combine(either)
+
+  /** Separates a union type value `out` back into an `Either[L, R]`.
+    *
+    * Uses a runtime type test to discriminate whether `out` is an instance of `R`; if so, returns
+    * `Right(r)`, otherwise returns `Left(l)`.  `R` must not itself be a union type — the macro
+    * enforces this at compile time.
+    *
+    * @tparam L   the left alternative type (must not overlap with `R`)
+    * @tparam R   the right alternative type (must not be a union type)
+    * @param out  the `L | R` value to separate
+    * @param u    the typeclass instance that performs the type-test discrimination
+    * @return     `Right(r)` if `out` is an `R`, or `Left(l)` otherwise
+    */
+  def separate[L, R](out: L | R)(using u: Unions[L, R]): Either[L, R] = u.separate(out)
 }

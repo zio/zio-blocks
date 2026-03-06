@@ -21,6 +21,18 @@ object Eithers {
 
   def combine[L, R](either: Either[L, R])(implicit c: Eithers[L, R]): c.Out = c.combine(either)
 
+  /** Returns a function that separates a canonicalized Either value back into `Either[L, R]`.
+    *
+    * Because the output type `c.Out` is path-dependent on the implicit `c`, a curried form is
+    * used: obtain the separator by fixing `L` and `R`, then apply it to the canonical value.
+    *
+    * @tparam L  the left alternative type
+    * @tparam R  the right alternative type
+    * @param c   the implicit typeclass instance
+    * @return    a function from the canonical output type back to `Either[L, R]`
+    */
+  def separate[L, R](implicit c: Eithers[L, R]): c.Out => Either[L, R] = c.separate(_)
+
   private[combinators] object EithersMacros {
 
     private def isEither(c: whitebox.Context)(tpe: c.universe.Type): Boolean = {

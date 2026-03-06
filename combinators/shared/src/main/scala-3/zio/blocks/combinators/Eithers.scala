@@ -127,4 +127,14 @@ object Eithers {
   }
 
   def combine[L, R](either: Either[L, R])(using e: Eithers[L, R]): e.Out = e.combine(either)
+
+  /** Separates a canonicalized Either `out` back into its original `Either[L, R]` form.
+    *
+    * @tparam L   the left alternative type
+    * @tparam R   the right alternative type
+    * @param e    the typeclass instance that knows how to separate `Out` back into `Either[L, R]`
+    * @param out  the canonicalized Either value to separate
+    * @return     an `Either[L, R]` recovered from the canonical form
+    */
+  def separate[L, R](using e: Eithers[L, R])(out: e.Out): Either[L, R] = e.separate(out)
 }
