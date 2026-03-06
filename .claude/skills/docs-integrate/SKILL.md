@@ -43,11 +43,37 @@ Add links from related existing docs to the new page:
 - If you wrote a guide that uses a specific type (e.g., `Schema`, `DynamicOptic`), add a
   cross-reference from the type's reference page to the guide.
 
-## Step 4: Verify All Links
+## Step 4: Verify Compilation and Links (Mandatory Gate)
 
-Check that all relative links in the new page and in any updated pages are correct:
+This is a **mandatory compilation gate**. All code examples in documentation are compile-checked via mdoc.
+
+### Check Relative Links
+
+Verify that all relative links in the new page and in any updated pages are correct:
 
 - Internal links use relative paths: `[TypeName](./type-name.md)`.
 - Anchor links match actual heading text (Docusaurus converts headings to lowercase kebab-case
   anchors).
-- Run `sbt docs/mdoc` to catch broken mdoc links (they appear as `[error] Unknown link '...'`).
+
+### Run mdoc Compilation Check
+
+Run the full mdoc compilation check:
+
+```bash
+sbt docs/mdoc
+```
+
+**Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
+
+**What to look for:**
+- Type errors in Scala code blocks (mismatched types, undefined names, missing imports)
+- Broken cross-references (mdoc reports these as `[error] Unknown link '...'`)
+- Unresolved imports or package references
+
+**If mdoc reports errors:** Fix them immediately. Do not proceed to commit or claim the work
+is done until all errors are resolved.
+
+The compilation check ensures:
+- Code examples are syntactically correct
+- Readers can copy-paste examples without errors
+- Cross-references are valid and unbroken
