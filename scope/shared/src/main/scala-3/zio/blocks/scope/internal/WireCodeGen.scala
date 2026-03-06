@@ -1,6 +1,7 @@
 package zio.blocks.scope.internal
 
-import zio.blocks.context.{Context, IsNominalType}
+import zio.blocks.context.Context
+import zio.blocks.typeid.IsNominalType
 import zio.blocks.scope.{Scope, Wire}
 import scala.quoted.*
 import scala.compiletime.summonInline

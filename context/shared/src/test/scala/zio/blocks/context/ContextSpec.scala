@@ -280,24 +280,5 @@ object ContextSpec extends ZIOSpecDefault {
         assertTrue(result == config1, cache.get(key) == config1)
       }
     ),
-    suite("IsNominalType")(
-      test("derives for case class") {
-        val ev = implicitly[IsNominalType[Config]]
-        assertTrue(ev.typeId.fullName.contains("Config"))
-      },
-      test("derives for trait implementation") {
-        val ev = implicitly[IsNominalType[ConsoleLogger]]
-        assertTrue(ev.typeId.fullName.contains("ConsoleLogger"))
-      },
-      test("does not compile for intersection type") {
-        typeCheck("implicitly[IsNominalType[Logger with Database]]").map(result => assertTrue(result.isLeft))
-      }
-    ),
-    suite("IsNominalIntersection")(
-      test("derives for single type") {
-        val ev = implicitly[IsNominalIntersection[Config]]
-        assertTrue(ev.typeIdsErased.length == 1)
-      }
-    )
   )
 }

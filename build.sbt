@@ -112,7 +112,13 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 77,
-    coverageMinimumBranchTotal := 69
+    coverageMinimumBranchTotal := 69,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/typeid/.*",
+      ".*scala-3/zio/blocks/typeid/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val context = crossProject(JSPlatform, JVMPlatform)

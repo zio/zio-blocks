@@ -1,14 +1,13 @@
-package zio.blocks.context
+package zio.blocks.typeid
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.typeid.TypeId
 import scala.quoted.*
 
-private[context] trait IsNominalIntersectionVersionSpecific {
+private[typeid] trait IsNominalIntersectionVersionSpecific {
   inline implicit def derived[A]: IsNominalIntersection[A] = ${ IsNominalIntersectionMacros.deriveImpl[A] }
 }
 
-private[context] object IsNominalIntersectionMacros {
+private[typeid] object IsNominalIntersectionMacros {
   def deriveImpl[A: Type](using Quotes): Expr[IsNominalIntersection[A]] = {
     import quotes.reflect.*
 

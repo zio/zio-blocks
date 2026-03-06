@@ -1,13 +1,13 @@
-package zio.blocks.context
+package zio.blocks.typeid
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
-private[context] trait IsNominalIntersectionVersionSpecific {
+private[typeid] trait IsNominalIntersectionVersionSpecific {
   implicit def derived[A]: IsNominalIntersection[A] = macro IsNominalIntersectionMacros.deriveImpl[A]
 }
 
-private[context] object IsNominalIntersectionMacros {
+private[typeid] object IsNominalIntersectionMacros {
   def deriveImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[IsNominalIntersection[A]] = {
     import c.universe._
 
@@ -51,7 +51,7 @@ private[context] object IsNominalIntersectionMacros {
     val chunkTree = q"_root_.zio.blocks.chunk.Chunk(..$typeIdTrees)"
 
     c.Expr[IsNominalIntersection[A]](q"""
-      new _root_.zio.blocks.context.IsNominalIntersection[$tpe] {
+      new _root_.zio.blocks.typeid.IsNominalIntersection[$tpe] {
         val typeIdsErased: _root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.typeid.TypeId.Erased] = $chunkTree
       }
     """)
