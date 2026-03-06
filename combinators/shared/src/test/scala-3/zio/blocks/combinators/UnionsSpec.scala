@@ -1,12 +1,10 @@
 package zio.blocks.combinators
 
 import zio.test._
-import scala.compiletime.testing.typeCheckErrors
-
 object UnionsSpec extends ZIOSpecDefault {
 
   def spec = suite("Unions")(
-    suite("Combiner")(
+    suite("combine")(
       suite("Combine Either to union")(
         test("combine Left returns left value as union") {
           val result = Unions.combine(Left(42): Either[Int, String])
@@ -25,24 +23,24 @@ object UnionsSpec extends ZIOSpecDefault {
         }
       )
     ),
-    suite("Separator")(
+    suite("separate")(
       suite("Separate union to Either")(
         test("separate discriminates Int from String union") {
-          val separator              = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
+          val u                      = summon[Unions.Unions.WithOut[Int, String, Int | String]]
           val intValue: Int | String = 42
           val strValue: Int | String = "hello"
-          val resultInt              = separator.separate(intValue)
-          val resultStr              = separator.separate(strValue)
+          val resultInt              = u.separate(intValue)
+          val resultStr              = u.separate(strValue)
           assertTrue(resultInt == Left(42) && resultStr == Right("hello"))
         },
         test("separate discriminates rightmost type in 3-way union") {
-          val separator                         = summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]
+          val u                                 = summon[Unions.Unions.WithOut[Int | String, Boolean, Int | String | Boolean]]
           val boolValue: Int | String | Boolean = true
           val intValue: Int | String | Boolean  = 42
           val strValue: Int | String | Boolean  = "hello"
-          val resultBool                        = separator.separate(boolValue)
-          val resultInt                         = separator.separate(intValue)
-          val resultStr                         = separator.separate(strValue)
+          val resultBool                        = u.separate(boolValue)
+          val resultInt                         = u.separate(intValue)
+          val resultStr                         = u.separate(strValue)
           assertTrue(
             resultBool == Right(true) &&
               resultInt == Left(42) &&
@@ -54,11 +52,11 @@ object UnionsSpec extends ZIOSpecDefault {
         test("discriminates case class types") {
           case class Foo(x: Int)
           case class Bar(y: String)
-          val separator           = summon[Unions.Separator.WithTypes[Foo | Bar, Foo, Bar]]
+          val u                   = summon[Unions.Unions.WithOut[Foo, Bar, Foo | Bar]]
           val fooValue: Foo | Bar = Foo(1)
           val barValue: Foo | Bar = Bar("test")
-          val resultFoo           = separator.separate(fooValue)
-          val resultBar           = separator.separate(barValue)
+          val resultFoo           = u.separate(fooValue)
+          val resultBar           = u.separate(barValue)
           assertTrue(resultFoo == Left(Foo(1)) && resultBar == Right(Bar("test")))
         }
       )
@@ -67,28 +65,28 @@ object UnionsSpec extends ZIOSpecDefault {
       test("separate(combine(Left(x))) == Left(x)") {
         val input: Either[Int, String] = Left(42)
         val combined                   = Unions.combine(input)
-        val separator                  = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
-        val separated                  = separator.separate(combined)
+        val u                          = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+        val separated                  = u.separate(combined)
         assertTrue(separated == Left(42))
       },
       test("separate(combine(Right(x))) == Right(x)") {
         val input: Either[Int, String] = Right("hello")
         val combined                   = Unions.combine(input)
-        val separator                  = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
-        val separated                  = separator.separate(combined)
+        val u                          = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+        val separated                  = u.separate(combined)
         assertTrue(separated == Right("hello"))
       },
       test("combine(separate(union)) == union for left value") {
-        val separator              = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
+        val u                      = summon[Unions.Unions.WithOut[Int, String, Int | String]]
         val original: Int | String = 42
-        val separated              = separator.separate(original)
+        val separated              = u.separate(original)
         val recombined             = Unions.combine(separated)
         assertTrue(recombined == 42)
       },
       test("combine(separate(union)) == union for right value") {
-        val separator              = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
+        val u                      = summon[Unions.Unions.WithOut[Int, String, Int | String]]
         val original: Int | String = "hello"
-        val separated              = separator.separate(original)
+        val separated              = u.separate(original)
         val recombined             = Unions.combine(separated)
         assertTrue(recombined == "hello")
       }
@@ -104,16 +102,16 @@ object UnionsSpec extends ZIOSpecDefault {
         val result                     = Unions.combine(input)
         assertTrue(result == "hello")
       },
-      test("Unions.separate works with explicit separator") {
-        val separator           = summon[Unions.Separator.WithTypes[Int | String, Int, String]]
+      test("Unions.separate works with explicit instance") {
+        val u                   = summon[Unions.Unions.WithOut[Int, String, Int | String]]
         val input: Int | String = "hello"
-        val result              = separator.separate(input)
+        val result              = u.separate(input)
         assertTrue(result == Right("hello"))
       }
     ),
     suite("Compile-time uniqueness check")(
-      test("Separator[Int | Int] fails with uniqueness error") {
-        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[Int, Int, Int]]")
+      test("Unions[Int, Int] fails with uniqueness error") {
+        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[Int, Int, Int | Int]]")
         val expected =
           "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -121,8 +119,8 @@ object UnionsSpec extends ZIOSpecDefault {
           errors.head.message == expected
         )
       },
-      test("Separator[String | String] with duplicate types fails with uniqueness error") {
-        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
+      test("Unions[String | Int, String | Int, String] with duplicate types fails with uniqueness error") {
+        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]")
         val expected =
           "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -130,13 +128,13 @@ object UnionsSpec extends ZIOSpecDefault {
           errors.head.message == expected
         )
       },
-      test("Separator with three unique types compiles successfully") {
+      test("Unions with three unique types compiles successfully") {
         val errors =
-          typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]")
+          typeCheckErrors("summon[Unions.Unions.WithOut[Int | String, Boolean, Int | String | Boolean]]")
         assertTrue(errors.isEmpty)
       },
-      test("Separator[String | Int, String | Int, String] fails when R is contained in L") {
-        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, String | Int, String]]")
+      test("Unions[String | Int, String] fails when R is contained in L") {
+        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]")
         val expected =
           "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -144,8 +142,8 @@ object UnionsSpec extends ZIOSpecDefault {
           errors.head.message == expected
         )
       },
-      test("Separator[String | Int, Int, String | Int] fails when L is contained in R") {
-        val errors   = typeCheckErrors("summon[Unions.Separator.WithTypes[String | Int, Int, String | Int]]")
+      test("Unions[Int, String | Int] fails when L is contained in R") {
+        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[Int, String | Int, Int | String | Int]]")
         val expected =
           "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -153,9 +151,9 @@ object UnionsSpec extends ZIOSpecDefault {
           errors.head.message == expected
         )
       },
-      test("Separator with partial overlap fails (Int|String|Boolean vs Int|String|Char)") {
+      test("Unions with partial overlap fails (Int|String|Boolean vs Int|String|Char)") {
         val errors = typeCheckErrors(
-          "summon[Unions.Separator.WithTypes[Int | String | Boolean | Char, Int | String | Boolean, Int | String | Char]]"
+          "summon[Unions.Unions.WithOut[Int | String | Boolean, Int | String | Char, Int | String | Boolean | Int | String | Char]]"
         )
         val expected =
           "Union types must contain unique types. Found overlapping types: Int, String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
@@ -164,23 +162,23 @@ object UnionsSpec extends ZIOSpecDefault {
           errors.head.message == expected
         )
       },
-      test("Separator rejects R that is a union type for disjoint unions") {
+      test("Unions rejects R that is a union type for disjoint unions") {
         val errors =
           typeCheckErrors(
-            "summon[Unions.Separator.WithTypes[Int | String | Boolean | Char, Int | String, Boolean | Char]]"
+            "summon[Unions.Unions.WithOut[Int | String, Boolean | Char, Int | String | Boolean | Char]]"
           )
         val expected =
-          "The right type of a Unions.Separator must not be a union type. Use a simple (non-union) type for R to ensure the separator peels exactly one type."
+          "The right type of a Unions.Unions must not be a union type. Use a simple (non-union) type for R to ensure the separator peels exactly one type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
         )
       },
-      test("Separator rejects R that is a union type") {
+      test("Unions rejects R that is a union type") {
         val errors =
-          typeCheckErrors("summon[Unions.Separator.WithTypes[Int | String | Boolean, Int, String | Boolean]]")
+          typeCheckErrors("summon[Unions.Unions.WithOut[Int, String | Boolean, Int | String | Boolean]]")
         val expected =
-          "The right type of a Unions.Separator must not be a union type. Use a simple (non-union) type for R to ensure the separator peels exactly one type."
+          "The right type of a Unions.Unions must not be a union type. Use a simple (non-union) type for R to ensure the separator peels exactly one type."
         assertTrue(
           errors.length == 1,
           errors.head.message == expected
@@ -193,52 +191,55 @@ object UnionsSpec extends ZIOSpecDefault {
         val union                       = Unions.combine(either)
         assertTrue(union == "hello")
       },
-      test("separate union to Either with inferred Separator") {
+      test("separate union to Either with inferred instance") {
         val union: Int | String = 42
-        val either              = Unions.separate(union)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val u                   = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+        val either              = u.separate(union)
         assertTrue(either == Left(42))
       },
       test("roundtrip with inferred typeclass") {
         val original: Either[Int, String] = Left(42)
         val union                         = Unions.combine(original)
-        val back                          = Unions.separate(union)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val u                             = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+        val back                          = u.separate(union)
         assertTrue(back == Left(42))
       },
-      test("generic function using Combiner with full inference") {
-        def toUnion[L, R](e: Either[L, R])(using Unions.Combiner[L, R]): Unions.Combiner[L, R]#Out =
+      test("generic function using Unions with full inference") {
+        def toUnion[L, R](e: Either[L, R])(using Unions.Unions[L, R]): Unions.Unions[L, R]#Out =
           Unions.combine(e)
 
         val result = toUnion(Right("test"): Either[Int, String])
         assertTrue(result == "test")
       },
-      test("generic function using Separator with using clause") {
-        def fromUnion[A](a: A)(using s: Unions.Separator[A]): Either[s.Left, s.Right] =
-          Unions.separate(a)
+      test("generic function using Unions with using clause") {
+        def fromUnion[L, R](a: L | R)(using u: Unions.Unions.WithOut[L, R, L | R]): Either[L, R] =
+          u.separate(a)
 
         val input: Int | String = "hello"
-        val result              = fromUnion(input)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val result              = fromUnion[Int, String](input)
         assertTrue(result == Right("hello"))
       },
       test("chained operations with type-annotated intermediates") {
         val step1: Either[Boolean, Double] = Right(3.14)
         val step2: Boolean | Double        = Unions.combine(step1)
-        val step3                          = Unions.separate(step2)(using summon[Unions.Separator.WithTypes[Boolean | Double, Boolean, Double]])
+        val u                              = summon[Unions.Unions.WithOut[Boolean, Double, Boolean | Double]]
+        val step3                          = u.separate(step2)
         assertTrue(step3 == Right(3.14))
       },
       test("3-way union with rightmost type discrimination") {
         val union: Int | String | Boolean = true
-        val sep1                          = Unions.separate(union)(using
-          summon[Unions.Separator.WithTypes[Int | String | Boolean, Int | String, Boolean]]
-        )
+        val u1                            = summon[Unions.Unions.WithOut[Int | String, Boolean, Int | String | Boolean]]
+        val sep1                          = u1.separate(union)
         assertTrue(sep1 == Right(true))
 
         val leftUnion: Int | String = 42
-        val sep2                    = Unions.separate(leftUnion)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+        val u2                      = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+        val sep2                    = u2.separate(leftUnion)
         assertTrue(sep2 == Left(42))
       },
-      test("Combiner inference in higher-order functions") {
+      test("Unions inference in higher-order functions") {
         def processEither[L, R](e: Either[L, R])(using
-          c: Unions.Combiner.WithOut[L, R, L | R]
+          c: Unions.Unions.WithOut[L, R, L | R]
         )(
           f: (L | R) => String
         ): String = f(c.combine(e))
@@ -252,17 +253,17 @@ object UnionsSpec extends ZIOSpecDefault {
 
         assertTrue(result == "got int: 42")
       },
-      test("Separator inference preserves union semantics") {
-        def checkUnion[A](a: A)(using s: Unions.Separator[A]): String =
-          Unions.separate(a).fold(l => "left", r => "right")
+      test("Unions inference preserves union semantics") {
+        def checkUnion[L, R](a: L | R)(using u: Unions.Unions.WithOut[L, R, L | R]): String =
+          u.separate(a).fold(l => "left", r => "right")
 
         val intVal: Int | String   = 42
         val strVal: Int | String   = "hello"
         val boolVal: Boolean | Int = true
 
-        val r1 = checkUnion(intVal)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
-        val r2 = checkUnion(strVal)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
-        val r3 = checkUnion(boolVal)(using summon[Unions.Separator.WithTypes[Boolean | Int, Boolean, Int]])
+        val r1 = checkUnion[Int, String](intVal)
+        val r2 = checkUnion[Int, String](strVal)
+        val r3 = checkUnion[Boolean, Int](boolVal)
 
         assertTrue(r1 == "left" && r2 == "right" && r3 == "left")
       }

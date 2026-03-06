@@ -14,9 +14,8 @@ The combinators module consists of three core modules:
 - **Unions** - Union type operations (Scala 3 only)
 
 Each module provides:
-- A `Combiner[L, R]` typeclass for combining values
-- A `Separator[A]` typeclass for separating combined values
-- Convenience methods `combine` and `separate`
+- A unified typeclass (e.g., `Tuples.Tuples[L, R]`) that provides both `combine` and `separate` operations
+- A convenience method `combine` (the `separate` operation is available on the typeclass instance)
 
 All typeclasses are derived automatically via compile-time resolution and provide zero-cost abstractions.
 
@@ -42,9 +41,9 @@ Supported platforms:
 
 The `Tuples` module combines values into flat tuples and separates them back.
 
-### Combiner
+### combine
 
-`Tuples.Combiner[L, R]` combines two values into a flattened tuple.
+`Tuples.Tuples[L, R]` combines two values into a flattened tuple.
 
 ```scala
 import zio.blocks.combinators.Tuples
@@ -93,25 +92,28 @@ val result2: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.
 val result2: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
 ```
 
-### Separator
+### separate
 
-`Tuples.Separator[A]` separates a tuple into its init (all but last) and last element.
+`separate` is accessed via the unified typeclass instance and splits a tuple into its init (all but last) and last element.
 
 ```scala
 import zio.blocks.combinators.Tuples
 
 // 2-tuple separation
-val (left1, right1): (Int, String) = Tuples.separate((1, "hello"))
+val t2 = summon[Tuples.Tuples[Int, String]]  // Scala 3
+// or: implicitly[Tuples.Tuples[Int, String]]  // Scala 2
+val (left1, right1): (Int, String) = t2.separate((1, "hello"))
 // left1 = 1, right1 = "hello"
 
 // 3-tuple separation
-val (left2, right2): ((Int, String), Boolean) = Tuples.separate((1, "hello", true))
+val t3 = summon[Tuples.Tuples[(Int, String), Boolean]]
+val (left2, right2): ((Int, String), Boolean) = t3.separate((1, "hello", true))
 // left2 = (1, "hello"), right2 = true
 
 // 4-tuple separation
-val (left3, right3): ((Int, String, Boolean), Double) = Tuples.separate((1, "hello", true, 3.14))
+val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
+val (left3, right3): ((Int, String, Boolean), Double) = t4.separate((1, "hello", true, 3.14))
 // left3 = (1, "hello", true), right3 = 3.14
-```
 
 ### Type-Level Operations
 
@@ -121,12 +123,12 @@ The output type is computed at compile time via the `Out` type member:
 import zio.blocks.combinators.Tuples
 
 // Access the combiner with explicit output type
-val combiner: Tuples.Combiner.WithOut[Int, String, (Int, String)] = 
-  summon[Tuples.Combiner[Int, String]]
+val combiner: Tuples.Tuples.WithOut[Int, String, (Int, String)] = 
+  summon[Tuples.Tuples[Int, String]]
 
-// Access the separator with explicit types
-val separator: Tuples.Separator.WithTypes[(Int, String, Boolean), (Int, String), Boolean] =
-  summon[Tuples.Separator[(Int, String, Boolean)]]
+// Access with explicit types
+val instance: Tuples.Tuples.WithOut[Int, String, (Int, String)] = 
+  summon[Tuples.Tuples[Int, String]]
 ```
 
 ### Scala 2 vs Scala 3 Differences
@@ -141,9 +143,9 @@ val separator: Tuples.Separator.WithTypes[(Int, String, Boolean), (Int, String),
 
 The `Eithers` module canonicalizes Either types to left-nested form and separates them.
 
-### Combiner
+### combine
 
-`Eithers.Combiner[L, R]` transforms an `Either[L, R]` into its left-nested canonical form.
+`Eithers.Eithers[L, R]` transforms an `Either[L, R]` into its left-nested canonical form.
 
 ```scala
 import zio.blocks.combinators.Eithers
@@ -176,16 +178,16 @@ This transformation preserves values while reassociating the structure:
 - `Right(Left(b))` → `Left(Right(b))`
 - `Right(Right(c))` → `Right(c)`
 
-### Separator
+### separate
 
-`Eithers.Separator[A]` peels the rightmost alternative from a canonical Either:
+`separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
 
 ```scala
 import zio.blocks.combinators.Eithers
 
+val e = summon[Eithers.Eithers[Int, String]]
 val input: Either[Int, String] = Left(42)
-val result: Either[Int, String] = Eithers.separate(input)
-```
+val result: Either[Int, String] = e.separate(e.combine(input))
 
 ### Use Cases
 
@@ -198,9 +200,9 @@ Eithers canonicalization is useful for:
 
 The `Unions` module converts between Either types and Scala 3 union types.
 
-### Combiner
+### combine
 
-`Unions.Combiner[L, R]` converts an `Either[L, R]` to a union type `L | R`:
+`Unions.Unions[L, R]` converts an `Either[L, R]` to a union type `L | R`:
 
 ```scala
 import zio.blocks.combinators.Unions
@@ -214,21 +216,19 @@ val union2: Int | String = Unions.combine(either2)
 // Result: "hello" (typed as Int | String)
 ```
 
-### Separator
+### separate
 
-`Unions.Separator[A]` discriminates a union type back to Either:
+`separate` is accessed via the unified typeclass instance and discriminates a union type back to Either:
 
 ```scala
 import zio.blocks.combinators.Unions
 
-val value: Int | String = 42
-val result: Either[Int, String] = Unions.separate(value)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+val u = summon[Unions.Unions.WithOut[Int, String, Int | String]]
+val result: Either[Int, String] = u.separate(42: Int | String)
 // Result: Left(42)
 
-val value2: Int | String = "hello"
-val result2: Either[Int, String] = Unions.separate(value2)(using summon[Unions.Separator.WithTypes[Int | String, Int, String]])
+val result2: Either[Int, String] = u.separate("hello": Int | String)
 // Result: Right("hello")
-```
 
 ### Same-Type Rejection
 
@@ -238,7 +238,7 @@ Union types collapse same types (`A | A` = `A`), making them ambiguous. The sepa
 import zio.blocks.combinators.Unions
 
 // Compile error: Union types must contain unique types
-// val sep = summon[Unions.Separator.WithTypes[Int | Int, Int, Int]]
+// val u = summon[Unions.Unions.WithOut[Int, Int, Int | Int]]
 
 // Use Either for same-type alternation instead:
 import zio.blocks.combinators.Eithers
@@ -266,8 +266,8 @@ val value: Int | String = 42  // Works reliably
 import zio.blocks.combinators.Tuples
 
 def combineAll[A, B, C](a: A, b: B, c: C)(
-  implicit ab: Tuples.Combiner[A, B],
-           abc: Tuples.Combiner[ab.Out, C]
+  implicit ab: Tuples.Tuples[A, B],
+           abc: Tuples.Tuples[ab.Out, C]
 ): abc.Out = {
   val step1 = ab.combine(a, b)
   abc.combine(step1, c)
@@ -283,8 +283,8 @@ val result = combineAll(1, "hello", true)
 import zio.blocks.combinators.Tuples
 
 def combineAll[A, B, C](a: A, b: B, c: C)(using
-  ab: Tuples.Combiner[A, B],
-  abc: Tuples.Combiner[ab.Out, C]
+  ab: Tuples.Tuples[A, B],
+  abc: Tuples.Tuples[ab.Out, C]
 ): abc.Out =
   val step1 = ab.combine(a, b)
   abc.combine(step1, c)
@@ -300,8 +300,8 @@ The `Out`, `Left`, and `Right` type members are path-dependent:
 ```scala
 import zio.blocks.combinators.Tuples
 
-def process[A](a: A)(using s: Tuples.Separator[A]): (s.Left, s.Right) =
-  s.separate(a)
+def process[L, R](l: L, r: R)(using t: Tuples.Tuples[L, R]): (L, R) =
+  t.separate(t.combine(l, r))
 
 val result: (Int, String) = process((1, "hello"))
 ```
@@ -311,11 +311,11 @@ val result: (Int, String) = process((1, "hello"))
 ```scala
 import zio.blocks.combinators.Tuples
 
-// Combiner with known output type
-type IntStringCombiner = Tuples.Combiner.WithOut[Int, String, (Int, String)]
+// Typeclass with known output type
+type IntStringTuples = Tuples.Tuples.WithOut[Int, String, (Int, String)]
 
-// Separator with known left/right types
-type TripleSeparator = Tuples.Separator.WithTypes[(Int, String, Boolean), (Int, String), Boolean]
+// Typeclass with known left/right types
+type TripleTuples = Tuples.Tuples.WithOut[(Int, String), Boolean, (Int, String, Boolean)]
 ```
 
 ## Performance Characteristics
@@ -335,11 +335,8 @@ All operations are pure and allocation-minimal.
 
 | Feature | Scala 2.13 | Scala 3.x |
 |---------|------------|-----------|
-| Tuples.Combiner | Yes (max 22) | Yes (unlimited) |
-| Tuples.Separator | Yes (max 22) | Yes (unlimited) |
-| Eithers.Combiner | Yes | Yes |
-| Eithers.Separator | Yes | Yes |
-| Unions.Combiner | No | Yes |
-| Unions.Separator | No | Yes |
+| Tuples.Tuples | Yes (max 22) | Yes (unlimited) |
+| Eithers.Eithers | Yes | Yes |
+| Unions.Unions | No | Yes |
 | Recursive tuple flattening | No | Yes |
 | EmptyTuple handling | No | Yes |

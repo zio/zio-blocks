@@ -8,10 +8,6 @@ object TypeInferenceSpec extends ZIOSpecDefault {
 
   private val toolbox = currentMirror.mkToolBox()
 
-  /**
-   * Attempts to typecheck the given code and returns any error messages. Uses
-   * the ToolBox to compile code at runtime.
-   */
   private def typeCheckErrors(code: String): List[String] =
     try {
       toolbox.typecheck(toolbox.parse(code))
@@ -21,11 +17,6 @@ object TypeInferenceSpec extends ZIOSpecDefault {
         List(e.getMessage)
     }
 
-  /**
-   * Extracts the "found" type from a Scala 2 type mismatch error. Scala 2
-   * format: "type mismatch;\n found : <type>\n required: <type>" Note: multiple
-   * spaces between "found" and ":"
-   */
   private def extractFoundType(errors: List[String]): Option[String] = {
     val foundPattern = """found\s+:\s+([^\n]+)""".r
     errors.flatMap { msg =>
@@ -33,16 +24,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
     }.headOption
   }
 
-  /**
-   * Normalizes a type string by removing fully qualified package prefixes.
-   */
   private def normalizeType(t: String): String =
     t.replaceAll("scala\\.util\\.", "")
       .replaceAll("scala\\.", "")
 
-  /**
-   * Checks that the inferred type exactly matches the expected type.
-   */
   private def assertInferredType(code: String, expectedType: String) = {
     val errors         = typeCheckErrors(code)
     val foundType      = extractFoundType(errors)
@@ -54,10 +39,6 @@ object TypeInferenceSpec extends ZIOSpecDefault {
     )
   }
 
-  /**
-   * Checks that the inferred type contains the expected substring. Used when
-   * the exact type is complex or has path-dependent components.
-   */
   private def assertInferredTypeContains(code: String, expectedSubstring: String) = {
     val errors         = typeCheckErrors(code)
     val foundType      = extractFoundType(errors)
@@ -172,48 +153,32 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       }
     ),
     suite("Eithers.separate type inference")(
-      test("separate(Either[Int, String]) returns Either type") {
+      test("separate via typeclass instance returns Either type") {
         assertInferredTypeContains(
           """
             import zio.blocks.combinators.Eithers
-            val result: String = Eithers.separate(Left(42): Either[Int, String])
+            val e = implicitly[Eithers.Eithers[Int, String]]
+            val result: String = e.separate(Left(42): Either[Int, String])
           """,
           "Either["
         )
       },
-      test("separate(Either[Either[Int, String], Boolean]) returns Either type") {
+      test("separate on nested Either via typeclass returns Either type") {
         assertInferredTypeContains(
           """
             import zio.blocks.combinators.Eithers
-            val result: String = Eithers.separate(Left(Left(42)): Either[Either[Int, String], Boolean])
-          """,
-          "Either["
-        )
-      },
-      test("separate right-nested Either infers canonicalized Either type") {
-        assertInferredTypeContains(
-          """
-            import zio.blocks.combinators.Eithers
-            val result: String = Eithers.separate(Right(Right(true)): Either[Int, Either[String, Boolean]])
-          """,
-          "Either["
-        )
-      },
-      test("separate deeply nested Either infers canonicalized Either type") {
-        assertInferredTypeContains(
-          """
-            import zio.blocks.combinators.Eithers
-            val result: String = Eithers.separate(Right(Right(Right(3.14))): Either[Int, Either[String, Either[Boolean, Double]]])
+            val e = implicitly[Eithers.Eithers[Either[Int, String], Boolean]]
+            val result: String = e.separate(Left(Left(42)): Either[Either[Int, String], Boolean])
           """,
           "Either["
         )
       }
     ),
     suite("Generic functions with type inference")(
-      test("generic function using Tuples.Combiner shows c.Out in error") {
+      test("generic function using Tuples.Tuples shows c.Out in error") {
         val code   = """
           import zio.blocks.combinators.Tuples
-          def combineValues[L, R](l: L, r: R)(implicit c: Tuples.Combiner[L, R]): String = Tuples.combine(l, r)
+          def combineValues[L, R](l: L, r: R)(implicit c: Tuples.Tuples[L, R]): String = Tuples.combine(l, r)
           combineValues(1, "a")
         """
         val errors = typeCheckErrors(code)
@@ -222,22 +187,10 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           errors.exists(_.contains("c.Out"))
         )
       },
-      test("generic function using Tuples.Separator shows path-dependent types in error") {
-        val code   = """
-          import zio.blocks.combinators.Tuples
-          def separateValue[A](a: A)(implicit s: Tuples.Separator[A]): String = Tuples.separate(a)
-          separateValue((1, "a", true))
-        """
-        val errors = typeCheckErrors(code)
-        assertTrue(
-          errors.nonEmpty,
-          errors.exists(e => e.contains("s.Left") && e.contains("s.Right"))
-        )
-      },
-      test("generic function using Eithers.Combiner shows c.Out in error") {
+      test("generic function using Eithers.Eithers shows c.Out in error") {
         val code   = """
           import zio.blocks.combinators.Eithers
-          def canonicalize[L, R](e: Either[L, R])(implicit c: Eithers.Combiner[L, R]): String = Eithers.combine(e)
+          def canonicalize[L, R](e: Either[L, R])(implicit c: Eithers.Eithers[L, R]): String = Eithers.combine(e)
           canonicalize(Right(Right(true)): Either[Int, Either[String, Boolean]])
         """
         val errors = typeCheckErrors(code)
@@ -279,7 +232,7 @@ object TypeInferenceSpec extends ZIOSpecDefault {
           "Either[Either[Either[Int,String],Boolean],Double]"
         )
       },
-      test("Tuples.Combiner infers (Int, String, (Boolean, Double)) for mixed tuple inputs - left-only flatten") {
+      test("Tuples.Tuples infers (Int, String, (Boolean, Double)) for mixed tuple inputs - left-only flatten") {
         assertInferredType(
           """
             import zio.blocks.combinators.Tuples

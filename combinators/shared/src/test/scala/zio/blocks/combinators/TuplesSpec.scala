@@ -5,7 +5,7 @@ import zio.test._
 object TuplesSpec extends ZIOSpecDefault {
 
   def spec = suite("Tuples")(
-    suite("Combiner")(
+    suite("combine")(
       suite("Unit identity")(
         test("combine((), a) returns a") {
           val result = Tuples.combine((), 42)
@@ -48,34 +48,40 @@ object TuplesSpec extends ZIOSpecDefault {
         }
       )
     ),
-    suite("Separator")(
+    suite("separate")(
       test("separate 3-tuple peels last element") {
-        val result = Tuples.separate((1, "a", true))
+        val t      = implicitly[Tuples.Tuples[(Int, String), Boolean]]
+        val result = t.separate(t.combine((1, "a"), true))
         assertTrue(result == ((1, "a"), true))
       },
       test("separate 5-tuple peels last element") {
-        val result = Tuples.separate((1, "a", true, 2.0, 'x'))
+        val t      = implicitly[Tuples.Tuples[(Int, String, Boolean, Double), Char]]
+        val result = t.separate(t.combine((1, "a", true, 2.0), 'x'))
         assertTrue(result == ((1, "a", true, 2.0), 'x'))
       },
       test("separate 10-tuple peels last element") {
-        val result = Tuples.separate((1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+        val t      = implicitly[Tuples.Tuples[(Int, Int, Int, Int, Int, Int, Int, Int, Int), Int]]
+        val result = t.separate(t.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10))
         assertTrue(result == ((1, 2, 3, 4, 5, 6, 7, 8, 9), 10))
       }
     ),
     suite("Roundtrip")(
       test("roundtrip with tuple flattening (arity 3)") {
-        val combined  = Tuples.combine((1, "a"), true)
-        val separated = Tuples.separate(combined)
+        val t         = implicitly[Tuples.Tuples[(Int, String), Boolean]]
+        val combined  = t.combine((1, "a"), true)
+        val separated = t.separate(combined)
         assertTrue(separated == ((1, "a"), true))
       },
       test("roundtrip with tuple flattening (arity 5)") {
-        val combined  = Tuples.combine((1, "a", true, 2.0), 'x')
-        val separated = Tuples.separate(combined)
+        val t         = implicitly[Tuples.Tuples[(Int, String, Boolean, Double), Char]]
+        val combined  = t.combine((1, "a", true, 2.0), 'x')
+        val separated = t.separate(combined)
         assertTrue(separated == ((1, "a", true, 2.0), 'x'))
       },
       test("roundtrip with tuple flattening (arity 10)") {
-        val combined  = Tuples.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10)
-        val separated = Tuples.separate(combined)
+        val t         = implicitly[Tuples.Tuples[(Int, Int, Int, Int, Int, Int, Int, Int, Int), Int]]
+        val combined  = t.combine((1, 2, 3, 4, 5, 6, 7, 8, 9), 10)
+        val separated = t.separate(combined)
         assertTrue(separated == ((1, 2, 3, 4, 5, 6, 7, 8, 9), 10))
       }
     ),
