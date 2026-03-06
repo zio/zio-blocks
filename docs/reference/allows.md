@@ -400,6 +400,40 @@ val ev: Allows[EmptyEvent.type, Record[Primitive]] = implicitly  // vacuously tr
 
 Both Scala versions produce the same macro behavior and the same error messages.
 
+## Integration with Schema
+
+`Allows` and `Schema` are complementary but independent:
+
+- **`Schema[A]`** describes what an `A` looks like at runtime — how to serialize, deserialize, introspect, or transform it. It requires explicit derivation and handles the full type signature.
+- **`Allows[A, S]`** describes what an `A` *may* look like at compile time — a structural grammar that `A` must satisfy. It requires no schema and uses only the Scala type system.
+
+You can use `Allows` **without** `Schema`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Pure shape constraint, no Schema required
+def writeCsv[A](rows: Seq[A])(using Allows[A, Record[Primitive | Optional[Primitive]]]): Unit = ???
+```
+
+Or combine them when runtime encoding **and** shape validation are both needed:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Shape constraint + runtime encoding
+def writeCsv[A: Schema](rows: Seq[A])(using
+  Allows[A, Record[Primitive | Optional[Primitive]]]
+): Unit = ???
+```
+
+When combined, `Allows` enforces the structural guarantee that `Schema` can use — for example, a CSV serializer can assume that every field is a primitive or optional primitive and skip defensive type checks.
+
+See [Schema](./schema.md) for more on runtime encoding and decoding with schemas.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `schema-examples` module.
