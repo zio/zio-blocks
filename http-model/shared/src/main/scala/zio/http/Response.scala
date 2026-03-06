@@ -44,7 +44,11 @@ object Response {
     Response(Status.Ok, Headers.empty, Body.fromString(body))
 
   def json(body: String): Response =
-    Response(Status.Ok, Headers("content-type" -> "application/json"), Body.fromArray(body.getBytes("UTF-8")))
+    Response(
+      Status.Ok,
+      Headers("content-type" -> "application/json"),
+      Body.fromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
+    )
 
   def redirect(location: String, isPermanent: Boolean = false): Response =
     Response(

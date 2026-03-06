@@ -15,8 +15,8 @@ object BodySpec extends HttpModelBaseSpec {
       test("is not nonEmpty") {
         assertTrue(!Body.empty.nonEmpty)
       },
-      test("has no content type") {
-        assertTrue(Body.empty.contentType.isEmpty)
+      test("has default content type") {
+        assertTrue(Body.empty.contentType == ContentType.`application/octet-stream`)
       },
       test("toArray is empty array for empty body") {
         assertTrue(Body.empty.toArray.length == 0)
@@ -40,13 +40,13 @@ object BodySpec extends HttpModelBaseSpec {
         assertTrue(body.data(0) == 99.toByte)
       },
       test("preserves content type") {
-        val ct   = Some(ContentType.`application/json`)
+        val ct   = ContentType.`application/json`
         val body = Body.fromArray(Array[Byte](1), ct)
         assertTrue(body.contentType == ct)
       },
-      test("defaults to None content type") {
+      test("defaults to application/octet-stream content type") {
         val body = Body.fromArray(Array[Byte](1))
-        assertTrue(body.contentType.isEmpty)
+        assertTrue(body.contentType == ContentType.`application/octet-stream`)
       }
     ),
     suite("fromChunk")(
@@ -61,7 +61,7 @@ object BodySpec extends HttpModelBaseSpec {
         )
       },
       test("preserves content type") {
-        val ct   = Some(ContentType.`text/html`)
+        val ct   = ContentType.`text/html`
         val body = Body.fromChunk(Chunk[Byte](1), ct)
         assertTrue(body.contentType == ct)
       }
@@ -74,16 +74,15 @@ object BodySpec extends HttpModelBaseSpec {
       test("sets content type to text/plain with charset") {
         val body = Body.fromString("hello")
         assertTrue(
-          body.contentType.isDefined,
-          body.contentType.get.mediaType == zio.blocks.mediatype.MediaTypes.text.`plain`,
-          body.contentType.get.charset == Some(Charset.UTF8)
+          body.contentType.mediaType == zio.blocks.mediatype.MediaTypes.text.`plain`,
+          body.contentType.charset == Some(Charset.UTF8)
         )
       },
       test("encodes with specified charset") {
         val body = Body.fromString("hello", Charset.ASCII)
         assertTrue(
           body.asString(Charset.ASCII) == "hello",
-          body.contentType.get.charset == Some(Charset.ASCII)
+          body.contentType.charset == Some(Charset.ASCII)
         )
       }
     ),
@@ -140,8 +139,8 @@ object BodySpec extends HttpModelBaseSpec {
         assertTrue(a != b)
       },
       test("two bodies with same bytes but different content types are not equal") {
-        val a = Body.fromArray(Array[Byte](1, 2, 3), Some(ContentType.`application/json`))
-        val b = Body.fromArray(Array[Byte](1, 2, 3), Some(ContentType.`text/plain`))
+        val a = Body.fromArray(Array[Byte](1, 2, 3), ContentType.`application/json`)
+        val b = Body.fromArray(Array[Byte](1, 2, 3), ContentType.`text/plain`)
         assertTrue(a != b)
       },
       test("equal bodies have same hashCode") {
@@ -164,13 +163,13 @@ object BodySpec extends HttpModelBaseSpec {
     suite("content type propagation")(
       test("fromArray with content type propagates to body") {
         val ct   = ContentType.`application/octet-stream`
-        val body = Body.fromArray(Array[Byte](0, 1), Some(ct))
-        assertTrue(body.contentType == Some(ct))
+        val body = Body.fromArray(Array[Byte](0, 1), ct)
+        assertTrue(body.contentType == ct)
       },
       test("fromChunk with content type propagates to body") {
         val ct   = ContentType.`application/json`
-        val body = Body.fromChunk(Chunk[Byte](1, 2), Some(ct))
-        assertTrue(body.contentType == Some(ct))
+        val body = Body.fromChunk(Chunk[Byte](1, 2), ct)
+        assertTrue(body.contentType == ct)
       }
     )
   )
