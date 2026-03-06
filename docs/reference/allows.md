@@ -350,3 +350,54 @@ val ev: Allows[EmptyEvent.type, Record[Primitive]] = implicitly  // vacuously tr
 | Derivation keyword | `Schema.derived` implicit | `Schema.derived` or `derives Schema` |
 
 Both Scala versions produce the same macro behavior and the same error messages.
+
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `schema-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+**CSV serializer with flat record compile-time constraints**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsCsvExample.scala))
+
+```bash
+sbt "schema-examples/runMain comptime.AllowsCsvExample"
+```
+
+**Event bus with sealed trait auto-unwrap and nested hierarchies**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsEventBusExample.scala))
+
+```bash
+sbt "schema-examples/runMain comptime.AllowsEventBusExample"
+```
+
+**GraphQL / tree structures using Self for recursive grammars**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsGraphQLTreeExample.scala))
+
+```bash
+sbt "schema-examples/runMain comptime.AllowsGraphQLTreeExample"
+```
+
+**Sealed trait auto-unwrap with nested hierarchies and case objects**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala))
+
+```bash
+sbt "schema-examples/runMain comptime.AllowsSealedTraitExample"
+```
+
+**RDBMS library with CREATE TABLE and INSERT using flat record constraints**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/RdbmsExample.scala))
+
+> This example is a compile-time demonstration — the `RdbmsDemo` object validates that compatible types compile and incompatible types are rejected. Review the source to see the constraint in action.
+
+**JSON document store with specific primitives and recursive Self grammar**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/DocumentStoreExample.scala))
+
+> This example is a compile-time demonstration — the `DocumentStoreDemo` object validates that JSON-compatible types compile and types with non-JSON scalars are rejected. Review the source to see the constraint in action.
