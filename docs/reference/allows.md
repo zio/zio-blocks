@@ -54,7 +54,13 @@ All grammar nodes extend `Allows.Structural`.
 | `Primitive.Currency` | `java.util.Currency` only |
 | `Primitive.Instant` / `LocalDate` / `LocalDateTime` / … | Each specific `java.time.*` type |
 | `Record[A]` | A case class / product type whose every field satisfies `A`. Vacuously true for zero-field records. Sealed traits and enums are **automatically unwrapped**: each case is checked individually, so no `Variant` node is needed. |
-| `Sequence[A]` | `List`, `Vector`, `Set`, `Array`, `Chunk`, … whose element type satisfies `A` |
+| `Sequence[A]` | Any collection (`List`, `Vector`, `Set`, `Array`, `Chunk`, …) whose element type satisfies `A` |
+| `Sequence.List[A]` | `scala.collection.immutable.List` only, element type satisfies `A` |
+| `Sequence.Vector[A]` | `scala.collection.immutable.Vector` only, element type satisfies `A` |
+| `Sequence.Set[A]` | `scala.collection.immutable.Set` only, element type satisfies `A` |
+| `Sequence.Array[A]` | `scala.Array` only, element type satisfies `A` |
+| `Sequence.Chunk[A]` | `zio.blocks.chunk.Chunk` only, element type satisfies `A` |
+| `IsType[A]` | Exact nominal type match: satisfied only when the checked type is exactly `A` (`=:=`) |
 | `Map[K, V]` | `Map`, `HashMap`, … whose key satisfies `K` and value satisfies `V` |
 | `Optional[A]` | `Option[X]` where the inner type `X` satisfies `A` |
 | `Wrapped[A]` | A ZIO Prelude `Newtype`/`Subtype` wrapper whose underlying type satisfies `A` |
@@ -241,6 +247,105 @@ def graphqlType[A: Schema]()(using
 case class TreeNode(value: Int, children: List[TreeNode])
 object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
 // graphqlType[TreeNode]() — compiles fine
+```
+
+## Sequence Subtypes
+
+The `Sequence[A]` node accepts any collection type. When a DSL needs to restrict to a specific kind of collection — for example, a DynamoDB `Set` operation that is only valid on sets, not lists — use the `Sequence` subtypes:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Only an immutable List is accepted
+val listOnly: Allows[List[Int], Sequence.List[Primitive]] = implicitly
+
+// Only an immutable Set is accepted
+val setOnly: Allows[Set[Int], Sequence.Set[Primitive]] = implicitly
+
+// Only a Vector
+val vecOnly: Allows[Vector[String], Sequence.Vector[Primitive]] = implicitly
+
+// Only an Array
+val arrOnly: Allows[Array[Int], Sequence.Array[Primitive]] = implicitly
+
+// Only a Chunk
+import zio.blocks.chunk.Chunk
+val chkOnly: Allows[Chunk[String], Sequence.Chunk[Primitive]] = implicitly
+```
+
+Each subtype extends `Sequence[A]`, so a grammar written with the parent `Sequence` still accepts all collection kinds. A grammar written with a subtype rejects other kinds at compile time:
+
+```
+// Set[Int] does NOT satisfy Sequence.List[Primitive] — compile error:
+[error] Shape violation at Set: found Sequence[scala.Int], required Sequence.List[...]
+val bad: Allows[Set[Int], Sequence.List[Primitive]] = implicitly
+```
+
+### DynamoDB-style set operations
+
+A DynamoDB grammar can encode the distinction between set types and list types exactly, without any additional runtime proof. We use `Sequence.Set` to narrow the grammar to sets-only operations:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+type N  = Primitive.Int | Primitive.Long | Primitive.Float | Primitive.Double | Primitive.Short
+type S  = Primitive.String
+type NS = Sequence.Set[N | Wrapped[N]]
+type SS = Sequence.Set[S | Wrapped[S]]
+
+// addSet is only callable with a Set — List[Int] or Vector[Int] would fail at compile time
+def addSet[A](set: scala.collection.immutable.Set[A])(implicit
+  ev: Allows[scala.collection.immutable.Set[A], NS | SS]
+): String = "ok"
+```
+
+## `IsType[A]`
+
+`IsType[A]` is a nominal type predicate. It is satisfied only when the checked Scala type is exactly `A` (i.e. `checked =:= A`). It is most useful as an element constraint inside `Sequence` subtypes, where it aligns the element type of a collection with a polymorphic method type parameter.
+
+The primary motivation (GitHub issue #1172) is DSL methods that must constrain both the container kind and the element type in a single `Allows` expression. Without `IsType`, a separate type class (like `Containable`) is needed to connect `A` in `contains[A]` to the element type of the collection. With `IsType`, the connection is expressed directly in the grammar.
+
+To use `IsType[A]` with a polymorphic `A`, require `IsNominalType[A]` from `zio-blocks-typeid` at the call site. This ensures the macro always sees a concrete type when it evaluates `IsType[A]`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+import zio.blocks.typeid.IsNominalType
+
+// `To` must be a Set whose element type is exactly `A`.
+// IsNominalType[A] ensures A is concrete at the call site — an unresolved
+// type parameter would fail to produce IsNominalType and the call site
+// would not compile.
+def contains[To, From, A: IsNominalType](a: A)(implicit
+  ev: Allows[To, Sequence.Set[IsType[A]]]
+): Boolean = ev.ne(null)
+
+// Compiles: Set[Int] satisfies Sequence.Set[IsType[Int]]
+val r1: Boolean = contains[Set[Int], Nothing, Int](42)
+
+// Compiles: Set[String] satisfies Sequence.Set[IsType[String]]
+val r2: Boolean = contains[Set[String], Nothing, String]("hello")
+```
+
+A mismatch between the element type and `A` is a compile-time error:
+
+```
+[error] Shape violation at ...<element>: found Primitive(java.lang.String),
+        required IsType[Int]
+```
+
+`IsType[A]` can also appear as a standalone constraint, or anywhere a grammar node is accepted:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+
+// Int satisfies IsType[Int] exactly
+val ev: Allows[Int, Allows.IsType[Int]] = implicitly
+
+// List[String] satisfies Sequence[IsType[String]]
+val ev2: Allows[List[String], Allows.Sequence[Allows.IsType[String]]] = implicitly
 ```
 
 ## The `Self` Grammar Node

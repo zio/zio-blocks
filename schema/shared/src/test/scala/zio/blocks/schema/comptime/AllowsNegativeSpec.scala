@@ -435,6 +435,161 @@ object AllowsNegativeSpec extends SchemaBaseSpec {
         )
       }
     ),
+    suite("Sequence subtype violations (issue #1162)")(
+      test("Set[Int] does NOT satisfy Sequence.List[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[Int], Sequence.List[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.List") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] does NOT satisfy Sequence.Set[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.Set[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Set") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Vector[Int] does NOT satisfy Sequence.Array[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Vector[Int], Sequence.Array[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Array") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Array[Int] does NOT satisfy Sequence.Vector[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Array[Int], Sequence.Vector[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Vector") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] does NOT satisfy Sequence.Chunk[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.Chunk[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Chunk") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Set[Int] does NOT satisfy Sequence.List[Primitive] — error mentions Sequence.List") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[Int], Sequence.List[Primitive]]]
+        """).map(result =>
+          assertTrue(
+            result.isLeft &&
+              (result.left.exists(_.contains("Sequence.List")) ||
+                result.left.exists(_.contains("Allows Error")) ||
+                result.left.exists(_.contains("could not find")))
+          )
+        )
+      }
+    ),
+    suite("IsType violations (issue #1172)")(
+      test("String does NOT satisfy IsType[Int]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[String, Allows.IsType[Int]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Int does NOT satisfy IsType[String]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[Int, Allows.IsType[String]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[String] does NOT satisfy Sequence[IsType[Int]] — element type mismatch") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[String], Sequence[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Set[String] does NOT satisfy Sequence.Set[IsType[Int]] — element type mismatch") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[String], Sequence.Set[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("IsType mismatch error message contains IsType") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[String, Allows.IsType[Int]]]
+        """).map(result =>
+          assertTrue(
+            result.isLeft &&
+              (result.left.exists(_.contains("IsType")) ||
+                result.left.exists(_.contains("Allows Error")) ||
+                result.left.exists(_.contains("could not find")))
+          )
+        )
+      }
+    ),
     suite("Specific primitive violations")(
       test("String does NOT satisfy Allows[_, Primitive.Int]") {
         typeCheck("""
