@@ -1,6 +1,7 @@
 package zio.http
 
 import zio.test._
+import zio.blocks.chunk.Chunk
 
 object HeadersSpec extends HttpModelBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
@@ -372,6 +373,53 @@ object HeadersSpec extends HttpModelBaseSpec {
       },
       test("empty headers toString") {
         assertTrue(Headers.empty.toString == "Headers()")
+      }
+    ),
+    suite("++ operator")(
+      test("combines two headers") {
+        val h1       = Headers("a" -> "1")
+        val h2       = Headers("b" -> "2")
+        val combined = h1 ++ h2
+        assertTrue(
+          combined.size == 2,
+          combined.rawGet("a") == Some("1"),
+          combined.rawGet("b") == Some("2")
+        )
+      },
+      test("combining with empty returns same entries") {
+        val h        = Headers("a" -> "1")
+        val combined = h ++ Headers.empty
+        assertTrue(combined.size == 1, combined.rawGet("a") == Some("1"))
+      },
+      test("preserves order") {
+        val h1       = Headers("a" -> "1")
+        val h2       = Headers("b" -> "2")
+        val combined = h1 ++ h2
+        assertTrue(combined.toList == List(("a", "1"), ("b", "2")))
+      }
+    ),
+    suite("contains")(
+      test("returns true for existing header") {
+        val h = Headers("Content-Type" -> "text/html")
+        assertTrue(h.contains("content-type"))
+      },
+      test("returns false for missing header") {
+        val h = Headers("Content-Type" -> "text/html")
+        assertTrue(!h.contains("accept"))
+      },
+      test("is case-insensitive") {
+        val h = Headers("Content-Type" -> "text/html")
+        assertTrue(h.contains("CONTENT-TYPE"))
+      }
+    ),
+    suite("toChunk")(
+      test("returns correct pairs") {
+        val h     = Headers("a" -> "1", "b" -> "2")
+        val chunk = h.toChunk
+        assertTrue(
+          chunk.length == 2,
+          chunk == Chunk(("a", "1"), ("b", "2"))
+        )
       }
     )
   )

@@ -147,6 +147,33 @@ final class Headers private[http] (
 
   override def hashCode: Int = toList.hashCode
 
+  def ++(other: Headers): Headers = {
+    val builder = HeadersBuilder.make(size + other.size)
+    var i       = 0
+    while (i < size) {
+      builder.addRaw(names(i), rawValues(i))
+      i += 1
+    }
+    i = 0
+    while (i < other.size) {
+      builder.addRaw(other.names(i), other.rawValues(i))
+      i += 1
+    }
+    builder.build()
+  }
+
+  def contains(name: String): Boolean = has(name)
+
+  def toChunk: Chunk[(String, String)] = {
+    val builder = Chunk.newBuilder[(String, String)]
+    var i       = 0
+    while (i < size) {
+      builder += ((names(i), rawValues(i)))
+      i += 1
+    }
+    builder.result()
+  }
+
   override def toString: String = {
     val sb = new StringBuilder("Headers(")
     var i  = 0
