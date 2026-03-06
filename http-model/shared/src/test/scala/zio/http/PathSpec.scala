@@ -218,6 +218,122 @@ object PathSpec extends HttpModelBaseSpec {
         val p = Path("/foo/bar/")
         assertTrue(p.trailingSlash, p.hasLeadingSlash, p.segments == Chunk("foo", "bar"))
       }
+    ),
+    suite("addLeadingSlash")(
+      test("adds leading slash to path without one") {
+        val p = Path("foo/bar").addLeadingSlash
+        assertTrue(p.hasLeadingSlash, p.segments == Chunk("foo", "bar"))
+      },
+      test("idempotent on path that already has leading slash") {
+        val p = Path("/foo").addLeadingSlash
+        assertTrue(p.hasLeadingSlash, p.segments == Chunk("foo"))
+      }
+    ),
+    suite("dropLeadingSlash")(
+      test("drops leading slash from path with one") {
+        val p = Path("/foo/bar").dropLeadingSlash
+        assertTrue(!p.hasLeadingSlash, p.segments == Chunk("foo", "bar"))
+      },
+      test("no-op on path without leading slash") {
+        val p = Path("foo").dropLeadingSlash
+        assertTrue(!p.hasLeadingSlash)
+      }
+    ),
+    suite("addTrailingSlash")(
+      test("adds trailing slash on non-empty segments") {
+        val p = Path("/foo/bar").addTrailingSlash
+        assertTrue(p.trailingSlash, p.segments == Chunk("foo", "bar"))
+      },
+      test("no-op on empty segments") {
+        val p = Path.empty.addTrailingSlash
+        assertTrue(!p.trailingSlash)
+      }
+    ),
+    suite("dropTrailingSlash")(
+      test("drops trailing slash") {
+        val p = Path("/foo/").dropTrailingSlash
+        assertTrue(!p.trailingSlash, p.segments == Chunk("foo"))
+      }
+    ),
+    suite("isRoot")(
+      test("true for root path") {
+        assertTrue(Path.root.isRoot)
+      },
+      test("false for empty path") {
+        assertTrue(!Path.empty.isRoot)
+      },
+      test("false for non-root path with segments") {
+        assertTrue(!Path("/foo").isRoot)
+      }
+    ),
+    suite("startsWith")(
+      test("true when prefix matches") {
+        assertTrue(Path("/foo/bar/baz").startsWith(Path("foo/bar")))
+      },
+      test("false when prefix does not match") {
+        assertTrue(!Path("/foo/bar").startsWith(Path("baz")))
+      },
+      test("true for empty prefix") {
+        assertTrue(Path("/foo").startsWith(Path.empty))
+      }
+    ),
+    suite("drop")(
+      test("drop 0 returns same segments") {
+        val p = Path("/foo/bar").drop(0)
+        assertTrue(p.segments == Chunk("foo", "bar"))
+      },
+      test("drop 1 removes first segment") {
+        val p = Path("/foo/bar/baz").drop(1)
+        assertTrue(p.segments == Chunk("bar", "baz"))
+      },
+      test("drop all returns empty segments") {
+        val p = Path("/foo/bar").drop(2)
+        assertTrue(p.segments.isEmpty)
+      }
+    ),
+    suite("take")(
+      test("take 0 returns empty segments") {
+        val p = Path("/foo/bar").take(0)
+        assertTrue(p.segments.isEmpty)
+      },
+      test("take 1 returns first segment") {
+        val p = Path("/foo/bar/baz").take(1)
+        assertTrue(p.segments == Chunk("foo"))
+      },
+      test("take more than length returns all") {
+        val p = Path("/foo/bar").take(5)
+        assertTrue(p.segments == Chunk("foo", "bar"))
+      }
+    ),
+    suite("dropRight")(
+      test("drops last n segments") {
+        val p = Path("/foo/bar/baz").dropRight(1)
+        assertTrue(p.segments == Chunk("foo", "bar"))
+      }
+    ),
+    suite("reverse")(
+      test("reverses segment order") {
+        val p = Path("/a/b/c").reverse
+        assertTrue(p.segments == Chunk("c", "b", "a"))
+      }
+    ),
+    suite("initial")(
+      test("returns path without last segment") {
+        val p = Path("/foo/bar/baz").initial
+        assertTrue(p.segments == Chunk("foo", "bar"))
+      },
+      test("returns same path when empty") {
+        val p = Path.empty.initial
+        assertTrue(p.segments.isEmpty)
+      }
+    ),
+    suite("last")(
+      test("returns last segment on non-empty") {
+        assertTrue(Path("/foo/bar/baz").last == Some("baz"))
+      },
+      test("returns None on empty") {
+        assertTrue(Path.empty.last == None)
+      }
     )
   )
 }

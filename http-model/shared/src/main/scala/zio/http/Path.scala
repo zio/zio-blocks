@@ -45,6 +45,25 @@ final case class Path(segments: Chunk[String], hasLeadingSlash: Boolean, trailin
   }
 
   override def toString: String = render
+
+  def addLeadingSlash: Path   = copy(hasLeadingSlash = true)
+  def dropLeadingSlash: Path  = copy(hasLeadingSlash = false)
+  def addTrailingSlash: Path  = if (segments.nonEmpty) copy(trailingSlash = true) else this
+  def dropTrailingSlash: Path = copy(trailingSlash = false)
+
+  def isRoot: Boolean = segments.isEmpty && hasLeadingSlash
+
+  def startsWith(other: Path): Boolean =
+    segments.length >= other.segments.length && segments.take(other.segments.length) == other.segments
+
+  def drop(n: Int): Path      = copy(segments = segments.drop(n))
+  def take(n: Int): Path      = copy(segments = segments.take(n))
+  def dropRight(n: Int): Path = copy(segments = segments.dropRight(n))
+  def reverse: Path           = copy(segments = segments.reverse)
+
+  def initial: Path = if (segments.isEmpty) this else copy(segments = segments.dropRight(1))
+
+  def last: Option[String] = if (segments.isEmpty) None else Some(segments(segments.length - 1))
 }
 
 object Path {
