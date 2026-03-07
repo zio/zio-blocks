@@ -23,18 +23,19 @@ Most resource bugs in Scala are "escape" bugs—scenarios where a resource is us
 - **Passing to untrusted code:** You pass a resource to a library function that might store a reference and use it later, outside your scope. You have no way to know when it's safe to close.
 - **Mixing lifetimes:** In large codebases, it becomes unclear which scope owns which resource. A developer might use a resource in the wrong scope, or two scopes might try to close the same resource.
 
-Scope addresses these with a *tight* design:
+Scope addresses these with a *tight* design. Each design choice solves a specific problem and works together with the others:
 
-| Feature | `zio.blocks.scope` |
-|---|---|
-| Compile-time leak prevention | ✓ (`scope.$[A]` + `$` macro + `Unscoped` boundary) |
-| Runtime overhead | ~0 (scoped values erase to `A`) |
-| Allocation model | Eager (allocation happens at `allocate`) |
-| Finalization | Deterministic, LIFO, errors collected |
-| Structured lifetime | Parent/child scopes, `lower` for explicit lifetime widening |
-| Escape hatch | `leak` (warns) |
+1. **Compile-time leak prevention via type tagging** — Every scope has its own `$[A]` type, combined with the `$` macro that restricts how you can use values and the `Unscoped` typeclass that marks safe return types. Together, these prevent returning resources from their scope at compile time. No runtime wrapper objects needed.
 
-[//]: # (Instead of the above table, consider a more narrative explanation of the design choices using enumeration or prose, to better explain the rationale behind each feature and how they work together to prevent bugs. The table is concise but might be too dense for newcomers.)
+2. **Zero runtime overhead** — Scoped values erase to the underlying type `A` at runtime (via casts). There's no boxing, no extra objects, no GC pressure. The compile-time safety is "free."
+
+3. **Eager allocation** — Resources are acquired immediately when you call `allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
+
+4. **Deterministic, LIFO finalization** — Finalizers are guaranteed to run in reverse order of allocation when a scope closes. If acquisition order implies dependencies (common in resource hierarchies), cleanup order is automatically correct. Exceptions in finalizers are collected rather than stopping cleanup.
+
+5. **Structured scopes with parent-child relationships** — Scopes form a hierarchy; children always close before parents. The `lower` operator lets you safely use parent-scoped values in children, since parent will outlive child.
+
+6. **Escape hatch for interop** — The `leak` function lets you break the type system when integrating with legacy code, but it emits a compiler warning so you don't accidentally bypass safety by mistake.
 
 If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same problem space—but optimized for **synchronous code** with **compile-time boundaries**.
 
