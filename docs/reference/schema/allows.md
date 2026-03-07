@@ -199,7 +199,24 @@ A type with a UUID or Instant field fails at compile time with this error:
 
 Union types express "or" in the grammar.
 
-**Scala 3** uses native union type syntax:
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
+
+Uses the infix operator `` Primitive `|` Optional[Primitive] `` from `Allows`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+def writeCsv[A](rows: Seq[A])(implicit
+  ev: Allows[A, Record[Primitive | Optional[Primitive]]]
+): Unit = ???
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
+Uses native union type syntax:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.comptime.Allows
@@ -210,16 +227,8 @@ def writeCsv[A](rows: Seq[A])(using
 ): Unit = ???
 ```
 
-**Scala 2** uses the infix operator `` Primitive `|` Optional[Primitive] `` from `Allows`:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.comptime.Allows
-import Allows._
-
-def writeCsv[A](rows: Seq[A])(implicit
-  ev: Allows[A, Record[Primitive | Optional[Primitive]]]
-): Unit = ???
-```
+  </TabItem>
+</Tabs>
 
 Both spellings compile and produce the same semantic behavior. The grammar is identical — the only difference is how the union type is expressed.
 
