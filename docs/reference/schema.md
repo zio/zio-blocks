@@ -191,8 +191,6 @@ ZIO Blocks provides specialized `Option` schemas optimized for primitive types. 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
-import zio.blocks.schema.Schema
-
 // Specialized primitive options (no boxing overhead)
 Schema[Option[Boolean]]  // Also: Byte, Short, Int, Long, Float, Double, Char, Unit
 ```
@@ -275,49 +273,11 @@ object UserId {
 }
 ```
 
-### DynamicValue toString (EJSON Format)
-
-ZIO Blocks provides the `transform` method for creating schemas for wrapper types, such as newtypes, opaque types and value classes:
-
-```scala
-final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def transform[B](to: A => B, from: B => A): Schema[B] = ???
-}
-```
-
-The `transform` method allows you to define transformations that can fail by throwing `SchemaError` exceptions. Use it for both simple wrapper types and types with validation requirements.
-
-Here are examples of both:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.{Schema, SchemaError}
-
-// For types with validation (may fail)
-case class Email(value: String)
-
-object Email {
-  private val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-
-  implicit val schema: Schema[Email] = Schema[String]
-    .transform(
-      {
-        case x @ EmailRegex(_*) => Email(x)
-        case _                  => throw SchemaError.validationFailed("Invalid email format")
-      },
-      _.value
-    )
-}
-
-// For total transformations (never fail)
-case class UserId(value: Long)
-
-object UserId {
-  implicit val schema: Schema[UserId] = Schema[Long]
-    .transform(UserId(_), _.value)
-}
-```
-
 ## Core Operations
+
+### Debug-Friendly toString
+
+The `Schema` data type has a custom `toString` that wraps the underlying `Reflect` output in a `Schema { ... }` block, providing a complete structural view of your data types:
 
 ```scala
 println(Schema[Int])
@@ -328,8 +288,6 @@ println(Schema[Int])
 ```
 
 This format makes it easy to inspect complex nested schemas during debugging. See the [Reflect documentation](./reflect.md#debug-friendly-tostring) for details on the SDL format used for the inner structure.
-
-## Core Operations
 
 ### Encoding and Decoding
 
