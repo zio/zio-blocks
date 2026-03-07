@@ -27,7 +27,7 @@ Add the following to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "<version>"
 ```
 
-For cross-platform projects (Scala.js or Scala Native):
+For cross-platform projects (Scala.js):
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
@@ -89,7 +89,7 @@ val result1: (Int, String, Boolean) = Tuples.combine((1, "a"), true)
 val result2: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.14))
 
 // Scala 2 - flattens left tuple only
-val result2: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
+val result3: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
 ```
 
 ### separate
@@ -115,6 +115,8 @@ val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
 val (left3, right3): ((Int, String, Boolean), Double) = t4.separate((1, "hello", true, 3.14))
 // left3 = (1, "hello", true), right3 = 3.14
 
+
+```
 ### Type-Level Operations
 
 The output type is computed at compile time via the `Out` type member:
@@ -188,6 +190,7 @@ import zio.blocks.combinators.Eithers
 val e = summon[Eithers.Eithers[Int, String]]
 val input: Either[Int, String] = Left(42)
 val result: Either[Int, String] = e.separate(e.combine(input))
+```
 
 ### Use Cases
 
@@ -303,7 +306,7 @@ import zio.blocks.combinators.Tuples
 def process[L, R](l: L, r: R)(using t: Tuples.Tuples[L, R]): (L, R) =
   t.separate(t.combine(l, r))
 
-val result: (Int, String) = process((1, "hello"))
+val result: (Int, String) = process(1, "hello")
 ```
 
 ### Type Aliases for Clarity

@@ -49,11 +49,13 @@ const sidebars = {
              "reference/resource-management-di/wire",
            ]
          },
+         "reference/combinators",
          "reference/docs",
          "reference/json",
          "reference/json-patch",
          "reference/json-differ",
          "reference/json-schema",
+         "scope",
          "reference/xml",
          "reference/syntax",
          "reference/media-type",
