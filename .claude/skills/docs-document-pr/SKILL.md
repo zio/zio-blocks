@@ -1,6 +1,21 @@
 ---
 name: docs-document-pr
-description: Use when the user asks to document a GitHub pull request, generate documentation from a PR, or create docs from a specific PR number.
+description: >
+  Generates documentation from a GitHub pull request. Automatically gathers
+  related issues, commits, and PR metadata, then creates a new reference page,
+  how-to guide, or appends a subsection to an existing page based on the PR's
+  content type and scope. Delegates to specialized documentation skills
+  (docs-data-type-ref, docs-how-to-guide) to ensure consistent style and
+  formatting across all ZIO Blocks docs.
+argument-hint: "[PR number (e.g., #1016 or 1016)]"
+allowed-tools: Read, Glob, Grep, Bash(gh:*)
+triggers:
+  - "document PR"
+  - "doc this PR"
+  - "write docs for PR"
+  - "generate documentation from"
+  - "create docs from"
+  - "document this pull request"
 ---
 
 # Skill: docs-document-pr
