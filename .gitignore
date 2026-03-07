@@ -37,4 +37,3 @@ schema/jvm/src/test/resources/json-schema-test-suite/
 .sisyphus/
 .opencode/
 .claude/settings.local.json
-CLAUDE.md
