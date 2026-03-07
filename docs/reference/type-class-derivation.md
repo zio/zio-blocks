@@ -1605,14 +1605,14 @@ final case class DerivationBuilder[TC[_], A](...) {
 
 **When to use:** Apply the same custom behavior for a type **everywhere** it appears in your schema. This is ideal for cross-cutting concerns where a type should always be handled the same way, regardless of context.
 
-The first method takes a `TypeId[B]` and applies the custom instance to **all occurrences** of type `B` anywhere in the schema tree:
+The second method takes a `TypeId[B]` and applies the custom instance to **all occurrences** of type `B` anywhere in the schema tree:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.json._
 import zio.blocks.typeid.TypeId
 
-case class SimpleUser(name: String, email: String)
+case class SimpleUser(id: Int, name: String, email: String)
 
 object SimpleUser {
   implicit val schema: Schema[SimpleUser] = Schema.derived
@@ -1741,8 +1741,8 @@ val addressCity: Lens[Company, String] = Company.hq(Address.city)
 
 Then use the optic in your derivation:
 
-```scala mdoc:compile-only
-val codec: JsonBinaryCodec[Company] = Company.schema
+```scala mdoc:silent:nest
+val companyCodec: JsonBinaryCodec[Company] = Company.schema
   .deriving(JsonBinaryCodecDeriver)
   .instance(
     addressCity,
@@ -1795,7 +1795,7 @@ val exactAgeCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
   def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(s"[AGE:${x}]")
 }
 
-val codec: JsonBinaryCodec[User3] = User3.schema
+val user3Codec: JsonBinaryCodec[User3] = User3.schema
   .deriving(JsonBinaryCodecDeriver)
   .instance(TypeId.of[Int], globalIntCodec)           // matches all Ints
   .instance(TypeId.of[User3], "age", ageCodec)        // matches age field
@@ -1803,7 +1803,7 @@ val codec: JsonBinaryCodec[User3] = User3.schema
   .derive
 ```
 
-The `age` field uses `exactAgeCodec` (producing `[AGE:30]`). If you remove the optic override, it uses `ageCodec` (producing `AGE:30`). If you remove both, it uses `globalIntCodec` (producing `30`). The `id` and `score` fields always use `globalIntCodec`.
+The `age` field in `user3Codec` uses `exactAgeCodec` (producing `[AGE:30]`). If you remove the optic override, it uses `ageCodec` (producing `AGE:30`). If you remove both, it uses `globalIntCodec` (producing `30`). The `id` and `score` fields always use `globalIntCodec`.
 
 ### Putting It Together: Complete Example
 
@@ -1833,14 +1833,19 @@ object UserProfile extends CompanionOptics[UserProfile] {
   val address: Lens[UserProfile, Address] = optic(_.address)
 }
 
-// Derive with overrides
+// Derive with overrides combining all three levels
 val userCodec: JsonBinaryCodec[UserProfile] = UserProfile.schema
   .deriving(JsonBinaryCodecDeriver)
+  // Level 1: type-based override for all Int fields (global)
+  .instance(TypeId.of[Int], stringifyInt)
+  // Level 2: term-name-based override on UserProfile.age (field-scoped)
   .instance(
     TypeId.of[UserProfile],  // parent type
-    "age",                   // field name → "age" serializes as string
+    "age",                   // field name → "age" serializes as string (overrides Level 1 if different codec)
     stringifyInt
   )
+  // Level 3: optic-based override using exact path (most precise, if used with different codec would take precedence)
+  .instance(UserProfile.age, stringifyInt)
   .derive
 
 // Test it
@@ -1865,10 +1870,12 @@ Encoded (53 bytes)
 Decoded: Right(UserProfile(123,alice,30,850,Address(NYC,10001)))
 ```
 
-Notice that:
-- `id` and `score` remain numbers in the JSON
-- `age` is a string: `"30"`
-- Other types (String, Address) use default codecs
+In this example:
+- **Level 1 (Type-based)**: Global override for all `Int` fields
+- **Level 2 (Term-name-based)**: Field-scoped override for `UserProfile.age`
+- **Level 3 (Optic-based)**: Exact path override using the `age` lens
+
+All three use the same codec here, so they produce the same result. In real scenarios, you'd use different codecs at different levels based on your needs. The resolution order would apply: Level 3 > Level 2 > Level 1 > auto-derivation.
 
 ### Running the Examples
 
