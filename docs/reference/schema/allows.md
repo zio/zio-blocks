@@ -77,8 +77,6 @@ def toJson[A](doc: A)(implicit ev: Allows[A, Record[Primitive]]): String = ???
 val evidence = implicitly[Allows[Int, Primitive]]
 ```
 
-[//]: # (Please research abot tabbed code blocks: https://docusaurus.io/docs/markdown-features/tabs and plan how to use them to show Scala 2 and Scala 3 examples side by side)
-
 The constraint is checked once, at the call site. If the type `A` does not satisfy `S`, you get a compile-time error with a precise message showing exactly which field violates the grammar.
 
 ## Grammar Nodes
