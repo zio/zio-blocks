@@ -13,7 +13,6 @@ object ContextModificationExample extends App {
   case class Config(debug: Boolean)
   case class Logger(name: String)
   case class Metrics(count: Int)
-  case class Database(url: String)
 
   // Start with a simple context.
   val ctx1 = Context(Config(debug = false))

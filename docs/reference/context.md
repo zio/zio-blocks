@@ -246,11 +246,11 @@ val ctxDog = Context(Dog("Buddy"))
 val animal = ctxDog.get[Animal]
 ```
 
-If the type is not in the context, `get` throws `NoSuchElementException` (this should never happen in well-typed code—it indicates a compiler bug):
+If you attempt to retrieve a type that is not in the context, the code will not compile because the type bound `A >: R` requires it to be present:
 
 ```scala
-// This would throw at runtime if the type were missing:
-// val metrics: String = ctx.get[String]  // Compile error: no String in context
+// This is a compile-time error, not a runtime error:
+// val metrics: String = ctx.get[String]  // Error: String is not in context type
 ```
 
 #### Context#getOption
@@ -443,8 +443,9 @@ val buildService = Wire.make[Config & Logger, Service]
 val deps = Context(Config(debug = true), Logger("app"))
 
 // Create a scope and instantiate the service
-val scope = Scope.root()
-val service: Service = buildService.make(scope, deps)
+Scope.global.scoped { scope =>
+  val service: Service = buildService.make(scope, deps)
+}
 ```
 
 See [Scope](./scope.md) for more on building objects with Wire and the scope system.
