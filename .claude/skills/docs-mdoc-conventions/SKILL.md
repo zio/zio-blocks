@@ -124,7 +124,7 @@ import TabItem from '@theme/TabItem';
 
 ### Tab structure
 
-```mdx
+````mdx
 <Tabs groupId="scala-version" defaultValue="scala2">
   <TabItem value="scala2" label="Scala 2">
 
@@ -141,7 +141,7 @@ import TabItem from '@theme/TabItem';
 
   </TabItem>
 </Tabs>
-```
+````
 
 ### Rules
 
