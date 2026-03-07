@@ -75,7 +75,7 @@ Scope.global.scoped { scope =>
 Let's break down what happens:
 
 - `Scope.global.scoped { scope => ... }` — Creates a scoped region. When the block exits, all allocated resources are closed.
-- `import scope._` — Imports scope operations: `$`, `allocate`, and `defer`.
+- `import scope.*` — Imports scope operations: `$`, `allocate`, and `defer`.
 - `allocate(Resource { ... })` — Allocates a resource. Since `Database` extends `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 - `$[Database]` — A scoped value of type `Database`. It can only be used within the scope where it was allocated.
 - `$(db) { database => ... }` — Unwraps the scoped value and passes it to the block. This is the only way to access a resource.
@@ -473,7 +473,7 @@ class Connection(db: String, id: Int) extends AutoCloseable {
 }
 
 Scope.global.scoped { parentScope =>
-  import parentScope._
+  import parentScope.*
 
   // Open database in parent scope
   val db = allocate(Resource(new Database("maindb")))
@@ -485,7 +485,7 @@ Scope.global.scoped { parentScope =>
 
   // Create a child scope (e.g., for a request)
   parentScope.scoped { childScope =>
-    import childScope._
+    import childScope.*
 
     // Lower the parent-scoped database into the child scope
     val dbInChild = childScope.lower(db)
