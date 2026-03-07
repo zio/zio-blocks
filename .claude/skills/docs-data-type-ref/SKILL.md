@@ -385,7 +385,30 @@ object IntoSchemaEvolutionExample extends App {
 }
 ```
 
-## Step 4: Integrate
+## Step 4: Lint Check (Mandatory Before Integration)
+
+After creating all example files, ensure all Scala files pass the CI formatting gate:
+
+```bash
+sbt fmt
+```
+
+If any files were reformatted, commit the changes immediately:
+
+```bash
+git add -A
+git commit -m "docs(<type>): apply scalafmt to examples"
+```
+
+Verify the CI lint gate locally:
+
+```bash
+sbt check
+```
+
+**Success criterion:** zero formatting violations reported.
+
+## Step 5: Integrate
 
 See the **`docs-integrate`** skill for the complete integration checklist (sidebars.js, index.md,
 cross-references, link verification).
@@ -393,7 +416,7 @@ cross-references, link verification).
 Additional note for reference pages: if creating a new file, place it in the appropriate
 `docs/reference/` subdirectory based on where it logically belongs.
 
-## Step 5: Review and Verify Compilation
+## Step 6: Review and Verify Compilation
 
 After writing, re-read the document and verify:
 - All method signatures match the actual source code

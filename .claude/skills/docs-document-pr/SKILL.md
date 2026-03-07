@@ -272,6 +272,33 @@ Once documentation is written, tell the user:
 
 ---
 
+## Phase 6: Verify Lint (If Examples Created)
+
+If documentation involved creating or modifying `.scala` example files in `schema-examples/`, verify that all Scala code passes the CI formatting gate before reporting completion:
+
+```bash
+sbt fmt
+```
+
+If any files were reformatted, commit the changes:
+
+```bash
+git add -A
+git commit -m "docs(<topic>): apply scalafmt to examples"
+```
+
+Then verify the CI lint gate locally:
+
+```bash
+sbt check
+```
+
+**Success criterion:** zero formatting violations reported.
+
+**If no `.scala` files were created or modified**, skip this phase.
+
+---
+
 ## Implementation Checklist
 
 When you invoke this skill:
@@ -285,6 +312,7 @@ When you invoke this skill:
 - [ ] **Phase 3c:** If subsection → manually edit existing page, consult `docs-writing-style` and `docs-mdoc-conventions` skills
 - [ ] **Phase 4:** If new page → invoke `docs-integrate` skill to update sidebar
 - [ ] **Phase 5:** Report findings and file paths to user
+- [ ] **Phase 6:** If `.scala` examples were created, run `sbt fmt` and `sbt check` to verify lint compliance
 
 ---
 
