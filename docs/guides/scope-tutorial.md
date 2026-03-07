@@ -523,9 +523,10 @@ class ConnectionPool extends AutoCloseable {
 
 // Simulate a request handler in an async framework
 case class RequestContext(id: Int) {
-  var connection: Option[String] = None
+  var connection: String = ""
 
-  def process(): Unit = {
+  def setConnection(c: String): Unit = {
+    connection = c
     println(s"Processing request ${id}, connection: $connection")
   }
 }
@@ -542,8 +543,7 @@ try {
   val pool = allocate(Resource(new ConnectionPool()))
 
   $(pool) { p =>
-    request.connection = Some(p)
-    request.process()
+    request.setConnection(p)
   }
 } finally {
   // Close the scope explicitly when done, regardless of lexical position
