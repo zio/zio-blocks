@@ -17,7 +17,7 @@ Nested resources make this worse. If you're reading a config file and then openi
 
 Consider a typical `try/finally` pattern in Scala:
 
-```scala
+```scala mdoc:compile-only
 try {
   val connection = openConnection()
   try {
@@ -48,7 +48,7 @@ Scope builds on the concept of `Scope.global`—the root scope that outlives you
 
 Here's a database connection that prints messages when opening and closing:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Database extends AutoCloseable {
@@ -84,7 +84,7 @@ When the scope exits, `database.close()` runs automatically, printing `"Database
 
 With multiple resources, finalizers run in LIFO order (last allocated, first closed):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -114,7 +114,7 @@ To understand Scope, you need to understand `$[A]`. It is a marker type that say
 
 Every scope instance has its own unique `$` type. Two different scopes have incompatible `$` types, so you cannot accidentally mix them at the type level:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Database extends AutoCloseable {
@@ -135,7 +135,7 @@ class Database extends AutoCloseable {
 
 To use a resource, apply the `$(value)` operator (it's a macro) with a single-argument block. The parameter must be used as the receiver of all operations:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Logger extends AutoCloseable {
@@ -162,7 +162,7 @@ Scope.global.scoped { scope =>
 
 The `$` operator automatically unwraps the result if it is an `Unscoped[B]` type. We'll cover `Unscoped` in detail in Section 5, but for now, know that primitives like `Int`, `String`, and `Unit` are always `Unscoped`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Calculator extends AutoCloseable {
@@ -192,7 +192,7 @@ There are several ways to construct a `Resource`:
 
 **`Resource(value: => A)`** — The simplest form. Wraps a by-name value. If the value is `AutoCloseable`, its `close()` method is automatically registered:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -213,7 +213,7 @@ Scope.global.scoped { scope =>
 
 **`Resource.acquireRelease(acquire)(release)`** — Explicit lifecycle control. Useful when cleanup is not a simple method call:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Connection(id: Int) {
@@ -239,7 +239,7 @@ Scope.global.scoped { scope =>
 
 **`Resource.fromAutoCloseable(thunk)`** — Explicit wrapper for `AutoCloseable` subtypes. Type-safe and clear:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 import java.io._
 
@@ -258,7 +258,7 @@ Scope.global.scoped { scope =>
 
 Resources compose: you can transform them with `map`, combine them with `zip`, or sequence them with `flatMap`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Database(url: String) extends AutoCloseable {
@@ -298,7 +298,7 @@ When you exit a `scoped { }` block, the scope closes and all resources are final
 
 `Unscoped[A]` is a typeclass that marks types as safe to return from a scoped block. It means "this type contains no scope-bound resources; it is pure data." The type system only allows returning a value if it has an `Unscoped` instance:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Config(host: String, port: Int)
@@ -313,7 +313,7 @@ Scope.global.scoped { scope =>
 
 Built-in `Unscoped` instances include primitives (`Int`, `String`, `Boolean`), collections (`List[A]`, `Map[K, V]`), and common library types (`UUID`, `java.time.LocalDate`). If you define a case class with no resource fields, it automatically gets an `Unscoped` instance:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Result(count: Int, message: String)
@@ -329,7 +329,7 @@ Scope.global.scoped { scope =>
 
 If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. In Scala 3, use the `derives` clause:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class CustomData(x: Int, y: String) derives Unscoped
@@ -342,7 +342,7 @@ Scope.global.scoped { scope =>
 
 Alternatively, define it explicitly using a `given`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class CustomData(x: Int, y: String)
@@ -357,7 +357,7 @@ Scope.global.scoped { scope =>
 
 If you try to return a scoped value without an `Unscoped` instance, you get a compile error:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -377,7 +377,7 @@ This compile-time barrier prevents entire classes of resource-lifetime bugs—yo
 
 Sometimes you need to register cleanup that is not a simple resource `close()`. The `defer` operator lets you register arbitrary cleanup actions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Transaction(id: Int) {
@@ -404,7 +404,7 @@ Scope.global.scoped { scope =>
 
 `scope.defer()` returns a `DeferHandle` that lets you cancel the finalizer before it runs:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Transaction(id: Int) {
@@ -434,7 +434,7 @@ Scope.global.scoped { scope =>
 
 Finalizers run in **LIFO order** (last registered, first executed) and are guaranteed to run even if the scoped block throws an exception. If multiple finalizers throw, they are collected:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 Scope.global.scoped { scope =>
@@ -458,7 +458,7 @@ Scopes form a tree: each scope can create child scopes via `scope.scoped { }`. C
 
 But child scopes have a different `$[A]` type than their parent, so a parent-scoped value cannot be directly used in a child. That's where `lower` comes in. `Scope#lower` re-tags a parent-scoped value into a child scope, which is safe because the parent always outlives the child:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Database(name: String) extends AutoCloseable {
@@ -513,7 +513,7 @@ The `scoped { }` syntax ties resource lifetime to a lexical block. But sometimes
 
 Child scopes created via `scoped { }` are owned by the thread that creates them and must close within the creating thread. But `Scope.global.open()` creates an unowned scope that can be closed from any thread. This is useful for bridging structured scope-based resource management with callbacks or cross-thread communication:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class ConnectionPool extends AutoCloseable {
@@ -561,7 +561,7 @@ Thread ownership is enforced for child scopes created with `scoped { }` but not 
 
 When multiple parts of your application need the same heavyweight resource (like a database connection pool), you want to create it once and destroy it only when the last user is done. `Resource.shared` provides reference-counted sharing:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class ConnectionPool(id: Int) extends AutoCloseable {
@@ -609,7 +609,7 @@ Applications often have many services with interdependencies. Manual wiring is e
 
 `Wire` and `Resource.from` provide compile-time dependency injection. Wires are builders that describe how to construct instances, and `Resource.from` resolves the entire dependency graph:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class DbConfig(url: String)
@@ -655,7 +655,7 @@ On the JVM, Scope enforces a structured concurrency guarantee: each `Scope.Child
 
 You can check ownership with `Scope#isOwner`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 Scope.global.scoped { scope =>
@@ -669,7 +669,7 @@ Scope.global.scoped { scope =>
 
 If you try to use a child scope from a different thread, operations like `allocate`, `defer`, and `$(value)()` throw an `IllegalStateException`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 import scala.concurrent.{Future, ExecutionContext}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -706,7 +706,7 @@ This section lists the most common runtime and compile errors, explains what cau
 
 **`IllegalStateException: Scope is closed`** when calling `allocate`, `defer`, `$`, or `open` on a closed scope:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Database extends AutoCloseable {
@@ -728,7 +728,7 @@ Scope.global.scoped { scope =>
 
 **`IllegalStateException: Thread ownership violation`** when calling operations on a child scope from a different thread:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -751,7 +751,7 @@ Future {
 
 **No `Unscoped` instance for type `T`** when trying to return a value from `scoped`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -769,7 +769,7 @@ class Connection extends AutoCloseable {
 
 **Cannot call method directly on `$[T]`**:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 class Logger extends AutoCloseable {
@@ -789,7 +789,7 @@ class Logger extends AutoCloseable {
 
 **`Wire` cannot resolve dependency** when wiring fails due to missing constructor arguments:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Database(url: String) extends AutoCloseable {
@@ -802,7 +802,7 @@ case class Database(url: String) extends AutoCloseable {
 
 **Fix:** Provide a wire for every required dependency:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 
 case class Database(url: String) extends AutoCloseable {
