@@ -69,15 +69,15 @@ final class Database extends AutoCloseable:
   println(out)
 ```
 
-Key points:
+What's happening in this code:
 
-- `allocate(...)` returns a **scoped value**: `scope.$[Database]` (or `$[Database]` after `import scope.*`).
-- You **cannot** call `db.query(...)` directly on `$[Database]`.
-- You use the `$` access operator: `$(db)(...)` (or `(scope $ db)(...)` without the import).
-- The `scoped` block returns a plain `String` because `String: Unscoped`.
-- Finalizers run when the block exits, in **LIFO** order.
+**Allocating resources in a scope.** When you call `Resource.fromAutoCloseable(new Database).allocate`, you're acquiring a database connection. The `allocate` method returns a **scoped value** of type `scope.$[Database]`—notice the `$` wrapper. This type is unique to the `scope` instance. You can import the scope to use the short form `$[Database]`.
 
-[//]: # (Instead of the above key points, consider a more narrative explanation of the code, walking through each part and explaining how it demonstrates the core concepts of Scope. The key points are concise but might be too terse for newcomers.)
+**The `$` operator restricts access.** You cannot call `db.query(...)` directly on `$[Database]` because the methods are hidden at the type level. Instead, you use the `$` access operator: `$(db)(f)`, which takes a lambda. The lambda's parameter must be used only as a receiver (for method/field access), preventing accidental capture or escape.
+
+**Safe return from scoped.** The `scoped` block returns a plain `String` (the result of `_.query("SELECT 1")`). This is safe because `String` is marked as `Unscoped`—a typeclass that says "this type is pure data, safe to leave a scope." If you tried to return `db` instead, the compiler would error.
+
+**LIFO cleanup.** When the `scoped` block exits (normally or via exception), all finalizers run in reverse order. The database's `close()` method was registered automatically because `Database` extends `AutoCloseable`. So cleanup happens at the right time, in the right order, even if an exception occurred.
 
 ---
 
