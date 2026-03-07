@@ -1,6 +1,7 @@
 ---
 name: docs-integrate
 description: Shared integration checklist for new ZIO Blocks documentation pages. Include after writing any new reference page or how-to guide to ensure it is wired into the site navigation.
+allowed-tools: Read, Edit, Glob, Grep, Bash(git:*)
 ---
 
 # Documentation Integration Checklist
