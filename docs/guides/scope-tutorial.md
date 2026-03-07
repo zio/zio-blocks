@@ -534,20 +534,27 @@ case class RequestContext(id: Int) {
 // Using open() to manage lifetime explicitly, decoupled from lexical scope
 val request = RequestContext(1)
 
-// Open a scope without binding it to a lexical block
-val requestScope = Scope.global.open()
+Scope.global.scoped { scope =>
+  import scope.*
 
-try {
-  import requestScope.*
+  // open() creates an unowned scope that can be closed explicitly
+  $(open()) { handle =>
+    val requestScope = handle.scope
 
-  val pool = allocate(Resource(new ConnectionPool()))
+    // Use the scope to allocate and manage the resource
+    requestScope.scoped { innerScope =>
+      import innerScope.*
 
-  $(pool) { p =>
-    request.setConnection(p)
+      val pool = allocate(Resource(new ConnectionPool()))
+
+      $(pool) { p =>
+        request.setConnection(p)
+      }
+    }
+
+    // Close the open scope explicitly
+    handle.close()
   }
-} finally {
-  // Close the scope explicitly when done, regardless of lexical position
-  requestScope.close()
 }
 ```
 
