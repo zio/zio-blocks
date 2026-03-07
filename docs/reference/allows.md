@@ -101,22 +101,17 @@ All grammar nodes extend `Allows.Structural`.
 | `Primitive.UUID` | `java.util.UUID` only |
 | `Primitive.Currency` | `java.util.Currency` only |
 | `Primitive.Instant` / `LocalDate` / `LocalDateTime` / … | Each specific `java.time.*` type |
+| | |
 | `Record[A]` | A case class / product type whose every field satisfies `A`. Vacuously true for zero-field records. Sealed traits and enums are **automatically unwrapped**: each case is checked individually, so no `Variant` node is needed. |
 | `Sequence[A]` | Any collection (`List`, `Vector`, `Set`, `Array`, `Chunk`, …) whose element type satisfies `A` |
-| `Sequence.List[A]` | `scala.collection.immutable.List` only, element type satisfies `A` |
-| `Sequence.Vector[A]` | `scala.collection.immutable.Vector` only, element type satisfies `A` |
-| `Sequence.Set[A]` | `scala.collection.immutable.Set` only, element type satisfies `A` |
-| `Sequence.Array[A]` | `scala.Array` only, element type satisfies `A` |
-| `Sequence.Chunk[A]` | `zio.blocks.chunk.Chunk` only, element type satisfies `A` |
-| `IsType[A]` | Exact nominal type match: satisfied only when the checked type is exactly `A` (`=:=`) |
 | `Map[K, V]` | `Map`, `HashMap`, … whose key satisfies `K` and value satisfies `V` |
 | `Optional[A]` | `Option[X]` where the inner type `X` satisfies `A` |
 | `Wrapped[A]` | A ZIO Prelude `Newtype`/`Subtype` wrapper whose underlying type satisfies `A` |
-| `Dynamic` | `DynamicValue` — the schema-less escape hatch |
+| | |
 | `Self` | Recursive self-reference back to the entire enclosing `Allows[A, S]` grammar |
+| `Dynamic` | `DynamicValue` — the schema-less escape hatch |
+| `IsType[A]` | Exact nominal type match: satisfied only when the checked type is exactly `A` (`=:=`) |
 | `` `\|` `` | Union of two grammar nodes: `A \| B`. In Scala 2 write `` A `\|` B `` in infix position. |
-
-[//]: # (Please reconsider the presentation of the grammar nodes - is it required to list them? if so, should we list all of them? Why it is good to show them in documentation? then decide how what to include/not include here)
 
 Every specific `Primitive.Xxx` node also satisfies the catch-all `Primitive`. This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
 
