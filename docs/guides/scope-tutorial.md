@@ -357,7 +357,7 @@ Scope.global.scoped { scope =>
 
 If you try to return a scoped value without an `Unscoped` instance, you get a compile error:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -706,7 +706,7 @@ This section lists the most common runtime and compile errors, explains what cau
 
 **`IllegalStateException: Scope is closed`** when calling `allocate`, `defer`, `$`, or `open` on a closed scope:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 class Database extends AutoCloseable {
@@ -728,7 +728,7 @@ Scope.global.scoped { scope =>
 
 **`IllegalStateException: Thread ownership violation`** when calling operations on a child scope from a different thread:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -751,7 +751,7 @@ Future {
 
 **No `Unscoped` instance for type `T`** when trying to return a value from `scoped`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 class Connection extends AutoCloseable {
@@ -769,7 +769,7 @@ class Connection extends AutoCloseable {
 
 **Cannot call method directly on `$[T]`**:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 class Logger extends AutoCloseable {
@@ -789,7 +789,7 @@ class Logger extends AutoCloseable {
 
 **`Wire` cannot resolve dependency** when wiring fails due to missing constructor arguments:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 case class Database(url: String) extends AutoCloseable {
