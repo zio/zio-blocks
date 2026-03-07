@@ -53,7 +53,7 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
     scope.scoped { child =>
       import child._
       println(s"[Main] Created child scope on thread: $currentThread")
-      println(s"[Main] Child scope isOwner: ${child.isOwner} (true for any thread in global context)")
+      println(s"[Main] Child scope isOwner: ${child.isOwner} (true only for the creating thread)")
 
       val res: $[ThreadAwareResource] =
         allocate(Resource(new ThreadAwareResource("SingleThreadResource")))
