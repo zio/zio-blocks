@@ -545,16 +545,7 @@ Scopes enforce **thread affinity** to prevent cross-thread scope misuse. The thr
 Calling `scoped` on a `Scope.Child` from the wrong thread throws `IllegalStateException`. The message names both the current thread and the owning thread:
 
 ```text
-── Scope Error ─────────────────────────────────────────────────────────────────
-
-  Cannot create child scope: current thread does not own this scope.
-
-  Owner thread:   main
-  Current thread: pool-1-thread-1
-
-  ...
-
-────────────────────────────────────────────────────────────────────────────────
+Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
 ```
 
 This check runs *before* the closed-scope check, so even a closed scope on the wrong thread reports an ownership error.
