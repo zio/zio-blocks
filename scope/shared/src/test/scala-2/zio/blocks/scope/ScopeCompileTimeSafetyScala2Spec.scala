@@ -1,7 +1,7 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.test.Assertion.{ containsString, isLeft }
+import zio.test.Assertion.{containsString, isLeft}
 
 /**
  * Scala 2-only compile-time safety tests.

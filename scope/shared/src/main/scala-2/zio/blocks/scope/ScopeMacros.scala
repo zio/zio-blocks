@@ -55,7 +55,9 @@ private[scope] object ScopeMacros {
   def use3Impl(c: whitebox.Context)(sa1: c.Tree, sa2: c.Tree, sa3: c.Tree)(f: c.Tree): c.Tree =
     useNImpl(c)(List(sa1, sa2, sa3), f)
 
-  /** N=4: macro implementation for Scope.$[A1,A2,A3,A4,B](sa1,sa2,sa3,sa4)(f). */
+  /**
+   * N=4: macro implementation for Scope.$[A1,A2,A3,A4,B](sa1,sa2,sa3,sa4)(f).
+   */
   def use4Impl(c: whitebox.Context)(sa1: c.Tree, sa2: c.Tree, sa3: c.Tree, sa4: c.Tree)(
     f: c.Tree
   ): c.Tree =
@@ -112,11 +114,11 @@ private[scope] object ScopeMacros {
       case Typed(Function(params, body), _) =>
         (params.map(_.symbol), body)
       case _ =>
-      c.abort(
-        f.pos,
-        s"$$ requires a lambda literal with $n parameter(s), e.g. $$(x)(a => a.method()). " +
-          "Method references and variables are not supported."
-      )
+        c.abort(
+          f.pos,
+          s"$$ requires a lambda literal with $n parameter(s), e.g. $$(x)(a => a.method()). " +
+            "Method references and variables are not supported."
+        )
     }
 
     if (paramSymbols.length != n) {
@@ -165,8 +167,9 @@ private[scope] object ScopeMacros {
    * method-receiver position (qualifier of a Select). All other uses are
    * compile-time errors.
    *
-   * Note: Scala 2's catch-all `case tree => tree.children.foreach(check)` safely
-   * traverses While, Try, Return, and other nodes that don't have explicit cases.
+   * Note: Scala 2's catch-all `case tree => tree.children.foreach(check)`
+   * safely traverses While, Try, Return, and other nodes that don't have
+   * explicit cases.
    */
   private def validateBody(c: whitebox.Context)(
     tree: c.Tree,
@@ -221,7 +224,7 @@ private[scope] object ScopeMacros {
 
       // ── Allowed: param in receiver position of a Select ──────────────────
       case Select(qualifier, _) if isParamRef(qualifier) =>
-        // valid — param used as receiver
+      // valid — param used as receiver
 
       // ── Rejected: bare param reference ───────────────────────────────────
       case ident @ Ident(_) if paramInfos.contains(ident.symbol) =>
@@ -307,7 +310,7 @@ private[scope] object ScopeMacros {
       case Typed(expr, _) =>
         check(expr)
 
-      case New(_) => ()
+      case New(_)     => ()
       case _: Literal => ()
       case _: Ident   => () // non-param idents
       case _: This    => ()
@@ -321,8 +324,8 @@ private[scope] object ScopeMacros {
   }
 
   /**
-   * Deep traversal rejecting any reference to a param symbol.
-   * Used for nested lambda bodies where no use of outer params is permitted.
+   * Deep traversal rejecting any reference to a param symbol. Used for nested
+   * lambda bodies where no use of outer params is permitted.
    *
    * Uses .children as catch-all so While/Try/Return/etc. are all covered.
    */
