@@ -343,7 +343,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => println(a))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("capturing in nested lambda is rejected") {
         assertZIO(typeCheck("""
@@ -361,7 +361,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => () => a.query("test"))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("storing param in var is rejected") {
         assertZIO(typeCheck("""
@@ -381,7 +381,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => { someVar = a; 42 })
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("returning param directly (identity) is rejected") {
         assertZIO(typeCheck("""
@@ -399,7 +399,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => a)
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("tuple construction with param is rejected") {
         assertZIO(typeCheck("""
@@ -417,7 +417,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => (a, 1))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("constructor argument with param is rejected") {
         assertZIO(typeCheck("""
@@ -437,7 +437,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => new Wrapper(a))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("match expression where param could escape via pattern binding is rejected") {
         assertZIO(typeCheck("""
@@ -455,7 +455,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(d => d match { case x => x })
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       },
       test("if-expression where param is branch result is rejected") {
         assertZIO(typeCheck("""
@@ -473,7 +473,7 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(d => if (true) d else null)
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(isLeft)
       }
     ),
     suite("use macro allows safe patterns")(

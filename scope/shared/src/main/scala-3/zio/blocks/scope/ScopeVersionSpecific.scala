@@ -68,8 +68,22 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     result
   }
 
+  // ── N-ary $ operator ────────────────────────────────────────────────────
+  //
+  // N=1: infix — use `(scope $ sa)(f)` or `$(sa)(f)` after `import scope.*`
+  // N≥2: not infix — use `$(sa1, sa2)(f)` after `import scope.*`
+  //       (infix requires exactly one operand)
+  // N>5: compose — `$(sa1)(v1 => $(sa2)(v2 => ...))`
+  //
+  // On Scope.global, type $[+A] = A, so the overloads accept plain values.
+  // This is a pre-existing property of the design (zero-cost, no phantom types
+  // on global) and is unchanged from the unary case.
+  //
+  // Coverage note: these methods live under scala-3/ and are excluded from the
+  // statement/branch coverage gate. The test suite is the sole quality gate.
+
   /**
-   * Macro-enforced access to a scoped value.
+   * Macro-enforced access to a scoped value (N=1).
    *
    * Unwraps the scoped value, applies the function, and returns the result. If
    * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
@@ -120,6 +134,65 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
         result.asInstanceOf[$[B]]
     }
   }
+
+  /**
+   * Macro-enforced access to two scoped values simultaneously (N=2).
+   *
+   * Both scoped values are unwrapped and the lambda is applied. The lambda may
+   * call methods on either parameter, and may feed the result of one as an
+   * argument to a method of the other (e.g., `d1.method(d2.result())`). Direct
+   * passing of either parameter as a bare argument is rejected at compile time.
+   *
+   * @example
+   *   {{{
+   *   $(db, cache)((d, c) => d.query(c.key()))
+   *   $(db, cache)((d, c) => d.query("x") + c.get("y"))
+   *   }}}
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B) =
+    ${ UseMacros.applyN2[A1, A2, B]('self, 'sa1, 'sa2, 'f) }
+
+  /**
+   * Macro-enforced access to three scoped values simultaneously (N=3).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(
+    inline f: (A1, A2, A3) => B
+  ) = ${ UseMacros.applyN3[A1, A2, A3, B]('self, 'sa1, 'sa2, 'sa3, 'f) }
+
+  /**
+   * Macro-enforced access to four scoped values simultaneously (N=4).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, A4, B](
+    sa1: $[A1],
+    sa2: $[A2],
+    sa3: $[A3],
+    sa4: $[A4]
+  )(inline f: (A1, A2, A3, A4) => B) =
+    ${ UseMacros.applyN4[A1, A2, A3, A4, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'f) }
+
+  /**
+   * Macro-enforced access to five scoped values simultaneously (N=5).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, A4, A5, B](
+    sa1: $[A1],
+    sa2: $[A2],
+    sa3: $[A3],
+    sa4: $[A4],
+    sa5: $[A5]
+  )(inline f: (A1, A2, A3, A4, A5) => B) =
+    ${ UseMacros.applyN5[A1, A2, A3, A4, A5, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'sa5, 'f) }
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

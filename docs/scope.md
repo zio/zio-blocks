@@ -153,6 +153,58 @@ Scope.global.scoped { scope =>
 }
 ```
 
+##### N-ary `$`: accessing multiple scoped values at once
+
+When a result depends on **two or more** scoped values simultaneously, use the N-ary overloads (`N = 2..5`):
+
+```scala
+$(sa1, sa2)((v1, v2) => v1.method(v2.result()))
+$(sa1, sa2, sa3)((v1, v2, v3) => v1.query(v2.key()) + v3.tag())
+```
+
+The same receiver-only grammar applies to every parameter: each `vi` may only appear as a method receiver (e.g., `vi.method()`). Feeding the *result* of one parameter to a method of another is permitted:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope.*
+  val db:    $[Database]   = Resource.from[Database].allocate
+  val cache: $[Cache]      = Resource.from[Cache].allocate
+
+  // d1 and d2 are both receivers; d2.key() produces a plain String arg
+  val result: String = $(db, cache)((d1, d2) => d1.query(d2.key()))
+}
+```
+
+Rejected at compile time (same rules as N=1, applied to each parameter independently):
+
+```scala
+$(db, cache)((d1, d2) => d2)              // d2 returned directly
+$(db, cache)((d1, d2) => store(d1))       // d1 passed as argument
+$(db, cache)((d1, d2) => d1.method(d2))   // d2 as bare arg (not a receiver)
+$(db, cache)((d1, d2) => () => d2.query()) // d2 captured in closure
+```
+
+The error messages name the offending parameter:
+
+```
+Parameter 2 ('d2') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., d2.method()).
+```
+
+**Infix syntax** (`scope $ sa`) is only available for N=1. For N≥2, use unqualified syntax after `import scope.*`:
+
+```scala
+$(db, cache)((d, c) => d.query(c.key()))   // ✓ unqualified
+```
+
+**For N>5**, extract each value in sequence (all results are `Unscoped` strings/values and can be freely combined):
+
+```scala
+val q1 = $(db1)(_.query("a"))
+val q2 = $(db2)(_.query("b"))
+q1 + q2
+```
+
 ---
 
 ### 3) `Resource[A]`: acquisition + finalization
@@ -931,17 +983,33 @@ This module produces two kinds of compile-time feedback:
 
 ### Unsafe use inside `$`
 
-Typical messages include:
+All messages name the offending parameter by its 1-based index and source name, and end with the receiver-only reminder. Typical messages:
 
 ```
-Unsafe use of scoped value: the lambda parameter cannot be passed as an argument to a function or method.
+Parameter 1 ('d') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., d.method()).
 ```
 
-Other variants:
+```
+Parameter 1 ('d') must only be used as a method receiver.
+It cannot be returned, stored, passed as an argument, or captured.
+Scoped values may only be used as a method receiver (e.g., d.method()).
+```
 
-- `Unsafe use of scoped value: the lambda parameter cannot be captured in a nested lambda or closure.`
-- `Unsafe use of scoped value: the lambda parameter must only be used as a method receiver ...`
-- `$ requires a lambda literal: (scope $ x)(a => a.method()). Method references and variables are not supported.`
+```
+Parameter 1 ('d') cannot be captured in a nested lambda, def, or anonymous class.
+Scoped values may only be used as a method receiver (e.g., d.method()).
+```
+
+```
+Parameter 2 ('cache') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., cache.method()).
+```
+
+```
+$ requires a lambda literal, e.g. $(x)(a => a.method()).
+Method references and variables are not supported.
+```
 
 ### Not a class (`Wire.shared/unique` on a trait / abstract)
 
@@ -1155,7 +1223,14 @@ def scoped[A](f: (child: Scope.Child[this.type]) => A)(using Unscoped[A]): A
 def allocate[A](resource: Resource[A]): $[A]
 def allocate[A <: AutoCloseable](value: => A): $[A]
 
+// N=1 (infix available: `scope $ sa`)
 infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
+
+// N=2..5 (unqualified syntax: `$(sa1, sa2)(f)` after `import scope.*`)
+transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B): B | $[B]
+transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(inline f: (A1, A2, A3) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, B](...)(inline f: (A1, A2, A3, A4) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, A5, B](...)(inline f: (A1, A2, A3, A4, A5) => B): B | $[B]
 
 def lower[A](value: parent.$[A]): $[A]
 
@@ -1168,8 +1243,10 @@ inline def leak[A](inline sa: $[A]): A
 
 Notes:
 
-- `$` requires a **lambda literal** and enforces safe receiver-only usage.
+- `$` (all arities) requires a **lambda literal** and enforces safe receiver-only usage at compile time.
 - `$` returns `B` if `Unscoped[B]` exists; otherwise returns `$[B]`.
+- N=1 is `infix`; N≥2 are not — use unqualified syntax after `import scope.*`.
+- For N>5, call `$` once per resource and combine the resulting plain (Unscoped) values.
 - If the scope is closed, `$`, `allocate`, and `open` throw `IllegalStateException` with a detailed error message. `defer` and `lower` are unaffected.
 
 Syntax enrichments available after `import scope.*` inside a scope:
@@ -1333,7 +1410,9 @@ object Unscoped:
 ## Practical guidance (summary)
 
 - Allocate in a scope: `resource.allocate` (inside `Scope.global.scoped { scope => import scope.* ... }`)
-- Use scoped values only through: `(scope $ value)(...)`
+- Access one scoped value: `$(sa)(v => v.method())` — parameter can only be a receiver
+- Access two or more scoped values simultaneously: `$(sa1, sa2)((v1, v2) => v1.method(v2.result()))` (N=2..5)
+- For N>5: call `$` once per resource, combine the plain results
 - Return only `Unscoped` data from `scoped` blocks
 - Use `lower` to use parent values inside a child
 - If `$` returns `$[Resource[A]]`, call `.allocate` on it (scoped resource chaining)

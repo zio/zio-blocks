@@ -60,30 +60,67 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     result
   }
 
+  // ── N-ary $ operator ────────────────────────────────────────────────────
+  //
+  // N=1: use `(scope $ sa)(f)` or `$(sa)(f)` after `import scope._`
+  // N≥2: use `$(sa1, sa2)(f)` after `import scope._`
+  //       (infix syntax is not available for N≥2)
+  // N>5: compose — `$(sa1)(v1 => $(sa2)(v2 => ...))`
+  //
+  // All are whitebox macros: the declared return type `Any` is refined at
+  // expansion time to B (when Unscoped[B] exists) or $[B] (otherwise).
+
   /**
-   * Macro-enforced access to a scoped value.
-   *
-   * Unwraps the scoped value, applies the function, and returns the result. If
-   * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
-   * (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`. The macro
-   * verifies at compile time that the lambda parameter is only used in
-   * method-receiver position (e.g., `x.method()`), preventing resource leaks.
+   * Macro-enforced access to a scoped value (N=1).
    *
    * @param sa
    *   the scoped value to access
    * @param f
    *   a lambda whose parameter is only used as a method receiver
-   * @tparam A
-   *   the input value type
-   * @tparam B
-   *   the output value type
    * @return
-   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
   def $[A, B](sa: $[A])(f: A => B): Any = macro ScopeMacros.useImpl
+
+  /**
+   * Macro-enforced access to two scoped values simultaneously (N=2).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(f: (A1, A2) => B): Any =
+    macro ScopeMacros.use2Impl
+
+  /**
+   * Macro-enforced access to three scoped values simultaneously (N=3).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(f: (A1, A2, A3) => B): Any =
+    macro ScopeMacros.use3Impl
+
+  /**
+   * Macro-enforced access to four scoped values simultaneously (N=4).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, A4, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4])(
+    f: (A1, A2, A3, A4) => B
+  ): Any = macro ScopeMacros.use4Impl
+
+  /**
+   * Macro-enforced access to five scoped values simultaneously (N=5).
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, A4, A5, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4], sa5: $[A5])(
+    f: (A1, A2, A3, A4, A5) => B
+  ): Any = macro ScopeMacros.use5Impl
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

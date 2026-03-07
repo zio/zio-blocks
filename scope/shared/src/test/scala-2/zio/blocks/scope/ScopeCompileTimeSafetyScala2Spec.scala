@@ -1,13 +1,13 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.test.Assertion.{containsString, isLeft}
+import zio.test.Assertion.{ containsString, isLeft }
 
 /**
  * Scala 2-only compile-time safety tests.
  *
  * Tests that verify the Scala 2 specific compile error behavior. Cross-platform
- * tests live in ScopeSpec.
+ * tests live in ScopeSpec and NArySpec.
  */
 object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
 
@@ -28,6 +28,27 @@ object ScopeCompileTimeSafetyScala2Spec extends ZIOSpecDefault {
           () => "leaked"
         }
       """))(isLeft(containsString("Unscoped")))
+    },
+    // ── N-ary Scala 2-specific negative tests ──────────────────────────────
+    test("N=2: eta-expanded method reference rejected") {
+      // Passing an eta-expanded method reference must fail — either the macro
+      // rejects it as "not a lambda literal" or catches that the params are
+      // used unsafely (eta-expansion passes them as arguments).
+      assertZIO(typeCheck("""
+        import zio.blocks.scope._
+        class MyDB2 extends AutoCloseable { def query(s: String) = s; def close() = () }
+        class MyCache2 extends AutoCloseable { def key() = "k"; def close() = () }
+
+        def myFn(d: MyDB2, c: MyCache2): String = d.query(c.key())
+
+        Scope.global.scoped { scope =>
+          import scope._
+          val db: $[MyDB2]       = allocate(Resource(new MyDB2))
+          val cache: $[MyCache2] = allocate(Resource(new MyCache2))
+          $(db, cache)(myFn _)
+          ()
+        }
+      """))(isLeft)
     }
   )
 }
