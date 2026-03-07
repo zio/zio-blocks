@@ -43,6 +43,21 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "<version>"
 
 Supported Scala versions: 2.13.x and 3.x.
 
+## Motivation
+
+`Schema[A]` solves the problem of serialization, validation, and schema evolution. Instead of writing separate serializers for each format (JSON, Avro, Protobuf), you define a `Schema` once and derive codecs for all formats from it. Key advantages:
+
+- **Format-agnostic**: One schema, many serialization formats
+- **Type-safe**: Compile-time guarantees about serialization compatibility
+- **Zero-cost abstraction**: Uses registers for primitive types instead of boxing
+- **Composable**: Build schemas from smaller schemas using `Schema.derived`
+- **Serializable metadata**: Attach documentation, examples, and defaults without runtime reflection
+
+Compare with alternatives:
+- **Scala's TypeTag**: Runtime type information only; doesn't provide serialization
+- **Case class parameters**: Lose structural information at runtime
+- **JSON libraries**: Format-specific, require separate code for each format
+
 ## Reflect: Structure vs Binding
 
 The [`Reflect`](./reflect.md) data type represents the structure of Scala types. It is parameterized by `F[_, _]` which allows plugging in different "binding" strategies:
