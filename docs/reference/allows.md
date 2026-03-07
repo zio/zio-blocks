@@ -3,7 +3,7 @@ id: allows
 title: "Allows"
 ---
 
-`Allows[A, S]` is a compile-time capability token that proves, at the call site, that type `A` satisfies the structural grammar `S`.
+`Allows[A, S]` is a compile-time capability token that proves, at the call site, that type `A` satisfies the structural grammar `S`. A capability token is a compile-time phantom proof value — it carries no runtime data and exists solely to pass evidence through the type system that a structural constraint has been satisfied.
 
 `Allows` does **not** require or use `Schema[A]`. It inspects the Scala type structure of `A` directly at compile time, using nothing but the Scala type system. Any `Schema[A]` that appears alongside `Allows` in examples is the library author's own separate constraint — it is not imposed by `Allows` itself.
 
@@ -15,9 +15,14 @@ sealed abstract class Allows[A, S <: Allows.Structural]
 
 The gap `Allows` fills is **structural preconditions** at the call site, at compile time, with precise error messages.
 
+[//]: # (explain what structural preconditions are, and how they differ from runtime checks)
+
 ## Motivation
 
 ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But many generic functions have **structural preconditions** that don't require a schema.
+
+[//]: # (Do not use ZIO Schema 2 as alternative to ZIO Blocks)
+[//]: # (Explain what data-oriented DSLs are, and how they differ from ordinary APIs)
 
 Consider these real-world scenarios:
 
@@ -26,16 +31,22 @@ Consider these real-world scenarios:
 - An event bus expects a sealed trait of flat record cases — violations should be caught before publishing.
 - A JSON document store allows arbitrarily nested records but not `DynamicValue` leaves — the schema validation should be precise.
 
+[//]: # (Explain why json document shouldn't have DynamicValue leaves)
+
 Without `Allows`, these constraints can only be checked at runtime, producing confusing errors deep inside library internals. With `Allows[A, S]`, the constraint is verified at the **call site**, at compile time, with precise, path-aware error messages and concrete fix suggestions.
 
 ## The Upper Bound Semantics
 
 `Allows[A, S]` is an upper bound. A type `A` that uses only a strict subset of what `S` permits also satisfies it — just as `A <: Foo` does not require that `A` uses every method of `Foo`.
 
+[//]: # (Explain why upper bound semantics is the right choice for a grammar constraint and why the Allows[A, S] is an upper bound rather than a lower bound or exact match)
+
 ```scala
 // Allows[UserRow, Record[Primitive | Optional[Primitive]]] is satisfied even if
 // UserRow has no Option fields — the Optional branch is simply never needed.
 ```
+
+[//]: # (The above code blocks doesn't have enough context to be meaningful on its own — consider adding a more complete example showing the upper bound semantics in action)
 
 ## Creating Instances
 
@@ -65,6 +76,8 @@ def toJson[A](doc: A)(implicit ev: Allows[A, Record[Primitive]]): String = ???
 // Or summon at the call site:
 val evidence = implicitly[Allows[Int, Primitive]]
 ```
+
+[//]: # (Please research abot tabbed code blocks: https://docusaurus.io/docs/markdown-features/tabs and plan how to use them to show Scala 2 and Scala 3 examples side by side)
 
 The constraint is checked once, at the call site. If the type `A` does not satisfy `S`, you get a compile-time error with a precise message showing exactly which field violates the grammar.
 
@@ -105,7 +118,11 @@ All grammar nodes extend `Allows.Structural`.
 | `Self` | Recursive self-reference back to the entire enclosing `Allows[A, S]` grammar |
 | `` `\|` `` | Union of two grammar nodes: `A \| B`. In Scala 2 write `` A `\|` B `` in infix position. |
 
+[//]: # (Please reconsider the presentation of the grammar nodes - is it required to list them? if so, should we list all of them? Why it is good to show them in documentation? then decide how what to include/not include here)
+
 Every specific `Primitive.Xxx` node also satisfies the catch-all `Primitive`. This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
+
+[//]: # (The above sentence is a bit technical and may not be clear to all readers — consider adding more context what do you mean by catch-all)
 
 ## Core Operations
 
