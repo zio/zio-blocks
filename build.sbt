@@ -326,7 +326,7 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .dependsOn(`http-model`, schema % "compile->compile;test->test")
+  .dependsOn(`http-model`, schema)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
