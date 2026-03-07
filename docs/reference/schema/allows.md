@@ -30,9 +30,7 @@ Without `Allows`, these constraints can only be checked at runtime, producing co
 
 ## The Upper Bound Semantics
 
-`Allows[A, S]` is an upper bound. A type `A` that uses only a strict subset of what `S` permits also satisfies it — just as `A <: Foo` does not require that `A` uses every method of `Foo`.
-
-[//]: # (Explain why upper bound semantics is the right choice for a grammar constraint and why the Allows[A, S] is an upper bound rather than a lower bound or exact match)
+`Allows[A, S]` is an upper bound. A type `A` that uses only a strict subset of what `S` permits also satisfies it — just as `A <: Foo` does not require that `A` uses every method of `Foo`. Upper bound semantics is the right choice because a lower bound would require using every shape (impractical), exact matching would require naming every shape used (too rigid), whereas upper bound says "your type may use any of these shapes" — a permission, not a mandate.
 
 ```scala
 // Allows[UserRow, Record[Primitive | Optional[Primitive]]] is satisfied even if
