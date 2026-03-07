@@ -17,10 +17,7 @@ The gap `Allows` fills is **structural preconditions** at the call site, at comp
 
 ## Motivation
 
-ZIO Blocks (ZIO Schema 2) gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. But many generic functions have **structural preconditions** that don't require a schema.
-
-[//]: # (Do not use ZIO Schema 2 as alternative to ZIO Blocks)
-[//]: # (Explain what data-oriented DSLs are, and how they differ from ordinary APIs)
+ZIO Blocks gives library authors a powerful way to build data-oriented DSLs. A library can accept `A: Schema` and use the schema at runtime to serialize, deserialize, query, or transform values of `A`. A data-oriented DSL is a generic API built around a data description (Schema) rather than a fixed interface, allowing one function to serialize, validate, or transform any conforming type. Many generic functions have **structural preconditions** that don't require a schema.
 
 Consider these real-world scenarios:
 
