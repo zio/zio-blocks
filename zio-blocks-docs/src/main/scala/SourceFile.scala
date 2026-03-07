@@ -1,30 +1,32 @@
 package docs
 
 import scala.io.Source
+import scala.util.Using
+import scala.util.control.NonFatal
 
 object SourceFile {
 
   def read(path: String, lines: Seq[(Int, Int)]): String = {
-    def readFile(path: String) =
+    def openSource(path: String): Source =
       try {
         Source.fromFile("../" + path)
       } catch {
-        case _: Throwable => Source.fromFile(path)
+        case NonFatal(_) => Source.fromFile(path)
       }
 
-    if (lines.isEmpty) {
-      val content = readFile(path).getLines().mkString("\n")
-      content
-    } else {
-      val chunks = for {
-        (from, to) <- lines
-      } yield readFile(path)
-        .getLines()
-        .toArray[String]
-        .slice(from - 1, to)
-        .mkString("\n")
+    Using.resource(openSource(path)) { source =>
+      val allLines = source.getLines().toVector
+      if (lines.isEmpty) {
+        allLines.mkString("\n")
+      } else {
+        val chunks = for {
+          (from, to) <- lines
+        } yield allLines
+          .slice(from - 1, to)
+          .mkString("\n")
 
-      chunks.mkString("\n\n")
+        chunks.mkString("\n\n")
+      }
     }
   }
 
