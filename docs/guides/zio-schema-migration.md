@@ -735,11 +735,8 @@ dynSchema.conforms(value)         // true
 dynSchema.check(value)            // None (no error)
 ```
 
-:::warning
-ZIO Schema's `Migration` system for schema-to-schema migration (i.e., automatically migrating values from one version of a type to another) is **not yet available** in ZIO Blocks Schema. The `schema.migrate[B](newSchema)` and `schema.coerce[B](newSchema)` methods do not exist. If your application relies on schema migration, you have two options:
-
-1. Implement migration logic manually using `DynamicValue` transformations and `DynamicSchema` for validation.
-2. Wait for schema migration support to be added to ZIO Blocks Schema (it is on the roadmap).
+:::info
+ZIO Blocks Schema provides a [Schema Migration](../reference/schema-migration.md) system: pure, path-based migrations (`Migration[A, B]`, `DynamicMigration`) that are serializable and composable. Use `Migration.newBuilder(sourceSchema, targetSchema)` to add fields, rename, transform, etc. For automatic derivation-based conversion between two types, use [Into](../reference/schema-evolution/into.md) or [As](../reference/schema-evolution/as.md) instead.
 :::
 
 ### Schema Serialization
@@ -1127,7 +1124,7 @@ The following ZIO Schema features do not yet have equivalents in ZIO Blocks Sche
 | Feature | Status |
 |---|---|
 | `Schema.fail` / fail schemas | Not available |
-| `Schema.migrate[B]` / `Schema.coerce[B]` | Not available — schema migration is planned |
+| `Schema.migrate[B]` / `Schema.coerce[B]` | Use [Schema Migration](../reference/schema-migration.md) (`Migration[A, B]`, path-based builder) instead |
 | `MetaSchema` / schema serialization | Partial — `DynamicSchema` covers structural inspection; full schema round-trip is not available |
 | `Fallback[A, B]` schema | Not available |
 | `NonEmptyChunk` / `NonEmptyMap` schemas | Not available — use wrapper types |

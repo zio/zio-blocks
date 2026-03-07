@@ -48,3 +48,7 @@ Typical use cases:
 | Use for bidirectional sync | manual | ✅ |
 
 When in doubt, start with `Into`. Upgrade to `As` only when you need the reverse direction and can satisfy its stricter derivation requirements.
+
+## Schema Migration — Explicit Versioned Transformations
+
+[Schema Migration](../schema-migration.md) provides a **pure, algebraic migration system** for transforming data between schema versions. Unlike `Into`/`As`, migrations are built from explicit, path-based actions (add field, rename, transform) and are fully serializable. Use Migration when you need versioned, inspectable, or registry-stored migration definitions, or when evolving schemas with explicit steps (e.g. add field with default, rename case).
