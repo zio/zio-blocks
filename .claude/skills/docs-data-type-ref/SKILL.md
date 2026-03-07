@@ -292,7 +292,7 @@ the file path shown as the title. The path is relative to the repository root (t
   ```
   ````
 - `showLineNumbers = true` — render with line numbers in the output
-- `comment = false` — suppress the file path title
+- `showTitle = false` — suppress the file path title
 
 ### Compile-Checked Code Blocks with mdoc
 
