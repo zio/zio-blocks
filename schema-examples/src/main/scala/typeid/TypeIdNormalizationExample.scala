@@ -26,7 +26,7 @@ object TypeIdNormalizationExample extends App {
   println("--- Type Aliases ---\n")
 
   // Create TypeIds for the aliases
-  val userIdAlias = TypeId.alias[Long](
+  val userIdAlias = TypeId.alias[UserId](
     name = "UserId",
     owner = Owner.Root,
     typeParams = Nil,
@@ -53,7 +53,7 @@ object TypeIdNormalizationExample extends App {
   println("\n--- Equality with Normalization ---\n")
 
   // Structural equality (not considering aliases)
-  val anotherUserIdAlias = TypeId.alias[Long](
+  val anotherUserIdAlias = TypeId.alias[UserId](
     name = "UserId",
     owner = Owner.Root,
     typeParams = Nil,

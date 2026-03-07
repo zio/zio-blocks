@@ -8,7 +8,7 @@ title: "TypeId"
 The structural type signature is:
 
 ```scala
-case class TypeId[A] {
+sealed trait TypeId[A <: AnyKind] {
   def name: String
   def fullName: String
   def owner: Owner
@@ -899,7 +899,7 @@ object Email {
 
 ### Schema Derivation
 
-The `Deriver` trait receives TypeId for each node in the schema. The key methods that receive TypeId are:
+The `Deriver` trait receives TypeId for each node in the schema. The key methods that receive TypeId are (simplified example):
 
 ```scala
 trait Deriver[TC[_]] {
@@ -915,7 +915,7 @@ trait Deriver[TC[_]] {
 }
 ```
 
-Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code.
+Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code. Note: The actual `Deriver` API includes additional parameters like `binding`, `doc`, and `modifiers` — see the source for the complete signature.
 
 ## Type Normalization
 
