@@ -42,7 +42,7 @@ object SourceFile {
     path: String,
     lines: Seq[(Int, Int)] = Seq.empty,
     showTitle: Boolean = true,
-    showLineNumbers: Boolean = false,
+    showLineNumbers: Boolean = false
   ) = {
     val title     = if (showTitle) s"""title="$path"""" else ""
     val showLines = if (showLineNumbers) "showLineNumbers" else ""

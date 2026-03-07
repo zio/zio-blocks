@@ -26,12 +26,12 @@ object AccountEvent { implicit val schema: Schema[AccountEvent] = Schema.derived
 
 // Nested sealed trait — InventoryEvent has a sub-hierarchy
 sealed trait InventoryEvent
-case class ItemAdded(sku: String, quantity: Int)    extends InventoryEvent
-case class ItemRemoved(sku: String, quantity: Int)  extends InventoryEvent
+case class ItemAdded(sku: String, quantity: Int)   extends InventoryEvent
+case class ItemRemoved(sku: String, quantity: Int) extends InventoryEvent
 
-sealed trait InventoryAlert extends InventoryEvent
-case class LowStock(sku: String, remaining: Int)    extends InventoryAlert
-case class OutOfStock(sku: String)                   extends InventoryAlert
+sealed trait InventoryAlert                      extends InventoryEvent
+case class LowStock(sku: String, remaining: Int) extends InventoryAlert
+case class OutOfStock(sku: String)               extends InventoryAlert
 
 object InventoryEvent { implicit val schema: Schema[InventoryEvent] = Schema.derived }
 
@@ -45,9 +45,11 @@ object EventBus {
 
   type EventShape = Primitive | AOptional[Primitive]
 
-  /** Publish a domain event. All cases of the sealed trait must be flat records. */
+  /**
+   * Publish a domain event. All cases of the sealed trait must be flat records.
+   */
   def publish[A](event: A)(implicit schema: Schema[A], ev: Allows[A, Record[EventShape]]): String = {
-    val dv = schema.toDynamicValue(event)
+    val dv                  = schema.toDynamicValue(event)
     val (typeName, payload) = dv match {
       case DynamicValue.Variant(name, inner) => (name, inner.toJson.toString)
       case _                                 => (schema.reflect.typeId.name, dv.toJson.toString)
@@ -55,12 +57,14 @@ object EventBus {
     s"PUBLISH topic=${schema.reflect.typeId.name} type=$typeName payload=$payload"
   }
 
-  /** Publish events that may contain sequence fields (e.g. batch operations). */
+  /**
+   * Publish events that may contain sequence fields (e.g. batch operations).
+   */
   def publishBatch[A](event: A)(implicit
     schema: Schema[A],
     ev: Allows[A, Record[Primitive | Sequence[Primitive]]]
   ): String = {
-    val dv = schema.toDynamicValue(event)
+    val dv                  = schema.toDynamicValue(event)
     val (typeName, payload) = dv match {
       case DynamicValue.Variant(name, inner) => (name, inner.toJson.toString)
       case _                                 => (schema.reflect.typeId.name, dv.toJson.toString)

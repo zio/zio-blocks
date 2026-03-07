@@ -29,7 +29,7 @@ object CsvSerializer {
   def toCsv[A](rows: Seq[A])(implicit schema: Schema[A], ev: Allows[A, Record[FlatRow]]): String = {
     val reflect = schema.reflect.asRecord.get
     val header  = reflect.fields.map(_.name).mkString(",")
-    val lines = rows.map { row =>
+    val lines   = rows.map { row =>
       val dv = schema.toDynamicValue(row)
       dv match {
         case DynamicValue.Record(fields) =>
@@ -52,7 +52,7 @@ object CsvSerializer {
     case DynamicValue.Null                                    => ""
     case DynamicValue.Variant(tag, inner) if tag == "Some"    => dvToString(inner)
     case DynamicValue.Variant(tag, _) if tag == "None"        => ""
-    case DynamicValue.Record(fields) =>
+    case DynamicValue.Record(fields)                          =>
       fields.headOption.map { case (_, v) => dvToString(v) }.getOrElse("")
     case other => other.toString
   }

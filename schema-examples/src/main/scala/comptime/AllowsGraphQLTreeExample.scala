@@ -40,7 +40,7 @@ object GraphQL {
   /** Generate a simplified GraphQL type definition for a recursive type. */
   def graphqlType[A](implicit schema: Schema[A], ev: Allows[A, Record[TreeShape]]): String = {
     val reflect = schema.reflect.asRecord.get
-    val fields = reflect.fields.map { f =>
+    val fields  = reflect.fields.map { f =>
       s"  ${f.name}: ${gqlType(resolve(f.value), schema.reflect.typeId.name)}"
     }
     s"type ${schema.reflect.typeId.name} {\n${fields.mkString("\n")}\n}"
@@ -54,7 +54,7 @@ object GraphQL {
 
   private def gqlType(r: Reflect.Bound[_], selfName: String): String = r match {
     case _: Reflect.Sequence[_, _, _] => s"[$selfName]"
-    case p: Reflect.Primitive[_, _] =>
+    case p: Reflect.Primitive[_, _]   =>
       p.primitiveType match {
         case PrimitiveType.Int(_)     => "Int"
         case PrimitiveType.Long(_)    => "Int"
@@ -87,17 +87,28 @@ object AllowsGraphQLTreeExample extends App {
   show(GraphQL.graphqlType[FlatNode])
 
   // Show that recursive data actually works at runtime
-  val tree = TreeNode(1, List(
-    TreeNode(2, List(TreeNode(4, Nil), TreeNode(5, Nil))),
-    TreeNode(3, Nil)
-  ))
+  val tree = TreeNode(
+    1,
+    List(
+      TreeNode(2, List(TreeNode(4, Nil), TreeNode(5, Nil))),
+      TreeNode(3, Nil)
+    )
+  )
   show(Schema[TreeNode].toDynamicValue(tree).toJson.toString)
 
-  val nav = NavCategory("Electronics", "electronics", List(
-    NavCategory("Phones", "phones", Nil),
-    NavCategory("Laptops", "laptops", List(
-      NavCategory("Gaming", "gaming", Nil)
-    ))
-  ))
+  val nav = NavCategory(
+    "Electronics",
+    "electronics",
+    List(
+      NavCategory("Phones", "phones", Nil),
+      NavCategory(
+        "Laptops",
+        "laptops",
+        List(
+          NavCategory("Gaming", "gaming", Nil)
+        )
+      )
+    )
+  )
   show(Schema[NavCategory].toDynamicValue(nav).toJson.toString)
 }

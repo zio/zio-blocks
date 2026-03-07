@@ -28,11 +28,11 @@ object Shape { implicit val schema: Schema[Shape] = Schema.derived }
 
 // Nested sealed trait hierarchy — two levels deep
 sealed trait Expr
-sealed trait BinaryOp                                              extends Expr
-case class Add(left: Double, right: Double)                        extends BinaryOp
-case class Multiply(left: Double, right: Double)                   extends BinaryOp
-case class Literal(value: Double)                                  extends Expr
-case object Zero                                                   extends Expr
+sealed trait BinaryOp                            extends Expr
+case class Add(left: Double, right: Double)      extends BinaryOp
+case class Multiply(left: Double, right: Double) extends BinaryOp
+case class Literal(value: Double)                extends Expr
+case object Zero                                 extends Expr
 object Expr { implicit val schema: Schema[Expr] = Schema.derived }
 
 // All-singleton enum (all case objects)
