@@ -310,6 +310,12 @@ Scope.global.scoped { connScope =>
 // Connection closed here
 ```
 
+### Getting Started
+
+New to Scope? Check out the [Scope Tutorial](./guides/scope-tutorial.md) for a comprehensive step-by-step guide that walks you through the concepts, patterns, and real-world examples. The tutorial is designed for newcomers and covers everything from basic resource management to advanced dependency injection.
+
+For detailed API documentation, see the [Scope Reference](./scope.md).
+
 ---
 
 ## Docs
