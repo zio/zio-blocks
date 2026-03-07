@@ -24,9 +24,7 @@ Consider these real-world scenarios:
 - A CSV serializer requires flat records of scalars — nested records should fail at the call site, not deep inside the serializer.
 - An RDBMS layer cannot handle nested records as column values — the error should name the problematic field.
 - An event bus expects a sealed trait of flat record cases — violations should be caught before publishing.
-- A JSON document store allows arbitrarily nested records but not `DynamicValue` leaves — the schema validation should be precise.
-
-[//]: # (Explain why json document shouldn't have DynamicValue leaves)
+- A JSON document store allows arbitrarily nested records but not `DynamicValue` leaves — the schema validation should be precise. DynamicValue is the schema-less escape hatch that can hold arbitrary data — a DynamicValue leaf bypasses compile-time checking entirely, making it impossible for the compiler to enforce any structural grammar.
 
 Without `Allows`, these constraints can only be checked at runtime, producing confusing errors deep inside library internals. With `Allows[A, S]`, the constraint is verified at the **call site**, at compile time, with precise, path-aware error messages and concrete fix suggestions.
 
