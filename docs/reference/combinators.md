@@ -232,7 +232,7 @@ val result: Either[Int, String] = u.separate(42: Int | String)
 
 val result2: Either[Int, String] = u.separate("hello": Int | String)
 // Result: Right("hello")
-
+```
 ### Same-Type Rejection
 
 Union types collapse same types (`A | A` = `A`), making them ambiguous. The separator rejects overlapping types at compile time:

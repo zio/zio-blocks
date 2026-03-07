@@ -55,7 +55,6 @@ const sidebars = {
          "reference/json-patch",
          "reference/json-differ",
          "reference/json-schema",
-         "scope",
          "reference/xml",
          "reference/syntax",
          "reference/media-type",
