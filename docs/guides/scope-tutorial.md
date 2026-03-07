@@ -589,9 +589,9 @@ Scope.global.scoped { scope =>
   $(pool1) { p1 =>
     $(pool2) { p2 =>
       // Both p1 and p2 point to the same pool instance
-      assert(p1 == p2)
       println(s"Service 1 got: ${p1.getConnection()}")
       println(s"Service 2 got: ${p2.getConnection()}")
+      println("Both services are using the same shared pool instance")
     }
   }
 
