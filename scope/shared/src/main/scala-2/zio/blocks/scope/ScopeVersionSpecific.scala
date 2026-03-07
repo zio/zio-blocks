@@ -73,6 +73,10 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to a scoped value (N=1).
    *
+   * @tparam A
+   *   the underlying type of the scoped value
+   * @tparam B
+   *   the result type produced by the lambda
    * @param sa
    *   the scoped value to access
    * @param f
@@ -87,6 +91,31 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to two scoped values simultaneously (N=2).
    *
+   * Both parameters are subject to the receiver-only constraint enforced by the
+   * macro: each may only appear as a method receiver in the lambda body.
+   * Feeding the result of one to a method of the other is permitted.
+   *
+   * @example
+   *   {{{
+   *   scope.$(conn1, conn2) { (c1, c2) =>
+   *     c1.query(c2.key())
+   *   }
+   *   }}}
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -96,6 +125,27 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to three scoped values simultaneously (N=3).
    *
+   * All three parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -105,6 +155,31 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to four scoped values simultaneously (N=4).
    *
+   * All four parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -115,6 +190,35 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   /**
    * Macro-enforced access to five scoped values simultaneously (N=5).
    *
+   * All five parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam A5
+   *   the underlying type of the fifth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param sa5
+   *   the fifth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */

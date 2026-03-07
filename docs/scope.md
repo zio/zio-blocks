@@ -1229,8 +1229,8 @@ infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
 // N=2..5 (unqualified syntax: `$(sa1, sa2)(f)` after `import scope.*`)
 transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B): B | $[B]
 transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(inline f: (A1, A2, A3) => B): B | $[B]
-transparent inline def $[A1, A2, A3, A4, B](...)(inline f: (A1, A2, A3, A4) => B): B | $[B]
-transparent inline def $[A1, A2, A3, A4, A5, B](...)(inline f: (A1, A2, A3, A4, A5) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4])(inline f: (A1, A2, A3, A4) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, A5, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4], sa5: $[A5])(inline f: (A1, A2, A3, A4, A5) => B): B | $[B]
 
 def lower[A](value: parent.$[A]): $[A]
 
