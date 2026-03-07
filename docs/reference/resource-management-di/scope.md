@@ -16,14 +16,12 @@ At runtime the model stays simple:
 
 ## Why Scope?
 
-Most resource bugs in Scala are "escape" bugs:
+Most resource bugs in Scala are "escape" bugs—scenarios where a resource is used outside of its intended lifetime, leading to undefined behavior, crashes, or data corruption:
 
-[//]: # (explain "escape" bugs a bit more: the resource is used outside of its intended lifetime, leading to undefined behavior, crashes, or data corruption)
-
-- storing a connection/stream in a field and using it after it was closed
-- capturing a resource in a closure that outlives a scope
-- passing a resource to code that might retain it
-- mixing values from different lifetimes ("which scope owns this?")
+- **Storing in fields:** You open a database connection and store it in a field, intending to close it in a finalizer. But if the finalizer runs before you're truly done with the connection, or if you forget to close it, the connection is silently used after closure.
+- **Capturing in closures:** You create a file handle and pass it to an async framework via a callback. The callback might be invoked long after your scope has closed and the file has been released, causing the program to crash or silently read/write corrupted data.
+- **Passing to untrusted code:** You pass a resource to a library function that might store a reference and use it later, outside your scope. You have no way to know when it's safe to close.
+- **Mixing lifetimes:** In large codebases, it becomes unclear which scope owns which resource. A developer might use a resource in the wrong scope, or two scopes might try to close the same resource.
 
 Scope addresses these with a *tight* design:
 
