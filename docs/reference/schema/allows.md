@@ -32,12 +32,21 @@ Without `Allows`, these constraints can only be checked at runtime, producing co
 
 `Allows[A, S]` is an upper bound. A type `A` that uses only a strict subset of what `S` permits also satisfies it — just as `A <: Foo` does not require that `A` uses every method of `Foo`. Upper bound semantics is the right choice because a lower bound would require using every shape (impractical), exact matching would require naming every shape used (too rigid), whereas upper bound says "your type may use any of these shapes" — a permission, not a mandate.
 
-```scala
-// Allows[UserRow, Record[Primitive | Optional[Primitive]]] is satisfied even if
-// UserRow has no Option fields — the Optional branch is simply never needed.
-```
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
 
-[//]: # (The above code blocks doesn't have enough context to be meaningful on its own — consider adding a more complete example showing the upper bound semantics in action)
+// Both satisfy Record[Primitive | Optional[Primitive]] — the upper bound
+
+case class UserRow(name: String, age: Int)
+// UserRow satisfies the grammar: all fields are Primitive
+
+case class UserRowOpt(name: String, age: Int, email: Option[String])
+// UserRowOpt also satisfies the grammar: all fields are Primitive or Optional[Primitive]
+
+val ev1: Allows[UserRow, Record[Primitive | Optional[Primitive]]] = implicitly
+val ev2: Allows[UserRowOpt, Record[Primitive | Optional[Primitive]]] = implicitly
+```
 
 ## Creating Instances
 
