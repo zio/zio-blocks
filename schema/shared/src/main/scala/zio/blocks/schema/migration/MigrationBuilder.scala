@@ -50,11 +50,11 @@ final case class MigrationBuilder[A, B](
   def transformValues(at: DynamicOptic, transform: MigrationExpr): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformValues(at, transform))
 
-  def join(at: DynamicOptic, sourcePaths: Chunk[DynamicOptic], combineOp: MigrationAction.CombineOp): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Join(at, sourcePaths, combineOp))
+  def join(at: DynamicOptic, combine: MigrationExpr.Combine): MigrationBuilder[A, B] =
+    copy(actions = actions :+ MigrationAction.Join(at, combine.sourcePaths, combine.op))
 
-  def split(at: DynamicOptic, targetPaths: Chunk[DynamicOptic], splitOp: MigrationAction.SplitOp): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Split(at, targetPaths, splitOp))
+  def split(at: DynamicOptic, splitExpr: MigrationExpr.Split): MigrationBuilder[A, B] =
+    copy(actions = actions :+ MigrationAction.Split(at, splitExpr.targetPaths, splitExpr.op))
 
   /** Build migration (no macro validation in this implementation). */
   def build: Migration[A, B] =

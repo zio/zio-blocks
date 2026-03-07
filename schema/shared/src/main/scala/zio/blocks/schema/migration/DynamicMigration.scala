@@ -90,7 +90,7 @@ object DynamicMigration {
                      a.at
                    ))
       without   <- value.deleteOrFail(a.at)
-      result    <- (parts zip a.targetPaths).foldLeft[Either[SchemaError, DynamicValue]](Right(without)) {
+      result    <- parts.zip(a.targetPaths).foldLeft[Either[SchemaError, DynamicValue]](Right(without)) {
                      case (acc, (part, path)) =>
                        acc.flatMap(_.insertOrFail(path, part))
                    }

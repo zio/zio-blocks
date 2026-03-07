@@ -35,6 +35,9 @@ object MigrationExpr {
       op.eval(root, sourcePaths)
   }
 
+  /** Describes how to split one value into multiple target paths (used by [[MigrationBuilder.split]]). */
+  final case class Split(targetPaths: Chunk[DynamicOptic], op: MigrationAction.SplitOp)
+
   /** Build a literal from a DynamicValue. */
   def literal(value: DynamicValue): MigrationExpr = Literal(value)
 
@@ -44,4 +47,8 @@ object MigrationExpr {
   /** Build a combine expression for string concatenation. */
   def stringConcat(separator: String)(paths: DynamicOptic*): MigrationExpr =
     Combine(Chunk.from(paths), MigrationAction.CombineOp.StringConcat(separator))
+
+  /** Build a split expression for splitting a string into target paths. */
+  def stringSplit(separator: String)(targetPaths: DynamicOptic*): Split =
+    Split(Chunk.from(targetPaths), MigrationAction.SplitOp.StringSplit(separator))
 }
