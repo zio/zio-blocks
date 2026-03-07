@@ -180,7 +180,15 @@ private[comptime] object AllowsErrorMessages {
         color
       )}
        |    ${cyan("Record[A]", color)}  ${cyan("Sequence[A]", color)}  ${cyan("Map[K,V]", color)}
-       |    ${cyan("Optional[A]", color)}  ${cyan("Wrapped[A]", color)}  ${cyan("Dynamic", color)}  ${cyan(
+       |    ${cyan("Sequence.List[A]", color)}  ${cyan("Sequence.Vector[A]", color)}  ${cyan(
+        "Sequence.Set[A]",
+        color
+      )}
+       |    ${cyan("Sequence.Array[A]", color)}  ${cyan("Sequence.Chunk[A]", color)}
+       |    ${cyan("IsType[A]", color)}  ${cyan("Optional[A]", color)}  ${cyan("Wrapped[A]", color)}  ${cyan(
+        "Dynamic",
+        color
+      )}  ${cyan(
         "Self",
         color
       )}

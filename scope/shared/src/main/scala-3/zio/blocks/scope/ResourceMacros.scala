@@ -1,6 +1,7 @@
 package zio.blocks.scope
 
-import zio.blocks.context.{Context, IsNominalType}
+import zio.blocks.context.Context
+import zio.blocks.typeid.IsNominalType
 import zio.blocks.scope.internal.MacroCore
 import zio.blocks.scope.internal.WireCodeGen
 import scala.compiletime.summonInline
