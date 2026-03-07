@@ -76,7 +76,7 @@ objectToArray.apply(Json.Object("x" -> Json.Number(1)))
 
 ### Numbers
 
-For numeric changes, `JsonDiffer` emits `NumberDelta` — the difference between old and new values. This is always more compact than replacing the entire number:
+For numeric changes, `JsonDiffer` emits `NumberDelta` — representing the difference between old and new values as a delta rather than replacing the entire number:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.json.{Json, JsonDiffer}
@@ -101,7 +101,7 @@ For strings, `JsonDiffer` chooses between two strategies:
 1. **LCS (Longest Common Subsequence) edit operations** — if the edits are more compact than the full new string.
 2. **Full replacement with `Set`** — if the string has changed so much that storing the entire new value is smaller.
 
-The algorithm computes common characters, then generates `Insert`, `Delete`, `Append`, and `Modify` operations. It only emits the edits if their byte size is smaller than the new string's length:
+The algorithm computes common characters, then emits `Insert` and `Delete` operations (with `Append` and `Modify` existing as supported patch ops but not currently produced by `JsonDiffer`). It only emits the edits if their byte size is smaller than the new string's length:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.json.{Json, JsonDiffer}
@@ -289,7 +289,7 @@ The LCS algorithm has O(n·m) time complexity, where n and m are the lengths of 
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `schema-examples` module.
+`JsonDiffer` is the foundation of the `JsonPatch` API. Runnable examples demonstrating `JsonPatch.diff` (which internally uses `JsonDiffer`) are available in the `schema-examples` module.
 
 **1. Clone the repository and navigate to the project:**
 
@@ -298,7 +298,9 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-**2. Run individual examples with sbt:**
+**2. Run JsonPatch examples with sbt:**
+
+These examples demonstrate how `JsonDiffer.diff` computes minimal patches through the public `JsonPatch.diff` API:
 
 ```bash
 sbt "schema-examples/runMain jsonpatch.JsonPatchDiffAndApplyExample"
