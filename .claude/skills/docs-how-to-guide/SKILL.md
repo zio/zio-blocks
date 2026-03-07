@@ -422,10 +422,11 @@ If any example fails to compile, fix it before proceeding. The examples must com
 
 ### 4f. Lint Check (Mandatory Before Integration)
 
-After all examples compile, run Scalafmt to ensure all Scala files pass the CI formatting gate:
+After all examples compile, stage them in git first, then run Scalafmt to ensure all Scala files pass the CI formatting gate:
 
 ```bash
-sbt fmt
+git add schema-examples/src/main/scala/**/*.scala
+sbt fmtChanged
 ```
 
 If any files were reformatted, commit the changes immediately:

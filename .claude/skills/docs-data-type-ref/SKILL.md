@@ -387,10 +387,11 @@ object IntoSchemaEvolutionExample extends App {
 
 ## Step 4: Lint Check (Mandatory Before Integration)
 
-After creating all example files, ensure all Scala files pass the CI formatting gate:
+After creating all example files, stage them in git first, then ensure all Scala files pass the CI formatting gate:
 
 ```bash
-sbt fmt
+git add schema-examples/src/main/scala/**/*.scala
+sbt fmtChanged
 ```
 
 If any files were reformatted, commit the changes immediately:

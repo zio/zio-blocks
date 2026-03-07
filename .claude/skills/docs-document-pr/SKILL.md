@@ -274,10 +274,11 @@ Once documentation is written, tell the user:
 
 ## Phase 6: Verify Lint (If Examples Created)
 
-If documentation involved creating or modifying `.scala` example files in `schema-examples/`, verify that all Scala code passes the CI formatting gate before reporting completion:
+If documentation involved creating or modifying `.scala` example files in `schema-examples/`, stage them in git first, then verify that all Scala code passes the CI formatting gate before reporting completion:
 
 ```bash
-sbt fmt
+git add schema-examples/src/main/scala/**/*.scala
+sbt fmtChanged
 ```
 
 If any files were reformatted, commit the changes:
