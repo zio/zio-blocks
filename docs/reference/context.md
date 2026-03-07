@@ -412,7 +412,7 @@ Attempting to store an unsupported type:
 
 **Subtype matching**: Supertype lookups scan the entry list linearly to find a compatible subtype. After the first lookup, the result is cached, so subsequent requests for that supertype are O(1).
 
-**Platform optimizations**: The JVM implementation uses `ConcurrentHashMap` for thread-safe caching. The JavaScript platform uses a simpler in-memory object map for efficient lookups.
+**Platform optimizations**: The JVM implementation uses `ConcurrentHashMap` for thread-safe caching. The JavaScript platform uses a simpler in-memory mutable hash map for efficient lookups.
 
 ## Comparing Approaches
 
