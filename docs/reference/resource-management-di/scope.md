@@ -5,6 +5,8 @@ title: "Scope"
 
 `zio.blocks.scope` is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
 
+[//]: # (In a separate paragraph explain a bit more about: It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.)
+
 At runtime the model stays simple:
 
 - **Allocate eagerly** (no lazy thunks)
@@ -12,9 +14,13 @@ At runtime the model stays simple:
 - **Run finalizers deterministically** when a scope closes (**LIFO** order)
 - Collect finalizer failures into a `Finalization` (and throw/suppress appropriately)
 
+[//]: # (Revisit the above enumeration to make sure it makes sense to a newcomer. Maybe add a bit more explanation about each point)
+
 ## Why Scope?
 
 Most resource bugs in Scala are "escape" bugs:
+
+[//]: # (explain "escape" bugs a bit more: the resource is used outside of its intended lifetime, leading to undefined behavior, crashes, or data corruption)
 
 - storing a connection/stream in a field and using it after it was closed
 - capturing a resource in a closure that outlives a scope
@@ -32,9 +38,15 @@ Scope addresses these with a *tight* design:
 | Structured lifetime | Parent/child scopes, `lower` for explicit lifetime widening |
 | Escape hatch | `leak` (warns) |
 
+[//]: # (Instead of the above table, consider a more narrative explanation of the design choices using enumeration or prose, to better explain the rationale behind each feature and how they work together to prevent bugs. The table is concise but might be too dense for newcomers.)
+
 If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same problem space—but optimized for **synchronous code** with **compile-time boundaries**.
 
 ---
+
+## Getting Started
+
+If you're new to Scope, the [Scope Tutorial](../guides/scope-tutorial.md) provides a comprehensive step-by-step introduction with realistic examples and explanations of the core concepts. This reference page covers the API details; the tutorial covers the "why" and "how."
 
 ## Quick start (Scala 3)
 
@@ -67,6 +79,8 @@ Key points:
 - You use the `$` access operator: `$(db)(...)` (or `(scope $ db)(...)` without the import).
 - The `scoped` block returns a plain `String` because `String: Unscoped`.
 - Finalizers run when the block exits, in **LIFO** order.
+
+[//]: # (Instead of the above key points, consider a more narrative explanation of the code, walking through each part and explaining how it demonstrates the core concepts of Scope. The key points are concise but might be too terse for newcomers.)
 
 ---
 
