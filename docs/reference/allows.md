@@ -113,9 +113,7 @@ All grammar nodes extend `Allows.Structural`.
 | `IsType[A]` | Exact nominal type match: satisfied only when the checked type is exactly `A` (`=:=`) |
 | `` `\|` `` | Union of two grammar nodes: `A \| B`. In Scala 2 write `` A `\|` B `` in infix position. |
 
-Every specific `Primitive.Xxx` node also satisfies the catch-all `Primitive`. This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
-
-[//]: # (The above sentence is a bit technical and may not be clear to all readers — consider adding more context what do you mean by catch-all)
+Every specific `Primitive.Xxx` node also satisfies the top-level `Primitive` node (which matches any of the 30 primitive types). This means a type annotated with `Primitive.Int` is valid wherever `Primitive` or `Primitive | Primitive.Long` is required.
 
 ## Core Operations
 
