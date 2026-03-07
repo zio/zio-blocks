@@ -499,8 +499,10 @@ import docs.SourceFile
 SourceFile.print("schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala")
 ```
 
-**RDBMS library with CREATE TABLE and INSERT using flat record constraints**
+**RDBMS library with CREATE TABLE and INSERT using flat record constraints** (compile-only)
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/RdbmsExample.scala))
+
+Demonstrates how Allows constraints are verified at compile time — the code below shows valid examples that compile successfully, and includes comments showing which patterns would be rejected:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -508,8 +510,10 @@ import docs.SourceFile
 SourceFile.print("schema-examples/src/main/scala/comptime/RdbmsExample.scala")
 ```
 
-**JSON document store with specific primitives and recursive Self grammar**
+**JSON document store with specific primitives and recursive Self grammar** (compile-only)
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/DocumentStoreExample.scala))
+
+Demonstrates how Allows enforces recursive schema constraints at compile time:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
