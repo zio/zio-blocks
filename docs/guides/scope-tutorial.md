@@ -327,11 +327,10 @@ Scope.global.scoped { scope =>
 }
 ```
 
-If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. For Scala 2.13, use `Unscoped.derived`:
+If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. In Scala 3, use the `derives` clause:
 
 ```scala
 import zio.blocks.scope.*
-import scala.deriving.Unscoped.derived
 
 case class CustomData(x: Int, y: String) derives Unscoped
 
@@ -341,14 +340,14 @@ Scope.global.scoped { scope =>
 }
 ```
 
-Alternatively, define it explicitly:
+Alternatively, define it explicitly using a `given`:
 
 ```scala
 import zio.blocks.scope.*
 
 case class CustomData(x: Int, y: String)
 
-implicit val unscopedCustom: Unscoped[CustomData] = Unscoped.instance
+given Unscoped[CustomData] = Unscoped.derived
 
 Scope.global.scoped { scope =>
   import scope.*
