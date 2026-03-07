@@ -17,7 +17,7 @@ Nested resources make this worse. If you're reading a config file and then openi
 
 Consider a typical `try/finally` pattern in Scala:
 
-```scala mdoc:compile-only
+```scala
 try {
   val connection = openConnection()
   try {
