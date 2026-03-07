@@ -55,7 +55,21 @@ val ev2: Allows[UserRowOpt, Record[Primitive | Optional[Primitive]]] = implicitl
 
 `Allows[A, S]` is not instantiated directly. Instead, you summon an evidence value at the point where you need the constraint. The macro automatically verifies the constraint at compile time.
 
-In **Scala 3**, use the `using` syntax to summon an implicit:
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala mdoc:compile-only
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+def toJson[A](doc: A)(implicit ev: Allows[A, Record[Primitive]]): String = ???
+
+// Or summon at the call site:
+val evidence = implicitly[Allows[Int, Primitive]]
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.comptime.Allows
@@ -68,17 +82,8 @@ case class Person(name: String, age: Int)
 val json = toJson(Person("Alice", 30))  // Compiles if Person satisfies Record[Primitive]
 ```
 
-In **Scala 2**, use `implicit` parameter with `implicitly`:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.comptime.Allows
-import Allows._
-
-def toJson[A](doc: A)(implicit ev: Allows[A, Record[Primitive]]): String = ???
-
-// Or summon at the call site:
-val evidence = implicitly[Allows[Int, Primitive]]
-```
+  </TabItem>
+</Tabs>
 
 The constraint is checked once, at the call site. If the type `A` does not satisfy `S`, you get a compile-time error with a precise message showing exactly which field violates the grammar.
 
