@@ -31,6 +31,10 @@ com.github.sbt.git.SbtGit.useReadableConsoleGit
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
+addCommandAlias(
+  "fmtChanged",
+  "; set scalafmtFilter in ThisBuild := \"diff-ref=main\"; scalafmtAll; set scalafmtFilter in ThisBuild := \"\""
+)
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
