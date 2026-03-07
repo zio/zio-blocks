@@ -519,13 +519,73 @@ The following operations on a closed scope do **not** throw:
 - `scoped` — runs normally but creates a born-closed child scope
 - `lower` — zero-cost cast, no closed check needed
 
-### Thread ownership rule (JVM)
+### Thread Ownership
 
-- Scopes created by `scoped` are **owned** by the entering thread.
-- Calling `scoped` on a scope you don't own throws `IllegalStateException`.
-- `open()` creates an **unowned** child scope (`isOwner == true` from any thread).
+Scopes enforce **thread affinity** to prevent cross-thread scope misuse. The thread that calls `scoped` becomes the owner of the resulting child scope; only that thread may call `scoped` on it to create grandchild scopes.
 
-(Scala.js uses a trivial ownership model; `isOwner` is effectively always true.)
+#### Ownership rules by scope type
+
+- `Scope.global` — `isOwner` always returns `true`; any thread may create children from it.
+- `Scope.Child` — captures the calling thread at construction; `isOwner` checks `Thread.currentThread() eq owner`.
+- `Scope.open()` — creates an **unowned** child scope; `isOwner` always returns `true` from any thread (for explicitly managed, cross-thread scopes).
+
+#### Violation error
+
+Calling `scoped` on a `Scope.Child` from the wrong thread throws `IllegalStateException`. The message names both the current thread and the owning thread:
+
+```text
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot create child scope: current thread does not own this scope.
+
+  Owner thread:   main
+  Current thread: pool-1-thread-1
+
+  ...
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+This check runs *before* the closed-scope check, so even a closed scope on the wrong thread reports an ownership error.
+
+#### Platform notes
+
+On the JVM, `isOwner` uses `Thread` identity. On Scala.js (single-threaded), `isOwner` always returns `true`.
+
+#### Code example
+
+The following example shows correct single-thread usage. Scope ownership prevents accidentally passing a child scope to another thread:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable:
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+
+@main def threadOwnershipExample(): Unit =
+  Scope.global.scoped { parent =>
+    import parent.*
+
+    val parentDb: $[Database] =
+      Resource.fromAutoCloseable(new Database).allocate
+
+    parent.scoped { child =>
+      import child.*
+
+      val childDb: $[Database] =
+        Resource.fromAutoCloseable(new Database).allocate
+
+      // This is safe: child is created and used on the same thread
+      $(childDb)(_.query("SELECT 1"))
+    }
+
+    // If you passed child to another thread and tried to call scoped on it,
+    // you would get IllegalStateException about thread ownership mismatch
+  }
+```
+
+If you need a scope that crosses thread boundaries, use `open()` instead; it creates an unowned scope that any thread may use.
 
 ---
 
