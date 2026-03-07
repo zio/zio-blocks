@@ -619,11 +619,11 @@ Scope.global.scoped { scope =>
   import scope.*
 
   // Wire.shared means all dependents get the same instance
-  val configWire: Wire[DbConfig] = Wire(DbConfig("localhost"))
-  val dbWire: Wire[Database] = Wire.shared[Database]
-  val cacheWire: Wire[CacheService] = Wire.shared[CacheService]
-  val authWire: Wire[AuthService] = Wire.shared[AuthService]
-  val appWire: Wire[AppService] = Wire.shared[AppService]
+  val configWire = Wire(DbConfig("localhost"))
+  val dbWire = Wire.shared[Database]
+  val cacheWire = Wire.shared[CacheService]
+  val authWire = Wire.shared[AuthService]
+  val appWire = Wire.shared[AppService]
 
   // Resource.from resolves all wires and returns the root app service
   val app = allocate(Resource.from[AppService](
@@ -804,8 +804,8 @@ case class Database(url: String) extends AutoCloseable {
 }
 
 // Correct: provide the String
-val urlWire: Wire[String] = Wire("localhost")
-val dbWire: Wire[Database] = Wire.shared[Database]
+val urlWire = Wire("localhost")
+val dbWire = Wire.shared[Database]
 
 Scope.global.scoped { scope =>
   import scope.*
