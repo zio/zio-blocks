@@ -6,9 +6,9 @@ package zio.blocks.smithy
  * @param message
  *   descriptive error message
  * @param line
- *   line number where the error occurred (0-indexed)
+ *   line number where the error occurred (1-indexed)
  * @param column
- *   column number where the error occurred (0-indexed)
+ *   column number where the error occurred (1-indexed)
  * @param source
  *   optional source content (e.g., the Smithy input that caused the error)
  */

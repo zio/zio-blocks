@@ -217,6 +217,22 @@ object SmithyParserComplexSpec extends ZIOSpecDefault {
           e.members(0).traits == List(TraitApplication.documentation("Jack card")),
           e.members(1).traits.isEmpty
         )
+      },
+      test("rejects intEnum with non-whole number value") {
+        val result = parse(
+          """intEnum Bad {
+            |    FOO = 1.5
+            |}""".stripMargin
+        )
+        assertTrue(result.isLeft)
+      },
+      test("rejects intEnum with out-of-range value") {
+        val result = parse(
+          """intEnum Bad {
+            |    FOO = 99999999999
+            |}""".stripMargin
+        )
+        assertTrue(result.isLeft)
       }
     ),
     suite("service")(

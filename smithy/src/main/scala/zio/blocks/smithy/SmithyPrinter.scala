@@ -57,7 +57,7 @@ object SmithyPrinter {
 
     if (model.metadata.nonEmpty) {
       sb.append('\n')
-      model.metadata.foreach { case (key, value) =>
+      model.metadata.toList.sortBy(_._1).foreach { case (key, value) =>
         sb.append("metadata ").append(key).append(" = ")
         appendNodeValue(sb, value)
         sb.append('\n')
@@ -107,7 +107,9 @@ object SmithyPrinter {
     t.value match {
       case Some(NodeValue.StringValue(text)) =>
         text.split("\n", -1).foreach { line =>
-          sb.append(prefix).append("/// ").append(line).append('\n')
+          sb.append(prefix).append("///")
+          if (line.nonEmpty) sb.append(' ').append(line)
+          sb.append('\n')
         }
       case _ =>
         sb.append(prefix)
@@ -320,7 +322,7 @@ object SmithyPrinter {
     sb.append("resource ").append(name).append(" {\n")
     if (s.identifiers.nonEmpty) {
       sb.append(pad).append("identifiers: {")
-      val entries = s.identifiers.toList
+      val entries = s.identifiers.toList.sortBy(_._1)
       entries.zipWithIndex.foreach { case ((k, v), i) =>
         sb.append(k).append(": ").append(renderShapeRef(v, ns))
         if (i < entries.length - 1) sb.append(", ")
@@ -385,22 +387,29 @@ object SmithyPrinter {
 
   private def appendObjectFields(sb: StringBuilder, fields: List[(String, NodeValue)]): Unit =
     fields.zipWithIndex.foreach { case ((key, value), i) =>
-      sb.append(key).append(": ")
+      if (isValidSmithyIdentifier(key)) sb.append(key).append(": ")
+      else sb.append('"').append(escapeString(key)).append("\": ")
       appendNodeValue(sb, value)
       if (i < fields.length - 1) sb.append(", ")
     }
+
+  private def isValidSmithyIdentifier(s: String): Boolean =
+    s.nonEmpty && (s.charAt(0).isLetter || s.charAt(0) == '_') && s.forall(c => c.isLetterOrDigit || c == '_')
 
   private def escapeString(s: String): String = {
     val sb = new StringBuilder(s.length)
     var i  = 0
     while (i < s.length) {
       s.charAt(i) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case c    => sb.append(c)
+        case '"'          => sb.append("\\\"")
+        case '\\'         => sb.append("\\\\")
+        case '\n'         => sb.append("\\n")
+        case '\r'         => sb.append("\\r")
+        case '\t'         => sb.append("\\t")
+        case '\b'         => sb.append("\\b")
+        case '\f'         => sb.append("\\f")
+        case c if c < ' ' => sb.append("\\u").append(String.format("%04x", c.toInt: java.lang.Integer))
+        case c            => sb.append(c)
       }
       i += 1
     }

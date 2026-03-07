@@ -48,6 +48,12 @@ object ShapeIdSpec extends ZIOSpecDefault {
       test("returns error for invalid member reference (no name after $)") {
         val result = ShapeId.parse("com.example#MyShape$")
         assertTrue(result.isLeft)
+      },
+      test("parses member reference with dollar sign correctly (not treated as regex)") {
+        val result = ShapeId.parse("com.example#MyShape$field")
+        assertTrue(
+          result == Right(ShapeId.Member(ShapeId("com.example", "MyShape"), "field"))
+        )
       }
     ),
     suite("toString")(

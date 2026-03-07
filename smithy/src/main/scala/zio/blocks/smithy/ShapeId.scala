@@ -67,13 +67,13 @@ object ShapeId {
         } else if (rest.isEmpty) {
           Left("ShapeId name cannot be empty")
         } else if (rest.contains("$")) {
-          // Member reference
-          val memberParts = rest.split('$')
-          if (memberParts.length != 2) {
+          // Member reference — use indexOf to avoid regex issues with '$'
+          val dollarIdx = rest.indexOf('$')
+          if (rest.indexOf('$', dollarIdx + 1) >= 0) {
             Left("Member reference must have exactly one separator, got: " + s)
           } else {
-            val name       = memberParts(0)
-            val memberName = memberParts(1)
+            val name       = rest.substring(0, dollarIdx)
+            val memberName = rest.substring(dollarIdx + 1)
             if (name.isEmpty) {
               Left("ShapeId name cannot be empty")
             } else if (memberName.isEmpty) {

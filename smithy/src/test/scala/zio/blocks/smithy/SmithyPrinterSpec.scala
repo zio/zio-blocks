@@ -822,6 +822,90 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
           result.contains("    /// The Jack card\n    JACK = 11")
         )
       }
+    ),
+    suite("escapes backspace and formfeed")(
+      test("escapes backspace and formfeed in strings") {
+        val model = minimalModel(
+          metadata = Map("key" -> NodeValue.StringValue("a\bb\fc"))
+        )
+        val result = SmithyPrinter.print(model)
+        assertTrue(result.contains("\\b") && result.contains("\\f"))
+      },
+      test("escapes control characters as unicode") {
+        val model = minimalModel(
+          metadata = Map("key" -> NodeValue.StringValue("a\u0001b"))
+        )
+        val result = SmithyPrinter.print(model)
+        assertTrue(result.contains("\\u0001"))
+      }
+    ),
+    suite("object key quoting")(
+      test("quotes keys that are not valid identifiers") {
+        val model = minimalModel(
+          metadata = Map(
+            "obj" -> NodeValue.ObjectValue(
+              List(
+                "my-key" -> NodeValue.StringValue("value")
+              )
+            )
+          )
+        )
+        val result = SmithyPrinter.print(model)
+        assertTrue(result.contains("\"my-key\": \"value\""))
+      },
+      test("does not quote valid identifier keys") {
+        val model = minimalModel(
+          metadata = Map(
+            "obj" -> NodeValue.ObjectValue(
+              List(
+                "validKey" -> NodeValue.StringValue("value")
+              )
+            )
+          )
+        )
+        val result = SmithyPrinter.print(model)
+        assertTrue(result.contains("validKey: \"value\""))
+      }
+    ),
+    suite("doc comment trailing whitespace")(
+      test("empty doc comment lines have no trailing whitespace") {
+        val model = minimalModel(
+          shapes = List(
+            ShapeDefinition(
+              "MyString",
+              StringShape(
+                "MyString",
+                List(TraitApplication.documentation("Line one\n\nLine three"))
+              )
+            )
+          )
+        )
+        val result = SmithyPrinter.print(model)
+        val lines  = result.split("\n", -1)
+        assertTrue(
+          lines.exists(_.trim == "///") &&
+            lines.forall(line => line == line.stripTrailing())
+        )
+      }
+    ),
+    suite("metadata ordering")(
+      test("metadata keys are printed in sorted order") {
+        val model = minimalModel(
+          metadata = Map(
+            "zebra" -> NodeValue.StringValue("z"),
+            "alpha" -> NodeValue.StringValue("a"),
+            "beta"  -> NodeValue.StringValue("b")
+          )
+        )
+        val result   = SmithyPrinter.print(model)
+        val alphaIdx = result.indexOf("metadata alpha")
+        val betaIdx  = result.indexOf("metadata beta")
+        val zebraIdx = result.indexOf("metadata zebra")
+        assertTrue(
+          alphaIdx < betaIdx,
+          betaIdx < zebraIdx
+        )
+      }
     )
   )
 }

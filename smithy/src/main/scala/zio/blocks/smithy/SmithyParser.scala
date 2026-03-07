@@ -1,7 +1,24 @@
 package zio.blocks.smithy
 
+/**
+ * Parser for Smithy IDL (Interface Definition Language) version 2.x.
+ *
+ * Parses a Smithy IDL text string into a `SmithyModel` AST. The parser handles
+ * all Smithy IDL constructs including version declarations, namespaces,
+ * metadata, use statements, shape definitions (simple, aggregate, enum,
+ * service), trait applications, documentation comments, and apply statements.
+ */
 object SmithyParser {
 
+  /**
+   * Parses a Smithy IDL string into a `SmithyModel`.
+   *
+   * @param input
+   *   the complete Smithy IDL text to parse
+   * @return
+   *   `Right(SmithyModel)` on success, or `Left(SmithyError)` describing the
+   *   parse failure with location information
+   */
   def parse(input: String): Either[SmithyError, SmithyModel] = {
     val parser = new SmithyParserState(input)
     parser.parseModel()
@@ -42,10 +59,11 @@ object SmithyParser {
   )
 
   private class SmithyParserState(input: String) {
-    private var pos: Int    = 0
-    private var line: Int   = 1
-    private var column: Int = 1
+    import scala.collection.mutable.ListBuffer
 
+    private var pos: Int                               = 0
+    private var line: Int                              = 1
+    private var column: Int                            = 1
     def parseModel(): Either[SmithyError, SmithyModel] =
       try {
         skipWsAndComments()
@@ -59,7 +77,7 @@ object SmithyParser {
 
         var metadata      = Map.empty[String, NodeValue]
         var namespace     = ""
-        var useStatements = List.empty[ShapeId]
+        val useStatements = ListBuffer.empty[ShapeId]
 
         // Parse metadata that appears before namespace
         while (lookingAt("metadata")) {
@@ -90,7 +108,7 @@ object SmithyParser {
             }
           } else {
             parseUseStatement() match {
-              case Right(id) => useStatements = useStatements :+ id
+              case Right(id) => useStatements += id
               case Left(err) => return Left(err)
             }
           }
@@ -98,19 +116,19 @@ object SmithyParser {
         }
 
         // Parse shapes and apply statements
-        var shapes          = List.empty[ShapeDefinition]
-        var applyStatements = List.empty[ApplyStatement]
+        val shapes          = ListBuffer.empty[ShapeDefinition]
+        val applyStatements = ListBuffer.empty[ApplyStatement]
         while (!atEnd) {
           skipWsAndComments()
           if (!atEnd) {
             if (lookingAt("apply")) {
               parseApplyStatement() match {
-                case Right(as) => applyStatements = applyStatements :+ as
+                case Right(as) => applyStatements += as
                 case Left(err) => return Left(err)
               }
             } else {
               parseShapeStatement() match {
-                case Right(sd) => shapes = shapes :+ sd
+                case Right(sd) => shapes += sd
                 case Left(err) => return Left(err)
               }
             }
@@ -118,7 +136,7 @@ object SmithyParser {
           }
         }
 
-        Right(SmithyModel(version, namespace, useStatements, metadata, shapes, applyStatements))
+        Right(SmithyModel(version, namespace, useStatements.toList, metadata, shapes.toList, applyStatements.toList))
       } catch {
         case e: SmithyParseException =>
           Left(SmithyError.ParseError(e.getMessage, e.line, e.column, None))
@@ -289,7 +307,7 @@ object SmithyParser {
     }
 
     private def parseMemberDefinitions(): Either[SmithyError, List[MemberDefinition]] = {
-      var members = List.empty[MemberDefinition]
+      val members = ListBuffer.empty[MemberDefinition]
       while (!atEnd && peekChar() != '}') {
         skipWsAndComments()
         if (!atEnd && peekChar() == '}') {
@@ -310,7 +328,7 @@ object SmithyParser {
             val targetStr = readShapeTarget()
             if (targetStr.isEmpty) return Left(error("Expected target shape for member '" + memberName + "'"))
             val target = parseTargetShapeId(targetStr)
-            members = members :+ MemberDefinition(memberName, target, memberTraits)
+            members += MemberDefinition(memberName, target, memberTraits)
             skipWsInline()
             // Skip optional comma
             if (!atEnd && peekChar() == ',') advance()
@@ -318,7 +336,7 @@ object SmithyParser {
         }
         skipWsAndComments()
       }
-      Right(members)
+      Right(members.toList)
     }
 
     private def readShapeTarget(): String = {
@@ -379,7 +397,7 @@ object SmithyParser {
     }
 
     private def parseEnumMembers(): Either[SmithyError, List[EnumMember]] = {
-      var members = List.empty[EnumMember]
+      val members = ListBuffer.empty[EnumMember]
       while (!atEnd && peekChar() != '}') {
         skipWsAndComments()
         if (!atEnd && peekChar() == '}') {
@@ -405,18 +423,18 @@ object SmithyParser {
             } else {
               None
             }
-            members = members :+ EnumMember(memberName, value, memberTraits)
+            members += EnumMember(memberName, value, memberTraits)
             skipWsInline()
             if (!atEnd && peekChar() == ',') advance()
           }
         }
         skipWsAndComments()
       }
-      Right(members)
+      Right(members.toList)
     }
 
     private def parseIntEnumMembers(): Either[SmithyError, List[IntEnumMember]] = {
-      var members = List.empty[IntEnumMember]
+      val members = ListBuffer.empty[IntEnumMember]
       while (!atEnd && peekChar() != '}') {
         skipWsAndComments()
         if (!atEnd && peekChar() == '}') {
@@ -435,7 +453,9 @@ object SmithyParser {
             skipWsInline()
             readNumber() match {
               case Right(v) =>
-                members = members :+ IntEnumMember(memberName, v.toInt, memberTraits)
+                if (!v.isWhole) return Left(error("intEnum value must be a whole number, got: " + v))
+                if (!v.isValidInt) return Left(error("intEnum value out of Int range: " + v))
+                members += IntEnumMember(memberName, v.toInt, memberTraits)
               case Left(err) => return Left(err)
             }
             skipWsInline()
@@ -444,7 +464,7 @@ object SmithyParser {
         }
         skipWsAndComments()
       }
-      Right(members)
+      Right(members.toList)
     }
 
     // -----------------------------------------------------------------------
@@ -652,13 +672,13 @@ object SmithyParser {
     private def parseShapeIdList(): Either[SmithyError, List[ShapeId]] = {
       expectChar('[')
       skipWsAndComments()
-      var ids = List.empty[ShapeId]
+      val ids = ListBuffer.empty[ShapeId]
       while (!atEnd && peekChar() != ']') {
         skipWsAndComments()
         if (!atEnd && peekChar() != ']') {
           val target = readShapeTarget()
           if (target.isEmpty) return Left(error("Expected shape ID in list"))
-          ids = ids :+ parseTargetShapeId(target)
+          ids += parseTargetShapeId(target)
           skipWsInline()
           if (!atEnd && peekChar() == ',') advance()
         }
@@ -666,7 +686,7 @@ object SmithyParser {
       }
       if (atEnd) return Left(error("Unterminated shape ID list"))
       expectChar(']')
-      Right(ids)
+      Right(ids.toList)
     }
 
     private def parseIdentifiersMap(): Either[SmithyError, Map[String, ShapeId]] = {
@@ -695,7 +715,7 @@ object SmithyParser {
     }
 
     private def collectTraits(): Either[SmithyError, List[TraitApplication]] = {
-      var traits = List.empty[TraitApplication]
+      val traits = ListBuffer.empty[TraitApplication]
 
       skipWsAndComments()
       while (!atEnd) {
@@ -705,25 +725,25 @@ object SmithyParser {
           // Doc comment
           val docLines = collectDocCommentLines()
           val docText  = docLines.mkString("\n")
-          traits = traits :+ TraitApplication.documentation(docText)
+          traits += TraitApplication.documentation(docText)
           skipWsAndComments()
         } else if (peekChar() == '@') {
           parseTraitApplication() match {
             case Right(ta) =>
-              traits = traits :+ ta
+              traits += ta
               skipWsAndComments()
             case Left(err) => return Left(err)
           }
         } else {
-          return Right(traits)
+          return Right(traits.toList)
         }
       }
 
-      Right(traits)
+      Right(traits.toList)
     }
 
     private def collectDocCommentLines(): List[String] = {
-      var lines = List.empty[String]
+      val lines = ListBuffer.empty[String]
       while (
         !atEnd && peekChar() == '/' && pos + 2 < input.length && input
           .charAt(pos + 1) == '/' && input.charAt(pos + 2) == '/'
@@ -738,12 +758,12 @@ object SmithyParser {
           sb.append(peekChar())
           advance()
         }
-        lines = lines :+ sb.toString
+        lines += sb.toString
         // Skip newline
         if (!atEnd && peekChar() == '\n') advance()
         skipWsAndComments()
       }
-      lines
+      lines.toList
     }
 
     private def parseTraitApplication(): Either[SmithyError, TraitApplication] = {
@@ -852,7 +872,7 @@ object SmithyParser {
         return Right(NodeValue.ArrayValue(Nil))
       }
 
-      var values = List.empty[NodeValue]
+      val values = ListBuffer.empty[NodeValue]
       var first  = true
       while (!atEnd && peekChar() != ']') {
         if (!first) {
@@ -868,7 +888,7 @@ object SmithyParser {
           // trailing comma case
         } else {
           parseNodeValue() match {
-            case Right(v)  => values = values :+ v
+            case Right(v)  => values += v
             case Left(err) => return Left(err)
           }
         }
@@ -876,7 +896,7 @@ object SmithyParser {
       }
       if (atEnd) return Left(error("Unterminated array"))
       expectChar(']')
-      Right(NodeValue.ArrayValue(values))
+      Right(NodeValue.ArrayValue(values.toList))
     }
 
     private def parseObjectValue(): Either[SmithyError, NodeValue] = {
@@ -897,7 +917,7 @@ object SmithyParser {
     }
 
     private def parseObjectFields(): Either[SmithyError, List[(String, NodeValue)]] = {
-      var fields = List.empty[(String, NodeValue)]
+      val fields = ListBuffer.empty[(String, NodeValue)]
       var first  = true
       while (!atEnd && peekChar() != '}' && peekChar() != ')') {
         if (!first) {
@@ -925,13 +945,13 @@ object SmithyParser {
           expectChar(':')
           skipWsInline()
           parseNodeValue() match {
-            case Right(v)  => fields = fields :+ (key -> v)
+            case Right(v)  => fields += (key -> v)
             case Left(err) => return Left(err)
           }
         }
         skipWsAndComments()
       }
-      Right(fields)
+      Right(fields.toList)
     }
 
     // -----------------------------------------------------------------------
