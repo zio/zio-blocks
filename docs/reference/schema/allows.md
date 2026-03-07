@@ -13,9 +13,7 @@ sealed abstract class Allows[A, S <: Allows.Structural]
 
 ## Overview
 
-The gap `Allows` fills is **structural preconditions** at the call site, at compile time, with precise error messages.
-
-[//]: # (explain what structural preconditions are, and how they differ from runtime checks)
+The gap `Allows` fills is **structural preconditions** at the call site, at compile time, with precise error messages. Structural preconditions are constraints on the shape of a type's fields (e.g., "all fields must be scalars"), unlike runtime checks which happen during execution and produce exceptions or errors.
 
 ## Motivation
 
