@@ -9,12 +9,10 @@ Each scope instance has a distinct `$[A]` type that is unique to that scope and 
 
 At runtime the model stays simple:
 
-- **Allocate eagerly** (no lazy thunks)
-- **Register finalizers**
-- **Run finalizers deterministically** when a scope closes (**LIFO** order)
-- Collect finalizer failures into a `Finalization` (and throw/suppress appropriately)
-
-[//]: # (Revisit the above enumeration to make sure it makes sense to a newcomer. Maybe add a bit more explanation about each point)
+- **Allocate eagerly** (no lazy thunks) — When you call `allocate(resource)`, the resource is acquired immediately, not deferred to some later point. This makes resource lifetimes predictable and matches your mental model of when acquisition happens.
+- **Register finalizers** — As each resource is acquired, its cleanup function (or `close()` method for `AutoCloseable`) is registered in a stack-like registry. This registry is part of every scope.
+- **Run finalizers deterministically** when a scope closes (**LIFO** order) — When a scope exits (normally or via exception), all registered finalizers execute in reverse order (last-registered-first-executed). This ensures that resources that depend on each other close in the correct order.
+- **Collect finalizer failures** into a `Finalization` — If a finalizer throws an exception, Scope doesn't stop; it collects all exceptions and either wraps them in a `Finalization` or suppresses them depending on context. This ensures all cleanup runs even if some finalizers fail.
 
 ## Why Scope?
 
