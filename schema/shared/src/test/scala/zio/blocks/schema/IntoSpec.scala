@@ -2536,6 +2536,40 @@ object IntoSpec extends SchemaBaseSpec {
     },
     test("single field to Tuple1") {
       assert(Into.derived[SingleInt, Tuple1[Int]].into(SingleInt(42)))(isRight(equalTo(Tuple1(42))))
+    },
+    test("user-provided implicit Into takes priority over single-field auto-wrap") {
+      case class Email(value: String)
+
+      implicit val stringToEmail: Into[String, Email] = { s =>
+        if (s.contains("@")) Right(Email(s))
+        else Left(SchemaError(s"Invalid email address: '$s'"))
+      }
+
+      case class UserDto(name: String, email: String, age: Int)
+      case class User(name: String, email: Email, age: Long)
+
+      val toUser = Into.derived[UserDto, User]
+
+      val validResult   = toUser.into(UserDto("Alice", "alice@example.com", 30))
+      val invalidResult = toUser.into(UserDto("Bob", "not-an-email", 25))
+
+      assert(validResult)(isRight(equalTo(User("Alice", Email("alice@example.com"), 30L)))) &&
+      assert(invalidResult)(isLeft(anything))
+    },
+    test("user-provided implicit Into takes priority over single-field auto-unwrap") {
+      case class PositiveInt(value: Int)
+
+      implicit val positiveIntToInt: Into[PositiveInt, Int] = { p =>
+        if (p.value > 0) Right(p.value)
+        else Left(SchemaError(s"Value must be positive: ${p.value}"))
+      }
+
+      case class Source(x: PositiveInt)
+      case class Target(x: Int)
+
+      val conv = Into.derived[Source, Target]
+      assert(conv.into(Source(PositiveInt(5))))(isRight(equalTo(Target(5)))) &&
+      assert(conv.into(Source(PositiveInt(-1))))(isLeft(anything))
     }
   )
 
