@@ -584,6 +584,22 @@ Here is an example of adding modifiers to a schema:
 ```
 
 
+## Integration
+
+`Schema` integrates deeply with other ZIO Blocks data types:
+
+- **[Reflect](./reflect.md)**: `Schema[A]` wraps `Reflect.Bound[A]`, the bound reflection of a type. Reflect provides the structural information and binding for construction/deconstruction.
+- **[Binding](./binding.md)**: The type class that provides the Constructor and Deconstructor capabilities used by `Schema`.
+- **[DynamicValue](./dynamic-value.md)**: A semi-structured data type that can be encoded/decoded using any `Schema`.
+- **[Allows](./allows.md)**: Compile-time shape constraints that enforce structural preconditions on generic APIs requiring specific schema shapes.
+
+Schema-driven workflows often follow this pattern:
+1. **Define types** and derive schemas automatically with `Schema.derived`
+2. **Encode to formats** like JSON, Avro, or Protobuf using `Schema#encode`
+3. **Decode from formats** back to typed values using `Schema#decode`
+4. **Transform data** using optics to access and update nested fields
+5. **Validate** using `Allows` constraints or custom schema aspects
+
 ## Advanced Usage
 
 ### Compile-Time Shape Constraints (`Allows`)
