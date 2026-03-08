@@ -86,6 +86,8 @@ Cross-platform support: TypeId works on JVM and Scala.js.
 
 ## Creating TypeIds
 
+TypeId can be created automatically via macro derivation or manually using smart constructors for advanced use cases.
+
 ### Automatic Derivation
 
 The simplest way to get a TypeId is via macro derivation:
