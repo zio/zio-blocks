@@ -509,6 +509,8 @@ path / "nested"   // Append segment
 
 ## Type Parameters
 
+TypeId represents the type parameters of generic types through the TypeParam, TypeBounds, Variance, and Kind types, providing fine-grained metadata about parametricity.
+
 ### TypeParam
 
 Represents a type parameter specification:
