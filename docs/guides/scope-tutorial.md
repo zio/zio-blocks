@@ -513,7 +513,7 @@ The `scoped { }` syntax ties resource lifetime to a lexical block. But sometimes
 
 Child scopes created via `scoped { }` are owned by the thread that creates them and must close within the creating thread. But `Scope.global.open()` creates an unowned scope that can be closed from any thread. This is useful for bridging structured scope-based resource management with callbacks or cross-thread communication:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 class ConnectionPool extends AutoCloseable {
