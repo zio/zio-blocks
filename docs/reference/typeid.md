@@ -704,7 +704,7 @@ Member.TypeMember("T",
 
 ## TypeDefKind
 
-Classifies what kind of type definition a TypeId represents:
+Classifies what kind of type definition a TypeId represents. The kind metadata tells you whether a type is a class, trait, object, enum, or special form like a type alias.
 
 ### Class
 
