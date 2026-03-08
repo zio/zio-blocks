@@ -195,7 +195,7 @@ id.isProperType
 id.isTypeConstructor
 ```
 
-Other classification predicates include `isTrait`, `isObject`, `isEnum`, `isValueClass`, `isSealed`, `isAlias`, `isOpaque`, `isAbstract`, `isApplied`, `isTuple`, `isProduct`, `isSum`, `isEither`, and `isOption`.
+Other classification predicates include `TypeId#isTrait`, `TypeId#isObject`, `TypeId#isEnum`, `TypeId#isValueClass`, `TypeId#isSealed`, `TypeId#isAlias`, `TypeId#isOpaque`, `TypeId#isAbstract`, `TypeId#isApplied`, `TypeId#isTuple`, `TypeId#isProduct`, `TypeId#isSum`, `TypeId#isEither`, and `TypeId#isOption`.
 
 ### Subtype Relationships
 
