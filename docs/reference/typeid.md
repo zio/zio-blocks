@@ -164,6 +164,8 @@ val mapId = TypeId.applied[Map[String, Int]](
 
 ## TypeId Properties
 
+Once derived, you can inspect a TypeId's structure and metadata through its properties.
+
 ### Basic Properties
 
 ```scala mdoc:silent:reset
