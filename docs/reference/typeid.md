@@ -642,6 +642,8 @@ kind.arity          // Number of type parameters
 
 ## Members (Structural Types)
 
+Structural types use members to represent the fields, methods, and type members that comprise their interface.
+
 ### Val/Var Members
 
 Represent value and variable members in structural types:
