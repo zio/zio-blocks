@@ -2553,8 +2553,11 @@ object IntoSpec extends SchemaBaseSpec {
       val validResult   = toUser.into(UserDto("Alice", "alice@example.com", 30))
       val invalidResult = toUser.into(UserDto("Bob", "not-an-email", 25))
 
-      assert(validResult)(isRight(equalTo(User("Alice", Email("alice@example.com"), 30L)))) &&
-      assert(invalidResult)(isLeft(anything))
+      assertTrue(
+        validResult == Right(User("Alice", Email("alice@example.com"), 30L)),
+        invalidResult.isLeft,
+        invalidResult.swap.exists(_.message.contains("Invalid email address"))
+      )
     },
     test("user-provided implicit Into takes priority over single-field auto-unwrap") {
       case class PositiveInt(value: Int)
@@ -2567,9 +2570,15 @@ object IntoSpec extends SchemaBaseSpec {
       case class Source(x: PositiveInt)
       case class Target(x: Int)
 
-      val conv = Into.derived[Source, Target]
-      assert(conv.into(Source(PositiveInt(5))))(isRight(equalTo(Target(5)))) &&
-      assert(conv.into(Source(PositiveInt(-1))))(isLeft(anything))
+      val conv          = Into.derived[Source, Target]
+      val validResult   = conv.into(Source(PositiveInt(5)))
+      val invalidResult = conv.into(Source(PositiveInt(-1)))
+
+      assertTrue(
+        validResult == Right(Target(5)),
+        invalidResult.isLeft,
+        invalidResult.swap.exists(_.message.contains("Value must be positive"))
+      )
     }
   )
 
