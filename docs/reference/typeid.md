@@ -449,6 +449,8 @@ TypeRepr.Annotated(typeA, List(annotation))
 
 ## Namespaces and Type Names
 
+Types are organized hierarchically using owners, term paths, and other namespace constructs that capture where types are defined.
+
 ### Owner
 
 `Owner` represents where a type is defined in the package hierarchy:
