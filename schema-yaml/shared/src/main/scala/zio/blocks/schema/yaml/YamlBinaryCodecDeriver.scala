@@ -13,10 +13,20 @@ import java.util.{Currency, UUID}
 import scala.annotation.switch
 import scala.reflect.ClassTag
 
+/**
+ * A [[zio.blocks.schema.codec.BinaryFormat]] for `application/yaml` using
+ * [[YamlBinaryCodecDeriver]].
+ */
 object YamlFormat extends BinaryFormat("application/yaml", YamlBinaryCodecDeriver)
 
+/** Default instance of [[YamlBinaryCodecDeriver]]. */
 object YamlBinaryCodecDeriver extends YamlBinaryCodecDeriver
 
+/**
+ * A [[zio.blocks.schema.derive.Deriver]] that produces [[YamlBinaryCodec]]
+ * instances for schema-described types, converting between Scala values and
+ * YAML representations.
+ */
 class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
   import YamlBinaryCodec._
 

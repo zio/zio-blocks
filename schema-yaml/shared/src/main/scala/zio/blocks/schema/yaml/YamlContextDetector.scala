@@ -59,7 +59,7 @@ private[schema] object YamlContextDetector {
         // Determine if in flow mapping (key) or flow sequence (value)
         return detectFlowContext(part, i)
       } else {
-        // Other character at end — likely key context (before colon)
+        // Other character at end — treat as value context
         return YamlInterpolationContext.Value
       }
     }

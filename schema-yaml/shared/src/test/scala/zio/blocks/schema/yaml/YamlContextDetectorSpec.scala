@@ -103,7 +103,7 @@ object YamlContextDetectorSpec extends YamlBaseSpec {
         val result = YamlContextDetector.detectContexts(Seq("{a: {b: 1}}, ", ""))
         assertTrue(result.isRight)
       },
-      test("whitespace-only ending defaults to value context") {
+      test("whitespace-only ending defaults to key context") {
         val result = YamlContextDetector.detectContexts(Seq("   ", ""))
         assertTrue(
           result.isRight && result.toOption.get.head == YamlInterpolationContext.Key

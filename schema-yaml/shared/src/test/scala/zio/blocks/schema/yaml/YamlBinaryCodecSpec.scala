@@ -254,7 +254,7 @@ object YamlBinaryCodecSpec extends YamlBaseSpec {
       test("decode invalid YAML returns Left") {
         val codec  = YamlBinaryCodec.intCodec
         val result = codec.decode("{invalid: [yaml".getBytes("UTF-8"))
-        assertTrue(result.isRight || result.isLeft)
+        assertTrue(result.isLeft)
       },
       test("decode throws non-fatal exception") {
         val badCodec = new YamlBinaryCodec[String]() {

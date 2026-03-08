@@ -73,17 +73,20 @@ object YamlWriter {
     elements: zio.blocks.chunk.Chunk[Yaml],
     indent: Int,
     options: YamlOptions,
-    @scala.annotation.unused isTopLevel: Boolean
+    isTopLevel: Boolean
   ): Unit = {
     if (elements.isEmpty) {
       sb.append("[]")
       return
     }
-    val iter = elements.iterator
+    val iter  = elements.iterator
+    var first = true
     while (iter.hasNext) {
       val elem = iter.next()
-      sb.append('\n')
-      appendIndent(sb, indent)
+      if (!first || !isTopLevel) {
+        sb.append('\n')
+        appendIndent(sb, indent)
+      }
       sb.append("- ")
       elem match {
         case Yaml.Mapping(entries) if entries.nonEmpty =>
@@ -111,6 +114,7 @@ object YamlWriter {
         case _ =>
           writeNode(sb, elem, indent + 2, options, isTopLevel = false)
       }
+      first = false
     }
   }
 

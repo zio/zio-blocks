@@ -557,14 +557,14 @@ object YamlBinaryCodecDeriverExtendedSpec extends YamlBaseSpec {
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk.empty)
         val result = codec.decodeValue(yaml)
-        assertTrue(result.isLeft || result.isRight)
+        assertTrue(result.isLeft)
       },
       test("decode other mapping falls through to inner codec") {
         val codec = Schema[Option[String]].derive(YamlBinaryCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("other"), Yaml.Scalar("value"))))
         val result = codec.decodeValue(yaml)
-        assertTrue(result.isLeft || result.isRight)
+        assertTrue(result.isLeft)
       },
       test("decode scalar value as Some") {
         val codec  = Schema[Option[String]].derive(YamlBinaryCodecDeriver)

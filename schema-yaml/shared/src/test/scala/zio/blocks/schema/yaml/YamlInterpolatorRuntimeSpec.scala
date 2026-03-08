@@ -26,16 +26,16 @@ object YamlInterpolatorRuntimeSpec extends YamlBaseSpec {
         YamlInterpolatorRuntime.validateYamlLiteral(sc, Seq(YamlInterpolationContext.InString))
         assertTrue(true)
       },
-      test("invalid YAML throws") {
-        val sc     = new StringContext("{invalid: [broken")
-        val caught = try {
+      test("malformed YAML is handled without unrecoverable error") {
+        val sc        = new StringContext("{invalid: [broken")
+        val completed = try {
           YamlInterpolatorRuntime.validateYamlLiteral(sc, Seq.empty)
-          false
+          true
         } catch {
-          case _: YamlError => false
+          case _: YamlError => true
           case _: Throwable => false
         }
-        assertTrue(!caught || true)
+        assertTrue(completed)
       }
     ),
     suite("yamlWithContexts")(

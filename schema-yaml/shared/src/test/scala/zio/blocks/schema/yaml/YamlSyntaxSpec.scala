@@ -53,7 +53,7 @@ object YamlSyntaxSpec extends YamlBaseSpec {
       test("returns error for unparseable YAML") {
         val yaml   = "{invalid: [yaml"
         val result = yaml.fromYaml[Simple]
-        assertTrue(result.isRight || result.isLeft)
+        assertTrue(result.isLeft)
       },
       test("round-trip through YAML string") {
         val original = WithInt("Alice", 30)

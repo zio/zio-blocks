@@ -81,12 +81,17 @@ object YamlReader {
     }
 
     private def findMappingColon(trimmed: String): Int = {
-      if (trimmed.startsWith("'") || trimmed.startsWith("\"")) return -1
-      var i = 0
+      var i        = 0
+      var inSingle = false
+      var inDouble = false
       while (i < trimmed.length) {
         val c = trimmed.charAt(i)
-        if (c == ':' && (i + 1 >= trimmed.length || trimmed.charAt(i + 1) == ' ')) return i
-        if (c == '#') return -1
+        if (c == '\'' && !inDouble) inSingle = !inSingle
+        else if (c == '"' && !inSingle) inDouble = !inDouble
+        else if (!inSingle && !inDouble) {
+          if (c == ':' && (i + 1 >= trimmed.length || trimmed.charAt(i + 1) == ' ')) return i
+          if (c == '#') return -1
+        }
         i += 1
       }
       -1

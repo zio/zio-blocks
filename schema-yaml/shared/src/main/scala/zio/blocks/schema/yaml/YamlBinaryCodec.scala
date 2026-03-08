@@ -8,6 +8,15 @@ import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
 import scala.util.control.NonFatal
 
+/**
+ * Abstract base class for YAML binary codecs that serialize/deserialize values
+ * of type `A` to and from YAML representations.
+ *
+ * @param valueType
+ *   the register type index used for binding-level storage
+ * @tparam A
+ *   the type this codec handles
+ */
 abstract class YamlBinaryCodec[A](val valueType: Int = YamlBinaryCodec.objectType) extends BinaryCodec[A] {
 
   val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
@@ -78,6 +87,10 @@ abstract class YamlBinaryCodec[A](val valueType: Int = YamlBinaryCodec.objectTyp
   }
 }
 
+/**
+ * Companion object providing primitive [[YamlBinaryCodec]] instances and type
+ * constants.
+ */
 object YamlBinaryCodec {
   val objectType  = 0
   val intType     = 1
