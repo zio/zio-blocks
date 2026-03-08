@@ -548,7 +548,7 @@ Scope.global.scoped { scope =>
       val pool = allocate(Resource(new ConnectionPool()))
 
       $(pool) { p =>
-        request.setConnection(p)
+        request.setConnection(p.acquire())
       }
     }
 
