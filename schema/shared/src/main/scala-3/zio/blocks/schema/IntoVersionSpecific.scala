@@ -1535,7 +1535,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 '{ Right(${ sourceValue.asExpr }.asInstanceOf[Any]) }
               }
               // If types differ, try to find an implicit Into instance (user-provided implicits take priority)
-              else if (!(sourceTpe =:= targetTpe) && findImplicitInto(sourceTpe, targetTpe).isDefined) {
+              else if (!(sourceTpe =:= targetTpe)) {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
                     sourceTpe.asType match {
@@ -1548,32 +1548,26 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                             }
                         }
                     }
-                  case None => throw new AssertionError("unreachable")
+                  case None =>
+                    // Fall through to single-field product, collection, or error
+                    if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
+                      convertToSingleFieldProduct(sourceValue, targetTpe)
+                    } else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
+                      unwrapSingleFieldProduct(sourceValue, sourceTpe)
+                    } else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
+                      convertCollectionElements(sourceValue, sourceTpe, targetTpe, sourceField.name)
+                    } else {
+                      report.errorAndAbort(
+                        noImplicitIntoError(
+                          TypeRepr.of[A],
+                          TypeRepr.of[B],
+                          sourceTpe,
+                          targetTpe,
+                          sourceField.name
+                        )
+                      )
+                    }
                 }
-              }
-              // Check if target is a single-field case class (wrapper)
-              else if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
-                convertToSingleFieldProduct(sourceValue, targetTpe)
-              }
-              // Check if source is a single-field case class (wrapper) that needs unwrapping
-              else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
-                unwrapSingleFieldProduct(sourceValue, sourceTpe)
-              }
-              // Check if this is a collection with element type conversion needed
-              else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
-                convertCollectionElements(sourceValue, sourceTpe, targetTpe, sourceField.name)
-              }
-              // If types differ but no conversion found, error at compile time
-              else if (!(sourceTpe =:= targetTpe)) {
-                report.errorAndAbort(
-                  noImplicitIntoError(
-                    TypeRepr.of[A],
-                    TypeRepr.of[B],
-                    sourceTpe,
-                    targetTpe,
-                    sourceField.name
-                  )
-                )
               } else {
                 // Types match exactly - wrap in Right
                 '{ Right(${ sourceValue.asExprOf[Any] }) }

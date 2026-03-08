@@ -642,33 +642,33 @@ private object IntoVersionSpecificImpl {
               } else if (isNewtypeUnwrapping) {
                 // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
                 q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
-              } else if (findImplicitInto(sourceTpe, targetTpe).isDefined) {
-                // User-provided implicit Into takes priority over single-field auto-wrap/unwrap
-                val intoInstance = findImplicitInto(sourceTpe, targetTpe).get
-                q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
-              } else if (isSingleFieldConversion) {
-                // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"a.$getter", targetTpe)
-              } else if (isSingleFieldUnwrapping) {
-                // Unwrap single-field product to primitive
-                unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
               } else {
-                // No coercion available - fail at compile time
-                fail(
-                  s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
-                     |
-                     |  Field: ${sourceField.name}
-                     |  Source type: $sourceTpe
-                     |  Target type: $targetTpe
-                     |
-                     |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
-                     |
-                     |Consider:
-                     |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
-                     |  - Using Into.derived[$sourceTpe, $targetTpe] inline
-                     |  - Changing the field types to be directly compatible
-                     |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
-                )
+                findImplicitInto(sourceTpe, targetTpe) match {
+                  case Some(intoInstance) =>
+                    q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
+                  case None =>
+                    if (isSingleFieldConversion) {
+                      convertToSingleFieldProductEither(q"a.$getter", targetTpe)
+                    } else if (isSingleFieldUnwrapping) {
+                      unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
+                    } else {
+                      fail(
+                        s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
+                           |
+                           |  Field: ${sourceField.name}
+                           |  Source type: $sourceTpe
+                           |  Target type: $targetTpe
+                           |
+                           |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
+                           |
+                           |Consider:
+                           |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
+                           |  - Using Into.derived[$sourceTpe, $targetTpe] inline
+                           |  - Changing the field types to be directly compatible
+                           |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
+                      )
+                    }
+                }
               }
             } else {
               // Types match - wrap in Right
@@ -1101,21 +1101,22 @@ private object IntoVersionSpecificImpl {
                 convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
               } else if (isNewtypeUnwrapping) {
                 q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
-              } else if (findImplicitInto(sourceTpe, targetTpe).isDefined) {
-                // User-provided implicit Into takes priority over single-field auto-wrap/unwrap
-                val intoInstance = findImplicitInto(sourceTpe, targetTpe).get
-                q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
-              } else if (isSingleFieldConversion) {
-                // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"$bindingName.$getter", targetTpe)
-              } else if (isSingleFieldUnwrapping) {
-                // Unwrap single-field product to primitive
-                unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)
               } else {
-                fail(
-                  s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
-                    s"Please provide an implicit Into instance in scope."
-                )
+                findImplicitInto(sourceTpe, targetTpe) match {
+                  case Some(intoInstance) =>
+                    q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
+                  case None =>
+                    if (isSingleFieldConversion) {
+                      convertToSingleFieldProductEither(q"$bindingName.$getter", targetTpe)
+                    } else if (isSingleFieldUnwrapping) {
+                      unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)
+                    } else {
+                      fail(
+                        s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
+                          s"Please provide an implicit Into instance in scope."
+                      )
+                    }
+                }
               }
             } else {
               q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter)"
