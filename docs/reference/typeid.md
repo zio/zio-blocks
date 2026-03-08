@@ -182,7 +182,7 @@ id.fullName
 id.arity
 ```
 
-Additional properties include `owner` (Owner representing the package/enclosing type), `typeParams` (List of TypeParam for type constructors), and `typeArgs` (List of TypeRepr for applied types).
+Additional properties include `TypeId#owner` (Owner representing the package/enclosing type), `TypeId#typeParams` (List of TypeParam for type constructors), and `TypeId#typeArgs` (List of TypeRepr for applied types).
 
 ### Type Classification
 
