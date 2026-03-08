@@ -1,9 +1,9 @@
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.{Schema, SchemaBaseSpec}
+import zio.blocks.schema.Schema
 import zio.test._
 
-object YamlBinaryCodecDeriverSpec extends SchemaBaseSpec {
+object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
 
   case class Person(name: String, age: Int)
   object Person {

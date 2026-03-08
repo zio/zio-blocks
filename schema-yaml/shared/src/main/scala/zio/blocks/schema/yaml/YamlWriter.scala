@@ -6,6 +6,7 @@ object YamlWriter {
 
   def write(yaml: Yaml, options: YamlOptions = YamlOptions.default): String = {
     val sb = new StringBuilder
+    if (options.documentMarkers) sb.append("---\n")
     writeNode(sb, yaml, 0, options, isTopLevel = true)
     sb.toString
   }
@@ -26,8 +27,8 @@ object YamlWriter {
     case Yaml.Sequence(elements) =>
       if (options.flowStyle) writeFlowSequence(sb, elements, options)
       else writeBlockSequence(sb, elements, indent, options, isTopLevel)
-    case Yaml.Scalar(value, _) =>
-      writeScalar(sb, value)
+    case Yaml.Scalar(value, tag) =>
+      writeScalar(sb, value, tag)
     case Yaml.NullValue =>
       sb.append("null")
   }
@@ -149,42 +150,84 @@ object YamlWriter {
   }
 
   private def writeScalarKey(sb: StringBuilder, key: Yaml): Unit = key match {
-    case Yaml.Scalar(value, _) => writeScalar(sb, value)
-    case _                     => sb.append("null")
+    case Yaml.Scalar(value, tag) => writeScalar(sb, value, tag)
+    case _                       => sb.append("null")
   }
 
-  private def writeScalar(sb: StringBuilder, value: String): Unit =
-    if (needsQuoting(value)) {
+  private def writeScalar(sb: StringBuilder, value: String, tag: Option[YamlTag]): Unit =
+    if (needsQuoting(value, tag)) {
       sb.append('"')
       var i = 0
       while (i < value.length) {
         value.charAt(i) match {
-          case '"'  => sb.append("\\\"")
-          case '\\' => sb.append("\\\\")
-          case '\n' => sb.append("\\n")
-          case '\t' => sb.append("\\t")
-          case '\r' => sb.append("\\r")
-          case c    => sb.append(c)
+          case '"'           => sb.append("\\\"")
+          case '\\'          => sb.append("\\\\")
+          case '\n'          => sb.append("\\n")
+          case '\t'          => sb.append("\\t")
+          case '\r'          => sb.append("\\r")
+          case '\b'          => sb.append("\\b")
+          case c if c < 0x20 =>
+            sb.append("\\u")
+            sb.append(String.format("%04x", Int.box(c.toInt)))
+          case c => sb.append(c)
         }
         i += 1
       }
       sb.append('"')
     } else sb.append(value)
 
-  private def needsQuoting(value: String): Boolean = {
+  private def needsQuoting(value: String, tag: Option[YamlTag]): Boolean = {
     if (value.isEmpty) return true
-    if (value == "null" || value == "~" || value == "true" || value == "false") return false
+
+    tag match {
+      case Some(YamlTag.Bool) | Some(YamlTag.Int) | Some(YamlTag.Float) | Some(YamlTag.Null) =>
+        return false
+      case _ => ()
+    }
+
+    if (isSpecialValue(value)) return true
+
     val c0 = value.charAt(0)
     if (
-      c0 == '\'' || c0 == '"' || c0 == '{' || c0 == '[' || c0 == '|' || c0 == '>' || c0 == '%' || c0 == '@' || c0 == '`'
+      c0 == '\'' || c0 == '"' || c0 == '{' || c0 == '[' || c0 == '|' || c0 == '>' ||
+      c0 == '%' || c0 == '@' || c0 == '`' || c0 == '&' || c0 == '*' || c0 == '!' || c0 == '?'
     ) return true
+
+    if (looksNumeric(value)) return true
+
     var i = 0
     while (i < value.length) {
       val c = value.charAt(i)
-      if (c == '\n' || c == '\r' || c == '\t') return true
+      if (c < 0x20 && c != '\t') return true
+      if (c == '\n' || c == '\r') return true
       if (c == ':' && i + 1 < value.length && value.charAt(i + 1) == ' ') return true
       if (c == '#' && i > 0 && value.charAt(i - 1) == ' ') return true
       i += 1
+    }
+    false
+  }
+
+  private def isSpecialValue(value: String): Boolean = value match {
+    case "null" | "~" | "Null" | "NULL"                         => true
+    case "true" | "false" | "True" | "False" | "TRUE" | "FALSE" => true
+    case "yes" | "no" | "Yes" | "No" | "YES" | "NO"             => true
+    case "on" | "off" | "On" | "Off" | "ON" | "OFF"             => true
+    case ".inf" | "-.inf" | ".Inf" | "-.Inf" | ".INF" | "-.INF" => true
+    case ".nan" | ".NaN" | ".NAN"                               => true
+    case _                                                      => false
+  }
+
+  private def looksNumeric(value: String): Boolean = {
+    val c0 = value.charAt(0)
+    if (c0 >= '0' && c0 <= '9') return true
+    if ((c0 == '+' || c0 == '-') && value.length > 1) {
+      val c1 = value.charAt(1)
+      if (c1 >= '0' && c1 <= '9') return true
+      if (c1 == '.') return true
+    }
+    if (c0 == '.' && value.length > 1) {
+      val c1 = value.charAt(1)
+      if (c1 >= '0' && c1 <= '9') return true
     }
     false
   }

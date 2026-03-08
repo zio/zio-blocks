@@ -109,7 +109,7 @@ object YamlBinaryCodec {
         }
       case _ => Left(YamlError.parseError("Expected scalar for boolean", 0, 0))
     }
-    def encodeValue(x: Boolean): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Boolean): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Bool))
   }
 
   val byteCodec: YamlBinaryCodec[Byte] = new YamlBinaryCodec[Byte](YamlBinaryCodec.byteType) {
@@ -119,7 +119,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid byte value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for byte", 0, 0))
     }
-    def encodeValue(x: Byte): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Byte): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
   val shortCodec: YamlBinaryCodec[Short] = new YamlBinaryCodec[Short](YamlBinaryCodec.shortType) {
@@ -129,7 +129,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid short value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for short", 0, 0))
     }
-    def encodeValue(x: Short): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Short): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
   val intCodec: YamlBinaryCodec[Int] = new YamlBinaryCodec[Int](YamlBinaryCodec.intType) {
@@ -139,7 +139,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid int value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for int", 0, 0))
     }
-    def encodeValue(x: Int): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Int): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
   val longCodec: YamlBinaryCodec[Long] = new YamlBinaryCodec[Long](YamlBinaryCodec.longType) {
@@ -149,7 +149,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid long value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for long", 0, 0))
     }
-    def encodeValue(x: Long): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Long): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
   val floatCodec: YamlBinaryCodec[Float] = new YamlBinaryCodec[Float](YamlBinaryCodec.floatType) {
@@ -159,7 +159,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid float value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for float", 0, 0))
     }
-    def encodeValue(x: Float): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Float): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
   }
 
   val doubleCodec: YamlBinaryCodec[Double] = new YamlBinaryCodec[Double](YamlBinaryCodec.doubleType) {
@@ -169,7 +169,7 @@ object YamlBinaryCodec {
         catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid double value: $v", 0, 0)) }
       case _ => Left(YamlError.parseError("Expected scalar for double", 0, 0))
     }
-    def encodeValue(x: Double): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: Double): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
   }
 
   val charCodec: YamlBinaryCodec[Char] = new YamlBinaryCodec[Char](YamlBinaryCodec.charType) {

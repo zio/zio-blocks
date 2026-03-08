@@ -7,7 +7,8 @@ object YamlReader {
 
   def read(input: String): Either[YamlError, Yaml] =
     try {
-      val parser = new YamlParser(input)
+      val normalized = input.replace("\r\n", "\n").replace("\r", "\n")
+      val parser     = new YamlParser(normalized)
       parser.parse()
     } catch {
       case e: YamlError => Left(e)
@@ -25,8 +26,16 @@ object YamlReader {
       skipBlanksAndComments()
       if (lineIdx >= lines.length) Right(Yaml.NullValue)
       else {
-        val result = parseValue(0)
-        result
+        val line = lines(lineIdx).trim
+        if (line == "---") {
+          lineIdx += 1
+          skipBlanksAndComments()
+        }
+        if (lineIdx >= lines.length) Right(Yaml.NullValue)
+        else {
+          val result = parseValue(0)
+          result
+        }
       }
     }
 
@@ -190,17 +199,6 @@ object YamlReader {
               if (lineIdx >= lines.length || currentIndent < dashContentIndent) {
                 elements += Yaml.Mapping(mapEntries.result())
                 mapEntries.clear()
-                // Don't break; the outer while loop will re-check
-                // We need to actually leave the inner mapping loop
-                // Use a flag-like approach:
-                // Actually we just add and break out
-                // Let's restructure:
-                // Collected entries are added as Mapping already above
-                // But we added it above, so we should not add again. Let's redo:
-                // Actually the += is above, and we need to NOT add again, so just leave this loop
-                mapEntries.clear() // mark that we already added
-                // The break here won't compile easily in Scala without scala.util.control.Breaks
-                // Let's use a var instead
                 return parseBlockSequenceContinue(indent, elements)
               }
               if (currentIndent != dashContentIndent) {
@@ -277,7 +275,6 @@ object YamlReader {
         } else {
           val colonIdx = findMappingColon(afterDash)
           if (colonIdx > 0) {
-            // Nested mapping in sequence item - parse it
             val dashContentIndent = indent + 2
             lineIdx += 1
             val keyStr     = afterDash.substring(0, colonIdx).trim
@@ -361,8 +358,7 @@ object YamlReader {
           while (lineIdx < lines.length) {
             val raw = lines(lineIdx)
             if (raw.trim.isEmpty) {
-              if (isLiteral) sb.append('\n')
-              else sb.append('\n')
+              sb.append('\n')
               lineIdx += 1
             } else {
               val ci = countLeadingSpaces(raw)
@@ -553,12 +549,16 @@ object YamlReader {
       var i        = 0
       while (i < s.length) {
         val c = s.charAt(i)
-        if (c == '\'' && !inDouble) inSingle = !inSingle
-        else if (c == '"' && !inSingle) inDouble = !inDouble
-        else if (c == '#' && !inSingle && !inDouble && i > 0 && s.charAt(i - 1) == ' ') {
-          return s.substring(0, i).trim
+        if (c == '\\' && inDouble && i + 1 < s.length) {
+          i += 2
+        } else {
+          if (c == '\'' && !inDouble) inSingle = !inSingle
+          else if (c == '"' && !inSingle) inDouble = !inDouble
+          else if (c == '#' && !inSingle && !inDouble && i > 0 && s.charAt(i - 1) == ' ') {
+            return s.substring(0, i).trim
+          }
+          i += 1
         }
-        i += 1
       }
       s
     }
@@ -580,12 +580,35 @@ object YamlReader {
       while (i < inner.length) {
         if (inner.charAt(i) == '\\' && i + 1 < inner.length) {
           inner.charAt(i + 1) match {
-            case 'n'   => sb.append('\n')
-            case 't'   => sb.append('\t')
-            case 'r'   => sb.append('\r')
-            case '\\'  => sb.append('\\')
-            case '"'   => sb.append('"')
-            case '/'   => sb.append('/')
+            case 'n'                         => sb.append('\n')
+            case 't'                         => sb.append('\t')
+            case 'r'                         => sb.append('\r')
+            case '\\'                        => sb.append('\\')
+            case '"'                         => sb.append('"')
+            case '/'                         => sb.append('/')
+            case 'b'                         => sb.append('\b')
+            case 'a'                         => sb.append('\u0007')
+            case '0'                         => sb.append('\u0000')
+            case 'u' if i + 5 < inner.length =>
+              val hex = inner.substring(i + 2, i + 6)
+              try {
+                sb.append(Integer.parseInt(hex, 16).toChar)
+                i += 4
+              } catch {
+                case _: NumberFormatException =>
+                  sb.append('\\')
+                  sb.append('u')
+              }
+            case 'x' if i + 3 < inner.length =>
+              val hex = inner.substring(i + 2, i + 4)
+              try {
+                sb.append(Integer.parseInt(hex, 16).toChar)
+                i += 2
+              } catch {
+                case _: NumberFormatException =>
+                  sb.append('\\')
+                  sb.append('x')
+              }
             case other => sb.append('\\'); sb.append(other)
           }
           i += 2

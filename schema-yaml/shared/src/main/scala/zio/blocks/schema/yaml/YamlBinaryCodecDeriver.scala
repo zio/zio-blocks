@@ -650,10 +650,81 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
   }
 
   private val dynamicValueCodec: YamlBinaryCodec[DynamicValue] = new YamlBinaryCodec[DynamicValue]() {
-    def decodeValue(yaml: Yaml): Either[YamlError, DynamicValue] =
-      Left(YamlError.parseError("DynamicValue decoding not supported", 0, 0))
+    def decodeValue(yaml: Yaml): Either[YamlError, DynamicValue] = Right(yamlToDynamicValue(yaml))
 
-    def encodeValue(x: DynamicValue): Yaml =
-      Yaml.Scalar(x.toString)
+    def encodeValue(x: DynamicValue): Yaml = dynamicValueToYaml(x)
+  }
+
+  private def dynamicValueToYaml(dv: DynamicValue): Yaml = dv match {
+    case v: DynamicValue.Primitive => fromPrimitiveValue(v.value)
+    case v: DynamicValue.Record    =>
+      Yaml.Mapping(v.fields.map(kv => (Yaml.Scalar(kv._1): Yaml, dynamicValueToYaml(kv._2))))
+    case v: DynamicValue.Variant =>
+      Yaml.Mapping.fromStringKeys(v.caseNameValue -> dynamicValueToYaml(v.value))
+    case v: DynamicValue.Sequence =>
+      Yaml.Sequence(v.elements.map(dynamicValueToYaml))
+    case v: DynamicValue.Map =>
+      val entries       = v.entries
+      val allStringKeys = entries.forall {
+        case (DynamicValue.Primitive(_: PrimitiveValue.String), _) => true
+        case _                                                     => false
+      }
+      if (allStringKeys) {
+        Yaml.Mapping(entries.collect { case (DynamicValue.Primitive(k: PrimitiveValue.String), v) =>
+          (Yaml.Scalar(k.value): Yaml, dynamicValueToYaml(v))
+        })
+      } else {
+        Yaml.Sequence(entries.map { kv =>
+          Yaml.Mapping.fromStringKeys("key" -> dynamicValueToYaml(kv._1), "value" -> dynamicValueToYaml(kv._2))
+        })
+      }
+    case _: DynamicValue.Null.type => Yaml.NullValue
+  }
+
+  private def fromPrimitiveValue(pv: PrimitiveValue): Yaml = pv match {
+    case v: PrimitiveValue.String     => Yaml.Scalar(v.value)
+    case v: PrimitiveValue.Int        => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Int))
+    case v: PrimitiveValue.Long       => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Int))
+    case v: PrimitiveValue.Double     => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Float))
+    case v: PrimitiveValue.Float      => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Float))
+    case v: PrimitiveValue.Boolean    => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Bool))
+    case v: PrimitiveValue.Byte       => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Int))
+    case v: PrimitiveValue.Short      => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Int))
+    case v: PrimitiveValue.Char       => Yaml.Scalar(v.value.toString)
+    case v: PrimitiveValue.BigInt     => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Int))
+    case v: PrimitiveValue.BigDecimal => Yaml.Scalar(v.value.toString, tag = Some(YamlTag.Float))
+    case _: PrimitiveValue.Unit.type  => Yaml.NullValue
+    case other                        => Yaml.Scalar(other.toString)
+  }
+
+  private def yamlToDynamicValue(yaml: Yaml): DynamicValue = yaml match {
+    case Yaml.Mapping(entries) =>
+      new DynamicValue.Record(entries.map { case (k, v) =>
+        val key = k match {
+          case Yaml.Scalar(s, _) => s
+          case other             => other.print
+        }
+        (key, yamlToDynamicValue(v))
+      })
+    case Yaml.Sequence(elements) =>
+      new DynamicValue.Sequence(elements.map(yamlToDynamicValue))
+    case Yaml.Scalar(value, _) =>
+      value match {
+        case "true" | "True" | "TRUE"    => new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
+        case "false" | "False" | "FALSE" => new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
+        case _                           =>
+          try {
+            val bd        = BigDecimal(value)
+            val longValue = bd.bigDecimal.longValue
+            if (bd == BigDecimal(longValue)) {
+              val intValue = longValue.toInt
+              if (longValue == intValue) new DynamicValue.Primitive(new PrimitiveValue.Int(intValue))
+              else new DynamicValue.Primitive(new PrimitiveValue.Long(longValue))
+            } else new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
+          } catch {
+            case _: NumberFormatException => new DynamicValue.Primitive(new PrimitiveValue.String(value))
+          }
+      }
+    case _: Yaml.NullValue.type => DynamicValue.Null
   }
 }

@@ -557,21 +557,21 @@ lazy val openapi = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test", markdown)
 
 lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
+  .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema-yaml"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema.yaml"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .dependsOn(schema % "compile->compile;test->test")
+  .dependsOn(schema)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 75
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
