@@ -448,8 +448,6 @@ Scope.global.scoped { scope =>
 }
 ```
 
-See [Scope](./scope.md) for more on building objects with Wire and the scope system.
-
 ## Running the Examples
 
 The examples in this reference are compiled and checked via [mdoc](https://scalameta.org/mdoc/). We also provide runnable example applications in the `schema-examples` module:
