@@ -235,7 +235,6 @@ sbt "schema-examples/runMain <package>.<ObjectName>"
 ```bash
 sbt "schema-examples/runMain <package>.<ObjectName2>"
 ```
-```
 
 Rules for this section:
 - List **every `App` object** written in Step 3, one entry per object.
@@ -259,13 +258,11 @@ mdoc build.
 
 Use this pattern:
 
-````markdown
 ```scala mdoc:passthrough
 import docs.SourceFile
 
 SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 ```
-````
 
 **Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use
 `import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print`
@@ -286,13 +283,11 @@ the file path shown as the title. The path is relative to the repository root (t
 
 **Optional parameters:**
 - `lines = Seq((from, to))` — include only specific line ranges (1-indexed):
-  ````markdown
   ```scala mdoc:passthrough
   import docs.SourceFile
 
   SourceFile.print("schema-examples/src/main/scala/into/IntoNumericExample.scala", lines = Seq((10, 25)))
   ```
-  ````
 - `showLineNumbers = true` — render with line numbers in the output
 - `showTitle = false` — suppress the file path title
 
