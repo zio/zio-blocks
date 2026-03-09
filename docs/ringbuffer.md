@@ -7,22 +7,18 @@ title: "Ring Buffer"
 
 `zio.blocks.ringbuffer` is a family of **high-performance, bounded ring buffers** for the JVM (and Scala.js). Each variant is optimized for a specific producer/consumer threading pattern—pick the one that matches your use case and get the fastest possible inter-thread communication with zero dependencies.
 
-Lock-free variants expose `offer` (returns `false` if full) and `take` (returns `null` if empty)—both non-blocking. Blocking variants expose `offer`/`take` (block until space/element is available) and `tryOffer`/`tryTake` (non-blocking, same semantics as the lock-free API). Capacity must be a **power of two** (enables bitwise masking instead of modulo). Elements must be **non-null reference types** (`A <: AnyRef`).
+All variants expose `offer` (returns `false` if full) and `take` (returns `null` if empty)—both non-blocking. Capacity must be a **power of two** (enables bitwise masking instead of modulo). Elements must be **non-null reference types** (`A <: AnyRef`).
 
 ## Ring buffer variants
 
-| Type | Producers | Consumers | Blocking | Algorithm |
-|------|-----------|-----------|----------|-----------|
-| `SpscRingBuffer` | 1 | 1 | No | FastFlow (null/non-null signaling) |
-| `SpmcRingBuffer` | 1 | Many | No | Index-based capacity + CAS consumers |
-| `MpscRingBuffer` | Many | 1 | No | CAS producers + relaxed poll |
-| `MpmcRingBuffer` | Many | Many | No | Vyukov/Dmitry sequence buffer |
-| `BlockingSpscRingBuffer` | 1 | 1 | Yes | `LockSupport.park/unpark` (Dekker) |
-| `BlockingSpmcRingBuffer` | 1 | Many | Yes | `LockSupport` producer + `ReentrantLock` consumers |
-| `BlockingMpscRingBuffer` | Many | 1 | Yes | `ReentrantLock` producers + `LockSupport` consumer |
-| `BlockingMpmcRingBuffer` | Many | Many | Yes | Dual `ReentrantLock` (like `LinkedBlockingQueue`) |
+| Type | Producers | Consumers | Algorithm |
+|------|-----------|-----------|-----------|
+| `SpscRingBuffer` | 1 | 1 | FastFlow (null/non-null signaling) |
+| `SpmcRingBuffer` | 1 | Many | Index-based capacity + CAS consumers |
+| `MpscRingBuffer` | Many | 1 | CAS producers + relaxed poll |
+| `MpmcRingBuffer` | Many | Many | Vyukov/Dmitry sequence buffer |
 
-**Naming convention:** `S` = single, `M` = multi, `p` = producer, `c` = consumer. `BlockingXxxRingBuffer` wraps the corresponding lock-free `XxxRingBuffer` and adds blocking `offer`/`take`.
+**Naming convention:** `S` = single, `M` = multi, `p` = producer, `c` = consumer.
 
 ---
 
@@ -36,8 +32,6 @@ libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "@VERSION@"
 
 ## Quick start
 
-### Non-blocking (SPSC)
-
 ```scala
 import zio.blocks.ringbuffer.SpscRingBuffer
 
@@ -50,25 +44,11 @@ buf.offer("hello") // true if inserted, false if full
 val msg: String = buf.take() // element or null if empty
 ```
 
-### Blocking (MPMC)
-
-```scala
-import zio.blocks.ringbuffer.BlockingMpmcRingBuffer
-
-val buf = BlockingMpmcRingBuffer[String](1024)
-
-// Any producer thread — blocks until space is available
-buf.offer("hello")
-
-// Any consumer thread — blocks until an element is available
-val msg: String = buf.take()
-```
-
 ---
 
-## Non-blocking API
+## API
 
-Every non-blocking ring buffer provides:
+Every ring buffer provides:
 
 ```scala
 def offer(a: A): Boolean   // insert; returns false if full
@@ -89,35 +69,16 @@ All `size`/`isEmpty`/`isFull` values are **approximate** under concurrency—the
 
 ---
 
-## Blocking API
-
-Each `BlockingXxxRingBuffer` wraps the corresponding lock-free variant and adds:
-
-```scala
-def offer(a: A): Unit        // blocks until space is available; throws InterruptedException
-def take(): A                 // blocks until an element is available; throws InterruptedException
-def tryOffer(a: A): Boolean   // non-blocking insert; returns false if full
-def tryTake(): A              // non-blocking remove; returns null if empty
-```
-
-The non-blocking `tryOffer`/`tryTake` methods are available on blocking variants for try-once semantics.
-
-**Fast-path optimization:** `offer` attempts `inner.offer` before engaging any blocking machinery. If it succeeds, no lock is acquired. Similarly, `take` attempts `inner.take` first. The blocking slow path is only entered when the buffer is actually full (for `offer`) or empty (for `take`).
-
----
-
 ## Choosing a variant
 
 Use the most constrained variant that fits your threading model:
 
 | Scenario | Recommended |
 |----------|-------------|
-| Dedicated pipeline: one writer thread, one reader thread | `SpscRingBuffer` / `BlockingSpscRingBuffer` |
-| Fan-in: many writers, one reader (e.g., logging, event aggregation) | `MpscRingBuffer` / `BlockingMpscRingBuffer` |
-| Fan-out: one writer, many readers (e.g., work distribution) | `SpmcRingBuffer` / `BlockingSpmcRingBuffer` |
-| General purpose: any number of writers and readers | `MpmcRingBuffer` / `BlockingMpmcRingBuffer` |
-
-Use the **non-blocking** variant when you can spin, batch, or back-pressure at a higher level. Use the **blocking** variant when threads should sleep until work is available.
+| Dedicated pipeline: one writer thread, one reader thread | `SpscRingBuffer` |
+| Fan-in: many writers, one reader (e.g., logging, event aggregation) | `MpscRingBuffer` |
+| Fan-out: one writer, many readers (e.g., work distribution) | `SpmcRingBuffer` |
+| General purpose: any number of writers and readers | `MpmcRingBuffer` |
 
 ---
 
@@ -143,9 +104,9 @@ println(s"Drained $drained elements")
 ### MPSC fan-in (multiple producers, single consumer)
 
 ```scala
-import zio.blocks.ringbuffer.BlockingMpscRingBuffer
+import zio.blocks.ringbuffer.MpscRingBuffer
 
-val buf = BlockingMpscRingBuffer[String](256)
+val buf = MpscRingBuffer[String](256)
 
 // Multiple producer threads
 for (i <- 0 until 4) {
@@ -157,29 +118,35 @@ for (i <- 0 until 4) {
 
 // Single consumer thread
 new Thread(() => {
-  for (_ <- 0 until 400)
-    println(buf.take())
+  var msg = buf.take()
+  while (msg != null) {
+    println(msg)
+    msg = buf.take()
+  }
 }).start()
 ```
 
 ### SPMC fan-out (single producer, multiple consumers)
 
 ```scala
-import zio.blocks.ringbuffer.BlockingSpmcRingBuffer
+import zio.blocks.ringbuffer.SpmcRingBuffer
 
-val buf = BlockingSpmcRingBuffer[String](256)
+val buf = SpmcRingBuffer[String](256)
 
 // Single producer thread
 new Thread(() => {
   for (i <- 0 until 400)
-    buf.offer(s"task-$i")
+    while (!buf.offer(s"task-$i")) {} // retry if full
 }).start()
 
 // Multiple consumer (worker) threads
 for (w <- 0 until 4) {
   new Thread(() => {
-    for (_ <- 0 until 100)
-      println(s"worker-$w: ${buf.take()}")
+    var msg = buf.take()
+    while (msg != null) {
+      println(s"worker-$w: $msg")
+      msg = buf.take()
+    }
   }).start()
 }
 ```
@@ -248,49 +215,25 @@ Capacity must be a power of two. This allows `index & (capacity - 1)` instead of
 
 ---
 
-## Blocking design
-
-Each blocking variant wraps the corresponding lock-free ring buffer and adds a blocking layer optimized for the specific threading pattern:
-
-**Single-waiter sides** (e.g., the single consumer in `BlockingMpscRingBuffer`, or both sides in `BlockingSpscRingBuffer`) use `volatile Thread` + `LockSupport.park/unpark` with a Dekker-like protocol:
-
-1. Store `Thread.currentThread()` in a volatile field
-2. Re-check the buffer (prevents lost wakeups)
-3. Park if still full/empty
-4. The opposite side reads the volatile field and calls `unpark` if non-null
-
-This is zero-allocation, zero-CAS for the blocking path—just a volatile write and a park/unpark.
-
-**Multi-waiter sides** (e.g., the multiple producers in `BlockingMpscRingBuffer`, or both sides in `BlockingMpmcRingBuffer`) use `ReentrantLock` + `Condition`:
-
-- `notFull` condition for producers to await when the buffer is full
-- `notEmpty` condition for consumers to await when the buffer is empty
-
-**Loom-friendly:** All blocking variants use `LockSupport.park` (which correctly unmounts virtual threads) and `ReentrantLock` (no `synchronized` blocks). They work with both platform and virtual threads.
-
----
-
 ## Thread-safety contract
 
 Violating the threading contract (e.g., calling `take` from multiple threads on an `SpscRingBuffer`) results in **undefined behavior**. No runtime check is performed—this is enforced by contract for maximum performance.
 
-| Type | `offer` / `tryOffer` | `take` / `tryTake` |
-|------|------------------|-----------------|
-| `*Spsc*` | Single producer thread only | Single consumer thread only |
-| `*Spmc*` | Single producer thread only | Any number of consumer threads |
-| `*Mpsc*` | Any number of producer threads | Single consumer thread only |
-| `*Mpmc*` | Any number of producer threads | Any number of consumer threads |
+| Type | `offer` | `take` |
+|------|---------|--------|
+| `SpscRingBuffer` | Single producer thread only | Single consumer thread only |
+| `SpmcRingBuffer` | Single producer thread only | Any number of consumer threads |
+| `MpscRingBuffer` | Any number of producer threads | Single consumer thread only |
+| `MpmcRingBuffer` | Any number of producer threads | Any number of consumer threads |
 
 ---
 
 ## Performance characteristics
 
-| Operation | Non-blocking | Blocking (fast path) | Blocking (slow path) |
-|-----------|-------------|---------------------|---------------------|
-| `offer` (non-blocking) | Lock-free (SPSC/SPMC: wait-free) | N/A (`tryOffer`) | N/A |
-| `take` (non-blocking) | Lock-free (SPSC/MPSC: wait-free) | N/A (`tryTake`) | N/A |
-| `offer` (blocking) | N/A | Lock-free fast path | Park/unpark or lock + await |
-| `take` (blocking) | N/A | Lock-free fast path | Park/unpark or lock + await |
+| Operation | Complexity |
+|-----------|-----------|
+| `offer` | Lock-free (SPSC/SPMC: wait-free) |
+| `take` | Lock-free (SPSC/MPSC: wait-free) |
 
 **SPSC** is the fastest: no CAS, no locks, minimal cache-line traffic. Use it whenever your threading model allows a dedicated producer-consumer pair.
 
@@ -298,9 +241,9 @@ Violating the threading contract (e.g., calling `take` from multiple threads on 
 
 ## Cross-platform support
 
-On **Scala.js**, all ring buffer types compile and provide the same API surface. Since Scala.js is single-threaded, the JS implementations use plain reads and writes with no memory ordering primitives or locks. The blocking variants throw `UnsupportedOperationException` for `offer`/`take` (blocking is not meaningful in a single-threaded runtime). Use `tryOffer`/`tryTake` on Scala.js.
+On **Scala.js**, all ring buffer types compile and provide the same API surface. Since Scala.js is single-threaded, the JS implementations use plain reads and writes with no memory ordering primitives.
 
-| Platform | Lock-free variants | Blocking `tryOffer`/`tryTake` | Blocking `offer`/`take` |
-|----------|-------------------|------------------------|----------------------|
-| JVM | Full concurrency support | Full concurrency support (`tryOffer`/`tryTake`) | Full concurrency support |
-| Scala.js | Sequential (same API) | Sequential (same API, `tryOffer`/`tryTake`) | `UnsupportedOperationException` |
+| Platform | Support |
+|----------|---------|
+| JVM | Full concurrency support |
+| Scala.js | Sequential (same API) |
