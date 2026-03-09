@@ -87,7 +87,27 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     docs,
-    `schema-examples`
+    `schema-examples`,
+    ringbuffer.jvm,
+    ringbuffer.js,
+    ringbufferBenchmarks
+  )
+
+lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-ringbuffer"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.ringbuffer"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
@@ -517,6 +537,21 @@ lazy val benchmarks = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 30,
     coverageMinimumBranchTotal := 42
+  )
+
+lazy val ringbufferBenchmarks = project
+  .in(file("ringbuffer-benchmarks"))
+  .settings(stdSettings("zio-blocks-ringbuffer-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(ringbuffer.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "org.jctools" % "jctools-core" % "4.0.3"
+    )
   )
 
 lazy val `schema-examples` = project
