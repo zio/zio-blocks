@@ -83,24 +83,16 @@ Apply these conventions consistently in all prose, section headings, and inline 
 
 ## Table Formatting
 
-When creating comparison or reference tables in documentation:
-
-- **Pad columns for readability**: Align column content using padding/spacing so that similar items
-  line up vertically. This makes scanning and comparison easier for readers.
-- **Left-align text columns**: Text cells should be left-aligned with padding.
-- **Right-align numeric columns**: Numbers should be right-aligned for easier comparison.
-- **Example format**:
+Pad column headers and separators with spaces to align content vertically:
 
 ```markdown
-| Feature             | `Map[Class[_], Any]` | `ZEnvironment`   | `Context` |
-|---------------------|----------------------|------------------|-----------|
-| Type-safe retrieval | ✗ (cast required)    | ✓                | ✓         |
-| Compile-time proof  | ✗                    | ✓                | ✓         |
-| Effect-free         | ✓                    | ✗ (requires ZIO) | ✓         |
+| Feature             | Option A             | Option B             |
+|---------------------|----------------------|----------------------|
+| Type-safe           | ✓                    | ✗                    |
+| Performance         | Fast                 | Slower               |
 ```
 
-Note the padded column widths (especially the first column header and separator) and consistent
-spacing within cells. This significantly improves readability compared to minimal-width tables.
+This makes tables more scannable and readable than minimal-width formatting.
 
 ## Scala Version
 
