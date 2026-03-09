@@ -446,14 +446,14 @@ Attempting to store an unsupported type:
 
 Here is a comparison of Context with related alternatives:
 
-| Feature | `Map[Class[_], Any]` | `ZEnvironment` | `Context` |
-|---------|----------------------|----------------|-----------|
-| Type-safe retrieval | ✗ (cast required) | ✓ | ✓ |
-| Compile-time proof | ✗ | ✓ | ✓ |
-| Effect-free | ✓ | ✗ (requires ZIO) | ✓ |
-| Immutable | ✓ | ✓ | ✓ |
-| Cached lookups | ✗ | ✓ | ✓ |
-| Supertype matching | ✗ | ✓ | ✓ |
+| Feature             | `Map[Class[_], Any]` | `ZEnvironment`   | `Context` |
+|---------------------|----------------------|------------------|-----------|
+| Type-safe retrieval | ✗ (cast required)    | ✓                | ✓         |
+| Compile-time proof  | ✗                    | ✓                | ✓         |
+| Effect-free         | ✓                    | ✗ (requires ZIO) | ✓         |
+| Immutable           | ✓                    | ✓                | ✓         |
+| Cached lookups      | ✗                    | ✓                | ✓         |
+| Supertype matching  | ✗                    | ✓                | ✓         |
 
 ## Integration with Wire and Scope
 
