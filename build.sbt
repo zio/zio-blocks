@@ -566,6 +566,7 @@ lazy val docs = project
     schema.jvm,
     markdown.jvm,
     context.jvm,
+    scope.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
