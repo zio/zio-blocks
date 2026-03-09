@@ -100,6 +100,11 @@ val makeEnv = for {
 **Context** — combines compile-time type safety with synchronous, pure code:
 
 ```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
 // Type-safe, no effects needed
 val ctx = Context(Config(true), Logger("app"))
 val config = ctx.get[Config]  // Compile-time proof it exists
@@ -157,7 +162,7 @@ val ctx = Context.empty
   .add(Logger("init"))
 ```
 
-Type is inferred as the intersection of added types:
+The context holds both entries, confirming the additions:
 
 ```scala mdoc
 val size1 = ctx.size
@@ -430,7 +435,7 @@ Here is a comparison of Context with related alternatives:
 
 ## Integration with Wire and Scope
 
-`Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies:
+`Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. `Wire.make` constructs the wire, and `Scope.global.scoped` provides a managed scope in which to instantiate it:
 
 ```scala
 import zio.blocks.scope._
