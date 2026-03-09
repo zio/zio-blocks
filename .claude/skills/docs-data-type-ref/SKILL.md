@@ -204,6 +204,18 @@ Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when 
 - "TypeId vs Scala's TypeTag vs Java's Class"
 - "Lazy vs lazy val vs def"
 
+**Table format for comparisons:** When creating a comparison table, use properly padded/aligned columns for readability. Left-align text columns with consistent spacing:
+
+```markdown
+| Feature             | Your Type         | Alternative Type  | Alternative 2    |
+|---------------------|-------------------|-------------------|------------------|
+| Feature 1           | ✓                 | ✗                 | ✓                |
+| Feature 2           | Type-safe         | No runtime safety | Type-safe        |
+| Feature 3           | Immutable         | Mutable option    | Immutable        |
+```
+
+Refer to the **`docs-writing-style`** skill for complete table formatting guidance.
+
 #### 9. Advanced Usage / Building Blocks (when applicable)
 
 Show how the type composes with other types or how it can be used to build higher-level abstractions.

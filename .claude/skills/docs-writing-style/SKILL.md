@@ -81,6 +81,27 @@ Apply these conventions consistently in all prose, section headings, and inline 
 - **Code snippet description**: When showing example code snippets, explain what they do and why
   they are relevant. Don't just show code without context.
 
+## Table Formatting
+
+When creating comparison or reference tables in documentation:
+
+- **Pad columns for readability**: Align column content using padding/spacing so that similar items
+  line up vertically. This makes scanning and comparison easier for readers.
+- **Left-align text columns**: Text cells should be left-aligned with padding.
+- **Right-align numeric columns**: Numbers should be right-aligned for easier comparison.
+- **Example format**:
+
+```markdown
+| Feature             | `Map[Class[_], Any]` | `ZEnvironment`   | `Context` |
+|---------------------|----------------------|------------------|-----------|
+| Type-safe retrieval | ✗ (cast required)    | ✓                | ✓         |
+| Compile-time proof  | ✗                    | ✓                | ✓         |
+| Effect-free         | ✓                    | ✗ (requires ZIO) | ✓         |
+```
+
+Note the padded column widths (especially the first column header and separator) and consistent
+spacing within cells. This significantly improves readability compared to minimal-width tables.
+
 ## Scala Version
 
 All code in documentation and companion example files **defaults to Scala 2.13.x syntax**.
