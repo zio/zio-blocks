@@ -22,6 +22,9 @@ trait Platform {
   /** Human-readable name of the platform */
   def name: String
 
+  /** Translates Internationalized Domain Name to ASCII representation */
+  def idnToAscii(idn: String): Option[String]
+
   /** Whether reflection APIs are available on this platform */
   final def supportsReflection: Boolean = isJVM
 }

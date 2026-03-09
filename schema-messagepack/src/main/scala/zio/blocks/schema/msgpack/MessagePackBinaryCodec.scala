@@ -4,7 +4,7 @@ import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
-
+import zio.blocks.schema.json.Json
 import java.nio.ByteBuffer
 import java.time._
 import java.util.{Currency, UUID}
@@ -175,7 +175,7 @@ abstract class MessagePackBinaryCodec[A](val valueType: Int = MessagePackBinaryC
       throw new MessagePackCodecError(span :: Nil, msg)
   }
 
-  private def toError(error: Throwable): SchemaError = new SchemaError(
+  private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
       ExpectationMismatch(
         error match {
@@ -313,27 +313,47 @@ object MessagePackBinaryCodec {
   }
 
   val instantCodec: MessagePackBinaryCodec[Instant] = new MessagePackBinaryCodec[Instant]() {
-    def decodeValue(in: MessagePackReader): Instant = Instant.parse(in.readString())
+    def decodeValue(in: MessagePackReader): Instant =
+      Json.instantRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: Instant, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: Instant, out: MessagePackWriter): Unit =
+      out.writeString(Json.instantRawCodec.encodeToString(x))
   }
 
   val localDateCodec: MessagePackBinaryCodec[LocalDate] = new MessagePackBinaryCodec[LocalDate]() {
-    def decodeValue(in: MessagePackReader): LocalDate = LocalDate.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalDate =
+      Json.localDateRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: LocalDate, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: LocalDate, out: MessagePackWriter): Unit =
+      out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
 
   val localDateTimeCodec: MessagePackBinaryCodec[LocalDateTime] = new MessagePackBinaryCodec[LocalDateTime]() {
-    def decodeValue(in: MessagePackReader): LocalDateTime = LocalDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalDateTime =
+      Json.localDateTimeRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: LocalDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: LocalDateTime, out: MessagePackWriter): Unit =
+      out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
 
   val localTimeCodec: MessagePackBinaryCodec[LocalTime] = new MessagePackBinaryCodec[LocalTime]() {
-    def decodeValue(in: MessagePackReader): LocalTime = LocalTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): LocalTime =
+      Json.localTimeRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: LocalTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: LocalTime, out: MessagePackWriter): Unit =
+      out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
 
   val monthCodec: MessagePackBinaryCodec[Month] = new MessagePackBinaryCodec[Month]() {
@@ -357,6 +377,7 @@ object MessagePackBinaryCodec {
       }
       MonthDay.of(month, day)
     }
+
     def encodeValue(x: MonthDay, out: MessagePackWriter): Unit = {
       out.writeMapHeader(2)
       out.writeRaw(MessagePackWriter.MonthBytes)
@@ -367,15 +388,25 @@ object MessagePackBinaryCodec {
   }
 
   val offsetDateTimeCodec: MessagePackBinaryCodec[OffsetDateTime] = new MessagePackBinaryCodec[OffsetDateTime]() {
-    def decodeValue(in: MessagePackReader): OffsetDateTime = OffsetDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): OffsetDateTime =
+      Json.offsetDateTimeRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: OffsetDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: OffsetDateTime, out: MessagePackWriter): Unit =
+      out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
 
   val offsetTimeCodec: MessagePackBinaryCodec[OffsetTime] = new MessagePackBinaryCodec[OffsetTime]() {
-    def decodeValue(in: MessagePackReader): OffsetTime = OffsetTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): OffsetTime =
+      Json.offsetTimeRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: OffsetTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: OffsetTime, out: MessagePackWriter): Unit =
+      out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
 
   val periodCodec: MessagePackBinaryCodec[Period] = new MessagePackBinaryCodec[Period]() {
@@ -451,9 +482,14 @@ object MessagePackBinaryCodec {
   }
 
   val zonedDateTimeCodec: MessagePackBinaryCodec[ZonedDateTime] = new MessagePackBinaryCodec[ZonedDateTime]() {
-    def decodeValue(in: MessagePackReader): ZonedDateTime = ZonedDateTime.parse(in.readString())
+    def decodeValue(in: MessagePackReader): ZonedDateTime =
+      Json.zonedDateTimeRawCodec.decode(in.readString()) match {
+        case Right(v)  => v
+        case Left(err) => throw err
+      }
 
-    def encodeValue(x: ZonedDateTime, out: MessagePackWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: ZonedDateTime, out: MessagePackWriter): Unit =
+      out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
 
   val currencyCodec: MessagePackBinaryCodec[Currency] = new MessagePackBinaryCodec[Currency]() {

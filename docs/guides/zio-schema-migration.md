@@ -148,7 +148,7 @@ val s: Schema[Int]               = Schema[Int]
 val s: Schema[java.time.Instant]  = Schema[java.time.Instant]
 ```
 
-The underlying representation changes: ZIO Schema uses `Schema.Primitive[A](standardType: StandardType[A])`, while ZIO Blocks Schema uses `Reflect.Primitive[F, A](primitiveType: PrimitiveType[A], ...)`. Both carry default values and ordering, but in ZIO Blocks the primitive type also carries an embedded `Validation[A]` constraint (see the [Validation](#validation) section below).
+The underlying representation changes: ZIO Schema uses `Schema.Primitive[A](standardType: StandardType[A])`, while ZIO Blocks Schema uses `Reflect.Primitive[F, A](primitiveType: PrimitiveType[A], ...)`. Both carry default values and ordering, but in ZIO Blocks the primitive type also carries an embedded `Validation[A]` constraint (see the [Migrating Validation](#migrating-validation) section below).
 
 ### Records (Case Classes)
 

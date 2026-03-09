@@ -5,8 +5,9 @@ import zio.blocks.schema.{DynamicValue, Schema, SchemaBaseSpec}
 import zio.blocks.schema.Schema._ // bring primitive and collection schemas into implicit scope
 import zio.test._
 // Import grammar nodes individually to avoid Allows.Map shadowing scala.collection.immutable.Map
-import Allows.{Dynamic, Optional, Primitive, Record, Self, Sequence, `|`}
+import Allows.{Dynamic, IsType, Optional, Primitive, Record, Self, Sequence, `|`}
 import Allows.{Map => AMap} // Allows.Map grammar node, distinct from scala Map type
+import zio.blocks.typeid.IsNominalType
 
 // ---------------------------------------------------------------------------
 // Shared fixture types (cross-version)
@@ -154,6 +155,27 @@ object AllowsFixtures {
 }
 
 // ---------------------------------------------------------------------------
+// Regression: issue #1145
+// Reproduced verbatim from the bug report. DO NOT MODIFY THIS OBJECT.
+// Allows must be derivable when A is inferred at a call site in a user object
+// that imports Allows._ (wildcard) from an external namespace.
+// ---------------------------------------------------------------------------
+
+object Issue1145Reproducer {
+  import zio.blocks.schema.Schema
+  import zio.blocks.schema.comptime.Allows
+
+  def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive | Optional[Primitive]]]): Unit = ()
+
+  final case class Person(age: Int)
+  object Person {
+    implicit val schema: Schema[Person] = Schema.derived
+  }
+
+  val result: Unit = writeCsv(Seq(Person(42)))
+}
+
+// ---------------------------------------------------------------------------
 // Positive tests (positive evidence derivation must compile)
 // Use `implicitly` which works on both Scala 2 and Scala 3.
 // ---------------------------------------------------------------------------
@@ -282,6 +304,36 @@ object AllowsSpec extends SchemaBaseSpec {
   private val unionSeq: Allows[WithSeqPrimitive, Record[Primitive | Sequence[Primitive] | AMap[Primitive, Primitive]]] =
     implicitly
 
+  // 5.11 Sequence subtypes — finer-grained collection kind matching (issue #1162)
+  private val seqListInt: Allows[List[Int], Sequence.List[Primitive]]       = implicitly
+  private val seqVecStr: Allows[Vector[String], Sequence.Vector[Primitive]] = implicitly
+  private val seqSetInt: Allows[Set[Int], Sequence.Set[Primitive]]          = implicitly
+  private val seqArrInt: Allows[Array[Int], Sequence.Array[Primitive]]      = implicitly
+  private val seqChkStr: Allows[Chunk[String], Sequence.Chunk[Primitive]]   = implicitly
+  // Subtype still satisfies the parent Sequence grammar
+  private val seqListAsSeq: Allows[List[Int], Sequence[Primitive]]  = implicitly
+  private val seqSetAsSeq: Allows[Set[String], Sequence[Primitive]] = implicitly
+  // Nested element type constraint with Sequence subtype
+  private val seqListRec: Allows[List[Address], Sequence.List[Record[Primitive]]] = implicitly
+
+  // 5.12 IsType — nominal type predicate (issue #1172)
+  private val isTypeInt: Allows[Int, IsType[Int]]       = implicitly
+  private val isTypeStr: Allows[String, IsType[String]] = implicitly
+  // IsType used as element constraint inside Sequence
+  private val seqIsTypeInt: Allows[List[Int], Sequence[IsType[Int]]]                   = implicitly
+  private val seqSetIsTypeInt: Allows[Set[Int], Sequence.Set[IsType[Int]]]             = implicitly
+  private val seqVecIsTypeStr: Allows[Vector[String], Sequence.Vector[IsType[String]]] = implicitly
+  private val seqArrIsTypeInt: Allows[Array[Int], Sequence.Array[IsType[Int]]]         = implicitly
+  private val seqChkIsTypeStr: Allows[Chunk[String], Sequence.Chunk[IsType[String]]]   = implicitly
+
+  // 5.13 IsType — the full DSL pattern from issue #1172
+  // A method requiring the element type of a Set to be exactly A at the call site.
+  private def containsDemo[A: IsNominalType](a: A)(implicit
+    ev: Allows[Set[A], Sequence.Set[IsType[A]]]
+  ): Boolean                     = ev.ne(null) && a != null && IsNominalType[A].ne(null)
+  private val dslInt: Boolean    = containsDemo(42)
+  private val dslString: Boolean = containsDemo("hello")
+
   def spec: Spec[TestEnvironment, Any] = suite("AllowsSpec")(
     suite("Primitive catch-all")(
       test("Int")(assertTrue(primInt.ne(null))),
@@ -387,6 +439,27 @@ object AllowsSpec extends SchemaBaseSpec {
       test("Shape satisfies Record[Primitive] | Primitive (auto-unwrap + union)")(assertTrue(unionShp.ne(null))),
       test("WithSeqPrimitive satisfies Record[Primitive | Sequence[...] | Map[...]]")(assertTrue(unionSeq.ne(null)))
     ),
+    suite("Sequence subtypes (issue #1162)")(
+      test("List[Int] satisfies Sequence.List[Primitive]")(assertTrue(seqListInt.ne(null))),
+      test("Vector[String] satisfies Sequence.Vector[Primitive]")(assertTrue(seqVecStr.ne(null))),
+      test("Set[Int] satisfies Sequence.Set[Primitive]")(assertTrue(seqSetInt.ne(null))),
+      test("Array[Int] satisfies Sequence.Array[Primitive]")(assertTrue(seqArrInt.ne(null))),
+      test("Chunk[String] satisfies Sequence.Chunk[Primitive]")(assertTrue(seqChkStr.ne(null))),
+      test("List[Int] still satisfies parent Sequence[Primitive]")(assertTrue(seqListAsSeq.ne(null))),
+      test("Set[String] still satisfies parent Sequence[Primitive]")(assertTrue(seqSetAsSeq.ne(null))),
+      test("List[Address] satisfies Sequence.List[Record[Primitive]]")(assertTrue(seqListRec.ne(null)))
+    ),
+    suite("IsType (issue #1172)")(
+      test("Int satisfies IsType[Int]")(assertTrue(isTypeInt.ne(null))),
+      test("String satisfies IsType[String]")(assertTrue(isTypeStr.ne(null))),
+      test("List[Int] satisfies Sequence[IsType[Int]]")(assertTrue(seqIsTypeInt.ne(null))),
+      test("Set[Int] satisfies Sequence.Set[IsType[Int]]")(assertTrue(seqSetIsTypeInt.ne(null))),
+      test("Vector[String] satisfies Sequence.Vector[IsType[String]]")(assertTrue(seqVecIsTypeStr.ne(null))),
+      test("Array[Int] satisfies Sequence.Array[IsType[Int]]")(assertTrue(seqArrIsTypeInt.ne(null))),
+      test("Chunk[String] satisfies Sequence.Chunk[IsType[String]]")(assertTrue(seqChkIsTypeStr.ne(null))),
+      test("DSL contains pattern compiles for Int (full issue #1172 use case)")(assertTrue(dslInt)),
+      test("DSL contains pattern compiles for String (full issue #1172 use case)")(assertTrue(dslString))
+    ),
     suite("Composition: realistic library API")(
       test("UserRow compiles in insert[Record[Primitive | Optional[Primitive]]] context") {
         def insert[A: Schema](v: A)(implicit c: Allows[A, Record[Primitive | Optional[Primitive]]]): String = "ok"
@@ -400,6 +473,12 @@ object AllowsSpec extends SchemaBaseSpec {
         val nilUUID                                                                    = new java.util.UUID(0L, 0L)
         val event: DomainEvent                                                         = AccountOpened(nilUUID, "Alice")
         assertTrue(publish(event) == "ok")
+      },
+      // Regression test for https://github.com/zio/zio-blocks/issues/1145
+      // Issue1145Reproducer is a top-level object with `import Allows._` (wildcard),
+      // exactly matching the reporter's code. The val initialiser is evaluated here.
+      test("Allows is derivable with inferred A under wildcard import (issue #1145)") {
+        assertTrue(Issue1145Reproducer.result == (()))
       }
     )
   )

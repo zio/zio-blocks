@@ -821,3 +821,8 @@ val new_ = DynamicValue.Record(
 val patch: DynamicPatch = old.diff(new_)
 // Patch that updates "age" from 30 to 31
 ```
+
+
+## See Also
+
+- [DynamicSchema](./dynamic-schema.md) — validate `DynamicValue` instances against a structural schema, or transport schemas as `DynamicValue` blobs.

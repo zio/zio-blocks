@@ -716,7 +716,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                       type Builder[A] = ArrayBuilder[A]
 
                       def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -741,8 +741,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): Array[B] =
-                        Array.empty[et](elemClassTag).asInstanceOf[Array[B]]
+                      def empty[B](implicit ct: ClassTag[B]): Array[B] = Array.empty[et].asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -776,7 +775,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                       type Builder[A] = ArrayBuilder[A]
 
                       def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -802,7 +801,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                       }
 
                       def empty[B](implicit ct: ClassTag[B]): IArray[B] =
-                        IArray.unsafeFromArray(Array.empty[et](elemClassTag)).asInstanceOf[IArray[B]]
+                        IArray.unsafeFromArray(Array.empty[et]).asInstanceOf[IArray[B]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -836,7 +835,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                       type Builder[A] = ArrayBuilder[A]
 
                       def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1))(elemClassTag).asInstanceOf[Array[B]], 0)
+                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def add[B](builder: Builder[B], a: B): Unit = {
                         var buf = builder.buffer
@@ -861,8 +860,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] =
-                        ArraySeq.empty[et](elemClassTag).asInstanceOf[ArraySeq[B]]
+                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )

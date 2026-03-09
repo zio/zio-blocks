@@ -241,7 +241,7 @@ class JsonBinaryCodecDeriver private[json] (
   def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
-  private def copy(
+  private[this] def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
@@ -1980,8 +1980,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
           override def decodeKey(in: JsonReader): A =
-            try
-              wrap(wrappedCodec.decodeKey(in))
+            try wrap(wrappedCodec.decodeKey(in))
             catch {
               case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
             }

@@ -28,8 +28,7 @@ object XmlBuilder {
    * @return
    *   An ElementBuilder for fluent construction
    */
-  def element(name: String): ElementBuilder =
-    ElementBuilder(XmlName(name), Chunk.empty, Chunk.empty)
+  def element(name: String): ElementBuilder = new ElementBuilder(XmlName(name), Chunk.empty, Chunk.empty)
 
   /**
    * Creates an ElementBuilder for constructing an element with the given
@@ -40,8 +39,7 @@ object XmlBuilder {
    * @return
    *   An ElementBuilder for fluent construction
    */
-  def element(name: XmlName): ElementBuilder =
-    ElementBuilder(name, Chunk.empty, Chunk.empty)
+  def element(name: XmlName): ElementBuilder = new ElementBuilder(name, Chunk.empty, Chunk.empty)
 
   /**
    * Creates a Text node with the given content.
@@ -51,8 +49,7 @@ object XmlBuilder {
    * @return
    *   A Text node
    */
-  def text(value: String): Xml.Text =
-    Xml.Text(value)
+  def text(value: String): Xml.Text = new Xml.Text(value)
 
   /**
    * Creates a CData node with the given content.
@@ -62,8 +59,7 @@ object XmlBuilder {
    * @return
    *   A CData node
    */
-  def cdata(value: String): Xml.CData =
-    Xml.CData(value)
+  def cdata(value: String): Xml.CData = new Xml.CData(value)
 
   /**
    * Creates a Comment node with the given content.
@@ -73,8 +69,7 @@ object XmlBuilder {
    * @return
    *   A Comment node
    */
-  def comment(value: String): Xml.Comment =
-    Xml.Comment(value)
+  def comment(value: String): Xml.Comment = new Xml.Comment(value)
 
   /**
    * Creates a ProcessingInstruction node with the given target and data.
@@ -87,7 +82,7 @@ object XmlBuilder {
    *   A ProcessingInstruction node
    */
   def processingInstruction(target: String, data: String): Xml.ProcessingInstruction =
-    Xml.ProcessingInstruction(target, data)
+    new Xml.ProcessingInstruction(target, data)
 
   /**
    * A fluent builder for constructing XML elements.
@@ -118,8 +113,7 @@ object XmlBuilder {
      * @return
      *   A new ElementBuilder with the attribute added
      */
-    def attr(name: String, value: String): ElementBuilder =
-      attr(XmlName(name), value)
+    def attr(name: String, value: String): ElementBuilder = attr(XmlName(name), value)
 
     /**
      * Adds an attribute with an XmlName (possibly namespaced).
@@ -131,8 +125,7 @@ object XmlBuilder {
      * @return
      *   A new ElementBuilder with the attribute added
      */
-    def attr(name: XmlName, value: String): ElementBuilder =
-      copy(attributes = attributes :+ (name, value))
+    def attr(name: XmlName, value: String): ElementBuilder = copy(attributes = attributes :+ (name, value))
 
     /**
      * Adds a single child node.
@@ -142,8 +135,7 @@ object XmlBuilder {
      * @return
      *   A new ElementBuilder with the child added
      */
-    def child(xml: Xml): ElementBuilder =
-      copy(children = children :+ xml)
+    def child(xml: Xml): ElementBuilder = copy(children = children :+ xml)
 
     /**
      * Adds multiple child nodes.
@@ -153,8 +145,7 @@ object XmlBuilder {
      * @return
      *   A new ElementBuilder with all children added
      */
-    def children(xmls: Xml*): ElementBuilder =
-      copy(children = children ++ Chunk.from(xmls))
+    def children(xmls: Xml*): ElementBuilder = copy(children = children ++ Chunk.from(xmls))
 
     /**
      * Adds a text node as a child.
@@ -164,8 +155,7 @@ object XmlBuilder {
      * @return
      *   A new ElementBuilder with the text node added
      */
-    def text(value: String): ElementBuilder =
-      child(Xml.Text(value))
+    def text(value: String): ElementBuilder = child(new Xml.Text(value))
 
     /**
      * Builds and returns the final Element.
@@ -173,7 +163,6 @@ object XmlBuilder {
      * @return
      *   The constructed Xml.Element
      */
-    def build: Xml.Element =
-      Xml.Element(name, attributes, children)
+    def build: Xml.Element = new Xml.Element(name, attributes, children)
   }
 }

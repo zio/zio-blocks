@@ -5,7 +5,6 @@ import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema.toon.NameMapper._
 import zio.blocks.schema._
 import zio.test._
-import zio.test.TestAspect.jvmOnly
 import java.time._
 import java.util.{Currency, UUID}
 
@@ -100,14 +99,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(0.0f, "0") &&
         roundTrip(Float.MinValue, "-340282350000000000000000000000000000000") &&
         roundTrip(Float.MaxValue, "340282350000000000000000000000000000000") &&
-        // FIXME: Differs for different JVMs
-        // roundTrip(1.0e17f, "100000000000000000") &&
-        // roundTrip(1.2621775e-29f, "0.000000000000000000000000000012621775") &&
+        roundTrip(1.0e17f, "100000000000000000") &&
+        roundTrip(1.2621775e-29f, "0.000000000000000000000000000012621775") &&
         roundTrip(0.33007812f, "0.33007812") &&
         roundTrip(102067.11f, "102067.11") &&
         roundTrip(1.6777216e7f, "16777216") &&
-        roundTrip(1.0e-45f, "0.0000000000000000000000000000000000000000000014") &&
-        roundTrip(1.0e-44f, "0.0000000000000000000000000000000000000000000098") &&
+        roundTrip(1.0e-45f, "0.000000000000000000000000000000000000000000001") &&
+        roundTrip(1.0e-44f, "0.00000000000000000000000000000000000000000001") &&
         roundTrip(6.895867e-31f, "0.0000000000000000000000000000006895867") &&
         roundTrip(1.595711e-5f, "0.00001595711") &&
         roundTrip(-1.5887592e7f, "-15887592") &&
@@ -155,7 +153,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Float]("1e+e", "Expected float, got: 1e+e at: .") &&
         decodeError[Float]("", "Expected float, got:  at: .") &&
         decodeError[Float]("1,", "Expected float, got: 1, at: .")
-      } @@ jvmOnly,
+      },
       test("Double") {
         check(Gen.double)(x => decode(x.toString, x)) &&
         check(Gen.double)(x => decode(s"\"$x\"", x)) &&
@@ -171,15 +169,12 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(0.001, "0.001") &&
         roundTrip(1.0e7, "10000000") &&
         roundTrip(8572.431613041595, "8572.431613041595") &&
-        /* FIXME: Result differs between JVM and JS
         roundTrip(
           5.0e-324,
-          "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049"
+          "0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005"
         ) &&
-         */
         roundTrip(8.707795712926552e15, "8707795712926552") &&
-        // FIXME: Differs for different JVMs
-        // roundTrip(5.960464477539063e-8, "0.00000005960464477539063") &&
+        roundTrip(5.960464477539063e-8, "0.00000005960464477539063") &&
         roundTrip(-1.3821488797638562e14, "-138214887976385.62") &&
         roundTrip(9.223372036854776e18, "9223372036854776000") &&
         roundTrip(

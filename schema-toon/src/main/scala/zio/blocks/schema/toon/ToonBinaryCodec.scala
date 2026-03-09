@@ -3,7 +3,7 @@ package zio.blocks.schema.toon
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
-import zio.blocks.schema.json.JsonWriter
+import zio.blocks.schema.json.{Json, JsonWriter}
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
@@ -561,11 +561,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.Duration): java.time.Duration = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.Duration.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid duration: $s") }
+      Json.durationRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid duration: $s")
+      }
     }
 
-    def encodeValue(x: java.time.Duration, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.Duration, out: ToonWriter): Unit =
+      out.writeString(Json.durationRawCodec.encodeToString(x))
   }
   val instantCodec: ToonBinaryCodec[Instant] = new ToonBinaryCodec[java.time.Instant]() {
     override def isPrimitive: Boolean = true
@@ -573,11 +576,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.Instant): java.time.Instant = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.Instant.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid instant: $s") }
+      Json.instantRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid instant: $s")
+      }
     }
 
-    def encodeValue(x: java.time.Instant, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.Instant, out: ToonWriter): Unit =
+      out.writeString(Json.instantRawCodec.encodeToString(x))
   }
   val localDateCodec: ToonBinaryCodec[LocalDate] = new ToonBinaryCodec[java.time.LocalDate]() {
     override def isPrimitive: Boolean = true
@@ -585,11 +591,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.LocalDate): java.time.LocalDate = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.LocalDate.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid local date: $s") }
+      Json.localDateRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid local date: $s")
+      }
     }
 
-    def encodeValue(x: java.time.LocalDate, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.LocalDate, out: ToonWriter): Unit =
+      out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
   val localDateTimeCodec: ToonBinaryCodec[LocalDateTime] = new ToonBinaryCodec[java.time.LocalDateTime]() {
     override def isPrimitive: Boolean = true
@@ -597,11 +606,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.LocalDateTime): java.time.LocalDateTime = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.LocalDateTime.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid local date time: $s") }
+      Json.localDateTimeRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid local date time: $s")
+      }
     }
 
-    def encodeValue(x: java.time.LocalDateTime, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.LocalDateTime, out: ToonWriter): Unit =
+      out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
   val localTimeCodec: ToonBinaryCodec[LocalTime] = new ToonBinaryCodec[java.time.LocalTime]() {
     override def isPrimitive: Boolean = true
@@ -609,11 +621,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.LocalTime): java.time.LocalTime = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.LocalTime.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid local time: $s") }
+      Json.localTimeRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid local time: $s")
+      }
     }
 
-    def encodeValue(x: java.time.LocalTime, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.LocalTime, out: ToonWriter): Unit =
+      out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
   val monthCodec: ToonBinaryCodec[Month] = new ToonBinaryCodec[java.time.Month]() {
     override def isPrimitive: Boolean = true
@@ -633,11 +648,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.MonthDay): java.time.MonthDay = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.MonthDay.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid month-day: $s") }
+      Json.monthDayRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid month-day: $s")
+      }
     }
 
-    def encodeValue(x: java.time.MonthDay, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.MonthDay, out: ToonWriter): Unit =
+      out.writeString(Json.monthDayRawCodec.encodeToString(x))
   }
   val offsetDateTimeCodec: ToonBinaryCodec[OffsetDateTime] = new ToonBinaryCodec[java.time.OffsetDateTime]() {
     override def isPrimitive: Boolean = true
@@ -645,11 +663,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.OffsetDateTime.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid offset date time: $s") }
+      Json.offsetDateTimeRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid offset date time: $s")
+      }
     }
 
-    def encodeValue(x: java.time.OffsetDateTime, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.OffsetDateTime, out: ToonWriter): Unit =
+      out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
   val offsetTimeCodec: ToonBinaryCodec[OffsetTime] = new ToonBinaryCodec[java.time.OffsetTime]() {
     override def isPrimitive: Boolean = true
@@ -657,11 +678,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.OffsetTime): java.time.OffsetTime = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.OffsetTime.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid offset time: $s") }
+      Json.offsetTimeRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid offset time: $s")
+      }
     }
 
-    def encodeValue(x: java.time.OffsetTime, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.OffsetTime, out: ToonWriter): Unit =
+      out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
   val periodCodec: ToonBinaryCodec[Period] = new ToonBinaryCodec[java.time.Period]() {
     override def isPrimitive: Boolean = true
@@ -669,11 +693,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.Period): java.time.Period = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.Period.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid period: $s") }
+      Json.periodRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid period: $s")
+      }
     }
 
-    def encodeValue(x: java.time.Period, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.Period, out: ToonWriter): Unit =
+      out.writeString(Json.periodRawCodec.encodeToString(x))
   }
   val yearCodec: ToonBinaryCodec[Year] = new ToonBinaryCodec[java.time.Year]() {
     override def isPrimitive: Boolean = true
@@ -701,11 +728,7 @@ object ToonBinaryCodec {
       catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year-month: $s") }
     }
 
-    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString {
-      var s = x.toString
-      if (x.getYear >= 10000) s = "+" + s
-      s
-    }
+    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
   }
   val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
     override def isPrimitive: Boolean = true
@@ -737,11 +760,14 @@ object ToonBinaryCodec {
     def decodeValue(in: ToonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.ZonedDateTime.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid zoned date time: $s") }
+      Json.zonedDateTimeRawCodec.decode(s) match {
+        case Right(v) => v
+        case _        => in.decodeError(s"Invalid zoned date time: $s")
+      }
     }
 
-    def encodeValue(x: java.time.ZonedDateTime, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: java.time.ZonedDateTime, out: ToonWriter): Unit =
+      out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
   val currencyCodec: ToonBinaryCodec[Currency] = new ToonBinaryCodec[java.util.Currency]() {
     override def isPrimitive: Boolean = true
@@ -786,21 +812,21 @@ object ToonBinaryCodec {
       case v: PrimitiveValue.BigInt         => out.writeBigInt(v.value)
       case v: PrimitiveValue.BigDecimal     => out.writeBigDecimal(v.value)
       case v: PrimitiveValue.DayOfWeek      => out.writeString(v.value.name)
-      case v: PrimitiveValue.Duration       => out.writeString(v.value.toString)
-      case v: PrimitiveValue.Instant        => out.writeString(v.value.toString)
-      case v: PrimitiveValue.LocalDate      => out.writeString(v.value.toString)
-      case v: PrimitiveValue.LocalDateTime  => out.writeString(v.value.toString)
-      case v: PrimitiveValue.LocalTime      => out.writeString(v.value.toString)
+      case v: PrimitiveValue.Duration       => out.writeString(Json.durationRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.Instant        => out.writeString(Json.instantRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.LocalDate      => out.writeString(Json.localDateRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.LocalDateTime  => out.writeString(Json.localDateTimeRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.LocalTime      => out.writeString(Json.localTimeRawCodec.encodeToString(v.value))
       case v: PrimitiveValue.Month          => out.writeString(v.value.name)
-      case v: PrimitiveValue.MonthDay       => out.writeString(v.value.toString)
-      case v: PrimitiveValue.OffsetDateTime => out.writeString(v.value.toString)
-      case v: PrimitiveValue.OffsetTime     => out.writeString(v.value.toString)
-      case v: PrimitiveValue.Period         => out.writeString(v.value.toString)
+      case v: PrimitiveValue.MonthDay       => out.writeString(Json.monthDayRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.OffsetDateTime => out.writeString(Json.offsetDateTimeRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.OffsetTime     => out.writeString(Json.offsetTimeRawCodec.encodeToString(v.value))
+      case v: PrimitiveValue.Period         => out.writeString(Json.periodRawCodec.encodeToString(v.value))
       case v: PrimitiveValue.Year           => out.writeString(v.value.toString)
       case v: PrimitiveValue.YearMonth      => out.writeString(v.value.toString)
       case v: PrimitiveValue.ZoneId         => out.writeString(v.value.getId)
       case v: PrimitiveValue.ZoneOffset     => out.writeString(v.value.getId)
-      case v: PrimitiveValue.ZonedDateTime  => out.writeString(v.value.toString)
+      case v: PrimitiveValue.ZonedDateTime  => out.writeString(Json.zonedDateTimeRawCodec.encodeToString(v.value))
       case v: PrimitiveValue.Currency       => out.writeString(v.value.getCurrencyCode)
       case v: PrimitiveValue.UUID           => out.writeString(v.value.toString)
     }

@@ -53,7 +53,7 @@ object SchemaSpec extends SchemaBaseSpec {
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
-        assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+        assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(hasError("Expected Byte at: ."))
         )
       },
@@ -128,7 +128,7 @@ object SchemaSpec extends SchemaBaseSpec {
               )
             )
           )
-        )(isLeft(hasError("Expected Int at: .i\nDuplicated field 'i' at: .\nMissing field 'b' at: .")))
+        )(isLeft(hasError("Duplicated field 'i' at: .\nMissing field 'b' at: .")))
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
@@ -1241,37 +1241,37 @@ object SchemaSpec extends SchemaBaseSpec {
         )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
         assert(
           Schema[List[Byte]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Long(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
-            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            DynamicValue.Sequence(Chunk(DynamicValue.Primitive(PrimitiveValue.String("1"))))
           )
         )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
         assert(
@@ -1426,7 +1426,7 @@ object SchemaSpec extends SchemaBaseSpec {
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
               Chunk(
-                (DynamicValue.Primitive(PrimitiveValue.Long(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                (DynamicValue.Primitive(PrimitiveValue.String("1")), DynamicValue.Primitive(PrimitiveValue.String("1")))
               )
             )
           )
@@ -1435,8 +1435,8 @@ object SchemaSpec extends SchemaBaseSpec {
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
               Chunk(
-                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.String("1"))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.String("1")))
               )
             )
           )

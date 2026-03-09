@@ -10,26 +10,25 @@ package zio.blocks.schema.xml
  * @param namespace
  *   Optional namespace URI
  */
-final case class XmlName(
-  localName: String,
-  prefix: Option[String] = None,
-  namespace: Option[String] = None
-) {
+final case class XmlName(localName: String, prefix: Option[String] = None, namespace: Option[String] = None) {
 
   /** Returns true if this name has a namespace. */
   def hasNamespace: Boolean = namespace.isDefined
 
   /** Returns the namespace URI or empty string if none. */
-  def namespaceOrEmpty: String = namespace.getOrElse("")
+  def namespaceOrEmpty: String = namespace match {
+    case Some(ns) => ns
+    case _        => ""
+  }
 
   /** Creates a new XmlName with the given namespace. */
-  def withNamespace(ns: String): XmlName = copy(namespace = Some(ns))
+  def withNamespace(ns: String): XmlName = copy(namespace = new Some(ns))
 
   /** Creates a new XmlName without namespace. */
   def withoutNamespace: XmlName = copy(namespace = None)
 
   /** Creates a new XmlName with the given prefix. */
-  def withPrefix(p: String): XmlName = copy(prefix = Some(p))
+  def withPrefix(p: String): XmlName = copy(prefix = new Some(p))
 
   /** Creates a new XmlName without prefix. */
   def withoutPrefix: XmlName = copy(prefix = None)
@@ -38,13 +37,18 @@ final case class XmlName(
    * Returns the qualified name as "prefix:localName" or just "localName" if no
    * prefix.
    */
-  def qualifiedName: String = prefix.map(_ + ":").getOrElse("") + localName
+  def qualifiedName: String = prefix match {
+    case Some(p) => s"$p:$localName"
+    case _       => localName
+  }
 
-  override def toString: String = (prefix, namespace) match {
-    case (Some(p), Some(ns)) => s"{$ns}$p:$localName"
-    case (None, Some(ns))    => s"{$ns}$localName"
-    case (Some(p), None)     => s"$p:$localName"
-    case (None, None)        => localName
+  override def toString: String = namespace match {
+    case Some(ns) =>
+      prefix match {
+        case Some(p) => s"{$ns}$p:$localName"
+        case _       => s"{$ns}$localName"
+      }
+    case _ => qualifiedName
   }
 }
 
@@ -54,7 +58,7 @@ object XmlName {
   def apply(localName: String): XmlName = new XmlName(localName, None, None)
 
   /** Creates an XmlName with a namespace (backward compatible). */
-  def apply(localName: String, namespace: String): XmlName = new XmlName(localName, None, Some(namespace))
+  def apply(localName: String, namespace: String): XmlName = new XmlName(localName, None, new Some(namespace))
 
   /**
    * Parses an XmlName from a string in the format "{namespace}localName",
@@ -67,22 +71,12 @@ object XmlName {
         val ns   = s.substring(1, endBrace)
         val rest = s.substring(endBrace + 1)
         if (rest.contains(":")) {
-          val colonIdx  = rest.indexOf(':')
-          val prefix    = rest.substring(0, colonIdx)
-          val localName = rest.substring(colonIdx + 1)
-          new XmlName(localName, Some(prefix), Some(ns))
-        } else {
-          new XmlName(rest, None, Some(ns))
-        }
-      } else {
-        new XmlName(s, None, None)
-      }
+          val colonIdx = rest.indexOf(':')
+          new XmlName(rest.substring(colonIdx + 1), new Some(rest.substring(0, colonIdx)), new Some(ns))
+        } else new XmlName(rest, None, new Some(ns))
+      } else new XmlName(s, None, None)
     } else if (s.contains(":")) {
-      val colonIdx  = s.indexOf(':')
-      val prefix    = s.substring(0, colonIdx)
-      val localName = s.substring(colonIdx + 1)
-      new XmlName(localName, Some(prefix), None)
-    } else {
-      new XmlName(s, None, None)
-    }
+      val colonIdx = s.indexOf(':')
+      new XmlName(s.substring(colonIdx + 1), new Some(s.substring(0, colonIdx)), None)
+    } else new XmlName(s, None, None)
 }

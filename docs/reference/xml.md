@@ -3,9 +3,30 @@ id: xml
 title: "XML"
 ---
 
-Zero-dependency XML codec for ZIO Blocks Schema with cross-platform support.
+`Xml` is a **sealed trait representing XML nodes**. It provides a type-safe, immutable representation of all valid XML document structures including elements, text nodes, CDATA sections, comments, and processing instructions.
+
+```scala
+sealed trait Xml {
+  def xmlType: XmlType
+  def is(xmlType: XmlType): Boolean
+  def as(xmlType: XmlType): Option[xmlType.Type]
+  def unwrap(xmlType: XmlType): Option[xmlType.Unwrap]
+  def print: String
+  def printPretty: String
+  def select: XmlSelection
+}
+```
+
+`Xml` supports:
+- Type-safe representation of all XML node types
+- Fluent navigation and querying with XmlSelection
+- Schema-derived automatic codec generation
+- Zero external dependencies
+- Full cross-platform support (JVM and Scala.js)
 
 ## Overview
+
+Zero-dependency XML codec for ZIO Blocks Schema with cross-platform support.
 
 The schema-xml module provides automatic XML codec derivation for any type with a `Schema`. It includes a complete XML AST, fluent navigation API, and support for XML-specific features like attributes and namespaces.
 
@@ -21,13 +42,19 @@ Key features:
 
 ## Installation
 
+To use the schema-xml module, add the following dependency to your `build.sbt`:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml" % "0.0.14"
 ```
 
 ## Basic Usage
 
+Start by deriving an XML codec from your Schema definition:
+
 ### Deriving Codecs
+
+To create an XML codec, use `Schema[A].derive(XmlFormat)`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -45,7 +72,9 @@ val codec = Schema[Person].derive(XmlFormat)
 
 ### Encoding to XML
 
-```scala mdoc:compile-only
+Encode your values to XML using the codec:
+
+```scala mdoc:silent
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -56,25 +85,31 @@ object Person {
 
 val codec = Schema[Person].derive(XmlFormat)
 val person = Person("Alice", 30)
+```
 
-// Encode to XML bytes
+Encode to XML bytes:
+
+```scala mdoc
 val bytes: Array[Byte] = codec.encode(person)
+```
 
-// Encode to XML string
+Encode to XML string:
+
+```scala mdoc
 val xmlString: String = codec.encodeToString(person)
-// <Person><name>Alice</name><age>30</age></Person>
+```
 
-// Encode to pretty-printed XML
+Encode to pretty-printed XML:
+
+```scala mdoc
 val prettyXml = codec.encodeToString(person, WriterConfig.pretty)
-// <Person>
-//   <name>Alice</name>
-//   <age>30</age>
-// </Person>
 ```
 
 ### Decoding from XML
 
-```scala mdoc:compile-only
+Decode XML strings or bytes back to your typed values:
+
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -87,11 +122,21 @@ val codec = Schema[Person].derive(XmlFormat)
 
 // Decode from XML string
 val xml = "<Person><name>Alice</name><age>30</age></Person>"
-val result: Either[SchemaError, Person] = codec.decode(xml)
-// Right(Person("Alice", 30))
+```
 
-// Decode from bytes
+Decode the XML string and see the result:
+
+```scala mdoc
+val result: Either[SchemaError, Person] = codec.decode(xml)
+```
+
+You can also decode from bytes:
+
+```scala mdoc:silent
 val bytes = xml.getBytes("UTF-8")
+```
+
+```scala mdoc
 val fromBytes: Either[SchemaError, Person] = codec.decode(bytes)
 ```
 
@@ -109,6 +154,8 @@ Xml
 ```
 
 ### Creating XML Nodes
+
+Construct XML nodes directly using the case class constructors:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
@@ -136,7 +183,7 @@ val pi = Xml.ProcessingInstruction("xml-stylesheet", "href=\"style.css\"")
 
 ### XmlName
 
-`XmlName` represents an element or attribute name with optional namespace:
+`XmlName` represents an element or attribute name with optional namespace. Create instances with different namespace configurations:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml.XmlName
@@ -185,9 +232,11 @@ val commentNode = XmlBuilder.comment("comment text")
 
 ## Configuration
 
+The schema-xml module provides configuration options for both parsing and writing:
+
 ### WriterConfig
 
-Controls XML output formatting:
+Use `WriterConfig` to control XML output formatting:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml.WriterConfig
@@ -251,7 +300,7 @@ val custom = ReaderConfig(
 
 Encode case class fields as XML attributes using the `@xmlAttribute` annotation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -268,11 +317,12 @@ object Person {
 
 val codec = Schema[Person].derive(XmlFormat)
 val person = Person("123", "active", "Alice", 30)
+```
+
+Encode the person with attributes:
+
+```scala mdoc
 val xml = codec.encodeToString(person)
-// <Person id="123" status="active">
-//   <name>Alice</name>
-//   <age>30</age>
-// </Person>
 ```
 
 The `@xmlAttribute` annotation accepts an optional custom name:
@@ -284,7 +334,7 @@ The `@xmlAttribute` annotation accepts an optional custom name:
 
 Support for XML namespaces with the `@xmlNamespace` annotation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -300,19 +350,17 @@ object Feed {
 
 val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog", "2024-01-01T00:00:00Z")
+```
+
+Encode the feed with a namespace prefix:
+
+```scala mdoc
 val xml = codec.encodeToString(feed)
-// <atom:Feed xmlns:atom="http://www.w3.org/2005/Atom">
-//   <title>My Blog</title>
-//   <updated>2024-01-01T00:00:00Z</updated>
-// </atom:Feed>
 ```
 
 Without a prefix (default namespace):
 
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
+```scala mdoc:silent:nest
 @xmlNamespace(uri = "http://www.w3.org/2005/Atom")
 case class Feed(title: String)
 
@@ -322,10 +370,12 @@ object Feed {
 
 val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog")
+```
+
+Encode the feed with default namespace:
+
+```scala mdoc
 val xml = codec.encodeToString(feed)
-// <Feed xmlns="http://www.w3.org/2005/Atom">
-//   <title>My Blog</title>
-// </Feed>
 ```
 
 ## XmlSelection
@@ -334,7 +384,9 @@ val xml = codec.encodeToString(feed)
 
 ### Navigation
 
-```scala mdoc:compile-only
+Navigate to child elements, filter by type, and extract content:
+
+```scala mdoc:silent:nest
 import zio.blocks.schema.xml._
 
 val xml = XmlReader.read("""
@@ -357,16 +409,23 @@ val books = xml.select.get("library").get("books")
 
 // Navigate by index
 val firstBook = books.get("book")(0)
+```
 
-// Extract text content
+Extract text content from the first book:
+
+```scala mdoc
 val title: Either[XmlError, String] = firstBook.get("title").text
-// Right("Functional Programming")
+```
 
-// Navigate descendants (recursive search)
+You can also navigate descendants recursively:
+
+```scala mdoc
 val allTitles = xml.select.descendant("title")
 ```
 
 ### Filtering
+
+Filter selections by node type or custom predicates:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
@@ -383,6 +442,8 @@ val filtered = selection.filter(xml => xml.is(XmlType.Element))
 ```
 
 ### Terminal Operations
+
+Execute a selection to extract values or convert to other formats:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
@@ -408,6 +469,8 @@ val allText: String = selection.textContent
 
 ### Combinators
 
+Combine and transform selections using monadic operations:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
 
@@ -432,6 +495,8 @@ val withFallback = selection1.orElse(selection2)
 `XmlPatch` provides composable XML modification operations:
 
 ### Creating Patches
+
+Create patches for add, remove, replace, and attribute operations:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -464,6 +529,8 @@ val removeAttrPatch = XmlPatch.removeAttribute(path, "id")
 
 ### Position Options
 
+Position options control where new content is inserted relative to the target:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml.XmlPatch.Position
 
@@ -474,6 +541,8 @@ Position.AppendChild    // Insert as last child of target
 ```
 
 ### Applying Patches
+
+Apply a patch to an XML document to produce a modified result:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -488,6 +557,8 @@ val result: Either[XmlError, Xml] = patch(xml)
 
 ### Composing Patches
 
+Combine multiple patches to apply transformations in sequence:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
@@ -501,6 +572,171 @@ val patch2 = XmlPatch.add(
 
 // Compose patches - applies patch1, then patch2
 val combined = patch1 ++ patch2
+```
+
+## XmlEncoder and XmlDecoder
+
+For more fine-grained control over XML serialization, use the separate `XmlEncoder` and `XmlDecoder` traits:
+
+### XmlEncoder
+
+`XmlEncoder[A]` provides type-safe XML encoding:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+// Automatic derivation from Schema
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+  implicit val encoder: XmlEncoder[Person] = XmlEncoder.fromSchema
+}
+
+val person = Person("Alice", 30)
+val xml: Xml = XmlEncoder[Person].encode(person)
+```
+
+#### Creating custom encoders
+
+Create custom encoders from functions or using contravariance:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+
+// Create from a function
+val customEncoder: XmlEncoder[Int] = XmlEncoder.instance(n =>
+  Xml.Element("number", Xml.Text(n.toString))
+)
+
+// Map with contravariance - encode a wrapper type
+case class UserId(value: Int)
+
+val userIdEncoder: XmlEncoder[UserId] =
+  customEncoder.contramap[UserId](_.value)
+```
+
+#### Using implicit resolution
+
+Leverage implicit resolution for automatic encoder derivation:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Product(id: String, price: Double)
+object Product {
+  implicit val schema: Schema[Product] = Schema.derived
+}
+
+// No explicit encoder needed - derives automatically
+def encodeProduct[A](value: A)(implicit encoder: XmlEncoder[A]): Xml =
+  encoder.encode(value)
+
+val result = encodeProduct(Product("item-1", 99.99))
+```
+
+### XmlDecoder
+
+`XmlDecoder[A]` provides type-safe XML decoding with error handling:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+// Automatic derivation from Schema
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+  implicit val decoder: XmlDecoder[Person] = XmlDecoder.fromSchema
+}
+
+val xml = Xml.Element("Person",
+  Xml.Element("name", Xml.Text("Alice")),
+  Xml.Element("age", Xml.Text("30"))
+)
+```
+
+Decode the XML:
+
+```scala mdoc
+val result: Either[XmlError, Person] = XmlDecoder[Person].decode(xml)
+```
+
+#### Creating custom decoders
+
+Create custom decoders from functions or using covariance:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+import zio.blocks.chunk.Chunk
+
+// Create from a function
+val numberDecoder: XmlDecoder[Int] = XmlDecoder.instance { xml =>
+  xml match {
+    case Xml.Element(_, _, Chunk(Xml.Text(text), _*)) =>
+      text.toIntOption.toRight(XmlError("Invalid number"))
+    case _ => Left(XmlError("Expected number element"))
+  }
+}
+
+// Map for covariance - decode to a wrapper type
+case class UserId(value: Int)
+
+val userIdDecoder: XmlDecoder[UserId] =
+  numberDecoder.map(UserId(_))
+```
+
+#### Error handling with decoders
+
+Handle decoding errors gracefully with fallback strategies:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+def decodeWithFallback[A](
+  xml: Xml,
+  fallback: A
+)(implicit decoder: XmlDecoder[A]): A = {
+  decoder.decode(xml).getOrElse(fallback)
+}
+
+val invalidXml = Xml.Element("Empty")
+val defaultPerson = Person("Unknown", 0)
+val result = decodeWithFallback(invalidXml, defaultPerson)
+// Person("Unknown", 0)
+```
+
+#### Combining encoders and decoders
+
+Round-trip values by encoding and decoding:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+import zio.blocks.schema.xml.syntax._
+
+case class Message(id: String, text: String)
+object Message {
+  implicit val schema: Schema[Message] = Schema.derived
+}
+
+// Round-trip: encode then decode
+val message = Message("msg-1", "Hello")
+val encoded: Xml = message.toXml
+```
+
+Decode the encoded value:
+
+```scala mdoc
+val result: Either[XmlError, Message] =
+  implicitly[XmlDecoder[Message]].decode(encoded)
 ```
 
 ## Extension Syntax
@@ -539,28 +775,35 @@ val fromBytes: Either[SchemaError, Person] = bytes.fromXml[Person]
 
 ## Printing XML
 
-### Basic Printing
+Format XML documents using compact or pretty-printed output. You can convert XML to string with different formatting options:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.xml._
 
 val xml = Xml.Element("person", Xml.Element("name", Xml.Text("Alice")))
+```
 
-// Compact output
+Compact output:
+
+```scala mdoc
 val compact: String = xml.print
-// <person><name>Alice</name></person>
+```
 
-// Pretty-printed output
+Pretty-printed output:
+
+```scala mdoc
 val pretty: String = xml.printPretty
-// <person>
-//   <name>Alice</name>
-// </person>
+```
 
-// Custom configuration
+Custom configuration:
+
+```scala mdoc:compile-only
 val custom: String = xml.print(WriterConfig(indentStep = 4))
 ```
 
 ## Type Testing and Access
+
+Test and extract values from XML nodes using type guards and unwrapping:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
@@ -608,9 +851,43 @@ All standard ZIO Blocks Schema types are supported:
 - Options (`Option[A]`)
 - Wrappers (newtypes)
 
+## XmlBinaryCodec
+
+`XmlBinaryCodec[A]` is the low-level codec interface that bridges Schema definitions with XML serialization. While usually derived automatically, you can work with it directly:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Person(name: String, age: Int)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+// Get the underlying binary codec
+val codec: XmlBinaryCodec[Person] =
+  Schema[Person].derive(XmlBinaryCodecDeriver)
+
+// Encode to Xml directly
+val person = Person("Alice", 30)
+val xml: Xml = codec.encodeValue(person)
+
+// Decode from Xml directly
+val decoded: Either[XmlError, Person] = codec.decodeValue(xml)
+```
+
+**XmlBinaryCodec supports all Schema types:**
+- Primitives (Int, String, Boolean, etc.)
+- Java time types (Instant, LocalDate, Duration, etc.)
+- Records (case classes with field-level configuration)
+- Variants (sealed traits with discriminators)
+- Collections (List, Vector, Map, etc.)
+- Optional fields (Option[A])
+- Custom wrappers and dynamic values
+
 ## Error Handling
 
-All decoding operations return `Either[SchemaError, A]` or `Either[XmlError, A]`:
+All decoding operations return `Either[SchemaError, A]` or `Either[XmlError, A]`. The `XmlError` type provides detailed error information:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -629,9 +906,42 @@ val result = codec.decode(invalid)
 
 result match {
   case Right(person) => println(s"Decoded: $person")
-  case Left(error) => 
+  case Left(error) =>
     println(s"Error: ${error.getMessage}")
     // Error information includes parse location and context
+}
+```
+
+`XmlError` provides detailed error information for debugging:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.xml._
+
+val error = XmlError("Parse failed")
+
+// Error message
+val message: String = error.getMessage
+
+// Get error message for inspection
+val errorMsg: String = error.getMessage
+```
+
+Error handling best practices:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Config(database: String, port: Int)
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived
+}
+
+def loadConfig(xml: String): Either[String, Config] = {
+  val codec = Schema[Config].derive(XmlFormat)
+  codec.decode(xml).left.map { error =>
+    s"Configuration error: ${error.getMessage}\nCheck XML format and required fields."
+  }
 }
 ```
 
@@ -646,9 +956,13 @@ All features including parsing, writing, navigation, and patching work identical
 
 ## Examples
 
+These examples demonstrate common use cases and patterns with the XML module:
+
 ### Complete Example with Attributes and Namespaces
 
-```scala mdoc:compile-only
+Define a schema with attributes and namespaces, then encode and decode:
+
+```scala mdoc:silent
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -675,25 +989,23 @@ val entry = Entry(
   updated = "2024-01-01T00:00:00Z",
   author = Author("Alice", "alice@example.com")
 )
+```
 
-// Encode with pretty printing
-val xml = codec.encodeToString(entry, WriterConfig.pretty)
-println(xml)
-// <atom:Entry xmlns:atom="http://www.w3.org/2005/Atom" id="entry-1">
-//   <title>First Post</title>
-//   <updated>2024-01-01T00:00:00Z</updated>
-//   <author>
-//     <name>Alice</name>
-//     <email>alice@example.com</email>
-//   </author>
-// </atom:Entry>
+Encode the entry with pretty printing:
 
-// Decode back to typed value
-val decoded = codec.decode(xml)
-// Right(Entry("entry-1", "First Post", "2024-01-01T00:00:00Z", Author("Alice", "alice@example.com")))
+```scala mdoc
+val xmlStr = codec.encodeToString(entry, WriterConfig.pretty)
+```
+
+Decode the XML back to a typed value:
+
+```scala mdoc
+val decoded = codec.decode(xmlStr)
 ```
 
 ### Navigation and Transformation
+
+Find elements, extract data, and apply patches to modify XML:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -740,4 +1052,145 @@ val patch = XmlPatch.add(
 )
 
 val updated = patch(xml)
+```
+
+## Real-World Examples
+
+Learn by examining practical examples of XML codecs in action:
+
+### RSS Feed Parsing
+
+Parse RSS feeds by defining a schema and decoding XML:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
+case class Item(
+  @xmlAttribute() guid: String,
+  title: String,
+  link: String,
+  pubDate: String,
+  description: String
+)
+
+@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
+case class Channel(
+  title: String,
+  link: String,
+  description: String,
+  items: List[Item]
+)
+
+object Channel {
+  implicit val itemSchema: Schema[Item] = Schema.derived
+  implicit val schema: Schema[Channel] = Schema.derived
+}
+
+// Parse RSS feed from string
+val feedXml = """<rss:Channel xmlns:rss="http://www.rss.org/">
+  <title>Tech Blog</title>
+  <link>https://example.com</link>
+  <description>Latest tech articles</description>
+  <items>
+    <Item guid="1">
+      <title>Functional Programming in Scala</title>
+      <link>https://example.com/fp</link>
+      <pubDate>2024-01-01</pubDate>
+      <description>Deep dive into FP concepts</description>
+    </Item>
+  </items>
+</rss:Channel>"""
+
+val codec = Schema[Channel].derive(XmlFormat)
+val result: Either[SchemaError, Channel] = codec.decode(feedXml)
+```
+
+### Atom Feed with Advanced Features
+
+Work with Atom feeds using attributes, multiple entries, and custom configurations:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+case class Entry(
+  @xmlAttribute() id: String,
+  title: String,
+  author: String,
+  updated: String,
+  @xmlAttribute("href") link: String
+)
+
+@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+case class Feed(
+  @xmlAttribute() id: String,
+  title: String,
+  updated: String,
+  entries: List[Entry]
+)
+
+object Feed {
+  implicit val entrySchema: Schema[Entry] = Schema.derived
+  implicit val schema: Schema[Feed] = Schema.derived
+}
+
+// Encode feed to XML with custom formatting
+val feed = Feed(
+  id = "urn:uuid:60a76c80-d399-11d9-b91C-0003939e0af6",
+  title = "Example Feed",
+  updated = "2024-01-01T18:30:02Z",
+  entries = List(
+    Entry(
+      id = "urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
+      title = "Atom-Powered Robots Run Amok",
+      author = "John Doe",
+      updated = "2024-01-01T18:30:02Z",
+      link = "http://example.org/2024/01/entry"
+    )
+  )
+)
+
+val codec = Schema[Feed].derive(XmlFormat)
+val xmlOutput = codec.encodeToString(feed, WriterConfig.pretty)
+```
+
+### Sitemap XML
+
+Generate sitemap XML with URLs and optional metadata fields:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Url(
+  loc: String,
+  lastmod: Option[String],
+  changefreq: Option[String],
+  priority: Option[Double]
+)
+
+case class Urlset(
+  urls: List[Url]
+)
+
+object Urlset {
+  implicit val urlSchema: Schema[Url] = Schema.derived
+  implicit val schema: Schema[Urlset] = Schema.derived
+}
+
+// Build and encode sitemap
+val sitemap = Urlset(List(
+  Url("https://example.com", Some("2024-01-01"), Some("monthly"), Some(1.0)),
+  Url("https://example.com/about", Some("2024-01-01"), Some("monthly"), Some(0.8)),
+  Url("https://example.com/contact", None, Some("monthly"), Some(0.5))
+))
+
+val codec = Schema[Urlset].derive(XmlFormat)
+val sitemapXml = codec.encodeToString(sitemap, WriterConfig(
+  indentStep = 2,
+  includeDeclaration = true
+))
 ```

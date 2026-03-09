@@ -19,9 +19,10 @@ object xmlNamespace {
 
   def getNamespace(modifiers: Seq[Modifier.Reflect]): Option[(String, String)] =
     modifiers.collectFirst { case Modifier.config(`configKeyUri`, uri) =>
-      val prefix = modifiers.collectFirst { case Modifier.config(`configKeyPrefix`, p) =>
-        p
-      }.getOrElse("")
+      val prefix = modifiers.collectFirst { case Modifier.config(`configKeyPrefix`, p) => p } match {
+        case Some(p) => p
+        case _       => ""
+      }
       (uri, prefix)
     }
 }

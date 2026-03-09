@@ -34,13 +34,13 @@ object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
       }
     ),
     suite("generic tuples")(
-      test("generic tuple 4 round-trip") {
-        type GenericTuple4 = Byte *: Short *: Int *: Long *: EmptyTuple
+      test("generic tuple 8 round-trip") {
+        type GenericTuple8 = Boolean *: Byte *: Char *: Short *: Float *: Int *: Double *: Long *: EmptyTuple
 
-        implicit val schema: Schema[GenericTuple4] = Schema.derived
+        implicit val schema: Schema[GenericTuple8] = Schema.derived
 
-        val codec  = Schema[GenericTuple4].derive(XmlBinaryCodecDeriver)
-        val tuple  = (1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple
+        val codec  = Schema[GenericTuple8].derive(XmlBinaryCodecDeriver)
+        val tuple  = true *: (2: Byte) *: '3' *: (4: Short) *: 5.0f *: 6 *: 7.0 *: 8L *: EmptyTuple
         val result = codec.decode(codec.encode(tuple))
         assertTrue(result == Right(tuple))
       },

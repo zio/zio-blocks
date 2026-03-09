@@ -15,6 +15,10 @@ A `Patch[S]` represents a sequence of operations that transform a value of type 
 - **Optimistic Updates** — Apply patches locally while syncing with a server
 - **Schema Evolution** — Patches work with the schema system, adapting as data structures evolve
 
+:::note
+For **untyped JSON patching** without a schema, use [`JsonPatch`](./json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
+:::
+
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.patch._

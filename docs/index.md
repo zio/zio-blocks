@@ -536,8 +536,10 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Core Schema Concepts
 
 - [Schema](./reference/schema.md) - Core schema definitions and derivation
+- [Allows](./reference/allows.md) - Compile-time structural grammar constraints
 - [Reflect](./reference/reflect.md) - Structural reflection API
 - [Binding](./reference/binding.md) - Runtime constructors and deconstructors
+- [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
 - [Registers](./reference/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
@@ -546,11 +548,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
 - [Codec & Format](./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](./reference/json.md) - JSON codec and parsing
+- [JsonPatch](./reference/json-patch.md) - Diff and patch JSON values
 - [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
 - [Extension Syntax](./reference/syntax.md) - `.toJson`, `.fromJson`, and more
@@ -560,7 +564,9 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Patching](./reference/patch.md) - Serializable data transformations
 - [SchemaError](./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](./reference/validation.md) - Data validation and error handling
-- [Schema Evolution](./reference/schema-evolution.md) - Migration and compatibility
+- [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
+  - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 
@@ -570,6 +576,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
+- [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 
 ### Guides
 
