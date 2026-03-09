@@ -128,9 +128,6 @@ The canonical empty context is `Context.empty`:
 
 ```scala mdoc:silent:reset
 import zio.blocks.context._
-
-case class Config(debug: Boolean)
-case class Logger(name: String)
 ```
 
 An empty context has type `Context[Any]` (no entries):
@@ -142,6 +139,11 @@ val emptyCtx: Context[Any] = Context.empty
 ### Using Context.apply Overloads
 
 `Context.apply` is overloaded to accept 1–10 values and returns `Context[A1 & A2 & ...]`:
+
+```scala mdoc:silent
+case class Config(debug: Boolean)
+case class Logger(name: String)
+```
 
 ```scala mdoc
 val ctx1: Context[Config] = Context(Config(debug = true))
