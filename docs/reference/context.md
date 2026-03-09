@@ -215,6 +215,8 @@ val empty = Context.empty
 val notEmpty = Context(Config(true))
 ```
 
+Now check the `isEmpty` status of both contexts:
+
 ```scala mdoc
 val e1 = empty.isEmpty
 val e2 = notEmpty.isEmpty
@@ -230,6 +232,8 @@ case class Config(debug: Boolean)
 val empty = Context.empty
 val notEmpty = Context(Config(true))
 ```
+
+Check the `nonEmpty` status of both contexts:
 
 ```scala mdoc
 val e1 = empty.nonEmpty

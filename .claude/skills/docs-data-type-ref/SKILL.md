@@ -171,6 +171,31 @@ d. **Show a usage example** using the Setup + Evaluated Output pattern:
    p.name  // Shows: val res0: String = Alice
    ```
 
+   **Style rule:** Between any two code blocks, include an **explanatory paragraph** that introduces or describes what the following code demonstrates. Do NOT leave empty lines between code blocks.
+
+   ✅ Correct:
+   ```
+   ​```scala mdoc
+   val x = 1
+   ```
+   Now let's use x to compute a result:
+
+   ​```scala mdoc
+   val y = x + 1
+   ```
+   ```
+
+   ❌ Wrong:
+   ```
+   ​```scala mdoc
+   val x = 1
+   ```
+
+   ​```scala mdoc
+   val y = x + 1
+   ```
+   ```
+
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
 #### 7. Subtypes / Variants (if applicable)
