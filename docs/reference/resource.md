@@ -223,21 +223,99 @@ val serviceResource = Resource.from[Service](
 
 See [`Wire`](./wire.md) for how to declare dependency recipes and [`Scope`](./scope.md) for scope-based resource management.
 
-## Examples
+## Running the Examples
 
-Real-world examples demonstrating Resource usage are available in the `scope-examples` module:
+All code from this guide is available as runnable examples in the `scope-examples` module.
 
-- `TempFileHandlingExample` — Basic lifecycle management with temporary files
-- `DatabaseConnectionExample` — Acquiring and releasing database connections
-- `CachingSharedLoggerExample` — Shared resources with memoization and reference counting
-- `ConnectionPoolExample` — Managing shared expensive resources
-- `TransactionBoundaryExample` — Transactional resource management
-- `LayeredWebServiceExample` — Multi-layer service construction
-
-Run any example with:
+**1. Clone the repository and navigate to the project:**
 
 ```bash
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+**Basic lifecycle management with temporary files**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TempFileHandlingExample.scala))
+
+```bash
 sbt "scope-examples/runMain scope.examples.TempFileHandlingExample"
+```
+
+**Acquiring and releasing database connections**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectionExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/DatabaseConnectionExample.scala))
+
+```bash
+sbt "scope-examples/runMain scope.examples.DatabaseConnectionExample"
+```
+
+**Shared resources with memoization and reference counting**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLoggerExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CachingSharedLoggerExample.scala))
+
+```bash
+sbt "scope-examples/runMain scope.examples.CachingSharedLoggerExample"
+```
+
+**Managing shared expensive resources**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConnectionPoolExample.scala))
+
+```bash
+sbt "scope-examples/runMain scope.examples.ConnectionPoolExample"
+```
+
+**Transactional resource management**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala))
+
+```bash
+sbt "scope-examples/runMain scope.examples.TransactionBoundaryExample"
+```
+
+**Multi-layer service construction**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala))
+
+```bash
+sbt "scope-examples/runMain scope.examples.LayeredWebServiceExample"
 ```
