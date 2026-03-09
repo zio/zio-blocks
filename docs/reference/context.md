@@ -196,7 +196,7 @@ Context supports inspection, retrieval, and modification operations. All methods
 
 The following methods let you check the contents of a context without retrieving specific values:
 
-#### Context#size
+#### `Context#size`
 
 Returns the number of entries in the context:
 
@@ -213,7 +213,7 @@ Get the number of entries in the context:
 val sz = ctx.size
 ```
 
-#### Context#isEmpty
+#### `Context#isEmpty`
 
 Returns `true` if the context contains no entries:
 
@@ -231,7 +231,7 @@ val e1 = empty.isEmpty
 val e2 = notEmpty.isEmpty
 ```
 
-#### Context#nonEmpty
+#### `Context#nonEmpty`
 
 Returns `true` if the context contains at least one entry (opposite of `isEmpty`):
 
@@ -253,7 +253,7 @@ val e2 = notEmpty.nonEmpty
 
 The following methods let you retrieve values from a context by type:
 
-#### Context#get
+#### `Context#get`
 
 Retrieves a value by type. The type bound `A >: R` ensures that a value of type `A` (or a subtype of `A`) is present at compile time:
 
@@ -291,7 +291,7 @@ If you attempt to retrieve a type that is not in the context, the code will not 
 // val metrics: String = ctx.get[String]  // Error: String is not in context type
 ```
 
-#### Context#getOption
+#### `Context#getOption`
 
 Retrieves a value if present, returning `Option[A]`. Unlike `get`, this method does not require the type to be in the context's type parameter. Use it for optional lookups:
 
@@ -312,7 +312,7 @@ val missing: Option[String] = ctx.getOption[String]
 
 All modification methods return a new `Context`—the original remains immutable:
 
-#### Context#add
+#### `Context#add`
 
 Adds a value to the context, expanding the phantom type by `& A`:
 
@@ -340,7 +340,7 @@ val ctx3 = ctx2.add(Config(debug = false))
 val replaced = ctx3.get[Config]
 ```
 
-#### Context#update
+#### `Context#update`
 
 Transforms an existing value if it is present. If the type is not found, the context is returned unchanged:
 
@@ -354,7 +354,7 @@ val updated = ctx.update[Metrics](m => m.copy(count = m.count + 5))
 val newCount = updated.get[Metrics].count
 ```
 
-#### Context#++ (Union)
+#### `Context#++ (Union)`
 
 Combines two contexts into a new context containing all entries. When both contexts contain the same type, the value from the right side (second argument) wins:
 
@@ -370,7 +370,7 @@ val right = Context(Config(debug = true), Metrics(99))
 val merged = left ++ right
 ```
 
-#### Context#prune
+#### `Context#prune`
 
 Narrows a context to contain only specified types. All other entries are discarded:
 
@@ -386,7 +386,7 @@ val justConfig = full.prune[Config]
 val configSize = justConfig.size
 ```
 
-#### Context#toString
+#### `Context#toString`
 
 Returns a human-readable representation of the context showing all type-value pairs:
 
