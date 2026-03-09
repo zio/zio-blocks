@@ -55,8 +55,8 @@ final class BlockingSpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   @volatile private var waitingProducer: Thread = null
 
   // --- Consumer blocking: ReentrantLock + Condition (multiple consumers) ---
-  private val consumerLock                           = new ReentrantLock()
-  private val notEmpty                               = consumerLock.newCondition()
+  private val consumerLock                        = new ReentrantLock()
+  private val notEmpty                            = consumerLock.newCondition()
   @volatile private var waitingConsumerCount: Int = 0
 
   /**
@@ -204,13 +204,12 @@ final class BlockingSpmcRingBuffer[A <: AnyRef](val capacity: Int) {
    * Signals one waiting consumer that an element has been added. Only acquires
    * the `consumerLock` if there are actually waiting consumers.
    */
-  private def wakeConsumers(): Unit = {
+  private def wakeConsumers(): Unit =
     if (waitingConsumerCount > 0) {
       consumerLock.lock()
       try notEmpty.signal()
       finally consumerLock.unlock()
     }
-  }
 
   /**
    * Unparks the producer if it is currently parked waiting for space. A
