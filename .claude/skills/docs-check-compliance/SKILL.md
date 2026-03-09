@@ -47,7 +47,7 @@ Repeat until the rule has no violations.
 Run mdoc to verify the doc compiles:
 
 ```bash
-sbt docs/mdoc
+sbt "docs/mdoc --in $ARGUMENTS[docs-file]"
 ```
 
 If mdoc fails, identify the error and commit a fix.

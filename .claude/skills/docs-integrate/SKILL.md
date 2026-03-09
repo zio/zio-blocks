@@ -1,6 +1,7 @@
 ---
 name: docs-integrate
 description: Shared integration checklist for new ZIO Blocks documentation pages. Include after writing any new reference page or how-to guide to ensure it is wired into the site navigation.
+allowed-tools: Read, Edit, Glob, Grep, Bash(git:*)
 ---
 
 # Documentation Integration Checklist
@@ -54,26 +55,4 @@ Verify that all relative links in the new page and in any updated pages are corr
 - Internal links use relative paths: `[TypeName](./type-name.md)`.
 - Anchor links match actual heading text (Docusaurus converts headings to lowercase kebab-case
   anchors).
-
-### Run mdoc Compilation Check
-
-Run the full mdoc compilation check:
-
-```bash
-sbt docs/mdoc
-```
-
-**Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
-
-**What to look for:**
-- Type errors in Scala code blocks (mismatched types, undefined names, missing imports)
-- Broken cross-references (mdoc reports these as `[error] Unknown link '...'`)
-- Unresolved imports or package references
-
-**If mdoc reports errors:** Fix them immediately. Do not proceed to commit or claim the work
-is done until all errors are resolved.
-
-The compilation check ensures:
-- Code examples are syntactically correct
-- Readers can copy-paste examples without errors
-- Cross-references are valid and unbroken
+- Run `sbt "docs/mdoc --in <path-to-new-page>"` to catch broken mdoc links (they appear as `[error] Unknown link '...'`).

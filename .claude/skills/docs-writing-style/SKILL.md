@@ -1,6 +1,7 @@
 ---
 name: docs-writing-style
 description: Shared prose style rules for ZIO Blocks documentation. Include when writing any ZIO Blocks documentation page — reference pages, how-to guides, or tutorials. Also include docs-mdoc-conventions for code block modifiers.
+allowed-tools: Read, Glob, Grep
 ---
 
 # ZIO Blocks Documentation Writing Style
@@ -82,7 +83,12 @@ Apply these conventions consistently in all prose, section headings, and inline 
 
 ## Scala Version
 
-All code in documentation and companion example files **must use Scala 2.13.x syntax**. When in
-doubt, check the companion example files — they are the source of truth for syntax style.
+All code in documentation and companion example files **defaults to Scala 2.13.x syntax**.
+When in doubt, check the companion example files — they are the source of truth for syntax style.
+
+When a section shows syntax that genuinely differs between Scala 2 and Scala 3 (e.g., `using`
+vs `implicit`, native union types vs backtick infix), use tabbed code blocks instead of
+sequential prose. See `docs-mdoc-conventions` for the exact tab structure. Scala 2 is always
+the default tab (`defaultValue="scala2"`).
 
 ---
