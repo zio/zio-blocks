@@ -107,7 +107,7 @@ Supported Scala versions: 2.13.x and 3.x.
 
 The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -133,7 +133,7 @@ Scope.global.scoped { scope =>
 
 Like `shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -159,11 +159,11 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Wire.apply[T](value) — lift a pre-existing value
+### Wire.apply[T] — lift a pre-existing value
 
 Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
@@ -182,7 +182,7 @@ Scope.global.scoped { scope =>
 
 Use this for custom construction logic when macro derivation doesn't fit.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -211,7 +211,7 @@ Scope.global.scoped { scope =>
 
 Like `fromFunction`, but for unique wires.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -251,7 +251,7 @@ The fundamental difference is **reuse semantics**:
 
 In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 final class Database {
@@ -293,7 +293,7 @@ Scope.global.scoped { scope =>
 
 Check the sharing strategy of a wire:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 val sharedWire = Wire.shared[String]
@@ -309,7 +309,7 @@ println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
 
 Convert a wire to the opposite strategy:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 val original = Wire.shared[String]
@@ -329,7 +329,7 @@ Calling `shared` on an already-shared wire returns `this` (identity); likewise `
 
 Converts the wire to a lazy `Resource` by providing the dependency context:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -351,7 +351,7 @@ Scope.global.scoped { scope =>
 
 Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -379,7 +379,7 @@ When you call `Wire.shared[T]` or `Wire.unique[T]`, the macro performs these che
 
 Example with all three features:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
@@ -428,25 +428,27 @@ val wire = Wire.shared[App]  // ok
 
 `Wire` is designed for use with `Resource.from[T](wires*)`, which performs whole-graph dependency injection:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope._
 
 final case class AppConfig(dbUrl: String)
 
 final class Database(config: AppConfig) extends AutoCloseable {
-  def close(): Unit = println("database closed")
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = ()
 }
 
 final class Repository(db: Database) {
-  def query(): String = "results"
+  def query(): String = db.query("SELECT *")
 }
 
 final class Service(repo: Repository) extends AutoCloseable {
-  def close(): Unit = println("service closed")
+  def run(): String = repo.query()
+  def close(): Unit = ()
 }
 
 final class App(service: Service) {
-  def run(): String = service.query()
+  def run(): String = service.run()
 }
 
 // Provide only the leaf dependency; Resource.from derives the rest
@@ -455,7 +457,7 @@ val appResource: Resource[App] = Resource.from[App](
 )
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val app = allocate(appResource)
   $(app)(_.run())
 }
