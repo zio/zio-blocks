@@ -1,6 +1,6 @@
 package zio.blocks.schema.binding
 
-import zio.blocks.schema.{Lazy, ReflectTransformer}
+import zio.blocks.schema.{DynamicValue, Lazy, ReflectTransformer}
 
 trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
   override def transformMetadata[T, A](f: F[T, A]): Lazy[Binding[T, A]] = Lazy(binding(f))
@@ -144,5 +144,11 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     binding(fa) match {
       case wrapper: Binding.Wrapper[A, B] @scala.unchecked => wrapper
       case _                                               => sys.error("Expected Binding.Wrapper")
+    }
+
+  final def dynamic(fa: F[BindingType.Dynamic, DynamicValue]): Binding.Dynamic =
+    binding(fa) match {
+      case dynamic: Binding.Dynamic => dynamic
+      case _                        => sys.error("Expected Binding.Dynamic")
     }
 }
