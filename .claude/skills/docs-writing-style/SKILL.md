@@ -37,6 +37,7 @@ Apply these conventions consistently in all prose, section headings, and inline 
   `As#from`, `As#into`, `As#reverse`, `Into#into`.
 - **Companion object operation or constructor** — use `TypeName.methodName` (the `.` convention
   signals a companion/static member): `As.derived`, `As.apply`, `Into.derived`, `Into.apply`.
+- **In headings** — apply the same qualification rules to subsection headings. Write `### Context#add` or `### Wire.shared[T]` instead of bare method names. Headings must be in backticks when referring to types or operations to make them searchable and consistent with inline references.
 
 ## Heading and Code Block Layout Rules
 
