@@ -167,7 +167,22 @@ object Chunk {
   def apply[A](as: A*): Chunk[A]
 }
 ```
-d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
+d. **Show a usage example** using the Setup + Evaluated Output pattern:
+   - Use `mdoc:silent` to define any types/values needed for the example
+   - Use bare `mdoc` (not `mdoc:compile-only`) to show the method call and its evaluated result
+   - This demonstrates both how to call the method AND what it returns
+
+   Example pattern:
+   ```
+   ​```scala mdoc:silent
+   case class Person(name: String)
+   val p = Person("Alice")
+   ```
+
+   ​```scala mdoc
+   p.name  // Shows: val res0: String = Alice
+   ```
+
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
 #### 7. Subtypes / Variants (if applicable)
