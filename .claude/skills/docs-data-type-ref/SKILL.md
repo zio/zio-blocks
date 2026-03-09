@@ -206,7 +206,7 @@ Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](
 
 #### 11. Running the Examples (required when examples exist)
 
-Add this section at the very end of the page, after Integration. It tells readers where the examples live and how to run them. Use this template verbatim, substituting the package name, module name, and a bullet for each `App` written in Step 3:
+Add this section at the very end of the page, after Integration. For each `App` example, embed the full source using `SourceFile.print`, then show the command to run it. Use this template verbatim:
 
 ```markdown
 ## Running the Examples
@@ -223,6 +223,13 @@ cd zio-blocks
 **2. Run individual examples with sbt:**
 
 **<Short description of what this App demonstrates>**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName>.scala")
+```
+
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala))
 
 ```bash
@@ -230,6 +237,13 @@ sbt "schema-examples/runMain <package>.<ObjectName>"
 ```
 
 **<Short description of the next App>**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName2>.scala")
+```
+
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName2>.scala))
 
 ```bash
@@ -238,25 +252,19 @@ sbt "schema-examples/runMain <package>.<ObjectName2>"
 
 Rules for this section:
 - List **every `App` object** written in Step 3, one entry per object.
-- Each entry has a bolded plain-English description on one line, a clickable `([source](...))` link
-  to `https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala`,
-  followed by a separate `bash` block with the `sbt` command.
+- For each entry: embed the full source with `SourceFile.print`, then show description, source link, and run command.
 - The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
 - If no example `App` objects were written (rare), omit this section entirely.
-- When the full example source is also **embedded earlier in the document** via `SourceFile.print`,
-  the `([source](...))` link in this section serves as a convenient shortcut to the GitHub file;
-  there is no need to embed the source again here.
+- **Always embed full source** — `SourceFile.print` keeps docs and examples in sync automatically.
 
 ### Embedding Example Files with `SourceFile`
 
-When the documentation needs to show a **full example file** from the `schema-examples` project
-(written in Step 3), **do not copy-paste the code inline**. Instead, use `mdoc:passthrough` with
-the `SourceFile.print` helper to include it by reference. This keeps the doc and the example in
-sync — any change to the example file automatically appears in the rendered docs on the next
-mdoc build.
+**Required for "Running the Examples" section:** Use `SourceFile.print` to embed full source from `schema-examples/` for each example.
 
-Use this pattern:
+`SourceFile.print` reads the file at mdoc compile time and emits a fenced code block with the file path shown as the title. This keeps docs and examples in sync automatically.
+
+**Pattern:**
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -264,31 +272,11 @@ import docs.SourceFile
 SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 ```
 
-**Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use
-`import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print`
-inside mdoc sessions.
-
-`SourceFile.print(path)` reads the file at mdoc compile time and emits a fenced code block with
-the file path shown as the title. The path is relative to the repository root (the helper tries
-`../<path>` first, then `<path>`).
-
-**When to use `SourceFile.print`:**
-- Showing a complete, runnable `App` example from `schema-examples/`
-- Showing a large, self-contained example that would be unwieldy to maintain in two places
-
-**When NOT to use it — use regular mdoc blocks instead:**
-- Short inline snippets (< 20 lines) that illustrate a single method or concept
-- Code that needs `mdoc` evaluated output (e.g., `// res0: Int = 42`)
-- Code that is documentation-specific and doesn't exist as a standalone file
+**Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use `import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print` inside mdoc sessions.
 
 **Optional parameters:**
-- `lines = Seq((from, to))` — include only specific line ranges (1-indexed):
-  ```scala mdoc:passthrough
-  import docs.SourceFile
-
-  SourceFile.print("schema-examples/src/main/scala/into/IntoNumericExample.scala", lines = Seq((10, 25)))
-  ```
-- `showLineNumbers = true` — render with line numbers in the output
+- `lines = Seq((from, to))` — include only specific line ranges (1-indexed)
+- `showLineNumbers = true` — render with line numbers
 - `showTitle = false` — suppress the file path title
 
 ### Writing Rules
