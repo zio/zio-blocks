@@ -227,6 +227,7 @@ Scope.global.scoped { scope =>
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
 - **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
+- **Actionable Runtime Errors**: If a scope reference escapes and is used after closing, `allocate`, `open()`, and `$` throw `IllegalStateException` with a detailed message explaining what went wrong, the common causes, and how to fix it—no silent null returns.
 
 ### Installation
 
@@ -535,8 +536,10 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Core Schema Concepts
 
 - [Schema](./reference/schema.md) - Core schema definitions and derivation
+- [Allows](./reference/allows.md) - Compile-time structural grammar constraints
 - [Reflect](./reference/reflect.md) - Structural reflection API
 - [Binding](./reference/binding.md) - Runtime constructors and deconstructors
+- [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
 - [Registers](./reference/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
@@ -545,11 +548,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
 - [Codec & Format](./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](./reference/json.md) - JSON codec and parsing
+- [JsonPatch](./reference/json-patch.md) - Diff and patch JSON values
 - [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
 - [Extension Syntax](./reference/syntax.md) - `.toJson`, `.fromJson`, and more
@@ -557,8 +562,11 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Data Operations
 
 - [Patching](./reference/patch.md) - Serializable data transformations
+- [SchemaError](./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](./reference/validation.md) - Data validation and error handling
-- [Schema Evolution](./reference/schema-evolution.md) - Migration and compatibility
+- [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
+  - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 
@@ -571,6 +579,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Guides
 
+- [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond SchemaExpr

@@ -24,10 +24,18 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Byte(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1: Byte))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(
           isRight(equalTo(1: Byte))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Byte")))
         )
       }
@@ -46,10 +54,18 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Short(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Short(1))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1: Short))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(
           isRight(equalTo(1: Short))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Short")))
         )
       }
@@ -58,8 +74,16 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Char(None)
         assertTrue(tpe.toDynamicValue('1') == DynamicValue.Primitive(PrimitiveValue.Char('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(49))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(49))))(isRight(equalTo('1'))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char('1'))))(isRight(equalTo('1'))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(49))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(49L))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(49.0f))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(49.0))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(49))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(49.0))))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Char")))
         )
       }
@@ -68,8 +92,16 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Int(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Int(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Int")))
         )
       }
@@ -78,8 +110,16 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Float(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Float(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1))))(isRight(equalTo(1.0f))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1.0f))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Float")))
         )
       }
@@ -88,8 +128,16 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Long(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Long(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1L))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1L))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.1)))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Long")))
         )
       }
@@ -98,8 +146,16 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Double(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Double(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1.0))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1.0))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Double")))
         )
       }
@@ -118,10 +174,18 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.BigInt(None)
         assertTrue(tpe.toDynamicValue(BigInt(1)) == DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(isRight(equalTo(BigInt(1)))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(
           isRight(equalTo(BigInt(1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("1"))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected BigInt")))
         )
       }
@@ -132,10 +196,34 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
         assertTrue(
           tpe.toDynamicValue(BigDecimal(1.0)) == DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char(1))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isRight(equalTo(BigDecimal(1.0)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(1))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(1.0))))(
+          isRight(equalTo(BigDecimal(1.0)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))(
           isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected BigDecimal")))
         )
       }

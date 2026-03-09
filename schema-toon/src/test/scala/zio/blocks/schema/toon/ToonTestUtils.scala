@@ -218,7 +218,7 @@ object ToonTestUtils {
   private[this] def writerConfig = WriterConfig
 
   private[this] def getOrDeriveCodec[A](schema: Schema[A]): ToonBinaryCodec[A] =
-    codecs.computeIfAbsent(schema, _.derive(ToonBinaryCodecDeriver)).asInstanceOf[ToonBinaryCodec[A]]
+    codecs.computeIfAbsent(schema, _.deriving(ToonBinaryCodecDeriver).derive).asInstanceOf[ToonBinaryCodec[A]]
 
   def deriveCodec[A: Schema](deriverModifier: ToonBinaryCodecDeriver => ToonBinaryCodecDeriver): ToonBinaryCodec[A] =
     Schema[A].derive(deriverModifier(ToonBinaryCodecDeriver))

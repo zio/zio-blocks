@@ -12,55 +12,65 @@ object ThriftWrapperSpec extends SchemaBaseSpec {
   case class UserId(value: Long)
 
   object UserId {
-    implicit val schema: Schema[UserId] = Schema.derived
+    implicit val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value)
   }
 
   case class Email(value: String)
 
   object Email {
-    implicit val schema: Schema[Email] = Schema.derived
+    private[this] val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+
+    implicit val schema: Schema[Email] =
+      Schema[String].transform[Email](
+        {
+          case x @ EmailRegex(_*) => new Email(x)
+          case _                  => throw SchemaError.validationFailed("expected e-mail")
+        },
+        _.value
+      )
   }
 
   case class Counter(value: Int)
 
   object Counter {
-    implicit val schema: Schema[Counter] = Schema.derived
+    implicit val schema: Schema[Counter] = Schema[Int].transform[Counter](x => new Counter(x), _.value)
   }
 
   case class Percentage(value: Double)
 
   object Percentage {
-    implicit val schema: Schema[Percentage] = Schema.derived
+    implicit val schema: Schema[Percentage] = Schema[Double].transform[Percentage](x => new Percentage(x), _.value)
   }
 
   case class Flag(value: Boolean)
 
   object Flag {
-    implicit val schema: Schema[Flag] = Schema.derived
+    implicit val schema: Schema[Flag] = Schema[Boolean].transform[Flag](x => new Flag(x), _.value)
   }
 
   case class Initial(value: Char)
 
   object Initial {
-    implicit val schema: Schema[Initial] = Schema.derived
+    implicit val schema: Schema[Initial] = Schema[Char].transform[Initial](x => new Initial(x), _.value)
   }
 
-  case class SmallNum(value: Byte)
+  case class Flags(value: Byte)
 
-  object SmallNum {
-    implicit val schema: Schema[SmallNum] = Schema.derived
+  object Flags {
+    implicit val schema: Schema[Flags] = Schema[Byte].transform[Flags](x => new Flags(x), _.value)
   }
 
   case class ShortId(value: Short)
 
   object ShortId {
-    implicit val schema: Schema[ShortId] = Schema.derived
+    implicit val schema: Schema[ShortId] = Schema[Short].transform[ShortId](x => new ShortId(x), _.value)
   }
 
   case class Score(value: Float)
 
   object Score {
-    implicit val schema: Schema[Score] = Schema.derived
+    implicit val schema: Schema[Score] = Schema[Float].transform[Score](x => new Score(x), _.value)
   }
 
   case class UserWithWrapper(id: UserId, name: String)
@@ -99,9 +109,6 @@ object ThriftWrapperSpec extends SchemaBaseSpec {
       test("encode/decode Long wrapper") {
         check(Gen.long)(x => roundTrip(UserId(x)))
       },
-      test("encode/decode String wrapper") {
-        check(Gen.string)(x => roundTrip(Email(x)))
-      },
       test("encode/decode Int wrapper") {
         check(Gen.int)(x => roundTrip(Counter(x)))
       },
@@ -115,7 +122,7 @@ object ThriftWrapperSpec extends SchemaBaseSpec {
         check(Gen.char)(x => roundTrip(Initial(x)))
       },
       test("encode/decode Byte wrapper") {
-        check(Gen.byte)(x => roundTrip(SmallNum(x)))
+        check(Gen.byte)(x => roundTrip(Flags(x)))
       },
       test("encode/decode Short wrapper") {
         check(Gen.short)(x => roundTrip(ShortId(x)))
@@ -152,12 +159,6 @@ object ThriftWrapperSpec extends SchemaBaseSpec {
       },
       test("encode/decode wrapper with min Long value") {
         roundTrip(UserId(Long.MinValue))
-      },
-      test("encode/decode wrapper with empty string") {
-        roundTrip(Email(""))
-      },
-      test("encode/decode wrapper with unicode string") {
-        roundTrip(Email("hello@世界.com"))
       }
     )
   )

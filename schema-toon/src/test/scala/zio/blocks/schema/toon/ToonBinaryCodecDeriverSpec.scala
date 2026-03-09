@@ -5,7 +5,6 @@ import zio.blocks.schema.toon.ToonTestUtils._
 import zio.blocks.schema.toon.NameMapper._
 import zio.blocks.schema._
 import zio.test._
-import zio.test.TestAspect.jvmOnly
 import java.time._
 import java.util.{Currency, UUID}
 
@@ -100,14 +99,13 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(0.0f, "0") &&
         roundTrip(Float.MinValue, "-340282350000000000000000000000000000000") &&
         roundTrip(Float.MaxValue, "340282350000000000000000000000000000000") &&
-        // FIXME: Differs for different JVMs
-        // roundTrip(1.0e17f, "100000000000000000") &&
-        // roundTrip(1.2621775e-29f, "0.000000000000000000000000000012621775") &&
+        roundTrip(1.0e17f, "100000000000000000") &&
+        roundTrip(1.2621775e-29f, "0.000000000000000000000000000012621775") &&
         roundTrip(0.33007812f, "0.33007812") &&
         roundTrip(102067.11f, "102067.11") &&
         roundTrip(1.6777216e7f, "16777216") &&
-        roundTrip(1.0e-45f, "0.0000000000000000000000000000000000000000000014") &&
-        roundTrip(1.0e-44f, "0.0000000000000000000000000000000000000000000098") &&
+        roundTrip(1.0e-45f, "0.000000000000000000000000000000000000000000001") &&
+        roundTrip(1.0e-44f, "0.00000000000000000000000000000000000000000001") &&
         roundTrip(6.895867e-31f, "0.0000000000000000000000000000006895867") &&
         roundTrip(1.595711e-5f, "0.00001595711") &&
         roundTrip(-1.5887592e7f, "-15887592") &&
@@ -155,7 +153,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Float]("1e+e", "Expected float, got: 1e+e at: .") &&
         decodeError[Float]("", "Expected float, got:  at: .") &&
         decodeError[Float]("1,", "Expected float, got: 1, at: .")
-      } @@ jvmOnly,
+      },
       test("Double") {
         check(Gen.double)(x => decode(x.toString, x)) &&
         check(Gen.double)(x => decode(s"\"$x\"", x)) &&
@@ -171,15 +169,12 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(0.001, "0.001") &&
         roundTrip(1.0e7, "10000000") &&
         roundTrip(8572.431613041595, "8572.431613041595") &&
-        /* FIXME: Result differs between JVM and JS
         roundTrip(
           5.0e-324,
-          "0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049"
+          "0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005"
         ) &&
-         */
         roundTrip(8.707795712926552e15, "8707795712926552") &&
-        // FIXME: Differs for different JVMs
-        // roundTrip(5.960464477539063e-8, "0.00000005960464477539063") &&
+        roundTrip(5.960464477539063e-8, "0.00000005960464477539063") &&
         roundTrip(-1.3821488797638562e14, "-138214887976385.62") &&
         roundTrip(9.223372036854776e18, "9223372036854776000") &&
         roundTrip(
@@ -609,6 +604,18 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           deriveCodec[Record4](_.withTransientNone(false))
         )
       },
+      test("record with renamed, aliased, and transient fields") {
+        encode(Record5(BigInt(1), BigDecimal(2.0)), "bigInt: 1\nbd: 2") &&
+        decode("bi: 1\nbd: 2.0", Record5(BigInt(1), BigDecimal(2.0)))
+      },
+      test("simple record with fields that have default values") {
+        roundTrip(Record6(), "") &&
+        roundTrip(Record6(bl = true, s = "WWW"), "bl: true\ns: WWW") &&
+        roundTrip(
+          Record6(true, 2: Byte, 3: Short, 4, 5L, 6.0f, 7.0, '8', "WWW"),
+          "bl: true\nb: 2\nsh: 3\ni: 4\nl: 5\nf: 6\nd: 7\nc: \"8\"\ns: WWW"
+        )
+      },
       test("extra fields are ignored by default") {
         decode(
           """name: Alice
@@ -943,6 +950,17 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.Tabular))
         )
       },
+      test("ArrayFormat.List encodes record arrays in list format") {
+        roundTrip(
+          PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
+          """people[2]:
+            |  - name: Alice
+            |    age: 25
+            |  - name: Bob
+            |    age: 30""".stripMargin,
+          deriveCodec[PersonList](_.withArrayFormat(ArrayFormat.List))
+        )
+      },
       test("ArrayFormat.Tabular with custom delimiter") {
         roundTrip(
           PersonList(List(SimplePerson("Alice", 25), SimplePerson("Bob", 30))),
@@ -986,6 +1004,23 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           StringStringMap(Map("a" -> "hello", "b" -> "world")),
           """a: hello
             |b: world""".stripMargin
+        )
+      }
+    ),
+    suite("wrapper")(
+      test("top-level") {
+        roundTrip[UserId](UserId(1234567890123456789L), "1234567890123456789") &&
+        roundTrip[Email](Email("john@gmail.com"), "john@gmail.com") &&
+        decodeError[Email]("john&gmail.com", "expected e-mail at: .wrapped")
+      },
+      test("as a map key") {
+        roundTrip(
+          Map(UserId(1234567890123456789L) -> Email("backup@gmail.com")),
+          """"1234567890123456789": backup@gmail.com"""
+        ) &&
+        decodeError[Map[Long, Email]](
+          """1234567890123456789: backup&gmail.com""",
+          "expected e-mail at: .atKey(1234567890123456789).wrapped"
         )
       }
     ),
@@ -1154,6 +1189,32 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Record4] = Schema.derived
   }
 
+  case class Record5(
+    @Modifier.alias("bi") bigInt: BigInt,
+    @Modifier.rename("bd") bigDecimal: BigDecimal,
+    @Modifier.transient x: String = "x"
+  )
+
+  object Record5 extends CompanionOptics[Record5] {
+    implicit val schema: Schema[Record5] = Schema.derived
+  }
+
+  case class Record6(
+    bl: Boolean = false,
+    b: Byte = 1.toByte,
+    sh: Short = 2.toShort,
+    i: Int = 3,
+    l: Long = 4L,
+    f: Float = 5.0f,
+    d: Double = 6.0,
+    c: Char = '7',
+    s: String = "VVV"
+  )
+
+  object Record6 extends CompanionOptics[Record6] {
+    implicit val schema: Schema[Record6] = Schema.derived
+  }
+
   case class IntList(xs: List[Int])
 
   object IntList {
@@ -1270,5 +1331,27 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
 
   object CamelPascalSnakeKebabCases {
     implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
+  }
+
+  case class UserId(value: Long)
+
+  object UserId {
+    implicit lazy val schema: Schema[UserId] =
+      Schema[Long].transform[UserId](x => new UserId(x), _.value)
+  }
+
+  case class Email(value: String)
+
+  object Email {
+    private[this] val EmailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
+
+    implicit lazy val schema: Schema[Email] =
+      Schema[String].transform[Email](
+        {
+          case x @ EmailRegex(_*) => new Email(x)
+          case _                  => throw SchemaError.validationFailed("expected e-mail")
+        },
+        _.value
+      )
   }
 }

@@ -82,14 +82,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.26"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.22"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.22"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.22"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.22"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.26"
 ```
 
 ### Example: Optics
@@ -144,7 +144,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.26"
 ```
 
 ### Example
@@ -232,7 +232,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.26"
 ```
 
 ### Example: Basic Resource Management
@@ -335,7 +335,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.26"
 ```
 
 ### Example
@@ -419,7 +419,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.26"
 ```
 
 ### Example
@@ -462,7 +462,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.22"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.26"
 ```
 
 ### Example
@@ -558,6 +558,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Data Operations
 
 - [Patching](docs/./reference/patch.md) - Serializable data transformations
+- [SchemaError](docs/./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](docs/./reference/validation.md) - Data validation and error handling
 - [Schema Evolution](docs/./reference/schema-evolution.md) - Migration and compatibility
 
@@ -569,6 +570,14 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
+
+### Guides
+
+- [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
+- [Query DSL Part 1: Expressions](docs/./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
+- [Query DSL Part 2: SQL Generation](docs/./guides/query-dsl-sql.md) - Translate query expressions into SQL
+- [Query DSL Part 3: Extending the Expression Language](docs/./guides/query-dsl-extending.md) - Add custom operators beyond SchemaExpr
+- [Query DSL Part 4: A Fluent SQL Builder](docs/./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, DELETE statements
 
 ## Documentation
 

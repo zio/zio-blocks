@@ -26,27 +26,33 @@ inThisBuild(
   )
 )
 
+com.github.sbt.git.SbtGit.useReadableConsoleGit
+
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
+addCommandAlias(
+  "fmtChanged",
+  "; set scalafmtFilter in ThisBuild := \"diff-ref=main\"; scalafmtAll; set scalafmtFilter in ThisBuild := \"\""
+)
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
+  "typeidJVM/test; chunkJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+  "typeidJS/test; chunkJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
 )
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc"
 )
 addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
+  "typeidJS/doc; chunkJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc"
 )
 
 lazy val root = project
@@ -71,6 +77,8 @@ lazy val root = project
     `schema-bson`,
     `schema-toon`.jvm,
     `schema-toon`.js,
+    `schema-xml`.jvm,
+    `schema-xml`.js,
     streams.jvm,
     streams.js,
     chunk.jvm,
@@ -83,7 +91,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     docs,
-    examples
+    `schema-examples`
   )
 
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
@@ -108,7 +116,13 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 77,
-    coverageMinimumBranchTotal := 69
+    coverageMinimumBranchTotal := 69,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/typeid/.*",
+      ".*scala-3/zio/blocks/typeid/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val context = crossProject(JSPlatform, JVMPlatform)
@@ -204,9 +218,14 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 85,
-    coverageMinimumBranchTotal := 80,
-    coverageExcludedFiles      := ".*BuildInfo.*"
+    coverageMinimumStmtTotal   := 86,
+    coverageMinimumBranchTotal := 81,
+    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
+    coverageExcludedFiles := Seq(
+      ".*scala-2/zio/blocks/schema/comptime/.*",
+      ".*scala-3/zio/blocks/schema/comptime/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -262,7 +281,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 90,
+    coverageMinimumStmtTotal   := 91,
     coverageMinimumBranchTotal := 86
   )
 
@@ -327,8 +346,8 @@ lazy val `schema-avro` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 94,
-    coverageMinimumBranchTotal := 87
+    coverageMinimumStmtTotal   := 96,
+    coverageMinimumBranchTotal := 91
   )
 
 lazy val `schema-thrift` = project
@@ -343,8 +362,8 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 74,
-    coverageMinimumBranchTotal := 61
+    coverageMinimumStmtTotal   := 87,
+    coverageMinimumBranchTotal := 77
   )
 
 lazy val `schema-bson` = project
@@ -354,7 +373,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.6.3",
+      "org.mongodb" % "bson"         % "5.6.4",
       "dev.zio"    %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -365,8 +384,8 @@ lazy val `schema-bson` = project
           "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     }),
-    coverageMinimumStmtTotal   := 63,
-    coverageMinimumBranchTotal := 59
+    coverageMinimumStmtTotal   := 66,
+    coverageMinimumBranchTotal := 58
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -383,8 +402,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 75,
-    coverageMinimumBranchTotal := 66
+    coverageMinimumStmtTotal   := 77,
+    coverageMinimumBranchTotal := 69
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -407,8 +426,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 79,
-    coverageMinimumBranchTotal := 72
+    coverageMinimumStmtTotal   := 81,
+    coverageMinimumBranchTotal := 73
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -416,7 +435,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
   )
@@ -429,9 +448,27 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-schema-xml"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.schema.xml"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(schema % "compile->compile;test->test")
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 81,
+    coverageMinimumBranchTotal := 72
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
@@ -460,13 +497,13 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.vitthalmirji"                      %% "toon4s-core"           % "0.7.0",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.8.1",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.9",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
-      "dev.zio"                               %% "zio-json"              % "0.7.45",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
-      "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
+      "dev.zio"                               %% "zio-json"              % "0.9.0",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.2",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.2", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
@@ -486,11 +523,15 @@ lazy val benchmarks = project
     coverageMinimumBranchTotal := 42
   )
 
-lazy val examples = project
-  .in(file("zio-blocks-examples"))
-  .settings(stdSettings("zio-blocks-examples"))
+lazy val `schema-examples` = project
+  .in(file("schema-examples"))
+  .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
   .settings(
-    publish / skip := true
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4")
   )
   .dependsOn(
     schema.jvm,
@@ -515,7 +556,10 @@ lazy val docs = project
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true
+    publish / skip                             := true,
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-prelude" % "1.0.0-RC46"
+    )
   )
   .dependsOn(
     schema.jvm,
@@ -525,6 +569,7 @@ lazy val docs = project
     `schema-messagepack`.jvm,
     `schema-thrift`,
     `schema-bson`,
+    `schema-xml`.jvm,
     mediatype.jvm
   )
   .enablePlugins(WebsitePlugin)

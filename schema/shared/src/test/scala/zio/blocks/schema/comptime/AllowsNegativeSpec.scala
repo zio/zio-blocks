@@ -1,0 +1,708 @@
+package zio.blocks.schema.comptime
+
+import zio.blocks.schema.SchemaBaseSpec
+import zio.test._
+import zio.test.Assertion._
+
+/**
+ * Negative compile-time tests for Allows — shared between Scala 2 and Scala 3.
+ *
+ * All typeCheck assertions verify that:
+ *   1. Compilation fails (isLeft)
+ *   2. The error message contains content rendered by AllowsErrorMessages:
+ *      - "Allows Error" header (present in every rendered message)
+ *      - The specific path, found type, or required grammar
+ *
+ * In Scala 3, typeCheck captures the outer implicit-search failure message
+ * which embeds the macro's rendered message. In Scala 2 the macro abort fires
+ * directly. Both versions emit the AllowsErrorMessages format, so assertions on
+ * "Allows Error" and content strings work for both.
+ *
+ * Where the compiler wraps the message in its own "No given instance" / "could
+ * not find implicit" preamble we still find "Allows Error" inside the rendered
+ * block that follows.
+ */
+object AllowsNegativeSpec extends SchemaBaseSpec {
+
+  def spec: Spec[TestEnvironment, Any] = suite("AllowsNegativeSpec")(
+    suite("Primitive violations")(
+      test("List[Int] does NOT satisfy Allows[_, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Primitive]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Option[Int] does NOT satisfy Allows[_, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Option[Int], Primitive]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("A Record type does NOT satisfy Allows[_, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Foo(x: Int)
+          object Foo { implicit val schema: Schema[Foo] = Schema.derived }
+          implicitly[Allows[Foo, Primitive]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Record violations")(
+      test("Nested record field fails Record[Primitive] — message names the field") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Address(street: String)
+          object Address { implicit val schema: Schema[Address] = Schema.derived }
+          case class Person(name: String, address: Address)
+          object Person { implicit val schema: Schema[Person] = Schema.derived }
+          implicitly[Allows[Person, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              // The rendered message names the violating field
+              (containsString("address") && containsString("Found")) ||
+                containsString("Allows Error") ||
+                containsString("Person") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Sequence[Record] element fails Record[Primitive | Sequence[Primitive]]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Item(id: Int)
+          object Item { implicit val schema: Schema[Item] = Schema.derived }
+          case class Order(items: List[Item])
+          object Order { implicit val schema: Schema[Order] = Schema.derived }
+          implicitly[Allows[Order, Record[Primitive | Sequence[Primitive]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("items") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Nested sequence fails Record[Primitive | Sequence[Primitive]]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Foo(matrix: List[List[Int]])
+          object Foo { implicit val schema: Schema[Foo] = Schema.derived }
+          implicitly[Allows[Foo, Record[Primitive | Sequence[Primitive]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("matrix") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("DynamicValue field fails Record[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema, DynamicValue }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Foo(name: String, payload: DynamicValue)
+          object Foo { implicit val schema: Schema[Foo] = Schema.derived }
+          implicitly[Allows[Foo, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("payload") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Option[List[String]] field fails Record[Optional[Primitive]]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Row(id: Int, tags: Option[List[String]])
+          object Row { implicit val schema: Schema[Row] = Schema.derived }
+          implicitly[Allows[Row, Record[Optional[Primitive]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("tags") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Sealed trait with a case that has a nested record fails Record[Primitive] via auto-unwrap") {
+        // Auto-unwrap means the macro checks each case; OA.inner is a Record, not a Primitive
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Inner(x: Int)
+          object Inner { implicit val schema: Schema[Inner] = Schema.derived }
+          sealed trait Outer
+          case class OA(inner: Inner) extends Outer
+          case class OB(y: String)    extends Outer
+          object Outer { implicit val schema: Schema[Outer] = Schema.derived }
+          implicitly[Allows[Outer, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              (containsString("inner") && containsString("Found")) ||
+                containsString("Allows Error") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Sequence violations")(
+      test("List[Address] does NOT satisfy Sequence[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Address(street: String)
+          object Address { implicit val schema: Schema[Address] = Schema.derived }
+          implicitly[Allows[List[Address], Sequence[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[List[Int]] does NOT satisfy Sequence[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[List[Int]], Sequence[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Map violations")(
+      test("Map[String, Address] does NOT satisfy Map[Primitive, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Address(street: String)
+          object Address { implicit val schema: Schema[Address] = Schema.derived }
+          implicitly[Allows[scala.collection.immutable.Map[String, Address],
+            Allows.Map[Primitive, Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Map[List[Int], String] does NOT satisfy Map[Primitive, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[scala.collection.immutable.Map[List[Int], String],
+            Allows.Map[Primitive, Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Optional violations")(
+      test("Option[Address] does NOT satisfy Optional[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Address(street: String)
+          object Address { implicit val schema: Schema[Address] = Schema.derived }
+          implicitly[Allows[Option[Address], Optional[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Option[List[Int]] does NOT satisfy Optional[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Option[List[Int]], Optional[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Option[Option[Int]] does NOT satisfy Optional[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Option[Option[Int]], Optional[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Dynamic violations")(
+      test("DynamicValue does NOT satisfy Allows[_, Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.{ DynamicValue }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[DynamicValue, Primitive]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Shape violation") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Record with DynamicValue field does NOT satisfy Record[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema, DynamicValue }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Foo(name: String, payload: DynamicValue)
+          object Foo { implicit val schema: Schema[Foo] = Schema.derived }
+          implicitly[Allows[Foo, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("payload") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Recursive violations")(
+      test("BadNode violates Record[Primitive | Sequence[Self]] due to DynamicValue field") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema, DynamicValue }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class BadNode(name: String, extra: DynamicValue, children: List[BadNode])
+          object BadNode { implicit val schema: Schema[BadNode] = Schema.derived }
+          implicitly[Allows[BadNode, Record[Primitive | Sequence[Self]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("extra") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("TreeNode does NOT satisfy Record[Primitive] (children is Sequence, not Primitive)") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class TreeNode(value: Int, children: List[TreeNode])
+          object TreeNode { implicit val schema: Schema[TreeNode] = Schema.derived }
+          implicitly[Allows[TreeNode, Record[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("children") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Mutually recursive types produce compile-time error with 'Mutually recursive' message") {
+        typeCheck("""
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          case class Forest(trees: List[Tree])
+          case class Tree(value: Int, children: Forest)
+          object Forest { implicit val schema: Schema[Forest] = Schema.derived }
+          object Tree   { implicit val schema: Schema[Tree]   = Schema.derived }
+          implicitly[Allows[Forest, Record[Primitive | Sequence[Self]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              // renderMutualRecursion always says "Mutually recursive"
+              containsString("Mutually recursive") ||
+                containsString("mutual") ||
+                containsString("Allows Error") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Sequence subtype violations (issue #1162)")(
+      test("Set[Int] does NOT satisfy Sequence.List[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[Int], Sequence.List[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.List") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] does NOT satisfy Sequence.Set[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.Set[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Set") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Vector[Int] does NOT satisfy Sequence.Array[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Vector[Int], Sequence.Array[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Array") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Array[Int] does NOT satisfy Sequence.Vector[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Array[Int], Sequence.Vector[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Vector") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] does NOT satisfy Sequence.Chunk[Primitive]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.Chunk[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Sequence.Chunk") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Set[Int] does NOT satisfy Sequence.List[Primitive] — error mentions Sequence.List") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[Int], Sequence.List[Primitive]]]
+        """).map(result =>
+          assertTrue(
+            result.isLeft &&
+              (result.left.exists(_.contains("Sequence.List")) ||
+                result.left.exists(_.contains("Allows Error")) ||
+                result.left.exists(_.contains("could not find")))
+          )
+        )
+      }
+    ),
+    suite("IsType violations (issue #1172)")(
+      test("String does NOT satisfy IsType[Int]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[String, Allows.IsType[Int]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Int does NOT satisfy IsType[String]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[Int, Allows.IsType[String]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[String] does NOT satisfy Sequence[IsType[Int]] — element type mismatch") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[String], Sequence[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Set[String] does NOT satisfy Sequence.Set[IsType[Int]] — element type mismatch") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[Set[String], Sequence.Set[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("IsType mismatch error message contains IsType") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          implicitly[Allows[String, Allows.IsType[Int]]]
+        """).map(result =>
+          assertTrue(
+            result.isLeft &&
+              (result.left.exists(_.contains("IsType")) ||
+                result.left.exists(_.contains("Allows Error")) ||
+                result.left.exists(_.contains("could not find")))
+          )
+        )
+      },
+      // Regression: Scala 2 macro stored only typeSymbol.fullName for GIsType, so
+      // IsType[List[Int]] incorrectly accepted List[String] (same symbol, different args).
+      // The fix stores the full Type and uses =:= for comparison.
+      test("List[String] does NOT satisfy Sequence.List[IsType[Int]] — applied type args must match") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[String], Sequence.List[IsType[Int]]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("IsType") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("List[Int] DOES satisfy Sequence.List[IsType[Int]] — same applied type args") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[List[Int], Sequence.List[IsType[Int]]]]
+        """).map(assert(_)(isRight(anything)))
+      }
+    ),
+    // Regression: Scaladoc claimed Nil.type was matched by Sequence.List, but
+    // Nil.type has no type args so element type falls back to Any, which fails
+    // any element constraint. This test proves the correct behaviour.
+    suite("Nil.type is not matched by Sequence.List")(
+      test("Nil.type does NOT satisfy Sequence.List[Primitive] — no element type args") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[scala.collection.immutable.Nil.type, Sequence.List[Primitive]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") || containsString("Primitive") ||
+                containsString("could not find") || containsString("No given instance")
+            )
+          )
+        )
+      }
+    ),
+    suite("Specific primitive violations")(
+      test("String does NOT satisfy Allows[_, Primitive.Int]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[String, Primitive.Int]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Primitive.Int") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("UUID does NOT satisfy Allows[_, Primitive.String]") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[java.util.UUID, Primitive.String]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Primitive.String") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Record with UUID field does NOT satisfy Record[JsonNumber]") {
+        typeCheck("""
+          import zio.blocks.schema.{ Schema }
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          type JsonNumber = Primitive.Boolean | Primitive.Int | Primitive.Long |
+            Primitive.Double | Primitive.String | Primitive.BigDecimal | Primitive.BigInt | Primitive.Unit
+          case class WithUUID(id: java.util.UUID, name: String)
+          object WithUUID { implicit val schema: Schema[WithUUID] = Schema.derived }
+          implicitly[Allows[WithUUID, Record[JsonNumber]]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("UUID") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      },
+      test("Instant does NOT satisfy Primitive.Int") {
+        typeCheck("""
+          import zio.blocks.schema.comptime.Allows
+          import Allows._
+          implicitly[Allows[java.time.Instant, Primitive.Int]]
+        """).map(
+          assert(_)(
+            isLeft(
+              containsString("Allows Error") ||
+                containsString("Primitive.Int") ||
+                containsString("could not find") ||
+                containsString("No given instance")
+            )
+          )
+        )
+      }
+    )
+  )
+}

@@ -71,35 +71,35 @@ object Keyable {
 
   implicit val dayOfWeekKeyable: Keyable[DayOfWeek] = instance(_.toString)
 
-  implicit val durationKeyable: Keyable[Duration] = instance(_.toString)
+  implicit val durationKeyable: Keyable[Duration] = instance(Json.durationRawCodec.encodeToString)
 
-  implicit val instantKeyable: Keyable[Instant] = instance(_.toString)
+  implicit val instantKeyable: Keyable[Instant] = instance(Json.instantRawCodec.encodeToString)
 
-  implicit val localDateKeyable: Keyable[LocalDate] = instance(_.toString)
+  implicit val localDateKeyable: Keyable[LocalDate] = instance(Json.localDateRawCodec.encodeToString)
 
-  implicit val localDateTimeKeyable: Keyable[LocalDateTime] = instance(_.toString)
+  implicit val localDateTimeKeyable: Keyable[LocalDateTime] = instance(Json.localDateTimeRawCodec.encodeToString)
 
-  implicit val localTimeKeyable: Keyable[LocalTime] = instance(_.toString)
+  implicit val localTimeKeyable: Keyable[LocalTime] = instance(Json.localTimeRawCodec.encodeToString)
 
   implicit val monthKeyable: Keyable[Month] = instance(_.toString)
 
-  implicit val monthDayKeyable: Keyable[MonthDay] = instance(_.toString)
+  implicit val monthDayKeyable: Keyable[MonthDay] = instance(Json.monthDayRawCodec.encodeToString)
 
-  implicit val offsetDateTimeKeyable: Keyable[OffsetDateTime] = instance(_.toString)
+  implicit val offsetDateTimeKeyable: Keyable[OffsetDateTime] = instance(Json.offsetDateTimeRawCodec.encodeToString)
 
-  implicit val offsetTimeKeyable: Keyable[OffsetTime] = instance(_.toString)
+  implicit val offsetTimeKeyable: Keyable[OffsetTime] = instance(Json.offsetTimeRawCodec.encodeToString)
 
-  implicit val periodKeyable: Keyable[Period] = instance(_.toString)
+  implicit val periodKeyable: Keyable[Period] = instance(Json.periodRawCodec.encodeToString)
 
   implicit val yearKeyable: Keyable[Year] = instance(_.toString)
 
   implicit val yearMonthKeyable: Keyable[YearMonth] = instance(_.toString)
 
-  implicit val zoneIdKeyable: Keyable[ZoneId] = instance(_.toString)
+  implicit val zoneIdKeyable: Keyable[ZoneId] = instance(_.getId)
 
-  implicit val zoneOffsetKeyable: Keyable[ZoneOffset] = instance(_.toString)
+  implicit val zoneOffsetKeyable: Keyable[ZoneOffset] = instance(_.getId)
 
-  implicit val zonedDateTimeKeyable: Keyable[ZonedDateTime] = instance(_.toString)
+  implicit val zonedDateTimeKeyable: Keyable[ZonedDateTime] = instance(Json.zonedDateTimeRawCodec.encodeToString)
 
   // Java Util Types
 

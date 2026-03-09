@@ -428,8 +428,11 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
             }
             new DynamicOptic(ArraySeq.unsafeWrapArray(array))
           case _ => DynamicOptic.root
-        },
-        Option(error.getMessage).getOrElse(s"${error.getClass.getName}: (no message)")
+        }, {
+          var msg = error.getMessage
+          if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+          msg
+        }
       ),
       Nil
     )

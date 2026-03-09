@@ -1,0 +1,444 @@
+---
+name: docs-data-type-ref
+description: Write a reference documentation page for a specific data type in ZIO Blocks. Use when the user asks to document a data type, write an API reference for a type, or create a reference page for a class/trait/object.
+argument-hint: "[fully-qualified-type-name or simple-type-name]"
+allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
+---
+
+# Write Data Type Reference Page
+
+Write a comprehensive reference documentation page for a ZIO Blocks data type.
+
+## Target Type
+
+$ARGUMENTS
+
+## Step 1: Deep Source Code Research
+
+Before writing anything, build a complete mental model of the type:
+
+1. **Find the source file**: Use Glob to find the primary source file for the type. Check all Scala version directories (`*/src/main/scala*/`). The type may have platform-specific or version-specific variants.
+2. **Read the full source**: Read the entire source file. Identify:
+   - The type signature (class/trait/object, type parameters, variance, extends clauses)
+   - All public methods, their signatures, and what they do
+   - Companion object methods (factory methods, smart constructors, predefined instances)
+   - Nested types and type aliases
+   - Implicit instances and extension methods
+3. **Find tests**: Search `*/src/test/scala/` for test files referencing the type. Tests reveal:
+   - Intended usage patterns and idioms
+   - Edge cases and expected behavior
+   - Real-world examples
+4. **Find existing examples**: Use Glob and Grep to locate examples in `schema-examples/` or any directory with "examples" in its name.
+5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
+6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
+7. **Search GitHub history**: Run `sbt "gh-query --verbose <TypeName>"` to search GitHub issues, PRs, and comments for discussions about the type. Use the results to:
+   - Understand design decisions and rationale behind the API
+   - Find known caveats, gotchas, or non-obvious behavior surfaced in issues
+   - Discover common user questions or pain points to address in the docs
+   - Identify changelog entries or breaking changes worth noting
+   - Surface examples or idioms shared by contributors in PRs
+
+   Run multiple queries as needed (e.g., the simple type name, the fully-qualified name, related feature keywords) to get thorough coverage.
+
+## Step 2: Write the Documentation
+
+### File Location and Frontmatter
+
+Place the file in `docs/reference/<type-name-kebab-case>.md`:
+
+```
+---
+id: <kebab-case-id>
+title: "<TypeName>"
+---
+```
+
+The `id` must match the filename (without `.md`).
+
+### Document Structure
+
+Follow this structure precisely. Every section below marked **(required)** must appear. Sections marked **(if applicable)** should only appear when relevant.
+
+#### 1. Opening Definition (required)
+
+Start with a concise, technical definition immediately after the frontmatter. Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences. **Do not create a separate "## Opening Definition" heading** — this content forms the natural opening of the document.
+
+Pattern:
+
+```
+`TypeName[A]` is a **key concept in two or three words** that does X. The fundamental operations are `op1` and `op2`.
+```
+
+Then list key properties as bullet points if applicable:
+
+```
+`TypeName`:
+- is purely functional and referentially transparent
+- is concurrent-safe and lock-free
+- updates and modifies atomically
+```
+
+The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
+
+After the definition paragraph, include the source definition of the data type in a Scala code block (using plain `` ```scala `` without mdoc, since this is for illustration):
+
+- Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
+- Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
+
+Follow the opening definition with a section header (e.g., `## Overview`, `## Introduction`, or another appropriate heading) to continue the document.
+
+#### 2. Motivation / Use Case (if applicable)
+
+This section answers the following questions:
+1. What is the purpose of this data type?
+2. What problem does it solve?
+3. Why was it created, and when should we use it?
+4. What are its key advantages over alternatives? Compare with alternatives if it helps clarify.
+
+Tools:
+
+1. Use an ASCII art diagram showing the type structure.
+2. Use bullet points to list key advantages and how this type compares with alternatives.
+3. Include a short code example showing the type in action — the "hello world" for this type.
+
+#### 3. Installation (if applicable)
+
+Only include this for top-level module types (e.g., `Chunk`, `Context`, `TypeId`). Skip for internal types that come as part of a larger module.
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-<module>" % "<version>"
+```
+
+For cross-platform (Scala.js):
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "<version>"
+```
+
+Note supported Scala versions: 2.13.x and 3.x.
+
+#### 4. Construction / Creating Instances (required)
+
+Document all ways to create values of the type, organized by method:
+
+- Factory methods on the companion object (`apply`, `empty`, `from*`, `of`, `derived`)
+- Smart constructors
+- Builder patterns
+- Conversion from other types
+- Predefined instances (if any)
+
+Each method gets its own `###` subsection with a short explanation and a code example.
+
+#### 5. Predefined Instances (if applicable)
+
+If the companion object provides predefined instances (like `TypeId.int`, `TypeId.string`), list them organized by category with a brief table or grouped code block.
+
+#### 6. Core Operations (Required)
+
+Document the primary API organized by category. Group related methods under `###` subsections:
+
+For example:
+- **Element Access** (get, apply, head, etc.)
+- **Transformations** (map, flatMap, filter, etc.)
+- **Combining** (++, combine, merge, etc.)
+- **Querying** (exists, forall, find, contains, etc.)
+- **Conversion** (toList, toArray, toString, etc.)
+
+For each group:
+- List methods with brief descriptions
+- Show a code example demonstrating 2-4 methods together
+- Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
+
+For each method:
+a. **Use a `####` heading** with the method name
+b. **Explain what it does** in plain language
+c. **Show the method signature** in a plain `scala` code block using the simplest trait interface format — just the method name, parameters, and return type, without extra keywords like `override`, `final`, `sealed`. For example:
+
+```scala
+trait Chunk[+A] {
+  def map[B](f: A => B): Chunk[B]
+}
+```
+
+If the method is in the companion object, show it as a function in the companion object's simplest form:
+
+```scala
+object Chunk {
+  def apply[A](as: A*): Chunk[A]
+}
+```
+d. **Show a usage example** in a [compile-checked code blocks with mdoc](#compile-checked-code-blocks-with-mdoc)
+e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
+
+#### 7. Subtypes / Variants (if applicable)
+
+If the type has important subtypes, variants, or related types (e.g., `NonEmptyChunk` for `Chunk`, `Nominal`/`Alias`/`Opaque` for `TypeId`), document each in a dedicated section. For each subtype:
+
+- What it is and when to use it
+- How to create it
+- Key operations that differ from the parent/related type
+- How to convert between the parent and subtype
+
+#### 8. Comparison Sections (when applicable)
+
+Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when it adds clarity. Examples:
+- "Ref vs AtomicReference in Java"
+- "Ref vs State Monad"
+- "Promise vs Scala's Promise"
+- "Chunk vs List vs Array"
+- "TypeId vs Scala's TypeTag vs Java's Class"
+- "Lazy vs lazy val vs def"
+
+#### 9. Advanced Usage / Building Blocks (when applicable)
+
+Show how the type composes with other types or how it can be used to build higher-level abstractions.
+
+#### 10. Integration (if applicable)
+
+Show how this type integrates with other ZIO Blocks data types and module. For example:
+- How `TypeId` is used in `Schema`
+- How `Chunk` is used in `Reflect`
+- How `DynamicValue` connects to `Schema` and formats
+
+Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](./reflect.md)`) after explaining the integration of each related type.
+
+#### 11. Running the Examples (required when examples exist)
+
+Add this section at the very end of the page, after Integration. It tells readers where the examples live and how to run them. Use this template verbatim, substituting the package name, module name, and a bullet for each `App` written in Step 3:
+
+```markdown
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `schema-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+**<Short description of what this App demonstrates>**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala))
+
+```bash
+sbt "schema-examples/runMain <package>.<ObjectName>"
+```
+
+**<Short description of the next App>**
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName2>.scala))
+
+```bash
+sbt "schema-examples/runMain <package>.<ObjectName2>"
+```
+```
+
+Rules for this section:
+- List **every `App` object** written in Step 3, one entry per object.
+- Each entry has a bolded plain-English description on one line, a clickable `([source](...))` link
+  to `https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName>.scala`,
+  followed by a separate `bash` block with the `sbt` command.
+- The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
+- Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
+- If no example `App` objects were written (rare), omit this section entirely.
+- When the full example source is also **embedded earlier in the document** via `SourceFile.print`,
+  the `([source](...))` link in this section serves as a convenient shortcut to the GitHub file;
+  there is no need to embed the source again here.
+
+### Embedding Example Files with `SourceFile`
+
+When the documentation needs to show a **full example file** from the `schema-examples` project
+(written in Step 3), **do not copy-paste the code inline**. Instead, use `mdoc:passthrough` with
+the `SourceFile.print` helper to include it by reference. This keeps the doc and the example in
+sync — any change to the example file automatically appears in the rendered docs on the next
+mdoc build.
+
+Use this pattern:
+
+````markdown
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
+```
+````
+
+**Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use
+`import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print`
+inside mdoc sessions.
+
+`SourceFile.print(path)` reads the file at mdoc compile time and emits a fenced code block with
+the file path shown as the title. The path is relative to the repository root (the helper tries
+`../<path>` first, then `<path>`).
+
+**When to use `SourceFile.print`:**
+- Showing a complete, runnable `App` example from `schema-examples/`
+- Showing a large, self-contained example that would be unwieldy to maintain in two places
+
+**When NOT to use it — use regular mdoc blocks instead:**
+- Short inline snippets (< 20 lines) that illustrate a single method or concept
+- Code that needs `mdoc` evaluated output (e.g., `// res0: Int = 42`)
+- Code that is documentation-specific and doesn't exist as a standalone file
+
+**Optional parameters:**
+- `lines = Seq((from, to))` — include only specific line ranges (1-indexed):
+  ````markdown
+  ```scala mdoc:passthrough
+  import docs.SourceFile
+
+  SourceFile.print("schema-examples/src/main/scala/into/IntoNumericExample.scala", lines = Seq((10, 25)))
+  ```
+  ````
+- `showLineNumbers = true` — render with line numbers in the output
+- `showTitle = false` — suppress the file path title
+
+### Compile-Checked Code Blocks with mdoc
+
+See the **`docs-mdoc-conventions`** skill for the complete mdoc modifier table, key rules, and
+the Setup + Evaluated Output pattern. Apply those rules here — reference pages use primarily
+`mdoc:compile-only` for self-contained examples and `mdoc:silent` + `mdoc` for showing evaluated
+output.
+
+### Writing Rules
+
+**REQUIRED SUB-SKILL:** Use `docs-writing-style` for universal prose style, referencing
+conventions, heading layout rules, and code block rules. Invoke it before writing any prose.
+
+Additional rules specific to reference pages:
+
+- **Be exhaustive on the public API**: Every public method on the type and its companion should be
+  documented. Group them logically, but don't skip methods.
+- **Use ASCII art** for type hierarchies, data structures, and flows.
+- **Link to related docs**: Use relative paths `[TypeName](./type-name.md)`.
+
+### Docusaurus Admonitions
+
+See the **`docs-mdoc-conventions`** skill for admonition syntax and usage guidelines.
+
+## Step 3: Write Examples
+
+Create focused `App` objects in `zio-blocks-examples/src/main/scala/<type-name-lowercase>/`. Each `App` demonstrates **one use case**. Avoid bundling unrelated scenarios into a single `App`.
+
+### File granularity
+
+- **One `App` per concept** — schema evolution, collection reshaping, error accumulation, etc. are separate `App` objects.
+- **Small, related `App`s can share a file** — if several `App`s are short and tightly related (e.g., numeric widening variants), place them together in one file so the reader can run them in sequence.
+- **Large `App`s get their own file** — if an `App` needs many types or substantial setup, give it a dedicated file.
+
+### Conventions
+
+- **Package**: matches the directory name (e.g., `package into` for `into/`)
+- **Object**: `extends App` so each unit is independently runnable
+- **Output**: use `util.ShowExpr.show(expr)` to print both the expression and its result — e.g., `show(Into[Int, Long].into(100))` prints `Into[Int, Long].into(100)  =>  Right(100)`. Never print just the result alone; the reader should see what was evaluated without looking at the source. The `show` helper lives in `zio-blocks-examples/src/main/scala/util/ShowExpr.scala` and is powered by `sourcecode.Text` to capture the source text at compile time.
+- **Naming**: name files after the scenario(s) they contain (e.g., `IntoSchemaEvolutionExample.scala`, `IntoCollectionsExample.scala`) not just the type name
+
+### What to Cover
+
+Each `App` should:
+
+- Focus on **one coherent use case**
+- Use **realistic domain types** (`Person`, `Order`, `Address`) rather than abstract `Source`/`Target`
+- Cover the **happy path and at least one failure/edge case**
+- Be **self-contained** — all types and imports are defined within the file
+
+### Example: multiple small Apps in one file
+
+```scala
+package mytype
+
+import zio.blocks.schema.Into
+import util.ShowExpr.show
+
+// Small related examples share a file — reader runs them one after another
+
+object IntoWideningExample extends App {
+  show(Into[Int, Long].into(100))
+  show(Into[Float, Double].into(3.14f))
+}
+
+object IntoNarrowingExample extends App {
+  show(Into[Long, Int].into(42L))
+  show(Into[Long, Int].into(Long.MaxValue))
+}
+```
+
+### Example: large App in its own file
+
+```scala
+// IntoSchemaEvolutionExample.scala
+package mytype
+
+import zio.blocks.schema.Into
+import util.ShowExpr.show
+
+object IntoSchemaEvolutionExample extends App {
+
+  case class PersonV1(name: String, age: Int)
+  case class PersonV2(name: String, age: Long, email: Option[String])
+
+  val migrate = Into.derived[PersonV1, PersonV2]
+
+  show(migrate.into(PersonV1("Alice", 30)))
+  show(migrate.into(PersonV1("Bob",   25)))
+}
+```
+
+## Step 4: Lint Check (Mandatory Before Integration)
+
+After creating all example files, stage them in git first, then ensure all Scala files pass the CI formatting gate:
+
+```bash
+git add schema-examples/src/main/scala/**/*.scala
+sbt fmtChanged
+```
+
+If any files were reformatted, commit the changes immediately:
+
+```bash
+git add -A
+git commit -m "docs(<type>): apply scalafmt to examples"
+```
+
+Verify the CI lint gate locally:
+
+```bash
+sbt check
+```
+
+**Success criterion:** zero formatting violations reported.
+
+## Step 5: Integrate
+
+See the **`docs-integrate`** skill for the complete integration checklist (sidebars.js, index.md,
+cross-references, link verification).
+
+Additional note for reference pages: if creating a new file, place it in the appropriate
+`docs/reference/` subdirectory based on where it logically belongs.
+
+## Step 6: Review and Verify Compilation
+
+After writing, re-read the document and verify:
+- All method signatures match the actual source code
+- The frontmatter `id` matches what `sidebars.js` expects (if an entry exists)
+- The document is self-contained—a reader shouldn't need to look at the source code to understand the type's API
+- The example file compiles and runs without errors
+
+### Mandatory: Run mdoc Compilation Check
+
+Before claiming the page is complete, run the full mdoc compilation check:
+
+```bash
+sbt docs/mdoc
+```
+
+**Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
+
+**What this verifies:**
+- All Scala code blocks in the page are syntactically correct and type-check
+- Imports and type references are valid
+- Cross-references to other documentation pages are unbroken
+- Readers can copy-paste any example from the page without errors
+
+**If mdoc reports errors:** Fix them immediately. Do not mark the page as complete until all errors are resolved.

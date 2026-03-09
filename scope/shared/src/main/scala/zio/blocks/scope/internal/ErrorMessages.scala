@@ -80,6 +80,132 @@ object ErrorMessages {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Runtime Errors (closed-scope operations)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * RE1: allocate called on a closed scope.
+   *
+   * @param scopeClass
+   *   the runtime class name of the scope (e.g. "Scope.Child" or
+   *   "Scope.global")
+   */
+  def renderAllocateOnClosedScope(scopeClass: String, color: Boolean): String = {
+    import Colors._
+
+    s"""${header("Scope Error", color)}
+       |
+       |  Cannot allocate resource: scope is already closed.
+       |
+       |  ${bold("Scope:", color)} ${cyan(scopeClass, color)}
+       |
+       |  ${bold("What happened:", color)}
+       |    A call to ${cyan("allocate", color)} was made on a scope whose finalizers have
+       |    already run. The resource was never acquired.
+       |
+       |  ${bold("Common causes:", color)}
+       |    ${gray("•", color)} A scope reference escaped a ${cyan("scoped { }", color)} block (e.g. stored in a
+       |      field, captured in a ${cyan("Future", color)} or passed to another thread).
+       |    ${gray("•", color)} ${cyan("close()", color)} was called on an ${cyan("OpenScope", color)} before all
+       |      allocations inside it completed.
+       |
+       |  ${yellow("Fix:", color)}
+       |    Call ${cyan("allocate", color)} only inside a live ${cyan("scoped { }", color)} block, or before
+       |    calling ${cyan("close()", color)} on an ${cyan("OpenScope", color)}.
+       |
+       |    ${gray("// Correct usage:", color)}
+       |    ${cyan("Scope.global.scoped { scope =>", color)}
+       |    ${cyan("  import scope.*", color)}
+       |    ${cyan("  val db = allocate(Resource(new Database))", color)}
+       |    ${cyan("  $(db)(_.query(\"SELECT 1\"))", color)}
+       |    ${cyan("}", color)}
+       |
+       |${footer(color)}""".stripMargin
+  }
+
+  /**
+   * RE2: open() called on a closed scope.
+   *
+   * @param scopeClass
+   *   the runtime class name of the scope
+   */
+  def renderOpenOnClosedScope(scopeClass: String, color: Boolean): String = {
+    import Colors._
+
+    s"""${header("Scope Error", color)}
+       |
+       |  Cannot open child scope: scope is already closed.
+       |
+       |  ${bold("Scope:", color)} ${cyan(scopeClass, color)}
+       |
+       |  ${bold("What happened:", color)}
+       |    A call to ${cyan("open()", color)} was made on a scope whose finalizers have
+       |    already run. No child scope was created.
+       |
+       |  ${bold("Common causes:", color)}
+       |    ${gray("•", color)} A scope reference escaped a ${cyan("scoped { }", color)} block and ${cyan(
+        "open()",
+        color
+      )}
+       |      was called after the block exited.
+       |    ${gray("•", color)} ${cyan("close()", color)} was called on the parent ${cyan("OpenScope", color)} before
+       |      ${cyan("open()", color)} was called on it.
+       |
+       |  ${yellow("Fix:", color)}
+       |    Call ${cyan("open()", color)} only on a live (not yet closed) scope.
+       |
+       |    ${gray("// Correct usage:", color)}
+       |    ${cyan("Scope.global.scoped { scope =>", color)}
+       |    ${cyan("  import scope.*", color)}
+       |    ${cyan("  val child = open()", color)}
+       |    ${cyan("  $(child)(_.scope.allocate(Resource(new Database)))", color)}
+       |    ${cyan("}", color)}
+       |
+       |${footer(color)}""".stripMargin
+  }
+
+  /**
+   * RE3: $ called on a closed scope.
+   *
+   * @param scopeClass
+   *   the runtime class name of the scope
+   */
+  def renderUseOnClosedScope(scopeClass: String, color: Boolean): String = {
+    import Colors._
+
+    s"""${header("Scope Error", color)}
+       |
+       |  Cannot access scoped value: scope is already closed.
+       |
+       |  ${bold("Scope:", color)} ${cyan(scopeClass, color)}
+       |
+       |  ${bold("What happened:", color)}
+       |    The ${cyan("$", color)} operator was called on a scope whose finalizers have
+       |    already run. The underlying resource may have been released.
+       |    Accessing it would be undefined behavior.
+       |
+       |  ${bold("Common causes:", color)}
+       |    ${gray("•", color)} A ${cyan("$[A]", color)} value or its owning scope escaped a ${cyan("scoped { }", color)}
+       |      block (e.g. captured in a ${cyan("Future", color)}, stored in a field, or
+       |      passed to another thread).
+       |    ${gray("•", color)} ${cyan("close()", color)} was called on an ${cyan("OpenScope", color)} that still has
+       |      live ${cyan("$[A]", color)} values being accessed.
+       |
+       |  ${yellow("Fix:", color)}
+       |    Ensure all ${cyan("$", color)} calls occur strictly within the ${cyan("scoped { }", color)}
+       |    block that owns the value, and that the scope has not been closed.
+       |
+       |    ${gray("// Correct usage:", color)}
+       |    ${cyan("Scope.global.scoped { scope =>", color)}
+       |    ${cyan("  import scope.*", color)}
+       |    ${cyan("  val db = allocate(Resource(new Database))", color)}
+       |    ${cyan("  $(db)(_.query(\"SELECT 1\"))  // $ used inside the block", color)}
+       |    ${cyan("}", color)}
+       |
+       |${footer(color)}""".stripMargin
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Warning Messages
   // ─────────────────────────────────────────────────────────────────────────
 

@@ -642,34 +642,32 @@ private object IntoVersionSpecificImpl {
               } else if (isNewtypeUnwrapping) {
                 // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
                 q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
-              } else if (isSingleFieldConversion) {
-                // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"a.$getter", targetTpe)
-              } else if (isSingleFieldUnwrapping) {
-                // Unwrap single-field product to primitive
-                unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
               } else {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
-                    // Use Into instance, which already returns Either
                     q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
                   case None =>
-                    // No coercion available - fail at compile time
-                    fail(
-                      s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
-                         |
-                         |  Field: ${sourceField.name}
-                         |  Source type: $sourceTpe
-                         |  Target type: $targetTpe
-                         |
-                         |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
-                         |
-                         |Consider:
-                         |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
-                         |  - Using Into.derived[$sourceTpe, $targetTpe] inline
-                         |  - Changing the field types to be directly compatible
-                         |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
-                    )
+                    if (isSingleFieldConversion) {
+                      convertToSingleFieldProductEither(q"a.$getter", targetTpe)
+                    } else if (isSingleFieldUnwrapping) {
+                      unwrapSingleFieldProductEither(q"a.$getter", sourceTpe, targetTpe)
+                    } else {
+                      fail(
+                        s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
+                           |
+                           |  Field: ${sourceField.name}
+                           |  Source type: $sourceTpe
+                           |  Target type: $targetTpe
+                           |
+                           |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
+                           |
+                           |Consider:
+                           |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
+                           |  - Using Into.derived[$sourceTpe, $targetTpe] inline
+                           |  - Changing the field types to be directly compatible
+                           |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
+                      )
+                    }
                 }
               }
             } else {
@@ -1103,21 +1101,21 @@ private object IntoVersionSpecificImpl {
                 convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
               } else if (isNewtypeUnwrapping) {
                 q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
-              } else if (isSingleFieldConversion) {
-                // Convert primitive to single-field product wrapper
-                convertToSingleFieldProductEither(q"$bindingName.$getter", targetTpe)
-              } else if (isSingleFieldUnwrapping) {
-                // Unwrap single-field product to primitive
-                unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)
               } else {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
                     q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
                   case None =>
-                    fail(
-                      s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
-                        s"Please provide an implicit Into instance in scope."
-                    )
+                    if (isSingleFieldConversion) {
+                      convertToSingleFieldProductEither(q"$bindingName.$getter", targetTpe)
+                    } else if (isSingleFieldUnwrapping) {
+                      unwrapSingleFieldProductEither(q"$bindingName.$getter", sourceTpe, targetTpe)
+                    } else {
+                      fail(
+                        s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
+                          s"Please provide an implicit Into instance in scope."
+                      )
+                    }
                 }
               }
             } else {
@@ -1708,6 +1706,79 @@ private object IntoVersionSpecificImpl {
              |  - Providing a custom implicit Into[$aTpe, $bTpe]""".stripMargin
         )
       }
+    }
+
+    // === DynamicValue Support ===
+
+    val dynamicValueType = c.typeOf[DynamicValue]
+
+    def findImplicitOrDeriveSchema(tpe: Type): Tree = {
+      val schemaType = c.universe.appliedType(
+        c.universe.typeOf[Schema[Any]].typeConstructor,
+        List(tpe)
+      )
+      val implicitSchema = c.inferImplicitValue(schemaType, silent = true)
+      if (implicitSchema != EmptyTree) {
+        implicitSchema
+      } else {
+        // Distinguish "not found" from "ambiguous" by re-running non-silently
+        try {
+          c.inferImplicitValue(schemaType, silent = false)
+          // If we reach here, it's genuinely not found — fall back to derived
+          q"_root_.zio.blocks.schema.Schema.derived[$tpe]"
+        } catch {
+          case e: Exception =>
+            val msg = e.getMessage
+            if (msg != null && (msg.contains("ambiguous") || msg.contains("diverging"))) {
+              c.abort(
+                c.enclosingPosition,
+                s"Ambiguous implicit Schema[${tpe}] instances found. " +
+                  s"Please provide an explicit Schema instance to disambiguate."
+              )
+            } else {
+              // Genuinely not found — fall back to derived
+              q"_root_.zio.blocks.schema.Schema.derived[$tpe]"
+            }
+        }
+      }
+    }
+
+    // Into[A, DynamicValue]: convert any A to DynamicValue using Schema[A].toDynamicValue
+    def deriveToDynamicValue(): c.Expr[Into[A, B]] = {
+      val schema = findImplicitOrDeriveSchema(aTpe)
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+            private val _schema = $schema
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right(_schema.toDynamicValue(a).asInstanceOf[$bTpe])
+            }
+          }
+        """
+      )
+    }
+
+    // Into[DynamicValue, A]: convert DynamicValue to any A using Schema[A].fromDynamicValue
+    def deriveFromDynamicValue(): c.Expr[Into[A, B]] = {
+      val schema = findImplicitOrDeriveSchema(bTpe)
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+            private val _schema = $schema
+            def into(dv: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _schema.fromDynamicValue(dv.asInstanceOf[_root_.zio.blocks.schema.DynamicValue])
+            }
+          }
+        """
+      )
+    }
+
+    // Check for DynamicValue conversions early
+    if (bTpe =:= dynamicValueType) {
+      return deriveToDynamicValue()
+    }
+    if (aTpe =:= dynamicValueType) {
+      return deriveFromDynamicValue()
     }
 
     // Check for container types (Option, Either, List, Set, Map, etc.)

@@ -764,6 +764,43 @@ object ReflectSpec extends SchemaBaseSpec {
           isRight(equalTo(Wrapper(4L)))
         )
       },
+      test("return traces for error message") {
+        case class PositiveInt private (value: Int)
+
+        object PositiveInt {
+          def make(n: Int): PositiveInt =
+            if (n > 0) PositiveInt(n)
+            else throw SchemaError.validationFailed(s"expected a positive integer, got $n")
+
+          implicit val schema: Schema[PositiveInt] =
+            Schema[Int].transform(make, _.value)
+        }
+
+        case class Product(name: String, quantity: PositiveInt, price: PositiveInt)
+
+        object Product {
+          implicit val schema: Schema[Product] = Schema.derived[Product]
+        }
+
+        case class ShoppingCart(items: List[Product])
+
+        object ShoppingCart {
+          implicit val schema: Schema[ShoppingCart] = Schema.derived[ShoppingCart]
+        }
+
+        val dv = DynamicValue.Record(
+          "items" -> DynamicValue.Sequence(
+            DynamicValue.Record(
+              "name"     -> DynamicValue.string("Gadget"),
+              "quantity" -> DynamicValue.int(0),
+              "price"    -> DynamicValue.int(199)
+            )
+          )
+        )
+
+        val result = Schema[ShoppingCart].fromDynamicValue(dv).swap.map(_.message)
+        assert(result)(isRight(equalTo("expected a positive integer, got 0 at: .items.each.at(0).quantity.wrapped")))
+      },
       test("gets and updates wrapper type name") {
         assert(wrapperReflect.typeId)(
           equalTo(TypeId.nominal[Wrapper]("Wrapper", Owner.fromPackagePath("zio.blocks.schema").term("ReflectSpec")))

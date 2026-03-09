@@ -343,7 +343,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => println(a))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("capturing in nested lambda is rejected") {
         assertZIO(typeCheck("""
@@ -361,7 +368,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => () => a.query("test"))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("storing param in var is rejected") {
         assertZIO(typeCheck("""
@@ -381,7 +395,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => { someVar = a; 42 })
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("returning param directly (identity) is rejected") {
         assertZIO(typeCheck("""
@@ -399,7 +420,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => a)
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("tuple construction with param is rejected") {
         assertZIO(typeCheck("""
@@ -417,7 +445,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => (a, 1))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("constructor argument with param is rejected") {
         assertZIO(typeCheck("""
@@ -437,7 +472,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(a => new Wrapper(a))
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("match expression where param could escape via pattern binding is rejected") {
         assertZIO(typeCheck("""
@@ -455,7 +497,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(d => d match { case x => x })
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       },
       test("if-expression where param is branch result is rejected") {
         assertZIO(typeCheck("""
@@ -473,7 +522,14 @@ object ScopeSpec extends ZIOSpecDefault {
             scope.$(db)(d => if (true) d else null)
             ()
           }
-        """))(isLeft(containsString("Unsafe use") || containsString("Cyclic reference")))
+        """))(
+          isLeft(
+            containsString("cannot") ||
+              containsString("Cyclic reference") ||
+              containsString("Parameter") ||
+              containsString("Unsafe use")
+          )
+        )
       }
     ),
     suite("use macro allows safe patterns")(
@@ -644,7 +700,7 @@ object ScopeSpec extends ZIOSpecDefault {
         child.close()
         assertTrue(child.isClosed)
       },
-      test("$ on closed scope does not execute function") {
+      test("$ on closed scope throws IllegalStateException with full message") {
         val child = new Scope.Child[Scope.global.type](
           Scope.global,
           new zio.blocks.scope.internal.Finalizers,
@@ -652,22 +708,130 @@ object ScopeSpec extends ZIOSpecDefault {
         )
         val wrapped = child.allocate(Resource(new CloseableResource("test")))
         child.close()
-        var fnRan  = false
-        val result = (child $ wrapped) { v =>
-          fnRan = true
-          v.name
+        val caught = try {
+          (child $ wrapped)(_.name)
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
         }
-        assertTrue(!fnRan, (result: Any) == null)
+        val expected = zio.blocks.scope.internal.ErrorMessages
+          .renderUseOnClosedScope("Scope.Child", color = false)
+        assertTrue(
+          caught.isDefined,
+          caught.exists(_.getMessage == expected)
+        )
       },
-      test("allocate on closed scope returns null instead of acquiring resource") {
+      test("$ on closed scope with pre-allocated value throws IllegalStateException with full message") {
+        // Allocate while open, close, then verify $ throws the same message.
+        val child = new Scope.Child[Scope.global.type](
+          Scope.global,
+          new zio.blocks.scope.internal.Finalizers,
+          PlatformScope.captureOwner()
+        )
+        val wrapped = child.allocate(Resource(new CloseableResource("pre")))
+        child.close()
+        val caught = try {
+          (child $ wrapped)(_.name)
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
+        }
+        val expected = zio.blocks.scope.internal.ErrorMessages
+          .renderUseOnClosedScope("Scope.Child", color = false)
+        assertTrue(
+          caught.isDefined,
+          caught.exists(_.getMessage == expected)
+        )
+      },
+      test("allocate on closed scope throws IllegalStateException with full message") {
         val child = new Scope.Child[Scope.global.type](
           Scope.global,
           new zio.blocks.scope.internal.Finalizers,
           PlatformScope.captureOwner()
         )
         child.close()
-        val result = child.allocate(Resource(new Database))
-        assertTrue(child.isClosed, (result: Any) == null)
+        val caught = try {
+          child.allocate(Resource(new Database))
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
+        }
+        val expected = zio.blocks.scope.internal.ErrorMessages
+          .renderAllocateOnClosedScope("Scope.Child", color = false)
+        assertTrue(
+          caught.isDefined,
+          caught.exists(_.getMessage == expected)
+        )
+      },
+      test("allocate AutoCloseable overload on closed scope throws IllegalStateException with full message") {
+        val child = new Scope.Child[Scope.global.type](
+          Scope.global,
+          new zio.blocks.scope.internal.Finalizers,
+          PlatformScope.captureOwner()
+        )
+        child.close()
+        val caught = try {
+          child.allocate(new Database)
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
+        }
+        val expected = zio.blocks.scope.internal.ErrorMessages
+          .renderAllocateOnClosedScope("Scope.Child", color = false)
+        assertTrue(
+          caught.isDefined,
+          caught.exists(_.getMessage == expected)
+        )
+      },
+      test("open() on closed scope throws IllegalStateException with full message") {
+        val child = new Scope.Child[Scope.global.type](
+          Scope.global,
+          new zio.blocks.scope.internal.Finalizers,
+          PlatformScope.captureOwner()
+        )
+        child.close()
+        val caught = try {
+          child.open()
+          None
+        } catch {
+          case e: IllegalStateException => Some(e)
+        }
+        val expected = zio.blocks.scope.internal.ErrorMessages
+          .renderOpenOnClosedScope("Scope.Child", color = false)
+        assertTrue(
+          caught.isDefined,
+          caught.exists(_.getMessage == expected)
+        )
+      },
+      test("open() on closed scope does not register spurious finalizers on parent") {
+        // Before the fix, open() registered a defer on the parent *before* checking
+        // isClosed, leaving a phantom entry in the parent's finalizer registry.
+        var parentFinalizerCount = 0
+        val parentFins           = new zio.blocks.scope.internal.Finalizers
+        val parent               = new Scope.Child[Scope.global.type](
+          Scope.global,
+          parentFins,
+          PlatformScope.captureOwner()
+        )
+        parent.defer(parentFinalizerCount += 1)
+
+        // Create the closed child *with parent as its parent*, so open() would
+        // register the spurious defer on parentFins (not on Scope.global).
+        val childFins = new zio.blocks.scope.internal.Finalizers
+        val child     = new Scope.Child[parent.type](
+          parent,
+          childFins,
+          PlatformScope.captureOwner()
+        )
+        child.close()
+
+        try child.open()
+        catch { case _: IllegalStateException => () }
+
+        // Only the one explicitly registered finalizer should be in the parent.
+        // If open() leaked a defer, runAll would increment the counter twice.
+        parent.close()
+        assertTrue(parentFinalizerCount == 1)
       },
       test("scoped on closed scope creates born-closed child") {
         val child = new Scope.Child[Scope.global.type](

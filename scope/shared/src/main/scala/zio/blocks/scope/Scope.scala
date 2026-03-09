@@ -1,22 +1,20 @@
 package zio.blocks.scope
 
-import zio.blocks.scope.internal.Finalizers
+import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
 
 /**
  * A scope that manages resource lifecycle with compile-time verified safety.
  *
- * ==Closed-scope defense==
+ * ==Closed-scope safety==
  *
- * If a scope reference escapes to another thread (e.g. via a `Future`) and the
- * original scope closes while the other thread still holds a reference, all
- * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that return
- * default values (`null` for reference types, `0` for numeric types, `false`
- * for `Boolean`, etc.). For `$`, if `B` has an `Unscoped` instance the default
- * is a plain `B`; otherwise it is a default-valued `$[B]`. This prevents the
- * escaped thread from interacting with already-released resources, but callers
- * should be aware that these default values may appear if scopes are used
- * across thread boundaries incorrectly. `defer` on a closed scope is silently
- * ignored, and `scoped` creates a born-closed child.
+ * The operations `allocate`, `open`, and `$` throw
+ * [[java.lang.IllegalStateException]] if called on a scope that has already
+ * closed. The exception message explains what went wrong and how to fix it.
+ * This prevents silent use-after-free bugs where a scope reference escapes its
+ * `scoped { }` block and a resource is accessed after its finalizers have run.
+ *
+ * `defer` on a closed scope is silently ignored (no-op), and `scoped` on a
+ * closed scope creates a born-closed child.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
@@ -104,12 +102,18 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   protected def finalizers: Finalizers
 
   /**
+   * Display name for this scope, used in runtime error messages.
+   *
+   * Returns "Scope.global" for the global scope and "Scope.Child" for child
+   * scopes.
+   */
+  private[scope] def scopeDisplayName: String
+
+  /**
    * Thread-safe check for whether this scope has been closed.
    *
-   * Once a scope is closed its finalizers have already run and all subsequent
-   * scope operations (`$`, `allocate`, `open`, `lower`) become no-ops that
-   * return default values (`null` for reference types, zero/false for value
-   * types). For `$`, auto-unwrapped types return a plain default `B`.
+   * Once a scope is closed its finalizers have already run. Subsequent calls to
+   * `$`, `allocate`, or `open` will throw [[java.lang.IllegalStateException]].
    * [[Scope.global]] returns `false` until JVM shutdown.
    *
    * @return
@@ -143,11 +147,15 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * @tparam A
    *   the resource value type
    * @return
-   *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if
-   *   closed
+   *   the acquired value wrapped as `$[A]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   def allocate[A](resource: Resource[A]): $[A] =
-    if (isClosed) $wrap(null.asInstanceOf[A])
+    if (isClosed)
+      throw new IllegalStateException(
+        ErrorMessages.renderAllocateOnClosedScope(scopeDisplayName, color = false)
+      )
     else {
       val value = resource.make(this)
       $wrap(value)
@@ -157,16 +165,16 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Convenience overload that acquires an `AutoCloseable` value directly.
    *
    * Equivalent to `allocate(Resource(value))`; the value's `close()` method is
-   * registered as a finalizer. If this scope is already closed, no acquisition
-   * occurs and a default-valued `$[A]` is returned.
+   * registered as a finalizer.
    *
    * @param value
    *   a by-name expression producing the `AutoCloseable` value
    * @tparam A
    *   the `AutoCloseable` subtype
    * @return
-   *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if
-   *   closed
+   *   the acquired value wrapped as `$[A]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   def allocate[A <: AutoCloseable](value: => A): $[A] =
     allocate(Resource(value))
@@ -196,10 +204,15 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * runs its finalizers, and returns a [[Finalization]].
    *
    * @return
-   *   a scoped [[Scope.OpenScope]] wrapping the new child, or a default-valued
-   *   scoped value if this scope is already closed
+   *   a scoped [[Scope.OpenScope]] wrapping the new child
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   def open(): $[Scope.OpenScope] = {
+    if (isClosed)
+      throw new IllegalStateException(
+        ErrorMessages.renderOpenOnClosedScope(scopeDisplayName, color = false)
+      )
     val fins                        = new internal.Finalizers
     val owner                       = PlatformScope.captureOwner()
     val childScope                  = new Scope.Child(self, fins, owner, unowned = true)
@@ -208,8 +221,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
       handle.cancel()
       fins.runAll()
     }
-    if (isClosed) $wrap(null.asInstanceOf[Scope.OpenScope])
-    else $wrap(Scope.OpenScope(childScope, closeFn))
+    $wrap(Scope.OpenScope(childScope, closeFn))
   }
 
   /**
@@ -232,8 +244,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
      * becomes a new scoped value. Equivalent to `self.allocate(\$unwrap(sr))`.
      *
      * @return
-     *   the acquired value wrapped as `$[A]`, or a default-valued `$[A]` if the
-     *   scope is already closed
+     *   the acquired value wrapped as `$[A]`
+     * @throws java.lang.IllegalStateException
+     *   if this scope is already closed
      */
     def allocate: $[A] = self.allocate($unwrap(sr))
   }
@@ -284,6 +297,8 @@ object Scope {
     }
 
     def isOwner: Boolean = true
+
+    private[scope] val scopeDisplayName: String = "Scope.global"
 
     private[scope] def runFinalizers(): Finalization = finalizers.runAll()
   }
@@ -339,6 +354,8 @@ object Scope {
      *   `true` if the calling thread is the owner of this scope
      */
     def isOwner: Boolean = if (unowned) true else PlatformScope.isOwner(owner)
+
+    private[scope] val scopeDisplayName: String = "Scope.Child"
 
     private[scope] def close(): Finalization = finalizers.runAll()
 

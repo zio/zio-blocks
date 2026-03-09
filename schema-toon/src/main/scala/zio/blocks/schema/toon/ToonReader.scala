@@ -1,7 +1,6 @@
 package zio.blocks.schema.toon
 
 import zio.blocks.schema.DynamicOptic
-import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
 
@@ -26,7 +25,6 @@ final class ToonReader private[toon] (
   private[toon] var expandPaths: PathExpansion,
   private[toon] var discriminatorField: Option[String]
 ) {
-
   private[this] var lines: Array[String]       = null
   private[this] var lineIndex: Int             = 0
   private[this] var currentLine: String        = ""
@@ -35,7 +33,6 @@ final class ToonReader private[toon] (
   private[this] var activeDelimiter: Delimiter = delimiter
   private[this] var inUse: Boolean             = false
   private[this] var inlineContext: Boolean     = false
-
   // Mark/rollback support for DiscriminatorKind.None
   private[this] var markedLineIndex: Int      = -1
   private[this] var markedLinePos: Int        = -1
@@ -55,10 +52,6 @@ final class ToonReader private[toon] (
    * detection.
    */
   private[toon] def isStrict: Boolean = strict
-
-  def enterInlineContext(): Unit = inlineContext = true
-  def exitInlineContext(): Unit  = inlineContext = false
-  def isInlineContext: Boolean   = inlineContext
 
   /**
    * Marks the reader as in use and configures it with the given settings.
@@ -144,7 +137,7 @@ final class ToonReader private[toon] (
       }
     }
 
-  private def isWhitespaceOnly(s: String): Boolean = {
+  private[this] def isWhitespaceOnly(s: String): Boolean = {
     val len = s.length
     var i   = 0
     while (i < len) {
@@ -361,7 +354,7 @@ final class ToonReader private[toon] (
       throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
   }
 
-  private def readPrimitiveToken(): String = {
+  private[this] def readPrimitiveToken(): String = {
     skipWhitespace()
     val len = currentLine.length
     if (linePos >= len) {
@@ -386,10 +379,10 @@ final class ToonReader private[toon] (
     }
   }
 
-  private def skipWhitespace(): Unit =
+  private[this] def skipWhitespace(): Unit =
     while (linePos < currentLine.length && currentLine.charAt(linePos) == ' ') linePos += 1
 
-  private def computeDepth(line: String): Int = {
+  private[this] def computeDepth(line: String): Int = {
     var spaces = 0
     var i      = 0
     while (i < line.length) {
@@ -410,16 +403,14 @@ final class ToonReader private[toon] (
     if (indentSize > 0) spaces / indentSize else 0
   }
 
-  private def parseBracketContent(content: String): (Int, Delimiter) = {
+  private[this] def parseBracketContent(content: String): (Int, Delimiter) = {
     val trimmed = content.trim
     if (trimmed.isEmpty) decodeError("Empty array length")
-
     val lastChar = trimmed.charAt(trimmed.length - 1)
     val delim    =
       if (lastChar == '\t') Delimiter.Tab
       else if (lastChar == '|') Delimiter.Pipe
       else Delimiter.Comma
-
     val lengthStr = if (delim != Delimiter.Comma) trimmed.dropRight(1).trim else trimmed
     val length    =
       try lengthStr.toInt
@@ -427,13 +418,13 @@ final class ToonReader private[toon] (
     (length, delim)
   }
 
-  private def parseFieldList(content: String, delim: Delimiter): Array[String] =
+  private[this] def parseFieldList(content: String, delim: Delimiter): Array[String] =
     splitByDelimiter(content, delim).map { f =>
       val trimmed = f.trim
       if (trimmed.startsWith("\"")) unescapeString(trimmed) else trimmed
     }
 
-  private def splitByDelimiter(s: String, delim: Delimiter): Array[String] = {
+  private[this] def splitByDelimiter(s: String, delim: Delimiter): Array[String] = {
     val result  = new scala.collection.mutable.ArrayBuffer[String]()
     var start   = 0
     var inQuote = false
@@ -451,9 +442,9 @@ final class ToonReader private[toon] (
     result.toArray
   }
 
-  private def trimUnquoted(s: String): String = s.trim
+  private[this] def trimUnquoted(s: String): String = s.trim
 
-  private def findUnquotedColon(line: String, from: Int): Int = {
+  private[this] def findUnquotedColon(line: String, from: Int): Int = {
     var inQuote = false
     var i       = from
     while (i < line.length) {
@@ -465,7 +456,7 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findUnquotedChar(s: String, target: Char, from: Int): Int = {
+  private[this] def findUnquotedChar(s: String, target: Char, from: Int): Int = {
     var inQuote = false
     var i       = from
     while (i < s.length) {
@@ -477,7 +468,7 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findEndQuote(s: String, from: Int): Int = {
+  private[this] def findEndQuote(s: String, from: Int): Int = {
     var i = from
     while (i < s.length) {
       if (s.charAt(i) == '"' && !isEscaped(s, i)) return i
@@ -486,7 +477,7 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def findDelimiterIndex(s: String, delim: Delimiter, from: Int): Int = {
+  private[this] def findDelimiterIndex(s: String, delim: Delimiter, from: Int): Int = {
     var inQuote = false
     var i       = from
     while (i < s.length) {
@@ -498,7 +489,7 @@ final class ToonReader private[toon] (
     -1
   }
 
-  private def isEscaped(s: String, pos: Int): Boolean = {
+  private[this] def isEscaped(s: String, pos: Int): Boolean = {
     if (pos == 0) return false
     var backslashCount = 0
     var j              = pos - 1
@@ -509,11 +500,10 @@ final class ToonReader private[toon] (
     (backslashCount & 1) == 1
   }
 
-  private def looksLikeNumber(s: String): Boolean = {
+  private[this] def looksLikeNumber(s: String): Boolean = {
     if (s.isEmpty) return false
     val start = if (s.charAt(0) == '-') 1 else 0
     if (start >= s.length) return false
-
     val firstDigitIdx = start
     if (firstDigitIdx < s.length && s.charAt(firstDigitIdx) == '0') {
       if (firstDigitIdx + 1 < s.length) {
@@ -523,7 +513,6 @@ final class ToonReader private[toon] (
         }
       }
     }
-
     var hasDigit = false
     var hasDot   = false
     var i        = start
@@ -542,7 +531,7 @@ final class ToonReader private[toon] (
     hasDigit
   }
 
-  private def parseNumber(s: String): Any =
+  private[this] def parseNumber(s: String): Any =
     if (s.indexOf('.') >= 0 || s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
       val d = s.toDouble
       if (d == d.toLong && d >= Long.MinValue && d <= Long.MaxValue) d.toLong
@@ -552,7 +541,7 @@ final class ToonReader private[toon] (
       catch { case _: NumberFormatException => BigInt(s) }
     }
 
-  private def unescapeString(s: String): String = {
+  private[this] def unescapeString(s: String): String = {
     val lastIdx = s.length - 1
     if (lastIdx >= 1 && s.charAt(lastIdx) != '"') return s
     val sb = new java.lang.StringBuilder(lastIdx - 1)
@@ -607,30 +596,6 @@ object ToonReader {
       reader.startUse(config)
       reader
     }
-  }
-
-  /**
-   * Creates a fresh ToonReader that is NOT from the pool.
-   */
-  def fresh(config: ReaderConfig): ToonReader =
-    new ToonReader(config.indent, config.delimiter, config.strict, config.expandPaths, config.discriminatorField)
-
-  def read[A](codec: ToonBinaryCodec[A], input: ByteBuffer, config: ReaderConfig): A = {
-    val reader             = apply(config)
-    var bytes: Array[Byte] = null
-    var offset             = input.position()
-    val length             = input.remaining()
-    if (input.hasArray) {
-      bytes = input.array()
-      offset = input.arrayOffset() + offset
-    } else {
-      bytes = new Array[Byte](length)
-      input.get(bytes)
-      offset = 0
-    }
-    reader.reset(bytes, offset, length)
-    try codec.decodeValue(reader, codec.nullValue)
-    finally reader.endUse()
   }
 }
 

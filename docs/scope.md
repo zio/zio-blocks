@@ -1,4 +1,7 @@
-# ZIO Blocks — Scope (`zio.blocks.scope`)
+---
+id: scope
+title: "Scope"
+---
 
 `zio.blocks.scope` is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
 
@@ -151,6 +154,58 @@ Scope.global.scoped { scope =>
   val s: String = $(db)(_.query("SELECT 1"))      // String is Unscoped => unwrapped
   val n: Int    = $(db)(_.query("x").length)      // Int is Unscoped => unwrapped
 }
+```
+
+##### N-ary `$`: accessing multiple scoped values at once
+
+When a result depends on **two or more** scoped values simultaneously, use the N-ary overloads (`N = 2..5`):
+
+```scala
+$(sa1, sa2)((v1, v2) => v1.method(v2.result()))
+$(sa1, sa2, sa3)((v1, v2, v3) => v1.query(v2.key()) + v3.tag())
+```
+
+The same receiver-only grammar applies to every parameter: each `vi` may only appear as a method receiver (e.g., `vi.method()`). Feeding the *result* of one parameter to a method of another is permitted:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope.*
+  val db:    $[Database]   = Resource.from[Database].allocate
+  val cache: $[Cache]      = Resource.from[Cache].allocate
+
+  // d1 and d2 are both receivers; d2.key() produces a plain String arg
+  val result: String = $(db, cache)((d1, d2) => d1.query(d2.key()))
+}
+```
+
+Rejected at compile time (same rules as N=1, applied to each parameter independently):
+
+```scala
+$(db, cache)((d1, d2) => d2)              // d2 returned directly
+$(db, cache)((d1, d2) => store(d1))       // d1 passed as argument
+$(db, cache)((d1, d2) => d1.method(d2))   // d2 as bare arg (not a receiver)
+$(db, cache)((d1, d2) => () => d2.query()) // d2 captured in closure
+```
+
+The error messages name the offending parameter:
+
+```
+Parameter 2 ('d2') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., d2.method()).
+```
+
+**Infix syntax** (`scope $ sa`) is only available for N=1. For N≥2, use unqualified syntax after `import scope.*`:
+
+```scala
+$(db, cache)((d, c) => d.query(c.key()))   // ✓ unqualified
+```
+
+**For N>5**, extract each value in sequence (all results are `Unscoped` strings/values and can be freely combined):
+
+```scala
+val q1 = $(db1)(_.query("a"))
+val q2 = $(db2)(_.query("b"))
+q1 + q2
 ```
 
 ---
@@ -417,16 +472,52 @@ A `scoped { ... }` block can only return pure data (or `Nothing`). Resources and
 
 **Pragmatic safety.** The type-level tagging prevents *accidental* scope misuse in normal code, but it is not a security boundary. A determined developer can bypass it via `leak` (which emits a compiler warning), unsafe casts (`asInstanceOf`), or storing scoped references in mutable state (`var`).
 
-### Closed-scope defense (runtime)
+### Closed-scope safety (runtime)
 
-If a scope escapes and is used after closing, operations become **no-ops returning default values**:
+If a scope reference escapes its `scoped { }` block and an operation is attempted after closing, Scope throws `IllegalStateException` with a detailed, actionable error message:
 
-- `$`, `allocate`, `open`, `lower` return defaults (`null`, `0`, `false`, …)
-- `$` does not run the lambda when closed
-- `defer` on a closed scope is ignored
-- `scoped` creates a born-closed child if the parent is already closed
+- **`allocate`** on a closed scope:
 
-This prevents post-close interaction with released resources, but can produce surprising default values if scopes are misused across threads.
+  ```
+  ── Scope Error ─────────────────────────────────────────────────────────────────
+
+    Cannot allocate resource: scope is already closed.
+
+    Scope: Scope.Child
+
+    What happened:
+      A call to allocate was made on a scope whose finalizers have
+      already run. The resource was never acquired.
+
+    Common causes:
+      • A scope reference escaped a scoped { } block (e.g. stored in a
+        field, captured in a Future or passed to another thread).
+      • close() was called on an OpenScope before all
+        allocations inside it completed.
+
+    Fix:
+      Call allocate only inside a live scoped { } block, or before
+      calling close() on an OpenScope.
+
+      // Correct usage:
+      Scope.global.scoped { scope =>
+        import scope.*
+        val db = allocate(Resource(new Database))
+        $(db)(_.query("SELECT 1"))
+      }
+
+  ────────────────────────────────────────────────────────────────────────────────
+  ```
+
+- **`open()`** on a closed scope gives the same treatment, explaining that no child scope was created and directing the user to call `open()` only on a live scope.
+
+- **`$`** on a closed scope explains that the resource may have already been released and accessing it would be undefined behaviour.
+
+The following operations on a closed scope do **not** throw:
+
+- `defer` — silently ignored (no-op)
+- `scoped` — runs normally but creates a born-closed child scope
+- `lower` — zero-cost cast, no closed check needed
 
 ### Thread ownership rule (JVM)
 
@@ -780,6 +871,112 @@ val appResource: Resource[App] =
 
 ---
 
+## Common runtime errors (and what they mean)
+
+These `IllegalStateException`s are thrown when a scope operation is attempted on a closed scope. Each message identifies the scope type, explains what went wrong, lists common causes, and shows a correct usage example.
+
+### `allocate` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot allocate resource: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    A call to allocate was made on a scope whose finalizers have
+    already run. The resource was never acquired.
+
+  Common causes:
+    • A scope reference escaped a scoped { } block (e.g. stored in a
+      field, captured in a Future or passed to another thread).
+    • close() was called on an OpenScope before all
+      allocations inside it completed.
+
+  Fix:
+    Call allocate only inside a live scoped { } block, or before
+    calling close() on an OpenScope.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val db = allocate(Resource(new Database))
+      $(db)(_.query("SELECT 1"))
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### `open()` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot open child scope: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    A call to open() was made on a scope whose finalizers have
+    already run. No child scope was created.
+
+  Common causes:
+    • A scope reference escaped a scoped { } block and open()
+      was called after the block exited.
+    • close() was called on the parent OpenScope before
+      open() was called on it.
+
+  Fix:
+    Call open() only on a live (not yet closed) scope.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val child = open()
+      $(child)(_.scope.allocate(Resource(new Database)))
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+### `$` on a closed scope
+
+```
+── Scope Error ─────────────────────────────────────────────────────────────────
+
+  Cannot access scoped value: scope is already closed.
+
+  Scope: Scope.Child
+
+  What happened:
+    The $ operator was called on a scope whose finalizers have
+    already run. The underlying resource may have been released.
+    Accessing it would be undefined behavior.
+
+  Common causes:
+    • A $[A] value or its owning scope escaped a scoped { }
+      block (e.g. captured in a Future, stored in a field, or
+      passed to another thread).
+    • close() was called on an OpenScope that still has
+      live $[A] values being accessed.
+
+  Fix:
+    Ensure all $ calls occur strictly within the scoped { }
+    block that owns the value, and that the scope has not been closed.
+
+    // Correct usage:
+    Scope.global.scoped { scope =>
+      import scope.*
+      val db = allocate(Resource(new Database))
+      $(db)(_.query("SELECT 1"))  // $ used inside the block
+    }
+
+────────────────────────────────────────────────────────────────────────────────
+```
+
+---
+
 ## Common compile errors (and what they mean)
 
 This module produces two kinds of compile-time feedback:
@@ -789,17 +986,33 @@ This module produces two kinds of compile-time feedback:
 
 ### Unsafe use inside `$`
 
-Typical messages include:
+All messages name the offending parameter by its 1-based index and source name, and end with the receiver-only reminder. Typical messages:
 
 ```
-Unsafe use of scoped value: the lambda parameter cannot be passed as an argument to a function or method.
+Parameter 1 ('d') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., d.method()).
 ```
 
-Other variants:
+```
+Parameter 1 ('d') must only be used as a method receiver.
+It cannot be returned, stored, passed as an argument, or captured.
+Scoped values may only be used as a method receiver (e.g., d.method()).
+```
 
-- `Unsafe use of scoped value: the lambda parameter cannot be captured in a nested lambda or closure.`
-- `Unsafe use of scoped value: the lambda parameter must only be used as a method receiver ...`
-- `$ requires a lambda literal: (scope $ x)(a => a.method()). Method references and variables are not supported.`
+```
+Parameter 1 ('d') cannot be captured in a nested lambda, def, or anonymous class.
+Scoped values may only be used as a method receiver (e.g., d.method()).
+```
+
+```
+Parameter 2 ('cache') cannot be passed as an argument to a function or method.
+Scoped values may only be used as a method receiver (e.g., cache.method()).
+```
+
+```
+$ requires a lambda literal, e.g. $(x)(a => a.method()).
+Method references and variables are not supported.
+```
 
 ### Not a class (`Wire.shared/unique` on a trait / abstract)
 
@@ -1013,7 +1226,14 @@ def scoped[A](f: (child: Scope.Child[this.type]) => A)(using Unscoped[A]): A
 def allocate[A](resource: Resource[A]): $[A]
 def allocate[A <: AutoCloseable](value: => A): $[A]
 
+// N=1 (infix available: `scope $ sa`)
 infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
+
+// N=2..5 (unqualified syntax: `$(sa1, sa2)(f)` after `import scope.*`)
+transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B): B | $[B]
+transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(inline f: (A1, A2, A3) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4])(inline f: (A1, A2, A3, A4) => B): B | $[B]
+transparent inline def $[A1, A2, A3, A4, A5, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4], sa5: $[A5])(inline f: (A1, A2, A3, A4, A5) => B): B | $[B]
 
 def lower[A](value: parent.$[A]): $[A]
 
@@ -1026,9 +1246,11 @@ inline def leak[A](inline sa: $[A]): A
 
 Notes:
 
-- `$` requires a **lambda literal** and enforces safe receiver-only usage.
+- `$` (all arities) requires a **lambda literal** and enforces safe receiver-only usage at compile time.
 - `$` returns `B` if `Unscoped[B]` exists; otherwise returns `$[B]`.
-- If the scope is closed, `$` / `allocate` / `open` / `lower` return default values and perform no work.
+- N=1 is `infix`; N≥2 are not — use unqualified syntax after `import scope.*`.
+- For N>5, call `$` once per resource and combine the resulting plain (Unscoped) values.
+- If the scope is closed, `$`, `allocate`, and `open` throw `IllegalStateException` with a detailed error message. `defer` and `lower` are unaffected.
 
 Syntax enrichments available after `import scope.*` inside a scope:
 
@@ -1191,7 +1413,9 @@ object Unscoped:
 ## Practical guidance (summary)
 
 - Allocate in a scope: `resource.allocate` (inside `Scope.global.scoped { scope => import scope.* ... }`)
-- Use scoped values only through: `(scope $ value)(...)`
+- Access one scoped value: `$(sa)(v => v.method())` — parameter can only be a receiver
+- Access two or more scoped values simultaneously: `$(sa1, sa2)((v1, v2) => v1.method(v2.result()))` (N=2..5)
+- For N>5: call `$` once per resource, combine the plain results
 - Return only `Unscoped` data from `scoped` blocks
 - Use `lower` to use parent values inside a child
 - If `$` returns `$[Resource[A]]`, call `.allocate` on it (scoped resource chaining)

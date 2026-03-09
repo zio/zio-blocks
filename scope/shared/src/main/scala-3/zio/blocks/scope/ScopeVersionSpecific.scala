@@ -68,8 +68,22 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     result
   }
 
+  // ── N-ary $ operator ────────────────────────────────────────────────────
+  //
+  // N=1: infix — use `(scope $ sa)(f)` or `$(sa)(f)` after `import scope.*`
+  // N≥2: not infix — use `$(sa1, sa2)(f)` after `import scope.*`
+  //       (infix requires exactly one operand)
+  // N>5: compose — `$(sa1)(v1 => $(sa2)(v2 => ...))`
+  //
+  // On Scope.global, type $[+A] = A, so the overloads accept plain values.
+  // This is a pre-existing property of the design (zero-cost, no phantom types
+  // on global) and is unchanged from the unary case.
+  //
+  // Coverage note: these methods live under scala-3/ and are excluded from the
+  // statement/branch coverage gate. The test suite is the sole quality gate.
+
   /**
-   * Macro-enforced access to a scoped value.
+   * Macro-enforced access to a scoped value (N=1).
    *
    * Unwraps the scoped value, applies the function, and returns the result. If
    * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
@@ -99,26 +113,167 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *   the output value type
    * @return
    *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`; returns a default value if the scope is closed
+   *   otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
    */
   infix transparent inline def $[A, B](sa: $[A])(inline f: A => B) = {
     UseMacros.check[A, B](f)
+    if (self.isClosed)
+      throw new IllegalStateException(
+        zio.blocks.scope.internal.ErrorMessages
+          .renderUseOnClosedScope(self.scopeDisplayName, color = false)
+      )
     scala.compiletime.summonFrom {
       case _: Unscoped[B] =>
-        if (self.isClosed) null.asInstanceOf[B]
-        else {
-          val unwrapped = sa.asInstanceOf[A]
-          f(unwrapped)
-        }
+        val unwrapped = sa.asInstanceOf[A]
+        f(unwrapped)
       case _ =>
-        if (self.isClosed) null.asInstanceOf[$[B]]
-        else {
-          val unwrapped = sa.asInstanceOf[A]
-          val result    = f(unwrapped)
-          result.asInstanceOf[$[B]]
-        }
+        val unwrapped = sa.asInstanceOf[A]
+        val result    = f(unwrapped)
+        result.asInstanceOf[$[B]]
     }
   }
+
+  /**
+   * Macro-enforced access to two scoped values simultaneously (N=2).
+   *
+   * Both scoped values are unwrapped and the lambda is applied. The lambda may
+   * call methods on either parameter, and may feed the result of one as an
+   * argument to a method of the other (e.g., `d1.method(d2.result())`). Direct
+   * passing of either parameter as a bare argument is rejected at compile time.
+   *
+   * @example
+   *   {{{
+   *   $(db, cache)((d, c) => d.query(c.key()))
+   *   $(db, cache)((d, c) => d.query("x") + c.get("y"))
+   *   }}}
+   *
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B) =
+    ${ UseMacros.applyN2[A1, A2, B]('self, 'sa1, 'sa2, 'f) }
+
+  /**
+   * Macro-enforced access to three scoped values simultaneously (N=3).
+   *
+   * All three parameters are subject to the same receiver-only constraint as
+   * the N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full
+   * safety rules.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
+   *   `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(
+    inline f: (A1, A2, A3) => B
+  ) = ${ UseMacros.applyN3[A1, A2, A3, B]('self, 'sa1, 'sa2, 'sa3, 'f) }
+
+  /**
+   * Macro-enforced access to four scoped values simultaneously (N=4).
+   *
+   * All four parameters are subject to the same receiver-only constraint as the
+   * N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full safety
+   * rules.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
+   *   `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, A4, B](
+    sa1: $[A1],
+    sa2: $[A2],
+    sa3: $[A3],
+    sa4: $[A4]
+  )(inline f: (A1, A2, A3, A4) => B) =
+    ${ UseMacros.applyN4[A1, A2, A3, A4, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'f) }
+
+  /**
+   * Macro-enforced access to five scoped values simultaneously (N=5).
+   *
+   * All five parameters are subject to the same receiver-only constraint as the
+   * N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full safety
+   * rules.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam A5
+   *   the underlying type of the fifth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param sa5
+   *   the fifth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
+   *   `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  transparent inline def $[A1, A2, A3, A4, A5, B](
+    sa1: $[A1],
+    sa2: $[A2],
+    sa3: $[A3],
+    sa4: $[A4],
+    sa5: $[A5]
+  )(inline f: (A1, A2, A3, A4, A5) => B) =
+    ${ UseMacros.applyN5[A1, A2, A3, A4, A5, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'sa5, 'f) }
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

@@ -811,14 +811,14 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
     ),
     suite("decode quoted keys")(
       test("decodes quoted key in array header") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         reader.reset("\"my-key\"[3]: 1,2,3")
         val header = reader.parseArrayHeader()
         assertTrue(header.key == "my-key") &&
         assertTrue(header.length == 3)
       },
       test("decodes quoted key containing brackets in array header") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "\"key[test]\"[3]: 1,2,3"
         reader.reset(input)
         val header = reader.parseArrayHeader()
@@ -826,7 +826,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         assertTrue(header.length == 3)
       },
       test("decodes quoted key with tabular array format") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "\"x-items\"[2]{id,name}:\n  1,Ada\n  2,Bob"
         reader.reset(input)
         val header = reader.parseArrayHeader()
@@ -835,7 +835,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         assertTrue(header.fields.toList == List("id", "name"))
       },
       test("decodes quoted header keys in tabular arrays") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "items[2]{\"order:id\",\"full name\"}:\n  1,Ada\n  2,Bob"
         reader.reset(input)
         val header = reader.parseArrayHeader()
@@ -844,21 +844,21 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         assertTrue(header.fields.toList == List("order:id", "full name"))
       },
       test("decodes quoted key in key-value pair") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "\"my-key\": value"
         reader.reset(input)
         val key = reader.readKey()
         assertTrue(key == "my-key")
       },
       test("decodes quoted key with colon inside") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "\"key:with:colons\": value"
         reader.reset(input)
         val key = reader.readKey()
         assertTrue(key == "key:with:colons")
       },
       test("decodes quoted key with escape sequences") {
-        val reader = ToonReader.fresh(ReaderConfig)
+        val reader = ToonReader(ReaderConfig)
         val input  = "\"key\\twith\\ttabs\": value"
         reader.reset(input)
         val key = reader.readKey()

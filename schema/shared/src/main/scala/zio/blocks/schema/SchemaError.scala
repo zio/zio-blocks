@@ -33,7 +33,7 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
   def atKey(key: DynamicValue): SchemaError =
     mapSource(path => new DynamicOptic(DynamicOptic.Node.AtMapKey(key) +: path.nodes))
 
-  private def mapSource(f: DynamicOptic => DynamicOptic): SchemaError =
+  private[this] def mapSource(f: DynamicOptic => DynamicOptic): SchemaError =
     new SchemaError(new ::(SchemaError.remapSource(errors.head, f), errors.tail.map(SchemaError.remapSource(_, f))))
 }
 
@@ -145,7 +145,9 @@ object SchemaError {
             }
           }
           sb.toString
-        case _ => details
+        case _ =>
+          if (source.nodes.isEmpty) details
+          else s"$details at: ${source.toScalaString}"
       }
   }
 

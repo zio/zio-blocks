@@ -828,7 +828,7 @@ Type ordering: Null < Boolean < Number < String < Array < Object
 
 ## JSON Diffing
 
-`JsonDiffer` computes the difference between two JSON values, producing a `JsonPatch` that transforms the source into the target:
+`JsonDiffer` computes the difference between two JSON values, producing a [`JsonPatch`](./json-patch.md) that transforms the source into the target:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonPatch}
