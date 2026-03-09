@@ -184,9 +184,9 @@ The context accumulates all added entries:
 val size1 = ctx.size
 ```
 
-**When to use `add` vs. `apply`:**
-- Use `apply` when you know all dependencies upfront and can construct them together
-- Use `add` when dependencies are added incrementally or conditionally
+**When to use `Context#add` vs. `Context.apply`:**
+- Use `Context.apply` when you know all dependencies upfront and can construct them together
+- Use `Context#add` when dependencies are added incrementally or conditionally
 
 ## Core Operations
 
