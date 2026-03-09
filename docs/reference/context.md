@@ -200,6 +200,8 @@ case class Logger(name: String)
 val ctx = Context(Config(true), Logger("app"))
 ```
 
+Get the number of entries in the context:
+
 ```scala mdoc
 val sz = ctx.size
 ```
@@ -289,6 +291,8 @@ case class Config(debug: Boolean)
 
 val ctx = Context(Config(debug = true))
 ```
+
+Try to retrieve both an existing type and a missing type:
 
 ```scala mdoc
 val found: Option[Config] = ctx.getOption[Config]
@@ -383,6 +387,8 @@ case class Logger(name: String)
 
 val ctx = Context(Config(debug = true), Logger("app"))
 ```
+
+Convert the context to a human-readable string representation:
 
 ```scala mdoc
 val str = ctx.toString
