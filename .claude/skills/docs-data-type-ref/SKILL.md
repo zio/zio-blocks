@@ -61,7 +61,9 @@ Follow this structure precisely. Every section below marked **(required)** must 
 
 #### 1. Opening Definition (required)
 
-Start with a concise, technical definition immediately after the frontmatter. Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences. **Do not create a separate "## Opening Definition" heading** — this content forms the natural opening of the document.
+**NO HEADING FOR THIS SECTION.** Start with a concise, technical definition immediately after the frontmatter—do NOT add any heading (## or otherwise). This content forms the natural opening of the document.
+
+Use inline code for the type signature. Explain the type parameters. State the core purpose in 1-3 sentences.
 
 Pattern:
 
@@ -85,7 +87,7 @@ After the definition paragraph, include the source definition of the data type i
 - Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
 - Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
 
-Follow the opening definition with a section header (e.g., `## Overview`, `## Introduction`, or another appropriate heading) to continue the document.
+After the structural definition, follow immediately with a section header (e.g., `## Overview`, `## Introduction`) to continue the document.
 
 #### 2. Motivation / Use Case (if applicable)
 
