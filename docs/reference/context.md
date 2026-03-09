@@ -115,6 +115,8 @@ libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
 
 ## Construction
 
+Context provides several ways to create instances, from empty contexts to pre-populated ones with type inference.
+
 ### Creating Empty and Single-Value Contexts
 
 The canonical empty context is `Context.empty`:
@@ -162,6 +164,8 @@ val size1 = ctx.size
 ```
 
 ## Core Operations
+
+Context supports inspection, retrieval, and modification operations. All methods are type-safe and leverage the phantom type `R` to track what's stored.
 
 ### Inspection
 
@@ -270,7 +274,7 @@ val missing: Option[String] = ctx.getOption[String]
 
 ### Modification
 
-All modification methods return a new `Context`—the original remains immutable.
+All modification methods return a new `Context`—the original remains immutable:
 
 #### Context#add
 
