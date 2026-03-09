@@ -200,9 +200,7 @@ The following methods let you check the contents of a context without retrieving
 
 Returns the number of entries in the context:
 
-```scala mdoc:silent
-import zio.blocks.context._
-
+```scala mdoc:silent:nest
 case class Config(debug: Boolean)
 case class Logger(name: String)
 
@@ -217,9 +215,7 @@ val sz = ctx.size
 
 Returns `true` if the context contains no entries:
 
-```scala mdoc:silent
-import zio.blocks.context._
-
+```scala mdoc:silent:nest
 case class Config(debug: Boolean)
 
 val empty = Context.empty
@@ -235,9 +231,7 @@ val e2 = notEmpty.isEmpty
 
 Returns `true` if the context contains at least one entry (opposite of `isEmpty`):
 
-```scala mdoc:silent
-import zio.blocks.context._
-
+```scala mdoc:silent:nest
 case class Config(debug: Boolean)
 
 val empty = Context.empty
@@ -293,9 +287,7 @@ If you attempt to retrieve a type that is not in the context, the code will not 
 
 Retrieves a value if present, returning `Option[A]`. Unlike `get`, this method does not require the type to be in the context's type parameter. Use it for optional lookups:
 
-```scala mdoc:silent
-import zio.blocks.context._
-
+```scala mdoc:silent:nest
 case class Config(debug: Boolean)
 
 val ctx = Context(Config(debug = true))
@@ -388,9 +380,7 @@ val configSize = justConfig.size
 
 Returns a human-readable representation of the context showing all type-value pairs:
 
-```scala mdoc:silent
-import zio.blocks.context._
-
+```scala mdoc:silent:nest
 case class Config(debug: Boolean)
 case class Logger(name: String)
 
