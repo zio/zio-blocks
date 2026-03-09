@@ -188,13 +188,13 @@ val combined = dbResource.zip(cacheResource)
 
 The fundamental difference is **reuse semantics**:
 
-| Aspect | Shared | Unique |
-|--------|--------|--------|
-| **Creation** | `Resource.shared(f)` | `Resource.unique(f)` or `Resource(value)` |
-| **Memoization** | Yes, with reference counting | No, fresh per allocation |
-| **When to use** | Expensive resources (DB connections, thread pools) | Per-request state, stateful handlers |
-| **Instance reuse** | Same instance across nested scopes | New instance per allocation |
-| **Finalization** | Runs when last reference released | Runs when scope closes |
+| Aspect            | Shared                            | Unique                                       |
+|-------------------|-----------------------------------|----------------------------------------------|
+| **Creation**      | `Resource.shared(f)`              | `Resource.unique(f)` or `Resource(value)`    |
+| **Memoization**   | Yes, with reference counting      | No, fresh per allocation                     |
+| **When to use**   | Expensive resources (DB connections, thread pools) | Per-request state, stateful handlers |
+| **Instance reuse** | Same instance across nested scopes | New instance per allocation                 |
+| **Finalization**  | Runs when last reference released | Runs when scope closes                       |
 
 In a diamond dependency pattern (where `AppService` depends on both `UserService` and `OrderService`, both depending on `Database`), using `Resource.shared[Database]` ensures both services receive the same instance.
 
