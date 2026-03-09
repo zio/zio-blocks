@@ -427,11 +427,13 @@ After writing, re-read the document and verify:
 
 ### Mandatory: Run mdoc Compilation Check
 
-Before claiming the page is complete, run the full mdoc compilation check:
+Before claiming the page is complete, run the single-file mdoc compilation check:
 
 ```bash
-sbt docs/mdoc
+sbt "docs/mdoc --in docs/reference/<type-name-kebab-case>.md"
 ```
+
+Replace `<type-name-kebab-case>` with the actual filename created in Step 2 (e.g., `context.md` for `Context`).
 
 **Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
 
