@@ -289,7 +289,7 @@ Scope.global.scoped { scope =>
 
 ## Core Operations
 
-### isShared and isUnique
+### `Wire#isShared` and `Wire#isUnique`
 
 Check the sharing strategy of a wire:
 
@@ -305,7 +305,7 @@ println(s"uniqueWire.isShared: ${uniqueWire.isShared}")      // false
 println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
 ```
 
-### shared and unique — convert between strategies
+### `Wire#shared` and `Wire#unique` — convert between strategies
 
 Convert a wire to the opposite strategy:
 
@@ -325,7 +325,7 @@ println(s"backToShared.isShared: ${backToShared.isShared}")  // true
 
 Calling `shared` on an already-shared wire returns `this` (identity); likewise `unique` on a unique wire returns `this`.
 
-### toResource — convert a wire to a Resource
+### `Wire#toResource` — convert a wire to a Resource
 
 Converts the wire to a lazy `Resource` by providing the dependency context:
 
@@ -347,7 +347,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### make — construct directly from a wire
+### `Wire#make` — construct directly from a wire
 
 Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety.
 
