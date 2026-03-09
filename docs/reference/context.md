@@ -200,13 +200,16 @@ The following methods let you check the contents of a context without retrieving
 
 Returns the number of entries in the context:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
 case class Logger(name: String)
 
 val ctx = Context(Config(true), Logger("app"))
+```
+
+```scala mdoc
 val sz = ctx.size
 ```
 
@@ -214,14 +217,16 @@ val sz = ctx.size
 
 Returns `true` if the context contains no entries:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
 
 val empty = Context.empty
 val notEmpty = Context(Config(true))
+```
 
+```scala mdoc
 val e1 = empty.isEmpty
 val e2 = notEmpty.isEmpty
 ```
@@ -230,14 +235,16 @@ val e2 = notEmpty.isEmpty
 
 Returns `true` if the context contains at least one entry (opposite of `isEmpty`):
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
 
 val empty = Context.empty
 val notEmpty = Context(Config(true))
+```
 
+```scala mdoc
 val e1 = empty.nonEmpty
 val e2 = notEmpty.nonEmpty
 ```
@@ -286,13 +293,15 @@ If you attempt to retrieve a type that is not in the context, the code will not 
 
 Retrieves a value if present, returning `Option[A]`. Unlike `get`, this method does not require the type to be in the context's type parameter. Use it for optional lookups:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
 
 val ctx = Context(Config(debug = true))
+```
 
+```scala mdoc
 val found: Option[Config] = ctx.getOption[Config]
 val missing: Option[String] = ctx.getOption[String]
 ```
@@ -379,13 +388,16 @@ val configSize = justConfig.size
 
 Returns a human-readable representation of the context showing all type-value pairs:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
 case class Logger(name: String)
 
 val ctx = Context(Config(debug = true), Logger("app"))
+```
+
+```scala mdoc
 val str = ctx.toString
 ```
 
