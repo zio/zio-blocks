@@ -25,6 +25,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
+| **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
@@ -82,14 +83,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.28"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.26"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.26"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.26"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.26"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.28"
 ```
 
 ### Example: Optics
@@ -144,7 +145,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.28"
 ```
 
 ### Example
@@ -228,11 +229,12 @@ Scope.global.scoped { scope =>
 - **Built-in Dependency Injection**: Wire up your application with `Resource.from[T](wires*)` for automatic constructor-based DI.
 - **AutoCloseable Integration**: Resources implementing `AutoCloseable` have `close()` registered automatically.
 - **Unscoped Constraint**: The `scoped` method requires `Unscoped[A]` evidence on the return type, ensuring only pure data (not resources or closures) can escape.
+- **Actionable Runtime Errors**: If a scope reference escapes and is used after closing, `allocate`, `open()`, and `$` throw `IllegalStateException` with a detailed message explaining what went wrong, the common causes, and how to fix it—no silent null returns.
 
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.28"
 ```
 
 ### Example: Basic Resource Management
@@ -335,7 +337,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.28"
 ```
 
 ### Example
@@ -419,7 +421,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.28"
 ```
 
 ### Example
@@ -462,7 +464,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.26"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.28"
 ```
 
 ### Example
@@ -490,6 +492,47 @@ val updated = ctx.update[Metrics](m => m.copy(count = m.count + 1))
 val ctx1 = Context(Config(false))
 val ctx2 = Context(Metrics(0))
 val merged: Context[Config & Metrics] = ctx1 ++ ctx2
+```
+
+---
+
+## Ring Buffer
+
+High-performance, bounded ring buffers for inter-thread communication. Four lock-free variants cover every producer/consumer pattern (SPSC, MPSC, SPMC, MPMC).
+
+### Why Ring Buffer?
+
+Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQueue`) or coarse locking (`ArrayBlockingQueue`). Ring buffers avoid both:
+
+- **Zero allocation** on the hot path—pre-allocated circular array
+- **Lock-free** on the fast path—CAS or release/acquire semantics only
+- **Cache-friendly**—sequential memory access with 128-byte padding between producer/consumer fields
+
+### Key Features
+
+- **Four concurrency patterns**: SPSC, SPMC, MPSC, MPMC—pick the most constrained variant for your use case
+- **Cross-platform**: Same API on JVM and Scala.js (JS uses sequential implementations)
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.28"
+```
+
+### Example
+
+```scala
+import zio.blocks.ringbuffer._
+
+// SPSC: fastest, for dedicated producer-consumer pairs
+val spsc = SpscRingBuffer[String](1024)
+spsc.offer("hello") // true
+spsc.take()          // "hello"
+
+// MPMC: general-purpose, any number of threads
+val mpmc = MpmcRingBuffer[String](1024)
+mpmc.offer("hello") // false if full
+mpmc.take()          // null if empty
 ```
 
 ---
@@ -526,18 +569,20 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Streams |
-|----------|--------|-------|-------|------|--------|---------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 
 ### Core Schema Concepts
 
 - [Schema](docs/./reference/schema.md) - Core schema definitions and derivation
+- [Allows](docs/./reference/allows.md) - Compile-time structural grammar constraints
 - [Reflect](docs/./reference/reflect.md) - Structural reflection API
 - [Binding](docs/./reference/binding.md) - Runtime constructors and deconstructors
+- [BindingResolver](docs/./reference/binding-resolver.md) - Binding lookup and schema rebinding
 - [Registers](docs/./reference/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
@@ -546,11 +591,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [SchemaExpr](docs/./reference/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](docs/./path-interpolator.md) - Type-safe path construction
 - [DynamicValue](docs/./reference/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](docs/./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
 - [Codec & Format](docs/./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](docs/./reference/json.md) - JSON codec and parsing
+- [JsonPatch](docs/./reference/json-patch.md) - Diff and patch JSON values
 - [JSON Schema](docs/./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](docs/./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
 - [Extension Syntax](docs/./reference/syntax.md) - `.toJson`, `.fromJson`, and more
@@ -560,7 +607,9 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Patching](docs/./reference/patch.md) - Serializable data transformations
 - [SchemaError](docs/./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](docs/./reference/validation.md) - Data validation and error handling
-- [Schema Evolution](docs/./reference/schema-evolution.md) - Migration and compatibility
+- [Schema Evolution](docs/./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](docs/./reference/schema-evolution/into.md) - One-way conversion with validation
+  - [As](docs/./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 
@@ -570,6 +619,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
+- [HTTP Model](docs/./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [Ring Buffer](docs/./ringbuffer.md) - High-performance bounded ring buffers
 
 ### Guides
 
