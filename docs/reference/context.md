@@ -482,18 +482,55 @@ Scope.global.scoped { scope =>
 
 ## Running the Examples
 
-The examples in this reference are compiled and checked via [mdoc](https://scalameta.org/mdoc/). We also provide runnable example applications in the `schema-examples` module:
+All code from this guide is available as runnable examples in the `schema-examples` module.
 
-- **`ContextConstructionExample`** — demonstrates `Context.apply`, `Context.empty.add(...)`, and inspection methods (`size`, `isEmpty`, `nonEmpty`, `toString`).
-- **`ContextRetrievalExample`** — shows `get`, supertype lookups, and `getOption` for optional retrieval.
-- **`ContextModificationExample`** — covers `add` (replacement), `update`, `++` (union), and `prune`.
+**1. Clone the repository and navigate to the project:**
 
-To run an example:
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+**Context construction: creating contexts with apply, empty.add, and inspecting size/isEmpty/nonEmpty**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextConstructionExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextConstructionExample.scala))
 
 ```bash
 sbt "schema-examples/runMain context.ContextConstructionExample"
-sbt "schema-examples/runMain context.ContextRetrievalExample"
-sbt "schema-examples/runMain context.ContextModificationExample"
 ```
 
-All example outputs use `util.ShowExpr.show(...)` to display results in a readable format.
+**Context retrieval: using get, supertype lookups, and getOption for safe access**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextRetrievalExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextRetrievalExample.scala))
+
+```bash
+sbt "schema-examples/runMain context.ContextRetrievalExample"
+```
+
+**Context modification: adding values, updating existing ones, merging contexts, and pruning types**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextModificationExample.scala))
+
+```bash
+sbt "schema-examples/runMain context.ContextModificationExample"
+```
