@@ -133,7 +133,7 @@ val isEmpty = emptyCtx.isEmpty
 
 An empty context has type `Context[Any]` and represents no stored dependencies. This is a useful starting point for incremental construction.
 
-### Creating Multi-Value Contexts with apply
+### Creating Multi-Value Contexts with `Context.apply`
 
 `Context.apply` is overloaded to accept 1–10 values and returns a context with type `Context[A1 & A2 & ...]`, reflecting all stored types.
 
