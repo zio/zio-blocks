@@ -141,8 +141,13 @@ An empty context has type `Context[Any]` and represents no stored dependencies. 
 
 Create a context with one value:
 
-```scala mdoc
+```scala mdoc:silent
 case class Config(debug: Boolean)
+```
+
+With `Config` defined, we can create a single-value context:
+
+```scala mdoc
 val single: Context[Config] = Context(Config(debug = true))
 ```
 
@@ -150,9 +155,13 @@ val single: Context[Config] = Context(Config(debug = true))
 
 Create a context with multiple values—the type parameter automatically becomes an intersection of all stored types:
 
-```scala mdoc
+```scala mdoc:silent
 case class Logger(name: String)
+```
 
+With `Config` and `Logger` in scope, we can create a multi-value context:
+
+```scala mdoc
 val multi: Context[Config & Logger] = Context(
   Config(debug = true),
   Logger("myapp")
