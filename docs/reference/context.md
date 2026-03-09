@@ -159,7 +159,7 @@ val multi: Context[Config & Logger] = Context(
 )
 ```
 
-### Building Incrementally with add
+### Building Incrementally with `Context#add`
 
 For contexts that grow over time, use `Context#add` to build incrementally from an empty context. This is useful when dependencies become available at different points in your initialization:
 
