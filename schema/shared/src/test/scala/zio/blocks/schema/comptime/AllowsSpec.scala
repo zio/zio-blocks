@@ -164,7 +164,6 @@ object AllowsFixtures {
 object Issue1145Reproducer {
   import zio.blocks.schema.Schema
   import zio.blocks.schema.comptime.Allows
-  import Allows._
 
   def writeCsv[A: Schema](rows: Seq[A])(implicit ev: Allows[A, Record[Primitive | Optional[Primitive]]]): Unit = ()
 
