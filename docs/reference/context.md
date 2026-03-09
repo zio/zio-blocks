@@ -124,17 +124,36 @@ Context provides several ways to create instances, from empty contexts to pre-po
 
 ### Creating Empty and Single-Value Contexts
 
-The canonical empty context is `Context.empty`:
+The simplest way to start building a Context is with an empty context or a context containing a single value.
+
+#### Empty Context
+
+Use `Context.empty` to create an empty context with no entries:
 
 ```scala mdoc:silent:reset
 import zio.blocks.context._
 ```
 
-An empty context has type `Context[Any]` (no entries):
-
 ```scala mdoc
 val emptyCtx: Context[Any] = Context.empty
+val isEmpty = emptyCtx.isEmpty
 ```
+
+An empty context has type `Context[Any]` and represents no stored dependencies. You can then add entries to it incrementally.
+
+#### Single-Value Context
+
+Create a context with a single value using the single-argument `Context.apply`:
+
+```scala mdoc:silent
+case class Config(debug: Boolean)
+```
+
+```scala mdoc
+val single: Context[Config] = Context(Config(debug = true))
+```
+
+The type parameter `Config` reflects that the context holds exactly a `Config` instance. This is useful for starting with one dependency and building up from there.
 
 ### Using Context.apply Overloads
 
