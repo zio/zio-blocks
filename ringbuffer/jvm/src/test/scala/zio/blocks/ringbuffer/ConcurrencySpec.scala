@@ -79,7 +79,7 @@ object ConcurrencySpec extends ZIOSpecDefault {
     } @@ TestAspect.timeout(60.seconds),
     test("No Deadlock: 4 threads doing offer/take for 5 seconds") {
       ZIO.attemptBlocking {
-        val rb      = new SpscRingBuffer[java.lang.Integer](16)
+        val rb      = new MpmcRingBuffer[java.lang.Integer](16)
         val running = new AtomicBoolean(true)
         val allDone = new CountDownLatch(4)
 

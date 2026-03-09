@@ -1,3 +1,8 @@
+---
+id: ringbuffer
+title: "Ring Buffer"
+---
+
 # ZIO Blocks — Ring Buffer (`zio.blocks.ringbuffer`)
 
 `zio.blocks.ringbuffer` is a family of **high-performance, bounded ring buffers** for the JVM (and Scala.js). Each variant is optimized for a specific producer/consumer threading pattern—pick the one that matches your use case and get the fastest possible inter-thread communication with zero dependencies.

@@ -497,7 +497,7 @@ val merged: Context[Config & Metrics] = ctx1 ++ ctx2
 
 ## Ring Buffer
 
-High-performance, bounded ring buffers for inter-thread communication. Four lock-free variants cover every producer/consumer pattern (SPSC, MPSC, SPMC, MPMC), each with an optional blocking wrapper that adds `put`/`take` semantics.
+High-performance, bounded ring buffers for inter-thread communication. Four lock-free variants cover every producer/consumer pattern (SPSC, MPSC, SPMC, MPMC), each with an optional blocking wrapper that adds blocking `offer`/`take` semantics.
 
 ### Why Ring Buffer?
 
@@ -510,7 +510,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Key Features
 
 - **Four concurrency patterns**: SPSC, SPMC, MPSC, MPMC—pick the most constrained variant for your use case
-- **Blocking wrappers**: Each lock-free variant has a blocking counterpart with `put`/`take` that uses `LockSupport.park` (single-waiter) or `ReentrantLock` (multi-waiter)
+- **Blocking wrappers**: Each lock-free variant has a blocking counterpart with `offer`/`take` that uses `LockSupport.park` (single-waiter) or `ReentrantLock` (multi-waiter)
 - **Loom-friendly**: No `synchronized` blocks—virtual threads unmount correctly on `LockSupport.park`
 - **Cross-platform**: Same API on JVM and Scala.js (JS uses sequential implementations)
 
@@ -528,11 +528,11 @@ import zio.blocks.ringbuffer._
 // SPSC: fastest, for dedicated producer-consumer pairs
 val spsc = SpscRingBuffer[String](1024)
 spsc.offer("hello") // true
-spsc.poll()          // "hello"
+spsc.take()          // "hello"
 
 // Blocking MPMC: general-purpose, any number of threads
 val mpmc = BlockingMpmcRingBuffer[String](1024)
-mpmc.put("hello")    // blocks if full
+mpmc.offer("hello")  // blocks if full
 mpmc.take()          // blocks if empty
 ```
 
