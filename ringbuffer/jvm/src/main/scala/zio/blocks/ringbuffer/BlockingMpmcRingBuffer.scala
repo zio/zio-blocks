@@ -34,8 +34,8 @@ import java.util.concurrent.locks.ReentrantLock
  * engaging the blocking machinery. If it succeeds, it signals `notEmpty` so a
  * waiting consumer can proceed. Similarly, `take` attempts `inner.poll` first.
  *
- * '''Null elements are not permitted.''' `offer(null)` and `tryOffer(null)` throw
- * `NullPointerException`.
+ * '''Null elements are not permitted.''' `offer(null)` and `tryOffer(null)`
+ * throw `NullPointerException`.
  *
  * @param capacity
  *   the buffer capacity, must be a power of two >= 2

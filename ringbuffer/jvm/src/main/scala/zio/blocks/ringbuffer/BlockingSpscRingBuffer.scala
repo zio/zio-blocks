@@ -22,19 +22,19 @@ import java.util.concurrent.locks.LockSupport
  * A blocking wrapper around [[SpscRingBuffer]] for Single Producer, Single
  * Consumer use cases.
  *
- * Provides [[offer]] (blocking insert) and [[take]] (blocking remove) in addition
- * to the non-blocking [[tryOffer]] and [[tryTake]] delegates. Uses the Dekker-like
- * volatile-Thread + `LockSupport.park/unpark` pattern recommended by the JDK
- * and JCTools for single-waiter blocking.
+ * Provides [[offer]] (blocking insert) and [[take]] (blocking remove) in
+ * addition to the non-blocking [[tryOffer]] and [[tryTake]] delegates. Uses the
+ * Dekker-like volatile-Thread + `LockSupport.park/unpark` pattern recommended
+ * by the JDK and JCTools for single-waiter blocking.
  *
  * '''Loom-friendly''': `LockSupport.park` correctly unmounts virtual threads
  * from carrier threads (no pinning). No `synchronized` blocks are used.
  *
  * '''Thread-safety contract''': Exactly one producer thread and one consumer
  * thread may access this buffer concurrently. The producer thread calls
- * [[tryOffer]] or [[offer]]; the consumer thread calls [[tryTake]] or [[take]]. Calling
- * both [[offer]] and [[tryOffer]] from different threads, or both [[take]] and
- * [[tryTake]] from different threads, violates the SPSC contract.
+ * [[tryOffer]] or [[offer]]; the consumer thread calls [[tryTake]] or [[take]].
+ * Calling both [[offer]] and [[tryOffer]] from different threads, or both
+ * [[take]] and [[tryTake]] from different threads, violates the SPSC contract.
  *
  * '''Null elements are not permitted.'''
  *

@@ -63,7 +63,7 @@ private[ringbuffer] class MpscPad3 extends MpscConsumerFields {
  *   - The consumer reads elements using acquire semantics. A `null` slot
  *     indicates either an empty queue or a producer that has claimed a slot but
  *     has not yet written the element (the "FastFlow" pattern). In the latter
-   *     case, `take` returns `null` rather than spinning, following `relaxedPoll`
+ *     case, `take` returns `null` rather than spinning, following `relaxedPoll`
  *     semantics.
  *   - A cached `producerLimit` avoids reading `consumerIndex` on every offer,
  *     reducing cross-core traffic.

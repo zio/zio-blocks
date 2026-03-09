@@ -18,21 +18,21 @@ class MpscBenchmark {
   var impl: String = uninitialized
 
   private var zioQ: MpscRingBuffer[java.lang.Integer] = uninitialized
-  private var jcQ: MpscArrayQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var jcQ: MpscArrayQueue[java.lang.Integer]  = uninitialized
+  private val ITEM: java.lang.Integer                 = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; jcQ = null
     impl match {
-      case "ZIO_MPSC" => zioQ = new MpscRingBuffer[java.lang.Integer](1024)
+      case "ZIO_MPSC"     => zioQ = new MpscRingBuffer[java.lang.Integer](1024)
       case "JCTOOLS_MPSC" => jcQ = new MpscArrayQueue[java.lang.Integer](1024)
     }
   }
 
   @Benchmark @Group("mpsc") @GroupThreads(2)
   def produce(control: Control): Unit = impl match {
-    case "ZIO_MPSC" => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
+    case "ZIO_MPSC"     => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
     case "JCTOOLS_MPSC" => while (!control.stopMeasurement && !jcQ.offer(ITEM)) Thread.onSpinWait()
   }
 
@@ -58,21 +58,21 @@ class SpmcBenchmark {
   var impl: String = uninitialized
 
   private var zioQ: SpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var jcQ: SpmcArrayQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var jcQ: SpmcArrayQueue[java.lang.Integer]  = uninitialized
+  private val ITEM: java.lang.Integer                 = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; jcQ = null
     impl match {
-      case "ZIO_SPMC" => zioQ = new SpmcRingBuffer[java.lang.Integer](1024)
+      case "ZIO_SPMC"     => zioQ = new SpmcRingBuffer[java.lang.Integer](1024)
       case "JCTOOLS_SPMC" => jcQ = new SpmcArrayQueue[java.lang.Integer](1024)
     }
   }
 
   @Benchmark @Group("spmc") @GroupThreads(1)
   def produce(control: Control): Unit = impl match {
-    case "ZIO_SPMC" => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
+    case "ZIO_SPMC"     => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
     case "JCTOOLS_SPMC" => while (!control.stopMeasurement && !jcQ.offer(ITEM)) Thread.onSpinWait()
   }
 
@@ -98,21 +98,21 @@ class MpmcBenchmark {
   var impl: String = uninitialized
 
   private var zioQ: MpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var jcQ: MpmcArrayQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var jcQ: MpmcArrayQueue[java.lang.Integer]  = uninitialized
+  private val ITEM: java.lang.Integer                 = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; jcQ = null
     impl match {
-      case "ZIO_MPMC" => zioQ = new MpmcRingBuffer[java.lang.Integer](1024)
+      case "ZIO_MPMC"     => zioQ = new MpmcRingBuffer[java.lang.Integer](1024)
       case "JCTOOLS_MPMC" => jcQ = new MpmcArrayQueue[java.lang.Integer](1024)
     }
   }
 
   @Benchmark @Group("mpmc") @GroupThreads(2)
   def produce(control: Control): Unit = impl match {
-    case "ZIO_MPMC" => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
+    case "ZIO_MPMC"     => while (!control.stopMeasurement && !zioQ.offer(ITEM)) Thread.onSpinWait()
     case "JCTOOLS_MPMC" => while (!control.stopMeasurement && !jcQ.offer(ITEM)) Thread.onSpinWait()
   }
 

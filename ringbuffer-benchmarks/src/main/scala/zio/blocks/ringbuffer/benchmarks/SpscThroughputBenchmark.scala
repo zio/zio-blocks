@@ -31,10 +31,10 @@ class SpscThroughputBenchmark {
   @Param(Array("1024"))
   var capacity: Int = uninitialized
 
-  private var rb: SpscRingBuffer[java.lang.Integer]           = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer]      = uninitialized
-  private var lbq: LinkedBlockingQueue[java.lang.Integer]     = uninitialized
-  private var jcq: SpscArrayQueue[java.lang.Integer]          = uninitialized
+  private var rb: SpscRingBuffer[java.lang.Integer]       = uninitialized
+  private var abq: ArrayBlockingQueue[java.lang.Integer]  = uninitialized
+  private var lbq: LinkedBlockingQueue[java.lang.Integer] = uninitialized
+  private var jcq: SpscArrayQueue[java.lang.Integer]      = uninitialized
 
   private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
 

@@ -7,11 +7,12 @@ import scala.compiletime.uninitialized
 import zio.blocks.ringbuffer.BlockingMpmcRingBuffer
 
 /**
- * Blocking throughput benchmark: put/take in tight loop.
- * Measures raw queue overhead under maximum contention.
- * 
- * Compares BlockingMpmcRingBuffer against JDK ArrayBlockingQueue and LinkedBlockingQueue.
- * All three use put/take (blocking API) for apples-to-apples comparison.
+ * Blocking throughput benchmark: put/take in tight loop. Measures raw queue
+ * overhead under maximum contention.
+ *
+ * Compares BlockingMpmcRingBuffer against JDK ArrayBlockingQueue and
+ * LinkedBlockingQueue. All three use put/take (blocking API) for
+ * apples-to-apples comparison.
  */
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -28,17 +29,17 @@ class BlockingTightBenchmark {
   var capacity: Int = uninitialized
 
   private var zioQ: BlockingMpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer] = uninitialized
-  private var lbq: LinkedBlockingQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var abq: ArrayBlockingQueue[java.lang.Integer]      = uninitialized
+  private var lbq: LinkedBlockingQueue[java.lang.Integer]     = uninitialized
+  private val ITEM: java.lang.Integer                         = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; abq = null; lbq = null
     impl match {
       case "ZIO_MPMC" => zioQ = new BlockingMpmcRingBuffer[java.lang.Integer](capacity)
-      case "ABQ"       => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
-      case "LBQ"       => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
+      case "ABQ"      => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
+      case "LBQ"      => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
     }
   }
 
@@ -47,11 +48,17 @@ class BlockingTightBenchmark {
   @GroupThreads(2)
   def produce(control: Control): Unit = impl match {
     case "ZIO_MPMC" =>
-      if (!control.stopMeasurement) try zioQ.offer(ITEM) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try zioQ.offer(ITEM)
+        catch { case _: InterruptedException => }
     case "ABQ" =>
-      if (!control.stopMeasurement) try abq.put(ITEM) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try abq.put(ITEM)
+        catch { case _: InterruptedException => }
     case "LBQ" =>
-      if (!control.stopMeasurement) try lbq.put(ITEM) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try lbq.put(ITEM)
+        catch { case _: InterruptedException => }
   }
 
   @Benchmark
@@ -59,21 +66,27 @@ class BlockingTightBenchmark {
   @GroupThreads(2)
   def consume(control: Control, bh: Blackhole): Unit = impl match {
     case "ZIO_MPMC" =>
-      if (!control.stopMeasurement) try bh.consume(zioQ.take()) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try bh.consume(zioQ.take())
+        catch { case _: InterruptedException => }
     case "ABQ" =>
-      if (!control.stopMeasurement) try bh.consume(abq.take()) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try bh.consume(abq.take())
+        catch { case _: InterruptedException => }
     case "LBQ" =>
-      if (!control.stopMeasurement) try bh.consume(lbq.take()) catch { case _: InterruptedException => }
+      if (!control.stopMeasurement)
+        try bh.consume(lbq.take())
+        catch { case _: InterruptedException => }
   }
 }
 
 /**
  * Realistic workload benchmark: producers and consumers do simulated work
  * between queue operations. Uses Blackhole.consumeCPU to simulate processing.
- * 
- * This is more representative of real applications where the queue is part
- * of a pipeline, not the sole bottleneck.
- * 
+ *
+ * This is more representative of real applications where the queue is part of a
+ * pipeline, not the sole bottleneck.
+ *
  * Work tokens: 64 = ~100ns of CPU work per operation on modern hardware.
  */
 @BenchmarkMode(Array(Mode.Throughput))
@@ -94,17 +107,17 @@ class BlockingRealisticBenchmark {
   var workTokens: Int = uninitialized
 
   private var zioQ: BlockingMpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer] = uninitialized
-  private var lbq: LinkedBlockingQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var abq: ArrayBlockingQueue[java.lang.Integer]      = uninitialized
+  private var lbq: LinkedBlockingQueue[java.lang.Integer]     = uninitialized
+  private val ITEM: java.lang.Integer                         = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; abq = null; lbq = null
     impl match {
       case "ZIO_MPMC" => zioQ = new BlockingMpmcRingBuffer[java.lang.Integer](capacity)
-      case "ABQ"       => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
-      case "LBQ"       => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
+      case "ABQ"      => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
+      case "LBQ"      => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
     }
   }
 
@@ -112,14 +125,20 @@ class BlockingRealisticBenchmark {
   @Group("blocking_realistic")
   @GroupThreads(2)
   def produce(control: Control): Unit = {
-    Blackhole.consumeCPU(workTokens)  // simulate work before producing
+    Blackhole.consumeCPU(workTokens) // simulate work before producing
     impl match {
       case "ZIO_MPMC" =>
-        if (!control.stopMeasurement) try zioQ.offer(ITEM) catch { case _: InterruptedException => }
+        if (!control.stopMeasurement)
+          try zioQ.offer(ITEM)
+          catch { case _: InterruptedException => }
       case "ABQ" =>
-        if (!control.stopMeasurement) try abq.put(ITEM) catch { case _: InterruptedException => }
+        if (!control.stopMeasurement)
+          try abq.put(ITEM)
+          catch { case _: InterruptedException => }
       case "LBQ" =>
-        if (!control.stopMeasurement) try lbq.put(ITEM) catch { case _: InterruptedException => }
+        if (!control.stopMeasurement)
+          try lbq.put(ITEM)
+          catch { case _: InterruptedException => }
     }
   }
 
@@ -128,18 +147,21 @@ class BlockingRealisticBenchmark {
   @GroupThreads(2)
   def consume(control: Control, bh: Blackhole): Unit = impl match {
     case "ZIO_MPMC" =>
-      if (!control.stopMeasurement) try { bh.consume(zioQ.take()); Blackhole.consumeCPU(workTokens) } catch { case _: InterruptedException => }
+      if (!control.stopMeasurement) try { bh.consume(zioQ.take()); Blackhole.consumeCPU(workTokens) }
+      catch { case _: InterruptedException => }
     case "ABQ" =>
-      if (!control.stopMeasurement) try { bh.consume(abq.take()); Blackhole.consumeCPU(workTokens) } catch { case _: InterruptedException => }
+      if (!control.stopMeasurement) try { bh.consume(abq.take()); Blackhole.consumeCPU(workTokens) }
+      catch { case _: InterruptedException => }
     case "LBQ" =>
-      if (!control.stopMeasurement) try { bh.consume(lbq.take()); Blackhole.consumeCPU(workTokens) } catch { case _: InterruptedException => }
+      if (!control.stopMeasurement) try { bh.consume(lbq.take()); Blackhole.consumeCPU(workTokens) }
+      catch { case _: InterruptedException => }
   }
 }
 
 /**
- * Scalability benchmark: varies producer/consumer thread counts.
- * Uses 1P/1C as baseline, then 2P/2C, 4P/4C.
- * Tight put/take loop (no simulated work) to isolate queue contention scaling.
+ * Scalability benchmark: varies producer/consumer thread counts. Uses 1P/1C as
+ * baseline, then 2P/2C, 4P/4C. Tight put/take loop (no simulated work) to
+ * isolate queue contention scaling.
  */
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -153,15 +175,15 @@ class BlockingScalabilityBenchmark {
   var impl: String = uninitialized
 
   private var zioQ: BlockingMpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var abq: ArrayBlockingQueue[java.lang.Integer]      = uninitialized
+  private val ITEM: java.lang.Integer                         = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
     zioQ = null; abq = null
     impl match {
       case "ZIO_MPMC" => zioQ = new BlockingMpmcRingBuffer[java.lang.Integer](1024)
-      case "ABQ"       => abq = new ArrayBlockingQueue[java.lang.Integer](1024)
+      case "ABQ"      => abq = new ArrayBlockingQueue[java.lang.Integer](1024)
     }
   }
 
@@ -170,27 +192,39 @@ class BlockingScalabilityBenchmark {
   @Group("scale_1p1c")
   @GroupThreads(1)
   def produce_1p1c(control: Control): Unit = impl match {
-    case "ZIO_MPMC" => if (!control.stopMeasurement) try zioQ.offer(ITEM) catch { case _: InterruptedException => }
-    case "ABQ"      => if (!control.stopMeasurement) try abq.put(ITEM) catch { case _: InterruptedException => }
+    case "ZIO_MPMC" =>
+      if (!control.stopMeasurement)
+        try zioQ.offer(ITEM)
+        catch { case _: InterruptedException => }
+    case "ABQ" =>
+      if (!control.stopMeasurement)
+        try abq.put(ITEM)
+        catch { case _: InterruptedException => }
   }
 
   @Benchmark
   @Group("scale_1p1c")
   @GroupThreads(1)
   def consume_1p1c(control: Control, bh: Blackhole): Unit = impl match {
-    case "ZIO_MPMC" => if (!control.stopMeasurement) try bh.consume(zioQ.take()) catch { case _: InterruptedException => }
-    case "ABQ"      => if (!control.stopMeasurement) try bh.consume(abq.take()) catch { case _: InterruptedException => }
+    case "ZIO_MPMC" =>
+      if (!control.stopMeasurement)
+        try bh.consume(zioQ.take())
+        catch { case _: InterruptedException => }
+    case "ABQ" =>
+      if (!control.stopMeasurement)
+        try bh.consume(abq.take())
+        catch { case _: InterruptedException => }
   }
 }
 
 /**
- * Fast-path advantage benchmark: the buffer is pre-filled to ~50% capacity,
- * and producers/consumers operate at matched rates with light work (8 CPU tokens).
- * 
- * The buffer stays in the "happy middle" — never empty, never full.
- * Our offer/poll hits the lock-free fast path every time.
- * ABQ still acquires its ReentrantLock on every single put/take.
- * 
+ * Fast-path advantage benchmark: the buffer is pre-filled to ~50% capacity, and
+ * producers/consumers operate at matched rates with light work (8 CPU tokens).
+ *
+ * The buffer stays in the "happy middle" — never empty, never full. Our
+ * offer/poll hits the lock-free fast path every time. ABQ still acquires its
+ * ReentrantLock on every single put/take.
+ *
  * This isolates the lock acquisition overhead that ABQ pays and we avoid.
  *
  * Uses non-blocking offer/poll (not put/take) so neither side ever blocks.
@@ -212,9 +246,9 @@ class BlockingFastPathBenchmark {
   var capacity: Int = uninitialized
 
   private var zioQ: BlockingMpmcRingBuffer[java.lang.Integer] = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer] = uninitialized
-  private var lbq: LinkedBlockingQueue[java.lang.Integer] = uninitialized
-  private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
+  private var abq: ArrayBlockingQueue[java.lang.Integer]      = uninitialized
+  private var lbq: LinkedBlockingQueue[java.lang.Integer]     = uninitialized
+  private val ITEM: java.lang.Integer                         = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {

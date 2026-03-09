@@ -36,8 +36,8 @@ import java.util.concurrent.locks.{LockSupport, ReentrantLock}
  * underlying non-blocking operation fails (i.e., `offer` returns `false` or
  * `poll` returns `null`).
  *
- * '''Null elements are not permitted.''' `offer(null)` and `tryOffer(null)` throw
- * `NullPointerException`.
+ * '''Null elements are not permitted.''' `offer(null)` and `tryOffer(null)`
+ * throw `NullPointerException`.
  *
  * @param capacity
  *   the buffer capacity, must be a positive power of two

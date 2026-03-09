@@ -22,8 +22,8 @@ import java.util.concurrent.locks.{LockSupport, ReentrantLock}
  * A blocking wrapper around [[MpscRingBuffer]] for Multiple Producer, Single
  * Consumer use cases.
  *
- * Provides [[offer]] (blocking insert) and [[take]] (blocking remove) in addition
- * to the non-blocking [[tryOffer]] and [[tryTake]] delegates.
+ * Provides [[offer]] (blocking insert) and [[take]] (blocking remove) in
+ * addition to the non-blocking [[tryOffer]] and [[tryTake]] delegates.
  *
  * '''Blocking strategy''':
  *   - '''Consumer side''' (single waiter): volatile `Thread` field +
@@ -35,8 +35,8 @@ import java.util.concurrent.locks.{LockSupport, ReentrantLock}
  *
  * '''Thread-safety contract''': Any number of producer threads may call
  * [[tryOffer]] or [[offer]] concurrently. Exactly one consumer thread may call
- * [[tryTake]] or [[take]]. Calling consumer methods from multiple threads violates
- * the single-consumer invariant.
+ * [[tryTake]] or [[take]]. Calling consumer methods from multiple threads
+ * violates the single-consumer invariant.
  *
  * '''Null elements are not permitted.'''
  *

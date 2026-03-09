@@ -20,10 +20,11 @@ package zio.blocks.ringbuffer
  * A sequential blocking MPMC ring buffer for generic reference types (Scala.js
  * implementation).
  *
- * Since Scala.js is single-threaded, blocking operations (`offer`, `take`) throw
- * `UnsupportedOperationException` — a single-threaded runtime cannot block
- * waiting for another thread to make progress. The non-blocking operations
- * (`tryOffer`, `tryTake`) delegate to the underlying [[MpmcRingBuffer]].
+ * Since Scala.js is single-threaded, blocking operations (`offer`, `take`)
+ * throw `UnsupportedOperationException` — a single-threaded runtime cannot
+ * block waiting for another thread to make progress. The non-blocking
+ * operations (`tryOffer`, `tryTake`) delegate to the underlying
+ * [[MpmcRingBuffer]].
  *
  * @param capacity
  *   the buffer capacity, must be a power of two >= 2
