@@ -644,7 +644,7 @@ Scope.global.scoped { scope =>
   ))
 
   $(app) { a =>
-    println(s"App service created: $a")
+    println("App service created: " + a.toString())
   }
 }
 ```
@@ -823,7 +823,7 @@ val dbWire = Wire.shared[Database]
 Scope.global.scoped { scope =>
   import scope.*
   val db = allocate(Resource.from[Database](urlWire, dbWire))
-  $(db) { d => println(s"Connected to $d") }
+  $(db) { d => println("Connected to " + d.toString()) }
 }
 ```
 
