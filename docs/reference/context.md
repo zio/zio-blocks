@@ -126,11 +126,9 @@ Context provides several ways to create instances. Choose the approach that best
 
 Use `Context.empty` to create an empty context with no entries:
 
-```scala mdoc:silent:reset
+```scala mdoc:reset
 import zio.blocks.context._
-```
 
-```scala mdoc
 val emptyCtx: Context[Any] = Context.empty
 val isEmpty = emptyCtx.isEmpty
 ```
@@ -145,11 +143,8 @@ An empty context has type `Context[Any]` and represents no stored dependencies. 
 
 Create a context with one value:
 
-```scala mdoc:silent
-case class Config(debug: Boolean)
-```
-
 ```scala mdoc
+case class Config(debug: Boolean)
 val single: Context[Config] = Context(Config(debug = true))
 ```
 
@@ -157,11 +152,9 @@ val single: Context[Config] = Context(Config(debug = true))
 
 Create a context with multiple values—the type parameter automatically becomes an intersection of all stored types:
 
-```scala mdoc:silent
-case class Logger(name: String)
-```
-
 ```scala mdoc
+case class Logger(name: String)
+
 val multi: Context[Config & Logger] = Context(
   Config(debug = true),
   Logger("myapp")

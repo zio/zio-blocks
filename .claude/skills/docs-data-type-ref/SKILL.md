@@ -158,18 +158,16 @@ object Chunk {
 }
 ```
 d. **Show a usage example** using the Setup + Evaluated Output pattern:
-   - Use `mdoc:silent` to define any types/values needed for the example
-   - Use bare `mdoc` (not `mdoc:compile-only`) to show the method call and its evaluated result
+   - Combine setup and output in a **single code block** using `mdoc:silent:reset` (or just `mdoc:reset` if resetting state)
+   - Setup code goes first (define types/values needed), followed by the method call and output
    - This demonstrates both how to call the method AND what it returns
 
    Example pattern:
    ```
-   ​```scala mdoc:silent
+   ​```scala mdoc:reset
    case class Person(name: String)
    val p = Person("Alice")
-   ```
 
-   ```scala mdoc
    p.name  // Shows: val res0: String = Alice
    ```
 
