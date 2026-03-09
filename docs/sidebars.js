@@ -41,6 +41,7 @@ const sidebars = {
          },
          "reference/context",
          "scope",
+         "reference/wire",
          "reference/docs",
          "reference/json",
          "reference/json-patch",
