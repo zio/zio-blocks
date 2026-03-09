@@ -251,6 +251,8 @@ val e2 = notEmpty.nonEmpty
 
 ### Retrieval
 
+The following methods let you retrieve values from a context by type:
+
 #### Context#get
 
 Retrieves a value by type. The type bound `A >: R` ensures that a value of type `A` (or a subtype of `A`) is present at compile time:
