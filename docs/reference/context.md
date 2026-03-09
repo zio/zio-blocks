@@ -120,13 +120,9 @@ libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
 
 ## Construction
 
-Context provides several ways to create instances, from empty contexts to pre-populated ones with type inference.
+Context provides several ways to create instances. Choose the approach that best fits your use case: start empty and add values incrementally, or construct a fully-populated context directly with `apply`.
 
-### Creating Empty and Single-Value Contexts
-
-The simplest way to start building a Context is with an empty context or a context containing a single value.
-
-#### Empty Context
+### Creating Empty Contexts
 
 Use `Context.empty` to create an empty context with no entries:
 
@@ -139,11 +135,15 @@ val emptyCtx: Context[Any] = Context.empty
 val isEmpty = emptyCtx.isEmpty
 ```
 
-An empty context has type `Context[Any]` and represents no stored dependencies. You can then add entries to it incrementally.
+An empty context has type `Context[Any]` and represents no stored dependencies. This is a useful starting point for incremental construction.
 
-#### Single-Value Context
+### Creating Multi-Value Contexts with apply
 
-Create a context with a single value using the single-argument `Context.apply`:
+`Context.apply` is overloaded to accept 1–10 values and returns a context with type `Context[A1 & A2 & ...]`, reflecting all stored types.
+
+#### Single Value
+
+Create a context with one value:
 
 ```scala mdoc:silent
 case class Config(debug: Boolean)
@@ -153,21 +153,16 @@ case class Config(debug: Boolean)
 val single: Context[Config] = Context(Config(debug = true))
 ```
 
-The type parameter `Config` reflects that the context holds exactly a `Config` instance. This is useful for starting with one dependency and building up from there.
+#### Multiple Values
 
-### Using Context.apply Overloads
-
-`Context.apply` is overloaded to accept 1–10 values and returns `Context[A1 & A2 & ...]`:
+Create a context with multiple values—the type parameter automatically becomes an intersection of all stored types:
 
 ```scala mdoc:silent
-case class Config(debug: Boolean)
 case class Logger(name: String)
 ```
 
 ```scala mdoc
-val ctx1: Context[Config] = Context(Config(debug = true))
-
-val ctx2: Context[Config & Logger] = Context(
+val multi: Context[Config & Logger] = Context(
   Config(debug = true),
   Logger("myapp")
 )
@@ -175,7 +170,7 @@ val ctx2: Context[Config & Logger] = Context(
 
 ### Building Incrementally with add
 
-To start from `Context.empty` and build up, use `Context#add`:
+For contexts that grow over time, use `Context#add` to build incrementally from an empty context. This is useful when dependencies become available at different points in your initialization:
 
 ```scala mdoc
 val ctx = Context.empty
@@ -183,11 +178,15 @@ val ctx = Context.empty
   .add(Logger("init"))
 ```
 
-The context holds both entries, confirming the additions:
+The context accumulates all added entries:
 
 ```scala mdoc
 val size1 = ctx.size
 ```
+
+**When to use `add` vs. `apply`:**
+- Use `apply` when you know all dependencies upfront and can construct them together
+- Use `add` when dependencies are added incrementally or conditionally
 
 ## Core Operations
 
