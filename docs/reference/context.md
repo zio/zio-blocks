@@ -455,9 +455,10 @@ Here is a comparison of Context with related alternatives:
 
 ## Integration with Wire and Scope
 
-`Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. `Wire.make` constructs the wire, and `Scope.global.scoped` provides a managed scope in which to instantiate it:
+`Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. Wire and Scope work together to provide type-safe, compile-checked dependency injection:
 
-```scala mdoc:compile-only
+```scala
+// Pseudocode illustrating how Context integrates with Wire and Scope
 import zio.blocks.scope._
 import zio.blocks.context._
 
