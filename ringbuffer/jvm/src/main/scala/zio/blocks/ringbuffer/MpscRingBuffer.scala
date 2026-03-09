@@ -254,8 +254,14 @@ object MpscRingBuffer {
     MethodHandles.arrayElementVarHandle(classOf[Array[AnyRef]])
 
   /**
-   * Creates a new `MpscRingBuffer` with the given capacity (must be a power of
-   * 2).
+   * Creates a new `MpscRingBuffer` with the given capacity.
+   *
+   * @param capacity
+   *   the buffer capacity, must be a positive power of two
+   * @tparam A
+   *   the element type (must be a reference type)
+   * @return
+   *   a new lock-free MPSC ring buffer
    */
   def apply[A <: AnyRef](capacity: Int): MpscRingBuffer[A] = new MpscRingBuffer[A](capacity)
 }

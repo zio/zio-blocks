@@ -7,7 +7,7 @@ title: "Ring Buffer"
 
 `zio.blocks.ringbuffer` is a family of **high-performance, bounded ring buffers** for the JVM (and Scala.js). Each variant is optimized for a specific producer/consumer threading pattern—pick the one that matches your use case and get the fastest possible inter-thread communication with zero dependencies.
 
-All buffers share the same core API: `offer`/`take` (non-blocking) and, for blocking variants, `offer`/`take` (blocking) plus `tryOffer`/`tryTake` (non-blocking). Capacity must be a **power of two** (enables bitwise masking instead of modulo). Elements must be **non-null reference types** (`A <: AnyRef`).
+Lock-free variants expose `offer` (returns `false` if full) and `take` (returns `null` if empty)—both non-blocking. Blocking variants expose `offer`/`take` (block until space/element is available) and `tryOffer`/`tryTake` (non-blocking, same semantics as the lock-free API). Capacity must be a **power of two** (enables bitwise masking instead of modulo). Elements must be **non-null reference types** (`A <: AnyRef`).
 
 ## Ring buffer variants
 
@@ -197,7 +197,7 @@ if (!buf.offer("data")) {
   println("Buffer full, applying backpressure")
 }
 
-// Try to poll without blocking
+// Try to take without blocking
 val result = buf.take()
 if (result != null) {
   println(s"Got: $result")
@@ -272,7 +272,7 @@ This is zero-allocation, zero-CAS for the blocking path—just a volatile write 
 
 ## Thread-safety contract
 
-Violating the threading contract (e.g., calling `poll` from multiple threads on an `SpscRingBuffer`) results in **undefined behavior**. No runtime check is performed—this is enforced by contract for maximum performance.
+Violating the threading contract (e.g., calling `take` from multiple threads on an `SpscRingBuffer`) results in **undefined behavior**. No runtime check is performed—this is enforced by contract for maximum performance.
 
 | Type | `offer` / `tryOffer` | `take` / `tryTake` |
 |------|------------------|-----------------|

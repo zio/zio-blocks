@@ -52,8 +52,9 @@ final class BlockingMpscRingBuffer[A <: AnyRef](val capacity: Int) {
   @volatile private var waitingConsumer: Thread = null
 
   // --- Producer blocking: ReentrantLock + Condition (multiple producers) ---
-  private val producerLock = new ReentrantLock()
-  private val notFull      = producerLock.newCondition()
+  private val producerLock                          = new ReentrantLock()
+  private val notFull                               = producerLock.newCondition()
+  @volatile private var waitingProducerCount: Int = 0
 
   /**
    * Inserts an element, blocking the calling thread if the buffer is full.
@@ -77,7 +78,12 @@ final class BlockingMpscRingBuffer[A <: AnyRef](val capacity: Int) {
     // Fast path failed — buffer is full, need to block
     producerLock.lockInterruptibly()
     try {
-      while (!inner.offer(a)) notFull.await()
+      waitingProducerCount += 1
+      try {
+        while (!inner.offer(a)) notFull.await()
+      } finally {
+        waitingProducerCount -= 1
+      }
     } finally {
       producerLock.unlock()
     }
@@ -178,9 +184,11 @@ final class BlockingMpscRingBuffer[A <: AnyRef](val capacity: Int) {
   }
 
   private def wakeProducers(): Unit = {
-    producerLock.lock()
-    try notFull.signal()
-    finally producerLock.unlock()
+    if (waitingProducerCount > 0) {
+      producerLock.lock()
+      try notFull.signal()
+      finally producerLock.unlock()
+    }
   }
 }
 

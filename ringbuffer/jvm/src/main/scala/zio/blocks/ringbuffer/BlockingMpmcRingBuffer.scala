@@ -30,9 +30,10 @@ import java.util.concurrent.locks.ReentrantLock
  *   - '''`consumerLock` + `notEmpty`''' — consumers acquire this lock and await
  *     when the buffer is empty.
  *
- * '''Fast-path optimization:''' The `put` method attempts `inner.offer` before
- * engaging the blocking machinery. If it succeeds, it signals `notEmpty` so a
- * waiting consumer can proceed. Similarly, `take` attempts `inner.poll` first.
+ * '''Fast-path optimization:''' The `offer` method attempts `inner.offer`
+ * before engaging the blocking machinery. If it succeeds, it signals
+ * `notEmpty` so a waiting consumer can proceed. Similarly, `take` attempts
+ * `inner.take()` first.
  *
  * '''Null elements are not permitted.''' `offer(null)` and `tryOffer(null)`
  * throw `NullPointerException`.
@@ -47,6 +48,9 @@ final class BlockingMpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   // --- Producer blocking: ReentrantLock + Condition ---
   private val producerLock = new ReentrantLock()
   private val notFull      = producerLock.newCondition()
+
+  @volatile private var waitingProducerCount: Int  = 0
+  @volatile private var waitingConsumerCount: Int = 0
 
   // --- Consumer blocking: ReentrantLock + Condition ---
   private val consumerLock = new ReentrantLock()
@@ -83,7 +87,12 @@ final class BlockingMpmcRingBuffer[A <: AnyRef](val capacity: Int) {
     // Slow path: buffer is full, need to block
     producerLock.lockInterruptibly()
     try {
-      while (!inner.offer(a)) notFull.await()
+      waitingProducerCount += 1
+      try {
+        while (!inner.offer(a)) notFull.await()
+      } finally {
+        waitingProducerCount -= 1
+      }
     } finally {
       producerLock.unlock()
     }
@@ -120,12 +129,17 @@ final class BlockingMpmcRingBuffer[A <: AnyRef](val capacity: Int) {
     val e = {
       consumerLock.lockInterruptibly()
       try {
-        var r = inner.take()
-        while (r == null) {
-          notEmpty.await()
-          r = inner.take()
+        waitingConsumerCount += 1
+        try {
+          var r = inner.take()
+          while (r == null) {
+            notEmpty.await()
+            r = inner.take()
+          }
+          r
+        } finally {
+          waitingConsumerCount -= 1
         }
-        r
       } finally {
         consumerLock.unlock()
       }
@@ -190,23 +204,27 @@ final class BlockingMpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def isFull: Boolean = inner.isFull
 
   /**
-   * Signals one consumer waiting on the `notEmpty` condition. Acquires the
-   * `consumerLock` briefly to perform the signal.
+   * Signals one consumer waiting on the `notEmpty` condition. Only acquires the
+   * `consumerLock` if there are actually waiting consumers.
    */
   private def signalNotEmpty(): Unit = {
-    consumerLock.lock()
-    try notEmpty.signal()
-    finally consumerLock.unlock()
+    if (waitingConsumerCount > 0) {
+      consumerLock.lock()
+      try notEmpty.signal()
+      finally consumerLock.unlock()
+    }
   }
 
   /**
-   * Signals one producer waiting on the `notFull` condition. Acquires the
-   * `producerLock` briefly to perform the signal.
+   * Signals one producer waiting on the `notFull` condition. Only acquires the
+   * `producerLock` if there are actually waiting producers.
    */
   private def signalNotFull(): Unit = {
-    producerLock.lock()
-    try notFull.signal()
-    finally producerLock.unlock()
+    if (waitingProducerCount > 0) {
+      producerLock.lock()
+      try notFull.signal()
+      finally producerLock.unlock()
+    }
   }
 }
 
