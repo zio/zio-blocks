@@ -88,7 +88,7 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
    *
    * @param a
    *   the element to insert; must not be `null`
-   * @throws NullPointerException
+   * @throws java.lang.NullPointerException
    *   if the element is `null`
    * @return
    *   `true` if the element was successfully inserted, `false` if the buffer is
