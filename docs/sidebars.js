@@ -13,7 +13,6 @@ const sidebars = {
          "reference/binding-resolver",
          "reference/registers",
          "reference/typeid",
-         "reference/allows",
          "reference/modifier",
          "reference/dynamic-value",
          "reference/dynamic-schema",
