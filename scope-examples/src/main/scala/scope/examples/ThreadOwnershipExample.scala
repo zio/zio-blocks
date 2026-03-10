@@ -14,8 +14,8 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
 
   def getInfo: String = {
     val currentThread = Thread.currentThread()
-    val owner = createdThread.getName
-    val current = currentThread.getName
+    val owner         = createdThread.getName
+    val current       = currentThread.getName
     if (createdThread eq currentThread) {
       s"[$name] Safe: owned by '$owner', accessed by '$current' (same thread)"
     } else {
@@ -31,13 +31,17 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
  * Demonstrates thread ownership enforcement in ZIO Blocks Scope.
  *
  * This example shows:
- *   - Scope.global: `isOwner` always true; any thread can create children from it
- *   - Scope.Child: captures the creating thread; `isOwner` checks `Thread.currentThread() eq owner`
- *   - Scope.open(): creates an unowned child scope; `isOwner` always true from any thread
- *   - Calling `scoped` on a Scope.Child from a different thread throws IllegalStateException
+ *   - Scope.global: `isOwner` always true; any thread can create children from
+ *     it
+ *   - Scope.Child: captures the creating thread; `isOwner` checks
+ *     `Thread.currentThread() eq owner`
+ *   - Scope.open(): creates an unowned child scope; `isOwner` always true from
+ *     any thread
+ *   - Calling `scoped` on a Scope.Child from a different thread throws
+ *     IllegalStateException
  *
- * Thread ownership prevents accidentally passing a scope to another thread and using it there,
- * which would violate structured concurrency guarantees.
+ * Thread ownership prevents accidentally passing a scope to another thread and
+ * using it there, which would violate structured concurrency guarantees.
  */
 @main def runThreadOwnershipExample(): Unit = {
   println("=== Thread Ownership Example ===\n")
