@@ -68,10 +68,10 @@ object JsonMatch {
     case (SchemaRepr.Optional(inner), value) =>
       matches(inner, value)
 
-    case (SchemaRepr.Variant(cases), _) =>
-      // JSON doesn't have tagged variants, so we can't match by case name
-      // However, we could try to match the value against any of the case patterns
-      variantMatches(cases, json)
+    case (SchemaRepr.Variant(_), _) =>
+      // JSON has no tagged variants - we cannot distinguish between variant cases
+      // without schema context, so structural matching would produce false positives
+      false
 
     case (SchemaRepr.Nominal(_), _) =>
       // Nominal types require schema context not available in JSON

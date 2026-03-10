@@ -1332,8 +1332,8 @@ object DynamicValue {
           // First element goes to top of stack, processed first
           stack = s.elements.iterator.toList ++ stack
         case m: Map =>
-          // Search both keys and values, first entry's key processed first
-          stack = m.entries.iterator.flatMap { case (k, v) => Iterator(k, v) }.toList ++ stack
+          // Search map values only (not keys), consistent with iterativeTransform
+          stack = m.entries.iterator.map(_._2).toList ++ stack
         case _: Primitive | Null =>
           // Primitives and Null have no children
           ()

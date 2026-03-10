@@ -430,7 +430,7 @@ object DynamicOptic {
 
   implicit lazy val typeSearchSchema: Schema[Node.TypeSearch] = new Schema(
     reflect = new Reflect.Record[Binding, Node.TypeSearch](
-      fields = Vector(
+      fields = Chunk.single(
         Schema[TypeId[?]].reflect.asTerm("typeId")
       ),
       typeId = TypeId.of[Node.TypeSearch],
@@ -446,13 +446,13 @@ object DynamicOptic {
             out.setObject(offset + 0, in.typeId)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val schemaSearchSchema: Schema[Node.SchemaSearch] = new Schema(
     reflect = new Reflect.Record[Binding, Node.SchemaSearch](
-      fields = Vector(
+      fields = Chunk.single(
         Schema[SchemaRepr].reflect.asTerm("schemaRepr")
       ),
       typeId = TypeId.of[Node.SchemaSearch],
@@ -468,7 +468,7 @@ object DynamicOptic {
             out.setObject(offset + 0, in.schemaRepr)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
