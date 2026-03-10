@@ -268,27 +268,19 @@ object JsonMatchSpec extends SchemaBaseSpec {
       }
     ),
     suite("Variant matching")(
-      test("Variant matches if value matches any case pattern") {
+      test("Variant always returns false since JSON has no tagged variants") {
         val pattern = SchemaRepr.Variant(
           Vector(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
         )
-        // JSON doesn't have tagged variants, but we try to match against any case pattern
+        // JSON has no tagged variants, so we cannot distinguish variant cases
         assertTrue(
-          JsonMatch.matches(pattern, Json.Number(42)),
-          JsonMatch.matches(pattern, Json.String("hello"))
+          !JsonMatch.matches(pattern, Json.Number(42)),
+          !JsonMatch.matches(pattern, Json.String("hello")),
+          !JsonMatch.matches(pattern, Json.Boolean(true))
         )
-      },
-      test("Variant rejects if value matches no case pattern") {
-        val pattern = SchemaRepr.Variant(
-          Vector(
-            "Left"  -> SchemaRepr.Primitive("int"),
-            "Right" -> SchemaRepr.Primitive("string")
-          )
-        )
-        assertTrue(!JsonMatch.matches(pattern, Json.Boolean(true)))
       }
     ),
     suite("Nested patterns")(

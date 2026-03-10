@@ -3046,14 +3046,14 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val result = rec.delete(path)
         assertTrue(result == rec)
       },
-      test("SchemaSearch in Map finds both keys and values") {
-        // Both keys and values are searched
+      test("SchemaSearch in Map finds values only, not keys") {
+        // Only map values are searched, not keys (consistent with modify behavior)
         val k1     = DynamicValue.string("key1")
         val map    = DynamicValue.Map(k1 -> intVal)
         val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
         val result = map.get(path)
-        // Should find 1 string (the key)
-        assertTrue(result.toChunk.length == 1)
+        // Key is a string but should not be found; value is int so no matches
+        assertTrue(result.toChunk.isEmpty)
       },
       test("modify with SchemaSearch updates matching values inside Variant payload") {
         val variant = DynamicValue.Variant("Some", DynamicValue.string("old"))
