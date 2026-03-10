@@ -94,7 +94,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    *
    * @param a
    *   the element to insert; must not be `null`
-   * @throws NullPointerException
+   * @throws java.lang.NullPointerException
    *   if the element is `null`
    * @return
    *   `true` if the element was successfully inserted, `false` if the buffer is
@@ -206,7 +206,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    *   the callback invoked for each drained element
    * @param limit
    *   the maximum number of elements to drain; must be non-negative
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
    * @return
    *   the number of elements actually drained (0 if the buffer is empty)
