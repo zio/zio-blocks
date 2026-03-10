@@ -239,7 +239,7 @@ private[smithy] object SmithyParser {
     private def parseApplyStatement(): Either[SmithyError, ApplyStatement] = {
       expectString("apply")
       skipWsInline()
-      val target = readIdentifier()
+      val target = readApplyTarget()
       if (target.isEmpty) return Left(error("Expected shape name after 'apply'"))
       skipWsInline()
       val traits = collectTraits() match {
@@ -1098,6 +1098,19 @@ private[smithy] object SmithyParser {
       sb.append(first)
       // Check for dots (namespace) or hash (absolute)
       while (!atEnd && (peekChar() == '.' || peekChar() == '#')) {
+        sb.append(advance())
+        val next = readIdentifier()
+        sb.append(next)
+      }
+      sb.toString
+    }
+
+    private def readApplyTarget(): String = {
+      val sb    = new StringBuilder
+      val first = readIdentifier()
+      if (first.isEmpty) return ""
+      sb.append(first)
+      while (!atEnd && (peekChar() == '.' || peekChar() == '#' || peekChar() == '$')) {
         sb.append(advance())
         val next = readIdentifier()
         sb.append(next)

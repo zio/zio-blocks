@@ -71,6 +71,18 @@ private[smithy] object SmithyPrinter {
       sb.append('\n')
     }
 
+    if (model.applyStatements.nonEmpty) {
+      model.applyStatements.foreach { a =>
+        sb.append('\n')
+        a.traits.foreach { t =>
+          sb.append("apply ").append(a.target)
+          sb.append(' ')
+          appendTraitApplication(sb, t)
+          sb.append('\n')
+        }
+      }
+    }
+
     sb.toString
   }
 

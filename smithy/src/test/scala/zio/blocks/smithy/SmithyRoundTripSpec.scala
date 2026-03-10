@@ -14,10 +14,10 @@ object SmithyRoundTripSpec extends ZIOSpecDefault {
 
   private def assertRoundTrip(input: String) = {
     val result = roundTrip(input)
-    assertTrue(
-      result.isRight,
-      result.toOption.get._1 == result.toOption.get._2
-    )
+    result match {
+      case Right((m1, m2)) => assertTrue(m1 == m2)
+      case Left(_)         => assertTrue(false)
+    }
   }
 
   def spec = suite("SmithyRoundTrip")(
