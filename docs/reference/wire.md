@@ -493,6 +493,13 @@ cd zio-blocks
 **2. Run individual examples with sbt:**
 
 **Basic wire construction: deriving shared wires, lifting values, and converting to resources**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
+```
+
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireBasicExample.scala))
 
 ```bash
@@ -500,6 +507,13 @@ sbt "scope-examples/runMain wire.WireBasicExample"
 ```
 
 **Comparing shared vs unique semantics: shared wires reuse the same instance across dependents, while unique wires create fresh instances**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.scala")
+```
+
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireSharedUniqueExample.scala))
 
 ```bash
@@ -507,16 +521,15 @@ sbt "scope-examples/runMain wire.WireSharedUniqueExample"
 ```
 
 **Manual wire construction: using fromFunction for custom construction logic**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.scala")
+```
+
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireFromFunctionExample.scala))
 
 ```bash
 sbt "scope-examples/runMain wire.WireFromFunctionExample"
 ```
-
-The existing examples in `scope-examples/src/main/scala/scope/examples/` also demonstrate Wire usage in larger application contexts:
-
-- `LayeredWebServiceExample.scala` — auto-wiring a multi-layer web service
-- `DatabaseConnectionExample.scala` — resource lifecycle management with `AutoCloseable`
-- `CachingSharedLoggerExample.scala` — shared singleton pattern
-- `PluginArchitectureExample.scala` — dynamic wiring with trait implementations
-- `CircularDependencyDemoExample.scala` — detecting and breaking cycles
