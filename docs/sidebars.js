@@ -40,7 +40,7 @@ const sidebars = {
            ]
          },
          "reference/context",
-         "scope",
+         "reference/scope",
          "reference/wire",
          "reference/docs",
          "reference/json",
