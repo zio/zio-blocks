@@ -60,30 +60,171 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     result
   }
 
+  // ── N-ary $ operator ────────────────────────────────────────────────────
+  //
+  // N=1: use `(scope $ sa)(f)` or `$(sa)(f)` after `import scope._`
+  // N≥2: use `$(sa1, sa2)(f)` after `import scope._`
+  //       (infix syntax is not available for N≥2)
+  // N>5: compose — `$(sa1)(v1 => $(sa2)(v2 => ...))`
+  //
+  // All are whitebox macros: the declared return type `Any` is refined at
+  // expansion time to B (when Unscoped[B] exists) or $[B] (otherwise).
+
   /**
-   * Macro-enforced access to a scoped value.
+   * Macro-enforced access to a scoped value (N=1).
    *
-   * Unwraps the scoped value, applies the function, and returns the result. If
-   * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
-   * (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`. The macro
-   * verifies at compile time that the lambda parameter is only used in
-   * method-receiver position (e.g., `x.method()`), preventing resource leaks.
-   *
+   * @tparam A
+   *   the underlying type of the scoped value
+   * @tparam B
+   *   the result type produced by the lambda
    * @param sa
    *   the scoped value to access
    * @param f
    *   a lambda whose parameter is only used as a method receiver
-   * @tparam A
-   *   the input value type
-   * @tparam B
-   *   the output value type
    * @return
-   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
   def $[A, B](sa: $[A])(f: A => B): Any = macro ScopeMacros.useImpl
+
+  /**
+   * Macro-enforced access to two scoped values simultaneously (N=2).
+   *
+   * Both parameters are subject to the receiver-only constraint enforced by the
+   * macro: each may only appear as a method receiver in the lambda body.
+   * Feeding the result of one to a method of the other is permitted.
+   *
+   * @example
+   *   {{{
+   *   scope.$(conn1, conn2) { (c1, c2) =>
+   *     c1.query(c2.key())
+   *   }
+   *   }}}
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(f: (A1, A2) => B): Any =
+    macro ScopeMacros.use2Impl
+
+  /**
+   * Macro-enforced access to three scoped values simultaneously (N=3).
+   *
+   * All three parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(f: (A1, A2, A3) => B): Any =
+    macro ScopeMacros.use3Impl
+
+  /**
+   * Macro-enforced access to four scoped values simultaneously (N=4).
+   *
+   * All four parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, A4, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4])(
+    f: (A1, A2, A3, A4) => B
+  ): Any = macro ScopeMacros.use4Impl
+
+  /**
+   * Macro-enforced access to five scoped values simultaneously (N=5).
+   *
+   * All five parameters are subject to the receiver-only constraint. See the
+   * N=2 overload for full details.
+   *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam A3
+   *   the underlying type of the third scoped value
+   * @tparam A4
+   *   the underlying type of the fourth scoped value
+   * @tparam A5
+   *   the underlying type of the fifth scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param sa3
+   *   the third scoped value to access
+   * @param sa4
+   *   the fourth scoped value to access
+   * @param sa5
+   *   the fifth scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
+   * @throws java.lang.IllegalStateException
+   *   if this scope is already closed
+   */
+  def $[A1, A2, A3, A4, A5, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4], sa5: $[A5])(
+    f: (A1, A2, A3, A4, A5) => B
+  ): Any = macro ScopeMacros.use5Impl
 
   /**
    * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time

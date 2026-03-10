@@ -24,6 +24,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
+| **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
@@ -494,6 +495,47 @@ val merged: Context[Config & Metrics] = ctx1 ++ ctx2
 
 ---
 
+## Ring Buffer
+
+High-performance, bounded ring buffers for inter-thread communication. Four lock-free variants cover every producer/consumer pattern (SPSC, MPSC, SPMC, MPMC).
+
+### Why Ring Buffer?
+
+Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQueue`) or coarse locking (`ArrayBlockingQueue`). Ring buffers avoid both:
+
+- **Zero allocation** on the hot path—pre-allocated circular array
+- **Lock-free** on the fast path—CAS or release/acquire semantics only
+- **Cache-friendly**—sequential memory access with 128-byte padding between producer/consumer fields
+
+### Key Features
+
+- **Four concurrency patterns**: SPSC, SPMC, MPSC, MPMC—pick the most constrained variant for your use case
+- **Cross-platform**: Same API on JVM and Scala.js (JS uses sequential implementations)
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "@VERSION@"
+```
+
+### Example
+
+```scala
+import zio.blocks.ringbuffer._
+
+// SPSC: fastest, for dedicated producer-consumer pairs
+val spsc = SpscRingBuffer[String](1024)
+spsc.offer("hello") // true
+spsc.take()          // "hello"
+
+// MPMC: general-purpose, any number of threads
+val mpmc = MpmcRingBuffer[String](1024)
+mpmc.offer("hello") // false if full
+mpmc.take()          // null if empty
+```
+
+---
+
 ## Streams (In Development)
 
 A pull-based streaming library for composable, backpressure-aware data processing.
@@ -526,10 +568,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Streams |
-|----------|--------|-------|-------|------|--------|---------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 
@@ -577,6 +619,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
+- [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [Ring Buffer](./ringbuffer.md) - High-performance bounded ring buffers
 
 ### Guides
 

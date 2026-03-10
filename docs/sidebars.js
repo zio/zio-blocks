@@ -57,6 +57,8 @@ const sidebars = {
          "reference/xml",
          "reference/syntax",
          "reference/media-type",
+         "reference/http-model",
+         "ringbuffer",
       ]
     },
     {

@@ -17,67 +17,64 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
     "https://raw.githubusercontent.com/json-schema-org/JSON-Schema-Test-Suite/main/tests/draft2020-12"
 
   private val testFiles = List(
-    "type.json",
-    "properties.json",
     "additionalProperties.json",
-    "items.json",
-    "prefixItems.json",
     "allOf.json",
+    // "anchor.json",
     "anyOf.json",
-    "oneOf.json",
-    "not.json",
-    "if-then-else.json",
-    "const.json",
-    "enum.json",
-    "minimum.json",
-    "maximum.json",
-    "exclusiveMinimum.json",
-    "exclusiveMaximum.json",
-    "minLength.json",
-    "maxLength.json",
-    "pattern.json",
-    "minItems.json",
-    "maxItems.json",
-    "uniqueItems.json",
-    "minProperties.json",
-    "maxProperties.json",
-    "required.json",
     "boolean_schema.json",
+    "const.json",
     "contains.json",
-    "multipleOf.json",
-    "propertyNames.json",
+    "content.json",
+    "default.json",
+    // "defs.json",
     "dependentRequired.json",
     "dependentSchemas.json",
+    "dynamicRef.json",
+    "enum.json",
+    "exclusiveMinimum.json",
+    "exclusiveMaximum.json",
+    "format.json",
+    "if-then-else.json",
+    "infinity-loop-detection.json",
+    "items.json",
+    "maxContains.json",
+    "maxLength.json",
+    "maxItems.json",
+    "maxProperties.json",
+    "maximum.json",
+    "minContains.json",
+    "minLength.json",
+    "minItems.json",
+    "minProperties.json",
+    "minimum.json",
+    "multipleOf.json",
+    "not.json",
+    "oneOf.json",
+    "pattern.json",
+    "patternProperties.json",
+    "prefixItems.json",
+    "properties.json",
+    "propertyNames.json",
+    // "ref.json",
+    // "refRemote.json",
+    "required.json",
+    "type.json",
     "unevaluatedItems.json",
-    "unevaluatedProperties.json"
+    "unevaluatedProperties.json",
+    "uniqueItems.json"
+    // "vocabulary.json"
   )
 
-  private val skippedTestGroups: Set[String] = Set(
-    "remote ref",
-    "$ref",
+  private val failingTestGroups: Set[String] = Set(
     "$dynamicref",
     "$dynamicanchor",
-    "$id",
-    "anchor",
-    "nested refs",
-    "ref within ref",
-    "location-independent identifier",
     "cyclic ref",
-    "ref inside allof",
-    "ref inside oneOf"
+    "strict-tree schema",
+    "dynamic anchor and reference link"
   )
 
-  private val knownLimitations: Set[String] = Set(
-    "float zero is valid",
-    "float one is valid",
-    "float is valid",
-    "integer -2 is valid",
-    "[0.0] is valid",
-    "[1.0] is valid",
-    "one grapheme is not long enough",
-    "two graphemes is long enough",
-    "valid items",
-    "fewer items is valid",
+  private val failingTests: Set[String] = Set(
+    "digits do not match",
     "second item is evaluated by contains",
     "5 not evaluated, passes unevaluatedItems",
     "all items evaluated by contains",
@@ -86,14 +83,15 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
     "a's, b's and c's are valid",
     "a's and b's are valid",
     "when if is false and has unevaluated properties",
-    "numbers are unique if mathematically unequal"
+    "numbers are unique if mathematically unequal",
+    "string is only an annotation by default"
   )
 
-  private def shouldSkipGroup(description: String): Boolean =
-    skippedTestGroups.exists(skip => description.toLowerCase.contains(skip.toLowerCase))
+  private def isFailingTestGroup(description: String): Boolean =
+    failingTestGroups.exists(skip => description.toLowerCase.contains(skip.toLowerCase))
 
-  private def isKnownLimitation(description: String): Boolean =
-    knownLimitations.contains(description)
+  private def isFailingTest(description: String): Boolean =
+    failingTests.exists(skip => description.toLowerCase.contains(skip.toLowerCase))
 
   private def ensureTestSuiteDownloaded(): Unit = {
     if (!testSuiteDir.exists()) {
@@ -155,7 +153,7 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
   }
 
   private def runTestGroup(group: TestGroup): Spec[Any, Nothing] =
-    if (shouldSkipGroup(group.description)) {
+    if (isFailingTestGroup(group.description)) {
       suite(s"${group.description} (SKIPPED - requires ref resolution)")(
         test("skipped") {
           assertTrue(true)
@@ -180,7 +178,7 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
                   assertTrue(!result)
                 }
               }
-              if (isKnownLimitation(tc.description)) {
+              if (isFailingTest(tc.description)) {
                 baseTest @@ ignore
               } else {
                 baseTest
