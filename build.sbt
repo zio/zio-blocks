@@ -15,7 +15,9 @@ inThisBuild(
     licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
-    developers := List(
+    startYear     := Some(2024),
+    headerLicense := Some(HeaderLicense.ALv2("2024-2026", "John A. De Goes and the ZIO Contributors")),
+    developers    := List(
       Developer(
         "jdegoes",
         "John De Goes",
