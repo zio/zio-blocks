@@ -4,130 +4,130 @@ import zio.test._
 
 object NodeValueSpec extends ZIOSpecDefault {
   def spec = suite("NodeValue")(
-    suite("StringValue")(
+    suite("String")(
       test("creates string value") {
-        val value = NodeValue.StringValue("hello")
-        assertTrue(value.asInstanceOf[NodeValue.StringValue].value == "hello")
+        val value = NodeValue.String("hello")
+        assertTrue(value.asInstanceOf[NodeValue.String].value == "hello")
       },
       test("handles empty string") {
-        val value = NodeValue.StringValue("")
-        assertTrue(value.asInstanceOf[NodeValue.StringValue].value == "")
+        val value = NodeValue.String("")
+        assertTrue(value.asInstanceOf[NodeValue.String].value == "")
       },
       test("handles string with special characters") {
-        val value = NodeValue.StringValue("hello\nworld\t!")
-        assertTrue(value.asInstanceOf[NodeValue.StringValue].value == "hello\nworld\t!")
+        val value = NodeValue.String("hello\nworld\t!")
+        assertTrue(value.asInstanceOf[NodeValue.String].value == "hello\nworld\t!")
       }
     ),
-    suite("NumberValue")(
+    suite("Number")(
       test("creates number value from Int") {
-        val value = NodeValue.NumberValue(BigDecimal(42))
-        assertTrue(value.asInstanceOf[NodeValue.NumberValue].value == BigDecimal(42))
+        val value = NodeValue.Number(BigDecimal(42))
+        assertTrue(value.asInstanceOf[NodeValue.Number].value == BigDecimal(42))
       },
       test("creates number value from Double") {
-        val value = NodeValue.NumberValue(BigDecimal(3.14))
-        val num   = value.asInstanceOf[NodeValue.NumberValue].value
+        val value = NodeValue.Number(BigDecimal(3.14))
+        val num   = value.asInstanceOf[NodeValue.Number].value
         assertTrue(num.toDouble == 3.14)
       },
       test("creates number value from large integer") {
-        val value = NodeValue.NumberValue(BigDecimal("123456789012345678901234567890"))
-        val num   = value.asInstanceOf[NodeValue.NumberValue].value
+        val value = NodeValue.Number(BigDecimal("123456789012345678901234567890"))
+        val num   = value.asInstanceOf[NodeValue.Number].value
         assertTrue(num == BigDecimal("123456789012345678901234567890"))
       },
       test("creates negative number") {
-        val value = NodeValue.NumberValue(BigDecimal(-42))
-        assertTrue(value.asInstanceOf[NodeValue.NumberValue].value == BigDecimal(-42))
+        val value = NodeValue.Number(BigDecimal(-42))
+        assertTrue(value.asInstanceOf[NodeValue.Number].value == BigDecimal(-42))
       },
       test("creates zero") {
-        val value = NodeValue.NumberValue(BigDecimal(0))
-        assertTrue(value.asInstanceOf[NodeValue.NumberValue].value == BigDecimal(0))
+        val value = NodeValue.Number(BigDecimal(0))
+        assertTrue(value.asInstanceOf[NodeValue.Number].value == BigDecimal(0))
       }
     ),
-    suite("BooleanValue")(
+    suite("Boolean")(
       test("creates true value") {
-        val value = NodeValue.BooleanValue(true)
-        assertTrue(value.asInstanceOf[NodeValue.BooleanValue].value == true)
+        val value = NodeValue.Boolean(true)
+        assertTrue(value.asInstanceOf[NodeValue.Boolean].value == true)
       },
       test("creates false value") {
-        val value = NodeValue.BooleanValue(false)
-        assertTrue(value.asInstanceOf[NodeValue.BooleanValue].value == false)
+        val value = NodeValue.Boolean(false)
+        assertTrue(value.asInstanceOf[NodeValue.Boolean].value == false)
       }
     ),
-    suite("NullValue")(
+    suite("Null")(
       test("creates null value") {
-        val value = NodeValue.NullValue
-        assertTrue(value.isInstanceOf[NodeValue.NullValue.type])
+        val value = NodeValue.Null
+        assertTrue(value.isInstanceOf[NodeValue.Null.type])
       }
     ),
-    suite("ArrayValue")(
+    suite("Array")(
       test("creates empty array") {
-        val value = NodeValue.ArrayValue(List.empty)
-        assertTrue(value.asInstanceOf[NodeValue.ArrayValue].values.isEmpty)
+        val value = NodeValue.Array(List.empty)
+        assertTrue(value.asInstanceOf[NodeValue.Array].values.isEmpty)
       },
       test("creates array with string values") {
         val values = List(
-          NodeValue.StringValue("a"),
-          NodeValue.StringValue("b"),
-          NodeValue.StringValue("c")
+          NodeValue.String("a"),
+          NodeValue.String("b"),
+          NodeValue.String("c")
         )
-        val array = NodeValue.ArrayValue(values)
-        assertTrue(array.asInstanceOf[NodeValue.ArrayValue].values.length == 3)
+        val array = NodeValue.Array(values)
+        assertTrue(array.asInstanceOf[NodeValue.Array].values.length == 3)
       },
       test("creates array with mixed types") {
         val values = List(
-          NodeValue.StringValue("hello"),
-          NodeValue.NumberValue(BigDecimal(42)),
-          NodeValue.BooleanValue(true),
-          NodeValue.NullValue
+          NodeValue.String("hello"),
+          NodeValue.Number(BigDecimal(42)),
+          NodeValue.Boolean(true),
+          NodeValue.Null
         )
-        val array = NodeValue.ArrayValue(values)
-        val arr   = array.asInstanceOf[NodeValue.ArrayValue]
+        val array = NodeValue.Array(values)
+        val arr   = array.asInstanceOf[NodeValue.Array]
         assertTrue(
           arr.values.length == 4,
-          arr.values(0).isInstanceOf[NodeValue.StringValue],
-          arr.values(1).isInstanceOf[NodeValue.NumberValue],
-          arr.values(2).isInstanceOf[NodeValue.BooleanValue],
-          arr.values(3) == NodeValue.NullValue
+          arr.values(0).isInstanceOf[NodeValue.String],
+          arr.values(1).isInstanceOf[NodeValue.Number],
+          arr.values(2).isInstanceOf[NodeValue.Boolean],
+          arr.values(3) == NodeValue.Null
         )
       },
       test("creates array with nested arrays") {
-        val inner1 = NodeValue.ArrayValue(
-          List(NodeValue.StringValue("a"), NodeValue.StringValue("b"))
+        val inner1 = NodeValue.Array(
+          List(NodeValue.String("a"), NodeValue.String("b"))
         )
-        val inner2 = NodeValue.ArrayValue(
-          List(NodeValue.NumberValue(BigDecimal(1)), NodeValue.NumberValue(BigDecimal(2)))
+        val inner2 = NodeValue.Array(
+          List(NodeValue.Number(BigDecimal(1)), NodeValue.Number(BigDecimal(2)))
         )
-        val outer = NodeValue.ArrayValue(List(inner1, inner2))
-        val arr   = outer.asInstanceOf[NodeValue.ArrayValue]
+        val outer = NodeValue.Array(List(inner1, inner2))
+        val arr   = outer.asInstanceOf[NodeValue.Array]
         assertTrue(
           arr.values.length == 2,
-          arr.values(0).isInstanceOf[NodeValue.ArrayValue],
-          arr.values(1).isInstanceOf[NodeValue.ArrayValue]
+          arr.values(0).isInstanceOf[NodeValue.Array],
+          arr.values(1).isInstanceOf[NodeValue.Array]
         )
       }
     ),
-    suite("ObjectValue")(
+    suite("Object")(
       test("creates empty object") {
-        val value = NodeValue.ObjectValue(List.empty)
-        assertTrue(value.asInstanceOf[NodeValue.ObjectValue].fields.isEmpty)
+        val value = NodeValue.Object(List.empty)
+        assertTrue(value.asInstanceOf[NodeValue.Object].fields.isEmpty)
       },
       test("creates object with single field") {
-        val fields = List(("name", NodeValue.StringValue("Alice")))
-        val obj    = NodeValue.ObjectValue(fields)
-        val o      = obj.asInstanceOf[NodeValue.ObjectValue]
+        val fields = List(("name", NodeValue.String("Alice")))
+        val obj    = NodeValue.Object(fields)
+        val o      = obj.asInstanceOf[NodeValue.Object]
         assertTrue(
           o.fields.length == 1,
           o.fields(0)._1 == "name",
-          o.fields(0)._2.asInstanceOf[NodeValue.StringValue].value == "Alice"
+          o.fields(0)._2.asInstanceOf[NodeValue.String].value == "Alice"
         )
       },
       test("creates object with multiple fields") {
         val fields = List(
-          ("name", NodeValue.StringValue("Alice")),
-          ("age", NodeValue.NumberValue(BigDecimal(30))),
-          ("active", NodeValue.BooleanValue(true))
+          ("name", NodeValue.String("Alice")),
+          ("age", NodeValue.Number(BigDecimal(30))),
+          ("active", NodeValue.Boolean(true))
         )
-        val obj = NodeValue.ObjectValue(fields)
-        val o   = obj.asInstanceOf[NodeValue.ObjectValue]
+        val obj = NodeValue.Object(fields)
+        val o   = obj.asInstanceOf[NodeValue.Object]
         assertTrue(
           o.fields.length == 3,
           o.fields(0)._1 == "name",
@@ -136,58 +136,58 @@ object NodeValueSpec extends ZIOSpecDefault {
         )
       },
       test("creates object with nested object") {
-        val inner = NodeValue.ObjectValue(
-          List(("street", NodeValue.StringValue("123 Main St")))
+        val inner = NodeValue.Object(
+          List(("street", NodeValue.String("123 Main St")))
         )
         val fields = List(
           ("address", inner)
         )
-        val obj = NodeValue.ObjectValue(fields)
-        val o   = obj.asInstanceOf[NodeValue.ObjectValue]
+        val obj = NodeValue.Object(fields)
+        val o   = obj.asInstanceOf[NodeValue.Object]
         assertTrue(
           o.fields.length == 1,
           o.fields(0)._1 == "address",
-          o.fields(0)._2.isInstanceOf[NodeValue.ObjectValue]
+          o.fields(0)._2.isInstanceOf[NodeValue.Object]
         )
       },
       test("creates object with array field") {
-        val array = NodeValue.ArrayValue(
-          List(NodeValue.StringValue("tag1"), NodeValue.StringValue("tag2"))
+        val array = NodeValue.Array(
+          List(NodeValue.String("tag1"), NodeValue.String("tag2"))
         )
         val fields = List(("tags", array))
-        val obj    = NodeValue.ObjectValue(fields)
-        val o      = obj.asInstanceOf[NodeValue.ObjectValue]
+        val obj    = NodeValue.Object(fields)
+        val o      = obj.asInstanceOf[NodeValue.Object]
         assertTrue(
           o.fields.length == 1,
           o.fields(0)._1 == "tags",
-          o.fields(0)._2.isInstanceOf[NodeValue.ArrayValue]
+          o.fields(0)._2.isInstanceOf[NodeValue.Array]
         )
       },
       test("creates complex nested structure") {
-        val address = NodeValue.ObjectValue(
+        val address = NodeValue.Object(
           List(
-            ("street", NodeValue.StringValue("123 Main St")),
-            ("city", NodeValue.StringValue("Springfield"))
+            ("street", NodeValue.String("123 Main St")),
+            ("city", NodeValue.String("Springfield"))
           )
         )
-        val tags = NodeValue.ArrayValue(
-          List(NodeValue.StringValue("developer"), NodeValue.StringValue("scala"))
+        val tags = NodeValue.Array(
+          List(NodeValue.String("developer"), NodeValue.String("scala"))
         )
-        val person = NodeValue.ObjectValue(
+        val person = NodeValue.Object(
           List(
-            ("name", NodeValue.StringValue("Alice")),
-            ("age", NodeValue.NumberValue(BigDecimal(30))),
+            ("name", NodeValue.String("Alice")),
+            ("age", NodeValue.Number(BigDecimal(30))),
             ("address", address),
             ("tags", tags),
-            ("active", NodeValue.BooleanValue(true))
+            ("active", NodeValue.Boolean(true))
           )
         )
-        val p = person.asInstanceOf[NodeValue.ObjectValue]
+        val p = person.asInstanceOf[NodeValue.Object]
         assertTrue(
           p.fields.length == 5,
           p.fields(0)._1 == "name",
-          p.fields(2)._2.isInstanceOf[NodeValue.ObjectValue],
-          p.fields(3)._2.isInstanceOf[NodeValue.ArrayValue]
+          p.fields(2)._2.isInstanceOf[NodeValue.Object],
+          p.fields(3)._2.isInstanceOf[NodeValue.Array]
         )
       }
     )

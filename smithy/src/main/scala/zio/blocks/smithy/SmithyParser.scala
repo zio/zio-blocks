@@ -8,7 +8,7 @@ package zio.blocks.smithy
  * metadata, use statements, shape definitions (simple, aggregate, enum,
  * service), trait applications, documentation comments, and apply statements.
  */
-object SmithyParser {
+private[smithy] object SmithyParser {
 
   /**
    * Parses a Smithy IDL string into a `SmithyModel`.
@@ -780,7 +780,7 @@ object SmithyParser {
         // Check if it's a structured value (key: value pairs) or a single value
         if (!atEnd && peekChar() == ')') {
           advance() // empty ()
-          Right(TraitApplication(shapeId, Some(NodeValue.ObjectValue(Nil))))
+          Right(TraitApplication(shapeId, Some(NodeValue.Object(Nil))))
         } else {
           // Look ahead to determine if this is an object body (key: value) or a single value
           val savedPos    = pos
@@ -797,7 +797,7 @@ object SmithyParser {
               case Right(fields) =>
                 skipWsAndComments()
                 expectChar(')')
-                Right(TraitApplication(shapeId, Some(NodeValue.ObjectValue(fields))))
+                Right(TraitApplication(shapeId, Some(NodeValue.Object(fields))))
               case Left(err) => Left(err)
             }
           } else {
@@ -848,16 +848,16 @@ object SmithyParser {
       if (atEnd) return Left(error("Unexpected end of input, expected a value"))
 
       peekChar() match {
-        case '"'                         => readQuotedString().map(NodeValue.StringValue(_))
+        case '"'                         => readQuotedString().map(NodeValue.String(_))
         case '['                         => parseArrayValue()
         case '{'                         => parseObjectValue()
-        case c if c == '-' || isDigit(c) => readNumber().map(NodeValue.NumberValue(_))
+        case c if c == '-' || isDigit(c) => readNumber().map(NodeValue.Number(_))
         case c if isIdentStart(c)        =>
           val ident = readIdentifier()
           ident match {
-            case "true"  => Right(NodeValue.BooleanValue(true))
-            case "false" => Right(NodeValue.BooleanValue(false))
-            case "null"  => Right(NodeValue.NullValue)
+            case "true"  => Right(NodeValue.Boolean(true))
+            case "false" => Right(NodeValue.Boolean(false))
+            case "null"  => Right(NodeValue.Null)
             case other   => Left(error("Unexpected identifier in value position: " + other))
           }
         case c => Left(error("Unexpected character '" + c + "' in value position"))
@@ -869,7 +869,7 @@ object SmithyParser {
       skipWsAndComments()
       if (!atEnd && peekChar() == ']') {
         advance()
-        return Right(NodeValue.ArrayValue(Nil))
+        return Right(NodeValue.Array(Nil))
       }
 
       val values = ListBuffer.empty[NodeValue]
@@ -896,7 +896,7 @@ object SmithyParser {
       }
       if (atEnd) return Left(error("Unterminated array"))
       expectChar(']')
-      Right(NodeValue.ArrayValue(values.toList))
+      Right(NodeValue.Array(values.toList))
     }
 
     private def parseObjectValue(): Either[SmithyError, NodeValue] = {
@@ -904,14 +904,14 @@ object SmithyParser {
       skipWsAndComments()
       if (!atEnd && peekChar() == '}') {
         advance()
-        return Right(NodeValue.ObjectValue(Nil))
+        return Right(NodeValue.Object(Nil))
       }
 
       parseObjectFields() match {
         case Right(fields) =>
           skipWsAndComments()
           expectChar('}')
-          Right(NodeValue.ObjectValue(fields))
+          Right(NodeValue.Object(fields))
         case Left(err) => Left(err)
       }
     }

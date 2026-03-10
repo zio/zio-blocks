@@ -8,7 +8,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
     suite("minimal valid files")(
       test("parses version and namespace") {
         val input  = "$version: \"2\"\nnamespace com.example"
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.version == "2",
@@ -17,7 +17,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
       },
       test("parses version 2.0") {
         val input  = "$version: \"2.0\"\nnamespace com.example"
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.version == "2.0"
@@ -29,7 +29,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |
             |namespace com.example
             |""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(result.isRight)
       }
     ),
@@ -39,7 +39,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.shapes.length == 1,
@@ -55,7 +55,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |integer MyInt
             |boolean MyBool
             |blob MyBlob""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.shapes.length == 4,
@@ -82,7 +82,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |bigDecimal BD
             |timestamp T
             |document Doc""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.length == 13,
@@ -108,7 +108,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |use com.other#MyShape""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.useStatements == List(ShapeId("com.other", "MyShape"))
@@ -120,7 +120,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |use com.other#Shape1
             |use com.other#Shape2""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.useStatements.length == 2,
@@ -135,10 +135,10 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata foo = "bar"""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
-          result.toOption.get.metadata == Map("foo" -> NodeValue.StringValue("bar"))
+          result.toOption.get.metadata == Map("foo" -> NodeValue.String("bar"))
         )
       },
       test("parses numeric metadata") {
@@ -146,10 +146,10 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata count = 42""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
-          result.toOption.get.metadata == Map("count" -> NodeValue.NumberValue(BigDecimal(42)))
+          result.toOption.get.metadata == Map("count" -> NodeValue.Number(BigDecimal(42)))
         )
       },
       test("parses boolean metadata") {
@@ -157,10 +157,10 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata debug = true""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
-          result.toOption.get.metadata == Map("debug" -> NodeValue.BooleanValue(true))
+          result.toOption.get.metadata == Map("debug" -> NodeValue.Boolean(true))
         )
       },
       test("parses null metadata") {
@@ -168,10 +168,10 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata nothing = null""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
-          result.toOption.get.metadata == Map("nothing" -> NodeValue.NullValue)
+          result.toOption.get.metadata == Map("nothing" -> NodeValue.Null)
         )
       },
       test("parses array metadata") {
@@ -179,15 +179,15 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata tags = ["a", "b", "c"]""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.metadata == Map(
-            "tags" -> NodeValue.ArrayValue(
+            "tags" -> NodeValue.Array(
               List(
-                NodeValue.StringValue("a"),
-                NodeValue.StringValue("b"),
-                NodeValue.StringValue("c")
+                NodeValue.String("a"),
+                NodeValue.String("b"),
+                NodeValue.String("c")
               )
             )
           )
@@ -198,14 +198,14 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata config = {key: "value", count: 10}""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.metadata == Map(
-            "config" -> NodeValue.ObjectValue(
+            "config" -> NodeValue.Object(
               List(
-                "key"   -> NodeValue.StringValue("value"),
-                "count" -> NodeValue.NumberValue(BigDecimal(10))
+                "key"   -> NodeValue.String("value"),
+                "count" -> NodeValue.Number(BigDecimal(10))
               )
             )
           )
@@ -217,12 +217,12 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |metadata foo = "bar"
             |metadata baz = 42""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.metadata.size == 2,
-          result.toOption.get.metadata("foo") == NodeValue.StringValue("bar"),
-          result.toOption.get.metadata("baz") == NodeValue.NumberValue(BigDecimal(42))
+          result.toOption.get.metadata("foo") == NodeValue.String("bar"),
+          result.toOption.get.metadata("baz") == NodeValue.Number(BigDecimal(42))
         )
       }
     ),
@@ -233,7 +233,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |@required
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.length == 1,
@@ -246,7 +246,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |@documentation("My documentation")
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits == List(TraitApplication.documentation("My documentation"))
@@ -258,7 +258,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |@http(method: "GET", uri: "/foo")
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits == List(TraitApplication.http("GET", "/foo"))
@@ -271,7 +271,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |@required
             |@documentation("doc")
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits.length == 2,
@@ -285,7 +285,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |@smithy.api#required
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits == List(
@@ -301,7 +301,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |/// My documentation
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits == List(TraitApplication.documentation("My documentation"))
@@ -314,7 +314,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |/// Line one
             |/// Line two
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits == List(TraitApplication.documentation("Line one\nLine two"))
@@ -327,7 +327,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |/// My doc
             |@required
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.shapes.head.shape.traits.length == 2,
@@ -342,9 +342,9 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata n = -42""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("n") == NodeValue.NumberValue(BigDecimal(-42))
+          result.toOption.get.metadata("n") == NodeValue.Number(BigDecimal(-42))
         )
       },
       test("parses decimal numbers") {
@@ -352,9 +352,9 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata pi = 3.14""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("pi") == NodeValue.NumberValue(BigDecimal("3.14"))
+          result.toOption.get.metadata("pi") == NodeValue.Number(BigDecimal("3.14"))
         )
       },
       test("parses nested arrays and objects") {
@@ -362,15 +362,15 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata nested = {arr: [1, 2], obj: {a: "b"}}""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("nested") == NodeValue.ObjectValue(
+          result.toOption.get.metadata("nested") == NodeValue.Object(
             List(
-              "arr" -> NodeValue.ArrayValue(
-                List(NodeValue.NumberValue(BigDecimal(1)), NodeValue.NumberValue(BigDecimal(2)))
+              "arr" -> NodeValue.Array(
+                List(NodeValue.Number(BigDecimal(1)), NodeValue.Number(BigDecimal(2)))
               ),
-              "obj" -> NodeValue.ObjectValue(
-                List("a" -> NodeValue.StringValue("b"))
+              "obj" -> NodeValue.Object(
+                List("a" -> NodeValue.String("b"))
               )
             )
           )
@@ -381,9 +381,9 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata empty = []""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("empty") == NodeValue.ArrayValue(Nil)
+          result.toOption.get.metadata("empty") == NodeValue.Array(Nil)
         )
       },
       test("parses empty object") {
@@ -391,9 +391,9 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata empty = {}""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("empty") == NodeValue.ObjectValue(Nil)
+          result.toOption.get.metadata("empty") == NodeValue.Object(Nil)
         )
       }
     ),
@@ -405,7 +405,7 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |namespace com.example
             |// Another comment
             |string MyString""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
           result.toOption.get.shapes.length == 1
@@ -415,12 +415,12 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
     suite("error cases")(
       test("fails on missing version") {
         val input  = "namespace com.example"
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(result.isLeft)
       },
       test("fails on missing namespace") {
         val input  = "$version: \"2\""
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(result.isLeft)
       },
       test("fails on invalid syntax") {
@@ -428,12 +428,12 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |!! invalid""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(result.isLeft)
       },
       test("error includes line and column info") {
         val input  = "namespace com.example"
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         result match {
           case Left(err) =>
             assertTrue(
@@ -463,15 +463,15 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
             |integer Age
             |
             |boolean Active""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         val model  = result.toOption.get
         assertTrue(
           model.version == "2",
           model.namespace == "com.example",
           model.useStatements == List(ShapeId("com.other", "Helper")),
           model.metadata.size == 2,
-          model.metadata("author") == NodeValue.StringValue("test"),
-          model.metadata("version") == NodeValue.NumberValue(BigDecimal(1)),
+          model.metadata("author") == NodeValue.String("test"),
+          model.metadata("version") == NodeValue.Number(BigDecimal(1)),
           model.shapes.length == 3,
           model.shapes(0).name == "Name",
           model.shapes(0).shape.traits == List(TraitApplication.documentation("A name type")),
@@ -488,9 +488,9 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |metadata msg = "hello\nworld"""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
-          result.toOption.get.metadata("msg") == NodeValue.StringValue("hello\nworld")
+          result.toOption.get.metadata("msg") == NodeValue.String("hello\nworld")
         )
       }
     ),
@@ -500,10 +500,10 @@ object SmithyParserSimpleSpec extends ZIOSpecDefault {
           """$version: "2"
             |metadata foo = "bar"
             |namespace com.example""".stripMargin
-        val result = SmithyParser.parse(input)
+        val result = SmithyModel.parse(input)
         assertTrue(
           result.isRight,
-          result.toOption.get.metadata("foo") == NodeValue.StringValue("bar"),
+          result.toOption.get.metadata("foo") == NodeValue.String("bar"),
           result.toOption.get.namespace == "com.example"
         )
       }

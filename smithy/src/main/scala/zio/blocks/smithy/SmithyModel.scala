@@ -31,6 +31,24 @@ final case class SmithyModel(
 ) {
 
   /**
+   * Serializes this model as Smithy IDL text with default 4-space indentation.
+   *
+   * @return
+   *   a String containing valid Smithy IDL text
+   */
+  def prettyPrint: String = SmithyPrinter.print(this)
+
+  /**
+   * Serializes this model as Smithy IDL text with configurable indentation.
+   *
+   * @param indent
+   *   the number of spaces to use for indentation within shapes
+   * @return
+   *   a String containing valid Smithy IDL text
+   */
+  def prettyPrint(indent: Int): String = SmithyPrinter.print(this, indent)
+
+  /**
    * Finds a shape by name within this model.
    *
    * Returns the first ShapeDefinition with the given name, or None if not
@@ -55,6 +73,20 @@ final case class SmithyModel(
    */
   def allShapeIds: List[ShapeId] =
     shapes.map(shapeDef => ShapeId(namespace, shapeDef.name))
+}
+
+object SmithyModel {
+
+  /**
+   * Parses a Smithy IDL string into a `SmithyModel`.
+   *
+   * @param input
+   *   the complete Smithy IDL text to parse
+   * @return
+   *   `Right(SmithyModel)` on success, or `Left(SmithyError)` describing the
+   *   parse failure with location information
+   */
+  def parse(input: String): Either[SmithyError, SmithyModel] = SmithyParser.parse(input)
 }
 
 /**

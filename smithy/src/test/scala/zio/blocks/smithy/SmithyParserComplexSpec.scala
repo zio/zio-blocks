@@ -7,7 +7,7 @@ object SmithyParserComplexSpec extends ZIOSpecDefault {
   private val header = "$version: \"2\"\nnamespace com.example\n"
 
   private def parse(body: String): Either[SmithyError, SmithyModel] =
-    SmithyParser.parse(header + body)
+    SmithyModel.parse(header + body)
 
   private def parseOk(body: String): SmithyModel =
     parse(body) match {

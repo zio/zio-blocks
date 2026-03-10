@@ -12,7 +12,7 @@ object TraitApplicationSpec extends ZIOSpecDefault {
       )
     },
     test("create trait application with string value") {
-      val value  = NodeValue.StringValue("my documentation")
+      val value  = NodeValue.String("my documentation")
       val trait1 = TraitApplication(ShapeId("smithy.api", "documentation"), Some(value))
       assertTrue(
         trait1.id == ShapeId("smithy.api", "documentation"),
@@ -31,7 +31,7 @@ object TraitApplicationSpec extends ZIOSpecDefault {
       val trait1 = TraitApplication.documentation(text)
       assertTrue(
         trait1.id == ShapeId("smithy.api", "documentation"),
-        trait1.value.contains(NodeValue.StringValue(text))
+        trait1.value.contains(NodeValue.String(text))
       )
     },
     test("TraitApplication.http creates @http trait with method and uri") {
@@ -48,14 +48,14 @@ object TraitApplicationSpec extends ZIOSpecDefault {
       val uri    = "/api/create"
       val trait1 = TraitApplication.http(method, uri)
       val value  = trait1.value.get
-      assertTrue(value.isInstanceOf[NodeValue.ObjectValue])
+      assertTrue(value.isInstanceOf[NodeValue.Object])
     },
     test("TraitApplication.error creates @error trait") {
       val errorType = "client"
       val trait1    = TraitApplication.error(errorType)
       assertTrue(
         trait1.id == ShapeId("smithy.api", "error"),
-        trait1.value.contains(NodeValue.StringValue(errorType))
+        trait1.value.contains(NodeValue.String(errorType))
       )
     },
     test("multiple trait applications are independent") {
@@ -70,31 +70,31 @@ object TraitApplicationSpec extends ZIOSpecDefault {
       )
     },
     test("trait application with complex object value") {
-      val objectValue = NodeValue.ObjectValue(
+      val objectValue = NodeValue.Object(
         List(
-          "method" -> NodeValue.StringValue("GET"),
-          "uri"    -> NodeValue.StringValue("/path")
+          "method" -> NodeValue.String("GET"),
+          "uri"    -> NodeValue.String("/path")
         )
       )
       val trait1 = TraitApplication(ShapeId("smithy.api", "http"), Some(objectValue))
       assertTrue(
         trait1.id == ShapeId("smithy.api", "http"),
         trait1.value == Some(objectValue),
-        trait1.value.get.isInstanceOf[NodeValue.ObjectValue]
+        trait1.value.get.isInstanceOf[NodeValue.Object]
       )
     },
     test("trait application with array value") {
-      val arrayValue = NodeValue.ArrayValue(
+      val arrayValue = NodeValue.Array(
         List(
-          NodeValue.StringValue("error1"),
-          NodeValue.StringValue("error2")
+          NodeValue.String("error1"),
+          NodeValue.String("error2")
         )
       )
       val trait1 = TraitApplication(ShapeId("smithy.api", "errors"), Some(arrayValue))
       assertTrue(
         trait1.id == ShapeId("smithy.api", "errors"),
         trait1.value == Some(arrayValue),
-        trait1.value.get.isInstanceOf[NodeValue.ArrayValue]
+        trait1.value.get.isInstanceOf[NodeValue.Array]
       )
     },
     test("TraitApplication equality") {

@@ -5,10 +5,10 @@ import zio.test._
 object SmithyRoundTripSpec extends ZIOSpecDefault {
 
   private def roundTrip(input: String): Either[SmithyError, (SmithyModel, SmithyModel)] = {
-    val model1 = SmithyParser.parse(input)
+    val model1 = SmithyModel.parse(input)
     model1.flatMap { m1 =>
-      val printed = SmithyPrinter.print(m1)
-      SmithyParser.parse(printed).map(m2 => (m1, m2))
+      val printed = m1.prettyPrint
+      SmithyModel.parse(printed).map(m2 => (m1, m2))
     }
   }
 
@@ -517,7 +517,7 @@ object SmithyRoundTripSpec extends ZIOSpecDefault {
             |namespace com.example
             |string Foo
             |apply Foo @sensitive""".stripMargin
-        val model1 = SmithyParser.parse(input)
+        val model1 = SmithyModel.parse(input)
         assertTrue(
           model1.isRight,
           model1.toOption.get.applyStatements.length == 1,
@@ -529,9 +529,9 @@ object SmithyRoundTripSpec extends ZIOSpecDefault {
           """$version: "2"
             |namespace com.example
             |string Foo""".stripMargin
-        val model1  = SmithyParser.parse(input)
-        val printed = model1.map(SmithyPrinter.print)
-        val model2  = printed.flatMap(SmithyParser.parse)
+        val model1  = SmithyModel.parse(input)
+        val printed = model1.map(_.prettyPrint)
+        val model2  = printed.flatMap(SmithyModel.parse)
         assertTrue(
           model1.isRight,
           model2.isRight,

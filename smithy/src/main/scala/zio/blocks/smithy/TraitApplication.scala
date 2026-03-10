@@ -40,7 +40,7 @@ object TraitApplication {
   def documentation(text: String): TraitApplication =
     TraitApplication(
       ShapeId("smithy.api", "documentation"),
-      Some(NodeValue.StringValue(text))
+      Some(NodeValue.String(text))
     )
 
   /**
@@ -60,10 +60,10 @@ object TraitApplication {
     TraitApplication(
       ShapeId("smithy.api", "http"),
       Some(
-        NodeValue.ObjectValue(
+        NodeValue.Object(
           List(
-            "method" -> NodeValue.StringValue(method),
-            "uri"    -> NodeValue.StringValue(uri)
+            "method" -> NodeValue.String(method),
+            "uri"    -> NodeValue.String(uri)
           )
         )
       )
@@ -83,6 +83,6 @@ object TraitApplication {
   def error(value: String): TraitApplication =
     TraitApplication(
       ShapeId("smithy.api", "error"),
-      Some(NodeValue.StringValue(value))
+      Some(NodeValue.String(value))
     )
 }

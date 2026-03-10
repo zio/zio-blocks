@@ -37,8 +37,8 @@ object SmithyModelSpec extends ZIOSpecDefault {
       },
       test("creates model with metadata") {
         val meta = Map(
-          "key1" -> NodeValue.StringValue("value1"),
-          "key2" -> NodeValue.NumberValue(BigDecimal(42))
+          "key1" -> NodeValue.String("value1"),
+          "key2" -> NodeValue.Number(BigDecimal(42))
         )
         val model = SmithyModel(
           version = "2.0",
@@ -266,8 +266,8 @@ object SmithyModelSpec extends ZIOSpecDefault {
         )
         val useStmts = List(ShapeId("smithy.api", "String"))
         val metadata = Map(
-          "version"   -> NodeValue.StringValue("1.0"),
-          "timestamp" -> NodeValue.NumberValue(BigDecimal(1234567890))
+          "version"   -> NodeValue.String("1.0"),
+          "timestamp" -> NodeValue.Number(BigDecimal(1234567890))
         )
         val model = SmithyModel(
           version = "2.0",

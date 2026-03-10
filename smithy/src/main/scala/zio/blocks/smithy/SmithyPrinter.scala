@@ -12,11 +12,11 @@ package zio.blocks.smithy
  * val model = SmithyModel("2.0", "com.example", Nil, Map.empty, List(
  *   ShapeDefinition("MyString", StringShape("MyString"))
  * ))
- * val idl = SmithyPrinter.print(model)
+ * val idl = model.prettyPrint
  * // "$$version: \"2.0\"\n\nnamespace com.example\n\nstring MyString\n"
  *   }}}
  */
-object SmithyPrinter {
+private[smithy] object SmithyPrinter {
 
   private val DocumentationTraitId = ShapeId("smithy.api", "documentation")
 
@@ -105,7 +105,7 @@ object SmithyPrinter {
     prefix: String
   ): Unit =
     t.value match {
-      case Some(NodeValue.StringValue(text)) =>
+      case Some(NodeValue.String(text)) =>
         text.split("\n", -1).foreach { line =>
           sb.append(prefix).append("///")
           if (line.nonEmpty) sb.append(' ').append(line)
@@ -123,7 +123,7 @@ object SmithyPrinter {
     t.value.foreach { v =>
       sb.append('(')
       v match {
-        case NodeValue.ObjectValue(fields) =>
+        case NodeValue.Object(fields) =>
           appendObjectFields(sb, fields)
         case other =>
           appendNodeValue(sb, other)
@@ -364,22 +364,22 @@ object SmithyPrinter {
 
   private def appendNodeValue(sb: StringBuilder, v: NodeValue): Unit =
     v match {
-      case NodeValue.StringValue(s) =>
+      case NodeValue.String(s) =>
         sb.append('"').append(escapeString(s)).append('"')
-      case NodeValue.NumberValue(n) =>
+      case NodeValue.Number(n) =>
         sb.append(n.toString)
-      case NodeValue.BooleanValue(b) =>
+      case NodeValue.Boolean(b) =>
         sb.append(if (b) "true" else "false")
-      case NodeValue.NullValue =>
+      case NodeValue.Null =>
         sb.append("null")
-      case NodeValue.ArrayValue(vs) =>
+      case NodeValue.Array(vs) =>
         sb.append('[')
         vs.zipWithIndex.foreach { case (item, i) =>
           appendNodeValue(sb, item)
           if (i < vs.length - 1) sb.append(", ")
         }
         sb.append(']')
-      case NodeValue.ObjectValue(fs) =>
+      case NodeValue.Object(fs) =>
         sb.append('{')
         appendObjectFields(sb, fs)
         sb.append('}')

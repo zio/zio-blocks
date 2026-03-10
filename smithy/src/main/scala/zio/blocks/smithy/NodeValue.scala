@@ -17,7 +17,7 @@ object NodeValue {
    * @param value
    *   the string content
    */
-  final case class StringValue(value: String) extends NodeValue
+  final case class String(value: scala.Predef.String) extends NodeValue
 
   /**
    * A numeric value, supporting arbitrary precision.
@@ -25,7 +25,7 @@ object NodeValue {
    * @param value
    *   the number represented as BigDecimal
    */
-  final case class NumberValue(value: BigDecimal) extends NodeValue
+  final case class Number(value: BigDecimal) extends NodeValue
 
   /**
    * A boolean value (true or false).
@@ -33,12 +33,12 @@ object NodeValue {
    * @param value
    *   the boolean value
    */
-  final case class BooleanValue(value: Boolean) extends NodeValue
+  final case class Boolean(value: scala.Boolean) extends NodeValue
 
   /**
    * The null value, a singleton instance.
    */
-  case object NullValue extends NodeValue
+  case object Null extends NodeValue
 
   /**
    * An array value, containing a list of NodeValues.
@@ -46,7 +46,7 @@ object NodeValue {
    * @param values
    *   the list of values in the array
    */
-  final case class ArrayValue(values: List[NodeValue]) extends NodeValue
+  final case class Array(values: List[NodeValue]) extends NodeValue
 
   /**
    * An object value, containing a list of key-value pairs.
@@ -56,5 +56,5 @@ object NodeValue {
    * @param fields
    *   the list of (key, value) pairs in the object
    */
-  final case class ObjectValue(fields: List[(String, NodeValue)]) extends NodeValue
+  final case class Object(fields: List[(scala.Predef.String, NodeValue)]) extends NodeValue
 }

@@ -17,7 +17,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
       test("prints version and namespace only") {
         val model    = minimalModel()
         val expected = "$version: \"2.0\"\n\nnamespace com.example\n"
-        assertTrue(SmithyPrinter.print(model) == expected)
+        assertTrue(model.prettyPrint == expected)
       }
     ),
     suite("use statements")(
@@ -30,18 +30,18 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
         )
         val expected =
           "$version: \"2.0\"\n\nnamespace com.example\n\nuse smithy.api#String\nuse com.other#Foo\n"
-        assertTrue(SmithyPrinter.print(model) == expected)
+        assertTrue(model.prettyPrint == expected)
       }
     ),
     suite("metadata")(
       test("prints metadata entries") {
         val model = minimalModel(
           metadata = Map(
-            "key1" -> NodeValue.StringValue("value1"),
-            "key2" -> NodeValue.NumberValue(BigDecimal(42))
+            "key1" -> NodeValue.String("value1"),
+            "key2" -> NodeValue.Number(BigDecimal(42))
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("metadata key1 = \"value1\"") &&
             result.contains("metadata key2 = 42")
@@ -53,91 +53,91 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyString", StringShape("MyString")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("string MyString"))
       },
       test("prints integer shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyInt", IntegerShape("MyInt")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("integer MyInt"))
       },
       test("prints boolean shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyBool", BooleanShape("MyBool")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("boolean MyBool"))
       },
       test("prints blob shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyBlob", BlobShape("MyBlob")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("blob MyBlob"))
       },
       test("prints byte shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyByte", ByteShape("MyByte")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("byte MyByte"))
       },
       test("prints short shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyShort", ShortShape("MyShort")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("short MyShort"))
       },
       test("prints long shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyLong", LongShape("MyLong")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("long MyLong"))
       },
       test("prints float shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyFloat", FloatShape("MyFloat")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("float MyFloat"))
       },
       test("prints double shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyDouble", DoubleShape("MyDouble")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("double MyDouble"))
       },
       test("prints bigInteger shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyBigInt", BigIntegerShape("MyBigInt")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("bigInteger MyBigInt"))
       },
       test("prints bigDecimal shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyBigDec", BigDecimalShape("MyBigDec")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("bigDecimal MyBigDec"))
       },
       test("prints timestamp shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyTime", TimestampShape("MyTime")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("timestamp MyTime"))
       },
       test("prints document shape") {
         val model = minimalModel(
           shapes = List(ShapeDefinition("MyDoc", DocumentShape("MyDoc")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("document MyDoc"))
       },
       test("prints simple shape with traits") {
@@ -152,7 +152,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("@sensitive") &&
             result.contains("string MyString")
@@ -180,7 +180,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result   = SmithyPrinter.print(model)
+        val result   = model.prettyPrint
         val expected =
           "structure Foo {\n    @required\n    bar: String\n    baz: Integer\n}"
         assertTrue(result.contains(expected))
@@ -191,7 +191,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             ShapeDefinition("Empty", StructureShape("Empty"))
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("structure Empty {}"))
       }
     ),
@@ -212,7 +212,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("union MyUnion {\n    i32: Integer\n    str: String\n}")
         )
@@ -232,7 +232,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("list MyList {\n    member: String\n}")
         )
@@ -253,7 +253,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("map MyMap {\n    key: String\n    value: Integer\n}")
         )
@@ -276,7 +276,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("enum Suit {\n    SPADES\n    HEARTS\n}")
         )
@@ -297,7 +297,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("RED = \"red\"") &&
             result.contains("BLUE = \"blue\"")
@@ -321,7 +321,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("intEnum FaceCard {\n    JACK = 11\n    QUEEN = 12\n}")
         )
@@ -342,7 +342,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("service MyService {") &&
             result.contains("    version: \"1.0\"") &&
@@ -365,7 +365,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    resources: [FooResource]") &&
             result.contains("    errors: [BadRequest]")
@@ -387,7 +387,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("operation GetFoo {") &&
             result.contains("    input: GetFooInput") &&
@@ -412,7 +412,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    errors: [NotFound, BadRequest]")
         )
@@ -434,7 +434,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("resource FooResource {") &&
             result.contains("    identifiers: {id: FooId}") &&
@@ -458,7 +458,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    create: CreateFoo") &&
             result.contains("    update: UpdateFoo") &&
@@ -481,7 +481,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    operations: [CustomOp]") &&
             result.contains("    collectionOperations: [BatchOp]") &&
@@ -502,7 +502,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("/// This is a documented string") &&
             !result.contains("@documentation")
@@ -520,7 +520,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("/// Line one\n/// Line two\n/// Line three")
         )
@@ -529,26 +529,26 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
     suite("node values")(
       test("prints string value with escapes") {
         val model = minimalModel(
-          metadata = Map("key" -> NodeValue.StringValue("hello \"world\""))
+          metadata = Map("key" -> NodeValue.String("hello \"world\""))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("metadata key = \"hello \\\"world\\\"\""))
       },
       test("prints number value") {
         val model = minimalModel(
-          metadata = Map("num" -> NodeValue.NumberValue(BigDecimal("3.14")))
+          metadata = Map("num" -> NodeValue.Number(BigDecimal("3.14")))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("metadata num = 3.14"))
       },
       test("prints boolean values") {
         val model = minimalModel(
           metadata = Map(
-            "yes" -> NodeValue.BooleanValue(true),
-            "no"  -> NodeValue.BooleanValue(false)
+            "yes" -> NodeValue.Boolean(true),
+            "no"  -> NodeValue.Boolean(false)
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("metadata yes = true") &&
             result.contains("metadata no = false")
@@ -556,38 +556,38 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
       },
       test("prints null value") {
         val model = minimalModel(
-          metadata = Map("nothing" -> NodeValue.NullValue)
+          metadata = Map("nothing" -> NodeValue.Null)
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("metadata nothing = null"))
       },
       test("prints array value") {
         val model = minimalModel(
           metadata = Map(
-            "arr" -> NodeValue.ArrayValue(
+            "arr" -> NodeValue.Array(
               List(
-                NodeValue.StringValue("a"),
-                NodeValue.NumberValue(BigDecimal(1)),
-                NodeValue.BooleanValue(true)
+                NodeValue.String("a"),
+                NodeValue.Number(BigDecimal(1)),
+                NodeValue.Boolean(true)
               )
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("metadata arr = [\"a\", 1, true]"))
       },
       test("prints object value") {
         val model = minimalModel(
           metadata = Map(
-            "obj" -> NodeValue.ObjectValue(
+            "obj" -> NodeValue.Object(
               List(
-                "name"  -> NodeValue.StringValue("test"),
-                "count" -> NodeValue.NumberValue(BigDecimal(5))
+                "name"  -> NodeValue.String("test"),
+                "count" -> NodeValue.Number(BigDecimal(5))
               )
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("metadata obj = {name: \"test\", count: 5}"))
       }
     ),
@@ -604,7 +604,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("@error(\"client\")"))
       },
       test("prints trait with object value") {
@@ -619,7 +619,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("@http(method: \"GET\", uri: \"/foo\")"))
       },
       test("prints trait without value") {
@@ -641,7 +641,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("@required"))
       }
     ),
@@ -661,7 +661,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model, indent = 2)
+        val result = model.prettyPrint(2)
         assertTrue(result.contains("structure Foo {\n  bar: String\n}"))
       }
     ),
@@ -674,7 +674,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             ShapeDefinition("C", BooleanShape("C"))
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("string A\n\ninteger B\n\nboolean C")
         )
@@ -696,7 +696,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("bar: String"))
       },
       test("uses full qualified name when namespace is non-empty") {
@@ -714,7 +714,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("bar: com.other#Widget"))
       }
     ),
@@ -738,7 +738,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         val lines  = result.split("\n", -1)
         assertTrue(lines.forall(line => line == line.stripTrailing()))
       }
@@ -763,7 +763,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    /// The bar field\n    bar: String")
         )
@@ -790,7 +790,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    /// The color red\n    RED")
         )
@@ -817,7 +817,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(
           result.contains("    /// The Jack card\n    JACK = 11")
         )
@@ -826,16 +826,16 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
     suite("escapes backspace and formfeed")(
       test("escapes backspace and formfeed in strings") {
         val model = minimalModel(
-          metadata = Map("key" -> NodeValue.StringValue("a\bb\fc"))
+          metadata = Map("key" -> NodeValue.String("a\bb\fc"))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("\\b") && result.contains("\\f"))
       },
       test("escapes control characters as unicode") {
         val model = minimalModel(
-          metadata = Map("key" -> NodeValue.StringValue("a\u0001b"))
+          metadata = Map("key" -> NodeValue.String("a\u0001b"))
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("\\u0001"))
       }
     ),
@@ -843,27 +843,27 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
       test("quotes keys that are not valid identifiers") {
         val model = minimalModel(
           metadata = Map(
-            "obj" -> NodeValue.ObjectValue(
+            "obj" -> NodeValue.Object(
               List(
-                "my-key" -> NodeValue.StringValue("value")
+                "my-key" -> NodeValue.String("value")
               )
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("\"my-key\": \"value\""))
       },
       test("does not quote valid identifier keys") {
         val model = minimalModel(
           metadata = Map(
-            "obj" -> NodeValue.ObjectValue(
+            "obj" -> NodeValue.Object(
               List(
-                "validKey" -> NodeValue.StringValue("value")
+                "validKey" -> NodeValue.String("value")
               )
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         assertTrue(result.contains("validKey: \"value\""))
       }
     ),
@@ -880,7 +880,7 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result = SmithyPrinter.print(model)
+        val result = model.prettyPrint
         val lines  = result.split("\n", -1)
         assertTrue(
           lines.exists(_.trim == "///") &&
@@ -892,12 +892,12 @@ object SmithyPrinterSpec extends ZIOSpecDefault {
       test("metadata keys are printed in sorted order") {
         val model = minimalModel(
           metadata = Map(
-            "zebra" -> NodeValue.StringValue("z"),
-            "alpha" -> NodeValue.StringValue("a"),
-            "beta"  -> NodeValue.StringValue("b")
+            "zebra" -> NodeValue.String("z"),
+            "alpha" -> NodeValue.String("a"),
+            "beta"  -> NodeValue.String("b")
           )
         )
-        val result   = SmithyPrinter.print(model)
+        val result   = model.prettyPrint
         val alphaIdx = result.indexOf("metadata alpha")
         val betaIdx  = result.indexOf("metadata beta")
         val zebraIdx = result.indexOf("metadata zebra")

@@ -5,15 +5,15 @@ import zio.test._
 object SmithyIntegrationSpec extends ZIOSpecDefault {
 
   private def parseOk(input: String): SmithyModel =
-    SmithyParser.parse(input) match {
+    SmithyModel.parse(input) match {
       case Right(m)  => m
       case Left(err) => throw new AssertionError("Parse failed: " + err.formatMessage)
     }
 
   private def fullPipeline(input: String) = {
-    val model1  = SmithyParser.parse(input)
-    val printed = model1.map(SmithyPrinter.print)
-    val model2  = printed.flatMap(SmithyParser.parse)
+    val model1  = SmithyModel.parse(input)
+    val printed = model1.map(_.prettyPrint)
+    val model2  = printed.flatMap(SmithyModel.parse)
     (model1, printed, model2)
   }
 
@@ -481,7 +481,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |}""".stripMargin
 
         val model   = parseOk(input)
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(
           printed.startsWith("$version:"),
           printed.contains("namespace com.example"),
@@ -505,8 +505,8 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
         val model = parseOk(input)
         assertTrue(
           model.metadata.contains("authors"),
-          model.metadata("authors") == NodeValue.ArrayValue(
-            List(NodeValue.StringValue("alice"), NodeValue.StringValue("bob"))
+          model.metadata("authors") == NodeValue.Array(
+            List(NodeValue.String("alice"), NodeValue.String("bob"))
           ),
           model.useStatements == List(ShapeId("smithy.api", "String")),
           model.shapes.length == 1
@@ -526,7 +526,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |}""".stripMargin
 
         val model   = parseOk(input)
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(
           printed.contains("bar: MyString"),
           !printed.contains("com.example#MyString")
@@ -545,8 +545,8 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
         val model = parseOk(input)
         assertTrue(
           model.metadata.size == 2,
-          model.metadata("before") == NodeValue.StringValue("yes"),
-          model.metadata("after") == NodeValue.StringValue("also")
+          model.metadata("before") == NodeValue.String("yes"),
+          model.metadata("after") == NodeValue.String("also")
         )
       }
     ),
@@ -655,13 +655,13 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |string Foo""".stripMargin
         val model = parseOk(input)
         assertTrue(
-          model.metadata("s1") == NodeValue.StringValue("tab\there"),
-          model.metadata("s2") == NodeValue.StringValue("cr\rhere"),
-          model.metadata("s3") == NodeValue.StringValue("bs\\here"),
-          model.metadata("s4") == NodeValue.StringValue("sl/here"),
-          model.metadata("s5") == NodeValue.StringValue("bf\bhere"),
-          model.metadata("s6") == NodeValue.StringValue("ff\fhere"),
-          model.metadata("s7") == NodeValue.StringValue("qt\"here")
+          model.metadata("s1") == NodeValue.String("tab\there"),
+          model.metadata("s2") == NodeValue.String("cr\rhere"),
+          model.metadata("s3") == NodeValue.String("bs\\here"),
+          model.metadata("s4") == NodeValue.String("sl/here"),
+          model.metadata("s5") == NodeValue.String("bf\bhere"),
+          model.metadata("s6") == NodeValue.String("ff\fhere"),
+          model.metadata("s7") == NodeValue.String("qt\"here")
         )
       }
     ),
@@ -673,7 +673,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |metadata neg = -42
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("neg") == NodeValue.NumberValue(BigDecimal(-42)))
+        assertTrue(model.metadata("neg") == NodeValue.Number(BigDecimal(-42)))
       },
       test("decimal number in metadata") {
         val input =
@@ -682,7 +682,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |metadata pi = 3.14
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("pi") == NodeValue.NumberValue(BigDecimal("3.14")))
+        assertTrue(model.metadata("pi") == NodeValue.Number(BigDecimal("3.14")))
       },
       test("number with exponent in metadata") {
         val input =
@@ -691,7 +691,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |metadata big = 1e10
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("big") == NodeValue.NumberValue(BigDecimal("1E+10")))
+        assertTrue(model.metadata("big") == NodeValue.Number(BigDecimal("1E+10")))
       },
       test("number with negative exponent") {
         val input =
@@ -700,7 +700,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |metadata small = 5E-3
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("small") == NodeValue.NumberValue(BigDecimal("5E-3")))
+        assertTrue(model.metadata("small") == NodeValue.Number(BigDecimal("5E-3")))
       },
       test("number with positive exponent sign") {
         val input =
@@ -709,61 +709,61 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |metadata val1 = 2E+5
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("val1") == NodeValue.NumberValue(BigDecimal("2E+5")))
+        assertTrue(model.metadata("val1") == NodeValue.Number(BigDecimal("2E+5")))
       }
     ),
     suite("parser error paths")(
       test("error on missing version") {
-        val result = SmithyParser.parse("namespace com.example")
+        val result = SmithyModel.parse("namespace com.example")
         assertTrue(result.isLeft)
       },
       test("error on missing namespace") {
-        val result = SmithyParser.parse("$version: \"2\"\nstring Foo")
+        val result = SmithyModel.parse("$version: \"2\"\nstring Foo")
         assertTrue(result.isLeft)
       },
       test("error on unknown shape keyword") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nfoobar MyShape")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nfoobar MyShape")
         assertTrue(result.isLeft)
       },
       test("error on empty shape name") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nstructure {}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nstructure {}")
         assertTrue(result.isLeft)
       },
       test("error on list missing member") {
         val result =
-          SmithyParser.parse("$version: \"2\"\nnamespace com.example\nlist MyList {\n    notMember: String\n}")
+          SmithyModel.parse("$version: \"2\"\nnamespace com.example\nlist MyList {\n    notMember: String\n}")
         assertTrue(result.isLeft)
       },
       test("error on map missing key") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nmap MyMap {\n    value: String\n}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nmap MyMap {\n    value: String\n}")
         assertTrue(result.isLeft)
       },
       test("error on map missing value") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nmap MyMap {\n    key: String\n}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nmap MyMap {\n    key: String\n}")
         assertTrue(result.isLeft)
       },
       test("error on unknown service property") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nservice S {\n    unknown: true\n}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nservice S {\n    unknown: true\n}")
         assertTrue(result.isLeft)
       },
       test("error on unknown operation property") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\noperation Op {\n    unknown: Foo\n}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\noperation Op {\n    unknown: Foo\n}")
         assertTrue(result.isLeft)
       },
       test("error on unknown resource property") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nresource R {\n    unknown: Foo\n}")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nresource R {\n    unknown: Foo\n}")
         assertTrue(result.isLeft)
       },
       test("error on apply without traits") {
-        val result = SmithyParser.parse("$version: \"2\"\nnamespace com.example\nstring Foo\napply Foo")
+        val result = SmithyModel.parse("$version: \"2\"\nnamespace com.example\nstring Foo\napply Foo")
         assertTrue(result.isLeft)
       },
       test("error on unexpected identifier in value position") {
-        val result = SmithyParser.parse("$version: \"2\"\nmetadata x = undefined\nnamespace com.example")
+        val result = SmithyModel.parse("$version: \"2\"\nmetadata x = undefined\nnamespace com.example")
         assertTrue(result.isLeft)
       },
       test("error on unexpected character in value position") {
-        val result = SmithyParser.parse("$version: \"2\"\nmetadata x = !\nnamespace com.example")
+        val result = SmithyModel.parse("$version: \"2\"\nmetadata x = !\nnamespace com.example")
         assertTrue(result.isLeft)
       }
     ),
@@ -784,7 +784,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             )
           )
         )
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(printed.contains("@com.custom#myTrait"))
       },
       test("escapes carriage return and backslash in printed strings") {
@@ -792,10 +792,10 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
           "2",
           "com.example",
           Nil,
-          Map("cr" -> NodeValue.StringValue("a\rb"), "bs" -> NodeValue.StringValue("a\\b")),
+          Map("cr" -> NodeValue.String("a\rb"), "bs" -> NodeValue.String("a\\b")),
           Nil
         )
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(
           printed.contains("metadata cr = \"a\\rb\""),
           printed.contains("metadata bs = \"a\\\\b\"")
@@ -821,7 +821,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             )
           )
         )
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(
           printed.contains("identifiers: {"),
           printed.contains("}")
@@ -841,14 +841,14 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
                 List(
                   TraitApplication(
                     ShapeId("smithy.api", "documentation"),
-                    Some(NodeValue.NumberValue(BigDecimal(42)))
+                    Some(NodeValue.Number(BigDecimal(42)))
                   )
                 )
               )
             )
           )
         )
-        val printed = SmithyPrinter.print(model)
+        val printed = model.prettyPrint
         assertTrue(printed.contains("@documentation(42)"))
       }
     ),
@@ -883,7 +883,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
         val model = parseOk(input)
         assertTrue(
           model.useStatements == List(ShapeId("smithy.api", "String")),
-          model.metadata("after") == NodeValue.StringValue("yes")
+          model.metadata("after") == NodeValue.String("yes")
         )
       }
     ),
@@ -895,7 +895,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |namespace com.example
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("arr") == NodeValue.ArrayValue(Nil))
+        assertTrue(model.metadata("arr") == NodeValue.Array(Nil))
       },
       test("parses empty object") {
         val input =
@@ -904,7 +904,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |namespace com.example
             |string Foo""".stripMargin
         val model = parseOk(input)
-        assertTrue(model.metadata("obj") == NodeValue.ObjectValue(Nil))
+        assertTrue(model.metadata("obj") == NodeValue.Object(Nil))
       },
       test("parses object with quoted keys") {
         val input =
@@ -914,8 +914,8 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |string Foo""".stripMargin
         val model = parseOk(input)
         assertTrue(
-          model.metadata("obj") == NodeValue.ObjectValue(
-            List("quoted-key" -> NodeValue.StringValue("value"))
+          model.metadata("obj") == NodeValue.Object(
+            List("quoted-key" -> NodeValue.String("value"))
           )
         )
       },
@@ -927,11 +927,11 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |string Foo""".stripMargin
         val model = parseOk(input)
         assertTrue(
-          model.metadata("arr") == NodeValue.ArrayValue(
+          model.metadata("arr") == NodeValue.Array(
             List(
-              NodeValue.NumberValue(BigDecimal(1)),
-              NodeValue.NumberValue(BigDecimal(2)),
-              NodeValue.NumberValue(BigDecimal(3))
+              NodeValue.Number(BigDecimal(1)),
+              NodeValue.Number(BigDecimal(2)),
+              NodeValue.Number(BigDecimal(3))
             )
           )
         )
@@ -946,7 +946,7 @@ object SmithyIntegrationSpec extends ZIOSpecDefault {
             |string Foo""".stripMargin
         val model = parseOk(input)
         assertTrue(
-          model.metadata("s") == NodeValue.StringValue("hello\\xworld")
+          model.metadata("s") == NodeValue.String("hello\\xworld")
         )
       }
     )
