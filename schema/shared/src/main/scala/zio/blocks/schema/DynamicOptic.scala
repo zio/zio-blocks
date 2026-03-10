@@ -106,12 +106,12 @@ object DynamicOptic {
               i += 1
             }
             sb.append('}')
-          case _: Node.Elements.type        => sb.append("[*]")
-          case _: Node.MapKeys.type         => sb.append("{*:}")
-          case _: Node.MapValues.type       => sb.append("{*}")
-          case _: Node.Wrapped.type         => sb.append(".~")
-          case ts: Node.TypeSearch          => sb.append('#').append(ts.typeId.name)
-          case ss: Node.SchemaSearch        => sb.append('#').append(ss.schemaRepr.toString)
+          case _: Node.Elements.type  => sb.append("[*]")
+          case _: Node.MapKeys.type   => sb.append("{*:}")
+          case _: Node.MapValues.type => sb.append("{*}")
+          case _: Node.Wrapped.type   => sb.append(".~")
+          case ts: Node.TypeSearch    => sb.append('#').append(ts.typeId.name)
+          case ss: Node.SchemaSearch  => sb.append('#').append(ss.schemaRepr.toString)
         }
         idx += 1
       }
@@ -154,12 +154,12 @@ object DynamicOptic {
               i += 1
             }
             sb.append(')')
-          case _: Node.Elements.type        => sb.append(".each")
-          case _: Node.MapKeys.type         => sb.append(".eachKey")
-          case _: Node.MapValues.type       => sb.append(".eachValue")
-          case _: Node.Wrapped.type         => sb.append(".wrapped")
-          case ts: Node.TypeSearch          => sb.append(".search[").append(ts.typeId.name).append(']')
-          case ss: Node.SchemaSearch        => sb.append(".searchSchema(").append(ss.schemaRepr.toString).append(')')
+          case _: Node.Elements.type  => sb.append(".each")
+          case _: Node.MapKeys.type   => sb.append(".eachKey")
+          case _: Node.MapValues.type => sb.append(".eachValue")
+          case _: Node.Wrapped.type   => sb.append(".wrapped")
+          case ts: Node.TypeSearch    => sb.append(".search[").append(ts.typeId.name).append(']')
+          case ss: Node.SchemaSearch  => sb.append(".searchSchema(").append(ss.schemaRepr.toString).append(')')
         }
         idx += 1
       }
