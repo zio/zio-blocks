@@ -656,6 +656,76 @@ The compiler verifies that:
 
 If you violate any of these rules, you get a clear compile error before runtime.
 
+### Classes with `Finalizer` parameters (cleanup-only capability)
+
+If a class only needs cleanup registration, accept a `Finalizer`. DI macros inject it automatically.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final case class Config(url: String)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
+
+final class ConnectionPool(config: Config)(using Finalizer):
+  private val pool = s"pool(${config.url})"
+  defer(println(s"shutdown $pool"))
+
+val poolResource: Resource[ConnectionPool] =
+  Resource.from[ConnectionPool](
+    Wire(Config("jdbc://localhost"))
+  )
+
+Scope.global.scoped { scope =>
+  import scope.*
+  val pool: $[ConnectionPool] = poolResource.allocate
+  ()
+}
+```
+
+When to prefer `Finalizer` over `Scope`:
+
+- you only need `defer`
+- you want to expose minimal power to the class
+
+### Classes with `Scope` parameters (scope injection)
+
+If a class needs to allocate resources or create child scopes, accept a `Scope`:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final case class Config(url: String)
+object Config:
+  given Unscoped[Config] = Unscoped.derived
+
+final class Connection(config: Config) extends AutoCloseable:
+  def query(sql: String): String = s"[${config.url}] $sql"
+  def close(): Unit = println("connection closed")
+
+final class RequestHandler(config: Config)(using scope: Scope):
+  def handle(sql: String): String =
+    scope.scoped { child =>
+      import child.*
+      val conn: $[Connection] = Resource.fromAutoCloseable(new Connection(config)).allocate
+      $(conn)(_.query(sql))
+    }
+
+val handlerResource: Resource[RequestHandler] =
+  Resource.from[RequestHandler](
+    Wire(Config("jdbc://localhost"))
+  )
+
+Scope.global.scoped { scope =>
+  import scope.*
+  val handler: $[RequestHandler] = handlerResource.allocate
+  val out: String = $(handler)(_.handle("SELECT 1"))
+  println(out)
+}
+```
+
+The `Scope`/`Finalizer` parameter can appear in any parameter list position; it's recognized specially by the derivation macros.
+
 ## Section 11 — Thread Ownership
 
 On the JVM, Scope enforces a structured concurrency guarantee: each `Scope.Child` (any scope created with `scoped { }` or as a child of another scope) is owned by the thread that created it. This prevents a subtle class of bugs where a scope reference escapes to another thread and resources are used or closed on the wrong thread.
