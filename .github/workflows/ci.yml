@@ -107,7 +107,7 @@ jobs:
 
   testJS:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

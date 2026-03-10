@@ -1,6 +1,7 @@
 package zio.blocks.schema.csv
 
 import zio.blocks.schema._
+import zio.blocks.schema.binding.Binding
 import zio.blocks.docs.Doc
 import zio.test._
 
@@ -13,7 +14,7 @@ object CsvPrimitiveCodecSpec extends SchemaBaseSpec {
       .derivePrimitive(
         pt,
         pt.typeId,
-        pt.binding,
+        pt.binding.asInstanceOf[Binding.Primitive[A]],
         Doc.empty,
         Seq.empty,
         None,
