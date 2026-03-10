@@ -63,17 +63,44 @@ The skill will:
 - Identify the Reference section
 - Check if the category already exists; if so, note its current contents
 
-### Step 3: Update sidebars.js
+### Step 3: Create/Update Category index.md
+
+Create a new file `docs/reference/[category-kebab-case]/index.md` with:
+
+```markdown
+---
+id: [category-kebab-case]
+title: "[Category Name]"
+---
+
+## Introduction
+
+[2-3 sentences explaining the category and its purpose]
+
+**Related Types:**
+- [`TypeName1`](./<type1>.md) — brief description
+- [`TypeName2`](./<type2>.md) — brief description
+- [`TypeName3`](./<type3>.md) — brief description
+
+## Overview
+
+[Additional context about how these types work together and when to use them as a group]
+```
+
+Extract descriptions from each type's `.md` file (first sentence after the opening definition).
+
+### Step 4: Update sidebars.js
 
 If the category doesn't exist, create it:
 ```javascript
 {
   type: "category",
   label: "[Category Name]",
+  link: { type: "doc", id: "reference/[category-kebab-case]/index" },
   items: [
-    "reference/[type1]",
-    "reference/[type2]",
-    "reference/[type3]"
+    "reference/[category-kebab-case]/[type1]",
+    "reference/[category-kebab-case]/[type2]",
+    "reference/[category-kebab-case]/[type3]"
   ]
 }
 ```
@@ -82,7 +109,9 @@ If it does exist, append new types in alphabetical order.
 
 Maintain alphabetical order of categories within the Reference section.
 
-### Step 4: Verify Syntax
+**Note:** Update item paths to include the category subdirectory: `"reference/[category-kebab-case]/[type-id]"`
+
+### Step 5: Verify Syntax
 
 Parse the updated `sidebars.js` with Node.js to ensure valid JavaScript syntax:
 ```bash
@@ -91,10 +120,11 @@ node -c docs/sidebars.js
 
 If there are errors, report and revert.
 
-### Step 5: Report Changes
+### Step 6: Report Changes
 
 Show:
 - **Added Category**: Yes/No (new category created)
+- **Index File Created**: path to new `index.md`
 - **Types Added**: list of types moved into the category
 - **Verification**: ✅ Syntax valid | ❌ Syntax error (reverted)
 - **Preview**: before/after snippet of the Reference section
@@ -167,16 +197,26 @@ Wait for user input:
 - **Selective**: Accept specific categories only
 - **Reject**: Keep current flat structure
 
-### Step 6: Update sidebars.js
+### Step 6: Create Category index.md Files
+
+For each approved category, create `docs/reference/[category-kebab-case]/index.md` with:
+- Category title and introduction
+- List of related types with brief descriptions
+- Overview section explaining how types work together
+
+Use the analysis from Step 2 (descriptions and relationships) to write the introduction.
+
+### Step 7: Update sidebars.js
 
 Once approved, update sidebars.js with the new structure, maintaining:
 - Alphabetical order of categories
 - Alphabetical order of types within each category
+- Link to category `index.md` file in category definition
 - Existing non-categorized types (if kept)
 
-### Step 7: Verify & Report
+### Step 8: Verify & Report
 
-Same as manual mode: verify syntax, report changes.
+Same as manual mode: verify syntax, report changes including index.md file creation.
 
 ---
 
@@ -213,8 +253,17 @@ Preview:
 
 ## Implementation Notes
 
+- **Directory Structure**: Each category creates a subdirectory: `docs/reference/[category-kebab-case]/`
+  - Category index: `docs/reference/[category-kebab-case]/index.md`
+  - Type files are organized within the category directory (may involve moving existing files or creating symlinks)
+- **Index.md Content**:
+  - Frontmatter with `id` matching the category kebab-case name
+  - Introduction section explaining the category
+  - List of related types with descriptions
+  - Overview of how types work together
+- **Sidebar Paths**: Updated to reflect category structure: `"reference/[category-kebab-case]/[type-id]"`
+- **Category Link**: Sidebar category definition includes `link: { type: "doc", id: "reference/[category-kebab-case]/index" }`
 - **Alphabetical order** is maintained within each category and at the category level
-- **Type paths** use the format `"reference/[type-id]"` (with `reference/` prefix)
 - **Existing categories** are preserved if they already exist in sidebars.js
 - **Syntax validation** is mandatory — invalid changes are reverted
 - **No breaking changes** — existing structure is preserved; only new categories are added
