@@ -126,20 +126,6 @@ object JsonMatch {
   }
 
   /**
-   * Tests whether a Json value matches any of the Variant cases. Since JSON
-   * doesn't have tagged variants, we try to match the value against any of the
-   * case patterns.
-   */
-  private def variantMatches(
-    patternCases: Vector[(String, SchemaRepr)],
-    json: Json
-  ): Boolean =
-    // Try to match against any case pattern
-    patternCases.exists { case (_, patternRepr) =>
-      matches(patternRepr, json)
-    }
-
-  /**
    * Tests whether a Json.Array matches a Sequence pattern. Empty arrays always
    * match. For non-empty arrays, all elements must match the element pattern.
    */
