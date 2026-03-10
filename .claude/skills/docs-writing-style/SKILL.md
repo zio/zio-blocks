@@ -30,13 +30,14 @@ allowed-tools: Read, Glob, Grep
 
 Apply these conventions consistently in all prose, section headings, and inline code:
 
-- **Always qualify with the type name** — never refer to a method or constructor by its bare name. Write `BindingResolver.empty`, not `empty`; write `ZIO#map`, not `map`. The type name is essential context for the reader.
+- **Always qualify with the type name** — never refer to a method or constructor by its bare name. Write `BindingResolver.empty`, not `empty`; write `ZIO#map`, not `map`. This rule applies everywhere: in prose, headings, comparative phrases ("use `Context#add` vs. `Context.apply`", not "use `add` vs. `apply`"), and bullet points. The type name is essential context for the reader.
 - **Type name alone** — when talking about the type itself, use only its name with no qualifier:
   "derives automatically via `As`", "`Into` is a one-way conversion".
 - **Instance method** — use `TypeName#methodName` (the `#` convention signals a non-static member):
   `As#from`, `As#into`, `As#reverse`, `Into#into`.
 - **Companion object operation or constructor** — use `TypeName.methodName` (the `.` convention
   signals a companion/static member): `As.derived`, `As.apply`, `Into.derived`, `Into.apply`.
+- **In headings** — apply the same qualification rules to subsection headings at all levels (### and ####). Write `### Context#add` or `#### `Context#add`` or `### Wire.shared[T]` instead of bare method names. Method/operation references must be wrapped in backticks (inline code blocks) to make them searchable and visually distinct as code, ensuring consistency with inline code references.
 
 ## Heading and Code Block Layout Rules
 
@@ -80,6 +81,19 @@ Apply these conventions consistently in all prose, section headings, and inline 
   pattern.
 - **Code snippet description**: When showing example code snippets, explain what they do and why
   they are relevant. Don't just show code without context.
+
+## Table Formatting
+
+Pad column headers and separators with spaces to align content vertically:
+
+```markdown
+| Feature             | Option A             | Option B             |
+|---------------------|----------------------|----------------------|
+| Type-safe           | ✓                    | ✗                    |
+| Performance         | Fast                 | Slower               |
+```
+
+This makes tables more scannable and readable than minimal-width formatting.
 
 ## Scala Version
 

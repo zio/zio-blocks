@@ -481,7 +481,7 @@ After writing, verify every item on this checklist:
 - [ ] Imports are complete and correct in every code block
 - [ ] The sbt dependency in Prerequisites is correct
 - [ ] No deprecated methods or outdated patterns are used
-- [ ] Run `sbt docs/mdoc` and confirm zero `[error]` lines (this is mandatory before claiming the guide is done)
+- [ ] Run `sbt "docs/mdoc --in docs/guides/<guide-id>.md"` and confirm zero `[error]` lines (this is mandatory before claiming the guide is done)
 
 ### Companion Examples
 - [ ] A package directory exists in `schema-examples/src/main/scala/<packagename>/`

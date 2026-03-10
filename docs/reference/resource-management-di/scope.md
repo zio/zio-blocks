@@ -727,7 +727,7 @@ The `Scope`/`Finalizer` parameter can appear in any parameter list position; it'
 
 ## Dependency injection (DI) with `Wire` + `Resource.from`
 
-Scope includes a small constructor-based DI layer built on top of `zio.blocks.context.Context`.
+Scope includes a small constructor-based DI layer built on top of `zio.blocks.context.Context`. For a comprehensive guide to `Wire` and its construction patterns, see the [Wire reference](./wire.md) page.
 
 ### `Wire[-In, +Out]`: a dependency recipe
 
