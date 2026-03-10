@@ -1,5 +1,5 @@
 ---
-id: resource-management-di
+id: index
 title: "Resource Management & Dependency Injection"
 ---
 
