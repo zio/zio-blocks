@@ -379,7 +379,7 @@ object ReferenceOr {
    * A reference to a component defined elsewhere in the OpenAPI document.
    *
    * @param reference
- *   The Reference object containing the $$ref URI.
+   *   The Reference object containing the $$ref URI.
    */
   final case class Ref(reference: Reference) extends ReferenceOr[Nothing]
 
