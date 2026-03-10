@@ -558,33 +558,33 @@ On the JVM, `isOwner` uses `Thread` identity. On Scala.js (single-threaded), `is
 
 The following example shows correct single-thread usage. Scope ownership prevents accidentally passing a child scope to another thread:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.*
 
 final class Database extends AutoCloseable:
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 
-@main def threadOwnershipExample(): Unit =
-  Scope.global.scoped { parent =>
-    import parent.*
+// Correct usage: child scopes must be used on the creating thread
+Scope.global.scoped { parentScope =>
+  import parentScope.*
 
-    val parentDb: $[Database] =
+  val parentDb: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  parentScope.scoped { childScope =>
+    import childScope.*
+
+    val childDb: $[Database] =
       Resource.fromAutoCloseable(new Database).allocate
 
-    parent.scoped { child =>
-      import child.*
-
-      val childDb: $[Database] =
-        Resource.fromAutoCloseable(new Database).allocate
-
-      // This is safe: child is created and used on the same thread
-      $(childDb)(_.query("SELECT 1"))
-    }
-
-    // If you passed child to another thread and tried to call scoped on it,
-    // you would get IllegalStateException about thread ownership mismatch
+    // This is safe: child is created and used on the same thread
+    $(childDb)(_.query("SELECT 1"))
   }
+
+  // If you passed childScope to another thread and tried to call scoped on it,
+  // you would get IllegalStateException about thread ownership mismatch
+}
 ```
 
 If you need a scope that crosses thread boundaries, use `open()` instead; it creates an unowned scope that any thread may use.
