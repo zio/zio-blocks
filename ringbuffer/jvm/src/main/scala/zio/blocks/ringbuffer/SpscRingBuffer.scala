@@ -74,7 +74,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
    *
    * @param a
    *   the element to insert; must not be `null`
-   * @throws NullPointerException
+   * @throws java.lang.NullPointerException
    *   if the element is `null`
    * @return
    *   `true` if the element was successfully inserted, `false` if the buffer is
@@ -161,7 +161,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
    *   the callback invoked for each drained element
    * @param limit
    *   the maximum number of elements to drain; must be non-negative
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
    * @return
    *   the number of elements actually drained (0 if the buffer is empty)
@@ -200,9 +200,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
    *   the callback invoked to produce each new element; must not return `null`
    * @param limit
    *   the maximum number of elements to insert; must be non-negative
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
-   * @throws NullPointerException
+   * @throws java.lang.NullPointerException
    *   if the supplier returns `null`
    * @return
    *   the number of elements actually inserted (0 if the buffer is full)
