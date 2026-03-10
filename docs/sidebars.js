@@ -40,8 +40,16 @@ const sidebars = {
            ]
          },
          "reference/context",
-         "reference/scope",
-         "reference/wire",
+         {
+           type: "category",
+           label: "Resource Management & DI",
+           link: { type: "doc", id: "reference/resource-management-di/index" },
+           items: [
+             "reference/resource-management-di/resource",
+             "reference/resource-management-di/scope",
+             "reference/resource-management-di/wire",
+           ]
+         },
          "reference/docs",
          "reference/json",
          "reference/json-patch",
