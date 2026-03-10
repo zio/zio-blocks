@@ -615,6 +615,7 @@ lazy val `schema-examples` = project
     markdown.jvm,
     streams.jvm,
     chunk.jvm,
+    context.jvm,
     `schema-toon`.jvm,
     `schema-messagepack`.jvm,
     `schema-avro`,
@@ -641,6 +642,8 @@ lazy val docs = project
   .dependsOn(
     schema.jvm,
     markdown.jvm,
+    context.jvm,
+    scope.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
