@@ -546,6 +546,187 @@ object PathParserSpec extends SchemaBaseSpec {
       test("whitespace in variant") {
         assertTrue(parse("< Foo >") == Right(Chunk(Node.Case("Foo"))))
       }
+    ),
+    suite("search nodes")(
+      test("simple nominal type") {
+        assertTrue(parse("#Person") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Nominal("Person")))))
+      },
+      test("primitive type string") {
+        assertTrue(parse("#string") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("string")))))
+      },
+      test("primitive type int") {
+        assertTrue(parse("#int") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("int")))))
+      },
+      test("wildcard") {
+        assertTrue(parse("#_") == Right(Chunk(Node.SchemaSearch(SchemaRepr.Wildcard))))
+      },
+      test("record with single field") {
+        assertTrue(
+          parse("#record { name: string }") == Right(
+            Chunk(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+          )
+        )
+      },
+      test("record with multiple fields") {
+        assertTrue(
+          parse("#record { name: string, age: int }") == Right(
+            Chunk(
+              Node.SchemaSearch(
+                SchemaRepr.Record(
+                  Vector(
+                    "name" -> SchemaRepr.Primitive("string"),
+                    "age"  -> SchemaRepr.Primitive("int")
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("variant type") {
+        assertTrue(
+          parse("#variant { Left: int, Right: string }") == Right(
+            Chunk(
+              Node.SchemaSearch(
+                SchemaRepr.Variant(
+                  Vector(
+                    "Left"  -> SchemaRepr.Primitive("int"),
+                    "Right" -> SchemaRepr.Primitive("string")
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("list type") {
+        assertTrue(
+          parse("#list(string)") == Right(
+            Chunk(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
+          )
+        )
+      },
+      test("map type") {
+        assertTrue(
+          parse("#map(string, int)") == Right(
+            Chunk(
+              Node.SchemaSearch(SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int")))
+            )
+          )
+        )
+      },
+      test("option type") {
+        assertTrue(
+          parse("#option(Person)") == Right(
+            Chunk(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
+          )
+        )
+      },
+      test("nested schema") {
+        assertTrue(
+          parse("#record { items: list(Person) }") == Right(
+            Chunk(
+              Node.SchemaSearch(
+                SchemaRepr.Record(
+                  Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("search followed by field") {
+        assertTrue(
+          parse("#Person.name") == Right(
+            Chunk(
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.Field("name")
+            )
+          )
+        )
+      },
+      test("field followed by search") {
+        assertTrue(
+          parse(".users#Person") == Right(
+            Chunk(
+              Node.Field("users"),
+              Node.SchemaSearch(SchemaRepr.Nominal("Person"))
+            )
+          )
+        )
+      },
+      test("search in complex path") {
+        assertTrue(
+          parse(".items[*]#Person.name") == Right(
+            Chunk(
+              Node.Field("items"),
+              Node.Elements,
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.Field("name")
+            )
+          )
+        )
+      },
+      test("chained searches") {
+        assertTrue(
+          parse("#list(Person)#Person") == Right(
+            Chunk(
+              Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))),
+              Node.SchemaSearch(SchemaRepr.Nominal("Person"))
+            )
+          )
+        )
+      },
+      test("search followed by index") {
+        assertTrue(
+          parse("#Person[0]") == Right(
+            Chunk(
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.AtIndex(0)
+            )
+          )
+        )
+      },
+      test("search followed by variant") {
+        assertTrue(
+          parse("#Either<Right>") == Right(
+            Chunk(
+              Node.SchemaSearch(SchemaRepr.Nominal("Either")),
+              Node.Case("Right")
+            )
+          )
+        )
+      }
+    ),
+    suite("search error cases")(
+      test("empty search") {
+        val result = parse("#")
+        assertTrue(result match {
+          case Left(UnexpectedEnd(_)) => true
+          case _                      => false
+        })
+      },
+      test("invalid start after hash") {
+        val result = parse("#123")
+        assertTrue(result match {
+          case Left(UnexpectedChar('1', 1, _)) => true
+          case _                               => false
+        })
+      },
+      test("empty record in search") {
+        val result = parse("#record { }")
+        assertTrue(result match {
+          case Left(InvalidSyntax(msg, _)) => msg.contains("Empty record")
+          case _                           => false
+        })
+      },
+      test("empty variant in search") {
+        val result = parse("#variant { }")
+        assertTrue(result match {
+          case Left(InvalidSyntax(msg, _)) => msg.contains("Empty variant")
+          case _                           => false
+        })
+      }
     )
   )
 }
