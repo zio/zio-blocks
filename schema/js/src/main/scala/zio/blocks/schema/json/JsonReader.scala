@@ -390,7 +390,7 @@ final class JsonReader private[json] (
    *   in cases of reaching the end of input or illegal format of JSON key
    */
   def readKeyAsYear(): Year = {
-    val x = readYear(null)
+    val x = readYear()
     nextTokenOrError(':', head)
     x
   }
@@ -611,7 +611,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsBigInt(digitsLimit: Int): BigInt = {
     nextTokenOrError('"', head)
-    val x = readBigInt(isToken = false, null, digitsLimit)
+    val x = readBigInt(isToken = false, digitsLimit)
     nextByteOrError('"', head)
     nextTokenOrError(':', head)
     x
@@ -649,7 +649,7 @@ final class JsonReader private[json] (
    */
   def readKeyAsBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
     nextTokenOrError('"', head)
-    val x = readBigDecimal(isToken = false, null, mc, scaleLimit, digitsLimit)
+    val x = readBigDecimal(isToken = false, mc, scaleLimit, digitsLimit)
     nextByteOrError('"', head)
     nextTokenOrError(':', head)
     x
@@ -761,71 +761,53 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON number value into a `BigInt` instance with the default limit
-   * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
-   * value is `null`.
+   * of allowed digits. In case of unexpected JSON value throws a
+   * [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigInt` value to return if the JSON value is `null`
    * @return
-   *   a `BigInt` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigInt` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of the default limit or when
-   *   both the JSON value and the provided default value are `null`
+   *   illegal format of JSON value or exceeding of the default limit
    */
-  def readBigInt(default: BigInt): BigInt = readBigInt(isToken = true, default, bigIntDigitsLimit)
+  def readBigInt(): BigInt = readBigInt(isToken = true, bigIntDigitsLimit)
 
   /**
    * Reads a JSON number value into a `BigInt` instance with the provided limit
-   * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
-   * value is `null`.
+   * of allowed digits. In case of unexpected JSON value throws a
+   * [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigInt` value to return if the JSON value is `null`
    * @param digitsLimit
    *   the maximum number of decimal digits allowed in the parsed `BigInt` value
    * @return
-   *   a `BigInt` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigInt` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of the default limit or when
-   *   both the JSON value and the provided default value are `null`
+   *   illegal format of JSON value or exceeding of the default limit
    */
-  def readBigInt(default: BigInt, digitsLimit: Int): BigInt = readBigInt(isToken = true, default, digitsLimit)
+  def readBigInt(digitsLimit: Int): BigInt = readBigInt(isToken = true, digitsLimit)
 
   /**
    * Reads a JSON number value into a `BigDecimal` instance with the default
    * limit of allowed digits for mantissa, the default limit for scale, and the
    * default instance of [[java.math.MathContext]] for precision. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigDecimal` value to return if the JSON value is `null`
    * @return
-   *   a `BigDecimal` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigDecimal` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of default limits or when both
-   *   the JSON value and the provided default value are `null`
+   *   illegal format of JSON value or exceeding of default limits
    */
-  def readBigDecimal(default: BigDecimal): BigDecimal =
-    readBigDecimal(isToken = true, default, bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
+  def readBigDecimal(): BigDecimal =
+    readBigDecimal(isToken = true, bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
 
   /**
    * Reads a JSON number value into a `BigDecimal` instance with the provided
    * limit of allowed digits for mantissa, the provided limit for scale, and the
    * provided instance of [[java.math.MathContext]] for precision. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigDecimal` value to return if the JSON value is `null`
    * @param mc
    *   the precision to use
    * @param scaleLimit
@@ -833,255 +815,168 @@ final class JsonReader private[json] (
    * @param digitsLimit
    *   the maximum number of decimal digits allowed
    * @return
-   *   a `BigDecimal` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigDecimal` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of provided limits or when both
-   *   the JSON value and the provided default value are `null`
+   *   illegal format of JSON value or exceeding of provided limits
    */
-  def readBigDecimal(default: BigDecimal, mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal =
-    readBigDecimal(isToken = true, default, mc, scaleLimit, digitsLimit)
+  def readBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal =
+    readBigDecimal(isToken = true, mc, scaleLimit, digitsLimit)
 
   /**
-   * Reads a JSON string value into a `String` instance. In case of `null` JSON
-   * value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * Reads a JSON string value into a `String` instance. In case of unexpected
+   * JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `String` value to return if the JSON value is `null`.
    * @return
-   *   a `String` instance of the parsed JSON value or the default value if the
-   *   JSON value is `null`.
+   *   a `String` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or invalid encoding of JSON value
-   *   or when both the JSON value and the provided default value are `null`
    */
-  def readString(default: String): String =
-    if (isNextToken('"', head)) {
-      val pos = head
-      val len = parseString(0, Math.min(tail - pos, charBuf.length), charBuf, pos)
-      new String(charBuf, 0, len)
-    } else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readString(): String = {
+    nextTokenOrError('"', head)
+    val pos = head
+    val len = parseString(0, Math.min(tail - pos, charBuf.length), charBuf, pos)
+    new String(charBuf, 0, len)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.Duration]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.Duration]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.Duration]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.Duration]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readDuration(default: Duration): Duration =
-    if (isNextToken('"', head)) parseDuration(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readDuration(): Duration = {
+    nextTokenOrError('"', head)
+    parseDuration(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.Instant]] instance. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.Instant]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.Instant]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.Instant]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readInstant(default: Instant): Instant =
-    if (isNextToken('"', head)) parseInstant(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readInstant(): Instant = {
+    nextTokenOrError('"', head)
+    parseInstant(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.LocalDate]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.LocalDate]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.LocalDate]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.LocalDate]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readLocalDate(default: LocalDate): LocalDate =
-    if (isNextToken('"', head)) parseLocalDate(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readLocalDate(): LocalDate = {
+    nextTokenOrError('"', head)
+    parseLocalDate(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.LocalDateTime]] instance. In
-   * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * case of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.LocalDateTime]] value to return if the JSON value
-   *   is `null`
    * @return
-   *   a [[java.time.LocalDateTime]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.LocalDateTime]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readLocalDateTime(default: LocalDateTime): LocalDateTime =
-    if (isNextToken('"', head)) parseLocalDateTime(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readLocalDateTime(): LocalDateTime = {
+    nextTokenOrError('"', head)
+    parseLocalDateTime(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.LocalTime]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.LocalTime]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.LocalTime]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.LocalTime]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readLocalTime(default: LocalTime): LocalTime =
-    if (isNextToken('"', head)) parseLocalTime(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readLocalTime(): LocalTime = {
+    nextTokenOrError('"', head)
+    parseLocalTime(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.MonthDay]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.MonthDay]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.MonthDay]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.MonthDay]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readMonthDay(default: MonthDay): MonthDay =
-    if (isNextToken('"', head)) parseMonthDay(head, false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readMonthDay(): MonthDay = {
+    nextTokenOrError('"', head)
+    parseMonthDay(head, false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.OffsetDateTime]] instance. In
-   * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * case of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.OffsetDateTime]] value to return if the JSON
-   *   value is `null`
    * @return
-   *   a [[java.time.OffsetDateTime]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.OffsetDateTime]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readOffsetDateTime(default: OffsetDateTime): OffsetDateTime =
-    if (isNextToken('"', head)) parseOffsetDateTime(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readOffsetDateTime(): OffsetDateTime = {
+    nextTokenOrError('"', head)
+    parseOffsetDateTime(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.OffsetTime]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.OffsetTime]] value to return if the JSON value is
-   *   `null`.
    * @return
-   *   a [[java.time.OffsetTime]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.OffsetTime]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readOffsetTime(default: OffsetTime): OffsetTime =
-    if (isNextToken('"', head)) parseOffsetTime(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readOffsetTime(): OffsetTime = {
+    nextTokenOrError('"', head)
+    parseOffsetTime(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.Period]] instance. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.Period]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.Period]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.Period]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readPeriod(default: Period): Period =
-    if (isNextToken('"', head)) parsePeriod(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readPeriod(): Period = {
+    nextTokenOrError('"', head)
+    parsePeriod(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.Year]] instance. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.Year]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.Year]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.Year]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readYear(default: Year): Year =
-    if (isNextToken('"', head)) Year.of {
+  def readYear(): Year = {
+    nextTokenOrError('"', head)
+    Year.of {
       var year       = 0
       val b1         = nextByte(head)
       var buf        = this.buf
@@ -1116,120 +1011,77 @@ final class JsonReader private[json] (
       }
       year
     }
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.YearMonth]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.YearMonth]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.YearMonth]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.YearMonth]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readYearMonth(default: YearMonth): YearMonth =
-    if (isNextToken('"', head)) parseYearMonth()
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readYearMonth(): YearMonth = {
+    nextTokenOrError('"', head)
+    parseYearMonth()
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.ZonedDateTime]] instance. In
-   * case of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * case of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.ZonedDateTime]] value to return if the JSON value
-   *   is `null`
    * @return
-   *   a [[java.time.ZonedDateTime]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.ZonedDateTime]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readZonedDateTime(default: ZonedDateTime): ZonedDateTime =
-    if (isNextToken('"', head)) parseZonedDateTime(false)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readZonedDateTime(): ZonedDateTime = {
+    nextTokenOrError('"', head)
+    parseZonedDateTime(false)
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.ZoneId]] instance. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.ZoneId]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.ZoneId]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.time.ZoneId]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readZoneId(default: ZoneId): ZoneId =
-    if (isNextToken('"', head)) parseZoneId()
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readZoneId(): ZoneId = {
+    nextTokenOrError('"', head)
+    parseZoneId()
+  }
 
   /**
    * Reads a JSON string value into a [[java.time.ZoneOffset]] instance. In case
-   * of `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * of unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.time.ZoneOffset]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.time.ZoneOffset]] instance of the parsed JSON value or the
-   *   default value if the JSON value is `null`
+   *   a [[java.time.ZoneOffset]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readZoneOffset(default: ZoneOffset): ZoneOffset =
-    if (isNextToken('"', head)) parseZoneOffset()
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readZoneOffset(): ZoneOffset = {
+    nextTokenOrError('"', head)
+    parseZoneOffset()
+  }
 
   /**
    * Reads a JSON string value into a [[java.util.UUID]] instance. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default [[java.util.UUID]] value to return if the JSON value is
-   *   `null`
    * @return
-   *   a [[java.util.UUID]] instance of the parsed JSON value or the default
-   *   value if the JSON value is `null`
+   *   a [[java.util.UUID]] instance of the parsed JSON value
    * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when both the JSON value and the provided default value are `null`
+   *   in cases of reaching the end of input or illegal format of JSON value
    */
-  def readUUID(default: UUID): UUID =
-    if (isNextToken('"', head)) parseUUID(head)
-    else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readUUID(): UUID = {
+    nextTokenOrError('"', head)
+    parseUUID(head)
+  }
 
   /**
    * Reads a JSON boolean value into a `Boolean` value.
@@ -1352,79 +1204,58 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON string value into a `BigInt` instance with the default limit
-   * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
-   * value is `null`.
+   * of allowed digits. In case of unexpected JSON value throws a
+   * [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigInt` value to return if the JSON value is `null`
    * @return
-   *   a `BigInt` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigInt` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of the default limit or when both the JSON value and the
-   *   provided default value are `null`
+   *   exceeding of the default limit
    */
-  def readStringAsBigInt(default: BigInt): BigInt = readStringAsBigInt(default, bigIntDigitsLimit)
+  def readStringAsBigInt(): BigInt = readStringAsBigInt(bigIntDigitsLimit)
 
   /**
    * Reads a JSON string value into a `BigInt` instance with the provided limit
-   * of allowed digits. In case of `null` JSON value returns the provided
-   * default value or throws a [[JsonBinaryCodecError]] if the provided default
-   * value is `null`.
+   * of allowed digits. In case of unexpected JSON value throws a
+   * [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigInt` value to return if the JSON value is `null`
    * @param digitsLimit
    *   the maximum number of decimal digits allowed in the parsed `BigInt` value
    * @return
-   *   a `BigInt` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigInt` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of the default limit or when both the JSON value and the
-   *   provided default value are `null`
+   *   exceeding of the default limit
    */
-  def readStringAsBigInt(default: BigInt, digitsLimit: Int): BigInt =
-    if (isNextToken('"', head)) {
-      val x = readBigInt(isToken = false, default, digitsLimit)
-      nextByteOrError('"', head)
-      x
-    } else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readStringAsBigInt(digitsLimit: Int): BigInt = {
+    nextTokenOrError('"', head)
+    val x = readBigInt(isToken = false, digitsLimit)
+    nextByteOrError('"', head)
+    x
+  }
 
   /**
    * Reads a JSON number value into a `BigDecimal` instance with the default
    * limit of allowed digits for mantissa, the default limit for scale, and the
    * default instance of [[java.math.MathContext]] for precision. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigDecimal` value to return if the JSON value is `null`
    * @return
-   *   a `BigDecimal` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigDecimal` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of default limits or when both the JSON value and the provided
-   *   default value are `null`
+   *   exceeding of default limits
    */
-  def readStringAsBigDecimal(default: BigDecimal): BigDecimal =
-    readStringAsBigDecimal(default, bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
+  def readStringAsBigDecimal(): BigDecimal =
+    readStringAsBigDecimal(bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
 
   /**
    * Reads a JSON number value into a `BigDecimal` instance with the provided
    * limit of allowed digits for mantissa, the provided limit for scale, and the
    * provided instance of [[java.math.MathContext]] for precision. In case of
-   * `null` JSON value returns the provided default value or throws a
-   * [[JsonBinaryCodecError]] if the provided default value is `null`.
+   * unexpected JSON value throws a [[JsonBinaryCodecError]].
    *
-   * @param default
-   *   the default `BigDecimal` value to return if the JSON value is `null`
    * @param mc
    *   the precision to use
    * @param scaleLimit
@@ -1432,22 +1263,17 @@ final class JsonReader private[json] (
    * @param digitsLimit
    *   the maximum number of decimal digits allowed
    * @return
-   *   a `BigDecimal` instance of the parsed JSON value or the provided default
-   *   value
+   *   a `BigDecimal` instance of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of provided limits or when both the JSON value and the provided
-   *   default value are `null`
+   *   exceeding of provided limits
    */
-  def readStringAsBigDecimal(default: BigDecimal, mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal =
-    if (isNextToken('"', head)) {
-      val x = readBigDecimal(isToken = false, default, mc, scaleLimit, digitsLimit)
-      nextByteOrError('"', head)
-      x
-    } else {
-      head -= 1
-      readNullOrTokenError(default, '"')
-    }
+  def readStringAsBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
+    nextTokenOrError('"', head)
+    val x = readBigDecimal(isToken = false, mc, scaleLimit, digitsLimit)
+    nextByteOrError('"', head)
+    x
+  }
 
   /**
    * Reads a JSON string value into a `Boolean` value.
@@ -1583,8 +1409,8 @@ final class JsonReader private[json] (
   private[json] def readRawValAsZonedDateTime(): ZonedDateTime = parseZonedDateTime(true)
 
   /**
-   * Finishes reading the `null` JSON value and returns the provided default
-   * value or throws [[JsonBinaryCodecError]].
+   * Reads `null` JSON value and returns the provided default value or throws
+   * [[JsonBinaryCodecError]].
    *
    * @param default
    *   the default value to return
@@ -1619,9 +1445,9 @@ final class JsonReader private[json] (
     } else decodeError(msg)
 
   /**
-   * Finishes reading the `null` JSON value and returns the provided default
-   * value or throws [[JsonBinaryCodecError]] with a message of expecting `null`
-   * or the provided token.
+   * Reads `null` JSON value and returns the provided default value or throws
+   * [[JsonBinaryCodecError]] with a message of expecting `null` or the provided
+   * token.
    *
    * @param default
    *   the default value to return
@@ -1687,6 +1513,17 @@ final class JsonReader private[json] (
    *   in cases of reaching the end of input
    */
   def isNextToken(t: Byte): Boolean = isNextToken(t, head)
+
+  /**
+   * Skips whitespaces, then checks if the next token in the input matches the
+   * given one.
+   *
+   * @param t
+   *   the token to match
+   * @throws JsonBinaryCodecError
+   *   in cases of reaching the end of input or unexpected token is detected
+   */
+  def nextTokenOrError(t: Byte): Unit = nextTokenOrError(t, head)
 
   /**
    * Checks if the current token in the input matches the given one.
@@ -1937,7 +1774,7 @@ final class JsonReader private[json] (
       this.config = config
       head = from
       tail = to
-      val x = codec.decodeValue(this, codec.nullValue)
+      val x = codec.decodeValue(this)
       if (head != to && config.checkForEndOfInput) endOfInputOrError()
       x
     } finally {
@@ -1978,7 +1815,7 @@ final class JsonReader private[json] (
       this.config = config
       this.in = in
       if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
-      val x = codec.decodeValue(this, codec.nullValue)
+      val x = codec.decodeValue(this)
       if (config.checkForEndOfInput) endOfInputOrError()
       x
     } finally {
@@ -2022,7 +1859,7 @@ final class JsonReader private[json] (
         this.config = config
         head = offset + bbuf.position()
         tail = to
-        val x = codec.decodeValue(this, codec.nullValue)
+        val x = codec.decodeValue(this)
         if (head != to && config.checkForEndOfInput) endOfInputOrError()
         x
       } finally {
@@ -2040,7 +1877,7 @@ final class JsonReader private[json] (
         head = 0
         tail = 0
         if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
-        val x = codec.decodeValue(this, codec.nullValue)
+        val x = codec.decodeValue(this)
         if (config.checkForEndOfInput) endOfInputOrError()
         x
       } finally {
@@ -3030,217 +2867,205 @@ final class JsonReader private[json] (
     xh * yh + (t >>> 32) + (xl * yh + (t & 0xffffffffL) >>> 32)
   }
 
-  private[this] def readBigInt(isToken: Boolean, default: BigInt, digitsLimit: Int): BigInt = {
+  private[this] def readBigInt(isToken: Boolean, digitsLimit: Int): BigInt = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
-    if (isToken && b == 'n') readNullOrNumberError(default, head)
-    else {
-      var s = 0
-      if (b == '-') {
-        b = nextByte(head)
-        s = -1
-      }
-      if (b < '0' || b > '9') numberError()
-      if (isToken && b == '0') {
-        ensureNotLeadingZero()
-        BigInt(0)
-      } else {
-        var pos = head
-        var buf = this.buf
-        setMark(pos - 1)
-        try {
-          while (
-            (pos < tail || {
-              pos = loadMore(pos)
-              buf = this.buf
-              pos < tail
-            }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
-            }
-          ) pos += 1
-          head = pos
-          var from = marks(markNum - 1)
-          val len  = pos - from
-          if (len >= digitsLimit) digitsLimitError()
-          if ((b | 0x20) == 'e' || b == '.') numberError()
-          if (len < 19) {
-            var x = buf(from) - '0'
-            from += 1
-            val limit = Math.min(from + 8, pos)
-            while (from < limit) {
-              x = x * 10 + (buf(from) - '0')
-              from += 1
-            }
-            var x1 = x.toLong
-            while (from < pos) {
-              x1 = (x1 << 3) + (x1 << 1) + (buf(from) - '0')
-              from += 1
-            }
-            if (s != 0) x1 = -x1
-            BigInt(x1)
-          } else
-            new BigInt({
-              if (len <= 36) toBigDecimal36(buf, from, pos, s, 0).unscaledValue
-              else if (len <= 308) toBigInteger308(buf, from, pos, s)
-              else {
-                // Based on the great idea of Eric Obermühlner to use a tree of smaller BigDecimals for parsing huge numbers
-                // with O(n^1.5) complexity instead of O(n^2) when using the constructor for the decimal representation from JDK:
-                // https://github.com/eobermuhlner/big-math/commit/7a5419aac8b2adba2aa700ccf00197f97b2ad89f
-                val mid    = len >> 1
-                val midPos = pos - mid
-                toBigDecimal(buf, from, midPos, s, -mid).add(toBigDecimal(buf, midPos, pos, s, 0)).unscaledValue
-              }
-            })
-        } finally markNum -= 1
-      }
+    var s = 0
+    if (b == '-') {
+      b = nextByte(head)
+      s = -1
     }
-  }
-
-  private[this] def readBigDecimal(
-    isToken: Boolean,
-    default: BigDecimal,
-    mc: MathContext,
-    scaleLimit: Int,
-    digitsLimit: Int
-  ): BigDecimal = {
-    var b =
-      if (isToken) nextToken(head)
-      else nextByte(head)
-    if (isToken && b == 'n') readNullOrNumberError(default, head)
-    else {
-      var s = 0
-      if (b == '-') {
-        b = nextByte(head)
-        s = -1
-      }
-      if (b < '0' || b > '9') numberError()
+    if (b < '0' || b > '9') numberError()
+    if (isToken && b == '0') {
+      ensureNotLeadingZero()
+      BigInt(0)
+    } else {
       var pos = head
       var buf = this.buf
       setMark(pos - 1)
       try {
-        var digits = 1
-        if (isToken && b == '0') {
-          if (
-            (pos < tail || {
-              pos = loadMore(pos)
-              buf = this.buf
-              pos < tail
-            }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
-            }
-          ) leadingZeroError()
-        } else {
-          digits -= pos
-          while (
-            (pos < tail || {
-              digits += pos
-              pos = loadMore(pos)
-              digits -= pos
-              buf = this.buf
-              pos < tail
-            }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
-            }
-          ) pos += 1
-          digits += pos
-        }
-        var fracLen, scale = 0
-        if (digits >= digitsLimit) digitsLimitError()
-        if (b == '.') {
-          pos += 1
-          fracLen -= pos
-          while (
-            (pos < tail || {
-              fracLen += pos
-              pos = loadMore(pos)
-              fracLen -= pos
-              buf = this.buf
-              pos < tail
-            }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
-            }
-          ) pos += 1
-          fracLen += pos
-          digits += fracLen
-          if (fracLen == 0) numberError()
-          if (digits >= digitsLimit) digitsLimitError()
-        }
-        if ((b | 0x20) == 'e') {
-          b = nextByte(pos + 1)
-          val sb = b
-          if (b == '-' || b == '+') b = nextByte(head)
-          if (b < '0' || b > '9') numberError()
-          scale = '0' - b
-          pos = head
-          buf = this.buf
-          while (
-            (pos < tail || {
-              pos = loadMore(pos)
-              buf = this.buf
-              pos < tail
-            }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
-            }
-          ) {
-            if (
-              scale < -214748364 || {
-                scale = scale * 10 + ('0' - b)
-                scale > 0
-              }
-            ) numberError()
-            pos += 1
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
           }
-          if (sb == '-') scale = -scale
-          if (scale == -2147483648) numberError()
-        }
+        ) pos += 1
         head = pos
         var from = marks(markNum - 1)
-        var d    =
-          if (fracLen != 0) {
-            val limit     = from + digits + 1
-            val fracPos   = limit - fracLen
-            val fracLimit = fracPos - 1
-            if (digits < 10) {
-              var x = buf(from) - '0'
-              from += 1
-              while (from < fracLimit) {
-                x = x * 10 + (buf(from) - '0')
-                from += 1
-              }
-              from += 1
-              while (from < limit) {
-                x = x * 10 + (buf(from) - '0')
-                from += 1
-              }
-              java.math.BigDecimal.valueOf(((x ^ s) - s).toLong, scale + fracLen)
-            } else if (digits < 19) {
-              var x = (buf(from) - '0').toLong
-              from += 1
-              while (from < fracLimit) {
-                x = (x << 3) + (x << 1) + (buf(from) - '0')
-                from += 1
-              }
-              from += 1
-              while (from < limit) {
-                x = (x << 3) + (x << 1) + (buf(from) - '0')
-                from += 1
-              }
-              if (s != 0) x = -x
-              java.math.BigDecimal.valueOf(x, scale + fracLen)
-            } else
-              toBigDecimal(buf, from, fracLimit, s, scale).add(toBigDecimal(buf, fracPos, limit, s, scale + fracLen))
-          } else toBigDecimal(buf, from, from + digits, s, scale)
-        if (mc.getPrecision < digits) d = d.plus(mc)
-        if (Math.abs(d.scale) >= scaleLimit) scaleLimitError()
-        new BigDecimal(d, mc)
+        val len  = pos - from
+        if (len >= digitsLimit) digitsLimitError()
+        if ((b | 0x20) == 'e' || b == '.') numberError()
+        if (len < 19) {
+          var x = buf(from) - '0'
+          from += 1
+          val limit = Math.min(from + 8, pos)
+          while (from < limit) {
+            x = x * 10 + (buf(from) - '0')
+            from += 1
+          }
+          var x1 = x.toLong
+          while (from < pos) {
+            x1 = (x1 << 3) + (x1 << 1) + (buf(from) - '0')
+            from += 1
+          }
+          if (s != 0) x1 = -x1
+          BigInt(x1)
+        } else
+          new BigInt({
+            if (len <= 36) toBigDecimal36(buf, from, pos, s, 0).unscaledValue
+            else if (len <= 308) toBigInteger308(buf, from, pos, s)
+            else {
+              // Based on the great idea of Eric Obermühlner to use a tree of smaller BigDecimals for parsing huge numbers
+              // with O(n^1.5) complexity instead of O(n^2) when using the constructor for the decimal representation from JDK:
+              // https://github.com/eobermuhlner/big-math/commit/7a5419aac8b2adba2aa700ccf00197f97b2ad89f
+              val mid    = len >> 1
+              val midPos = pos - mid
+              toBigDecimal(buf, from, midPos, s, -mid).add(toBigDecimal(buf, midPos, pos, s, 0)).unscaledValue
+            }
+          })
       } finally markNum -= 1
     }
+  }
+
+  private[this] def readBigDecimal(isToken: Boolean, mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
+    var b =
+      if (isToken) nextToken(head)
+      else nextByte(head)
+    var s = 0
+    if (b == '-') {
+      b = nextByte(head)
+      s = -1
+    }
+    if (b < '0' || b > '9') numberError()
+    var pos = head
+    var buf = this.buf
+    setMark(pos - 1)
+    try {
+      var digits = 1
+      if (isToken && b == '0') {
+        if (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) leadingZeroError()
+      } else {
+        digits -= pos
+        while (
+          (pos < tail || {
+            digits += pos
+            pos = loadMore(pos)
+            digits -= pos
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) pos += 1
+        digits += pos
+      }
+      var fracLen, scale = 0
+      if (digits >= digitsLimit) digitsLimitError()
+      if (b == '.') {
+        pos += 1
+        fracLen -= pos
+        while (
+          (pos < tail || {
+            fracLen += pos
+            pos = loadMore(pos)
+            fracLen -= pos
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) pos += 1
+        fracLen += pos
+        digits += fracLen
+        if (fracLen == 0) numberError()
+        if (digits >= digitsLimit) digitsLimitError()
+      }
+      if ((b | 0x20) == 'e') {
+        b = nextByte(pos + 1)
+        val sb = b
+        if (b == '-' || b == '+') b = nextByte(head)
+        if (b < '0' || b > '9') numberError()
+        scale = '0' - b
+        pos = head
+        buf = this.buf
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (
+            scale < -214748364 || {
+              scale = scale * 10 + ('0' - b)
+              scale > 0
+            }
+          ) numberError()
+          pos += 1
+        }
+        if (sb == '-') scale = -scale
+        if (scale == -2147483648) numberError()
+      }
+      head = pos
+      var from = marks(markNum - 1)
+      var d    =
+        if (fracLen != 0) {
+          val limit     = from + digits + 1
+          val fracPos   = limit - fracLen
+          val fracLimit = fracPos - 1
+          if (digits < 10) {
+            var x = buf(from) - '0'
+            from += 1
+            while (from < fracLimit) {
+              x = x * 10 + (buf(from) - '0')
+              from += 1
+            }
+            from += 1
+            while (from < limit) {
+              x = x * 10 + (buf(from) - '0')
+              from += 1
+            }
+            java.math.BigDecimal.valueOf(((x ^ s) - s).toLong, scale + fracLen)
+          } else if (digits < 19) {
+            var x = (buf(from) - '0').toLong
+            from += 1
+            while (from < fracLimit) {
+              x = (x << 3) + (x << 1) + (buf(from) - '0')
+              from += 1
+            }
+            from += 1
+            while (from < limit) {
+              x = (x << 3) + (x << 1) + (buf(from) - '0')
+              from += 1
+            }
+            if (s != 0) x = -x
+            java.math.BigDecimal.valueOf(x, scale + fracLen)
+          } else
+            toBigDecimal(buf, from, fracLimit, s, scale).add(toBigDecimal(buf, fracPos, limit, s, scale + fracLen))
+        } else toBigDecimal(buf, from, from + digits, s, scale)
+      if (mc.getPrecision < digits) d = d.plus(mc)
+      if (Math.abs(d.scale) >= scaleLimit) scaleLimitError()
+      new BigDecimal(d, mc)
+    } finally markNum -= 1
   }
 
   private[this] def toBigDecimal(buf: Array[Byte], p: Int, limit: Int, s: Int, scale: Int): java.math.BigDecimal = {
@@ -3361,21 +3186,6 @@ final class JsonReader private[json] (
     }
     new java.math.BigInteger(s | 1, bs)
   }
-
-  @tailrec
-  private[this] def readNullOrNumberError[A](default: A, pos: Int): A =
-    if (default != null) {
-      if (pos + 2 < tail) {
-        val buf = this.buf
-        val b1  = buf(pos)
-        val b2  = buf(pos + 1)
-        val b3  = buf(pos + 2)
-        if (b1 == 'u' && b2 == 'l' && b3 == 'l') {
-          head = pos + 3
-          default
-        } else decodeError("expected number or null")
-      } else readNullOrNumberError(default, loadMoreOrError(pos))
-    } else numberError()
 
   private[this] def numberError(): Nothing = decodeError("illegal number")
 

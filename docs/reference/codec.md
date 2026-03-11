@@ -152,7 +152,7 @@ object Person extends CompanionOptics[Person] {
 
 // Override the codec for the "name" field
 val customNameCodec = new JsonBinaryCodec[String] {
-  def decodeValue(in: JsonReader, default: String): String = in.readString(default)
+  def decodeValue(in: JsonReader): String = in.readString()
   def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x.toUpperCase)
 }
 
