@@ -576,7 +576,7 @@ You rarely need to construct `Nested` manually; it is primarily an internal opti
 
 ## Diffing Algorithm
 
-`JsonPatch.diff` (and its alias `Json#diff`) delegate to `JsonDiffer.diff`, which selects the most compact representation for each type of change:
+`JsonPatch.diff` (and its alias `Json#diff`) delegate to [`JsonDiffer.diff`](./json-differ.md), which selects the most compact representation for each type of change:
 
 | Value type | Change | Strategy |
 |------------|--------|----------|
