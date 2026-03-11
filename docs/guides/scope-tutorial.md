@@ -9,7 +9,7 @@ Welcome to ZIO Blocks Scope—a library that makes resource management safe, com
 
 This tutorial introduces Scope step-by-step, starting with the problems it solves and progressing through practical examples. Each section builds on the last, so we recommend reading from top to bottom.
 
-## Section 1 — The Problem: Why Resource Management Is Hard
+## 1. The Problem: Why Resource Management Is Hard
 
 Managing resources safely is deceptively difficult. When you open a database connection, read a file, or create a network socket, you must eventually close it—but only once, and only after you're done using it. Forget to close it, and you leak a resource. Close it too early, and you get a crash. Close it twice, and you get an error.
 
@@ -40,7 +40,7 @@ This is hard to read, easy to get wrong, and doesn't compose—every additional 
 
 Scope eliminates these problems by making resource ownership explicit and enforcing it at compile time.
 
-## Section 2 — Your First Scope
+## 2. Your First Scope
 
 Let's start with the simplest possible example: allocating a single resource, using it, and letting it close automatically.
 
@@ -104,34 +104,17 @@ Scope.global.scoped { scope =>
 }
 ```
 
-★ Insight ─────────────────────────────────────
+:::note
 The `$[A]` type is central to Scope's compile-time safety: each scope instance has a unique `$` type that cannot be mixed with other scopes. Resources allocated in one scope literally cannot be used in another, even at the type level. This prevents entire classes of resource-lifetime bugs at compile time.
-─────────────────────────────────────────────────
+:::
 
-## Section 3 — The `$[A]` Type and the `$` Operator
+## 3. The `$[A]` Type and the `$` Operator
 
 To understand Scope, you need to understand `$[A]`. It is a marker type that says "this value is owned by a specific scope." At runtime, `$[A]` is erased to `A` (zero overhead), but at compile time, it enforces a fundamental rule: **you can only use a resource via the operator defined by the scope it belongs to**.
 
-Every scope instance has its own unique `$` type. Two different scopes have incompatible `$` types, so you cannot accidentally mix them at the type level:
+Every scope instance has its own unique `$` type. Two different scopes have incompatible `$` types, so you cannot accidentally mix them at the type level. For example, if you allocate a resource in an outer scope and try to use it directly in an inner scope without `lower`, you get a compile error because the types are incompatible.
 
-```scala mdoc:compile-only
-import zio.blocks.scope.*
-
-class Database extends AutoCloseable {
-  override def close(): Unit = ()
-}
-
-// This code illustrates the type incompatibility; it does not compile:
-//
-// Scope.global.scoped { outer =>
-//   outer.allocate(Resource(new Database()))
-//   outer.scoped { inner =>
-//     // Trying to use outer.$[Database] in inner scope:
-//     // val db: outer.$[Database] = ???
-//     // $(db) { ... }  // ERROR: outer.$ incompatible with inner.$
-//   }
-// }
-```
+To use a parent-scoped resource in a child scope safely, you must use the `lower` operator, which we'll cover in Section 7.
 
 To use a resource, apply the `$(value)` operator (it's a macro) with a single-argument block. The parameter must be used as the receiver of all operations:
 
@@ -152,13 +135,13 @@ Scope.global.scoped { scope =>
     log.log("Message 1")
     log.log("Message 2")
   }
-
-  // If you try these patterns, they won't compile:
-  // $(logger) { log => logger.log("X") }     // ERROR: can't use logger outside $()
-  // $(logger) { log => val x = log; x }      // ERROR: result not Unscoped
-  // $(logger) { log => (log, "data") }       // ERROR: result not Unscoped
 }
 ```
+
+The following patterns will not compile:
+- `$(logger) { log => logger.log("X") }` — cannot use `logger` outside the `$()` operator
+- `$(logger) { log => val x = log; x }` — result is `$[Logger]`, which is not `Unscoped`
+- `$(logger) { log => (log, "data") }` — tuples containing `$[Logger]` are not `Unscoped`
 
 The `$` operator automatically unwraps the result if it is an `Unscoped[B]` type. We'll cover `Unscoped` in detail in Section 5, but for now, know that primitives like `Int`, `String`, and `Unit` are always `Unscoped`:
 
@@ -180,11 +163,11 @@ Scope.global.scoped { scope =>
 }
 ```
 
-★ Insight ─────────────────────────────────────
+:::note
 The `$` operator is not a regular method—it's a compile-time macro that inspects what you do with its parameter. This macro enforcement is what makes the rule "parameter must be receiver" checkable at compile time, not at runtime.
-─────────────────────────────────────────────────
+:::
 
-## Section 4 — Resources: Describing Acquisition and Cleanup
+## 4. Resources: Describing Acquisition and Cleanup
 
 A `Resource[A]` is a lazy description of how to acquire a value and register any cleanup needed when the scope closes. Creating a resource does not acquire it—that only happens when you pass it to `scope.allocate()`.
 
@@ -292,7 +275,7 @@ Scope.global.scoped { scope =>
 
 When you use `flatMap` to open a connection from an already-open database, the database stays open until the scope closes, ensuring the connection is always valid.
 
-## Section 5 — Returning Values: The `Unscoped[A]` Typeclass
+## 5. Returning Values: The `Unscoped[A]` Typeclass
 
 When you exit a `scoped { }` block, the scope closes and all resources are finalized. But what can you return from a `scoped` block? A scoped value `$[A]` cannot escape—it would be used after the scope closes. That's where `Unscoped[A]` comes in.
 
@@ -332,11 +315,11 @@ If you define a custom class and want to return it from `scoped`, you need to ei
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-case class CustomData(x: Int, y: String) derives Unscoped
+class CustomData(val x: Int, val y: String) derives Unscoped
 
 Scope.global.scoped { scope =>
   import scope.*
-  CustomData(10, "hello")
+  new CustomData(10, "hello")
 }
 ```
 
@@ -345,13 +328,13 @@ Alternatively, define it explicitly using a `given`:
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-case class CustomData(x: Int, y: String)
+class CustomData(val x: Int, val y: String)
 
 given Unscoped[CustomData] = Unscoped.derived
 
 Scope.global.scoped { scope =>
   import scope.*
-  CustomData(10, "hello")
+  new CustomData(10, "hello")
 }
 ```
 
@@ -371,9 +354,11 @@ class Connection extends AutoCloseable {
 // }
 ```
 
+[//]: # (If you are writing the error message, be sure that error is actually produced by the code snippet. If the code compiles, do not include an "ERROR: " message. Instead, you can write a comment describing the error in a way that doesn't imply it's a literal compiler message.)
+
 This compile-time barrier prevents entire classes of resource-lifetime bugs—you cannot accidentally return a resource reference from a scoped block.
 
-## Section 6 — Finalizers and Error Handling
+## 6. Finalizers and Error Handling
 
 Sometimes you need to register cleanup that is not a simple resource `close()`. The `defer` operator lets you register arbitrary cleanup actions:
 
@@ -434,7 +419,7 @@ Scope.global.scoped { scope =>
 
 Finalizers run in **LIFO order** (last registered, first executed) and are guaranteed to run even if the scoped block throws an exception. If multiple finalizers throw, they are collected:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.scope.*
 
 Scope.global.scoped { scope =>
@@ -448,11 +433,20 @@ Scope.global.scoped { scope =>
 }
 ```
 
-★ Insight ─────────────────────────────────────
-The `DeferHandle.cancel()` operation is O(1)—it marks the finalizer as cancelled without traversing the entire registry. This makes it safe to use in performance-sensitive code, like transaction commits in tight loops.
-─────────────────────────────────────────────────
+When this code runs, the finalizers execute in reverse order of registration:
 
-## Section 7 — Nested Scopes and `lower`
+```
+Block executing
+Finalizer 3
+Finalizer 2
+Finalizer 1
+```
+
+:::note
+The `DeferHandle.cancel()` operation is O(1)—it marks the finalizer as cancelled without traversing the entire registry. This makes it safe to use in performance-sensitive code, like transaction commits in tight loops.
+:::
+
+## 7. Nested Scopes and `lower`
 
 Scopes form a tree: each scope can create child scopes via `scope.scoped { }`. Children are guaranteed to close before their parent, which is the foundation of hierarchical resource management.
 
@@ -507,7 +501,7 @@ Scope.global.scoped { parentScope =>
 
 When the child scope exits, all resources allocated in it close first. Then the parent scope's finalizers run. This ensures that if a child holds a reference to a parent's resource, that resource is not closed until all children have finished.
 
-## Section 8 — Explicit Lifetime Management with `open()`
+## 8. Explicit Lifetime Management with `open()`
 
 The `scoped { }` syntax ties resource lifetime to a lexical block. But sometimes you need explicit, decoupled lifetime management—for example, a request handler that opens a connection when processing begins and closes it when processing ends, independent of any fixed scope nesting.
 
@@ -560,11 +554,11 @@ Scope.global.scoped { scope =>
 
 The standard pattern for managing resource lifetimes in your application is to use `scoped { }` with careful nesting. The `open()` method is reserved for low-level integration points (like application startup/shutdown boundaries) and is not typically needed in application code.
 
-★ Insight ─────────────────────────────────────
+:::note
 Thread ownership is enforced for child scopes created with `scoped { }` but not for unowned scopes from `open()`. This difference allows Scope to prevent thread-related bugs in structured code while still supporting integration with callback-driven or asynchronous frameworks that require explicit lifetime management.
-─────────────────────────────────────────────────
+:::
 
-## Section 9 — Shared Resources and Reference Counting
+## 9. Shared Resources and Reference Counting
 
 When multiple parts of your application need the same heavyweight resource (like a database connection pool), you want to create it once and destroy it only when the last user is done. `Resource.shared` provides reference-counted sharing:
 
@@ -610,7 +604,7 @@ Scope.global.scoped { scope =>
 
 This pattern is essential for applications with a shared database connection pool, cache, or logging infrastructure.
 
-## Section 10 — Dependency Injection with Wire
+## 10. Dependency Injection with Wire
 
 Applications often have many services with interdependencies. Manual wiring is error-prone: forget a dependency, pass the wrong type, create a cycle, or accidentally duplicate an instance where sharing was intended.
 
@@ -656,7 +650,7 @@ The compiler verifies that:
 
 If you violate any of these rules, you get a clear compile error before runtime.
 
-## Section 11 — Thread Ownership
+## 11. Thread Ownership
 
 On the JVM, Scope enforces a structured concurrency guarantee: each `Scope.Child` (any scope created with `scoped { }` or as a child of another scope) is owned by the thread that created it. This prevents a subtle class of bugs where a scope reference escapes to another thread and resources are used or closed on the wrong thread.
 
@@ -678,8 +672,6 @@ If you try to use a child scope from a different thread, operations like `alloca
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
-import scala.concurrent.{Future, ExecutionContext}
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class Database extends AutoCloseable {
   override def close(): Unit = ()
@@ -690,10 +682,11 @@ Scope.global.scoped { scope =>
 
   val db = allocate(Resource(new Database()))
 
-  // This would throw on the spawned thread:
-  // Future {
-  //   $(db) { _ => }  // ERROR: ownership violation
-  // }
+  // Attempting to use the scope from another thread will throw:
+  // val thread = new Thread(() => {
+  //   $(db) { _ => }  // throws IllegalStateException: ownership violation
+  // })
+  // thread.start()
 }
 ```
 
@@ -701,11 +694,11 @@ To pass a resource to another thread safely, use `Scope.global.open()` to create
 
 For platforms like Scala.js (single-threaded), thread ownership checks are disabled—ownership is always considered valid.
 
-★ Insight ─────────────────────────────────────
+:::note
 Thread ownership enforcement is not about thread safety in the traditional sense—it's about structured concurrency. It prevents subtle bugs where a scope escapes to another thread and resources are closed on a different thread than they were allocated.
-─────────────────────────────────────────────────
+:::
 
-## Section 12 — Common Errors and Troubleshooting
+## 12. Common Errors and Troubleshooting
 
 This section lists the most common runtime and compile errors, explains what caused them, and how to fix them.
 
