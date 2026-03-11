@@ -5,9 +5,38 @@ title: "Scope Tutorial"
 
 # Scope: A Newcomer's Guide to Compile-Time Resource Safety
 
-Welcome to ZIO Blocks Scope—a library that makes resource management safe, composable, and verifiable at compile time. If you've ever struggled with `try/finally` chains, wondered when to close a database connection, or worried about resources outliving their owners, this guide is for you.
+Welcome to ZIO Blocks Scope—a library that makes resource management safe, composable, and verifiable at compile time. If you've ever struggled with `try/finally` chains, wondered when to close a database connection, or worried about resources outliving their owners, this tutorial is for you. You don't need any prior experience with Scope or advanced type system concepts to follow along.
 
-This tutorial introduces Scope step-by-step, starting with the problems it solves and progressing through practical examples. Each section builds on the last, so we recommend reading from top to bottom.
+## Learning Objectives
+
+By the end of this tutorial, you will understand:
+
+- What Scope is and why compile-time resource safety matters
+- How to allocate, use, and manage resources with the `scoped { }` block
+- The `$[A]` type and how it enforces resource ownership at the type level
+- How to construct resources with `Resource` and its variants
+- The `Unscoped[A]` typeclass and why returning resources is forbidden
+- How to register cleanup with `defer` and manage finalizer order
+- Nested scopes and the `lower` operator for hierarchical resource management
+- Advanced patterns like `open()` for decoupled lifetime management, `Resource.shared` for reference counting, and `Wire` for dependency injection
+- Common errors and how to fix them
+
+## What We'll Cover
+
+1. The Problem — Why resource management without Scope is difficult
+2. Your First Scope — Allocating a single resource and seeing automatic cleanup
+3. The `$[A]` Type and the `$` Operator — Understanding type-level ownership
+4. Resources — Describing acquisition and cleanup with different constructors
+5. Returning Values — The `Unscoped[A]` typeclass and compile-time barriers
+6. Finalizers and Error Handling — Registering cleanup with `defer` and LIFO execution
+7. Nested Scopes and `lower` — Hierarchical resource management
+8. Explicit Lifetime Management — Using `open()` for decoupled control
+9. Shared Resources — Reference counting with `Resource.shared`
+10. Dependency Injection — Compile-time wiring with `Wire` and `Resource.from`
+11. Thread Ownership — Structured concurrency on the JVM
+12. Common Errors and Troubleshooting — Real errors and their fixes
+
+We recommend reading from top to bottom — each section builds on the previous one.
 
 ## 1. The Problem: Why Resource Management Is Hard
 
@@ -310,31 +339,31 @@ Scope.global.scoped { scope =>
 }
 ```
 
-If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. In Scala 3, use the `derives` clause:
+If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. In Scala 3, case classes support automatic derivation via `derives`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-class CustomData(val x: Int, val y: String) derives Unscoped
+case class CustomData(x: Int, y: String) derives Unscoped
 
 Scope.global.scoped { scope =>
   import scope.*
-  new CustomData(10, "hello")
+  CustomData(10, "hello")
 }
 ```
 
-Alternatively, define it explicitly using a `given`:
+Alternatively, provide an instance explicitly using a `given`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-class CustomData(val x: Int, val y: String)
+case class CustomData(x: Int, y: String)
 
 given Unscoped[CustomData] = Unscoped.derived
 
 Scope.global.scoped { scope =>
   import scope.*
-  new CustomData(10, "hello")
+  CustomData(10, "hello")
 }
 ```
 
@@ -819,6 +848,143 @@ Scope.global.scoped { scope =>
   $(db) { d => println("Connected to " + d.toString()) }
 }
 ```
+
+---
+
+## Putting It Together
+
+Now let's combine everything we've learned into a single, realistic example. This example demonstrates:
+
+- Multiple allocated resources (database and logger)
+- Wire-based dependency injection with shared and unique wires
+- Automatic cleanup in reverse allocation order
+- The complete interaction of all concepts
+
+This example combines core concepts — allocation, cleanup, resource composition, and dependency injection:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def query(sql: String): String = s"Results: $sql"
+  override def close(): Unit = println("Closing database")
+}
+
+class Logger extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[LOG] $msg")
+  override def close(): Unit = println("Closing logger")
+}
+
+class Application(database: Database, logger: Logger) extends AutoCloseable {
+  def run(): String = {
+    logger.log("Starting application")
+    val result = database.query("SELECT * FROM users")
+    logger.log(s"Query executed: $result")
+    result
+  }
+  override def close(): Unit = logger.log("Shutting down application")
+}
+
+// Create an app using Scope with wire-based dependency injection
+Scope.global.scoped { scope =>
+  import scope.*
+
+  // Wire.shared means all dependents receive the same Logger instance
+  // Wire.shared[Database] means all dependents receive the same Database
+  // Resource.from[Application] constructs Application by resolving dependencies
+  val app = allocate(
+    Resource.from[Application](
+      Wire.shared[Database],
+      Wire.shared[Logger]
+    )
+  )
+
+  // Use the application
+  $(app) { a =>
+    val result = a.run()
+    println(s"Result: $result")
+
+    // Register additional cleanup operations
+    defer {
+      println("Application cleanup complete")
+    }
+  }
+
+  // All resources are closed in LIFO order: Application, Logger, then Database
+  ()
+}
+
+println("Program finished")
+```
+
+This example demonstrates:
+- **Wire-based DI**: `Wire.shared[T]` automatically derives how to construct `T` from its dependencies
+- **Resource.from**: The macro analyzes the dependency graph and automatically allocates in correct order
+- **Composition**: Multiple resources (Database, Logger, Application) with declared dependencies
+- **Cleanup**: All resources close in reverse order when the scope exits (LIFO)
+
+---
+
+## What You've Learned
+
+In this tutorial, you learned:
+
+- What Scope is and why compile-time resource safety matters
+- How to allocate, use, and manage resources with the `scoped { }` block
+- The `$[A]` type and how it enforces resource ownership at the type level
+- How to construct resources with `Resource` and its variants
+- The `Unscoped[A]` typeclass and why returning resources is forbidden
+- How to register cleanup with `defer` and manage finalizer order
+- Nested scopes and the `lower` operator for hierarchical resource management
+- Advanced patterns like `open()` for decoupled lifetime management, `Resource.shared` for reference counting, and `Wire` for dependency injection
+- Common errors and how to fix them
+
+You now have a solid foundation in Scope. The next step is to see how to apply these concepts in practice with realistic scenarios.
+
+---
+
+## Running the Examples
+
+The code examples in this tutorial are embedded directly in the documentation and compile with mdoc. To run them locally:
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Compile and run the tutorial examples:**
+
+All examples from the tutorial sections are compile-checked using mdoc. To verify they compile:
+
+```bash
+sbt "docs/mdoc --in docs/guides/scope-tutorial.md"
+```
+
+**3. Run standalone examples from the scope-examples module:**
+
+The repository also includes additional companion examples in `scope-examples/`. For example:
+
+```bash
+sbt "scope-examples/runMain scope.examples.DatabaseConnectionExample"
+sbt "scope-examples/runMain scope.examples.CachingSharedLoggerExample"
+sbt "scope-examples/runMain scope.examples.ThreadOwnershipExample"
+```
+
+To compile all examples:
+
+```bash
+sbt "scope-examples/compile"
+```
+
+---
+
+## Where to Go Next
+
+- **Ready to use this in practice?** Check out the how-to guides (coming soon) which walk through real-world examples.
+- **Want to dive deeper into the API?** Read the [Scope Reference](../reference/scope.md) for comprehensive API documentation.
+- **Interested in related concepts?** Explore dependency injection with [Wire](../reference/wire.md) or resource composition patterns.
 
 ---
 
