@@ -2332,17 +2332,17 @@ object Json {
   )
 
   implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
-    override def decodeValue(in: JsonReader, default: Json): Json = {
+    override def decodeValue(in: JsonReader): Json = {
       var x = in.nextToken().toInt
       if (x == '"') {
         in.rollbackToken()
-        new String(in.readString(null))
+        new String(in.readString())
       } else if (x == 'f' || x == 't') {
         in.rollbackToken()
         Boolean.apply(in.readBoolean())
       } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
-        new Number(in.readBigDecimal(null))
+        new Number(in.readBigDecimal())
       } else if (x == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
@@ -2353,7 +2353,7 @@ object Json {
           try {
             while ({
               errIdx = x
-              arr(x) = decodeValue(in, default)
+              arr(x) = decodeValue(in)
               x += 1
               errIdx = -1
               in.isNextToken(',')
@@ -2378,7 +2378,7 @@ object Json {
           try {
             while ({
               key = in.readKeyAsString()
-              arr(x) = new Tuple2(key, decodeValue(in, default))
+              arr(x) = new Tuple2(key, decodeValue(in))
               x += 1
               key = null
               in.isNextToken(',')
@@ -2395,7 +2395,7 @@ object Json {
         }
       } else {
         in.rollbackToken()
-        in.readNullOrError(default, "expected JSON value")
+        in.readNullOrError(Null, "expected JSON value")
       }
     }
 
@@ -2416,66 +2416,64 @@ object Json {
         out.writeObjectEnd()
       case _ => out.writeNull()
     }
-
-    override def nullValue: Json = Null
   }
 
   private[schema] val durationRawCodec = new JsonBinaryCodec[Duration] {
-    override def decodeValue(in: JsonReader, default: Duration): Duration = in.readRawValAsDuration()
+    override def decodeValue(in: JsonReader): Duration = in.readRawValAsDuration()
 
     override def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val instantRawCodec = new JsonBinaryCodec[Instant] {
-    override def decodeValue(in: JsonReader, default: Instant): Instant = in.readRawValAsInstant()
+    override def decodeValue(in: JsonReader): Instant = in.readRawValAsInstant()
 
     override def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localDateRawCodec = new JsonBinaryCodec[LocalDate] {
-    override def decodeValue(in: JsonReader, default: LocalDate): LocalDate = in.readRawValAsLocalDate()
+    override def decodeValue(in: JsonReader): LocalDate = in.readRawValAsLocalDate()
 
     override def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localDateTimeRawCodec = new JsonBinaryCodec[LocalDateTime] {
-    override def decodeValue(in: JsonReader, default: LocalDateTime): LocalDateTime = in.readRawValAsLocalDateTime()
+    override def decodeValue(in: JsonReader): LocalDateTime = in.readRawValAsLocalDateTime()
 
     override def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localTimeRawCodec = new JsonBinaryCodec[LocalTime] {
-    override def decodeValue(in: JsonReader, default: LocalTime): LocalTime = in.readRawValAsLocalTime()
+    override def decodeValue(in: JsonReader): LocalTime = in.readRawValAsLocalTime()
 
     override def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val monthDayRawCodec = new JsonBinaryCodec[MonthDay] {
-    override def decodeValue(in: JsonReader, default: MonthDay): MonthDay = in.readRawValAsMonthDay()
+    override def decodeValue(in: JsonReader): MonthDay = in.readRawValAsMonthDay()
 
     override def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val offsetDateTimeRawCodec = new JsonBinaryCodec[OffsetDateTime] {
-    override def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = in.readRawValAsOffsetDateTime()
+    override def decodeValue(in: JsonReader): OffsetDateTime = in.readRawValAsOffsetDateTime()
 
     override def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val offsetTimeRawCodec = new JsonBinaryCodec[OffsetTime] {
-    override def decodeValue(in: JsonReader, default: OffsetTime): OffsetTime = in.readRawValAsOffsetTime()
+    override def decodeValue(in: JsonReader): OffsetTime = in.readRawValAsOffsetTime()
 
     override def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val periodRawCodec = new JsonBinaryCodec[Period] {
-    override def decodeValue(in: JsonReader, default: Period): Period = in.readRawValAsPeriod()
+    override def decodeValue(in: JsonReader): Period = in.readRawValAsPeriod()
 
     override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val zonedDateTimeRawCodec = new JsonBinaryCodec[ZonedDateTime] {
-    override def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readRawValAsZonedDateTime()
+    override def decodeValue(in: JsonReader): ZonedDateTime = in.readRawValAsZonedDateTime()
 
     override def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
