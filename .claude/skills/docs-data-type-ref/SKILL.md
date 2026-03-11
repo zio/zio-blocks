@@ -15,30 +15,9 @@ $ARGUMENTS
 
 ## Step 1: Deep Source Code Research
 
-Before writing anything, build a complete mental model of the type:
+Use the **`docs-research`** skill to find the source file, read tests, identify examples, find usages, read related docs, and search GitHub history. It covers steps for identifying the type, finding supporting information, and building a complete mental model.
 
-1. **Find the source file**: Use Glob to find the primary source file for the type. Check all Scala version directories (`*/src/main/scala*/`). The type may have platform-specific or version-specific variants.
-2. **Read the full source**: Read the entire source file. Identify:
-   - The type signature (class/trait/object, type parameters, variance, extends clauses)
-   - All public methods, their signatures, and what they do
-   - Companion object methods (factory methods, smart constructors, predefined instances)
-   - Nested types and type aliases
-   - Implicit instances and extension methods
-3. **Find tests**: Search `*/src/test/scala/` for test files referencing the type. Tests reveal:
-   - Intended usage patterns and idioms
-   - Edge cases and expected behavior
-   - Real-world examples
-4. **Find existing examples**: Use Glob and Grep to locate examples in `schema-examples/` or any directory with "examples" in its name.
-5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
-6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
-7. **Search GitHub history**: Run `sbt "gh-query --verbose <TypeName>"` to search GitHub issues, PRs, and comments for discussions about the type. Use the results to:
-   - Understand design decisions and rationale behind the API
-   - Find known caveats, gotchas, or non-obvious behavior surfaced in issues
-   - Discover common user questions or pain points to address in the docs
-   - Identify changelog entries or breaking changes worth noting
-   - Surface examples or idioms shared by contributors in PRs
-
-   Run multiple queries as needed (e.g., the simple type name, the fully-qualified name, related feature keywords) to get thorough coverage.
+**Additional guidance for reference pages**: Ensure you also locate the type's full public API (all public methods and companion object methods), as this will form the core of your documentation.
 
 ## Step 2: Write the Documentation
 
