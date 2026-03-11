@@ -7,28 +7,14 @@ Welcome to ZIO Blocks Scope—a library that makes resource management safe, com
 
 ## Learning Objectives
 
-By the end of this tutorial, you will understand:
+By the end of this tutorial, you will be able to:
 
-- What Scope is and why compile-time resource safety matters
-- How to allocate, manage, and automatically close resources with `scoped { }`
-- The `$[A]` type system and how it prevents resource-lifetime bugs at compile time
+- **Allocate resources safely** and trust the compiler to prevent use-after-close bugs
+- **Understand the `$[A]` type and `scoped { }` block** — the two core mechanisms that make resource safety compile-time verifiable
+- **Manage complex resource lifetimes** including cleanup with `defer`, nested scopes with `lower`, and reference counting with `Resource.shared`
+- **Wire applications** using `Wire` and `Resource.from` for compile-time verified dependency injection
 
-We'll learn these concepts through:
-
-1. The Problem
-2. Your First Scope
-3. The `$[A]` Type and the `$` Operator
-4. Resources
-5. Returning Values
-6. Finalizers and Error Handling
-7. Nested Scopes and `lower`
-8. Explicit Lifetime Management
-9. Shared Resources
-10. Dependency Injection
-11. Thread Ownership
-12. Common Errors and Troubleshooting
-
-We recommend reading from top to bottom.
+We'll learn through step-by-step examples that build from simple (allocating a single resource) to advanced patterns (nested scopes, shared resources, and dependency injection). Each section builds on the previous one, so we recommend reading from top to bottom.
 
 ## 1. The Problem: Why Resource Management Is Hard
 
