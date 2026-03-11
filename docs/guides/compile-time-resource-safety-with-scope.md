@@ -949,7 +949,7 @@ cd zio-blocks
 All examples from the tutorial sections are compile-checked using mdoc. To verify they compile:
 
 ```bash
-sbt "docs/mdoc --in docs/guides/scope-tutorial.md"
+sbt "docs/mdoc --in docs/guides/compile-time-resource-safety-with-scope.md"
 ```
 
 **3. Run standalone examples from the scope-examples module:**
