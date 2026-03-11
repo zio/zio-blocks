@@ -3,6 +3,9 @@ package zio.blocks.schema.yaml
 import zio.blocks.chunk.Chunk
 import java.nio.charset.StandardCharsets.UTF_8
 
+/**
+ * Parser for YAML 1.2 input, converting YAML text into a [[Yaml]] AST.
+ */
 object YamlReader {
 
   def read(input: String): Either[YamlError, Yaml] =
@@ -469,13 +472,22 @@ object YamlReader {
     }
 
     private def splitFlowItems(s: String): Array[String] = {
-      val result = new java.util.ArrayList[String]()
-      var depth  = 0
-      var start  = 0
-      var i      = 0
+      val result   = new java.util.ArrayList[String]()
+      var depth    = 0
+      var start    = 0
+      var i        = 0
+      var inSingle = false
+      var inDouble = false
       while (i < s.length) {
         val c = s.charAt(i)
-        if (c == '{' || c == '[') depth += 1
+        if (inDouble) {
+          if (c == '\\') i += 1
+          else if (c == '"') inDouble = false
+        } else if (inSingle) {
+          if (c == '\'') inSingle = false
+        } else if (c == '"') inDouble = true
+        else if (c == '\'') inSingle = true
+        else if (c == '{' || c == '[') depth += 1
         else if (c == '}' || c == ']') depth -= 1
         else if (c == ',' && depth == 0) {
           result.add(s.substring(start, i))

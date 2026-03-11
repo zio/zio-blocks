@@ -1,6 +1,12 @@
 package zio.blocks.schema.yaml
 
+/** Represents a YAML tag that annotates node types (e.g. `!!str`, `!!int`). */
 sealed trait YamlTag
+
+/**
+ * Predefined YAML core schema tags and a [[Custom]] variant for user-defined
+ * tags.
+ */
 object YamlTag {
   case object Str                      extends YamlTag
   case object Bool                     extends YamlTag

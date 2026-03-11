@@ -2,6 +2,11 @@ package zio.blocks.schema.yaml
 
 import java.nio.charset.StandardCharsets.UTF_8
 
+/**
+ * Serializer for the [[Yaml]] AST, producing YAML 1.2 text output. Formatting
+ * behavior (indentation, flow style, document markers) is controlled via
+ * [[YamlOptions]].
+ */
 object YamlWriter {
 
   def write(yaml: Yaml, options: YamlOptions = YamlOptions.default): String = {

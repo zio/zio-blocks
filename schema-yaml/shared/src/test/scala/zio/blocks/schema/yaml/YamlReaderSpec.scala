@@ -268,6 +268,24 @@ object YamlReaderSpec extends YamlBaseSpec {
             )
           )
         )
+      },
+      test("flow sequence with commas inside double-quoted strings") {
+        val result = YamlReader.read("[\"a,b\", c]")
+        assertTrue(
+          result == Right(Yaml.Sequence(Chunk(Yaml.Scalar("a,b"), Yaml.Scalar("c"))))
+        )
+      },
+      test("flow mapping with commas inside double-quoted value") {
+        val result = YamlReader.read("{a: \"x,y\"}")
+        assertTrue(
+          result == Right(Yaml.Mapping(Chunk((Yaml.Scalar("a"), Yaml.Scalar("x,y")))))
+        )
+      },
+      test("flow sequence with commas inside single-quoted strings") {
+        val result = YamlReader.read("['a,b', c]")
+        assertTrue(
+          result == Right(Yaml.Sequence(Chunk(Yaml.Scalar("a,b"), Yaml.Scalar("c"))))
+        )
       }
     ),
     suite("quoted strings")(

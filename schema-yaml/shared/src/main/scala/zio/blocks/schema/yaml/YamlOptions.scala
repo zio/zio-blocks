@@ -1,5 +1,15 @@
 package zio.blocks.schema.yaml
 
+/**
+ * Configuration for [[YamlWriter]] output formatting.
+ *
+ * @param indentStep
+ *   number of spaces per indentation level (default: 2)
+ * @param flowStyle
+ *   when true, emit collections in inline flow style
+ * @param documentMarkers
+ *   when true, prepend `---` document start marker
+ */
 final case class YamlOptions(
   indentStep: Int = 2,
   flowStyle: Boolean = false,
