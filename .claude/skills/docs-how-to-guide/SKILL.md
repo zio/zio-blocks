@@ -31,50 +31,7 @@ Key properties of a good how-to guide:
 
 Before writing a single word, you must build a complete mental model of every type, method, pattern, and integration point relevant to the guide topic. This is the most critical step.
 
-### 1a. Identify the Core Data Types
-
-Based on the guide title/topic, identify which ZIO Blocks data types are central to the goal. Use Glob and Grep to find their source files:
-
-```
-Glob: **/src/main/scala*/**/<TypeName>.scala
-Grep: "class <TypeName>" or "trait <TypeName>" or "object <TypeName>"
-```
-
-For each core type:
-
-1. **Read the full source file** — understand every public method, type parameter, companion object, and factory method.
-2. **Read existing documentation** — check `docs/reference/` and `docs/` for any existing page about this type. Understand what is already documented vs. what you need to explain in context.
-3. **Read the tests** — search `*/src/test/scala/` for test files. Tests reveal idiomatic usage patterns, edge cases, and realistic examples that you should mirror in your guide.
-
-### 1b. Identify Supporting Types
-
-Beyond the core types, find every supporting type that the reader will encounter:
-
-1. **Grep for imports** in test files related to the core types — these reveal the full dependency graph.
-2. **Trace the type signatures** — if a core method returns `Validation[String, A]`, then `Validation` is a supporting type the reader needs to understand.
-3. **Find implicit instances and type class derivation** — if the guide involves `Schema`, the reader may need to understand `Reflect`, `Binding`, `Modifier`, etc.
-
-For each supporting type, read enough of its source and docs to explain it concisely in context (you do not need to be exhaustive — just what serves the guide's goal).
-
-### 1c. Find Real-World Patterns
-
-Search for realistic usage patterns:
-
-1. **Examples directory**: Glob for `**/examples/**/*.scala` and read any examples related to the topic.
-2. **Test suites**: The best source of idiomatic code. Look for integration tests that combine multiple types.
-3. **Cross-module usages**: Grep for how the core types are used across different modules — this reveals integration patterns.
-
-### 1d. Search GitHub History
-
-Run `sbt "gh-query --verbose <topic>"` to search GitHub issues, PRs, and comments for discussions related to the guide topic. Use the results to:
-
-- Understand design decisions and rationale behind the APIs involved
-- Find known caveats, gotchas, or non-obvious behavior surfaced in issues
-- Discover common user questions or pain points to address in the guide
-- Identify real-world use cases shared by contributors in PRs or discussions
-- Surface concrete examples or idioms mentioned by contributors
-
-Run multiple queries as needed — use the guide topic, the names of core types involved, and related feature keywords to get thorough coverage.
+**For the source research procedure (finding source files, tests, examples, and GitHub history), use the `docs-research` skill.** It covers steps 1a–1d: identifying core data types, supporting types, real-world patterns, and GitHub history search.
 
 ### 1e. Answer These Research Questions
 
@@ -271,47 +228,7 @@ Near the end, show the complete working example that combines everything from th
 
 #### Running the Examples
 
-After the "Putting It Together" section, include a **"Running the Examples"** section that tells the reader how to download and run the companion example code. This section must always be present and follow this exact pattern (substituting `<packagename>` and example object names to match the guide):
-
-```markdown
-## Running the Examples
-
-All code from this guide is available as runnable examples in the `schema-examples` module.
-
-**1. Clone the repository and navigate to the project:**
-
-​```bash
-git clone https://github.com/zio/zio-blocks.git
-cd zio-blocks
-​```
-
-**2. Run individual examples with sbt:**
-
-​```bash
-# Step 1: <brief step description>
-sbt "schema-examples/runMain <packagename>.<Step1ObjectName>"
-
-# Step 2: <brief step description>
-sbt "schema-examples/runMain <packagename>.<Step2ObjectName>"
-
-# ...additional steps...
-
-# Complete example
-sbt "schema-examples/runMain <packagename>.<CompleteObjectName>"
-​```
-
-**3. Or compile all examples at once:**
-
-​```bash
-sbt "schema-examples/compile"
-​```
-```
-
-**Key rules for this section:**
-- Use plain `` ```bash `` code blocks (not mdoc — these are shell commands).
-- List every companion example file with its `sbt "schema-examples/runMain ..."` command and a short comment describing what it demonstrates.
-- The clone URL must be `https://github.com/zio/zio-blocks.git`.
-- Keep the section concise and mechanical — no extra prose beyond what is needed to run the code.
+Follow the **"Running the Examples" section template** from the `docs-examples` skill. It provides the exact Markdown pattern to use in your guide, substituting the correct `<packagename>` and example object names.
 
 #### Going Further (Optional)
 
@@ -339,110 +256,7 @@ See the **`docs-mdoc-conventions`** skill for admonition syntax and usage guidel
 
 ## Step 4: Create Companion Examples
 
-Each guide must have a companion example module in `schema-examples/src/main/scala/` that provides **runnable code** for the key steps and the final result. This gives readers working code they can clone and run immediately.
-
-### 4a. Directory and Package Structure
-
-Create a package directory matching the guide's kebab-case id (converted to a valid Scala package name):
-
-```
-schema-examples/src/main/scala/<packagename>/
-```
-
-For example, a guide with id `query-dsl-sql` would use the package `querydsl` (drop hyphens). A guide with id `typeclass-derivation` would use `typeclassderivation`.
-
-### 4b. Example File Structure
-
-Create **one Scala file per major step** of the guide, plus a final file for the complete example. Each file should be a standalone runnable `object` extending `App` (or defining a `@main` method).
-
-**Naming convention:**
-
-| File | Purpose |
-|------|---------|
-| `Step1BasicExample.scala` | First step of the guide |
-| `Step2AdvancedExample.scala` | Second step |
-| `...` | Additional steps as needed |
-| `CompleteExample.scala` | The "Putting It Together" example from the guide |
-
-You do not need a file for every single section — only for sections that introduce a meaningful, self-contained code example. Use your judgment to decide which steps are substantial enough to warrant their own file. Typically 3-5 files is appropriate.
-
-### 4c. Example File Template
-
-Each example file follows this pattern:
-
-```scala
-package <packagename>
-
-import zio.blocks.schema._
-// ... other imports as needed
-
-/**
- * <Guide Title> — Step N: <Step Title>
- *
- * <1-2 sentence description of what this example demonstrates.>
- *
- * Run with: sbt "schema-examples/runMain <packagename>.<ObjectName>"
- */
-object <ObjectName> extends App {
-
-  // --- Domain Types ---
-  // (repeat the domain types needed for this step)
-
-  // --- Step Logic ---
-  // (the code from this step of the guide)
-
-  // --- Output ---
-  // (print statements showing the result)
-  println(result)
-}
-```
-
-**Key rules for example files:**
-
-- **Each file must be fully self-contained.** It must compile and run independently — do not rely on types or values defined in other example files. Duplicate domain types across files if needed.
-- **Include all imports.** Every file must have complete imports at the top.
-- **Include `println` output.** The reader should see meaningful output when they run the example. Print intermediate results, not just the final answer.
-- **Include a scaladoc comment** with the guide title, step number, description, and the `sbt runMain` command.
-- **Mirror the guide's code closely.** The example code should match what the guide shows, with only the additions needed to make it runnable (e.g., wrapping in `object ... extends App`, adding `println`).
-- **Use descriptive object names.** `Step1Expressions` is better than `Step1`. `CompleteQueryDSL` is better than `Complete`.
-
-### 4d. The Complete Example
-
-The final `CompleteExample.scala` (or a descriptively-named equivalent like `CompleteSqlGenerator.scala`) must contain the **entire "Putting It Together" code block** from the guide, wrapped in a runnable `object`. This is the most important example file — it is the working artifact the reader takes away.
-
-### 4e. Verify Examples Compile
-
-After creating all example files, verify they compile:
-
-```bash
-sbt "schema-examples/compile"
-```
-
-If any example fails to compile, fix it before proceeding. The examples must compile successfully.
-
-### 4f. Lint Check (Mandatory Before Integration)
-
-After all examples compile, stage them in git first, then run Scalafmt to ensure all Scala files pass the CI formatting gate:
-
-```bash
-git add schema-examples/src/main/scala/**/*.scala
-sbt fmtChanged
-```
-
-If any files were reformatted, commit the changes immediately:
-
-```bash
-git add -A
-git commit -m "docs(<guide-id>): apply scalafmt to examples"
-```
-
-Verify the CI lint gate locally:
-
-```bash
-sbt check
-```
-
-**Success criterion:** zero formatting violations reported.
+Use the **`docs-examples`** skill to create companion examples. It covers all aspects: directory structure, file templates, compilation verification, and the lint check procedure. Follow steps 4a–4f exactly as documented in that skill.
 
 ---
 
@@ -461,48 +275,4 @@ Additional notes for how-to guides:
 
 ## Step 6: Review Checklist
 
-After writing, verify every item on this checklist:
-
-### Content Quality
-- [ ] The guide has a clear, stated goal in the introduction
-- [ ] The guide has a "Problem" section that concretely states what problem is being solved
-- [ ] The problem section explains why the problem matters (real consequences)
-- [ ] The problem section includes an example of the pain (code or concrete scenario)
-- [ ] A reader who follows every step will have a working result at the end
-- [ ] Every section introduces exactly one new concept or capability
-- [ ] No section is pure prose without a code example
-- [ ] The running example is realistic and relatable
-- [ ] Types and APIs are introduced only when needed (no front-loaded theory dumps)
-- [ ] The "Putting It Together" section is a complete, self-contained, copy-paste-ready example
-
-### Technical Accuracy
-- [ ] All method signatures and type names match the actual source code
-- [ ] All code examples use correct mdoc modifiers and would compile
-- [ ] Imports are complete and correct in every code block
-- [ ] The sbt dependency in Prerequisites is correct
-- [ ] No deprecated methods or outdated patterns are used
-- [ ] Run `sbt "docs/mdoc --in docs/guides/<guide-id>.md"` and confirm zero `[error]` lines (this is mandatory before claiming the guide is done)
-
-### Companion Examples
-- [ ] A package directory exists in `schema-examples/src/main/scala/<packagename>/`
-- [ ] There is one example file per major guide step (typically 3-5 files)
-- [ ] There is a `CompleteExample.scala` (or descriptively named equivalent) with the full "Putting It Together" code
-- [ ] Each example file is fully self-contained (compiles and runs independently)
-- [ ] Each example file has complete imports
-- [ ] Each example file has a scaladoc with guide title, step description, and `sbt runMain` command
-- [ ] Each example file includes `println` output showing meaningful results
-- [ ] All examples compile successfully (`sbt "schema-examples/compile"`)
-
-### Running the Examples Section
-- [ ] The guide includes a "Running the Examples" section after "Putting It Together"
-- [ ] The section includes `git clone https://github.com/zio/zio-blocks.git` and `cd zio-blocks`
-- [ ] Every companion example file is listed with its `sbt "schema-examples/runMain ..."` command
-- [ ] The section includes `sbt "schema-examples/compile"` as an alternative
-
-### Style and Integration
-- [ ] The frontmatter `id` matches the filename
-- [ ] The guide is added to `sidebars.js`
-- [ ] The guide is linked from `docs/index.md`
-- [ ] Related reference pages link back to this guide
-- [ ] Writing style follows the rules (present tense, "we"/"you", concise, no emojis)
-- [ ] Admonitions are used sparingly and for genuinely important callouts
+Before submitting, work through the checklist in [CHECKLIST.md](./CHECKLIST.md).
