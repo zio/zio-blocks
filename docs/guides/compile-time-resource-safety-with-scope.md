@@ -978,5 +978,5 @@ You now understand Scope's core concepts:
 - **`Wire` and dependency injection** — compile-time-verified wiring of complex applications.
 - **Thread ownership** — JVM enforcement of structured concurrency.
 
-For complete API documentation, see the [Scope Reference](../scope.md).
+For complete API documentation, see the [Scope Reference](../reference/resource-management-di/scope.md).
 

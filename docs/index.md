@@ -314,7 +314,7 @@ Scope.global.scoped { connScope =>
 
 New to Scope? Check out the [Scope Tutorial](./guides/compile-time-resource-safety-with-scope.md) for a comprehensive step-by-step guide that walks you through the concepts, patterns, and real-world examples. The tutorial is designed for newcomers and covers everything from basic resource management to advanced dependency injection.
 
-For detailed API documentation, see the [Scope Reference](./scope.md).
+For detailed API documentation, see the [Scope Reference](./reference/resource-management-di/scope.md).
 
 ---
 
