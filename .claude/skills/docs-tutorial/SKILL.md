@@ -157,7 +157,7 @@ Start with a welcome and clear statement of who this tutorial is for:
 Welcome to [Tutorial Title]! This tutorial is for [target learner] who [assumed prior knowledge]. You don't need any prior experience with [topic] to follow along.
 ```
 
-Immediately follow with **Learning Objectives** — a bulleted list of what the learner will understand by the end:
+Immediately follow with **Learning Objectives** — a bulleted list of what the learner will understand by the end, plus an outline of how the tutorial is structured:
 
 ```
 ## Learning Objectives
@@ -168,12 +168,8 @@ By the end of this tutorial, you will understand:
 - How to [do task B] with [API C]
 - The relationship between [concept D] and [concept E]
 - How to [construct/use] [type F]
-```
 
-Then include a brief outline of the tutorial sections:
-
-```
-## What We'll Cover
+We'll learn these concepts through the following sections:
 
 1. [Section Title] — [one-sentence summary]
 2. [Section Title] — [one-sentence summary]
@@ -194,7 +190,7 @@ By the end, you will understand:
 - [objective 2]
 - [objective 3]
 
-## What We'll Cover
+We'll learn these concepts through:
 
 1. [Introduction to core concept]
 2. [Building on concept: variation 1]
