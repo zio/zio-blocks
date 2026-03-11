@@ -317,10 +317,19 @@ sbt check
 Verify mdoc compilation:
 
 ```bash
+# Single file:
 sbt "docs/mdoc --in docs/reference/<type-name-kebab-case>.md"
+
+# Multiple files — repeat --in/--out pairs:
+sbt "docs/mdoc --in docs/reference/file1.md --out out/file1.md --in docs/reference/file2.md --out out/file2.md"
+
+# Or use a directory to cover all files in it:
+sbt "docs/mdoc --in docs/reference/<subdirectory>/"
 ```
 
-**Success criterion:** zero formatting violations and zero `[error]` lines in mdoc output.
+> **Never use bare `sbt docs/mdoc`** without `--in` — it recompiles all documentation (~90 seconds).
+
+**Success criterion:** zero `[error]` lines in mdoc output.
 
 ## Step 5: Integrate
 
