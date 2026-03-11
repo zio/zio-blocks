@@ -959,8 +959,8 @@ sbt "scope-examples/compile"
 ## Where to Go Next
 
 - **Ready to use this in practice?** Check out the how-to guides (coming soon) which walk through real-world examples.
-- **Want to dive deeper into the API?** Read the [Scope Reference](../reference/scope.md) for comprehensive API documentation.
-- **Interested in related concepts?** Explore dependency injection with [Wire](../reference/wire.md) or resource composition patterns.
+- **Want to dive deeper into the API?** Read the [Scope Reference](../reference/resource-management-di/scope.md) for comprehensive API documentation.
+- **Interested in related concepts?** Explore dependency injection with [Wire](../reference/resource-management-di/wire.md) or resource composition patterns.
 
 ---
 

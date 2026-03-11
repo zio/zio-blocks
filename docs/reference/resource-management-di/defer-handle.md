@@ -115,22 +115,12 @@ When transferring a resource to external management, cancel its finalizer so the
 import zio.blocks.scope.Scope
 import java.io.ByteArrayInputStream
 
-class ExternalResourceManager {
-  var resources = List[java.io.InputStream]()
-
-  def adopt(stream: java.io.InputStream): Unit = {
-    resources = stream :: resources
-  }
-
-  def closeAll(): Unit = {
-    resources.foreach(_.close())
-  }
-}
-
 Scope.global.scoped { scope =>
   import scope.*
 
-  val manager = ExternalResourceManager()
+  // Track managed resources
+  var managedResources = List[java.io.InputStream]()
+
   val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
   val handle = scope.defer {
     stream(s => println("Scope finalizer would close stream"))
@@ -138,7 +128,7 @@ Scope.global.scoped { scope =>
 
   // Transfer ownership to external manager
   stream(s => {
-    manager.adopt(s)
+    managedResources = s :: managedResources
     handle.cancel()  // Let the manager handle cleanup
   })
 }
@@ -151,14 +141,18 @@ When `defer()` is called on an already-closed scope, a no-op handle is returned:
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val scope = Scope.global
+Scope.global.scoped { scope =>
+  import scope.*
 
-val handle = scope.defer {
-  println("Will not run")
+  val handle = scope.defer {
+    println("This will run when scope closes")
+  }
+
+  // Subsequent calls to cancel() remove the finalizer
+  handle.cancel()
+
+  println("Finalizer has been cancelled")
 }
-
-// Subsequent calls to cancel() are no-ops
-handle.cancel()
 ```
 
 ## Thread Safety
@@ -167,8 +161,9 @@ handle.cancel()
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
-import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.duration.Duration
 
 Scope.global.scoped { scope =>
   import scope.*
@@ -187,13 +182,13 @@ Scope.global.scoped { scope =>
   // Wait for all threads to finish
   scala.concurrent.Await.ready(
     Future.sequence(futures),
-    scala.concurrent.duration.Duration(5, "seconds")
+    Duration(5, "seconds")
   )
 }
 ```
 
 ## See Also
 
-- [`Scope.defer`](./scope-reference.md#registering-finalizers) — the method that returns a `DeferHandle`
+- [`Scope.defer`](./scope.md#registering-finalizers) — the method that returns a `DeferHandle`
 - [`Finalizer`](./finalizer.md) — the trait defining `defer`
 - [`Finalization`](./finalization.md) — the result of running all finalizers
