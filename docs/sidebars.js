@@ -52,6 +52,7 @@ const sidebars = {
          "reference/docs",
          "reference/json",
          "reference/json-patch",
+         "reference/json-differ",
          "reference/json-schema",
          "reference/xml",
          "reference/syntax",
