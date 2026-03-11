@@ -1,9 +1,7 @@
 ---
-id: scope-tutorial
-title: "Scope Tutorial"
+id: compile-time-resource-safety-with-scope
+title: "Compile-Time Resource Safety with Scope"
 ---
-
-# Scope: A Newcomer's Guide to Compile-Time Resource Safety
 
 Welcome to ZIO Blocks Scope—a library that makes resource management safe, composable, and verifiable at compile time. If you've ever struggled with `try/finally` chains, wondered when to close a database connection, or worried about resources outliving their owners, this tutorial is for you. You don't need any prior experience with Scope or advanced type system concepts to follow along.
 
