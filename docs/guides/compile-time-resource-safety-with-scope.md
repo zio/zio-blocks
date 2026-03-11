@@ -10,31 +10,25 @@ Welcome to ZIO Blocks Scope—a library that makes resource management safe, com
 By the end of this tutorial, you will understand:
 
 - What Scope is and why compile-time resource safety matters
-- How to allocate, use, and manage resources with the `scoped { }` block
-- The `$[A]` type and how it enforces resource ownership at the type level
-- How to construct resources with `Resource` and its variants
-- The `Unscoped[A]` typeclass and why returning resources is forbidden
-- How to register cleanup with `defer` and manage finalizer order
-- Nested scopes and the `lower` operator for hierarchical resource management
-- Advanced patterns like `open()` for decoupled lifetime management, `Resource.shared` for reference counting, and `Wire` for dependency injection
-- Common errors and how to fix them
+- How to allocate, manage, and automatically close resources with `scoped { }`
+- The `$[A]` type system and how it prevents resource-lifetime bugs at compile time
 
-We'll learn these concepts through the following sections:
+We'll learn these concepts through:
 
-1. The Problem — Why resource management without Scope is difficult
-2. Your First Scope — Allocating a single resource and seeing automatic cleanup
-3. The `$[A]` Type and the `$` Operator — Understanding type-level ownership
-4. Resources — Describing acquisition and cleanup with different constructors
-5. Returning Values — The `Unscoped[A]` typeclass and compile-time barriers
-6. Finalizers and Error Handling — Registering cleanup with `defer` and LIFO execution
-7. Nested Scopes and `lower` — Hierarchical resource management
-8. Explicit Lifetime Management — Using `open()` for decoupled control
-9. Shared Resources — Reference counting with `Resource.shared`
-10. Dependency Injection — Compile-time wiring with `Wire` and `Resource.from`
-11. Thread Ownership — Structured concurrency on the JVM
-12. Common Errors and Troubleshooting — Real errors and their fixes
+1. The Problem
+2. Your First Scope
+3. The `$[A]` Type and the `$` Operator
+4. Resources
+5. Returning Values
+6. Finalizers and Error Handling
+7. Nested Scopes and `lower`
+8. Explicit Lifetime Management
+9. Shared Resources
+10. Dependency Injection
+11. Thread Ownership
+12. Common Errors and Troubleshooting
 
-We recommend reading from top to bottom — each section builds on the previous one.
+We recommend reading from top to bottom.
 
 ## 1. The Problem: Why Resource Management Is Hard
 
