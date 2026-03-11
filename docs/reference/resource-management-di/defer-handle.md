@@ -23,8 +23,8 @@ def cancel(): Unit
 
 Removes the registered finalizer so it will not run when the scope closes. This method is:
 
-- **Thread-safe**: can be called from any thread without synchronization
-- **Idempotent**: calling it multiple times has the same effect as calling once
+- **Thread-safe**: Can be called from any thread without synchronization
+- **Idempotent**: Calling it multiple times has the same effect as calling once
 - **O(1)**: cancellation is a simple removal from an internal map (not O(n))
 
 If the scope has already closed (and the finalizer has already run or been discarded), calling `cancel()` is a no-op.
