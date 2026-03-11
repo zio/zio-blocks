@@ -147,6 +147,8 @@ The `id` must match the filename (without `.md`).
 
 ### Writing the Sections
 
+**Section Heading Format:** Use numbered section headings (e.g., "## 1. Topic Name", "## 2. Next Topic") instead of wordy descriptors. This makes sections scannable and progress clear to the learner.
+
 #### Introduction
 
 Start with a welcome and clear statement of who this tutorial is for:
@@ -239,17 +241,32 @@ The code above:
 - `println(x)` — prints the result to see what was created
 ```
 
-4. **Show the result** — if the code produces output, use `mdoc` (not `mdoc:compile-only`) to show evaluated output.
+4. **Show the result** — if the code produces output, use `mdoc` (not `mdoc:compile-only`) to show evaluated output. When a code block's output is important for understanding, always display the actual output after the code block (prefaced with "Output:" or similar).
+
 5. **Add a brief explanation** if the result is non-obvious.
-6. **Use admonitions sparingly** for tips or things to watch out for:
+
+6. **Use Docusaurus admonitions** for important notes and insights:
 
 ```
+:::note
+[Important observation that the learner should remember.]
+:::
+
 :::tip
-Notice that [important observation]. This is key because [why].
+[Practical guidance or a useful pattern.]
+:::
+
+:::caution
+[Something to watch out for or a common mistake.]
 :::
 ```
 
-7. **Never branch**: Do not write "alternatively, you could..." or "if you need X, use Y instead". Pick one approach and follow it.
+7. **Provide copy-pasteable code** whenever possible. If code is intentionally incomplete or demonstrates an error:
+   - Use clear prose descriptions instead of misleading comments like `// ERROR: ...`
+   - If showing a compile failure, provide actual compilable code or state explicitly that the code does not compile
+   - Never use pseudo-code with fake error messages
+
+8. **Never branch**: Do not write "alternatively, you could..." or "if you need X, use Y instead". Pick one approach and follow it.
 
 #### Putting It Together
 
