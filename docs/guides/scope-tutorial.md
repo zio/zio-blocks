@@ -21,7 +21,7 @@ By the end of this tutorial, you will understand:
 - Advanced patterns like `open()` for decoupled lifetime management, `Resource.shared` for reference counting, and `Wire` for dependency injection
 - Common errors and how to fix them
 
-## What We'll Cover
+We'll learn these concepts through the following sections:
 
 1. The Problem — Why resource management without Scope is difficult
 2. Your First Scope — Allocating a single resource and seeing automatic cleanup
