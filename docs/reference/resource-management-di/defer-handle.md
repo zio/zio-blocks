@@ -15,7 +15,7 @@ When `scope.defer(cleanup)` is called, the cleanup action is registered and a `D
 
 ## Core Method
 
-### `cancel(): Unit`
+### `DeferHandle#cancel(): Unit`
 
 ```scala
 def cancel(): Unit
@@ -143,14 +143,6 @@ Scope.global.scoped { scope =>
   })
 }
 ```
-
-## Performance Characteristics
-
-- **Creation**: O(1) — `defer()` adds a single entry to an internal concurrent map
-- **Cancellation**: O(1) — `cancel()` removes the entry from the map
-- **Scope Closure**: O(n) — finalizers run sequentially in LIFO order
-
-The concurrent map used for storing finalizers ensures that cancellation is fast and doesn't require scanning the entire list.
 
 ## Noop Handle
 
