@@ -376,14 +376,12 @@ class Connection extends AutoCloseable {
   override def close(): Unit = ()
 }
 
-// This does not compile:
+// This does not compile because Connection has no Unscoped instance:
 // val conn = Scope.global.scoped { scope =>
 //   import scope.*
-//   allocate(Resource(new Connection()))  // ERROR: $[Connection] has no Unscoped
+//   allocate(Resource(new Connection()))
 // }
 ```
-
-[//]: # (If you are writing the error message, be sure that error is actually produced by the code snippet. If the code compiles, do not include an "ERROR: " message. Instead, you can write a comment describing the error in a way that doesn't imply it's a literal compiler message.)
 
 This compile-time barrier prevents entire classes of resource-lifetime bugs—you cannot accidentally return a resource reference from a scoped block.
 
