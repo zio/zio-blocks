@@ -124,46 +124,6 @@ println(s"Primary: ${combined.getMessage}")
 combined.getSuppressed.foreach(s => println(s"Suppressed: ${s.getMessage}"))
 ```
 
-## Predefined Instance
-
-### `Finalization.empty`
-
-```scala
-object Finalization {
-  val empty: Finalization  // singleton with no errors
-}
-```
-
-A predefined `Finalization` with no errors, useful as a no-op result.
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Finalization
-
-val empty = Finalization.empty
-println(s"Empty finalization has ${empty.errors.length} errors")
-```
-
-## Companion Constructor
-
-### `Finalization.apply(errors: Chunk[Throwable]): Finalization`
-
-```scala
-object Finalization {
-  def apply(errors: Chunk[Throwable]): Finalization
-}
-```
-
-Creates a new `Finalization` from a chunk of errors.
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Finalization
-import zio.blocks.chunk.Chunk
-
-val errors = Chunk(Exception("Error 1"), Exception("Error 2"))
-val fin = Finalization(errors)
-println(s"Finalization with ${fin.errors.length} errors")
-```
-
 ## Error Ordering
 
 Errors in the finalization are ordered by when finalizers ran (in LIFO sequence):
@@ -273,6 +233,6 @@ if (fin.nonEmpty) {
 
 ## See Also
 
-- [`Scope.defer`](./scope-reference.md#registering-finalizers) — registers finalizers that produce errors
-- [`DeferHandle`](./defer-handle.md) — handle for cancelling finalizers
+- [`Scope.defer`](./scope.md) — registers finalizers that produce errors
+- [`DeferHandle`](./finalizer.md) — handle for cancelling finalizers
 - [`Finalizer`](./finalizer.md) — the trait for registering cleanup actions

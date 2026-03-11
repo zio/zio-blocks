@@ -101,21 +101,6 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Testing
-
-Code that only needs `Finalizer` can be tested with mock implementations without providing a full `Scope`:
-
-```scala
-class MockFinalizer extends Finalizer {
-  var cleanupsCalled = List[String]()
-
-  def defer(f: => Unit): DeferHandle = {
-    cleanupsCalled ::= f.toString
-    DeferHandle.Noop
-  }
-}
-```
-
 ## Relationship to Scope
 
 `Finalizer` is a supertrait of `Scope`:
@@ -146,6 +131,6 @@ Scope.global.scoped { scope =>
 
 ## See Also
 
-- [`Scope`](./scope-reference.md) — the full scope lifecycle management
-- [`DeferHandle`](./defer-handle.md) — the handle returned by `defer` for cancellation
+- [`Scope`](./scope.md) — the full scope lifecycle management
+- [`DeferHandle`](./finalizer.md) — the handle returned by `defer` for cancellation
 - [`Finalization`](./finalization.md) — the result of running all finalizers
