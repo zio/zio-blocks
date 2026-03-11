@@ -205,50 +205,6 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Building Composite Data Types
-
-Create composite types from scoped values:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Scope
-
-case class Config(host: String, port: Int)
-
-object Config {
-  given Unscoped[Config] = new Unscoped[Config] {}
-}
-
-def loadConfig(): Config = Scope.global.scoped { scope =>
-  import scope.*
-
-  val hostValue = scope.allocate("localhost")
-  val portValue = scope.allocate(8080)
-
-  Config(
-    host = hostValue(x => x),
-    port = portValue(x => x)
-  )
-}
-
-val config = loadConfig()
-println(s"Config: ${config.host}:${config.port}")
-```
-
-## Conditional Instances
-
-Create conditional instances for generic types:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Unscoped
-
-case class Pair[A, B](first: A, second: B)
-
-object Pair {
-  given [A: Unscoped, B: Unscoped]: Unscoped[Pair[A, B]] =
-    new Unscoped[Pair[A, B]] {}
-}
-```
-
 ## Low-Priority Instances
 
 The `Nothing` type always has an `Unscoped` instance (at low priority) since it's the bottom type:
@@ -272,6 +228,6 @@ This is rarely used in practice but ensures there are no type errors for impossi
 
 ## See Also
 
-- [`Scope.$`](./scope-reference.md#accessing-scoped-values-with-) — the operator that uses `Unscoped`
+- [`Scope.$`](./scope.md) — the operator that uses `Unscoped`
 - [`Resource`](./resource.md) — types that provide `Unscoped` may be wrapped in resources
-- [`Scope`](./scope-reference.md) — manages the lifecycle of resources
+- [`Scope`](./scope.md) — manages the lifecycle of resources
