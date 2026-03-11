@@ -41,7 +41,7 @@ addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; http-model-schemaJVM/test; openapiJVM/test"
+  "typeidJVM/test; chunkJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; http-model-schemaJVM/test; openapiJVM/test; smithy/test"
 )
 addCommandAlias(
   "testJS",
@@ -50,7 +50,7 @@ addCommandAlias(
 
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; http-model-schemaJVM/doc; openapiJVM/doc"
+  "typeidJVM/doc; chunkJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc"
 )
 addCommandAlias(
   "docJS",
@@ -102,7 +102,8 @@ lazy val root = project
     `schema-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
-    ringbufferBenchmarks
+    ringbufferBenchmarks,
+    smithy
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -450,6 +451,19 @@ lazy val `schema-bson` = project
     }),
     coverageMinimumStmtTotal   := 66,
     coverageMinimumBranchTotal := 58
+  )
+
+lazy val smithy = project
+  .settings(stdSettings("zio-blocks-smithy"))
+  .settings(buildInfoSettings("zio.blocks.smithy"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 75
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
