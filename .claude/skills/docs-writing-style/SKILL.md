@@ -39,6 +39,10 @@ Apply these conventions consistently in all prose, section headings, and inline 
   signals a companion/static member): `As.derived`, `As.apply`, `Into.derived`, `Into.apply`.
 - **In headings** — apply the same qualification rules to subsection headings at all levels (### and ####). Write `### Context#add` or `#### `Context#add`` or `### Wire.shared[T]` instead of bare method names. Method/operation references must be wrapped in backticks (inline code blocks) to make them searchable and visually distinct as code, ensuring consistency with inline code references.
 
+## Frontmatter Titles
+
+- **No duplicate markdown heading**: Do not create a markdown heading (`#`) that duplicates the frontmatter title. The frontmatter title is sufficient. Start the document content with a `##` section heading.
+
 ## Heading and Code Block Layout Rules
 
 - **Heading hierarchy**: Use `##` for major sections, `###` for subsections, and `####` for subsubsections.
