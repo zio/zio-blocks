@@ -175,6 +175,14 @@ object DynamicSchemaExpr {
 
         case DynamicOptic.Node.Wrapped =>
           walkPath(current, nodes, idx + 1)
+
+        case _: DynamicOptic.Node.TypeSearch =>
+          // TypeSearch requires Schema context - not supported in untyped operations
+          Right(Seq.empty)
+
+        case DynamicOptic.Node.SchemaSearch(_) =>
+          // SchemaSearch requires schema context - not supported in expression evaluation
+          Right(Seq.empty)
       }
     }
   }
