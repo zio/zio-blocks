@@ -3,7 +3,7 @@ id: defer-handle
 title: "DeferHandle"
 ---
 
-`DeferHandle` is a handle returned by `Scope.defer` that allows cancelling a registered finalizer before the scope closes.
+`DeferHandle` is a handle returned by `Scope.defer` that allows cancelling a registered finalizer before the scope closes:
 
 ```scala
 abstract class DeferHandle {
@@ -27,7 +27,7 @@ Removes the registered finalizer so it will not run when the scope closes. This 
 - **Idempotent**: Calling it multiple times has the same effect as calling once
 - **O(1)**: cancellation is a simple removal from an internal map (not O(n))
 
-If the scope has already closed (and the finalizer has already run or been discarded), calling `cancel()` is a no-op.
+If the scope has already closed (and the finalizer has already run or been discarded), calling `cancel()` is a no-op:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope

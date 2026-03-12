@@ -47,6 +47,8 @@ If you're new to Scope, the [Scope Tutorial](../../guides/compile-time-resource-
 
 ## Quick start (Scala 3)
 
+Here's a minimal example showing resource allocation, usage, and cleanup:
+
 ```scala
 import zio.blocks.scope.*
 
@@ -90,7 +92,7 @@ What's happening in this code:
 - `type $[+A]` — a scope-tagged, path-dependent type (erases to `A` at runtime)
 - `type Parent <: Scope` / `val parent: Parent` — the scope hierarchy
 
-Every scope instance defines a **different** `$` type, so values from different scopes don't accidentally mix.
+Every scope instance defines a **different** `$` type, so values from different scopes don't accidentally mix:
 
 ```scala
 Scope.global.scoped { scope =>
@@ -131,7 +133,7 @@ The intended way to use a scoped value is:
 
 This is enforced by a macro that checks the lambda uses its parameter only in **receiver position**.
 
-Allowed:
+Allowed patterns:
 
 ```scala
 (scope $ db)(_.query("SELECT 1"))
@@ -140,7 +142,7 @@ Allowed:
 (scope $ db)(_.field) // field access is allowed
 ```
 
-Rejected at compile time:
+Patterns rejected at compile time:
 
 ```scala
 (scope $ db)(d => store(d))            // parameter used as an argument
@@ -189,7 +191,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-Rejected at compile time (same rules as N=1, applied to each parameter independently):
+Patterns rejected at compile time (same rules as N=1, applied to each parameter independently):
 
 ```scala
 $(db, cache)((d1, d2) => d2)              // d2 returned directly
@@ -301,6 +303,8 @@ object Config {
 
 #### Scope boundary example
 
+Here's how compile-time boundaries prevent leaking:
+
 ```scala
 import zio.blocks.scope.*
 
@@ -351,7 +355,7 @@ This is safe because **parents always outlive children** (child finalizers run b
 
 ### 6) `defer`: manual finalizers (+ cancellation)
 
-Use `defer` to register cleanup. It returns a `DeferHandle` you can cancel.
+Use `defer` to register cleanup. It returns a `DeferHandle` you can cancel:
 
 ```scala
 import zio.blocks.scope.*
@@ -595,6 +599,8 @@ If you need a scope that crosses thread boundaries, use `open()` instead; it cre
 
 ### Allocating and using a resource
 
+Basic pattern for acquiring and using a single resource:
+
 ```scala
 import zio.blocks.scope.*
 
@@ -619,6 +625,8 @@ final class FileHandle(path: String) extends AutoCloseable:
 ---
 
 ### Nested scopes (child can use parent, not vice versa)
+
+Show how parent-scoped resources can be accessed in child scopes, but not the reverse:
 
 ```scala
 import zio.blocks.scope.*
@@ -713,7 +721,7 @@ Scope.global.scoped { scope =>
 
 ### Classes with `Finalizer` parameters (cleanup-only capability)
 
-If a class only needs cleanup registration, accept a `Finalizer`. DI macros inject it automatically.
+If a class only needs cleanup registration, accept a `Finalizer`. DI macros inject it automatically:
 
 ```scala
 import zio.blocks.scope.*
@@ -800,6 +808,8 @@ A `Wire` is a recipe for constructing `Out` from a `Context[In]` (and a `Scope` 
 
 #### Manual wire + Context
 
+Here's an example combining manual wires with a dependency context:
+
 ```scala
 import zio.blocks.scope.*
 import zio.blocks.context.Context
@@ -829,6 +839,8 @@ val deps: Context[Boolean] =
 ```
 
 #### Sharing vs uniqueness at the wire level
+
+Control whether allocations are shared or unique:
 
 ```scala
 import zio.blocks.scope.*
@@ -914,6 +926,8 @@ val appResource: Resource[App] =
 ```
 
 #### Diamond patterns share a single instance (when appropriate)
+
+When multiple dependencies converge on the same resource, sharing ensures a single instance:
 
 ```scala
 import zio.blocks.scope.*
@@ -1268,6 +1282,8 @@ Examples below use Scala 3 syntax. Scala 2.13 has equivalent APIs, but macro sig
 
 ### `Scope`
 
+The main trait for resource lifecycle management:
+
 ```scala
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific
 ```
@@ -1328,6 +1344,8 @@ implicit class ResourceOps[A](r: Resource[A]):
 
 ### `Scope.global`
 
+The root scope instance with identity type semantics:
+
 ```scala
 object Scope:
   object global extends Scope
@@ -1344,6 +1362,8 @@ Properties:
 
 ### `Scope.OpenScope`
 
+Represents an explicitly opened child scope:
+
 ```scala
 case class OpenScope(scope: Scope, close: () => Finalization)
 ```
@@ -1354,6 +1374,8 @@ case class OpenScope(scope: Scope, close: () => Finalization)
 ---
 
 ### `Finalizer`
+
+A minimal capability interface for registering cleanup:
 
 ```scala
 trait Finalizer:
@@ -1372,6 +1394,8 @@ def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
 
 ### `DeferHandle`
 
+Handle for cancelling a registered finalizer:
+
 ```scala
 abstract class DeferHandle:
   def cancel(): Unit
@@ -1383,6 +1407,8 @@ abstract class DeferHandle:
 ---
 
 ### `Finalization`
+
+Result of running all finalizers with collected errors:
 
 ```scala
 final class Finalization(val errors: zio.blocks.chunk.Chunk[Throwable]):
@@ -1399,6 +1425,8 @@ object Finalization:
 ---
 
 ### `Unscoped[A]`
+
+Marker typeclass for types that can safely escape a scope:
 
 ```scala
 trait Unscoped[A]

@@ -3,7 +3,7 @@ id: unscoped
 title: "Unscoped"
 ---
 
-`Unscoped[A]` is a marker typeclass for types that can safely escape a scope without tracking. Types with an `Unscoped` instance are considered "safe data"—they don't hold resources and can be freely extracted from a scope.
+`Unscoped[A]` is a marker typeclass for types that can safely escape a scope without tracking. Types with an `Unscoped` instance are considered "safe data"—they don't hold resources and can be freely extracted from a scope:
 
 ```scala
 trait Unscoped[A]
@@ -18,7 +18,7 @@ When the `$` operator is used to access a scoped value, if the result type has a
 
 ## Overview
 
-The `Unscoped` typeclass enables compile-time verification that you're only extracting safe data from scopes. This prevents accidental resource leaks where a database connection, stream, or file handle escapes its scope.
+The `Unscoped` typeclass enables compile-time verification that you're only extracting safe data from scopes. This prevents accidental resource leaks where a database connection, stream, or file handle escapes its scope:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Resource}
@@ -107,7 +107,7 @@ object User {
 }
 ```
 
-Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances.
+Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Unscoped
@@ -130,8 +130,7 @@ The `$` operator's return type depends on whether the result has an `Unscoped` i
 infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
 ```
 
-- If `Unscoped[B]` exists → returns `B` directly (unwrapped)
-- If `Unscoped[B]` doesn't exist → returns `$[B]` (still scoped)
+When the result type `B` has an `Unscoped` instance, the `$` operator returns `B` directly (unwrapped). Otherwise, it returns `$[B]` (still scoped):
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Resource}

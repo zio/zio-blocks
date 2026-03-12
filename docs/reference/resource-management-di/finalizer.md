@@ -3,7 +3,7 @@ id: finalizer
 title: "Finalizer"
 ---
 
-`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing.
+`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing:
 
 ```scala
 trait Finalizer {
@@ -26,11 +26,7 @@ The trait is useful for decoupling code that needs cleanup registration from cod
 
 ### `defer(f: => Unit): DeferHandle`
 
-```scala
-def defer(f: => Unit): DeferHandle
-```
-
-Registers a finalizer (cleanup action) to run when the scope closes. The cleanup action runs in LIFO order along with other finalizers registered on the same scope. Returns a `DeferHandle` that can cancel the registration before the scope closes.
+Registers a finalizer (cleanup action) to run when the scope closes. The cleanup action runs in LIFO order along with other finalizers registered on the same scope. Returns a `DeferHandle` that can cancel the registration before the scope closes:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope

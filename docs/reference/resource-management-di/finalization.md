@@ -3,7 +3,7 @@ id: finalization
 title: "Finalization"
 ---
 
-`Finalization` is the result of running all finalizers in a scope. It collects any errors that occurred during cleanup and provides convenient methods for inspecting and re-throwing those errors.
+`Finalization` is the result of running all finalizers in a scope. It collects any errors that occurred during cleanup and provides convenient methods for inspecting and re-throwing those errors:
 
 ```scala
 final class Finalization(val errors: Chunk[Throwable]) {
@@ -29,11 +29,7 @@ The type is immutable and provides four main operations:
 
 ### `isEmpty: Boolean`
 
-```scala
-def isEmpty: Boolean
-```
-
-Returns `true` if no finalizer errors were collected.
+Returns `true` if no finalizer errors were collected:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -53,11 +49,7 @@ Scope.global.scoped { scope =>
 
 ### `nonEmpty: Boolean`
 
-```scala
-def nonEmpty: Boolean
-```
-
-Returns `true` if at least one finalizer error was collected.
+Returns `true` if at least one finalizer error was collected:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -79,13 +71,9 @@ Scope.global.scoped { scope =>
 
 ### `orThrow(): Unit`
 
-```scala
-def orThrow(): Unit
-```
-
 Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors.
 
-The first error corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order). Remaining errors are attached as suppressed exceptions using `addSuppressed()`.
+The first error corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order). Remaining errors are attached as suppressed exceptions using `addSuppressed()`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -109,10 +97,6 @@ Scope.global.scoped { scope =>
 ```
 
 ### `suppress(initial: Throwable): Throwable`
-
-```scala
-def suppress(initial: Throwable): Throwable
-```
 
 Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged.
 
