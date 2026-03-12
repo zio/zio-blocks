@@ -22,27 +22,27 @@ object DataInterop {
   def dataTypeOf[A](implicit schema: Schema[A]): DataType =
     IntoDataType[A].dataType
 
-  private def reflectToDataType[A](reflect: Reflect.Bound[A]): DataType = {
-    // Wrapper: treat as underlying for type-encoding purposes.
-    reflect.asWrapperUnknown match {
-      case Some(unknown) =>
-        return reflectToDataType(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]]).asInstanceOf[DataType]
-      case None => ()
+  private def reflectToDataType[A](reflect: Reflect.Bound[A]): DataType =
+    reflectToDataType_wrapper(reflect)
+      .orElse(reflectToDataType_option(reflect))
+      .getOrElse(reflectToDataType_core(reflect))
+
+  private def reflectToDataType_wrapper[A](reflect: Reflect.Bound[A]): Option[DataType] =
+    reflect.asWrapperUnknown.map { unknown =>
+      reflectToDataType(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]])
     }
 
-    // Optional: many schemas represent Option as Variant(None, Some(value)).
-    optionInfo(reflect) match {
-      case Some((innerRef, _)) =>
-        return Optional(reflectToDataType(innerRef))
-      case None => ()
+  private def reflectToDataType_option[A](reflect: Reflect.Bound[A]): Option[DataType] =
+    optionInfo(reflect).map { case (innerRef, _) =>
+      Optional(reflectToDataType(innerRef))
     }
 
+  private def reflectToDataType_core[A](reflect: Reflect.Bound[A]): DataType =
     reflect.asPrimitive match {
       case Some(p) => primitiveToDataType(p.primitiveType)
       case None    =>
         reflect.asRecord match {
           case Some(rec) =>
-            // Tuple2/3: represent as TupleType for better RPC ergonomics.
             if (isTupleRecord(rec)) {
               val ordered = rec.fields.sortBy(_.name)
               TupleType(ordered.map(f => reflectToDataType(f.value.asInstanceOf[Reflect.Bound[Any]])).toList)
@@ -61,7 +61,6 @@ object DataInterop {
           case None =>
             reflect.asSequenceUnknown match {
               case Some(seqUnknown) =>
-                // Treat Set specially; everything else is a list.
                 if (isSetTypeId(reflect.typeId))
                   SetType(reflectToDataType(seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]))
                 else ListType(reflectToDataType(seqUnknown.sequence.element.asInstanceOf[Reflect.Bound[Any]]))
@@ -104,7 +103,6 @@ object DataInterop {
             }
         }
     }
-  }
 
   private def isSetTypeId(typeId: TypeId[?]): Boolean =
     TypeId.normalize(typeId).fullName == TypeId.set.fullName
@@ -167,44 +165,42 @@ object DataInterop {
         throw new IllegalArgumentException(s"Unsupported primitive: ${other.getClass.getName}")
     }
 
-  private def dynamicToDataValue[A](reflect: Reflect.Bound[A], d: DV): DataValue = {
-    // Wrapper: handle using wrapped schema.
-    reflect.asWrapperUnknown match {
-      case Some(unknown) =>
-        return dynamicToDataValue(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]], d)
-      case None => ()
+  private def dynamicToDataValue[A](reflect: Reflect.Bound[A], d: DV): DataValue =
+    dynamicToDataValue_wrapper(reflect, d)
+      .orElse(dynamicToDataValue_option(reflect, d))
+      .orElse(dynamicToDataValue_tuple(reflect, d))
+      .getOrElse(dynamicToDataValue_core(reflect, d))
+
+  private def dynamicToDataValue_wrapper[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] =
+    reflect.asWrapperUnknown.map { unknown =>
+      dynamicToDataValue(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]], d)
     }
 
-    // Option: Variant(None/Some(value)).
-    optionInfo(reflect) match {
-      case Some((valueRef, usesRecordWrapper)) =>
-        d match {
-          case DV.Variant("None", _)       => return OptionalValue(None)
-          case DV.Variant("Some", payload) =>
-            if (usesRecordWrapper) {
-              payload match {
-                case DV.Record(fields) =>
-                  fields.find(_._1 == "value") match {
-                    case Some((_, inner)) => return OptionalValue(Some(dynamicToDataValue(valueRef, inner)))
-                    case None             => throw new IllegalArgumentException("Option(Some) payload missing value field")
-                  }
-                case other =>
-                  throw new IllegalArgumentException(s"Option(Some) payload expected record, got $other")
-              }
-            } else {
-              return OptionalValue(Some(dynamicToDataValue(valueRef, payload)))
+  private def dynamicToDataValue_option[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] =
+    optionInfo(reflect).map { case (valueRef, usesRecordWrapper) =>
+      d match {
+        case DV.Variant("None", _)       => OptionalValue(None)
+        case DV.Variant("Some", payload) =>
+          if (usesRecordWrapper) {
+            payload match {
+              case DV.Record(fields) =>
+                fields.find(_._1 == "value") match {
+                  case Some((_, inner)) => OptionalValue(Some(dynamicToDataValue(valueRef, inner)))
+                  case None             => throw new IllegalArgumentException("Option(Some) payload missing value field")
+                }
+              case other =>
+                throw new IllegalArgumentException(s"Option(Some) payload expected record, got $other")
             }
-          case other =>
-            throw new IllegalArgumentException(s"Option dynamic value expected Variant, got $other")
-        }
-      case None => ()
+          } else {
+            OptionalValue(Some(dynamicToDataValue(valueRef, payload)))
+          }
+        case other =>
+          throw new IllegalArgumentException(s"Option dynamic value expected Variant, got $other")
+      }
     }
 
-    // Tuple2/3: Record(_1,_2,_3) <-> TupleValue
-    if (reflect.asRecord.exists(isTupleRecord)) {
-      val rec = reflect.asRecord.getOrElse(
-        throw new IllegalArgumentException(s"Tuple reflect expected record, got ${reflect.nodeType}")
-      )
+  private def dynamicToDataValue_tuple[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] =
+    reflect.asRecord.filter(isTupleRecord).map { rec =>
       d match {
         case DV.Record(fields) =>
           val map     = fields.toMap
@@ -215,12 +211,13 @@ object DataInterop {
               dynamicToDataValue(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
             }
             .toList
-          return TupleValue(ordered)
+          TupleValue(ordered)
         case other =>
           throw new IllegalArgumentException(s"Tuple dynamic value expected record, got $other")
       }
     }
 
+  private def dynamicToDataValue_core[A](reflect: Reflect.Bound[A], d: DV): DataValue =
     reflect.asPrimitive match {
       case Some(_) =>
         d match {
@@ -332,7 +329,6 @@ object DataInterop {
             }
         }
     }
-  }
 
   private def primitiveValue(pv: PrimitiveValue): DataValue =
     pv match {
@@ -351,67 +347,88 @@ object DataInterop {
         throw new IllegalArgumentException(s"Unsupported primitive value: ${other.getClass.getName}")
     }
 
-  private def dataValueToDynamic[A](reflect: Reflect.Bound[A], value: DataValue): DV = {
-    // Wrapper: pass through.
-    reflect.asWrapperUnknown match {
-      case Some(unknown) =>
-        return dataValueToDynamic(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]], value)
-      case None => ()
+  private def dataValueToDynamic[A](reflect: Reflect.Bound[A], value: DataValue): DV =
+    dataValueToDynamic_wrapper(reflect, value)
+      .orElse(dataValueToDynamic_option(reflect, value))
+      .getOrElse(dataValueToDynamic_tupleOrCore(reflect, value))
+
+  private def dataValueToDynamic_wrapper[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] =
+    reflect.asWrapperUnknown.map { unknown =>
+      dataValueToDynamic(unknown.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]], value)
     }
 
-    optionInfo(reflect) match {
-      case Some((innerRef, usesRecordWrapper)) =>
-        value match {
-          case OptionalValue(None) =>
-            return DV.Variant("None", DV.Record(Chunk.empty))
-          case OptionalValue(Some(v)) =>
-            val dynInner = dataValueToDynamic(innerRef, v)
-            val payload  =
-              if (usesRecordWrapper) DV.Record(Chunk("value" -> dynInner))
-              else dynInner
-            return DV.Variant("Some", payload)
-          case other =>
-            throw new IllegalArgumentException(s"Expected OptionalValue for Option, got $other")
-        }
-      case None => ()
-    }
-
-    if (reflect.asRecord.exists(isTupleRecord)) {
-      val rec = reflect.asRecord.get
+  private def dataValueToDynamic_option[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] =
+    optionInfo(reflect).map { case (innerRef, usesRecordWrapper) =>
       value match {
-        case TupleValue(values) =>
-          val orderedFields = rec.fields.sortBy(_.name)
-          if (values.length != orderedFields.length)
-            throw new IllegalArgumentException(
-              s"Tuple arity mismatch. Expected ${orderedFields.length}, found ${values.length}"
-            )
-          val dynFields = orderedFields
-            .zip(values)
-            .map { case (f, dv) =>
-              f.name -> dataValueToDynamic(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
-            }
-            .toVector
-          DV.Record(Chunk.fromIterable(dynFields))
+        case OptionalValue(None) =>
+          DV.Variant("None", DV.Record(Chunk.empty))
+        case OptionalValue(Some(v)) =>
+          val dynInner = dataValueToDynamic(innerRef, v)
+          val payload  =
+            if (usesRecordWrapper) DV.Record(Chunk("value" -> dynInner))
+            else dynInner
+          DV.Variant("Some", payload)
         case other =>
-          throw new IllegalArgumentException(s"Expected TupleValue for tuple, got $other")
+          throw new IllegalArgumentException(s"Expected OptionalValue for Option, got $other")
       }
     }
 
+  private def dataValueToDynamic_tupleOrCore[A](reflect: Reflect.Bound[A], value: DataValue): DV =
+    reflect.asRecord.filter(isTupleRecord) match {
+      case Some(rec) =>
+        value match {
+          case TupleValue(values) =>
+            val orderedFields = rec.fields.sortBy(_.name)
+            if (values.length != orderedFields.length)
+              throw new IllegalArgumentException(
+                s"Tuple arity mismatch. Expected ${orderedFields.length}, found ${values.length}"
+              )
+            val dynFields = orderedFields
+              .zip(values)
+              .map { case (f, dv) =>
+                f.name -> dataValueToDynamic(f.value.asInstanceOf[Reflect.Bound[Any]], dv)
+              }
+              .toVector
+            DV.Record(Chunk.fromIterable(dynFields))
+          case other =>
+            throw new IllegalArgumentException(s"Expected TupleValue for tuple, got $other")
+        }
+      case None =>
+        dataValueToDynamic_core(reflect, value)
+    }
+
+  private def dataValueToDynamic_core[A](reflect: Reflect.Bound[A], value: DataValue): DV =
     reflect.asPrimitive match {
       case Some(p) =>
         value match {
           case NullValue =>
-            p.primitiveType.toDynamicValue(().asInstanceOf[A])
+            // NullValue maps to Unit — verify the schema agrees.
+            p.primitiveType match {
+              case PrimitiveType.Unit => PrimitiveType.Unit.toDynamicValue(())
+              case other              =>
+                throw new IllegalArgumentException(
+                  s"NullValue is only valid for Unit primitives, found: ${other.getClass.getName}"
+                )
+            }
           case StringValue(v) =>
             DV.Primitive(PrimitiveValue.String(v))
           case BoolValue(v) =>
             DV.Primitive(PrimitiveValue.Boolean(v))
           case IntValue(v) =>
-            DV.Primitive(PrimitiveValue.Int(v))
+            // Byte and Short widen to IntValue during encoding; narrow back using the schema's primitive type.
+            p.primitiveType match {
+              case _: PrimitiveType.Byte  => DV.Primitive(PrimitiveValue.Byte(v.toByte))
+              case _: PrimitiveType.Short => DV.Primitive(PrimitiveValue.Short(v.toShort))
+              case _                      => DV.Primitive(PrimitiveValue.Int(v))
+            }
           case LongValue(v) =>
             DV.Primitive(PrimitiveValue.Long(v))
           case DoubleValue(v) =>
-            DV.Primitive(PrimitiveValue.Double(v))
+            // Float widens to DoubleValue during encoding; narrow back using the schema's primitive type.
+            p.primitiveType match {
+              case _: PrimitiveType.Float => DV.Primitive(PrimitiveValue.Float(v.toFloat))
+              case _                      => DV.Primitive(PrimitiveValue.Double(v))
+            }
           case BigDecimalValue(v) =>
             DV.Primitive(PrimitiveValue.BigDecimal(v))
           case UUIDValue(v) =>
@@ -492,7 +509,6 @@ object DataInterop {
                                   reflect.asVariant.get.caseByName(caseName).get.value.asInstanceOf[Reflect.Bound[Any]]
                                 payloadRef.asRecord match {
                                   case Some(rec) if rec.fields.length == 1 && rec.fields.head.name == "value" =>
-                                    // Some schemas model variant payload as a wrapper record(value = ...).
                                     DV.Record(
                                       Chunk(
                                         "value" -> dataValueToDynamic(
@@ -502,7 +518,6 @@ object DataInterop {
                                       )
                                     )
                                   case _ =>
-                                    // Otherwise, payload is represented directly as the dynamic value for the case.
                                     dataValueToDynamic(payloadRef, pv)
                                 }
                             }
@@ -517,7 +532,6 @@ object DataInterop {
             }
         }
     }
-  }
 
   trait IntoDataType[A] {
     def dataType: DataType

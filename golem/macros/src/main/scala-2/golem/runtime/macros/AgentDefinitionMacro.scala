@@ -28,6 +28,9 @@ object AgentDefinitionMacroImpl {
     val agentDefinitionType                           = typeOf[golem.runtime.annotations.agentDefinition]
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name.decodedName.toString
+        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
+        .toLowerCase
 
     val rawTypeName: String =
       typeSymbol.annotations.collectFirst {

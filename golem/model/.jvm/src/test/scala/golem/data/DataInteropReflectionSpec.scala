@@ -34,6 +34,7 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
     val method     =
       DataInterop.getClass.getDeclaredMethods.find { m =>
         m.getName.contains("dynamicToDataValue") &&
+        !m.getName.contains("_") &&
         m.getParameterCount == 2 &&
         m.getParameterTypes.apply(0).isAssignableFrom(reflectArg.getClass) &&
         m.getParameterTypes.apply(1).isAssignableFrom(dynamicArg.getClass)
@@ -60,6 +61,7 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
     val method     =
       DataInterop.getClass.getDeclaredMethods.find { m =>
         m.getName.contains("dataValueToDynamic") &&
+        !m.getName.contains("_") &&
         m.getParameterCount == 2 &&
         m.getParameterTypes.apply(0).isAssignableFrom(reflectArg.getClass) &&
         m.getParameterTypes.apply(1).isAssignableFrom(valueArg.getClass)
