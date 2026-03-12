@@ -131,11 +131,12 @@ jobs:
       - name: Run Scala 2 tests and compile docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests (skip docs due to scaladoc OOM on JS)
+      - name: Run Scala 3 JS tests (batch 1 — core modules)
         if: ${{ startsWith(matrix.scala, '3.') }}
-        run: |
-          sbt ++${{ matrix.scala }} "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
-          sbt ++${{ matrix.scala }} "zioGolemModelJS/test; zioGolemCoreJS/test"
+        run: sbt ++${{ matrix.scala }} "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test"
+      - name: Run Scala 3 JS tests (batch 2 — http + golem modules)
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt ++${{ matrix.scala }} "http-modelJS/test; http-model-schemaJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 
   ci:
     runs-on: ubuntu-latest
