@@ -13,9 +13,7 @@ abstract class DeferHandle {
 
 When `scope.defer(cleanup)` is called, the cleanup action is registered and a `DeferHandle` is returned. This handle can be used to remove that finalizer early, preventing it from running when the scope closes. This is useful when a resource is explicitly released before the scope ends, and running the finalizer again would be unnecessary or harmful.
 
-## Core Method
-
-### `DeferHandle#cancel(): Unit`
+## Core Method: `DeferHandle#cancel(): Unit`
 
 The type signature is:
 
