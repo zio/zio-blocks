@@ -229,3 +229,15 @@ val result = Scope.global.scoped { scope =>
 - [`Scope.defer`](./scope.md#registering-finalizers) — the method that returns a `DeferHandle`
 - [`Finalizer`](./finalizer.md) — the trait defining `defer`
 - [`Finalization`](./finalization.md) — the result of running all finalizers
+
+## Integration
+
+`DeferHandle` is part of ZIO Blocks' resource management system. It works directly with:
+
+- **[`Scope`](./scope.md)** — The primary way to create a `DeferHandle` is via `Scope#defer`. A scope manages multiple finalizers and runs them all when the scope closes. `DeferHandle` allows selective cancellation of individual finalizers before that happens.
+
+- **[`Finalizer`](./finalizer.md)** — `Finalizer` defines the `defer` operation that returns a `DeferHandle`. It abstracts the concept of registering cleanup actions.
+
+- **[`Finalization`](./finalization.md)** — When a scope closes, it runs all registered finalizers. A cancelled `DeferHandle` removes its associated finalizer from this process.
+
+Together, these types form the foundation of compile-time resource safety in ZIO Blocks, allowing you to manage resource lifecycles with certainty that cleanup will occur exactly when needed.
