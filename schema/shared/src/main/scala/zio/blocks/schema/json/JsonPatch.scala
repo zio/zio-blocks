@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
@@ -227,6 +243,17 @@ object JsonPatch {
         new Left(SchemaError.expectationMismatch(trace, "MapKeys not supported in patches"))
       case _: DynamicOptic.Node.MapValues.type =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
+      case _: DynamicOptic.Node.TypeSearch =>
+        new Left(
+          SchemaError.expectationMismatch(trace, "TypeSearch requires Schema context, not supported for JSON patches")
+        )
+      case DynamicOptic.Node.SchemaSearch(pattern) =>
+        val newTrace = node :: trace
+        if (isLast) {
+          schemaSearchApplyOperationJson(value, pattern, operation, mode, newTrace)
+        } else {
+          schemaSearchNavigateJson(value, pattern, path, pathIdx + 1, operation, mode, newTrace)
+        }
     }
   }
 
@@ -278,6 +305,96 @@ object JsonPatch {
       idx += 1
     }
     new Right(new Json.Array(Chunk.fromArray(results)))
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private def schemaSearchApplyOperationJson(
+    value: Json,
+    pattern: SchemaRepr,
+    operation: Op,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, Json] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
+        applyOperation(json, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            mode match {
+              case PatchMode.Strict =>
+                if (globalError.isEmpty) globalError = Some(err)
+                json
+              case PatchMode.Lenient | PatchMode.Clobber =>
+                json
+            }
+        }
+      } else {
+        json
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
+  }
+
+  private def schemaSearchNavigateJson(
+    value: Json,
+    pattern: SchemaRepr,
+    path: IndexedSeq[DynamicOptic.Node],
+    pathIdx: Int,
+    operation: Op,
+    mode: PatchMode,
+    trace: List[DynamicOptic.Node]
+  ): Either[SchemaError, Json] = {
+    var found       = false
+    var globalError = Option.empty[SchemaError]
+
+    val result = Json.iterativeTransform(value) { json =>
+      if (globalError.isDefined && mode == PatchMode.Strict) json
+      else if (JsonMatch.matches(pattern, json)) {
+        navigateAndApply(json, path, pathIdx, operation, mode, trace) match {
+          case Right(modified) =>
+            found = true
+            modified
+          case Left(err) =>
+            mode match {
+              case PatchMode.Strict =>
+                if (globalError.isEmpty) globalError = Some(err)
+                json
+              case PatchMode.Lenient | PatchMode.Clobber =>
+                json
+            }
+        }
+      } else {
+        json
+      }
+    }
+
+    globalError match {
+      case Some(err) => Left(err)
+      case None      =>
+        if (!found && mode == PatchMode.Strict) {
+          Left(SchemaError.expectationMismatch(trace, "No values matched the SchemaSearch pattern"))
+        } else {
+          Right(result)
+        }
+    }
   }
 
   /**

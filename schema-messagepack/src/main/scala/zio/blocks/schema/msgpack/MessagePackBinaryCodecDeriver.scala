@@ -1,8 +1,24 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.msgpack
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
+import zio.blocks.schema.binding.{Binding, HasBinding, Registers, RegisterOffset}
 import zio.blocks.schema._
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
@@ -15,7 +31,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: Binding.Primitive[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -60,7 +76,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: Binding.Record[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -169,7 +185,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Variant, A],
+    binding: Binding.Variant[A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
@@ -317,7 +333,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: Binding.Seq[C, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
@@ -362,7 +378,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: Binding.Map[M, K, V],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
@@ -416,7 +432,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   }.asInstanceOf[Lazy[MessagePackBinaryCodec[M[K, V]]]]
 
   override def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: Binding.Dynamic,
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
@@ -428,7 +444,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: Binding.Wrapper[A, B],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],

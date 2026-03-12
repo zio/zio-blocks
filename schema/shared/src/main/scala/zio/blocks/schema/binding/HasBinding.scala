@@ -1,6 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.binding
 
-import zio.blocks.schema.{Lazy, ReflectTransformer}
+import zio.blocks.schema.{DynamicValue, Lazy, ReflectTransformer}
 
 trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
   override def transformMetadata[T, A](f: F[T, A]): Lazy[Binding[T, A]] = Lazy(binding(f))
@@ -144,5 +160,11 @@ trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
     binding(fa) match {
       case wrapper: Binding.Wrapper[A, B] @scala.unchecked => wrapper
       case _                                               => sys.error("Expected Binding.Wrapper")
+    }
+
+  final def dynamic(fa: F[BindingType.Dynamic, DynamicValue]): Binding.Dynamic =
+    binding(fa) match {
+      case dynamic: Binding.Dynamic => dynamic
+      case _                        => sys.error("Expected Binding.Dynamic")
     }
 }

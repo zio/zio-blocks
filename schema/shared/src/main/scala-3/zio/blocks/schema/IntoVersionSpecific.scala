@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import scala.quoted.*
@@ -1534,19 +1550,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 // Newtype unwrapping is safe at runtime
                 '{ Right(${ sourceValue.asExpr }.asInstanceOf[Any]) }
               }
-              // Check if target is a single-field case class (wrapper)
-              else if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
-                convertToSingleFieldProduct(sourceValue, targetTpe)
-              }
-              // Check if source is a single-field case class (wrapper) that needs unwrapping
-              else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
-                unwrapSingleFieldProduct(sourceValue, sourceTpe)
-              }
-              // Check if this is a collection with element type conversion needed
-              else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
-                convertCollectionElements(sourceValue, sourceTpe, targetTpe, sourceField.name)
-              }
-              // If types differ, try to find an implicit Into instance
+              // If types differ, try to find an implicit Into instance (user-provided implicits take priority)
               else if (!(sourceTpe =:= targetTpe)) {
                 findImplicitInto(sourceTpe, targetTpe) match {
                   case Some(intoInstance) =>
@@ -1561,15 +1565,24 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                         }
                     }
                   case None =>
-                    report.errorAndAbort(
-                      noImplicitIntoError(
-                        TypeRepr.of[A],
-                        TypeRepr.of[B],
-                        sourceTpe,
-                        targetTpe,
-                        sourceField.name
+                    // Fall through to single-field product, collection, or error
+                    if (requiresSingleFieldProductConversion(sourceTpe, targetTpe)) {
+                      convertToSingleFieldProduct(sourceValue, targetTpe)
+                    } else if (requiresSingleFieldProductUnwrapping(sourceTpe, targetTpe)) {
+                      unwrapSingleFieldProduct(sourceValue, sourceTpe)
+                    } else if (requiresCollectionElementConversion(sourceTpe, targetTpe)) {
+                      convertCollectionElements(sourceValue, sourceTpe, targetTpe, sourceField.name)
+                    } else {
+                      report.errorAndAbort(
+                        noImplicitIntoError(
+                          TypeRepr.of[A],
+                          TypeRepr.of[B],
+                          sourceTpe,
+                          targetTpe,
+                          sourceField.name
+                        )
                       )
-                    )
+                    }
                 }
               } else {
                 // Types match exactly - wrap in Right

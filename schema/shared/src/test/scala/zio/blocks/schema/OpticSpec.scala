@@ -142,7 +142,7 @@ object OpticSpec extends SchemaBaseSpec {
           assert(_)(
             isLeft(
               (startsWithString(
-                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '"
+                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or .searchFor[<T>], got '"
               ) && endsWithString(".equals(null)'.")) ||
                 containsString("Recursive value") // Scala 3.5+
             )

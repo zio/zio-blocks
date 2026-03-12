@@ -3,155 +3,546 @@ id: context
 title: "Context"
 ---
 
-`Context[+R]` is a type-indexed heterogeneous collection. It stores values of different types, indexed by their types, with compile-time type safety for lookups.
+`Context[+R]` is a type-indexed heterogeneous collection that stores values of different types, indexed by their types, with compile-time type safety for lookups. It provides an immutable, cache-aware dependency container where the phantom type `R` (using intersection types) tracks which types are present.
+
+The core type looks like this:
+
+```scala
+// Signature (showing public API structure, not actual implementation)
+final class Context[+R] {
+  def size: Int
+  def isEmpty: Boolean
+  def nonEmpty: Boolean
+  def get[A >: R](implicit ev: IsNominalType[A]): A
+  def getOption[A](implicit ev: IsNominalType[A]): Option[A]
+  def add[A](a: A)(implicit ev: IsNominalType[A]): Context[R & A]
+  def update[A >: R](f: A => A)(implicit ev: IsNominalType[A]): Context[R]
+  def ++[R1](that: Context[R1]): Context[R & R1]
+  def prune[A >: R](implicit ev: IsNominalIntersection[A]): Context[A]
+  override def toString: String
+}
+```
+
+Key properties: covariant (`+R`), immutable, cached for repeated lookups, supports only nominal types.
 
 ## Overview
 
-```scala
+Context serves as a type-safe registry for heterogeneous dependencies. Here's a quick example:
+
+```scala mdoc:silent
 import zio.blocks.context._
 
 case class Config(debug: Boolean)
+case class Logger(name: String)
 case class Metrics(count: Int)
+```
 
-// Create a context with multiple values
-val ctx: Context[Config & Metrics] = Context(
+We can create and retrieve values by type:
+
+```scala mdoc
+val ctx: Context[Config & Logger & Metrics] = Context(
   Config(debug = true),
+  Logger("app"),
   Metrics(count = 42)
 )
 
-// Retrieve values by type
 val config: Config = ctx.get[Config]
-val metrics: Metrics = ctx.get[Metrics]
+val logger: Logger = ctx.get[Logger]
+```
+
+This ASCII diagram shows how Context maps types to values:
+
+```
+┌─────────────────────────────────┐
+│         Context[R]              │
+│  (Type-Indexed Store)           │
+├─────────────────────────────────┤
+│  Config         → Config(true)  │
+│  Logger         → Logger("app") │
+│  Metrics        → Metrics(42)   │
+├─────────────────────────────────┤
+│ ✓ Type-safe retrieval           │
+│ ✓ No casting                    │
+│ ✓ Cache-aware (O(1) repeats)    │
+└─────────────────────────────────┘
+```
+
+## Motivation
+
+When building modular applications, we often need to pass multiple dependencies around—a database connection, a config object, a logger, and so on. Existing approaches each have limitations:
+
+**`Map[Class[_], Any]`** — no compile-time safety. You must cast the result and remember which keys you registered:
+
+```scala
+// Unsafe approach — easy to make mistakes
+val deps = scala.collection.mutable.Map[Class[_], Any]()
+deps(classOf[Config]) = Config(debug = true)
+deps(classOf[Logger]) = Logger("app")
+
+val config = deps(classOf[Config]).asInstanceOf[Config]  // Manual cast
+val db = deps(classOf[Database]) // Runtime error if missing
+```
+
+**ZIO's `ZEnvironment`** — type-safe but requires the full ZIO effect system:
+
+```scala
+// Requires ZIO context
+import zio._
+
+val makeEnv = for {
+  config <- ZIO.service[Config]
+  logger <- ZIO.service[Logger]
+} yield (config, logger)
+```
+
+**Context** — combines compile-time type safety with synchronous, pure code:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
+// Type-safe, no effects needed
+val ctx = Context(Config(true), Logger("app"))
+val config = ctx.get[Config]  // Compile-time proof it exists
+```
+
+## Installation
+
+Add the ZIO Blocks Context module to your `build.sbt`:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
 ```
 
 ## Construction
 
-Create contexts using overloaded `Context.apply` (supports up to 10 values):
+Context provides several ways to create instances. Choose the approach that best fits your use case: start empty and add values incrementally, or construct a fully-populated context directly with `apply`.
 
-```scala
-val ctx1 = Context(value1)                      // Context[Type1]
-val ctx2 = Context(value1, value2)              // Context[Type1 & Type2]
-val ctx3 = Context(v1, v2, v3, v4, v5)          // Context[T1 & T2 & T3 & T4 & T5]
+### Creating Empty Contexts
+
+Use `Context.empty` to create an empty context with no entries:
+
+```scala mdoc:reset
+import zio.blocks.context._
+
+val emptyCtx: Context[Any] = Context.empty
+val isEmpty = emptyCtx.isEmpty
 ```
 
-Or build incrementally from empty:
+An empty context has type `Context[Any]` and represents no stored dependencies. This is a useful starting point for incremental construction.
 
-```scala
+### Creating Multi-Value Contexts with `Context.apply`
+
+`Context.apply` is overloaded to accept 1–10 values and returns a context with type `Context[A1 & A2 & ...]`, reflecting all stored types.
+
+#### Single Value
+
+Create a context with one value:
+
+```scala mdoc:silent
+case class Config(debug: Boolean)
+```
+
+With `Config` defined, we can create a single-value context:
+
+```scala mdoc
+val single: Context[Config] = Context(Config(debug = true))
+```
+
+#### Multiple Values
+
+Create a context with multiple values—the type parameter automatically becomes an intersection of all stored types:
+
+```scala mdoc:silent
+case class Logger(name: String)
+```
+
+With `Config` and `Logger` in scope, we can create a multi-value context:
+
+```scala mdoc
+val multi: Context[Config & Logger] = Context(
+  Config(debug = true),
+  Logger("myapp")
+)
+```
+
+### Building Incrementally with `Context#add`
+
+For contexts that grow over time, use `Context#add` to build incrementally from an empty context. This is useful when dependencies become available at different points in your initialization:
+
+```scala mdoc
 val ctx = Context.empty
-  .add(Config(debug = true))
-  .add(Metrics(count = 0))
-// Type: Context[Config & Metrics]
+  .add(Config(debug = false))
+  .add(Logger("init"))
 ```
 
-## Retrieving Values
+The context accumulates all added entries:
 
-### get
-
-Retrieves a value by type. The type must be in `R`:
-
-```scala
-val config: Config = ctx.get[Config]
+```scala mdoc
+val size1 = ctx.size
 ```
 
-Supertypes work too:
+**When to use `Context#add` vs. `Context.apply`:**
+- Use `Context.apply` when you know all dependencies upfront and can construct them together
+- Use `Context#add` when dependencies are added incrementally or conditionally
 
-```scala
-trait Named { def name: String }
-case class Person(name: String, age: Int) extends Named
+## Core Operations
 
-val ctx = Context(Person("Alice", 30))
-val named: Named = ctx.get[Named]  // Returns the Person
+Context supports inspection, retrieval, and modification operations. All methods are type-safe and leverage the phantom type `R` to track what's stored.
+
+### Inspection
+
+The following methods let you check the contents of a context without retrieving specific values:
+
+#### `Context#size`
+
+Returns the number of entries in the context:
+
+```scala mdoc:silent:nest
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
+val ctx = Context(Config(true), Logger("app"))
 ```
 
-### getOption
+Get the number of entries in the context:
 
-Retrieves a value if present, without requiring the type to be in `R`:
-
-```scala
-val maybeConfig: Option[Config] = ctx.getOption[Config]  // Some(...)
-val maybeOther: Option[Other] = ctx.getOption[Other]     // None
+```scala mdoc
+val sz = ctx.size
 ```
 
-## Modifying Contexts
+#### `Context#isEmpty`
 
-### add
+Returns `true` if the context contains no entries:
 
-Adds a value, returning a new context with an expanded type:
+```scala mdoc:silent:nest
+case class Config(debug: Boolean)
 
-```scala
-val ctx1 = Context(Config(true))             // Context[Config]
-val ctx2 = ctx1.add(Metrics(0))              // Context[Config & Metrics]
+val empty = Context.empty
+val notEmpty = Context(Config(true))
 ```
 
-Adding a value of an existing type replaces it:
+Now check the `isEmpty` status of both contexts:
 
-```scala
-val ctx1 = Context(Config(debug = false))
-val ctx2 = ctx1.add(Config(debug = true))
-ctx2.get[Config].debug  // true
+```scala mdoc
+val e1 = empty.isEmpty
+val e2 = notEmpty.isEmpty
 ```
 
-### update
+#### `Context#nonEmpty`
 
-Transforms an existing value:
+Returns `true` if the context contains at least one entry (opposite of `isEmpty`):
 
-```scala
-val ctx = Context(Metrics(count = 0))
-val updated = ctx.update[Metrics](m => m.copy(count = m.count + 1))
-updated.get[Metrics].count  // 1
+```scala mdoc:silent:nest
+case class Config(debug: Boolean)
+
+val empty = Context.empty
+val notEmpty = Context(Config(true))
 ```
 
-### ++ (union)
+Check the `nonEmpty` status of both contexts:
 
-Combines two contexts. Right values override left:
-
-```scala
-val ctx1 = Context(Config(debug = false))
-val ctx2 = Context(Config(debug = true), Metrics(0))
-
-val merged = ctx1 ++ ctx2
-// Config comes from ctx2 (right wins)
+```scala mdoc
+val e1 = empty.nonEmpty
+val e2 = notEmpty.nonEmpty
 ```
 
-### prune
+### Retrieval
 
-Narrows a context to specific types:
+The following methods let you retrieve values from a context by type:
+
+#### `Context#get`
+
+Retrieves a value by type. The type bound `A >: R` ensures that a value of type `A` (or a subtype of `A`) is present at compile time:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+case class Metrics(count: Int)
+
+val ctx = Context(Config(debug = true), Logger("app"), Metrics(100))
+
+// Retrieve by exact type
+val config = ctx.get[Config]
+```
+
+Or by supertype (subtype matching):
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+trait Animal { def sound: String }
+case class Dog(name: String) extends Animal {
+  def sound = "Woof"
+}
+
+val ctxDog = Context(Dog("Buddy"))
+val animal = ctxDog.get[Animal]
+```
+
+If you attempt to retrieve a type that is not in the context, the code will not compile because the type bound `A >: R` requires it to be present:
 
 ```scala
-val ctx: Context[Config & Metrics & Other] = ...
-val pruned: Context[Config] = ctx.prune[Config]
+// This is a compile-time error, not a runtime error:
+// val metrics: String = ctx.get[String]  // Error: String is not in context type
+```
+
+#### `Context#getOption`
+
+Retrieves a value if present, returning `Option[A]`. Unlike `get`, this method does not require the type to be in the context's type parameter. Use it for optional lookups:
+
+```scala mdoc:silent:nest
+case class Config(debug: Boolean)
+
+val ctx = Context(Config(debug = true))
+```
+
+Try to retrieve both an existing type and a missing type:
+
+```scala mdoc
+val found: Option[Config] = ctx.getOption[Config]
+val missing: Option[String] = ctx.getOption[String]
+```
+
+### Modification
+
+All modification methods return a new `Context`—the original remains immutable:
+
+#### `Context#add`
+
+Adds a value to the context, expanding the phantom type by `& A`:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
+val ctx1 = Context(Config(true))
+val ctx2 = ctx1.add(Logger("new"))
+```
+
+If a value of the same type already exists, it is replaced:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
+val ctx1 = Context(Config(true))
+val ctx2 = ctx1.add(Logger("new"))
+val ctx3 = ctx2.add(Config(debug = false))
+val replaced = ctx3.get[Config]
+```
+
+#### `Context#update`
+
+Transforms an existing value if it is present. If the type is not found, the context is returned unchanged:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Metrics(count: Int)
+
+val ctx = Context(Metrics(count = 10))
+val updated = ctx.update[Metrics](m => m.copy(count = m.count + 5))
+val newCount = updated.get[Metrics].count
+```
+
+#### `Context#++ (Union)`
+
+Combines two contexts into a new context containing all entries. When both contexts contain the same type, the value from the right side (second argument) wins:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+case class Metrics(count: Int)
+
+val left = Context(Config(debug = false), Logger("left"))
+val right = Context(Config(debug = true), Metrics(99))
+val merged = left ++ right
+```
+
+#### `Context#prune`
+
+Narrows a context to contain only specified types. All other entries are discarded:
+
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+case class Metrics(count: Int)
+
+val full = Context(Config(true), Logger("app"), Metrics(100))
+val justConfig = full.prune[Config]
+val configSize = justConfig.size
+```
+
+#### `Context#toString`
+
+Returns a human-readable representation of the context showing all type-value pairs:
+
+```scala mdoc:silent:nest
+case class Config(debug: Boolean)
+case class Logger(name: String)
+
+val ctx = Context(Config(debug = true), Logger("app"))
+```
+
+Convert the context to a human-readable string representation:
+
+```scala mdoc
+val str = ctx.toString
 ```
 
 ## Covariance
 
-`Context` is covariant, so `Context[Specific]` is a subtype of `Context[General]`:
+`Context` is covariant in its type parameter, meaning `Context[Dog] <: Context[Animal]` when `Dog <: Animal`. This allows passing a more-specific context to code expecting a more-general one:
 
-```scala
-def process(ctx: Context[Named]): Unit = {
-  val named = ctx.get[Named]
-  println(named.name)
+```scala mdoc:compile-only
+import zio.blocks.context._
+
+trait Animal { def sound: String }
+case class Dog(name: String) extends Animal {
+  def sound = "Woof"
 }
 
-val ctx: Context[Person] = Context(Person("Bob", 25))
-process(ctx)  // Works: Context[Person] <: Context[Named]
+def processAnimal(ctx: Context[Animal]): String = ctx.get[Animal].sound
+
+val dogCtx = Context(Dog("Buddy"))
+val sound = processAnimal(dogCtx)
 ```
+
+Covariance also applies during retrieval—if you request a supertype, the stored subtype is returned.
 
 ## Type Safety: IsNominalType
 
-Only nominal types can be stored. The `IsNominalType[A]` typeclass is derived automatically for:
+Context only accepts **nominal types**—concrete classes, case classes, traits, and objects. The compiler automatically derives `IsNominalType[A]` for allowed types and rejects unsupported kinds:
 
-- Classes, case classes, traits, objects
-- Enums (Scala 3)
-- Applied types (`List[Int]`, `Map[K, V]`)
+**Supported:**
+- Classes: `case class Config(...)`
+- Traits: `trait Logger`
+- Objects: `object Registry`
+- Applied types: `List[Int]`, `Map[String, Int]`
+- Enums (Scala 3): `enum Color { case Red, Green, Blue }`
 
-Not supported (compile error):
-
-- Intersection types: `A & B`
-- Union types: `A | B`  
+**Not supported (compile error):**
+- Intersection types: `A & B` (use the context type parameter instead)
+- Union types: `A | B`
 - Structural types: `{ def foo: Int }`
+
+Attempting to store an unsupported type:
+
+```scala mdoc:compile-only
+// This fails at compile time:
+// Context.empty.add(null: (String & Int))  // Error: unsupported type
+```
 
 ## Performance
 
-- **Caching**: Retrieved values are cached for O(1) subsequent lookups
-- **Subtype matching**: Supertype lookups find matching subtypes and cache results
-- **Platform-optimized**: JVM uses `ConcurrentHashMap`; JS uses efficient mutable maps
+**Caching**: When a value is retrieved via `get` or `getOption`, the result is cached. Repeated lookups for the same type return the cached value in O(1) time without traversing the entries again.
+
+**Subtype matching**: Supertype lookups scan the entry list linearly to find a compatible subtype. After the first lookup, the result is cached, so subsequent requests for that supertype are O(1).
+
+**Platform optimizations**: The JVM implementation uses `ConcurrentHashMap` for thread-safe caching. The JavaScript platform uses a simpler in-memory mutable hash map for efficient lookups.
+
+## Comparing Approaches
+
+Here is a comparison of Context with related alternatives:
+
+| Feature             | `Map[Class[_], Any]` | `ZEnvironment`   | `Context` |
+|---------------------|----------------------|------------------|-----------|
+| Type-safe retrieval | ✗ (cast required)    | ✓                | ✓         |
+| Compile-time proof  | ✗                    | ✓                | ✓         |
+| Effect-free         | ✓                    | ✗ (requires ZIO) | ✓         |
+| Immutable           | ✓                    | ✓                | ✓         |
+| Cached lookups      | ✗                    | ✓                | ✓         |
+| Supertype matching  | ✗                    | ✓                | ✓         |
+
+## Integration with Wire and Scope
+
+`Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. Wire and Scope work together to provide type-safe, compile-checked dependency injection:
+
+```scala
+// Pseudocode illustrating how Context integrates with Wire and Scope
+import zio.blocks.scope._
+import zio.blocks.context._
+
+case class Config(debug: Boolean)
+case class Logger(name: String)
+case class Service(config: Config, logger: Logger)
+
+// Define a wire that requires Config and Logger to build Service
+val buildService = Wire.make[Config & Logger, Service]
+
+// Create a context with the required dependencies
+val deps = Context(Config(debug = true), Logger("app"))
+
+// Create a scope and instantiate the service
+Scope.global.scoped { scope =>
+  val service: Service = buildService.make(scope, deps)
+}
+```
+
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `schema-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+**Context construction: creating contexts with apply, empty.add, and inspecting size/isEmpty/nonEmpty**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextConstructionExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextConstructionExample.scala))
+
+```bash
+sbt "schema-examples/runMain context.ContextConstructionExample"
+```
+
+**Context retrieval: using get, supertype lookups, and getOption for safe access**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextRetrievalExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextRetrievalExample.scala))
+
+```bash
+sbt "schema-examples/runMain context.ContextRetrievalExample"
+```
+
+**Context modification: adding values, updating existing ones, merging contexts, and pruning types**
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextModificationExample.scala))
+
+```bash
+sbt "schema-examples/runMain context.ContextModificationExample"
+```

@@ -7,6 +7,7 @@ const sidebars = {
       link: { type: "doc", id: "index" },
       items: [
          "reference/schema",
+         "reference/allows",
          "reference/reflect",
          "reference/binding",
          "reference/binding-resolver",
@@ -15,7 +16,10 @@ const sidebars = {
          "reference/modifier",
          "reference/dynamic-value",
          "reference/dynamic-schema",
+         "reference/lazy",
+         "reference/structural-types",
          "reference/optics",
+         "reference/patch",
          "reference/schema-expr",
          "reference/dynamic-optic",
          "reference/type-class-derivation",
@@ -35,13 +39,27 @@ const sidebars = {
            ]
          },
          "reference/context",
+         {
+           type: "category",
+           label: "Resource Management & DI",
+           link: { type: "doc", id: "reference/resource-management-di/index" },
+           items: [
+             "reference/resource-management-di/resource",
+             "reference/resource-management-di/scope",
+             "reference/resource-management-di/wire",
+           ]
+         },
+         "reference/combinators",
          "reference/docs",
          "reference/json",
          "reference/json-patch",
+         "reference/json-differ",
          "reference/json-schema",
          "reference/xml",
          "reference/syntax",
          "reference/media-type",
+         "reference/http-model",
+         "ringbuffer",
       ]
     },
     {

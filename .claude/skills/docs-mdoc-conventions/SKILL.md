@@ -1,6 +1,7 @@
 ---
 name: docs-mdoc-conventions
 description: Shared reference for mdoc code block modifiers and Docusaurus admonitions used across ZIO Blocks documentation skills. Include when writing any documentation that contains Scala code blocks.
+allowed-tools: Read, Glob, Grep
 ---
 
 # ZIO Blocks Documentation Conventions
@@ -103,6 +104,59 @@ modifiers are used more than in reference pages:
 4. **New topic within the guide**: `mdoc:silent:reset` to start clean, then `mdoc:silent` for new
    setup.
 5. **Final "putting it together"**: `mdoc:compile-only` — fully self-contained, copy-paste ready.
+
+---
+
+## Tabbed Scala 2 / Scala 3 Examples
+
+When a section shows syntax that differs between Scala 2 and Scala 3, use Docusaurus tabs
+instead of sequential prose blocks. This lets readers pick their version once and have all
+tab groups on the page sync together.
+
+### Required MDX imports
+
+Add these two lines at the top of any `.md` file that uses tabs (right after the closing
+`---` of the frontmatter, before any prose):
+
+```mdx
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+```
+
+### Tab structure
+
+````mdx
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala mdoc:compile-only
+// Scala 2 syntax here
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
+```scala mdoc:compile-only
+// Scala 3 syntax here
+```
+
+  </TabItem>
+</Tabs>
+````
+
+### Rules
+
+- Always use `groupId="scala-version"` — this syncs all tab groups on the page when the
+  reader picks a version.
+- Always use `defaultValue="scala2"` — Scala 2 is shown first by default.
+- Blank lines inside `<TabItem>` are required for mdoc to process fenced code blocks
+  correctly.
+- `mdoc:compile-only` is the correct modifier for code inside tabs (same as everywhere
+  else).
+- mdoc passes JSX components through unchanged — only fenced `scala mdoc:*` blocks are
+  rewritten.
+- Do **not** use tabs for examples that are identical in both versions — only use them
+  when the syntax genuinely differs.
 
 ---
 

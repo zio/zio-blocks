@@ -1,0 +1,166 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.blocks.ringbuffer
+
+/**
+ * A sequential ring buffer for generic reference types (Scala.js
+ * implementation).
+ *
+ * Since Scala.js is single-threaded, this implementation uses plain reads and
+ * writes with no memory ordering primitives or locks. It provides the same API
+ * surface as the JVM implementation for cross-platform compatibility.
+ *
+ * @param capacity
+ *   the buffer capacity, must be a positive power of two
+ */
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
+
+  private val mask: Int             = capacity - 1
+  private val buffer: Array[AnyRef] = new Array[AnyRef](capacity)
+  private var producerIndex: Long   = 0L
+  private var consumerIndex: Long   = 0L
+
+  /**
+   * Tries to insert an element into the buffer.
+   *
+   * @param a
+   *   the element to insert; must not be `null`
+   * @throws java.lang.NullPointerException
+   *   if the element is `null`
+   * @return
+   *   `true` if the element was successfully inserted, `false` if the buffer is
+   *   full
+   */
+  def offer(a: A): Boolean = {
+    if (a == null) throw new NullPointerException("offer(null) is not permitted")
+    val pIdx = producerIndex
+    val cIdx = consumerIndex
+    if ((pIdx - cIdx).toInt == capacity) {
+      false
+    } else {
+      buffer((pIdx & mask).toInt) = a.asInstanceOf[AnyRef]
+      producerIndex = pIdx + 1L
+      true
+    }
+  }
+
+  /**
+   * Tries to remove an element from the buffer.
+   *
+   * @return
+   *   the element, or `null` if the buffer is empty
+   */
+  def take(): A = {
+    val cIdx = consumerIndex
+    val pIdx = producerIndex
+    if (pIdx == cIdx) {
+      null.asInstanceOf[A]
+    } else {
+      val offset  = (cIdx & mask).toInt
+      val element = buffer(offset).asInstanceOf[A]
+      buffer(offset) = null
+      consumerIndex = cIdx + 1L
+      element
+    }
+  }
+
+  /** Returns the number of elements currently in the buffer. */
+  def size: Int = (producerIndex - consumerIndex).toInt
+
+  /** Returns `true` if the buffer contains no elements. */
+  def isEmpty: Boolean = producerIndex == consumerIndex
+
+  /** Returns `true` if the buffer is full. */
+  def isFull: Boolean = (producerIndex - consumerIndex).toInt == capacity
+
+  /**
+   * Drains up to `limit` elements from the buffer, passing each to the given
+   * consumer callback.
+   *
+   * @param consumer
+   *   the callback invoked for each drained element
+   * @param limit
+   *   the maximum number of elements to drain; must be non-negative
+   * @throws java.lang.IllegalArgumentException
+   *   if `limit` is negative
+   * @return
+   *   the number of elements actually drained (0 if the buffer is empty)
+   */
+  def drain(consumer: A => Unit, limit: Int): Int = {
+    if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
+    var count = 0
+    while (count < limit) {
+      val cIdx = consumerIndex
+      val pIdx = producerIndex
+      if (pIdx == cIdx) return count
+      val offset = (cIdx & mask).toInt
+      val e      = buffer(offset).asInstanceOf[A]
+      buffer(offset) = null
+      consumerIndex = cIdx + 1L
+      count += 1
+      consumer(e)
+    }
+    count
+  }
+
+  /**
+   * Fills up to `limit` slots in the buffer by calling the supplier for each
+   * new element.
+   *
+   * @param supplier
+   *   the callback invoked to produce each new element; must not return `null`
+   * @param limit
+   *   the maximum number of elements to insert; must be non-negative
+   * @throws java.lang.IllegalArgumentException
+   *   if `limit` is negative
+   * @throws java.lang.NullPointerException
+   *   if the supplier returns `null`
+   * @return
+   *   the number of elements actually inserted (0 if the buffer is full)
+   */
+  def fill(supplier: () => A, limit: Int): Int = {
+    if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
+    var count = 0
+    while (count < limit) {
+      val pIdx = producerIndex
+      val cIdx = consumerIndex
+      if ((pIdx - cIdx).toInt == capacity) return count
+      val a = supplier()
+      if (a == null) throw new NullPointerException("fill: supplier returned null")
+      buffer((pIdx & mask).toInt) = a.asInstanceOf[AnyRef]
+      producerIndex = pIdx + 1L
+      count += 1
+    }
+    count
+  }
+}
+
+object SpscRingBuffer {
+
+  /**
+   * Creates a new [[SpscRingBuffer]] with the given capacity.
+   *
+   * @param capacity
+   *   the buffer capacity, must be a positive power of two
+   * @tparam A
+   *   the element type (must be a reference type)
+   * @return
+   *   a new SPSC ring buffer
+   */
+  def apply[A <: AnyRef](capacity: Int): SpscRingBuffer[A] = new SpscRingBuffer[A](capacity)
+}

@@ -212,6 +212,65 @@ p"<café>"          // Unicode case names
 p"<A><B><C>"       // Nested variants
 ```
 
+### Schema Search
+
+Search for values matching a schema pattern anywhere in a data structure using the `#` prefix.
+
+**Nominal types:**
+
+```scala
+p"#Person"         // Find all values of type Person
+p"#User"           // Find all values of type User
+p"#Address"        // Find all values of type Address
+```
+
+**Primitive types:**
+
+```scala
+p"#string"         // Find all string values
+p"#int"            // Find all integer values
+p"#boolean"        // Find all boolean values
+p"#uuid"           // Find all UUID values
+```
+
+**Structural records:**
+
+```scala
+p"#record { name: string }"                // Find records with a string 'name' field
+p"#record { name: string, age: int }"      // Find records with both fields
+p"#record { items: list(Person) }"         // Nested schema
+```
+
+**Structural variants:**
+
+```scala
+p"#variant { Left: int, Right: string }"   // Find Either-like variants
+```
+
+**Collections:**
+
+```scala
+p"#list(string)"                           // Find lists of strings
+p"#list(Person)"                           // Find lists of Person
+p"#map(string, int)"                       // Find maps from string to int
+p"#option(Person)"                         // Find optional Person values
+```
+
+**Wildcard:**
+
+```scala
+p"#_"              // Find any value (matches everything)
+```
+
+**Combined paths with search:**
+
+```scala
+p".users#Person"               // Search for Person in users field
+p"#Person.name"                // Find all Person values, then get name
+p".items[*]#Person.email"      // Elements then search then field
+p"#list(Person)#Person"        // Chained searches
+```
+
 ## Escape Sequences
 
 String and character literals support standard escape sequences:
@@ -623,15 +682,17 @@ val same = p".users[*].email"
 |------------------------------------------------------|-------------------|
 | `DynamicOptic.root.field("name")`                    | `.name`           |
 | `DynamicOptic.root.field("address").field("street")` | `.address.street` |
-| `DynamicOptic.root.caseOf("Some")`                   | `<Some>`          |
-| `DynamicOptic.root.at(0)`                            | `[0]`             |
-| `DynamicOptic.root.atIndices(0, 2, 5)`               | `[0,2,5]`         |
-| `DynamicOptic.elements`                              | `[*]`             |
-| `DynamicOptic.root.atKey("host")`                    | `{"host"}`        |
-| `DynamicOptic.root.atKey(80)`                        | `{80}`            |
-| `DynamicOptic.mapValues`                             | `{*}`             |
-| `DynamicOptic.mapKeys`                               | `{*:}`            |
-| `DynamicOptic.wrapped`                               | `.~`              |
+| `DynamicOptic.root.caseOf("Some")`                                      | `<Some>`          |
+| `DynamicOptic.root.at(0)`                                               | `[0]`             |
+| `DynamicOptic.root.atIndices(0, 2, 5)`                                  | `[0,2,5]`         |
+| `DynamicOptic.elements`                                                 | `[*]`             |
+| `DynamicOptic.root.atKey("host")`                                       | `{"host"}`        |
+| `DynamicOptic.root.atKey(80)`                                           | `{80}`            |
+| `DynamicOptic.mapValues`                                                | `{*}`             |
+| `DynamicOptic.mapKeys`                                                  | `{*:}`            |
+| `DynamicOptic.wrapped`                                                  | `.~`              |
+| `DynamicOptic.root.searchSchema(SchemaRepr.Nominal("Person"))`          | `#Person`         |
+| `DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))`        | `#string`         |
 
 ## Summary
 

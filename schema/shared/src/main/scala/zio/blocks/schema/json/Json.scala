@@ -1,7 +1,23 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Reflect, Schema, SchemaError, SchemaRepr}
 import zio.blocks.typeid.TypeId
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -1627,6 +1643,10 @@ object Json {
             case _ => ()
           }
           results.result()
+        case _: DynamicOptic.Node.TypeSearch =>
+          return JsonSelection.fail(SchemaError("TypeSearch requires Schema context, not supported for raw JSON"))
+        case search: DynamicOptic.Node.SchemaSearch =>
+          schemaSearchCollectJson(jsons, search.schemaRepr)
         case _ => // Case and Wrapped are not applicable to raw JSON
           jsons
       }
@@ -1774,6 +1794,10 @@ object Json {
         }
       case _: DynamicOptic.Node.MapKeys.type =>
         None // Cannot modify map keys in JSON (keys are strings, not values)
+      case _: DynamicOptic.Node.TypeSearch =>
+        None // TypeSearch requires Schema context
+      case search: DynamicOptic.Node.SchemaSearch =>
+        schemaSearchModifyJson(json, search.schemaRepr, nodes, nodeIdx, f)
       case _ =>
         modifyAtPathRecursive(json, nodes, nodeIdx + 1, f) // Case and Wrapped pass through for JSON
     }
@@ -1951,7 +1975,13 @@ object Json {
             })
           case _ => None
         }
-      case _ => None // Other node types not supported for delete
+      case _: DynamicOptic.Node.TypeSearch =>
+        None // TypeSearch requires Schema context
+      case search: DynamicOptic.Node.SchemaSearch =>
+        schemaSearchDeleteJson(json, search.schemaRepr, nodes, idx)
+      // AtMapKey, AtMapKeys, MapKeys, MapValues, Case: Json has no Map/Variant types, so these are architectural no-ops.
+      // AtIndices, Wrapped: could be supported but are low-impact; returns None (safe no-op) for now.
+      case _ => None
     }
   }
 
@@ -2302,17 +2332,17 @@ object Json {
   )
 
   implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
-    override def decodeValue(in: JsonReader, default: Json): Json = {
+    override def decodeValue(in: JsonReader): Json = {
       var x = in.nextToken().toInt
       if (x == '"') {
         in.rollbackToken()
-        new String(in.readString(null))
+        new String(in.readString())
       } else if (x == 'f' || x == 't') {
         in.rollbackToken()
         Boolean.apply(in.readBoolean())
       } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
-        new Number(in.readBigDecimal(null))
+        new Number(in.readBigDecimal())
       } else if (x == '[') {
         if (in.isNextToken(']')) Array.empty
         else {
@@ -2323,7 +2353,7 @@ object Json {
           try {
             while ({
               errIdx = x
-              arr(x) = decodeValue(in, default)
+              arr(x) = decodeValue(in)
               x += 1
               errIdx = -1
               in.isNextToken(',')
@@ -2348,7 +2378,7 @@ object Json {
           try {
             while ({
               key = in.readKeyAsString()
-              arr(x) = new Tuple2(key, decodeValue(in, default))
+              arr(x) = new Tuple2(key, decodeValue(in))
               x += 1
               key = null
               in.isNextToken(',')
@@ -2365,7 +2395,7 @@ object Json {
         }
       } else {
         in.rollbackToken()
-        in.readNullOrError(default, "expected JSON value")
+        in.readNullOrError(Null, "expected JSON value")
       }
     }
 
@@ -2386,67 +2416,258 @@ object Json {
         out.writeObjectEnd()
       case _ => out.writeNull()
     }
-
-    override def nullValue: Json = Null
   }
 
   private[schema] val durationRawCodec = new JsonBinaryCodec[Duration] {
-    override def decodeValue(in: JsonReader, default: Duration): Duration = in.readRawValAsDuration()
+    override def decodeValue(in: JsonReader): Duration = in.readRawValAsDuration()
 
     override def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val instantRawCodec = new JsonBinaryCodec[Instant] {
-    override def decodeValue(in: JsonReader, default: Instant): Instant = in.readRawValAsInstant()
+    override def decodeValue(in: JsonReader): Instant = in.readRawValAsInstant()
 
     override def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localDateRawCodec = new JsonBinaryCodec[LocalDate] {
-    override def decodeValue(in: JsonReader, default: LocalDate): LocalDate = in.readRawValAsLocalDate()
+    override def decodeValue(in: JsonReader): LocalDate = in.readRawValAsLocalDate()
 
     override def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localDateTimeRawCodec = new JsonBinaryCodec[LocalDateTime] {
-    override def decodeValue(in: JsonReader, default: LocalDateTime): LocalDateTime = in.readRawValAsLocalDateTime()
+    override def decodeValue(in: JsonReader): LocalDateTime = in.readRawValAsLocalDateTime()
 
     override def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val localTimeRawCodec = new JsonBinaryCodec[LocalTime] {
-    override def decodeValue(in: JsonReader, default: LocalTime): LocalTime = in.readRawValAsLocalTime()
+    override def decodeValue(in: JsonReader): LocalTime = in.readRawValAsLocalTime()
 
     override def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val monthDayRawCodec = new JsonBinaryCodec[MonthDay] {
-    override def decodeValue(in: JsonReader, default: MonthDay): MonthDay = in.readRawValAsMonthDay()
+    override def decodeValue(in: JsonReader): MonthDay = in.readRawValAsMonthDay()
 
     override def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val offsetDateTimeRawCodec = new JsonBinaryCodec[OffsetDateTime] {
-    override def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = in.readRawValAsOffsetDateTime()
+    override def decodeValue(in: JsonReader): OffsetDateTime = in.readRawValAsOffsetDateTime()
 
     override def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val offsetTimeRawCodec = new JsonBinaryCodec[OffsetTime] {
-    override def decodeValue(in: JsonReader, default: OffsetTime): OffsetTime = in.readRawValAsOffsetTime()
+    override def decodeValue(in: JsonReader): OffsetTime = in.readRawValAsOffsetTime()
 
     override def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val periodRawCodec = new JsonBinaryCodec[Period] {
-    override def decodeValue(in: JsonReader, default: Period): Period = in.readRawValAsPeriod()
+    override def decodeValue(in: JsonReader): Period = in.readRawValAsPeriod()
 
     override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
   private[schema] val zonedDateTimeRawCodec = new JsonBinaryCodec[ZonedDateTime] {
-    override def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readRawValAsZonedDateTime()
+    override def decodeValue(in: JsonReader): ZonedDateTime = in.readRawValAsZonedDateTime()
 
     override def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SchemaSearch Helper Functions
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Iterative stack-based depth-first traversal to collect all JSON values
+   * matching a SchemaRepr pattern. Order is depth-first, left-to-right
+   * (children are pushed in reverse order). The root values themselves are
+   * included if they match the pattern.
+   */
+  private def schemaSearchCollectJson(roots: Chunk[Json], pattern: SchemaRepr): Chunk[Json] = {
+    // Use a mutable list stack for iteration (avoids recursion stack overflow)
+    var stack: List[Json]                                   = roots.iterator.toList
+    val results: scala.collection.mutable.ArrayBuffer[Json] = scala.collection.mutable.ArrayBuffer.empty
+
+    while (stack.nonEmpty) {
+      val current = stack.head
+      stack = stack.tail
+
+      // Check if current matches the pattern
+      if (JsonMatch.matches(pattern, current)) {
+        results += current
+      }
+
+      // Push children onto stack - first child should be at top for left-to-right DFS
+      current match {
+        case obj: Object =>
+          // First field's value goes to top of stack, processed first
+          stack = obj.value.iterator.map(_._2).toList ++ stack
+        case arr: Array =>
+          // First element goes to top of stack, processed first
+          stack = arr.value.iterator.toList ++ stack
+        case _ =>
+          // Primitives (String, Number, Boolean, Null) have no children
+          ()
+      }
+    }
+
+    Chunk.from(results)
+  }
+
+  /**
+   * Iterative pre-order tree transformation for Json. Applies `visit` to each
+   * node, then reconstructs the tree bottom-up using an explicit stack to avoid
+   * stack overflow on deeply nested structures.
+   */
+  private[schema] def iterativeTransform(root: Json)(visit: Json => Json): Json = {
+    sealed trait Frame
+    final case class Visit(value: Json)                               extends Frame
+    final case class RebuildObject(original: Object, childCount: Int) extends Frame
+    final case class RebuildArray(original: Array, childCount: Int)   extends Frame
+
+    val work    = new java.util.ArrayDeque[Frame]()
+    val results = new java.util.ArrayDeque[Json]()
+    work.push(Visit(root))
+
+    while (!work.isEmpty) {
+      work.pop() match {
+        case Visit(value) =>
+          val visited = visit(value)
+          visited match {
+            case obj: Object =>
+              val n = obj.value.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildObject(obj, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(obj.value(i)._2)); i -= 1 }
+              }
+            case arr: Array =>
+              val n = arr.value.length
+              if (n == 0) {
+                results.push(visited)
+              } else {
+                work.push(RebuildArray(arr, n))
+                var i = n - 1
+                while (i >= 0) { work.push(Visit(arr.value(i))); i -= 1 }
+              }
+            case _ =>
+              results.push(visited)
+          }
+
+        case RebuildObject(original, childCount) =>
+          var changed = false
+          val fields  = new scala.Array[(java.lang.String, Json)](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.value(i)._2)) changed = true
+            fields(i) = (original.value(i)._1, child)
+            i -= 1
+          }
+          results.push(if (changed) new Object(Chunk.fromArray(fields)) else original)
+
+        case RebuildArray(original, childCount) =>
+          var changed = false
+          val elems   = new scala.Array[Json](childCount)
+          var i       = childCount - 1
+          while (i >= 0) {
+            val child = results.pop()
+            if (!(child eq original.value(i))) changed = true
+            elems(i) = child
+            i -= 1
+          }
+          results.push(if (changed) new Array(Chunk.fromArray(elems)) else original)
+      }
+    }
+
+    results.pop()
+  }
+
+  /**
+   * Modifies all JSON values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
+   */
+  private def schemaSearchModifyJson(
+    json: Json,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    nodeIdx: Int,
+    f: Json => Json
+  ): Option[Json] = {
+    var found  = false
+    val result = iterativeTransform(json) { value =>
+      if (JsonMatch.matches(pattern, value)) {
+        modifyAtPathRecursive(value, nodes, nodeIdx + 1, f) match {
+          case Some(modified) =>
+            found = true
+            modified
+          case None => value
+        }
+      } else {
+        value
+      }
+    }
+    if (found) Some(result) else None
+  }
+
+  /**
+   * Deletes all JSON values matching a SchemaRepr pattern and continues with
+   * remaining path nodes. Uses iterative stack-based traversal to avoid stack
+   * overflow on deeply nested structures.
+   */
+  private def schemaSearchDeleteJson(
+    json: Json,
+    pattern: SchemaRepr,
+    nodes: IndexedSeq[DynamicOptic.Node],
+    nodeIdx: Int
+  ): Option[Json] = {
+    val isLast = nodeIdx == nodes.length - 1
+    var found  = false
+
+    if (isLast) {
+      // SchemaSearch is the last node - delete matching values from containers.
+      // The visit function filters out matching direct children at each container level;
+      // iterativeTransform handles recursion into remaining children.
+      val result = iterativeTransform(json) { value =>
+        value match {
+          case obj: Object =>
+            val newFields = obj.value.flatMap { case (name, v) =>
+              if (JsonMatch.matches(pattern, v)) { found = true; Chunk.empty }
+              else Chunk((name, v))
+            }
+            if (newFields.length != obj.value.length) new Object(newFields) else obj
+          case arr: Array =>
+            val newElems = arr.value.flatMap { e =>
+              if (JsonMatch.matches(pattern, e)) { found = true; Chunk.empty }
+              else Chunk(e)
+            }
+            if (newElems.length != arr.value.length) new Array(newElems) else arr
+          case other => other
+        }
+      }
+      if (found) Some(result) else None
+    } else {
+      // SchemaSearch is not the last node - find matches and continue with remaining path.
+      // iterativeTransform visits every node; matching ones get the remaining path applied.
+      val result = iterativeTransform(json) { value =>
+        if (JsonMatch.matches(pattern, value)) {
+          deleteAtPathRecursive(value, nodes, nodeIdx + 1) match {
+            case Some(modified) =>
+              found = true
+              modified
+            case None => value
+          }
+        } else value
+      }
+      if (found) Some(result) else None
+    }
   }
 }

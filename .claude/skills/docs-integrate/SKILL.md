@@ -1,6 +1,7 @@
 ---
 name: docs-integrate
 description: Shared integration checklist for new ZIO Blocks documentation pages. Include after writing any new reference page or how-to guide to ensure it is wired into the site navigation.
+allowed-tools: Read, Edit, Glob, Grep, Bash(git:*)
 ---
 
 # Documentation Integration Checklist
@@ -43,11 +44,15 @@ Add links from related existing docs to the new page:
 - If you wrote a guide that uses a specific type (e.g., `Schema`, `DynamicOptic`), add a
   cross-reference from the type's reference page to the guide.
 
-## Step 4: Verify All Links
+## Step 4: Verify Compilation and Links (Mandatory Gate)
 
-Check that all relative links in the new page and in any updated pages are correct:
+This is a **mandatory compilation gate**. All code examples in documentation are compile-checked via mdoc.
+
+### Check Relative Links
+
+Verify that all relative links in the new page and in any updated pages are correct:
 
 - Internal links use relative paths: `[TypeName](./type-name.md)`.
 - Anchor links match actual heading text (Docusaurus converts headings to lowercase kebab-case
   anchors).
-- Run `sbt docs/mdoc` to catch broken mdoc links (they appear as `[error] Unknown link '...'`).
+- Run `sbt "docs/mdoc --in <path-to-new-page>"` to catch broken mdoc links (they appear as `[error] Unknown link '...'`).

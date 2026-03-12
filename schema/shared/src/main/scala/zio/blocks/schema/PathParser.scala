@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
@@ -103,6 +119,7 @@ private[schema] object PathParser {
     case '['                       => parseIndexOrElements(ctx)
     case '{'                       => parseMapAccess(ctx)
     case '<'                       => parseVariantCase(ctx)
+    case '#'                       => parseSearch(ctx)
     case c if isIdentifierStart(c) => parseField(ctx)
     case c                         => new Left(new ParseError.UnexpectedChar(c, ctx.pos, "field, index, map, or variant accessor"))
   }
@@ -314,6 +331,62 @@ private[schema] object PathParser {
       ctx.advance()
       new Right(new Node.Case(sb.toString))
     } else new Left(new ParseError.UnexpectedChar(ctx.current, ctx.pos, "'>'"))
+  }
+
+  private[this] def parseSearch(ctx: ParseContext): Either[ParseError, Node] = {
+    val hashPos = ctx.pos
+    ctx.advance() // Skip '#'
+
+    if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("schema expression after '#'"))
+    if (!isIdentifierStart(ctx.current))
+      return new Left(new ParseError.UnexpectedChar(ctx.current, ctx.pos, "schema expression"))
+
+    // Extract the schema expression substring
+    val schemaStart = ctx.pos
+    val schemaEnd   = extractSchemaEnd(ctx)
+
+    val schemaString = ctx.input.substring(schemaStart, schemaEnd)
+    ctx.pos = schemaEnd
+
+    // Parse using SchemaParser
+    SchemaParser.parse(schemaString) match {
+      case Left(schemaError) =>
+        // Adjust position to be relative to original input
+        val adjustedPos =
+          if (schemaError.position >= 0) schemaStart + schemaError.position
+          else hashPos
+        new Left(new ParseError.InvalidSyntax(schemaError.message, adjustedPos))
+      case Right(schemaRepr) =>
+        new Right(new Node.SchemaSearch(schemaRepr))
+    }
+  }
+
+  /**
+   * Finds the end position of a schema expression by tracking balanced braces
+   * and parens. Schema expressions end at `.`, `[`, `{` (outside balanced
+   * context), `<`, `#`, or end of input.
+   */
+  private[this] def extractSchemaEnd(ctx: ParseContext): Int = {
+    var braceDepth = 0
+    var parenDepth = 0
+
+    while (!ctx.atEnd) {
+      val c = ctx.current
+      c match {
+        case '{' => braceDepth += 1; ctx.advance()
+        case '}' =>
+          if (braceDepth > 0) { braceDepth -= 1; ctx.advance() }
+          else return ctx.pos // Unbalanced, stop here
+        case '(' => parenDepth += 1; ctx.advance()
+        case ')' =>
+          if (parenDepth > 0) { parenDepth -= 1; ctx.advance() }
+          else return ctx.pos // Unbalanced, stop here
+        case '.' | '[' | '<' | '#' if braceDepth == 0 && parenDepth == 0 =>
+          return ctx.pos // Next node delimiter
+        case _ => ctx.advance()
+      }
+    }
+    ctx.pos
   }
 
   private[this] def parseString(ctx: ParseContext): Either[ParseError, String] = {

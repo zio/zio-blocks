@@ -420,6 +420,30 @@ sbt "schema-examples/compile"
 
 If any example fails to compile, fix it before proceeding. The examples must compile successfully.
 
+### 4f. Lint Check (Mandatory Before Integration)
+
+After all examples compile, stage them in git first, then run Scalafmt to ensure all Scala files pass the CI formatting gate:
+
+```bash
+git add schema-examples/src/main/scala/**/*.scala
+sbt fmtChanged
+```
+
+If any files were reformatted, commit the changes immediately:
+
+```bash
+git add -A
+git commit -m "docs(<guide-id>): apply scalafmt to examples"
+```
+
+Verify the CI lint gate locally:
+
+```bash
+sbt check
+```
+
+**Success criterion:** zero formatting violations reported.
+
 ---
 
 ## Step 5: Integrate
@@ -457,6 +481,7 @@ After writing, verify every item on this checklist:
 - [ ] Imports are complete and correct in every code block
 - [ ] The sbt dependency in Prerequisites is correct
 - [ ] No deprecated methods or outdated patterns are used
+- [ ] Run `sbt "docs/mdoc --in docs/guides/<guide-id>.md"` and confirm zero `[error]` lines (this is mandatory before claiming the guide is done)
 
 ### Companion Examples
 - [ ] A package directory exists in `schema-examples/src/main/scala/<packagename>/`

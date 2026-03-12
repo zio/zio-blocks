@@ -1,13 +1,31 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import scala.annotation.tailrec
-import scala.compiletime.error
+import scala.compiletime.{error, summonInline}
 
 transparent trait CompanionOptics[S] {
   extension [A](a: A) {
     inline def when[B <: A]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
     inline def wrapped[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
+
+    inline def searchFor[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }
 
   extension [C[_], A](c: C[A]) {
@@ -449,6 +467,66 @@ private object CompanionOptics {
                   }
               }
           })
+        case TypeApply(Apply(TypeApply(searchTerm, _), List(parent)), List(typeTree))
+            if hasName(searchTerm, "searchFor") =>
+          val parentTpe = parent.tpe.widen.dealias
+          val searchTpe = typeTree.tpe.dealias
+          new Some(parentTpe.asType match {
+            case '[p] =>
+              searchTpe.asType match {
+                case '[s] =>
+                  toOptic(parent).fold {
+                    '{
+                      SearchTraversal(
+                        $schema.reflect.asInstanceOf[Reflect.Bound[p]],
+                        summonInline[Schema[s]].reflect
+                      ).asInstanceOf[Traversal[p, s]]
+                    }
+                  } { x =>
+                    if (x.isExprOf[Lens[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Prism[S, p & S]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p & S]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p & S, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Optional[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else if (x.isExprOf[Traversal[S, p]]) {
+                      '{
+                        val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
+                        optic.apply(
+                          SearchTraversal(
+                            optic.focus.asInstanceOf[Reflect.Bound[p]],
+                            summonInline[Schema[s]].reflect
+                          ).asInstanceOf[Traversal[p, s]]
+                        )
+                      }
+                    } else unsupportedOpticType(x)
+                  }
+              }
+          })
         case Select(parent, fieldName) =>
           val parentTpe = parent.tpe.widen.dealias
           val childTpe  = term.tpe.widen.dealias
@@ -511,7 +589,7 @@ private object CompanionOptics {
             case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
             case _                                                                      =>
               fail(
-                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'."
+                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, .wrapped[<T>], or .searchFor[<T>], got '${term.show}'."
               )
           }
           var parentTpe = parent.tpe.widen.dealias

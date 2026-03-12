@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package typeclassderivation
 
 import zio.blocks.chunk.Chunk
@@ -45,7 +61,7 @@ object DeriveGenExample extends App {
     override def derivePrimitive[A](
       primitiveType: PrimitiveType[A],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Primitive, A],
+      binding: Binding.Primitive[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -83,7 +99,7 @@ object DeriveGenExample extends App {
     override def deriveRecord[F[_, _], A](
       fields: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Record, A],
+      binding: Binding.Record[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -92,7 +108,7 @@ object DeriveGenExample extends App {
       // Pre-compute structural setup outside Lazy — none of this touches Deferred nodes
       // Build Reflect.Record to access registers and constructor
       val recordFields  = fields.asInstanceOf[IndexedSeq[Term[Binding, A, _]]]
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
+      val recordBinding = binding
       val recordReflect = new Reflect.Record[Binding, A](recordFields, typeId, recordBinding, doc, modifiers)
       Lazy {
         new Gen[A] {
@@ -127,7 +143,7 @@ object DeriveGenExample extends App {
     override def deriveVariant[F[_, _], A](
       cases: IndexedSeq[Term[F, A, _]],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Variant, A],
+      binding: Binding.Variant[A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
@@ -160,14 +176,14 @@ object DeriveGenExample extends App {
     override def deriveSequence[F[_, _], C[_], A](
       element: Reflect[F, A],
       typeId: TypeId[C[A]],
-      binding: Binding[BindingType.Seq[C], C[A]],
+      binding: Binding.Seq[C, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[C[A]],
       examples: Seq[C[A]]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[C[A]]] = {
       // Cast binding to Binding.Seq to access the constructor
-      val constructor  = binding.asInstanceOf[Binding.Seq[C, A]].constructor
+      val constructor  = binding.constructor
       val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[A]]
       // Sequences are structurally non-recursive, so we can use monadic .map composition.
       // instance(...).map { elementGen => ... } returns a Lazy that, when forced, builds
@@ -203,14 +219,14 @@ object DeriveGenExample extends App {
       key: Reflect[F, K],
       value: Reflect[F, V],
       typeId: TypeId[M[K, V]],
-      binding: Binding[BindingType.Map[M], M[K, V]],
+      binding: Binding.Map[M, K, V],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[M[K, V]],
       examples: Seq[M[K, V]]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[M[K, V]]] = {
       // Cast binding to Binding.Map to access the constructor
-      val constructor = binding.asInstanceOf[Binding.Map[M, K, V]].constructor
+      val constructor = binding.constructor
       // Maps are non-recursive: use .zip to pair the two child Lazy instances, then .map
       // to build the Gen[M[K,V]] with both keyGen and valueGen already resolved.
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (keyGen, valueGen) =>
@@ -239,7 +255,7 @@ object DeriveGenExample extends App {
      * content.
      */
     override def deriveDynamic[F[_, _]](
-      binding: Binding[BindingType.Dynamic, DynamicValue],
+      binding: Binding.Dynamic,
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[DynamicValue],
@@ -294,14 +310,14 @@ object DeriveGenExample extends App {
     override def deriveWrapper[F[_, _], A, B](
       wrapped: Reflect[F, B],
       typeId: TypeId[A],
-      binding: Binding[BindingType.Wrapper[A, B], A],
+      binding: Binding.Wrapper[A, B],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect],
       defaultValue: Option[A],
       examples: Seq[A]
     )(implicit F: HasBinding[F], D: DeriveGen.HasInstance[F]): Lazy[Gen[A]] = {
       // Cast binding to Binding.Wrapper to access the wrap function
-      val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
+      val wrapperBinding = binding
       // Wrappers are non-recursive: use .map so wrappedGen is already resolved
       // when generate() is called — no .force needed.
       D.instance(wrapped.metadata).map { wrappedGen =>

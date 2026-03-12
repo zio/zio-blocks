@@ -1362,6 +1362,182 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       }
     ),
 
+    suite("Search nodes")(
+      test("simple nominal type") {
+        assertTrue(
+          p"#Person" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Nominal("Person"))))
+        )
+      },
+      test("primitive type string") {
+        assertTrue(
+          p"#string" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Primitive("string"))))
+        )
+      },
+      test("primitive type int") {
+        assertTrue(
+          p"#int" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Primitive("int"))))
+        )
+      },
+      test("wildcard") {
+        assertTrue(
+          p"#_" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Wildcard)))
+        )
+      },
+      test("record with single field") {
+        assertTrue(
+          p"#record { name: string }" == DynamicOptic(
+            Vector(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+          )
+        )
+      },
+      test("record with multiple fields") {
+        assertTrue(
+          p"#record { name: string, age: int }" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(
+                SchemaRepr.Record(
+                  Vector(
+                    "name" -> SchemaRepr.Primitive("string"),
+                    "age"  -> SchemaRepr.Primitive("int")
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("variant type") {
+        assertTrue(
+          p"#variant { Left: int, Right: string }" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(
+                SchemaRepr.Variant(
+                  Vector(
+                    "Left"  -> SchemaRepr.Primitive("int"),
+                    "Right" -> SchemaRepr.Primitive("string")
+                  )
+                )
+              )
+            )
+          )
+        )
+      },
+      test("list type") {
+        assertTrue(
+          p"#list(string)" == DynamicOptic(
+            Vector(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
+          )
+        )
+      },
+      test("map type") {
+        assertTrue(
+          p"#map(string, int)" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int")))
+            )
+          )
+        )
+      },
+      test("option type") {
+        assertTrue(
+          p"#option(Person)" == DynamicOptic(
+            Vector(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
+          )
+        )
+      },
+      test("nested schema") {
+        assertTrue(
+          p"#record { items: list(Person) }" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(
+                SchemaRepr.Record(
+                  Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("search followed by field") {
+        assertTrue(
+          p"#Person.name" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.Field("name")
+            )
+          )
+        )
+      },
+      test("field followed by search") {
+        assertTrue(
+          p".users#Person" == DynamicOptic(
+            Vector(
+              Node.Field("users"),
+              Node.SchemaSearch(SchemaRepr.Nominal("Person"))
+            )
+          )
+        )
+      },
+      test("search in complex path") {
+        assertTrue(
+          p".items[*]#Person.name" == DynamicOptic(
+            Vector(
+              Node.Field("items"),
+              Node.Elements,
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.Field("name")
+            )
+          )
+        )
+      },
+      test("chained searches") {
+        assertTrue(
+          p"#list(Person)#Person" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))),
+              Node.SchemaSearch(SchemaRepr.Nominal("Person"))
+            )
+          )
+        )
+      },
+      test("search followed by index") {
+        assertTrue(
+          p"#Person[0]" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(SchemaRepr.Nominal("Person")),
+              Node.AtIndex(0)
+            )
+          )
+        )
+      },
+      test("search followed by variant case") {
+        assertTrue(
+          p"#Either<Right>" == DynamicOptic(
+            Vector(
+              Node.SchemaSearch(SchemaRepr.Nominal("Either")),
+              Node.Case("Right")
+            )
+          )
+        )
+      },
+      test("roundtrip toString for nominal search") {
+        val optic = p"#Person"
+        assertTrue(optic.toString == "#Person")
+      },
+      test("roundtrip toString for primitive search") {
+        val optic = p"#string"
+        assertTrue(optic.toString == "#string")
+      },
+      test("roundtrip toString for record search") {
+        val optic = p"#record { name: string }"
+        assertTrue(optic.toString == "#record { name: string }")
+      },
+      test("roundtrip toString for complex path with search") {
+        val optic = p".users[*]#Person.name"
+        assertTrue(optic.toString == ".users[*]#Person.name")
+      }
+    ),
+
     suite("Compile-time validation")(
       test("rejects runtime interpolation arguments") {
         typeCheck {

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
@@ -716,7 +732,7 @@ object JsonSchema {
     extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends JsonSchema {
 
-    override def toJson: Json = {
+    override lazy val toJson: Json = {
       val fields = ChunkBuilder.make[(String, Json)]()
       // Core vocabulary
       $id match {
@@ -979,7 +995,7 @@ object JsonSchema {
     override def check(json: Json): Option[SchemaError] = check(json, ValidationOptions.default)
 
     override def check(json: Json, options: ValidationOptions): Option[SchemaError] =
-      checkWithEvaluation(json, options, Nil).toSchemaError
+      checkWithEvaluation(toJson, json, options, Nil).toSchemaError
 
     private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object = {
       val keys    = m.keysChunk
@@ -999,6 +1015,7 @@ object JsonSchema {
      * unevaluatedProperties/unevaluatedItems support.
      */
     private[json] def checkWithEvaluation(
+      rootSchemaJson: Json,
       json: Json,
       options: ValidationOptions,
       trace: List[DynamicOptic.Node]
@@ -1007,10 +1024,13 @@ object JsonSchema {
       $ref match {
         case Some(refUri) =>
           val refUriVal = refUri.value
-          if (refUriVal.startsWith("#/$defs/")) {
-            $defs.flatMap(_.get(refUriVal.substring(8))) match {
-              case Some(refSchema) => result = result ++ collectFromSchema(refSchema, json, options, trace)
-              case _               => result = result.addError(trace, s"Cannot resolve $$ref: $refUriVal")
+          val elems     = refUriVal.split('/')
+          if (refUriVal.startsWith("#/") && elems.length >= 3 && elems(elems.length - 2) == "$defs") {
+            val path = elems.tail.foldLeft(DynamicOptic.root)((acc, elem) => acc.field(elem))
+            rootSchemaJson.get(path).one.flatMap(fromJson) match {
+              case Right(refSchema) =>
+                result = result ++ collectFromSchema(rootSchemaJson, refSchema, json, options, trace)
+              case _ => result = result.addError(trace, s"Cannot resolve $$ref: $refUriVal")
             }
           } else result = result.addError(trace, s"Unsupported $$ref format: $refUriVal")
         case _ =>
@@ -1065,7 +1085,8 @@ object JsonSchema {
       }
       json match {
         case s: Json.String => // String validations
-          val len = s.value.length
+          val str = s.value
+          val len = str.codePointCount(0, str.length)
           minLength match {
             case Some(min) if len < min.value =>
               result = result.addError(trace, s"String length $len is less than minLength ${min.value}")
@@ -1077,10 +1098,10 @@ object JsonSchema {
             case _ =>
           }
           pattern match {
-            case Some(p) =>
+            case Some(p) if p.value.startsWith("^") && p.value.endsWith("$") => // anchored only are accepted
               p.compiled match {
                 case Right(regex) =>
-                  if (!regex.matcher(s.value).find()) {
+                  if (!regex.matcher(str).matches()) {
                     result = result.addError(trace, s"String does not match pattern '${p.value}'")
                   }
                 case _ => // Invalid pattern - skip validation
@@ -1090,7 +1111,7 @@ object JsonSchema {
           format match {
             case Some(fmt) =>
               if (options.validateFormats) {
-                FormatValidator.validate(fmt, s.value) match {
+                FormatValidator.validate(fmt, str) match {
                   case Some(message) => result = result.addError(trace, message)
                   case _             =>
                 }
@@ -1157,7 +1178,8 @@ object JsonSchema {
                   if (idx < len) {
                     evaluatedIndices += idx
                     val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
-                    result = result.addErrors(collectFromSchema(schema, a.value(idx), options, trace_).errors)
+                    result =
+                      result.addErrors(collectFromSchema(rootSchemaJson, schema, a.value(idx), options, trace_).errors)
                   }
                   idx += 1
               }
@@ -1175,7 +1197,8 @@ object JsonSchema {
               while (idx < len) {
                 evaluatedIndices += idx
                 val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
-                result = result.addErrors(collectFromSchema(itemSchema, jsons(idx), options, trace_).errors)
+                result =
+                  result.addErrors(collectFromSchema(rootSchemaJson, itemSchema, jsons(idx), options, trace_).errors)
                 idx += 1
               }
             case _ =>
@@ -1247,7 +1270,7 @@ object JsonSchema {
                 if (propValue ne null) {
                   localEvaluatedProps.add(propName)
                   val trace_ = new DynamicOptic.Node.Field(propName) :: trace
-                  result = result.addErrors(collectFromSchema(kv._2, propValue, options, trace_).errors)
+                  result = result.addErrors(collectFromSchema(rootSchemaJson, kv._2, propValue, options, trace_).errors)
                 }
               }
             case _ =>
@@ -1261,7 +1284,8 @@ object JsonSchema {
                       if (regex.matcher(key).find()) {
                         localEvaluatedProps.add(key)
                         val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                        result = result.addErrors(collectFromSchema(propSchema, value, options, trace_).errors)
+                        result =
+                          result.addErrors(collectFromSchema(rootSchemaJson, propSchema, value, options, trace_).errors)
                       }
                     )
                   case _ =>
@@ -1282,7 +1306,8 @@ object JsonSchema {
                 val propValue = fieldMap.get(key)
                 if (propValue ne null) {
                   val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                  result = result.addErrors(collectFromSchema(addSchema, propValue, options, trace_).errors)
+                  result =
+                    result.addErrors(collectFromSchema(rootSchemaJson, addSchema, propValue, options, trace_).errors)
                 }
               }
             case _ =>
@@ -1307,7 +1332,7 @@ object JsonSchema {
             case Some(deps) =>
               deps.foreach { case (propName, depSchema) =>
                 if (fieldKeys.contains(propName)) {
-                  result = result ++ collectFromSchema(depSchema, obj, options, trace)
+                  result = result ++ collectFromSchema(rootSchemaJson, depSchema, obj, options, trace)
                 }
               }
             case _ =>
@@ -1317,12 +1342,12 @@ object JsonSchema {
       // Composition validations - collect evaluated properties/items from subschemas
       allOf match {
         case Some(schemas) =>
-          schemas.foreach(schema => result = result ++ collectFromSchema(schema, json, options, trace))
+          schemas.foreach(schema => result = result ++ collectFromSchema(rootSchemaJson, schema, json, options, trace))
         case _ =>
       }
       anyOf match {
         case Some(schemas) =>
-          val results = schemas.map(s => collectFromSchema(s, json, options, trace))
+          val results = schemas.map(s => collectFromSchema(rootSchemaJson, s, json, options, trace))
           val valid   = results.filter(_.errors.isEmpty)
           if (valid.isEmpty) result = result.addError(trace, "Value does not match any schema in anyOf")
           else {
@@ -1336,7 +1361,7 @@ object JsonSchema {
       }
       oneOf match {
         case Some(schemas) =>
-          val results    = schemas.map(s => collectFromSchema(s, json, options, trace))
+          val results    = schemas.map(s => collectFromSchema(rootSchemaJson, s, json, options, trace))
           val valid      = results.filter(_.errors.isEmpty)
           val validCount = valid.length
           if (validCount == 0) result = result.addError(trace, "Value does not match any schema in oneOf")
@@ -1359,19 +1384,21 @@ object JsonSchema {
       // Per spec, 'if' always contributes to evaluation regardless of whether it passes
       `if` match {
         case Some(ifSchema) =>
-          val ifResult = collectFromSchema(ifSchema, json, options, trace)
+          val ifResult = collectFromSchema(rootSchemaJson, ifSchema, json, options, trace)
           val ifValid  = ifResult.errors.isEmpty
           result = result.withEvaluatedProperties(ifResult.evaluatedProperties)
           result = result.withEvaluatedItems(ifResult.evaluatedItems)
           if (ifValid) {
             `then` match {
-              case Some(thenSchema) => result = result ++ collectFromSchema(thenSchema, json, options, trace)
-              case _                =>
+              case Some(thenSchema) =>
+                result = result ++ collectFromSchema(rootSchemaJson, thenSchema, json, options, trace)
+              case _ =>
             }
           } else {
             `else` match {
-              case Some(elseSchema) => result = result ++ collectFromSchema(elseSchema, json, options, trace)
-              case _                =>
+              case Some(elseSchema) =>
+                result = result ++ collectFromSchema(rootSchemaJson, elseSchema, json, options, trace)
+              case _ =>
             }
           }
         case _ =>
@@ -1388,7 +1415,9 @@ object JsonSchema {
               while (idx < len) {
                 if (!allEvaluated.contains(idx)) {
                   val trace_ = new DynamicOptic.Node.AtIndex(idx) :: trace
-                  result = result.addErrors(collectFromSchema(unevalSchema, jsons(idx), options, trace_).errors)
+                  result = result.addErrors(
+                    collectFromSchema(rootSchemaJson, unevalSchema, jsons(idx), options, trace_).errors
+                  )
                   result = result.withEvaluatedItem(idx)
                 }
                 idx += 1
@@ -1406,7 +1435,8 @@ object JsonSchema {
                   if (seen.add(key)) {
                     if (!allEvaluated.contains(key)) {
                       val trace_ = new DynamicOptic.Node.Field(key) :: trace
-                      result = result.addErrors(collectFromSchema(unevalSchema, kv._2, options, trace_).errors)
+                      result =
+                        result.addErrors(collectFromSchema(rootSchemaJson, unevalSchema, kv._2, options, trace_).errors)
                       result = result.withEvaluatedProperty(key)
                     }
                   }
@@ -1419,12 +1449,13 @@ object JsonSchema {
     }
 
     private[this] def collectFromSchema(
+      rootSchemaJson: Json,
       schema: JsonSchema,
       json: Json,
       options: ValidationOptions,
       trace: List[DynamicOptic.Node]
     ): EvaluationResult = schema match {
-      case s: Object => s.checkWithEvaluation(json, options, trace)
+      case s: Object => s.checkWithEvaluation(rootSchemaJson, json, options, trace)
       case _         =>
         schema.check(json, options) match {
           case Some(e) => new EvaluationResult(e.errors, Set.empty, Set.empty)

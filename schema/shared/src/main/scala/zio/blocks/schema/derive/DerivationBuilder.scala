@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.derive
 
 import zio.blocks.chunk.Chunk
@@ -252,7 +268,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveRecord(
                   updatedFields,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.record(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
@@ -316,7 +332,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveVariant(
                   updatedCases,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.variant(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
@@ -361,7 +377,7 @@ final case class DerivationBuilder[TC[_], A](
                 .deriveSequence(
                   element,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.seq(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
@@ -409,7 +425,7 @@ final case class DerivationBuilder[TC[_], A](
                   key,
                   value,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.map(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),
@@ -440,7 +456,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
               .getOrElse(
                 deriver.deriveDynamic[G](
-                  metadata,
+                  Binding.bindingHasBinding.dynamic(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue,
@@ -472,7 +488,7 @@ final case class DerivationBuilder[TC[_], A](
                 .derivePrimitive(
                   primitiveType,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.primitive(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption),
@@ -517,7 +533,7 @@ final case class DerivationBuilder[TC[_], A](
                 deriver.deriveWrapper(
                   wrapped,
                   typeId,
-                  metadata,
+                  Binding.bindingHasBinding.wrapper(metadata),
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId),
                   storedDefaultValue.flatMap(dv => tempReflect.fromDynamicValue(dv).toOption),

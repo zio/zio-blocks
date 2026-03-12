@@ -52,3 +52,20 @@ scope.$(db)(_.query("x"))
 // ✅ Best: unqualified (when import scope.* is active)
 $(db)(_.query("x"))
 ```
+
+For N-ary `$` (N≥2), `infix` is not available (it requires exactly one operand).
+Use unqualified syntax after `import scope.*`:
+
+```scala
+// ✅ N=2
+$(db, cache)((d, c) => d.query(c.key()))
+
+// ✅ N=3
+$(db, cache, log)((d, c, l) => { l.info("start"); d.query(c.key()) })
+```
+
+For N>5, compose nested single-param calls:
+
+```scala
+$(sa1)(v1 => $(sa2)(v2 => $(sa3)(v3 => v1.method(v2.result(), v3.tag()))))
+```

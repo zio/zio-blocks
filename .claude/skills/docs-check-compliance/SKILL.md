@@ -4,7 +4,7 @@ description: >
   Audit a documentation file against a rule skill. Checks each rule, fixes violations
   with separate commits, then compiles with mdoc. Reusable across any rule skill and doc file.
 argument-hint: "[docs-file.md] [rule-skill-name]"
-allowed-tools: Read, Grep, Edit, Bash
+allowed-tools: Skill, Read, Grep, Edit, Bash
 ---
 
 # Check Documentation Compliance
@@ -18,11 +18,16 @@ allowed-tools: Read, Grep, Edit, Bash
 
 ### Step 1: Load Rule Skill
 
-Invoke the specified rule skill to load its rules into context.
+**You MUST use the `Skill` tool to invoke the rule skill.** Do not substitute a different skill.
+Do not rely on memory or training knowledge about what the skill contains — load it fresh.
+
+Invoke the rule skill now:
 
 ```
 Skill: $ARGUMENTS[rule-skill]
 ```
+
+Read all rules it defines. These are the only rules you will enforce in Step 3.
 
 ### Step 2: Read Doc File
 
@@ -47,7 +52,7 @@ Repeat until the rule has no violations.
 Run mdoc to verify the doc compiles:
 
 ```bash
-sbt docs/mdoc
+sbt "docs/mdoc --in $ARGUMENTS[docs-file]"
 ```
 
 If mdoc fails, identify the error and commit a fix.

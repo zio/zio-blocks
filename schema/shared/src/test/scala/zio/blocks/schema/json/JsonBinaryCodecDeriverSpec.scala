@@ -1549,64 +1549,64 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record1.bl,
-            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
-              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+            new JsonBinaryCodec[Boolean] { // stringifies boolean values
+              def decodeValue(in: JsonReader): Boolean = in.readStringAsBoolean()
 
               def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.b,
-            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
-              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+            new JsonBinaryCodec[Byte] { // stringifies byte values
+              def decodeValue(in: JsonReader): Byte = in.readStringAsByte()
 
               def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.sh,
-            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
-              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+            new JsonBinaryCodec[Short] { // stringifies short values
+              def decodeValue(in: JsonReader): Short = in.readStringAsShort()
 
               def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.i,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.l,
-            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
-              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+            new JsonBinaryCodec[Long] { // stringifies long values
+              def decodeValue(in: JsonReader): Long = in.readStringAsLong()
 
               def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.f,
-            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
-              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+            new JsonBinaryCodec[Float] { // stringifies float values
+              def decodeValue(in: JsonReader): Float = in.readStringAsFloat()
 
               def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.d,
-            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
-              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+            new JsonBinaryCodec[Double] { // stringifies double values
+              def decodeValue(in: JsonReader): Double = in.readStringAsDouble()
 
               def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record1.c,
-            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
-              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+            new JsonBinaryCodec[Char] { // expecting char code numbers (not one-char strings)
+              def decodeValue(in: JsonReader): Char = in.readInt().toChar
 
               def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
             }
@@ -1617,23 +1617,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .modifier(Record5.bigDecimal, Modifier.rename("bigDec"))
           .instance(
             Record5.bigInt,
-            new JsonBinaryCodec[BigInt]() { // stringifies BigInt values
-              def decodeValue(in: JsonReader, default: BigInt): BigInt = in.readStringAsBigInt(default, Int.MaxValue)
+            new JsonBinaryCodec[BigInt] { // stringifies BigInt values
+              def decodeValue(in: JsonReader): BigInt = in.readStringAsBigInt(Int.MaxValue)
 
               def encodeValue(x: BigInt, out: JsonWriter): Unit = out.writeValAsString(x)
-
-              override val nullValue: BigInt = BigInt(0)
             }
           )
           .instance(
             Record5.bigDecimal,
-            new JsonBinaryCodec[BigDecimal]() { // stringifies BigDecimal values
-              def decodeValue(in: JsonReader, default: BigDecimal): BigDecimal =
-                in.readStringAsBigDecimal(default, MathContext.UNLIMITED, Int.MaxValue, Int.MaxValue)
+            new JsonBinaryCodec[BigDecimal] { // stringifies BigDecimal values
+              def decodeValue(in: JsonReader): BigDecimal =
+                in.readStringAsBigDecimal(MathContext.UNLIMITED, Int.MaxValue, Int.MaxValue)
 
               def encodeValue(x: BigDecimal, out: JsonWriter): Unit = out.writeValAsString(x)
-
-              override val nullValue: BigDecimal = BigDecimal(0)
             }
           )
           .derive
@@ -1653,9 +1649,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           s"""{"big_int":"$bigIntStr","bigDec":"$bigIntStr"}""",
           codec2
         ) &&
-        decode("""{"big_int":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
-        decodeError("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
-        decodeError("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
+        decode("""{"big_int":"0","bigDec":"0"}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
+        decodeError("""{"big_int":"0"}""", "missing required field \"bigDec\" at: .", codec2) &&
+        decodeError("""{"big_int":"0","bigDec":1}""", "expected '\"' at: .bigDecimal", codec2)
       },
       test("record with field name aliases") {
         val codec = Record5.schema
@@ -1688,64 +1684,64 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record6.bl,
-            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
-              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+            new JsonBinaryCodec[Boolean] { // stringifies boolean values
+              def decodeValue(in: JsonReader): Boolean = in.readStringAsBoolean()
 
               def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.b,
-            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
-              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+            new JsonBinaryCodec[Byte] { // stringifies byte values
+              def decodeValue(in: JsonReader): Byte = in.readStringAsByte()
 
               def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.sh,
-            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
-              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+            new JsonBinaryCodec[Short] { // stringifies short values
+              def decodeValue(in: JsonReader): Short = in.readStringAsShort()
 
               def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.i,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.l,
-            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
-              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+            new JsonBinaryCodec[Long] { // stringifies long values
+              def decodeValue(in: JsonReader): Long = in.readStringAsLong()
 
               def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.f,
-            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
-              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+            new JsonBinaryCodec[Float] { // stringifies float values
+              def decodeValue(in: JsonReader): Float = in.readStringAsFloat()
 
               def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.d,
-            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
-              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+            new JsonBinaryCodec[Double] { // stringifies double values
+              def decodeValue(in: JsonReader): Double = in.readStringAsDouble()
 
               def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record6.c,
-            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
-              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+            new JsonBinaryCodec[Char] { // expecting char code numbers (not one-char strings)
+              def decodeValue(in: JsonReader): Char = in.readInt().toChar
 
               def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
             }
@@ -1778,64 +1774,64 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.boolean,
-            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
-              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+            new JsonBinaryCodec[Boolean] { // stringifies boolean values
+              def decodeValue(in: JsonReader): Boolean = in.readStringAsBoolean()
 
               def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.byte,
-            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
-              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+            new JsonBinaryCodec[Byte] { // stringifies byte values
+              def decodeValue(in: JsonReader): Byte = in.readStringAsByte()
 
               def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.short,
-            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
-              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+            new JsonBinaryCodec[Short] { // stringifies short values
+              def decodeValue(in: JsonReader): Short = in.readStringAsShort()
 
               def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.int,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.long,
-            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
-              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+            new JsonBinaryCodec[Long] { // stringifies long values
+              def decodeValue(in: JsonReader): Long = in.readStringAsLong()
 
               def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.float,
-            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
-              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+            new JsonBinaryCodec[Float] { // stringifies float values
+              def decodeValue(in: JsonReader): Float = in.readStringAsFloat()
 
               def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.double,
-            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
-              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+            new JsonBinaryCodec[Double] { // stringifies double values
+              def decodeValue(in: JsonReader): Double = in.readStringAsDouble()
 
               def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             TypeId.char,
-            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
-              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+            new JsonBinaryCodec[Char] { // expecting char code numbers (not one-char strings)
+              def decodeValue(in: JsonReader): Char = in.readInt().toChar
 
               def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
             }
@@ -1852,20 +1848,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.currency,
-            new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
-              def decodeValue(in: JsonReader, default: Currency): Currency =
+            new JsonBinaryCodec[Currency] { // decode null values as the default one ("USD")
+              def decodeValue(in: JsonReader): Currency =
                 if (in.isNextToken('n')) {
                   in.rollbackToken()
+                  val default = Currency.getInstance("USD")
                   in.readNullOrError(default, "expected null")
                   default
                 } else {
                   in.rollbackToken()
-                  Currency.getInstance(in.readString(null))
+                  Currency.getInstance(in.readString())
                 }
 
               def encodeValue(x: Currency, out: JsonWriter): Unit = out.writeVal(x.toString)
-
-              override def nullValue: Currency = Currency.getInstance("USD")
             }
           )
           .derive
@@ -1885,9 +1880,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record4.hidden,
-            new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) { // expecting string instead of null
-              def decodeValue(in: JsonReader, default: Unit): Unit = {
-                in.readString(null)
+            new JsonBinaryCodec[Unit] { // expecting string instead of null
+              def decodeValue(in: JsonReader): Unit = {
+                in.readString()
                 ()
               }
 
@@ -1902,21 +1897,19 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record4.optKey,
-            new JsonBinaryCodec[Option[String]]() { // more efficient decoding than with derived by default
-              override def decodeValue(in: JsonReader, default: Option[String]): Option[String] =
+            new JsonBinaryCodec[Option[String]] { // more efficient decoding than with derived by default
+              override def decodeValue(in: JsonReader): Option[String] =
                 if (in.isNextToken('n')) {
                   in.rollbackToken()
-                  in.readNullOrError(default, "expected null")
+                  in.readNullOrError(None, "expected null")
                 } else {
                   in.rollbackToken()
-                  new Some(in.readString(null))
+                  new Some(in.readString())
                 }
 
               override def encodeValue(x: Option[String], out: JsonWriter): Unit =
                 if (x eq None) out.writeNull()
                 else out.writeVal(x.get)
-
-              override def nullValue: Option[String] = None
             }
           )
           .derive
@@ -1925,17 +1918,17 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("record with a custom codec for nested record injected by optic") {
         val codec1 =
-          new JsonBinaryCodec[Record1]() { // allows null values which are prohibited in codecs derived by default
+          new JsonBinaryCodec[Record1] { // allows null values which are prohibited in codecs derived by default
             private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
-            override def decodeValue(in: JsonReader, default: Record1): Record1 =
+            override def decodeValue(in: JsonReader): Record1 =
               if (in.isNextToken('n')) {
                 in.rollbackToken()
                 in.skip()
                 null
               } else {
                 in.rollbackToken()
-                codec.decodeValue(in, default)
+                codec.decodeValue(in)
               }
 
             override def encodeValue(x: Record1, out: JsonWriter): Unit =
@@ -1962,16 +1955,16 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.int,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
           )
           .instance(
             Record2.r1_2_i,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // expecting FP numbers and truncating them to int
-              def decodeValue(in: JsonReader, default: Int): Int = in.readDouble().toInt
+            new JsonBinaryCodec[Int] { // expecting FP numbers and truncating them to int
+              def decodeValue(in: JsonReader): Int = in.readDouble().toInt
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
             }
@@ -1987,8 +1980,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with a custom codec for nested primitives injected by type and term name") {
-        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+        val stringifyIntCodec = new JsonBinaryCodec[Int] {
+          def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
         }
@@ -2007,13 +2000,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with type and term name override taking priority over type-only override") {
-        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+        val stringifyIntCodec = new JsonBinaryCodec[Int] {
+          def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
         }
-        val doubleIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-          def decodeValue(in: JsonReader, default: Int): Int = in.readDouble().toInt
+        val doubleIntCodec = new JsonBinaryCodec[Int] {
+          def decodeValue(in: JsonReader): Int = in.readDouble().toInt
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
         }
@@ -2033,13 +2026,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with optic override taking priority over type and term name override") {
-        val stringifyIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-          def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+        val stringifyIntCodec = new JsonBinaryCodec[Int] {
+          def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
         }
-        val doubleIntCodec = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-          def decodeValue(in: JsonReader, default: Int): Int = in.readDouble().toInt
+        val doubleIntCodec = new JsonBinaryCodec[Int] {
+          def decodeValue(in: JsonReader): Int = in.readDouble().toInt
 
           def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toDouble)
         }
@@ -2059,17 +2052,17 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with a custom codec for a nested record injected by type and term name") {
-        val nullableRecord1Codec = new JsonBinaryCodec[Record1]() {
+        val nullableRecord1Codec = new JsonBinaryCodec[Record1] {
           private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
-          override def decodeValue(in: JsonReader, default: Record1): Record1 =
+          override def decodeValue(in: JsonReader): Record1 =
             if (in.isNextToken('n')) {
               in.rollbackToken()
               in.skip()
               null
             } else {
               in.rollbackToken()
-              codec.decodeValue(in, default)
+              codec.decodeValue(in)
             }
 
           override def encodeValue(x: Record1, out: JsonWriter): Unit =
@@ -2091,8 +2084,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with a custom codec for a nested sequence injected by type and term name") {
-        val emptyListCodec = new JsonBinaryCodec[List[Recursive]]() {
-          def decodeValue(in: JsonReader, default: List[Recursive]): List[Recursive] = {
+        val emptyListCodec = new JsonBinaryCodec[List[Recursive]] {
+          def decodeValue(in: JsonReader): List[Recursive] = {
             in.skip()
             Nil
           }
@@ -2114,8 +2107,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("record with a custom codec for a nested variant injected by type and term name") {
         implicit val catSchema: Schema[Cat] = Schema.derived
-        val fixedAgeCodec                   = new JsonBinaryCodec[Either[String, Int]]() {
-          def decodeValue(in: JsonReader, default: Either[String, Int]): Either[String, Int] = Right(in.readInt())
+        val fixedAgeCodec                   = new JsonBinaryCodec[Either[String, Int]] {
+          def decodeValue(in: JsonReader): Either[String, Int] = Right(in.readInt())
 
           def encodeValue(x: Either[String, Int], out: JsonWriter): Unit = x match {
             case Right(n) => out.writeVal(n)
@@ -2129,8 +2122,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         roundTrip(Cat("Misty", Right(7), 9), """{"name":"Misty","age":7,"livesLeft":9}""", codec)
       },
       test("record with a custom codec for a nested map injected by type and term name") {
-        val fixedMapCodec = new JsonBinaryCodec[Map[Currency, String]]() {
-          def decodeValue(in: JsonReader, default: Map[Currency, String]): Map[Currency, String] = {
+        val fixedMapCodec = new JsonBinaryCodec[Map[Currency, String]] {
+          def decodeValue(in: JsonReader): Map[Currency, String] = {
             in.skip()
             Map(Currency.getInstance("EUR") -> "W")
           }
@@ -2141,8 +2134,6 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             out.writeVal("W")
             out.writeObjectEnd()
           }
-
-          override val nullValue: Map[Currency, String] = Map.empty
         }
         val codec = Record3.schema
           .deriving(JsonBinaryCodecDeriver)
@@ -2160,8 +2151,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with a custom codec for a nested wrapper injected by type and term name") {
-        val stringifiedUserIdCodec = new JsonBinaryCodec[UserId]() {
-          def decodeValue(in: JsonReader, default: UserId): UserId = UserId(in.readStringAsLong())
+        val stringifiedUserIdCodec = new JsonBinaryCodec[UserId] {
+          def decodeValue(in: JsonReader): UserId = UserId(in.readStringAsLong())
 
           def encodeValue(x: UserId, out: JsonWriter): Unit = out.writeValAsString(x.value)
         }
@@ -2181,15 +2172,13 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         )
       },
       test("record with a custom codec for a nested dynamic value injected by type and term name") {
-        val nullDynamicCodec = new JsonBinaryCodec[DynamicValue]() {
-          def decodeValue(in: JsonReader, default: DynamicValue): DynamicValue = {
+        val nullDynamicCodec = new JsonBinaryCodec[DynamicValue] {
+          def decodeValue(in: JsonReader): DynamicValue = {
             in.skip()
             DynamicValue.Null
           }
 
           def encodeValue(x: DynamicValue, out: JsonWriter): Unit = out.writeNull()
-
-          override val nullValue: DynamicValue = DynamicValue.Null
         }
         val codec = Dynamic.schema
           .deriving(JsonBinaryCodecDeriver)
@@ -2257,17 +2246,17 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record1.schema.reflect.typeId,
-            new JsonBinaryCodec[Record1]() { // allows null values which are prohibited for codecs derived by default
+            new JsonBinaryCodec[Record1] { // allows null values which are prohibited for codecs derived by default
               private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
-              override def decodeValue(in: JsonReader, default: Record1): Record1 =
+              override def decodeValue(in: JsonReader): Record1 =
                 if (in.isNextToken('n')) {
                   in.rollbackToken()
                   in.skip()
                   null
                 } else {
                   in.rollbackToken()
-                  codec.decodeValue(in, default)
+                  codec.decodeValue(in)
                 }
 
               override def encodeValue(x: Record1, out: JsonWriter): Unit =
@@ -2291,8 +2280,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver.withTransientEmptyCollection(false).withRequireCollectionFields(true))
           .instance(
             Recursive.i,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2442,8 +2431,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.boolean,
-            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
-              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+            new JsonBinaryCodec[Boolean] { // stringifies boolean values
+              def decodeValue(in: JsonReader): Boolean = in.readStringAsBoolean()
 
               def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2454,8 +2443,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.byte,
-            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
-              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+            new JsonBinaryCodec[Byte] { // stringifies byte values
+              def decodeValue(in: JsonReader): Byte = in.readStringAsByte()
 
               def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2466,8 +2455,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.char,
-            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // char values as numbers
-              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+            new JsonBinaryCodec[Char] { // char values as numbers
+              def decodeValue(in: JsonReader): Char = in.readInt().toChar
 
               def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
             }
@@ -2478,8 +2467,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.short,
-            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
-              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+            new JsonBinaryCodec[Short] { // stringifies short values
+              def decodeValue(in: JsonReader): Short = in.readStringAsShort()
 
               def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2490,8 +2479,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.int,
-            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
-              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+            new JsonBinaryCodec[Int] { // stringifies int values
+              def decodeValue(in: JsonReader): Int = in.readStringAsInt()
 
               def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2502,8 +2491,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.float,
-            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
-              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+            new JsonBinaryCodec[Float] { // stringifies float values
+              def decodeValue(in: JsonReader): Float = in.readStringAsFloat()
 
               def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2514,8 +2503,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.long,
-            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
-              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+            new JsonBinaryCodec[Long] { // stringifies long values
+              def decodeValue(in: JsonReader): Long = in.readStringAsLong()
 
               def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2526,8 +2515,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.double,
-            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
-              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+            new JsonBinaryCodec[Double] { // stringifies double values
+              def decodeValue(in: JsonReader): Double = in.readStringAsDouble()
 
               def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
             }
@@ -2590,8 +2579,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.zonedDateTime,
-            new JsonBinaryCodec[ZonedDateTime]() {
-              def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readZonedDateTime(default)
+            new JsonBinaryCodec[ZonedDateTime] {
+              def decodeValue(in: JsonReader): ZonedDateTime = in.readZonedDateTime()
 
               def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit =
                 if (x.getSecond != 0 || x.getNano != 0) out.writeVal(x)
@@ -2633,16 +2622,16 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeId.offsetDateTime,
-            new JsonBinaryCodec[OffsetDateTime]() {
+            new JsonBinaryCodec[OffsetDateTime] {
               private[this] val maxLen = 44 // should be enough for the longest offset date time value
               private[this] val pool   = new ThreadLocal[Array[Byte]] {
                 override def initialValue(): Array[Byte] = new Array[Byte](maxLen + 2)
               }
               private[this] val config = ReaderConfig.withCheckForEndOfInput(false).withPreferredCharBufSize(maxLen + 8)
 
-              def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = {
+              def decodeValue(in: JsonReader): OffsetDateTime = {
                 val buf = pool.get
-                val s   = in.readString(null)
+                val s   = in.readString()
                 val len = s.length
                 if (
                   len <= maxLen && {
@@ -2991,8 +2980,8 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         }.toEither)(isLeft(hasError("Cannot derive codec - duplicated name detected: 'Black'")))
       },
       test("variant with a custom codec for a case injected by type and term name") {
-        val fixedDogCodec = new JsonBinaryCodec[Dog]() {
-          def decodeValue(in: JsonReader, default: Dog): Dog = {
+        val fixedDogCodec = new JsonBinaryCodec[Dog] {
+          def decodeValue(in: JsonReader): Dog = {
             in.skip()
             Dog("Rex", Right(1), "Mutt")
           }
@@ -3677,11 +3666,9 @@ object JsonBinaryCodecDeriverSpec extends SchemaBaseSpec {
     def apply(s: String) = new RawVal(s)
 
     val codec: JsonBinaryCodec[RawVal] = new JsonBinaryCodec[RawVal] {
-      override def decodeValue(in: JsonReader, default: RawVal): RawVal = new RawVal(in.readRawValAsBytes())
+      override def decodeValue(in: JsonReader): RawVal = new RawVal(in.readRawValAsBytes())
 
       override def encodeValue(x: RawVal, out: JsonWriter): Unit = out.writeRawVal(x.bs)
-
-      override val nullValue: RawVal = new RawVal(Array.emptyByteArray)
     }
 
     private case class Nested(xx: Boolean, yy: Boolean)

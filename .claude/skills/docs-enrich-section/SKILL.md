@@ -81,3 +81,15 @@ Checklist for the example:
 | Example uses the same toy type as before | Create a new type that reflects the motivated use-case |
 | Prose sentence before code does not end with `:` | Every sentence immediately before a code fence must end with `:` |
 | Added output comments to show what expressions return | Delete them — mdoc evaluates and renders output automatically |
+
+## Verification
+
+After enriching the section, run the mdoc compilation check to ensure all code examples are syntactically correct and type-check:
+
+```bash
+sbt docs/mdoc
+```
+
+**Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
+
+**If mdoc reports errors:** Fix them immediately before marking the enrichment as complete. Do not commit or claim the work is done until all errors are resolved.

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.comptime
 
 /**
@@ -61,8 +77,14 @@ package zio.blocks.schema.comptime
  *   - [[Allows.Record]] — a product type (case class); fields must satisfy `A`.
  *     Sealed traits and enums are automatically unwrapped: each case is checked
  *     individually against the grammar, so `Variant` is not needed.
- *   - [[Allows.Sequence]] — a collection (List, Vector, Set, …); elements
- *     satisfy `A`
+ *   - [[Allows.Sequence]] — any collection (List, Vector, Set, Array, Chunk,
+ *     …); elements satisfy `A`. Use the subtypes in `Sequence.List`,
+ *     `Sequence.Set`, `Sequence.Vector`, `Sequence.Array`, and `Sequence.Chunk`
+ *     to narrow to a specific collection kind.
+ *   - [[Allows.IsType]] — nominal type predicate; satisfied only when the Scala
+ *     type is exactly `A` (`=:=`). Used as an element constraint to align a
+ *     polymorphic type parameter with the element type of a collection, e.g.
+ *     `Sequence.Set[IsType[A]]`.
  *   - [[Allows.Map]] — a key-value map; keys satisfy `K`, values satisfy `V`
  *   - [[Allows.Optional]] — `Option[A]`; inner type satisfies `A`
  *   - [[Allows.Wrapped]] — a newtype / opaque type; underlying type satisfies
@@ -86,11 +108,13 @@ object Allows extends AllowsCompanionVersionSpecific {
   sealed abstract class Structural
 
   /**
-   * Matches any primitive type. Also serves as the parent of all specific
-   * primitive grammar nodes — a type satisfying e.g. [[Primitive.Int]] also
-   * satisfies `Primitive`.
+   * Catch-all grammar node: matches any of the 30 Schema primitive types.
    *
-   * To restrict to a subset of primitives, use the specific subtypes:
+   * For stricter control, use the type aliases in `Primitive.Int`,
+   * `Primitive.String`, etc. — each is defined as `IsType[X]` for the
+   * corresponding Scala/Java type, and is handled by the same `IsType` macro
+   * path. A type that satisfies `Primitive.Int` also satisfies `Primitive` via
+   * the union check; no special subtype relationship is required.
    *
    * {{{
    * // Allow only JSON-representable numbers:
@@ -108,153 +132,214 @@ object Allows extends AllowsCompanionVersionSpecific {
 
     /**
      * Matches `scala.Unit` only.
+     *
+     * This is a type alias for [[IsType]]`[scala.Unit]`. The macro routes it
+     * through the same `IsType` path as any other nominal type predicate.
      */
-    sealed abstract class Unit extends Primitive
+    type Unit = IsType[scala.Unit]
 
     /**
      * Matches `scala.Boolean` only.
+     *
+     * Type alias for [[IsType]]`[scala.Boolean]`.
      */
-    sealed abstract class Boolean extends Primitive
+    type Boolean = IsType[scala.Boolean]
 
     /**
      * Matches `scala.Byte` only.
+     *
+     * Type alias for [[IsType]]`[scala.Byte]`.
      */
-    sealed abstract class Byte extends Primitive
+    type Byte = IsType[scala.Byte]
 
     /**
      * Matches `scala.Short` only.
+     *
+     * Type alias for [[IsType]]`[scala.Short]`.
      */
-    sealed abstract class Short extends Primitive
+    type Short = IsType[scala.Short]
 
     /**
      * Matches `scala.Int` only.
+     *
+     * Type alias for [[IsType]]`[scala.Int]`.
      */
-    sealed abstract class Int extends Primitive
+    type Int = IsType[scala.Int]
 
     /**
      * Matches `scala.Long` only.
+     *
+     * Type alias for [[IsType]]`[scala.Long]`.
      */
-    sealed abstract class Long extends Primitive
+    type Long = IsType[scala.Long]
 
     /**
      * Matches `scala.Float` only.
+     *
+     * Type alias for [[IsType]]`[scala.Float]`.
      */
-    sealed abstract class Float extends Primitive
+    type Float = IsType[scala.Float]
 
     /**
      * Matches `scala.Double` only.
+     *
+     * Type alias for [[IsType]]`[scala.Double]`.
      */
-    sealed abstract class Double extends Primitive
+    type Double = IsType[scala.Double]
 
     /**
      * Matches `scala.Char` only.
+     *
+     * Type alias for [[IsType]]`[scala.Char]`.
      */
-    sealed abstract class Char extends Primitive
+    type Char = IsType[scala.Char]
 
     /**
      * Matches `java.lang.String` only.
+     *
+     * Type alias for [[IsType]]`[java.lang.String]`.
      */
-    sealed abstract class String extends Primitive
+    type String = IsType[java.lang.String]
 
     /**
-     * Matches `scala.BigInt` only.
+     * Matches `scala.math.BigInt` only.
+     *
+     * Type alias for [[IsType]]`[scala.math.BigInt]`.
      */
-    sealed abstract class BigInt extends Primitive
+    type BigInt = IsType[scala.math.BigInt]
 
     /**
-     * Matches `scala.BigDecimal` only.
+     * Matches `scala.math.BigDecimal` only.
+     *
+     * Type alias for [[IsType]]`[scala.math.BigDecimal]`.
      */
-    sealed abstract class BigDecimal extends Primitive
+    type BigDecimal = IsType[scala.math.BigDecimal]
 
     /**
      * Matches `java.util.UUID` only.
+     *
+     * Type alias for [[IsType]]`[java.util.UUID]`.
      */
-    sealed abstract class UUID extends Primitive
+    type UUID = IsType[java.util.UUID]
 
     /**
      * Matches `java.util.Currency` only.
+     *
+     * Type alias for [[IsType]]`[java.util.Currency]`.
      */
-    sealed abstract class Currency extends Primitive
+    type Currency = IsType[java.util.Currency]
 
     /**
      * Matches `java.time.DayOfWeek` only.
+     *
+     * Type alias for [[IsType]]`[java.time.DayOfWeek]`.
      */
-    sealed abstract class DayOfWeek extends Primitive
+    type DayOfWeek = IsType[java.time.DayOfWeek]
 
     /**
      * Matches `java.time.Duration` only.
+     *
+     * Type alias for [[IsType]]`[java.time.Duration]`.
      */
-    sealed abstract class Duration extends Primitive
+    type Duration = IsType[java.time.Duration]
 
     /**
      * Matches `java.time.Instant` only.
+     *
+     * Type alias for [[IsType]]`[java.time.Instant]`.
      */
-    sealed abstract class Instant extends Primitive
+    type Instant = IsType[java.time.Instant]
 
     /**
      * Matches `java.time.LocalDate` only.
+     *
+     * Type alias for [[IsType]]`[java.time.LocalDate]`.
      */
-    sealed abstract class LocalDate extends Primitive
+    type LocalDate = IsType[java.time.LocalDate]
 
     /**
      * Matches `java.time.LocalDateTime` only.
+     *
+     * Type alias for [[IsType]]`[java.time.LocalDateTime]`.
      */
-    sealed abstract class LocalDateTime extends Primitive
+    type LocalDateTime = IsType[java.time.LocalDateTime]
 
     /**
      * Matches `java.time.LocalTime` only.
+     *
+     * Type alias for [[IsType]]`[java.time.LocalTime]`.
      */
-    sealed abstract class LocalTime extends Primitive
+    type LocalTime = IsType[java.time.LocalTime]
 
     /**
      * Matches `java.time.Month` only.
+     *
+     * Type alias for [[IsType]]`[java.time.Month]`.
      */
-    sealed abstract class Month extends Primitive
+    type Month = IsType[java.time.Month]
 
     /**
      * Matches `java.time.MonthDay` only.
+     *
+     * Type alias for [[IsType]]`[java.time.MonthDay]`.
      */
-    sealed abstract class MonthDay extends Primitive
+    type MonthDay = IsType[java.time.MonthDay]
 
     /**
      * Matches `java.time.OffsetDateTime` only.
+     *
+     * Type alias for [[IsType]]`[java.time.OffsetDateTime]`.
      */
-    sealed abstract class OffsetDateTime extends Primitive
+    type OffsetDateTime = IsType[java.time.OffsetDateTime]
 
     /**
      * Matches `java.time.OffsetTime` only.
+     *
+     * Type alias for [[IsType]]`[java.time.OffsetTime]`.
      */
-    sealed abstract class OffsetTime extends Primitive
+    type OffsetTime = IsType[java.time.OffsetTime]
 
     /**
      * Matches `java.time.Period` only.
+     *
+     * Type alias for [[IsType]]`[java.time.Period]`.
      */
-    sealed abstract class Period extends Primitive
+    type Period = IsType[java.time.Period]
 
     /**
      * Matches `java.time.Year` only.
+     *
+     * Type alias for [[IsType]]`[java.time.Year]`.
      */
-    sealed abstract class Year extends Primitive
+    type Year = IsType[java.time.Year]
 
     /**
      * Matches `java.time.YearMonth` only.
+     *
+     * Type alias for [[IsType]]`[java.time.YearMonth]`.
      */
-    sealed abstract class YearMonth extends Primitive
+    type YearMonth = IsType[java.time.YearMonth]
 
     /**
      * Matches `java.time.ZoneId` only.
+     *
+     * Type alias for [[IsType]]`[java.time.ZoneId]`.
      */
-    sealed abstract class ZoneId extends Primitive
+    type ZoneId = IsType[java.time.ZoneId]
 
     /**
      * Matches `java.time.ZoneOffset` only.
+     *
+     * Type alias for [[IsType]]`[java.time.ZoneOffset]`.
      */
-    sealed abstract class ZoneOffset extends Primitive
+    type ZoneOffset = IsType[java.time.ZoneOffset]
 
     /**
      * Matches `java.time.ZonedDateTime` only.
+     *
+     * Type alias for [[IsType]]`[java.time.ZonedDateTime]`.
      */
-    sealed abstract class ZonedDateTime extends Primitive
+    type ZonedDateTime = IsType[java.time.ZonedDateTime]
   }
 
   /**
@@ -268,13 +353,75 @@ object Allows extends AllowsCompanionVersionSpecific {
   sealed abstract class Record[A <: Structural] extends Structural
 
   /**
-   * Matches a sequence type (List, Vector, Set, Array, Chunk, …) whose element
-   * type satisfies `A`.
+   * Matches any sequence type (List, Vector, Set, Array, Chunk, …) whose
+   * element type satisfies `A`.
+   *
+   * Use the subtypes in `Sequence.List`, `Sequence.Vector`, `Sequence.Set`,
+   * `Sequence.Array`, and `Sequence.Chunk` when you need to distinguish a
+   * specific collection kind. Each subtype extends `Sequence[A]`, so a grammar
+   * written with the parent still accepts all collections.
+   *
+   * {{{
+   * // Any collection of primitives:
+   * Allows[List[Int], Sequence[Primitive]]
+   *
+   * // Only a Set, not a List:
+   * Allows[Set[Int], Sequence.Set[Primitive]]
+   *
+   * // Only a Set, and the element type must be exactly Int:
+   * Allows[Set[Int], Sequence.Set[IsType[Int]]]
+   * }}}
    *
    * @tparam A
    *   The constraint that the element type of the sequence must satisfy.
    */
   sealed abstract class Sequence[A <: Structural] extends Structural
+
+  object Sequence {
+
+    /**
+     * Matches `scala.collection.immutable.List[_]` whose element type satisfies
+     * `A`.
+     *
+     * @tparam A
+     *   The constraint that the element type must satisfy.
+     */
+    sealed abstract class List[A <: Structural] extends Sequence[A]
+
+    /**
+     * Matches `scala.collection.immutable.Vector[_]` whose element type
+     * satisfies `A`.
+     *
+     * @tparam A
+     *   The constraint that the element type must satisfy.
+     */
+    sealed abstract class Vector[A <: Structural] extends Sequence[A]
+
+    /**
+     * Matches `scala.collection.immutable.Set[_]` (and subtypes such as
+     * `HashSet`, `ListSet`, etc.) whose element type satisfies `A`.
+     *
+     * @tparam A
+     *   The constraint that the element type must satisfy.
+     */
+    sealed abstract class Set[A <: Structural] extends Sequence[A]
+
+    /**
+     * Matches `scala.Array[_]` whose element type satisfies `A`.
+     *
+     * @tparam A
+     *   The constraint that the element type must satisfy.
+     */
+    sealed abstract class Array[A <: Structural] extends Sequence[A]
+
+    /**
+     * Matches `zio.blocks.chunk.Chunk[_]` whose element type satisfies `A`.
+     *
+     * @tparam A
+     *   The constraint that the element type must satisfy.
+     */
+    sealed abstract class Chunk[A <: Structural] extends Sequence[A]
+  }
 
   /**
    * Matches a map type (Map, HashMap, …) whose key type satisfies `K` and whose
@@ -326,6 +473,39 @@ object Allows extends AllowsCompanionVersionSpecific {
    * satisfied.
    */
   sealed abstract class Self extends Structural
+
+  /**
+   * Nominal type predicate. `IsType[A]` is satisfied only when the Scala type
+   * being checked is exactly `A` (i.e. `checked =:= A`).
+   *
+   * This is the building block for precise element-type constraints. The
+   * canonical use-case is constraining the element type of a polymorphic DSL
+   * method so that no separate type-alignment proof (e.g. a `Containable` type
+   * class) is needed:
+   *
+   * {{{
+   * import zio.blocks.typeid.IsNominalType
+   *
+   * // `To` must be a Set whose element type is exactly `A`.
+   * // `IsNominalType[A]` ensures A is concrete at the call site.
+   * def contains[A: IsNominalType](a: A)(implicit
+   *   ev: Allows[To, Sequence.Set[IsType[A]]]
+   * ): ConditionExpression[From]
+   * }}}
+   *
+   * `IsType[A]` can also replace specific primitive nodes as type aliases:
+   * {{{
+   * type MyInt = IsType[scala.Int]  // equivalent to Primitive.Int semantically
+   * }}}
+   *
+   * Requires that `A` is a concrete nominal type. Combining with
+   * `IsNominalType[A]` (from `zio-blocks-typeid`) at the call site ensures the
+   * macro always sees a concrete `A`.
+   *
+   * @tparam A
+   *   The exact Scala type that must match.
+   */
+  sealed abstract class IsType[A] extends Structural
 
   /**
    * Union of two grammar nodes. Write in infix position: `A | B`.
