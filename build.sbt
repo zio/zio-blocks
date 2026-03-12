@@ -148,13 +148,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
         Seq()
     }),
     coverageMinimumStmtTotal   := 77,
-    coverageMinimumBranchTotal := 69,
-    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
-    coverageExcludedFiles := Seq(
-      ".*scala-2/zio/blocks/typeid/.*",
-      ".*scala-3/zio/blocks/typeid/.*",
-      ".*BuildInfo.*"
-    ).mkString(";")
+    coverageMinimumBranchTotal := 67
   )
 
 lazy val combinators = crossProject(JSPlatform, JVMPlatform)
@@ -203,8 +197,8 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 76,
-    coverageMinimumBranchTotal := 48
+    coverageMinimumStmtTotal   := 92,
+    coverageMinimumBranchTotal := 80
   )
 
 lazy val scope = crossProject(JSPlatform, JVMPlatform)
@@ -228,16 +222,8 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 90,
-    coverageMinimumBranchTotal := 80,
-    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
-    // Note: Branch coverage is lower because concurrent state machine code has defensive
-    // branches (CAS retry loops) that are hard to trigger reliably in tests.
-    coverageExcludedFiles := Seq(
-      ".*scala-2/zio/blocks/scope/.*",
-      ".*scala-3/zio/blocks/scope/.*",
-      ".*BuildInfo.*"
-    ).mkString(";")
+    coverageMinimumStmtTotal   := 78,
+    coverageMinimumBranchTotal := 65
   )
 
 lazy val `scope-examples` = project
@@ -275,14 +261,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 86,
-    coverageMinimumBranchTotal := 80,
-    // Exclude macro implementation files from coverage - macros run at compile time, not runtime
-    coverageExcludedFiles := Seq(
-      ".*scala-2/zio/blocks/schema/comptime/.*",
-      ".*scala-3/zio/blocks/schema/comptime/.*",
-      ".*BuildInfo.*"
-    ).mkString(";")
+    coverageMinimumStmtTotal   := 87,
+    coverageMinimumBranchTotal := 81
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -377,8 +357,8 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 96,
+    coverageMinimumBranchTotal := 94
   )
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
@@ -395,8 +375,8 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 67,
+    coverageMinimumBranchTotal := 51
   )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
@@ -417,8 +397,8 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     }),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 16,
+    coverageMinimumBranchTotal := 13
   )
 
 lazy val `schema-avro` = project
@@ -491,7 +471,7 @@ lazy val smithy = project
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 85,
-    coverageMinimumBranchTotal := 75
+    coverageMinimumBranchTotal := 76
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -591,8 +571,8 @@ lazy val openapi = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 81,
+    coverageMinimumBranchTotal := 54
   )
 
 lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
@@ -609,8 +589,8 @@ lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 75
+    coverageMinimumStmtTotal   := 88,
+    coverageMinimumBranchTotal := 84
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
@@ -673,8 +653,8 @@ lazy val ringbufferBenchmarks = project
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
+    coverageMinimumStmtTotal   := 99,
+    coverageMinimumBranchTotal := 99,
     libraryDependencies ++= Seq(
       "org.jctools" % "jctools-core" % "4.0.6"
     )
