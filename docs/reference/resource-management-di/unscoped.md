@@ -21,7 +21,7 @@ When the `$` operator is used to access a scoped value, if the result type has a
 The `Unscoped` typeclass enables compile-time verification that you're only extracting safe data from scopes. This prevents accidental resource leaks where a database connection, stream, or file handle escapes its scope.
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.Scope
+import zio.blocks.scope.{Scope, Resource}
 
 Scope.global.scoped { scope =>
   import scope.*
@@ -134,7 +134,7 @@ infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
 - If `Unscoped[B]` doesn't exist → returns `$[B]` (still scoped)
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.Scope
+import zio.blocks.scope.{Scope, Resource}
 import java.io.ByteArrayInputStream
 
 Scope.global.scoped { scope =>
