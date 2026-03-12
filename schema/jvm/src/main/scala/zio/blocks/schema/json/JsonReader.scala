@@ -992,8 +992,8 @@ final class JsonReader private[json] (
         var yearDigits = 0
         var b          = b1
         if (b >= '0' && b <= '9') {
-          yearDigits = 1
           year = b - '0'
+          yearDigits = 1
         } else if (b != '-' && b != '+') decodeError("expected '-' or '+' or digit")
         while ({
           if (pos >= tail) {
@@ -3337,7 +3337,10 @@ final class JsonReader private[json] (
         head = pos + 1
         if (hasRemaining()) {
           b = nextByte(head)
-          b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != ']' && b != '}'
+          isValueByte(b) || {
+            head -= 1
+            false
+          }
         } else false
       } else {
         b = nextByte(pos + 1)
@@ -3508,22 +3511,12 @@ final class JsonReader private[json] (
     } else {
       hour = parseHourWithColon(head)
       minute = parseMinute(head)
-      if (isRaw) {
-        if (hasRemaining()) {
-          b = nextByte(head)
-          if (b == ':') {
-            second = parseSecond(head)
-            if (hasRemaining()) {
-              b = nextByte(head)
-            }
-          }
-        }
-      } else {
+      if (!isRaw || hasRemaining()) {
         b = nextByte(head)
         if (b == ':') {
           second = parseSecond(head)
-          b = nextByte(head)
-        } else if (b != '"') tokensError(':', '"')
+          if (!isRaw || hasRemaining()) b = nextByte(head)
+        } else if (!isRaw && b != '"') tokensError(':', '"')
       }
       pos = head
       buf = this.buf
@@ -3618,22 +3611,12 @@ final class JsonReader private[json] (
     } else {
       hour = parseHourWithColon(head)
       minute = parseMinute(head)
-      if (isRaw) {
-        if (hasRemaining()) {
-          b = nextByte(head)
-          if (b == ':') {
-            second = parseSecond(head)
-            if (hasRemaining()) {
-              b = nextByte(head)
-            }
-          }
-        }
-      } else {
+      if (!isRaw || hasRemaining()) {
         b = nextByte(head)
         if (b == ':') {
           second = parseSecond(head)
-          b = nextByte(head)
-        } else if (b != '"') tokensError(':', '"')
+          if (!isRaw || hasRemaining()) b = nextByte(head)
+        } else if (!isRaw && b != '"') tokensError(':', '"')
       }
       pos = head
       buf = this.buf
@@ -3788,22 +3771,12 @@ final class JsonReader private[json] (
     } else {
       hour = parseHourWithColon(head)
       minute = parseMinute(head)
-      if (isRaw) {
-        if (hasRemaining()) {
-          b = nextByte(head)
-          if (b == ':') {
-            second = parseSecond(head)
-            if (hasRemaining()) {
-              b = nextByte(head)
-            }
-          }
-        }
-      } else {
+      if (!isRaw || hasRemaining()) {
         b = nextByte(head)
         if (b == ':') {
           nanoDigitWeight = -2
           second = parseSecond(head)
-          b = nextByte(head)
+          if (!isRaw || hasRemaining()) b = nextByte(head)
         }
       }
       pos = head
@@ -3922,22 +3895,12 @@ final class JsonReader private[json] (
     } else {
       hour = parseHourWithColon(head)
       minute = parseMinute(head)
-      if (isRaw) {
-        if (hasRemaining()) {
-          b = nextByte(head)
-          if (b == ':') {
-            second = parseSecond(head)
-            if (hasRemaining()) {
-              b = nextByte(head)
-            }
-          }
-        }
-      } else {
+      if (!isRaw || hasRemaining()) {
         b = nextByte(head)
         if (b == ':') {
           nanoDigitWeight = -2
           second = parseSecond(head)
-          b = nextByte(head)
+          if (!isRaw || hasRemaining()) b = nextByte(head)
         }
       }
       pos = head
@@ -4087,7 +4050,10 @@ final class JsonReader private[json] (
         head = pos + 1
         if (hasRemaining()) {
           b = nextByte(head)
-          b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != '}' && b != ']'
+          isValueByte(b) || {
+            head -= 1
+            false
+          }
         } else false
       } else {
         b = nextByte(pos + 1)
@@ -4098,6 +4064,9 @@ final class JsonReader private[json] (
     }
     Period.of(years, months, days)
   }
+
+  private[this] def isValueByte(b: Byte) =
+    b != ' ' && b != '\n' && b != '\t' && b != '\r' && b != ',' && b != ']' && b != '}'
 
   private[this] def parseYearMonth(pos: Int): YearMonth = {
     var year, month = 0
@@ -4150,22 +4119,12 @@ final class JsonReader private[json] (
     } else {
       hour = parseHourWithColon(head)
       minute = parseMinute(head)
-      if (isRaw) {
-        if (hasRemaining()) {
-          b = nextByte(head)
-          if (b == ':') {
-            second = parseSecond(head)
-            if (hasRemaining()) {
-              b = nextByte(head)
-            }
-          }
-        }
-      } else {
+      if (!isRaw || hasRemaining()) {
         b = nextByte(head)
         if (b == ':') {
           nanoDigitWeight = -2
           second = parseSecond(head)
-          b = nextByte(head)
+          if (!isRaw || hasRemaining()) b = nextByte(head)
         }
       }
       pos = head
@@ -4232,10 +4191,8 @@ final class JsonReader private[json] (
     val localDateTime = LocalDateTime.of(year, monthDay.toByte.toInt, monthDay >> 24, hour, minute, second, nano)
     val zoneOffset    =
       if (b == 'Z') {
-        if (isRaw) {
-          head = pos
-          if (hasRemaining()) b = nextByte(pos)
-        } else b = nextByte(pos)
+        head = pos
+        if (!isRaw || hasRemaining()) b = nextByte(head)
         ZoneOffset.UTC
       } else if (b == '-' || b == '+') {
         val sb = b
@@ -4253,32 +4210,17 @@ final class JsonReader private[json] (
         ) head = pos + 6
         else {
           offsetTotal = parseOffsetHour(pos) * 3600
-          if (isRaw) {
-            if (hasRemaining()) {
-              b = nextByte(head)
-              if (b == ':') {
-                offsetTotal += parseOffsetMinute(head) * 60
-                if (hasRemaining()) {
-                  b = nextByte(head)
-                  if (b == ':') {
-                    nanoDigitWeight = -4
-                    offsetTotal += parseOffsetSecond(head)
-                    if (hasRemaining()) {
-                      b = nextByte(head)
-                    }
-                  }
-                }
-              }
-            }
-          } else {
+          if (!isRaw || hasRemaining()) {
             b = nextByte(head)
             if (b == ':') {
               offsetTotal += parseOffsetMinute(head) * 60
-              b = nextByte(head)
-              if (b == ':') {
-                nanoDigitWeight = -4
-                offsetTotal += parseOffsetSecond(head)
+              if (!isRaw || hasRemaining()) {
                 b = nextByte(head)
+                if (b == ':') {
+                  nanoDigitWeight = -4
+                  offsetTotal += parseOffsetSecond(head)
+                  if (!isRaw || hasRemaining()) b = nextByte(head)
+                }
               }
             }
           }
@@ -4328,7 +4270,7 @@ final class JsonReader private[json] (
     try {
       val zoneId = ZoneId.of(k.toString)
       if (
-        !zoneId.isInstanceOf[ZoneOffset] ||
+        !zoneId.isInstanceOf[ZoneOffset] || // check if totalSeconds is divisible by 900
         (zoneId.asInstanceOf[ZoneOffset].getTotalSeconds * 37283 & 0x1ff8000) == 0
       ) {
         zoneIds.put(k.copy, zoneId)
@@ -4396,7 +4338,7 @@ final class JsonReader private[json] (
   private[this] def toZoneOffset(sb: Byte, offsetTotal: Int): ZoneOffset = {
     var qp = offsetTotal * 37283
     val s  = '+' - sb >> 31
-    if ((qp & 0x1ff8000) == 0) {      // check if offsetTotal divisible by 900
+    if ((qp & 0x1ff8000) == 0) {      // check if offsetTotal is divisible by 900
       qp = ((qp >>> 25) ^ s) - s + 72 // divide offsetTotal by 900
       var zoneOffset = zoneOffsets(qp)
       if (zoneOffset eq null) {
