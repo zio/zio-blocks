@@ -17,6 +17,8 @@ When `scope.defer(cleanup)` is called, the cleanup action is registered and a `D
 
 ### `DeferHandle#cancel(): Unit`
 
+The type signature:
+
 ```scala
 def cancel(): Unit
 ```
