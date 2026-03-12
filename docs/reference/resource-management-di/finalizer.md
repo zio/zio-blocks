@@ -64,9 +64,9 @@ def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
 This allows writing `defer { cleanup }` when a `Finalizer` is in scope, rather than `fin.defer { cleanup }`:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, defer}
+import zio.blocks.scope.{Scope, defer, Finalizer}
 
-def setupWithCleanup()(using fin: Scope.Finalizer) = {
+def setupWithCleanup()(using fin: Finalizer) = {
   defer {
     println("Cleanup")
   }
@@ -76,6 +76,7 @@ Scope.global.scoped { scope =>
   import scope.*
   setupWithCleanup()
   // Cleanup prints when scope closes
+  ()  // Return unit (which is Unscoped)
 }
 ```
 
@@ -126,6 +127,7 @@ Scope.global.scoped { scope =>
   // Output on scope close:
   // Second registered, runs first
   // First registered, runs last
+  ()  // Return unit (which is Unscoped)
 }
 ```
 

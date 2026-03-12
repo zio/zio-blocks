@@ -26,13 +26,13 @@ import zio.blocks.scope.Scope
 Scope.global.scoped { scope =>
   import scope.*
 
-  val intValue = scope.allocate(42)
+  val intValue = allocate(Resource(42))
   // Int: Unscoped, so $ unwraps it
-  val n: Int = intValue(x => x + 1)
+  val n: Int = $(intValue)(x => x + 1)
 
-  val text = scope.allocate("hello")
+  val text = allocate(Resource("hello"))
   // String: Unscoped, so $ unwraps it
-  val s: String = text(x => x.toUpperCase)
+  val s: String = $(text)(x => x.toUpperCase)
 
   (n, s)
 }
@@ -140,12 +140,12 @@ import java.io.ByteArrayInputStream
 Scope.global.scoped { scope =>
   import scope.*
 
-  val intValue = scope.allocate(42)
-  val result1 = intValue(x => x + 1)  // returns Int (Unscoped exists)
+  val intValue = allocate(Resource(42))
+  val result1 = $(intValue)(x => x + 1)  // returns Int (Unscoped exists)
   val result1Type = result1: Int  // verifies it's Int, not $[Int]
 
-  val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
-  val result2 = stream(s => s.toString)  // returns String (Unscoped exists)
+  val stream = allocate(ByteArrayInputStream("data".getBytes))
+  val result2 = $(stream)(s => s.toString)  // returns String (Unscoped exists)
   val result2Type = result2: String  // works because String is Unscoped
 }
 ```
@@ -157,7 +157,7 @@ Scope.global.scoped { scope =>
 Extract computed results that don't hold resources:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.Scope
+import zio.blocks.scope.{Scope, Resource, Unscoped}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
 case class ProcessingResult(count: Int, elapsed: FiniteDuration)
@@ -170,8 +170,8 @@ def processData(): ProcessingResult = Scope.global.scoped { scope =>
   import scope.*
 
   val startTime = java.time.Instant.now()
-  val input = scope.allocate(Seq(1, 2, 3, 4, 5))
-  val count = input(_.length)
+  val input = allocate(Resource(Seq(1, 2, 3, 4, 5)))
+  val count = $(input)(_.length)
 
   val elapsed = Duration.fromNanos(
     java.time.Instant.now().toEpochMilli - startTime.toEpochMilli

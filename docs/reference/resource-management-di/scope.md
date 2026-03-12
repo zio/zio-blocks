@@ -43,7 +43,7 @@ If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same proble
 
 ## Getting Started
 
-If you're new to Scope, the [Scope Tutorial](../../guides/compile-time-resource-safety-with-scope.md) provides a comprehensive step-by-step introduction with realistic examples and explanations of the core concepts. This reference page covers the API details; the tutorial covers the "why" and "how."
+If you're new to Scope, the [Scope Tutorial](../guides/compile-time-resource-safety-with-scope.md) provides a comprehensive step-by-step introduction with realistic examples and explanations of the core concepts. This reference page covers the API details; the tutorial covers the "why" and "how."
 
 ## Quick start (Scala 3)
 

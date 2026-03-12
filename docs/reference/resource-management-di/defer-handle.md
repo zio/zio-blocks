@@ -36,13 +36,14 @@ import java.io.ByteArrayOutputStream
 Scope.global.scoped { scope =>
   import scope.*
 
-  val buffer = scope.allocate(ByteArrayOutputStream())
-  val closeHandle = scope.defer {
+  val buffer = allocate(ByteArrayOutputStream())
+  val closeHandle = defer {
     println("Auto-closing buffer")
+    $(buffer)(_.close())
   }
 
   // Manually close the buffer
-  buffer(b => b.close())
+  $(buffer)(_.close())
 
   // Cancel the automatic finalizer since we already closed it
   closeHandle.cancel()
@@ -59,24 +60,27 @@ When a resource is explicitly released before the scope ends, cancel the automat
 import zio.blocks.scope.Scope
 import java.io.ByteArrayOutputStream
 
-Scope.global.scoped { scope =>
+val result = Scope.global.scoped { scope =>
   import scope.*
 
-  val buffer = scope.allocate(ByteArrayOutputStream())
+  val buffer = allocate(ByteArrayOutputStream())
 
-  val finalizeHandle = scope.defer {
-    buffer(b => println(s"Finalizer running, buffer closed"))
+  val finalizeHandle = defer {
+    println(s"Finalizer running, buffer closing")
+    $(buffer)(_.close())
   }
 
   // Explicit cleanup
-  buffer(b => {
-    b.write("data".getBytes)
-    b.close()
-    println(s"Manual close: buffer has ${b.size()} bytes")
-  })
+  $(buffer) { buf =>
+    buf.write("data".getBytes)
+    println(s"Manual use: buffer has ${buf.size()} bytes")
+    buf.close()
+  }
 
   // Cancel the automatic finalizer
   finalizeHandle.cancel()
+  
+  "done"
 }
 ```
 
@@ -115,22 +119,20 @@ When transferring a resource to external management, cancel its finalizer so the
 import zio.blocks.scope.Scope
 import java.io.ByteArrayInputStream
 
-Scope.global.scoped { scope =>
+val result = Scope.global.scoped { scope =>
   import scope.*
 
-  // Track managed resources
-  var managedResources = List[java.io.InputStream]()
-
-  val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
-  val handle = scope.defer {
-    stream(s => println("Scope finalizer would close stream"))
+  val stream = allocate(ByteArrayInputStream("data".getBytes))
+  val handle = defer {
+    println("Scope finalizer would close stream")
+    $(stream)(_.close())
   }
 
   // Transfer ownership to external manager
-  stream(s => {
-    managedResources = s :: managedResources
-    handle.cancel()  // Let the manager handle cleanup
-  })
+  // (In real code, this might pass to a thread pool or async framework)
+  handle.cancel()  // Let the manager handle cleanup
+  
+  "transferred"
 }
 ```
 
@@ -161,29 +163,35 @@ Scope.global.scoped { scope =>
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import scala.concurrent.duration.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 
-Scope.global.scoped { scope =>
+val result = Scope.global.scoped { scope =>
   import scope.*
 
-  val handle = scope.defer {
+  val handle = defer {
     println("Finalizer")
   }
 
-  val futures = (1 to 5).map { i =>
-    Future {
-      handle.cancel()
-      println(s"Thread $i cancelled")
-    }
+  // Use a thread pool to simulate concurrent access
+  val executor = Executors.newFixedThreadPool(5)
+  val latch = new CountDownLatch(5)
+
+  (1 to 5).foreach { i =>
+    executor.submit(new Runnable {
+      def run(): Unit = {
+        handle.cancel()
+        println(s"Thread $i cancelled")
+        latch.countDown()
+      }
+    })
   }
 
   // Wait for all threads to finish
-  scala.concurrent.Await.ready(
-    Future.sequence(futures),
-    Duration(5, "seconds")
-  )
+  latch.await()
+  executor.shutdown()
+  
+  "completed"
 }
 ```
 
