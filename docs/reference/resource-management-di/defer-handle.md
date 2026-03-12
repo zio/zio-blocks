@@ -47,7 +47,9 @@ Scope.global.scoped { scope =>
 The `DeferHandle#cancel` method removes the registered finalizer so it will not run when the scope closes:
 
 ```scala
-def cancel(): Unit
+trait DeferHandle {
+  def cancel(): Unit
+}
 ```
 
 This method is:
