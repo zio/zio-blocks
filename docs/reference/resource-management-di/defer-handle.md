@@ -11,7 +11,7 @@ abstract class DeferHandle {
 }
 ```
 
-When `scope.defer(cleanup)` is called, the cleanup action is registered and a `DeferHandle` is returned. This handle can be used to remove that finalizer early, preventing it from running when the scope closes. This is useful when a resource is explicitly released before the scope ends, and running the finalizer again would be unnecessary or harmful.
+When `Scope#defer(cleanup)` is called, the cleanup action is registered and a `DeferHandle` is returned. This handle can be used to remove that finalizer early, preventing it from running when the scope closes. This is useful when a resource is explicitly released before the scope ends, and running the finalizer again would be unnecessary or harmful.
 
 ## Core Method: `DeferHandle#cancel(): Unit`
 
@@ -21,13 +21,13 @@ The type signature is:
 def cancel(): Unit
 ```
 
-Removes the registered finalizer so it will not run when the scope closes. This method is:
+Removes the registered finalizer so it will not run when the scope closes. `DeferHandle#cancel` is:
 
 - **Thread-safe**: Can be called from any thread without synchronization
 - **Idempotent**: Calling it multiple times has the same effect as calling once
 - **O(1)**: cancellation is a simple removal from an internal map (not O(n))
 
-If the scope has already closed (and the finalizer has already run or been discarded), calling `cancel()` is a no-op. Here's an example:
+If the scope has already closed (and the finalizer has already run or been discarded), calling `DeferHandle#cancel` is a no-op. Here's an example:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
