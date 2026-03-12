@@ -417,12 +417,6 @@ trait GolemAutoRegister extends ScalaJSModule {
                 |      ()
                 |    }
                 |
-                |  def init(): Unit =
-                |    registerAll()
-                |
-                |  def main(): Unit =
-                |    registerAll()
-                |
                 |  @JSExportTopLevel("__golemRegisterAgents")
                 |  val __golemRegisterAgents: Unit =
                 |    registerAll()

@@ -133,7 +133,7 @@ jobs:
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala 3 tests (skip docs due to scaladoc OOM on JS)
         if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+        run: sbt -J-XX:+UseG1GC ++${{ matrix.scala }} test${{ matrix.platform }}
 
   ci:
     runs-on: ubuntu-latest

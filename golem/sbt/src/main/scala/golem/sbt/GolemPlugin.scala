@@ -481,12 +481,6 @@ object GolemPlugin extends AutoPlugin {
                     |      ()
                     |    }
                     |
-                    |  def init(): Unit =
-                    |    registerAll()
-                    |
-                    |  def main(): Unit =
-                    |    registerAll()
-                    |
                     |  @JSExportTopLevel("__golemRegisterAgents")
                     |  val __golemRegisterAgents: Unit =
                     |    registerAll()
