@@ -38,14 +38,17 @@ Returns `true` if no finalizer errors were collected.
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
-  scope.defer {
-    println("Cleanup")
+
+  $(open()) { openScope =>
+    defer {
+      println("Cleanup")
+    }
+    val fin = openScope.close()
+    if (fin.isEmpty) println("No errors") else println("Errors occurred")
   }
 }
-
-if (fin.isEmpty) println("No errors") else println("Errors occurred")
 ```
 
 ### `nonEmpty: Boolean`
@@ -59,15 +62,18 @@ Returns `true` if at least one finalizer error was collected.
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
-  scope.defer {
-    throw new Exception("Cleanup failed")
-  }
-}
 
-if (fin.nonEmpty) {
-  println(s"Errors occurred: ${fin.errors.length}")
+  $(open()) { openScope =>
+    defer {
+      throw new Exception("Cleanup failed")
+    }
+    val fin = openScope.close()
+    if (fin.nonEmpty) {
+      println(s"Errors occurred: ${fin.errors.length}")
+    }
+  }
 }
 ```
 
@@ -84,18 +90,21 @@ The first error corresponds to the head of the chunk (the first finalizer that f
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
-  scope.defer { throw Exception("Error 2") }
-  scope.defer { throw Exception("Error 1") }
-}
-
-try {
-  fin.orThrow()
-} catch {
-  case e: Exception =>
-    println(s"Primary: ${e.getMessage}")
-    e.getSuppressed.foreach(s => println(s"Suppressed: ${s.getMessage}"))
+  $(open()) { openScope =>
+    defer { throw Exception("Error 2") }
+    defer { throw Exception("Error 1") }
+    val fin = openScope.close()
+    
+    try {
+      fin.orThrow()
+    } catch {
+      case e: Exception =>
+        println(s"Primary: ${e.getMessage}")
+        e.getSuppressed.foreach(s => println(s"Suppressed: ${s.getMessage}"))
+    }
+  }
 }
 ```
 
@@ -112,16 +121,20 @@ This is useful when you want to preserve the original error context while attach
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val initialError = Exception("Original error")
-
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
-  scope.defer { throw Exception("Cleanup error") }
-}
 
-val combined = fin.suppress(initialError)
-println(s"Primary: ${combined.getMessage}")
-combined.getSuppressed.foreach(s => println(s"Suppressed: ${s.getMessage}"))
+  val initialError = Exception("Original error")
+
+  $(open()) { openScope =>
+    defer { throw Exception("Cleanup error") }
+    val fin = openScope.close()
+    
+    val combined = fin.suppress(initialError)
+    println(s"Primary: ${combined.getMessage}")
+    combined.getSuppressed.foreach(s => println(s"Suppressed: ${s.getMessage}"))
+  }
+}
 ```
 
 ## Error Ordering
@@ -131,22 +144,26 @@ Errors in the finalization are ordered by when finalizers ran (in LIFO sequence)
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
 
-  // Registered first, runs last (LIFO)
-  scope.defer { throw Exception("Error 1") }
+  $(open()) { openScope =>
+    // Registered first, runs last (LIFO)
+    defer { throw Exception("Error 1") }
 
-  // Registered second, runs first
-  scope.defer { throw Exception("Error 2") }
+    // Registered second, runs first
+    defer { throw Exception("Error 2") }
 
-  // Registered third, runs first
-  scope.defer { throw Exception("Error 3") }
+    // Registered third, runs first
+    defer { throw Exception("Error 3") }
+
+    val fin = openScope.close()
+    
+    // Errors list order: [Error 3, Error 2, Error 1]
+    println(s"First error: ${fin.errors.head.getMessage}")
+    println(s"Total errors: ${fin.errors.length}")
+  }
 }
-
-// Errors list order: [Error 3, Error 2, Error 1]
-println(s"First error: ${fin.errors.head.getMessage}")
-println(s"Total errors: ${fin.errors.length}")
 ```
 
 ## Use Cases
@@ -158,18 +175,21 @@ Check if errors occurred and handle them appropriately:
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
 
-  scope.defer {
-    println("Cleanup complete")
+  $(open()) { openScope =>
+    defer {
+      println("Cleanup complete")
+    }
+    val fin = openScope.close()
+    
+    if (fin.nonEmpty) {
+      fin.orThrow()
+    } else {
+      println("No errors during finalization")
+    }
   }
-}
-
-if (fin.nonEmpty) {
-  fin.orThrow()
-} else {
-  println("No errors during finalization")
 }
 ```
 
@@ -188,10 +208,14 @@ def doWork(): Unit = {
       throw Exception("Work failed")
     } catch {
       case workError: Exception =>
-        val fin = scope.defer { throw Exception("Cleanup failed") }
-        val combined = fin.suppress(workError)
-        throw combined
+        $(open()) { openScope =>
+          defer { throw Exception("Cleanup failed") }
+          val fin = openScope.close()
+          val combined = fin.suppress(workError)
+          throw combined
+        }
     }
+    ()  // Return unit on normal path
   }
 }
 
@@ -211,16 +235,19 @@ Inspect and log all errors without stopping execution:
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-val fin = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope.*
 
-  scope.defer { throw Exception("Error 1") }
-  scope.defer { throw Exception("Error 2") }
-}
-
-if (fin.nonEmpty) {
-  println(s"Finalization collected ${fin.errors.length} errors:")
-  fin.errors.foreach(e => println(s"  - ${e.getMessage}"))
+  $(open()) { openScope =>
+    defer { throw Exception("Error 1") }
+    defer { throw Exception("Error 2") }
+    val fin = openScope.close()
+    
+    if (fin.nonEmpty) {
+      println(s"Finalization collected ${fin.errors.length} errors:")
+      fin.errors.foreach(e => println(s"  - ${e.getMessage}"))
+    }
+  }
 }
 ```
 
