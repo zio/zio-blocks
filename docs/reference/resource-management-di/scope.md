@@ -3,7 +3,7 @@ id: scope
 title: "Scope"
 ---
 
-`zio.blocks.scope` is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
+ZIO Blocks' `zio.blocks.scope` module is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
 
 Each scope instance has a distinct `$[A]` type that is unique to that scope and cannot be named or manipulated directly. This means values allocated in one scope have a structurally incompatible type from values in another scope — attempting to use a resource outside its owning scope is a **compile-time type error**, not a runtime crash. The `$` operator macro further restricts how you can use these values: it only allows using them as method/field receivers, preventing accidental capture in closures or escape to outer scopes. Combined with the `Unscoped` typeclass that marks pure data safe to return from a scope, this creates multiple layers of compile-time protection.
 

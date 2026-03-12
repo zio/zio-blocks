@@ -3,7 +3,7 @@ id: finalization
 title: "Finalization"
 ---
 
-`Finalization` is the result of running all finalizers in a scope. It collects any errors that occurred during cleanup and provides convenient methods for inspecting and re-throwing those errors:
+`Finalization` is the result of running all finalizers in a scope. It collects any errors that occurred during cleanup and provides methods for inspecting and re-throwing those errors:
 
 ```scala
 final class Finalization(val errors: Chunk[Throwable]) {
@@ -245,5 +245,5 @@ Scope.global.scoped { scope =>
 ## See Also
 
 - [`Scope.defer`](./scope.md) — registers finalizers that produce errors
-- [`DeferHandle`](./finalizer.md) — handle for cancelling finalizers
+- [`DeferHandle`](./defer-handle.md) — handle for cancelling finalizers
 - [`Finalizer`](./finalizer.md) — the trait for registering cleanup actions
