@@ -510,38 +510,37 @@ class JsonBinaryCodecDeriver private[json] (
             var offset = 0L
             var idx    = 0
             while (idx < len) {
-              val field                = fields(idx)
-              val fieldReflect         = field.value
-              val isColl               = isCollection(fieldReflect)
-              val defaultValue         = getDefaultValue(fieldReflect)
-              val emptyCollectionValue =
-                (if (fieldReflect.isSequence) Some {
+              val field                      = fields(idx)
+              val fieldReflect               = field.value
+              val defaultValue               = getDefaultValue(fieldReflect)
+              val emptyCollectionConstructor =
+                (if (requireCollectionFields) null
+                 else if (fieldReflect.isSequence) {
                    val seq                         = fieldReflect.asSequenceUnknown.get.sequence
                    implicit val ct: ClassTag[Elem] = seq.elemClassTag.asInstanceOf[ClassTag[Elem]]
-                   (if (seq.seqBinding.isInstanceOf[Binding[?, ?]]) seq.seqBinding
-                    else seq.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding)
-                     .asInstanceOf[Binding.Seq[Col, Elem]]
-                     .constructor
-                     .empty
-                 }
-                 else if (fieldReflect.isMap) Some {
-                   val map = fieldReflect.asMapUnknown.get.map
-                   (if (map.mapBinding.isInstanceOf[Binding[?, ?]]) map.mapBinding
-                    else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding)
-                     .asInstanceOf[Binding.Map[Map, Key, Value]]
-                     .constructor
-                     .emptyObject
-                 }
-                 else None).asInstanceOf[Option[AnyRef]]
+                   val constructor                 =
+                     (if (seq.seqBinding.isInstanceOf[Binding[?, ?]]) seq.seqBinding
+                      else seq.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding)
+                       .asInstanceOf[Binding.Seq[Col, Elem]]
+                       .constructor
+                   () => constructor.empty
+                 } else if (fieldReflect.isMap) {
+                   val map         = fieldReflect.asMapUnknown.get.map
+                   val constructor =
+                     (if (map.mapBinding.isInstanceOf[Binding[?, ?]]) map.mapBinding
+                      else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding)
+                       .asInstanceOf[Binding.Map[Map, Key, Value]]
+                       .constructor
+                   () => constructor.emptyObject
+                 } else null).asInstanceOf[() => AnyRef]
               infos(idx) = new FieldInfo(
                 new DynamicOptic.Node.Field(field.name),
                 defaultValue,
-                emptyCollectionValue,
+                emptyCollectionConstructor,
                 offset,
                 typeTag(fieldReflect),
                 idx,
-                isOptional(fieldReflect),
-                isColl
+                !requireOptionFields && fieldReflect.isOption
               )
               offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
               idx += 1
@@ -1954,11 +1953,6 @@ class JsonBinaryCodecDeriver private[json] (
       caseReflect.isVariant && caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
     }
 
-  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean = !requireOptionFields && reflect.isOption
-
-  private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
-    !requireCollectionFields && reflect.isCollection
-
   private[this] def getDefaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[?] =
     if (requireDefaultValueFields) None
     else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
@@ -2010,18 +2004,17 @@ class JsonBinaryCodecDeriver private[json] (
 private class FieldInfo(
   val span: DynamicOptic.Node.Field,
   defaultValue: Option[?],
-  emptyCollectionValue: Option[AnyRef],
+  emptyCollectionConstructor: () => AnyRef,
   offset: RegisterOffset = 0L,
   typeTag: Int,
   val idx: Int,
-  val isOptional: Boolean,
-  val isCollection: Boolean
+  val isOptional: Boolean
 ) {
-  private[this] var codec: JsonBinaryCodec[?]      = null
-  private[this] var name: String                   = null
   var nonTransient: Boolean                        = true
   private[this] var isPredefinedCodec: Boolean     = false
   private[this] var isNonEscapedAsciiName: Boolean = false
+  private[this] var name: String                   = null
+  private[this] var codec: JsonBinaryCodec[?]      = null
 
   def setName(name: String): Unit = {
     isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
@@ -2035,12 +2028,17 @@ private class FieldInfo(
     this.codec = codec
   }
 
+  @inline
   def getName: String = name
 
+  @inline
   def getCodec: JsonBinaryCodec[?] = codec
 
   @inline
   def hasDefault: Boolean = defaultValue ne None
+
+  @inline
+  def isCollection: Boolean = emptyCollectionConstructor ne null
 
   @inline
   def nameMatch(in: JsonReader, keyLen: Int): Boolean = in.isCharBufEqualsTo(keyLen, name)
@@ -2122,7 +2120,7 @@ private class FieldInfo(
         case _ =>
       }
     } else if (isOptional) regs.setObject(offset, None)
-    else if (isCollection) regs.setObject(offset, emptyCollectionValue.get)
+    else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
 
@@ -2298,6 +2296,7 @@ private class CaseLeafInfo(
     this.name = name
   }
 
+  @inline
   def getName: String = name
 
   @inline
@@ -2310,6 +2309,7 @@ private class CaseNodeInfo[A](
   private[this] val discriminator: Discriminator[A],
   private[this] val caseInfosArray: Array[CaseInfo]
 ) extends CaseInfo {
+  @inline
   def caseInfos: Array[CaseInfo] = caseInfosArray
 
   @tailrec
@@ -2324,6 +2324,7 @@ trait EnumInfo
 private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extends EnumInfo {
   private[this] val isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
 
+  @inline
   def enumName: String = name
 
   @inline
@@ -2336,6 +2337,7 @@ private class EnumNodeInfo[A](
   private[this] val discriminator: Discriminator[A],
   private[this] val enumInfosArray: Array[EnumInfo]
 ) extends EnumInfo {
+  @inline
   def enumInfos: Array[EnumInfo] = enumInfosArray
 
   @tailrec
