@@ -406,10 +406,10 @@ Manual verification for SQL output:
 
 **## References**
 
-- [Part 1: Expressions](../docs/guides/query-dsl-reified-optics.md) — SchemaExpr operators and in-memory evaluation
-- [Part 2: SQL Generation](../docs/guides/query-dsl-sql.md) — The sealed AST interpreter pattern
-- [Part 3: Extending the Expression Language](../docs/guides/query-dsl-extending.md) — Custom Expr ADT and bridge implicits
-- [Part 4: A Fluent SQL Builder](../docs/guides/query-dsl-fluent-builder.md) — Table[S], statement builders, and renderers
-- [Optics Reference](../docs/reference/optics.md) — Lens, Prism, Optional, Traversal
-- [DynamicOptic Reference](../docs/reference/dynamic-optic.md) — Runtime optic path extraction
-- [Schema Reference](../docs/reference/schema.md) — Schema derivation and Modifier.config
+- [Part 1: Expressions](../guides/query-dsl-reified-optics.md) — SchemaExpr operators and in-memory evaluation
+- [Part 2: SQL Generation](../guides/query-dsl-sql.md) — The sealed AST interpreter pattern
+- [Part 3: Extending the Expression Language](../guides/query-dsl-extending.md) — Custom Expr ADT and bridge implicits
+- [Part 4: A Fluent SQL Builder](../guides/query-dsl-fluent-builder.md) — Table[S], statement builders, and renderers
+- [Optics Reference](../reference/optics.md) — Lens, Prism, Optional, Traversal
+- [DynamicOptic Reference](../reference/dynamic-optic.md) — Runtime optic path extraction
+- [Schema Reference](../reference/schema.md) — Schema derivation and Modifier.config
