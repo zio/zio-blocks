@@ -130,5 +130,5 @@ Scope.global.scoped { scope =>
 ## See Also
 
 - [`Scope`](./scope.md) — the full scope lifecycle management
-- [`DeferHandle`](./finalizer.md) — the handle returned by `defer` for cancellation
+- [`DeferHandle`](./defer-handle.md) — the handle returned by `defer` for cancellation
 - [`Finalization`](./finalization.md) — the result of running all finalizers
