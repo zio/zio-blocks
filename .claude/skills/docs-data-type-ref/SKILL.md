@@ -9,6 +9,12 @@ allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 
 **REQUIRED BACKGROUND:** Use `docs-writing-style` for prose conventions and `docs-mdoc-conventions` for code block syntax throughout.
 
+**MUST DO:** After completing all documentation, you MUST run the `/docs-check-compliance` skill twice:
+1. First run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-writing-style`
+2. Second run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-mdoc-conventions`
+
+Do not skip this verification step. Both compliance checks must pass with zero violations before the documentation is considered complete.
+
 ## Target Type
 
 $ARGUMENTS
