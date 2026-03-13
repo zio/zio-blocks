@@ -226,7 +226,9 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**<Short description of what this App demonstrates>**
+### <Example Title>
+
+<Short description of what this App demonstrates and the use case it covers.>
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -240,7 +242,9 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName>.scala")
 sbt "schema-examples/runMain <package>.<ObjectName>"
 ```
 
-**<Short description of the next App>**
+### <Next Example Title>
+
+<Short description of what this App demonstrates and the use case it covers.>
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -256,8 +260,8 @@ sbt "schema-examples/runMain <package>.<ObjectName2>"
 
 Rules for this section:
 - List **every `App` object** written in Step 4, one entry per object.
-- For each entry: embed the full source with `SourceFile.print`, then show description, source link, and run command.
-- The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
+- For each entry: use a `###` heading (simple title), followed by a short descriptive paragraph, then embed the full source with `SourceFile.print`, source link, and run command.
+- The heading should be a simple, concise title (e.g., "Basic Usage", "Error Handling"). The paragraph below explains what the example demonstrates and the use case it covers.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
 - If no example `App` objects were written (rare), omit this section entirely.
 - **Always embed full source** — `SourceFile.print` keeps docs and examples in sync automatically.
