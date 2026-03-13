@@ -47,12 +47,6 @@ By decoupling code that needs cleanup registration from code that manages the co
 
 Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer`:
 
-`Finalizer` is not typically constructed directly. Instead, it is obtained through a scope:
-
-### From a `Scope`
-
-Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer`:
-
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
