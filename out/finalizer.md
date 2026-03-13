@@ -32,7 +32,7 @@ The trait is useful for decoupling code that needs cleanup registration from cod
 
 Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
@@ -49,7 +49,7 @@ Scope.global.scoped { scope =>
 
 Functions can request a `Finalizer` via `using` parameter, enabling decoupled cleanup registration:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.Finalizer
 
 def setupResource(name: String)(using fin: Finalizer): String = {
@@ -66,7 +66,7 @@ def setupResource(name: String)(using fin: Finalizer): String = {
 
 Registers a finalizer (cleanup action) to run when the scope closes. The cleanup action runs in LIFO order along with other finalizers registered on the same scope. Returns a `DeferHandle` that can cancel the registration before the scope closes:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
@@ -89,7 +89,7 @@ Scope.global.scoped { scope =>
 
 ### Package-Level `defer` Helper
 
-A package-level convenience function allows writing `defer { cleanup }` when a `Finalizer` is in scope. The signature is:
+A package-level convenience function allows writing `defer { cleanup }` when a `Finalizer` is in scope:
 
 ```scala
 def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
@@ -97,7 +97,7 @@ def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
 
 This removes the need to write `fin.defer { cleanup }`. Here's the convenience function in use:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.{Scope, defer, Finalizer}
 
 def setupWithCleanup()(using fin: Finalizer) = {
@@ -120,7 +120,7 @@ Scope.global.scoped { scope =>
 
 `Finalizer` integrates with `Scope` to enable resource management patterns:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.{Scope, Finalizer}
 
 def openConnection(url: String)(using fin: Finalizer): String = {
@@ -140,7 +140,7 @@ Scope.global.scoped { scope =>
 
 ## Relationship to Scope
 
-`Finalizer` is a supertrait of `Scope`. The structural definition shows this relationship:
+`Finalizer` is a supertrait of `Scope`:
 
 ```scala
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific
@@ -152,7 +152,7 @@ This means any `Scope` instance can be used where a `Finalizer` is expected. How
 
 Finalizers registered with `defer` run in **LIFO order** (last registered runs first) when the scope closes. This ensures that resources acquired in order can be cleaned up in reverse order:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
