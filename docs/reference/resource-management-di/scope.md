@@ -206,7 +206,7 @@ $(db, cache)((d1, d2) => () => d2.query()) // d2 captured in closure
 
 The error messages name the offending parameter:
 
-```
+```text
 Parameter 2 ('d2') cannot be passed as an argument to a function or method.
 Scoped values may only be used as a method receiver (e.g., d2.method()).
 ```
@@ -439,7 +439,7 @@ If a scope reference escapes its `scoped { }` block and an operation is attempte
 
 - **`allocate`** on a closed scope:
 
-  ```
+  ```text
   ── Scope Error ─────────────────────────────────────────────────────────────────
 
     Cannot allocate resource: scope is already closed.
@@ -776,7 +776,7 @@ These `IllegalStateException`s are thrown when a scope operation is attempted on
 
 ### `allocate` on a closed scope
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot allocate resource: scope is already closed.
@@ -809,7 +809,7 @@ These `IllegalStateException`s are thrown when a scope operation is attempted on
 
 ### `open()` on a closed scope
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot open child scope: scope is already closed.
@@ -841,7 +841,7 @@ These `IllegalStateException`s are thrown when a scope operation is attempted on
 
 ### `$` on a closed scope
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot access scoped value: scope is already closed.
@@ -887,23 +887,23 @@ This module produces two kinds of compile-time feedback:
 
 All messages name the offending parameter by its 1-based index and source name, and end with the receiver-only reminder. Typical messages:
 
-```
+```text
 Parameter 1 ('d') cannot be passed as an argument to a function or method.
 Scoped values may only be used as a method receiver (e.g., d.method()).
 ```
 
-```
+```text
 Parameter 1 ('d') must only be used as a method receiver.
 It cannot be returned, stored, passed as an argument, or captured.
 Scoped values may only be used as a method receiver (e.g., d.method()).
 ```
 
-```
+```text
 Parameter 1 ('d') cannot be captured in a nested lambda, def, or anonymous class.
 Scoped values may only be used as a method receiver (e.g., d.method()).
 ```
 
-```
+```text
 Parameter 2 ('cache') cannot be passed as an argument to a function or method.
 Scoped values may only be used as a method receiver (e.g., cache.method()).
 ```
@@ -915,7 +915,7 @@ Method references and variables are not supported.
 
 ### Not a class (`Wire.shared/unique` on a trait / abstract)
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot derive Wire for MyTrait: not a class.
@@ -927,7 +927,7 @@ Method references and variables are not supported.
 
 ### No primary constructor
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   MyType has no primary constructor.
@@ -940,7 +940,7 @@ Method references and variables are not supported.
 
 ### `Resource.from[T]` used when `T` has dependencies
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Resource.from[MyService] cannot be derived.
@@ -957,7 +957,7 @@ Method references and variables are not supported.
 
 ### Unmakeable type (primitives, functions, collections)
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot auto-create String
@@ -980,7 +980,7 @@ Method references and variables are not supported.
 
 ### Abstract type (trait / abstract class dependency)
 
-```
+```text
 ── Scope Error ─────────────────────────────────────────────────────────────────
 
   Cannot auto-create Logger
@@ -1002,7 +1002,7 @@ Method references and variables are not supported.
 
 ### Duplicate providers (ambiguous wires)
 
-```
+```text
 ── Scope Error ────────────────────────────────────────────────────────────────
 
   Multiple providers for Service
@@ -1018,7 +1018,7 @@ Method references and variables are not supported.
 
 ### Dependency cycle
 
-```
+```text
 ── Scope Error ────────────────────────────────────────────────────────────────
 
   Dependency cycle detected
@@ -1040,7 +1040,7 @@ Method references and variables are not supported.
 
 ### Subtype conflict (related dependency types)
 
-```
+```text
 ── Scope Error ────────────────────────────────────────────────────────────────
 
   Dependency type conflict in MyService
@@ -1062,7 +1062,7 @@ Method references and variables are not supported.
 
 ### Duplicate parameter types in a constructor
 
-```
+```text
 ── Scope Error ────────────────────────────────────────────────────────────────
 
   Constructor of App has multiple parameters of type String
@@ -1080,7 +1080,7 @@ Method references and variables are not supported.
 
 ### Leak warning
 
-```
+```text
 ── Scope Warning ───────────────────────────────────────────────────────────────
 
   leak(db)
