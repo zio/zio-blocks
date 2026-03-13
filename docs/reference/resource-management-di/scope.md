@@ -225,46 +225,9 @@ q1 + q2
 
 ### 3) `Resource[A]`: acquisition + finalization
 
-A `Resource[A]` is a **lazy description** of how to acquire a value and register cleanup in a scope. Nothing happens until you call `scope.allocate(resource)` (or `.allocate` syntax).
+A `Resource[A]` is a **lazy description** of how to acquire a value and register cleanup in a scope. Nothing happens until you call `scope.allocate(resource)` (or `.allocate` syntax). When allocated, the resource is acquired immediately and its cleanup is registered with the scope, guaranteeing LIFO finalization.
 
-#### Constructors
-
-From the source:
-
-- `Resource(value: => A)`
-  Wraps a by-name value; if it's `AutoCloseable`, `close()` is registered automatically (runtime check).
-- `Resource.fromAutoCloseable(thunk: => A <: AutoCloseable)`
-  Type-safe helper that registers `close()`.
-- `Resource.acquireRelease(acquire: => A)(release: A => Unit)`
-- `Resource.shared(f: Scope => A)`
-  **Memoized + reference-counted**, thread-safe.
-- `Resource.unique(f: Scope => A)`
-  Fresh instance per allocation.
-- `Resource.from[T]` and `Resource.from[T](wires*)` (macros)
-  Constructor-based dependency injection (covered below).
-
-#### Composition
-
-`Resource` composes with:
-
-- `map`
-- `flatMap`
-- `zip`
-
-Finalizers remain tied to the allocation scope; in composed resources, finalizers still run LIFO.
-
-#### Sharing vs uniqueness (important)
-
-There are two distinct ideas:
-
-1. **Uniqueness**: "each allocation yields a fresh instance"
-   - Use `Resource.unique(...)`, or most ordinary `Resource(...)` / `acquireRelease(...)` resources.
-   - Each `allocate` runs the acquisition again and registers an independent finalizer.
-
-2. **Sharing**: "reusing the same instance across multiple allocations"
-   - Use `Resource.shared(...)` (or wires/resources that convert to shared).
-   - Sharing is tied to **reusing the same `Resource.Shared` value**, not "magic caching inside a scope".
-   - The first allocation initializes via an `OpenScope` parented to `Scope.global`; subsequent allocations increment a reference count. When the last referencing scope closes, the shared scope is closed.
+For comprehensive documentation of `Resource` constructors, composition, sharing vs uniqueness, and all constructor patterns, see the [Resource reference](./resource.md).
 
 ---
 
@@ -278,28 +241,7 @@ There are two distinct ideas:
 
 Built-in instances include primitives, `String`, many collections/containers, time values, `java.util.UUID`, and `zio.blocks.chunk.Chunk` (when element types are unscoped).
 
-#### Deriving / defining your own instances
-
-Scala 3 (derivation via `Unscoped.derived`):
-
-```scala
-import zio.blocks.scope.*
-
-final case class Config(debug: Boolean)
-object Config:
-  given Unscoped[Config] = Unscoped.derived
-```
-
-Scala 2.13:
-
-```scala
-import zio.blocks.scope.*
-
-final case class Config(debug: Boolean)
-object Config {
-  implicit val unscopedConfig: Unscoped[Config] = Unscoped.derived[Config]
-}
-```
+For information on deriving your own `Unscoped` instances and a complete list of built-in instances, see the [Unscoped reference](./unscoped.md).
 
 #### Scope boundary example
 
@@ -797,153 +739,7 @@ The `Scope`/`Finalizer` parameter can appear in any parameter list position; it'
 
 ## Dependency injection (DI) with `Wire` + `Resource.from`
 
-Scope includes a small constructor-based DI layer built on top of `zio.blocks.context.Context`. For a comprehensive guide to `Wire` and its construction patterns, see the [Wire reference](./wire.md) page.
-
-### `Wire[-In, +Out]`: a dependency recipe
-
-A `Wire` is a recipe for constructing `Out` from a `Context[In]` (and a `Scope` for finalization):
-
-- `Wire.Shared` → converts to `Resource.shared` (ref-counted sharing)
-- `Wire.Unique` → converts to `Resource.unique` (fresh instance)
-
-#### Manual wire + Context
-
-Here's an example combining manual wires with a dependency context:
-
-```scala
-import zio.blocks.scope.*
-import zio.blocks.context.Context
-
-final case class Config(debug: Boolean)
-object Config:
-  given Unscoped[Config] = Unscoped.derived
-
-val w: Wire.Shared[Boolean, Config] =
-  Wire.shared[Config] // Boolean => Config
-
-val deps: Context[Boolean] =
-  Context(true)
-
-@main def wireAndContext(): Unit =
-  Scope.global.scoped { scope =>
-    import scope.*
-
-    val cfg: $[Config] =
-      allocate(w.toResource(deps))
-
-    val debug: Boolean =
-      $(cfg)(_.debug)
-
-    println(debug)
-  }
-```
-
-#### Sharing vs uniqueness at the wire level
-
-Control whether allocations are shared or unique:
-
-```scala
-import zio.blocks.scope.*
-
-val ws = Wire.shared[Config] // shared recipe
-val wu = Wire.unique[Config] // unique recipe
-```
-
-The difference is realized when converting to resources (`toResource`) and allocating.
-
----
-
-### `Resource.from[T](wires*)`: derive a whole object graph
-
-`Resource.from[T](wires*)` is the primary entry point for DI. It:
-
-- uses provided wires as overrides
-- auto-creates missing wires for **concrete classes** (defaulting to shared)
-- rejects unmakeable/abstract types unless you provide a wire
-- detects cycles, duplicate providers, and subtype conflicts
-- generates a composed `Resource[T]` via `flatMap` chains (preserving sharing/uniqueness)
-
-Example:
-
-```scala
-import zio.blocks.scope.*
-
-final case class Config(url: String)
-object Config:
-  given Unscoped[Config] = Unscoped.derived
-
-final class Logger:
-  def info(msg: String): Unit = println(msg)
-
-final class Database(cfg: Config) extends AutoCloseable:
-  def query(sql: String): String = s"[${cfg.url}] $sql"
-  def close(): Unit = println("database closed")
-
-final class Service(db: Database, logger: Logger) extends AutoCloseable:
-  def run(): Unit = logger.info(s"running with ${db.query("SELECT 1")}")
-  def close(): Unit = println("service closed")
-
-val serviceResource: Resource[Service] =
-  Resource.from[Service](
-    Wire(Config("jdbc:postgresql://localhost/db")) // leaf value
-  )
-
-@main def di(): Unit =
-  Scope.global.scoped { scope =>
-    import scope.*
-    val svc: $[Service] = serviceResource.allocate
-    $(svc)(_.run())
-  }
-```
-
-#### Injecting traits via subtype wires
-
-When a dependency is abstract, provide a wire for a concrete implementation:
-
-```scala
-import zio.blocks.scope.*
-
-trait Logger:
-  def info(msg: String): Unit
-
-final class ConsoleLogger extends Logger:
-  def info(msg: String): Unit = println(msg)
-
-final class App(logger: Logger):
-  def run(): Unit = logger.info("Hello!")
-
-val appResource: Resource[App] =
-  Resource.from[App](
-    Wire.shared[ConsoleLogger] // satisfies Logger via subtyping
-  )
-
-@main def traitInjection(): Unit =
-  Scope.global.scoped { scope =>
-    import scope.*
-    val app: $[App] = appResource.allocate
-    $(app)(_.run())
-  }
-```
-
-#### Diamond patterns share a single instance (when appropriate)
-
-When multiple dependencies converge on the same resource, sharing ensures a single instance:
-
-```scala
-import zio.blocks.scope.*
-
-trait Service
-final class LiveService extends Service
-final class NeedsService(s: Service)
-final class NeedsLive(l: LiveService)
-final class App(a: NeedsService, b: NeedsLive)
-
-val appResource: Resource[App] =
-  Resource.from[App](
-    Wire.shared[LiveService]
-  )
-// LiveService instantiations: 1
-```
+Scope includes a constructor-based dependency injection layer built on `Wire` and `Resource.from`. For full documentation including macro derivation, trait injection, diamond patterns, and error messages, see the [Wire reference](./wire.md).
 
 ---
 
@@ -1373,68 +1169,12 @@ case class OpenScope(scope: Scope, close: () => Finalization)
 
 ---
 
-### `Finalizer`
+For detailed information on other types used in Scope:
 
-A minimal capability interface for registering cleanup:
-
-```scala
-trait Finalizer:
-  def defer(f: => Unit): DeferHandle
-```
-
-A minimal capability interface for registering cleanup.
-
-Also available as a package-level helper:
-
-```scala
-def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
-```
-
----
-
-### `DeferHandle`
-
-Handle for cancelling a registered finalizer:
-
-```scala
-abstract class DeferHandle:
-  def cancel(): Unit
-```
-
-- `cancel()` is thread-safe and idempotent
-- cancellation is O(1) (true removal from a concurrent map)
-
----
-
-### `Finalization`
-
-Result of running all finalizers with collected errors:
-
-```scala
-final class Finalization(val errors: zio.blocks.chunk.Chunk[Throwable]):
-  def isEmpty: Boolean
-  def nonEmpty: Boolean
-  def orThrow(): Unit
-  def suppress(initial: Throwable): Throwable
-
-object Finalization:
-  val empty: Finalization
-  def apply(errors: Chunk[Throwable]): Finalization
-```
-
----
-
-### `Unscoped[A]`
-
-Marker typeclass for types that can safely escape a scope:
-
-```scala
-trait Unscoped[A]
-
-object Unscoped:
-  inline given derived[A](using scala.deriving.Mirror.Of[A]): Unscoped[A]
-  // plus many built-in givens (primitives, collections, time, UUID, Chunk, ...)
-```
+- See [Finalizer](./finalizer.md) for registering cleanup functions
+- See [DeferHandle](./defer-handle.md) for handle-based cancellation
+- See [Finalization](./finalization.md) for error collection and finalizer results
+- See [Unscoped](./unscoped.md) for typeclass definition and instance derivation
 
 ---
 
