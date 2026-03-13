@@ -66,7 +66,7 @@ Returns `true` if at least one finalizer error was collected:
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 
-final class Finalization(val errors: Chunk[Throwable]) {
+abstract class Finalization(val errors: Chunk[Throwable]) {
   def nonEmpty: Boolean
 }
 ```
