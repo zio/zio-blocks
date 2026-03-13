@@ -17,7 +17,7 @@ This trait serves as a boundary between scope management internals and user code
 
 ## Overview
 
-`Finalizer` is typically encountered in two ways:
+You'll typically encounter `Finalizer` in two ways:
 
 1. **Implicit dependency**: As a context bound via `using fin: Finalizer` in user functions
 2. **Via `Scope`**: Since `Scope extends Finalizer`, any scope can be used where a `Finalizer` is expected
