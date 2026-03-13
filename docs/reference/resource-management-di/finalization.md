@@ -98,7 +98,7 @@ Throws the first collected error with all remaining errors added as suppressed e
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 
-final class Finalization(val errors: Chunk[Throwable]) {
+abstract class Finalization(val errors: Chunk[Throwable]) {
   def orThrow(): Unit
 }
 ```
