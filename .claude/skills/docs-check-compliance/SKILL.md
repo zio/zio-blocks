@@ -39,13 +39,17 @@ Read: $ARGUMENTS[docs-file]
 
 ### Step 3: Check and Fix Each Rule
 
+**Process each rule individually. Do not move to the next rule until the current rule has zero violations.**
+
 For each rule from the skill:
 
-1. **Identify violations** — Assume the document is fully compliant with this rule. Prove yourself wrong by finding evidence of violations. Cite exact line numbers, quote problematic text, and explain why it violates the rule. If you cannot prove yourself wrong, the rule has no violations.
-2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
-3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <section> [rule name]`
+1. **Identify violations for THIS RULE** — Assume the document is fully compliant with THIS SPECIFIC RULE. Prove yourself wrong by finding evidence of violations against ONLY THIS RULE. Cite exact line numbers, quote problematic text, and explain why it violates THIS RULE. If you cannot prove yourself wrong, THIS RULE has zero violations.
 
-Repeat until you cannot prove any further violations exist.
+2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
+
+3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <rule-name>`
+
+**Complete steps 1-3 for THIS RULE until zero violations remain. Then move to the NEXT RULE and repeat.**
 
 ### Step 4: Compile
 
