@@ -81,6 +81,8 @@ Scope.global.scoped { scope =>
 
 ## Use Cases
 
+`DeferHandle` is useful in several common scenarios:
+
 ### Preventing Duplicate Cleanup
 
 When a resource is explicitly released before the scope ends, cancel the automatic finalizer to avoid duplicate cleanup:
