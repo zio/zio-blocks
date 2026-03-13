@@ -42,8 +42,6 @@ Scope.global.scoped { scope =>
 
 ## Core Operations
 
-### `DeferHandle#cancel`: Cancelling a Finalizer
-
 The `DeferHandle#cancel` method removes the registered finalizer so it will not run when the scope closes:
 
 ```scala
