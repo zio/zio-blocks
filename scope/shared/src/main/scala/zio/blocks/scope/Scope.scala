@@ -208,7 +208,9 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *   a [[DeferHandle]] that can be used to cancel the registration, or a no-op
    *   handle if the scope is already closed
    */
-  override def defer(f: => Unit): DeferHandle = finalizers.add(f)
+  override def defer(f: => Unit): DeferHandle =
+    if (finalizers.isClosed) DeferHandle.Noop
+    else finalizers.addFn(() => f)
 
   /**
    * Creates a child scope that must be explicitly closed.
@@ -229,15 +231,14 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
       throw new IllegalStateException(
         ErrorMessages.renderOpenOnClosedScope(scopeDisplayName, color = false)
       )
-    val fins                        = new internal.Finalizers
-    val owner                       = PlatformScope.captureOwner()
-    val childScope                  = new Scope.Child(self, fins, owner, unowned = true)
-    val handle                      = self.defer(fins.runAll().orThrow())
-    val closeFn: () => Finalization = () => {
-      handle.cancel()
-      fins.runAll()
-    }
-    $wrap(Scope.OpenScope(childScope, closeFn))
+    val fins        = new internal.Finalizers
+    val childScope  = new Scope.Child(self, fins, owner = null, unowned = true)
+    val closeHandle = new Scope.CloseHandle(fins, self.finalizers)
+    if (!self.finalizers.addNode(closeHandle))
+      throw new IllegalStateException(
+        ErrorMessages.renderOpenOnClosedScope(scopeDisplayName, color = false)
+      )
+    $wrap(Scope.OpenScope(childScope, closeHandle))
   }
 
   /**
@@ -331,6 +332,27 @@ object Scope {
    *   errors
    */
   case class OpenScope private[scope] (scope: Scope, close: () => Finalization)
+
+  /**
+   * A combined node + close function for child scopes opened via
+   * [[Scope.open]].
+   *
+   * This object lives in the parent scope's finalizer list (as a Node whose
+   * thunk runs the child's finalizers) and also serves as the close function
+   * for [[OpenScope]]. When invoked as `close()`, it cancels itself from the
+   * parent and runs the child's finalizers.
+   */
+  private[scope] final class CloseHandle(
+    childFinalizers: internal.Finalizers,
+    parentFinalizers: internal.Finalizers
+  ) extends internal.Finalizers.Node(() => ())
+      with (() => Finalization) {
+    override def run(): Unit  = childFinalizers.runAll().orThrow()
+    def apply(): Finalization = {
+      parentFinalizers.remove(this)
+      childFinalizers.runAll()
+    }
+  }
 
   /**
    * A child scope created by `scoped { ... }` or [[Scope.open]].
