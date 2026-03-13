@@ -269,6 +269,34 @@ The fundamental difference is **reuse semantics**:
 
 In a diamond dependency pattern (where `AppService` depends on both `UserService` and `OrderService`, both depending on `Database`), using `Resource.shared[Database]` ensures both services receive the same instance.
 
+## Integration with Wire and Scope
+
+`Resource` is the foundation of ZIO Blocks' dependency injection. `Wire` describes how to
+build a service; `Resource` describes how to manage its lifecycle. When used together with
+the `Resource.from[T]` macro, they enable compile-safe automatic dependency injection:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+case class Config(debug: Boolean)
+
+class Logger(config: Config) {
+  def log(msg: String): Unit = println(s"[${config.debug}] $msg")
+}
+
+class Service(logger: Logger) extends AutoCloseable {
+  def run(): Unit   = logger.log("Running")
+  def close(): Unit = logger.log("Shutting down")
+}
+
+val serviceResource = Resource.from[Service](
+  Wire(Config(debug = true))
+)
+```
+
+See [`Wire`](./wire.md) for how to declare dependency recipes and [`Scope`](./scope.md) for
+scope-based resource management.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `scope-examples` module.
