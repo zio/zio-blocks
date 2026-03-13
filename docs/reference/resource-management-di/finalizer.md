@@ -144,7 +144,7 @@ Scope.global.scoped { scope =>
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific
 ```
 
-This means any `Scope` instance can be used where a `Finalizer` is expected. However, the converse is not true—a `Finalizer` reference does not provide `allocate`, `$`, or other scope operations.
+This means any `Scope` instance can be used where a `Finalizer` is expected. However, the converse is not true—a `Finalizer` reference does not provide `Scope#allocate`, `Scope#$`, or other scope operations.
 
 ## Finalization Order
 
