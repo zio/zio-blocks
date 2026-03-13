@@ -13,9 +13,9 @@ allowed-tools: Bash
 Run these commands in order:
 
 ```bash
-/docs-check-compliance $ARGUMENTS[docs-file] docs-writing-style
-/docs-check-compliance $ARGUMENTS[docs-file] docs-mdoc-conventions
-sbt "docs/mdoc --in $ARGUMENTS[docs-file]"
+/docs-check-compliance $ARGUMENTS docs-writing-style
+/docs-check-compliance $ARGUMENTS docs-mdoc-conventions
+sbt "docs/mdoc --in $ARGUMENTS"
 ```
 
 Fix all violations identified by `/docs-check-compliance`, committing each separately. Ensure the final mdoc compilation succeeds with zero errors.
