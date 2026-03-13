@@ -16,7 +16,7 @@ The `Unscoped` typeclass distinguishes between two categories of types:
 
 When the `$` operator is used to access a scoped value, if the result type has an `Unscoped` instance, it returns the value directly (unwrapped). Otherwise, it returns the value still wrapped in `$`.
 
-## Overview
+## Motivation / Use Case
 
 The `Unscoped` typeclass enables compile-time verification that you're only extracting safe data from scopes. This prevents accidental resource leaks where a database connection, stream, or file handle escapes its scope:
 
@@ -38,7 +38,95 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Default Instances
+### Returning Aggregated Data from Scopes
+
+Extract computed results that don't hold resources:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.{Scope, Resource, Unscoped}
+import scala.concurrent.duration.{Duration, FiniteDuration}
+
+case class ProcessingResult(count: Int, elapsed: FiniteDuration)
+
+object ProcessingResult {
+  implicit val unscoped: Unscoped[ProcessingResult] = new Unscoped[ProcessingResult] {}
+}
+
+def processData(): ProcessingResult = Scope.global.scoped { scope =>
+  import scope.*
+
+  val startTime = java.time.Instant.now()
+  val input = allocate(Resource(Seq(1, 2, 3, 4, 5)))
+  val count = $(input)(_.length)
+
+  val elapsed = Duration.fromNanos(
+    java.time.Instant.now().toEpochMilli - startTime.toEpochMilli
+  ).toNanos
+
+  ProcessingResult(count, FiniteDuration(elapsed, "ns"))
+}
+
+val result = processData()
+println(result)
+```
+
+### Type-Safe Resource Boundary
+
+The compiler prevents accidentally extracting resources:
+
+```scala
+import zio.blocks.scope.Scope
+import java.io.ByteArrayInputStream
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
+
+  // ✗ This doesn't compile: InputStream is not Unscoped
+  // val s: ByteArrayInputStream = stream(x => x)
+
+  // ✓ This works: you must stay within the scope
+  stream(s => s.toString)
+}
+```
+
+## Construction / Creating Instances
+
+Mark your own types as safe to escape scopes by defining an implicit instance:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.Unscoped
+
+case class UserId(value: Long)
+
+object UserId {
+  implicit val unscoped: Unscoped[UserId] = new Unscoped[UserId] {}
+}
+
+case class User(id: UserId, name: String)
+
+object User {
+  implicit val unscoped: Unscoped[User] = new Unscoped[User] {}
+}
+```
+
+Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.Unscoped
+import java.io.InputStream
+
+// ✗ DO NOT do this!
+// implicit val unscoped: Unscoped[InputStream] = new Unscoped[InputStream] {}
+// InputStream is a resource and must stay scoped
+
+// ✓ DO this instead
+case class StreamMetadata(name: String, size: Long)
+implicit val unscoped: Unscoped[StreamMetadata] = new Unscoped[StreamMetadata] {}
+```
+
+## Predefined Instances
 
 The following types have built-in `Unscoped` instances:
 
@@ -87,42 +175,17 @@ The following types have built-in `Unscoped` instances:
 - `java.util.UUID`
 - `zio.blocks.chunk.Chunk[A]` (when `A: Unscoped`)
 
-## Adding Custom Instances
+### Low-Priority Instances
 
-Mark your own types as safe to escape scopes by defining a given instance:
+The `Nothing` type always has an `Unscoped` instance (at low priority) since it's the bottom type:
 
-```scala mdoc:compile-only
-import zio.blocks.scope.Unscoped
-
-case class UserId(value: Long)
-
-object UserId {
-  implicit val unscoped: Unscoped[UserId] = new Unscoped[UserId] {}
-}
-
-case class User(id: UserId, name: String)
-
-object User {
-  implicit val unscoped: Unscoped[User] = new Unscoped[User] {}
-}
+```scala
+implicit val given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 ```
 
-Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances:
+This is rarely used in practice but ensures there are no type errors for impossible cases.
 
-```scala mdoc:compile-only
-import zio.blocks.scope.Unscoped
-import java.io.InputStream
-
-// ✗ DO NOT do this!
-// given Unscoped[InputStream] = new Unscoped[InputStream] {}
-// InputStream is a resource and must stay scoped
-
-// ✓ DO this instead
-case class StreamMetadata(name: String, size: Long)
-implicit val unscoped: Unscoped[StreamMetadata] = new Unscoped[StreamMetadata] {}
-```
-
-## How `Unscoped` Works with `$`
+## Core Operations: How `Unscoped` Works with `$`
 
 The `$` operator's return type depends on whether the result has an `Unscoped` instance:
 
@@ -149,85 +212,20 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Use Cases
+## Advanced Usage: Properties and Considerations
 
-`Unscoped` is especially useful when extracting computed results from scopes:
-
-### Returning Aggregated Data from Scopes
-
-Extract computed results that don't hold resources:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, Resource, Unscoped}
-import scala.concurrent.duration.{Duration, FiniteDuration}
-
-case class ProcessingResult(count: Int, elapsed: FiniteDuration)
-
-object ProcessingResult {
-  given Unscoped[ProcessingResult] = new Unscoped[ProcessingResult] {}
-}
-
-def processData(): ProcessingResult = Scope.global.scoped { scope =>
-  import scope.*
-
-  val startTime = java.time.Instant.now()
-  val input = allocate(Resource(Seq(1, 2, 3, 4, 5)))
-  val count = $(input)(_.length)
-
-  val elapsed = Duration.fromNanos(
-    java.time.Instant.now().toEpochMilli - startTime.toEpochMilli
-  ).toNanos
-
-  ProcessingResult(count, FiniteDuration(elapsed, "ns"))
-}
-
-val result = processData()
-println(result)
-```
-
-### Type-Safe Resource Boundary
-
-The compiler prevents accidentally extracting resources:
-
-```scala
-import zio.blocks.scope.Scope
-import java.io.ByteArrayInputStream
-
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
-
-  // ✗ This doesn't compile: InputStream is not Unscoped
-  // val s: ByteArrayInputStream = stream(x => x)
-
-  // ✓ This works: you must stay within the scope
-  stream(s => s.toString)
-}
-```
-
-## Low-Priority Instances
-
-The `Nothing` type always has an `Unscoped` instance (at low priority) since it's the bottom type:
-
-```scala
-implicit val given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
-```
-
-This is rarely used in practice but ensures there are no type errors for impossible cases.
-
-## Thread Safety
+### Thread Safety
 
 `Unscoped` instances themselves are immutable and thread-safe. However, the types they mark must be truly immutable for safe concurrent use. For example, `Array[Int]` is mutable—if shared across threads without synchronization, it could cause data races.
 
-## Performance
+### Performance
 
 `Unscoped` instances are zero-cost abstractions:
 - No runtime overhead—instances are marker types with no state
 - The `$` operator's return type is determined at compile time based on the presence of an `Unscoped` instance
 - No runtime type checks or casting needed
 
-## See Also
+## Integration
 
 - [`Scope.$`](./scope.md) — the operator that uses `Unscoped`
 - [`Resource`](./resource.md) — types that provide `Unscoped` may be wrapped in resources
