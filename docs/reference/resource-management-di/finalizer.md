@@ -109,7 +109,7 @@ Scope.global.scoped { scope =>
 A package-level convenience function allows writing `defer { cleanup }` when a `Finalizer` is in scope. The signature is:
 
 ```scala
-def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
+def defer(finalizer: => Unit)(implicit fin: Finalizer): DeferHandle
 ```
 
 This removes the need to write `fin.defer { cleanup }`. Here's the convenience function in use:
@@ -163,5 +163,5 @@ Scope.global.scoped { scope =>
 ## See Also
 
 - [`Scope`](./scope.md) — the full scope lifecycle management
-- [`DeferHandle`](./defer-handle.md) — the handle returned by `defer` for cancellation
+- [`DeferHandle`](./defer-handle.md) — the handle returned by `Finalizer#defer` for cancellation
 - [`Finalization`](./finalization.md) — the result of running all finalizers
