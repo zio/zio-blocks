@@ -40,9 +40,10 @@ private[scope] final class Finalizers extends AtomicReference[AnyRef](Finalizers
    * @return
    *   a DeferHandle that can be used to cancel the finalizer
    */
-  def add(finalizer: => Unit): DeferHandle = {
-    val thunk = () => finalizer
-    val node  = new Node(thunk)
+  def add(finalizer: => Unit): DeferHandle = addFn(() => finalizer)
+
+  private[scope] def addFn(thunk: () => Unit): DeferHandle = {
+    val node = new Node(thunk)
     if (addNode(node)) new DeferHandle.NodeHandle(node, this)
     else DeferHandle.Noop
   }

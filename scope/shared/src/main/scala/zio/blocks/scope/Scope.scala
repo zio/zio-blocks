@@ -208,7 +208,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *   a [[DeferHandle]] that can be used to cancel the registration, or a no-op
    *   handle if the scope is already closed
    */
-  override def defer(f: => Unit): DeferHandle = finalizers.add(f)
+  override def defer(f: => Unit): DeferHandle = finalizers.addFn(() => f)
 
   /**
    * Creates a child scope that must be explicitly closed.
