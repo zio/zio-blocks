@@ -128,7 +128,7 @@ Scope.global.scoped { scope =>
 
 ### `Finalization#suppress(initial)`
 
-Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged.
+Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged:
 
 ```scala
 import zio.blocks.chunk.Chunk
