@@ -6,6 +6,8 @@ title: "Finalization"
 `Finalization` is the result of running all finalizers in a scope, collecting any errors that occurred during cleanup:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final class Finalization(val errors: Chunk[Throwable]) {
   def isEmpty: Boolean
   def nonEmpty: Boolean
