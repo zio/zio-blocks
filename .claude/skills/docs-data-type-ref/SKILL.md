@@ -291,11 +291,11 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 
 ## Step 3: Verify Documentation Compliance
 
-**MUST DO:** After completing all documentation in Step 2, you MUST run the `/docs-check-compliance` skill twice:
-1. First run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-writing-style`
-2. Second run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-mdoc-conventions`
+Run `/docs-check-compliance` twice:
+1. Against `docs-writing-style` rule
+2. Against `docs-mdoc-conventions` rule
 
-Do not skip this verification step. Both compliance checks must pass with zero violations before proceeding to Step 4. Fix any violations found and re-run the compliance checks until both pass.
+Both must pass with zero violations before proceeding to Step 4. Fix any violations and re-run until both pass.
 
 ## Step 4: Write Examples
 
