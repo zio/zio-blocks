@@ -128,12 +128,18 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala 2 tests and compile docs
+      - name: Run Scala 2 JS tests (batch 1)
         if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests (skip docs due to scaladoc OOM on JS)
+        run: sbt "++${{ matrix.scala }}; testJS1; docJS1"
+      - name: Run Scala 2 JS tests (batch 2)
+        if: ${{ startsWith(matrix.scala, '2.') }}
+        run: sbt "++${{ matrix.scala }}; testJS2; docJS2"
+      - name: Run Scala 3 JS tests (batch 1)
         if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }}
+        run: sbt "++${{ matrix.scala }}; testJS1"
+      - name: Run Scala 3 JS tests (batch 2)
+        if: ${{ startsWith(matrix.scala, '3.') }}
+        run: sbt "++${{ matrix.scala }}; testJS2"
 
   ci:
     runs-on: ubuntu-latest
