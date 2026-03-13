@@ -18,16 +18,13 @@ allowed-tools: Skill, Read, Grep, Edit, Bash
 
 ### Step 1: Load Rule Skill
 
-**You MUST use the `Skill` tool to invoke the rule skill.** Do not substitute a different skill.
-Do not rely on memory or training knowledge about what the skill contains — load it fresh.
-
-Invoke the rule skill now:
+**You MUST use the `Skill` tool to invoke the rule skill.** Do not substitute a different skill. Invoke the rule skill now:
 
 ```
 Skill: $ARGUMENTS[rule-skill]
 ```
 
-Read all rules it defines. For enumerated rule skills (like `docs-writing-style`), note the rule numbers and organize your verification around each specific rule. These are the only rules you will enforce in Step 3.
+Read all rules it defines. 
 
 ### Step 2: Read Doc File
 
@@ -39,17 +36,17 @@ Read: $ARGUMENTS[docs-file]
 
 ### Step 3: Check and Fix Each Rule
 
-**Process each rule individually. Do not move to the next rule until the current rule has zero violations.**
+Create a checklist of all rules defined by the rule skill. **Process each rule sequentially, ensuring zero violations before moving to the next.**
 
-For each rule from the skill:
+For each rule:
 
-1. **Identify violations for THIS RULE** — Use adversarial verification: Assume the document is fully compliant with THIS SPECIFIC RULE. Prove yourself wrong by finding evidence of violations against ONLY THIS RULE. Cite exact line numbers, quote problematic text, and explain why it violates THIS RULE. If you cannot prove yourself wrong, THIS RULE has zero violations.
+1. **Identify violations** — Use adversarial verification: assume the document fully complies with THIS RULE, then prove yourself wrong. Cite exact line numbers and quote problematic text. Explain why it violates THIS RULE. If you cannot find evidence, the rule has zero violations.
 
-2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
+2. **Fix violations** — Apply minimal edits (add, remove, edit, or restructure as needed).
 
-3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <rule-name>`
+3. **Commit** — Run `git add` and `git commit -m "docs(<docs-file-stem>): fix <rule-name>"`
 
-**Complete steps 1-3 for THIS RULE until zero violations remain. Then move to the NEXT RULE and repeat.**
+**Repeat steps 1–3 for each rule until zero violations remain, then proceed to the next rule.**
 
 ### Step 4: Compile
 
