@@ -5,7 +5,7 @@ title: "Finalization"
 
 `Finalization` is the result of running all finalizers in a scope, collecting any errors that occurred during cleanup:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 abstract class Finalization(val errors: Chunk[Throwable]) {
@@ -33,7 +33,7 @@ The type is immutable and provides four main operations:
 
 Returns `true` if no finalizer errors were collected:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 abstract class Finalization(val errors: Chunk[Throwable]) {
@@ -63,7 +63,7 @@ Scope.global.scoped { scope =>
 
 Returns `true` if at least one finalizer error was collected:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 abstract class Finalization(val errors: Chunk[Throwable]) {
@@ -95,7 +95,7 @@ Scope.global.scoped { scope =>
 
 Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 abstract class Finalization(val errors: Chunk[Throwable]) {
@@ -130,7 +130,7 @@ Scope.global.scoped { scope =>
 
 Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged.
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 abstract class Finalization(val errors: Chunk[Throwable]) {
