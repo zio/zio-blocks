@@ -52,23 +52,27 @@ Here's a minimal example showing resource allocation, usage, and cleanup:
 ```scala
 import zio.blocks.scope.*
 
-final class Database extends AutoCloseable:
+final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
+}
 
-@main def quickStart(): Unit =
-  val out: String =
-    Scope.global.scoped { scope =>
-      import scope.*
+object QuickStart {
+  def quickStart(): Unit = {
+    val out: String =
+      Scope.global.scoped { scope =>
+        import scope.*
 
-      val db: $[Database] =
-        Resource.fromAutoCloseable(new Database).allocate
+        val db: $[Database] =
+          Resource.fromAutoCloseable(new Database).allocate
 
-      // Safe access: the lambda parameter can only be used as a receiver
-      $(db)(_.query("SELECT 1"))
-    }
+        // Safe access: the lambda parameter can only be used as a receiver
+        $(db)(_.query("SELECT 1"))
+      }
 
-  println(out)
+    println(out)
+  }
+}
 ```
 
 What's happening in this code:
@@ -325,7 +329,7 @@ import zio.blocks.scope.*
 
 Scope.global.scoped { scope =>
   import scope.*
-  given Finalizer = scope
+  implicit val _: Finalizer = scope
 
   defer(println("cleanup")) // uses the package-level helper
 }
@@ -546,22 +550,26 @@ Basic pattern for acquiring and using a single resource:
 ```scala
 import zio.blocks.scope.*
 
-final class FileHandle(path: String) extends AutoCloseable:
+final class FileHandle(path: String) extends AutoCloseable {
   def readAll(): String = s"contents of $path"
   def close(): Unit = println(s"closed $path")
+}
 
-@main def fileExample(): Unit =
-  Scope.global.scoped { scope =>
-    import scope.*
+object FileExample {
+  def fileExample(): Unit = {
+    Scope.global.scoped { scope =>
+      import scope.*
 
-    val h: $[FileHandle] =
-      Resource(new FileHandle("data.txt")).allocate
+      val h: $[FileHandle] =
+        Resource(new FileHandle("data.txt")).allocate
 
-    val contents: String =
-      $(h)(_.readAll())
+      val contents: String =
+        $(h)(_.readAll())
 
-    println(contents)
+      println(contents)
+    }
   }
+}
 ```
 
 ---
@@ -573,33 +581,37 @@ Show how parent-scoped resources can be accessed in child scopes, but not the re
 ```scala
 import zio.blocks.scope.*
 
-final class Database extends AutoCloseable:
+final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
+}
 
-@main def nested(): Unit =
-  Scope.global.scoped { parent =>
-    import parent.*
+object NestedExample {
+  def nested(): Unit = {
+    Scope.global.scoped { parent =>
+      import parent.*
 
-    val parentDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
+      val parentDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
 
-    val done: String =
-      parent.scoped { child =>
-        import child.*
+      val done: String =
+        parent.scoped { child =>
+          import child.*
 
-        val db: $[Database] = lower(parentDb)
-        println($(db)(_.query("SELECT 1")))
+          val db: $[Database] = lower(parentDb)
+          println($(db)(_.query("SELECT 1")))
 
-        val childDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
-        println($(childDb)(_.query("SELECT 2")))
+          val childDb: $[Database] = Resource.fromAutoCloseable(new Database).allocate
+          println($(childDb)(_.query("SELECT 2")))
 
-        // childDb cannot be returned to the parent (not Unscoped)
-        "done"
-      }
+          // childDb cannot be returned to the parent (not Unscoped)
+          "done"
+        }
 
-    println($(parentDb)(_.query("SELECT 3")))
-    done
+      println($(parentDb)(_.query("SELECT 3")))
+      done
+    }
   }
+}
 ```
 
 Finalizers run **child first, then parent**.
@@ -669,12 +681,14 @@ If a class only needs cleanup registration, accept a `Finalizer`. DI macros inje
 import zio.blocks.scope.*
 
 final case class Config(url: String)
-object Config:
-  given Unscoped[Config] = Unscoped.derived
+object Config {
+  implicit val unscopedConfig: Unscoped[Config] = Unscoped.derived
+}
 
-final class ConnectionPool(config: Config)(using Finalizer):
+final class ConnectionPool(config: Config)(implicit ev: Finalizer) {
   private val pool = s"pool(${config.url})"
   defer(println(s"shutdown $pool"))
+}
 
 val poolResource: Resource[ConnectionPool] =
   Resource.from[ConnectionPool](
@@ -704,20 +718,23 @@ If a class needs to allocate resources or create child scopes, accept a `Scope`:
 import zio.blocks.scope.*
 
 final case class Config(url: String)
-object Config:
-  given Unscoped[Config] = Unscoped.derived
+object Config {
+  implicit val unscopedConfig: Unscoped[Config] = Unscoped.derived
+}
 
-final class Connection(config: Config) extends AutoCloseable:
+final class Connection(config: Config) extends AutoCloseable {
   def query(sql: String): String = s"[${config.url}] $sql"
   def close(): Unit = println("connection closed")
+}
 
-final class RequestHandler(config: Config)(using scope: Scope):
+final class RequestHandler(config: Config)(implicit scope: Scope) {
   def handle(sql: String): String =
     scope.scoped { child =>
       import child.*
       val conn: $[Connection] = Resource.fromAutoCloseable(new Connection(config)).allocate
       $(conn)(_.query(sql))
     }
+}
 
 val handlerResource: Resource[RequestHandler] =
   Resource.from[RequestHandler](
