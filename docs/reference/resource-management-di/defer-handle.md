@@ -18,6 +18,8 @@ When `Scope#defer(cleanup)` is called, the cleanup action is registered and a `D
 `DeferHandle` is not instantiated directly. Instead, it is created by calling `Scope#defer` with a cleanup action:
 
 ```scala mdoc:compile-only
+import zio.blocks.scope.{Scope, DeferHandle}
+
 trait Scope {
   def defer(cleanup: () => Unit): DeferHandle
 }
