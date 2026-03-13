@@ -26,6 +26,8 @@ The trait is useful for decoupling code that needs cleanup registration from cod
 
 ## Core Method
 
+The main method exposed by `Finalizer` is `defer`:
+
 ### `defer(f: => Unit): DeferHandle`
 
 Registers a finalizer (cleanup action) to run when the scope closes. The cleanup action runs in LIFO order along with other finalizers registered on the same scope. Returns a `DeferHandle` that can cancel the registration before the scope closes:
