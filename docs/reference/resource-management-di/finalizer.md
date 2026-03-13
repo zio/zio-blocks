@@ -3,7 +3,9 @@ id: finalizer
 title: "Finalizer"
 ---
 
-`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing:
+`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing.
+
+The interface is minimal:
 
 ```scala
 trait Finalizer {
