@@ -294,6 +294,15 @@ Scope.global.scoped { scope =>
 Check the sharing strategy of a wire:
 
 ```scala
+trait Wire[-In, +Out] {
+  def isShared: Boolean
+  def isUnique: Boolean = !isShared
+}
+```
+
+Here's how to use these methods:
+
+```scala
 import zio.blocks.scope._
 
 val sharedWire = Wire.shared[String]
@@ -308,6 +317,15 @@ println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
 ### `Wire#shared` and `Wire#unique` — convert between strategies
 
 Convert a wire to the opposite strategy:
+
+```scala
+trait Wire[-In, +Out] {
+  def shared: Wire.Shared[In, Out]
+  def unique: Wire.Unique[In, Out]
+}
+```
+
+Here's how to convert between sharing strategies:
 
 ```scala
 import zio.blocks.scope._
@@ -330,6 +348,14 @@ Calling `shared` on an already-shared wire returns `this` (identity); likewise `
 Converts the wire to a lazy `Resource` by providing the dependency context:
 
 ```scala
+trait Wire[-In, +Out] {
+  def toResource(deps: Context[In]): Resource[Out]
+}
+```
+
+Here's how to use this method:
+
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -350,6 +376,14 @@ Scope.global.scoped { scope =>
 ### `Wire#make` — construct directly from a wire
 
 Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety.
+
+```scala
+trait Wire.Shared[-In, +Out] {
+  def make(scope: Scope, context: Context[In]): Out
+}
+```
+
+Here's how to use this method:
 
 ```scala
 import zio.blocks.scope._
