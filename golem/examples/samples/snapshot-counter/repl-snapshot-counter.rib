@@ -1,0 +1,5 @@
+let c = snapshot-counter("demo");
+let a = c.increment();
+let b = c.increment();
+{ a: a, b: b }
+

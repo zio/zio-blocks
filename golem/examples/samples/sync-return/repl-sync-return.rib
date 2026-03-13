@@ -1,0 +1,6 @@
+let agent = sync-return();
+let greeting = agent.greet("world");
+let sum = agent.add(3, 4);
+agent.touch("test-tag");
+let tag = agent.last-tag();
+"greeting=${greeting} sum=${sum} tag=${tag}"

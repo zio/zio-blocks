@@ -1,0 +1,3 @@
+let demo = agent-registry-demo("registry-test");
+let result = demo.explore-registry();
+result

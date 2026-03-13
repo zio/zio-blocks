@@ -1,0 +1,4 @@
+let c = counter-agent("demo");
+let a = c.increment();
+let b = c.increment();
+{ a: a, b: b }
