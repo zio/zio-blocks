@@ -238,7 +238,7 @@ val result = Scope.global.scoped { scope =>
 
 - **[`Scope`](./scope.md)** — The primary way to create a `DeferHandle` is via `Scope#defer`. A scope manages multiple finalizers and runs them all when the scope closes. `DeferHandle` allows selective cancellation of individual finalizers before that happens.
 
-- **[`Finalizer`](./finalizer.md)** — `Finalizer` defines the `defer` operation that returns a `DeferHandle`. It abstracts the concept of registering cleanup actions.
+- **[`Finalizer`](./finalizer.md)** — `Finalizer` defines the `Finalizer#defer` operation that returns a `DeferHandle`. It abstracts the concept of registering cleanup actions.
 
 - **[`Finalization`](./finalization.md)** — When a scope closes, it runs all registered finalizers. A cancelled `DeferHandle` removes its associated finalizer from this process.
 
