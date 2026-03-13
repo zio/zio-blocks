@@ -7,68 +7,6 @@ title: "Scope — API Reference"
 
 Examples below use Scala 3 syntax. Scala 2.13 has equivalent APIs, but macro signatures differ slightly (notably `$`'s return type encoding).
 
-### `Scope`
-
-The main trait for resource lifecycle management:
-
-```scala
-sealed abstract class Scope extends Finalizer with ScopeVersionSpecific
-```
-
-Associated types and hierarchy:
-
-- `type $[+A]`
-- `type Parent <: Scope`
-- `val parent: Parent`
-- `def isClosed: Boolean`
-- `def isOwner: Boolean`
-
-Core operations:
-
-```scala
-def scoped[A](f: (child: Scope.Child[this.type]) => A)(using Unscoped[A]): A
-
-def allocate[A](resource: Resource[A]): $[A]
-def allocate[A <: AutoCloseable](value: => A): $[A]
-
-// N=1 (infix available: `scope $ sa`)
-infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
-
-// N=2..5 (unqualified syntax: `$(sa1, sa2)(f)` after `import scope.*`)
-transparent inline def $[A1, A2, B](sa1: $[A1], sa2: $[A2])(inline f: (A1, A2) => B): B | $[B]
-transparent inline def $[A1, A2, A3, B](sa1: $[A1], sa2: $[A2], sa3: $[A3])(inline f: (A1, A2, A3) => B): B | $[B]
-transparent inline def $[A1, A2, A3, A4, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4])(inline f: (A1, A2, A3, A4) => B): B | $[B]
-transparent inline def $[A1, A2, A3, A4, A5, B](sa1: $[A1], sa2: $[A2], sa3: $[A3], sa4: $[A4], sa5: $[A5])(inline f: (A1, A2, A3, A4, A5) => B): B | $[B]
-
-def lower[A](value: parent.$[A]): $[A]
-
-override def defer(f: => Unit): DeferHandle
-
-def open(): $[Scope.OpenScope]
-
-inline def leak[A](inline sa: $[A]): A
-```
-
-Notes:
-
-- `$` (all arities) requires a **lambda literal** and enforces safe receiver-only usage at compile time.
-- `$` returns `B` if `Unscoped[B]` exists; otherwise returns `$[B]`.
-- N=1 is `infix`; N≥2 are not — use unqualified syntax after `import scope.*`.
-- For N>5, call `$` once per resource and combine the resulting plain (Unscoped) values.
-- If the scope is closed, `$`, `allocate`, and `open` throw `IllegalStateException` with a detailed error message. `defer` and `lower` are unaffected.
-
-Syntax enrichments available after `import scope.*` inside a scope:
-
-```scala
-implicit class ScopedResourceOps[A](sr: $[Resource[A]]):
-  def allocate: $[A]
-
-implicit class ResourceOps[A](r: Resource[A]):
-  def allocate: $[A]
-```
-
----
-
 ### `Scope.global`
 
 The root scope instance with identity type semantics:
