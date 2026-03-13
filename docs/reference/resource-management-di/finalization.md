@@ -34,6 +34,8 @@ The type is immutable and provides four main operations:
 Returns `true` if no finalizer errors were collected:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final class Finalization(val errors: Chunk[Throwable]) {
   def isEmpty: Boolean
 }
