@@ -10,14 +10,10 @@ allowed-tools: Bash
 
 ## Workflow
 
-Run these commands in order (twice to catch cascading violations):
+1. Run `/docs-check-compliance` on the document against `docs-writing-style` rules
+2. Run `/docs-check-compliance` on the document against `docs-mdoc-conventions` rules
+3. Run `/docs-check-compliance` on the document against `docs-writing-style` rules again
+4. Run `/docs-check-compliance` on the document against `docs-mdoc-conventions` rules again
+5. Run mdoc compilation to verify zero errors
 
-```bash
-/docs-check-compliance $ARGUMENTS[docs-file] docs-writing-style
-/docs-check-compliance $ARGUMENTS[docs-file] docs-mdoc-conventions
-/docs-check-compliance $ARGUMENTS[docs-file] docs-writing-style
-/docs-check-compliance $ARGUMENTS[docs-file] docs-mdoc-conventions
-sbt "docs/mdoc --in $ARGUMENTS[docs-file]"
-```
-
-Fix all violations identified by `/docs-check-compliance`, committing each separately. Ensure the final mdoc compilation succeeds with zero errors.
+Fix all violations identified, committing each separately. The second round catches cascading violations.
