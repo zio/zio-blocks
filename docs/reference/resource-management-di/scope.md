@@ -511,29 +511,34 @@ The following example shows correct single-thread usage. Scope ownership prevent
 ```scala
 import zio.blocks.scope.*
 
-final class Database extends AutoCloseable:
+final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
+}
 
-// Correct usage: child scopes must be used on the creating thread
-Scope.global.scoped { parentScope =>
-  import parentScope.*
+object ThreadOwnershipExample {
+  // Correct usage: child scopes must be used on the creating thread
+  def example(): Unit = {
+    Scope.global.scoped { parentScope =>
+      import parentScope.*
 
-  val parentDb: $[Database] =
-    Resource.fromAutoCloseable(new Database).allocate
+      val parentDb: $[Database] =
+        Resource.fromAutoCloseable(new Database).allocate
 
-  parentScope.scoped { childScope =>
-    import childScope.*
+      parentScope.scoped { childScope =>
+        import childScope.*
 
-    val childDb: $[Database] =
-      Resource.fromAutoCloseable(new Database).allocate
+        val childDb: $[Database] =
+          Resource.fromAutoCloseable(new Database).allocate
 
-    // This is safe: child is created and used on the same thread
-    $(childDb)(_.query("SELECT 1"))
+        // This is safe: child is created and used on the same thread
+        $(childDb)(_.query("SELECT 1"))
+      }
+
+      // If you passed childScope to another thread and tried to call scoped on it,
+      // you would get IllegalStateException about thread ownership mismatch
+    }
   }
-
-  // If you passed childScope to another thread and tried to call scoped on it,
-  // you would get IllegalStateException about thread ownership mismatch
 }
 ```
 
@@ -625,29 +630,34 @@ If a method returns `Resource[A]`, `$` returns a **scoped** `Resource[A]` (becau
 ```scala
 import zio.blocks.scope.*
 
-final class Pool extends AutoCloseable:
+final class Pool extends AutoCloseable {
   def lease(): Resource[Conn] = Resource.fromAutoCloseable(new Conn)
   def close(): Unit = println("pool closed")
+}
 
-final class Conn extends AutoCloseable:
+final class Conn extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("connection closed")
+}
 
-@main def chaining(): Unit =
-  Scope.global.scoped { scope =>
-    import scope.*
+object ChainingExample {
+  def chaining(): Unit = {
+    Scope.global.scoped { scope =>
+      import scope.*
 
-    val pool: $[Pool] = Resource.fromAutoCloseable(new Pool).allocate
+      val pool: $[Pool] = Resource.fromAutoCloseable(new Pool).allocate
 
-    // $(pool)(_.lease()) : $[Resource[Conn]]
-    val conn: $[Conn] =
-      $(pool)(_.lease()).allocate
+      // $(pool)(_.lease()) : $[Resource[Conn]]
+      val conn: $[Conn] =
+        $(pool)(_.lease()).allocate
 
-    val result: String =
-      $(conn)(_.query("SELECT 1"))
+      val result: String =
+        $(conn)(_.query("SELECT 1"))
 
-    println(result)
+      println(result)
+    }
   }
+}
 ```
 
 This `.allocate` comes from `Scope.ScopedResourceOps` (an extension on `$[Resource[A]]`).
