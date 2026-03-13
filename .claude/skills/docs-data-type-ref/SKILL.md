@@ -9,12 +9,6 @@ allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 
 **REQUIRED BACKGROUND:** Use `docs-writing-style` for prose conventions and `docs-mdoc-conventions` for code block syntax throughout.
 
-**MUST DO:** After completing all documentation, you MUST run the `/docs-check-compliance` skill twice:
-1. First run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-writing-style`
-2. Second run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-mdoc-conventions`
-
-Do not skip this verification step. Both compliance checks must pass with zero violations before the documentation is considered complete.
-
 ## Target Type
 
 $ARGUMENTS
@@ -294,6 +288,14 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 - Document every public method on the type and its companion object.
 - Use ASCII art for type hierarchies and data structures.
 - Link to related docs using relative paths: `[TypeName](./type-name.md)`.
+
+## Step 2.5: Verify Documentation Compliance
+
+**MUST DO:** After completing all documentation in Step 2, you MUST run the `/docs-check-compliance` skill twice:
+1. First run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-writing-style`
+2. Second run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-mdoc-conventions`
+
+Do not skip this verification step. Both compliance checks must pass with zero violations before proceeding to Step 3. Fix any violations found and re-run the compliance checks until both pass.
 
 ## Step 3: Write Examples
 
