@@ -96,7 +96,7 @@ addCommandAlias(
   "testJS",
   "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; " +
     "zioGolemModelJS/test; zioGolemCoreJS/test; " +
-  "testJS1; testJS2"
+    "testJS1; testJS2"
 )
 addCommandAlias(
   "docJVM",
