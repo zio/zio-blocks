@@ -198,6 +198,68 @@ The fundamental difference is **reuse semantics**:
 
 In a diamond dependency pattern (where `AppService` depends on both `UserService` and `OrderService`, both depending on `Database`), using `Resource.shared[Database]` ensures both services receive the same instance.
 
+## Advanced Usage
+
+Deriving Resources with `Resource.from` macros eliminates boilerplate by automatically constructing resources from type signatures at compile time.
+
+### `Resource.from[T]` — automatic derivation with no dependencies
+
+This macro inspects your type's constructor and automatically synthesizes a `Resource[T]`. It works best for types with no external dependencies — types whose constructor has no parameters, or only parameters of type `Scope` or `Finalizer` (which the macro provides automatically).
+
+The macro's internal process:
+1. Analyzes the target type's primary constructor at compile time
+2. Verifies that all constructor parameters either are satisfied by Scope/Finalizer injection or are absent
+3. Creates a `Resource.shared` that instantiates your type using the constructor
+4. If your type extends `AutoCloseable`, automatically registers its `close()` method as a finalizer
+
+When you need a Resource for a simple type without external dependencies:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class SimpleService {
+  def run(): String = "service initialized"
+}
+
+// The macro derives Resource[SimpleService] automatically
+val serviceResource = Resource.from[SimpleService]
+```
+
+### `Resource.from[T](wires: Wire[?, ?]*)` — derivation with dependency wires
+
+This macro accepts explicit `Wire` overrides that provide constructor dependencies for your type. It builds a complete dependency graph by analyzing both the wires you provide and the type's constructor, auto-deriving any missing dependencies it can satisfy.
+
+The macro's internal process:
+1. Parses each provided wire to extract its input and output types
+2. Inspects T's constructor and identifies all required dependencies
+3. For each dependency: uses the provided wire if available, or auto-derives a new wire if possible
+4. Topologically sorts all wires (provided and auto-derived) to determine correct acquisition order
+5. Composes all wires into a single Resource using `flatMap` chains for unique resources or nested acquisitions for shared resources
+6. Ensures finalizers run in LIFO order (inner dependencies close before outer ones)
+
+When you need a Resource for a complex type with multiple dependencies that you want to configure:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+case class Config(host: String, port: Int)
+
+class Logger(config: Config) extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[$msg] from ${config.host}:${config.port}")
+  def close(): Unit = log("Logger shutting down")
+}
+
+class Service(logger: Logger) extends AutoCloseable {
+  def run(): Unit = logger.log("Service running")
+  def close(): Unit = logger.log("Service shutting down")
+}
+
+// Provide wires for Config; the macro derives Logger and Service automatically
+val serviceResource = Resource.from[Service](
+  Wire(Config("localhost", 8080))
+)
+```
+
 ## Integration with Wire and Scope
 
 `Resource` is the foundation of ZIO Blocks' dependency injection. `Wire` describes how to build a service; `Resource` describes how to manage its lifecycle. When used together with the `Resource.from[T]` macro, they enable compile-safe automatic dependency injection:
