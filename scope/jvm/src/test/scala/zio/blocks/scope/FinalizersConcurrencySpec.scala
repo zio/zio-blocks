@@ -4,15 +4,15 @@ import zio.ZIO
 import zio.test._
 import zio.blocks.scope.internal.Finalizers
 
-import java.util.concurrent.{CountDownLatch, CyclicBarrier}
+import java.util.concurrent.{CountDownLatch, CyclicBarrier, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
 
 object FinalizersConcurrencySpec extends ZIOSpecDefault {
 
   def spec = suite("Finalizers Concurrency")(
     test("concurrent cancel of non-head nodes does not corrupt list") {
-      // Targets: remove() non-head path does prev.next = nextRef without CAS.
-      // Two threads cancelling adjacent non-head nodes can lose a write.
+      // Validates that the Treiber stack with volatile cancelled flags handles
+      // concurrent cancellation correctly: cancelled nodes are skipped by runAll.
       ZIO.succeed {
         val iterations = 5000
         val failures   = new AtomicInteger(0)
@@ -21,34 +21,34 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
           val finalizers = new Finalizers
           val ran        = new AtomicInteger(0)
 
-          // Build list with 20 nodes. Cancel all but first and last concurrently.
           val handles = (0 until 20).map { _ =>
             finalizers.add(ran.incrementAndGet())
           }
           ran.set(0)
 
-          // Cancel handles(1)..handles(18) from 18 threads simultaneously
           val cancelCount = 18
           val barrier     = new CyclicBarrier(cancelCount)
           val latch       = new CountDownLatch(cancelCount)
           (1 to cancelCount).foreach { i =>
-            new Thread(() => {
-              barrier.await()
-              handles(i).cancel()
-              latch.countDown()
+            new Thread(new Runnable {
+              def run(): Unit =
+                try {
+                  barrier.await()
+                  handles(i).cancel()
+                } finally latch.countDown()
             }).start()
           }
-          latch.await()
+          latch.await(30, TimeUnit.SECONDS)
 
           finalizers.runAll()
-          // Only handles(0) (tail) and handles(19) (head) should have run
           if (ran.get() != 2) failures.incrementAndGet()
         }
         assertTrue(failures.get() == 0)
       }
     },
     test("concurrent cancel + add does not lose new nodes") {
-      // Targets: non-volatile Node.next written by remove, read by concurrent add/size.
+      // Validates that concurrent cancellation (setting volatile flag + head CAS)
+      // does not interfere with concurrent Treiber stack pushes.
       ZIO.succeed {
         val iterations = 5000
         val failures   = new AtomicInteger(0)
@@ -57,29 +57,31 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
           val finalizers = new Finalizers
           val ran        = new AtomicInteger(0)
 
-          // Add 10 nodes, grab all handles
           val handles = (0 until 10).map { _ =>
             finalizers.add(ran.incrementAndGet())
           }
 
-          // Concurrently: cancel the middle 8 while adding 10 more
           val barrier = new CyclicBarrier(9)
           val latch   = new CountDownLatch(9)
 
           (1 until 9).foreach { i =>
-            new Thread(() => {
-              barrier.await()
-              handles(i).cancel()
-              latch.countDown()
+            new Thread(new Runnable {
+              def run(): Unit =
+                try {
+                  barrier.await()
+                  handles(i).cancel()
+                } finally latch.countDown()
             }).start()
           }
-          new Thread(() => {
-            barrier.await()
-            (0 until 10).foreach(_ => finalizers.add(ran.incrementAndGet()))
-            latch.countDown()
+          new Thread(new Runnable {
+            def run(): Unit =
+              try {
+                barrier.await()
+                (0 until 10).foreach(_ => finalizers.add(ran.incrementAndGet()))
+              } finally latch.countDown()
           }).start()
 
-          latch.await()
+          latch.await(30, TimeUnit.SECONDS)
 
           ran.set(0)
           finalizers.runAll()
@@ -89,47 +91,56 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
         assertTrue(failures.get() == 0)
       }
     },
-    test("concurrent open/close on a scope does not leak child finalizers") {
-      // Targets P1: open() ignores addNode return value. If the parent closes
-      // between isClosed check and addNode, the child's CloseHandle is never
-      // registered, so the child's finalizers won't run via the parent.
-      // In practice this is a TOCTOU window. We stress it by racing open/close.
+    test("concurrent open/close on a scope races parent closure with child open") {
+      // Validates that open() either succeeds or throws IllegalStateException
+      // if the parent closed first (TOCTOU check). When open() succeeds, the
+      // child's finalizer should run at most once (via parent close or explicit close).
       ZIO.succeed {
-        val iterations = 1000
+        val iterations = 5000
         val failures   = new AtomicInteger(0)
 
         (0 until iterations).foreach { _ =>
-          val childClosed = new AtomicInteger(0)
-          Scope.global.scoped { parentScope =>
-            val barrier = new CyclicBarrier(2)
-            val latch   = new CountDownLatch(2)
+          val childRan    = new AtomicInteger(0)
+          val parentFins  = new Finalizers
+          val parentScope =
+            new Scope.Child[Scope](Scope.global, parentFins, owner = null, unowned = true)
 
-            // Thread 1: open a child scope, register a finalizer on it
-            @volatile var openResult: Option[Scope.OpenScope] = None
-            new Thread(() => {
-              barrier.await()
+          val barrier = new CyclicBarrier(2)
+          val latch   = new CountDownLatch(2)
+
+          @volatile var opened = false
+          @volatile var threw  = false
+
+          new Thread(new Runnable {
+            def run(): Unit =
               try {
-                val os = parentScope.open().asInstanceOf[Scope.OpenScope]
-                os.scope.defer(childClosed.incrementAndGet())
-                openResult = Some(os)
-              } catch { case _: IllegalStateException => () }
-              latch.countDown()
-            }).start()
+                barrier.await()
+                try {
+                  val os = parentScope.open().asInstanceOf[Scope.OpenScope]
+                  os.scope.defer(childRan.incrementAndGet())
+                  opened = true
+                  os.close()
+                  ()
+                } catch { case _: IllegalStateException => threw = true }
+              } finally latch.countDown()
+          }).start()
 
-            // Thread 2: we'll just let the scoped block end, which closes parent
-            new Thread(() => {
-              barrier.await()
-              latch.countDown()
-            }).start()
+          new Thread(new Runnable {
+            def run(): Unit =
+              try {
+                barrier.await()
+                parentFins.runAll()
+                ()
+              } finally latch.countDown()
+          }).start()
 
-            latch.await()
+          latch.await(30, TimeUnit.SECONDS)
 
-            // If open succeeded, close the child explicitly
-            openResult.foreach(_.close())
-          }
-          // The child finalizer should have run (either via parent close or explicit close)
-          // If addNode silently failed and we didn't close explicitly, it might be 0
-          // But we DO close explicitly above, so this mostly tests that open() doesn't crash
+          // Either open() threw (parent closed first) or it succeeded.
+          // If opened, childRan is 0 (parent closed child before defer) or
+          // 1 (defer registered before close ran it). Never > 1 (double-run).
+          if (opened && childRan.get() > 1) failures.incrementAndGet()
+          if (!opened && !threw) failures.incrementAndGet()
         }
         assertTrue(failures.get() == 0)
       }
@@ -144,17 +155,19 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
         val latch         = new CountDownLatch(threads)
 
         val workers = (0 until threads).map { _ =>
-          new Thread(() => {
-            barrier.await()
-            (0 until addsPerThread).foreach { _ =>
-              finalizers.add(counter.incrementAndGet())
-            }
-            latch.countDown()
+          new Thread(new Runnable {
+            def run(): Unit =
+              try {
+                barrier.await()
+                (0 until addsPerThread).foreach { _ =>
+                  finalizers.add(counter.incrementAndGet())
+                }
+              } finally latch.countDown()
           })
         }
 
         workers.foreach(_.start())
-        latch.await()
+        latch.await(30, TimeUnit.SECONDS)
 
         assertTrue(finalizers.size == threads * addsPerThread)
       }
@@ -173,15 +186,18 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
         val latch   = new CountDownLatch(threads)
 
         val workers = (0 until threads).map { _ =>
-          new Thread(() => {
-            barrier.await()
-            finalizers.runAll()
-            latch.countDown()
+          new Thread(new Runnable {
+            def run(): Unit =
+              try {
+                barrier.await()
+                finalizers.runAll()
+                ()
+              } finally latch.countDown()
           })
         }
 
         workers.foreach(_.start())
-        latch.await()
+        latch.await(30, TimeUnit.SECONDS)
 
         assertTrue(counter.get() == 10)
       }
@@ -211,25 +227,30 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
           val latch      = new CountDownLatch(threads + 1)
 
           val adders = (0 until threads).map { _ =>
-            new Thread(() => {
-              barrier.await()
-              (0 until 10).foreach { _ =>
-                finalizers.add(counter.incrementAndGet())
-              }
-              latch.countDown()
+            new Thread(new Runnable {
+              def run(): Unit =
+                try {
+                  barrier.await()
+                  (0 until 10).foreach { _ =>
+                    finalizers.add(counter.incrementAndGet())
+                  }
+                } finally latch.countDown()
             })
           }
 
-          val closer = new Thread(() => {
-            barrier.await()
-            Thread.sleep(1)
-            finalizers.runAll()
-            latch.countDown()
+          val closer = new Thread(new Runnable {
+            def run(): Unit =
+              try {
+                barrier.await()
+                Thread.sleep(1)
+                finalizers.runAll()
+                ()
+              } finally latch.countDown()
           })
 
           adders.foreach(_.start())
           closer.start()
-          latch.await()
+          latch.await(30, TimeUnit.SECONDS)
 
           finalizers.isClosed
         }
@@ -249,15 +270,18 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
           val barrier = new CyclicBarrier(threads)
           val latch   = new CountDownLatch(threads)
           val workers = (0 until threads).map { _ =>
-            new Thread(() => {
-              barrier.await()
-              val result = resource.make(scope)
-              results.add(result)
-              latch.countDown()
+            new Thread(new Runnable {
+              def run(): Unit =
+                try {
+                  barrier.await()
+                  val result = resource.make(scope)
+                  results.add(result)
+                  ()
+                } finally latch.countDown()
             })
           }
           workers.foreach(_.start())
-          latch.await()
+          latch.await(30, TimeUnit.SECONDS)
         }
         import scala.jdk.CollectionConverters._
         val allResults = results.asScala.toList
@@ -265,6 +289,22 @@ object FinalizersConcurrencySpec extends ZIOSpecDefault {
           allResults.forall(_ == 1),
           counter.get() == 1
         )
+      }
+    },
+    test("defer on closed scope returns Noop without running finalizer") {
+      ZIO.succeed {
+        val finalizers = Finalizers.closed
+        val ran        = new AtomicInteger(0)
+        val handle     = finalizers.addFn(() => ran.incrementAndGet())
+        assertTrue(handle eq DeferHandle.Noop, ran.get() == 0)
+      }
+    },
+    test("add on closed scope returns Noop without running finalizer") {
+      ZIO.succeed {
+        val finalizers = Finalizers.closed
+        val ran        = new AtomicInteger(0)
+        val handle     = finalizers.add(ran.incrementAndGet())
+        assertTrue(handle eq DeferHandle.Noop, ran.get() == 0)
       }
     }
   )

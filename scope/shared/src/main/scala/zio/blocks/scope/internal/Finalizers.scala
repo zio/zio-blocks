@@ -43,6 +43,7 @@ private[scope] final class Finalizers extends AtomicReference[AnyRef](Finalizers
   def add(finalizer: => Unit): DeferHandle = addFn(() => finalizer)
 
   private[scope] def addFn(thunk: () => Unit): DeferHandle = {
+    if (get() eq Closed) return DeferHandle.Noop
     val node = new Node(thunk)
     if (addNode(node)) new DeferHandle.NodeHandle(node, this)
     else DeferHandle.Noop
