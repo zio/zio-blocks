@@ -97,13 +97,13 @@ import zio.blocks.scope.Unscoped
 case class UserId(value: Long)
 
 object UserId {
-  given Unscoped[UserId] = new Unscoped[UserId] {}
+  implicit val unscoped: Unscoped[UserId] = new Unscoped[UserId] {}
 }
 
 case class User(id: UserId, name: String)
 
 object User {
-  given Unscoped[User] = new Unscoped[User] {}
+  implicit val unscoped: Unscoped[User] = new Unscoped[User] {}
 }
 ```
 
@@ -119,7 +119,7 @@ import java.io.InputStream
 
 // ✓ DO this instead
 case class StreamMetadata(name: String, size: Long)
-given Unscoped[StreamMetadata] = new Unscoped[StreamMetadata] {}
+implicit val unscoped: Unscoped[StreamMetadata] = new Unscoped[StreamMetadata] {}
 ```
 
 ## How `Unscoped` Works with `$`
@@ -150,6 +150,8 @@ Scope.global.scoped { scope =>
 ```
 
 ## Use Cases
+
+`Unscoped` is especially useful when extracting computed results from scopes:
 
 ### Returning Aggregated Data from Scopes
 
@@ -209,7 +211,7 @@ Scope.global.scoped { scope =>
 The `Nothing` type always has an `Unscoped` instance (at low priority) since it's the bottom type:
 
 ```scala
-given given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
+implicit val given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 ```
 
 This is rarely used in practice but ensures there are no type errors for impossible cases.
