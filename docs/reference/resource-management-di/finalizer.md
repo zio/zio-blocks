@@ -3,7 +3,7 @@ id: finalizer
 title: "Finalizer"
 ---
 
-`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing.
+`Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `Finalizer#defer` method, preventing code from accessing scope internals like resource allocation or closing.
 
 The structural definition:
 
@@ -22,7 +22,7 @@ This trait serves as a boundary between scope management internals and user code
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Finalizer}
 
-def openConnection(url: String)(using fin: Finalizer): String = {
+def openConnection(url: String)(implicit fin: Finalizer): String = {
   fin.defer {
     println(s"Closing connection to $url")
   }
@@ -62,12 +62,12 @@ Scope.global.scoped { scope =>
 
 ### As a Context Bound
 
-Functions can request a `Finalizer` via `using` parameter, enabling decoupled cleanup registration:
+Functions can request a `Finalizer` via `implicit` parameter, enabling decoupled cleanup registration:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Finalizer
 
-def setupResource(name: String)(using fin: Finalizer): String = {
+def setupResource(name: String)(implicit fin: Finalizer): String = {
   fin.defer {
     println(s"Closing $name")
   }
@@ -76,6 +76,8 @@ def setupResource(name: String)(using fin: Finalizer): String = {
 ```
 
 ## Core Operations
+
+The `Finalizer` interface provides a single core operation for registering cleanup handlers:
 
 ### `Finalizer#defer`
 
@@ -115,7 +117,7 @@ This removes the need to write `fin.defer { cleanup }`. Here's the convenience f
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, defer, Finalizer}
 
-def setupWithCleanup()(using fin: Finalizer) = {
+def setupWithCleanup()(implicit fin: Finalizer) = {
   defer {
     println("Cleanup")
   }
@@ -131,8 +133,6 @@ Scope.global.scoped { scope =>
 
 ## Integration
 
-### Relationship to Scope
-
 `Finalizer` is a supertrait of `Scope`. The structural definition shows this relationship:
 
 ```scala
@@ -143,7 +143,7 @@ This means any `Scope` instance can be used where a `Finalizer` is expected. How
 
 ## Finalization Order
 
-Finalizers registered with `defer` run in **LIFO order** (last registered runs first) when the scope closes. This ensures that resources acquired in order can be cleaned up in reverse order:
+Finalizers registered with `Finalizer#defer` run in **LIFO order** (last registered runs first) when the scope closes. This ensures that resources acquired in order can be cleaned up in reverse order:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
