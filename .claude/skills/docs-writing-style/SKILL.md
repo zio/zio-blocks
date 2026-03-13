@@ -65,15 +65,3 @@ Apply these conventions consistently in all prose, section headings, and inline 
 26. **Use tabs for version-specific syntax**: When a section shows syntax that genuinely differs between Scala 2 and Scala 3 (e.g., `using` vs `implicit`, native union types vs backtick infix), use tabbed code blocks instead of sequential prose. See `docs-mdoc-conventions` for the exact tab structure. Scala 2 is always the default tab (`defaultValue="scala2"`).
 
 ---
-
-## Rule Summary
-
-This skill defines **26 enumerated writing-style rules** organized into 7 sections:
-
-1. **Prose Style Rules** (Rules 1-7): Person pronouns, tense, padding, capitalization, line breaks, ASCII art, links
-2. **Referencing Types** (Rules 8-12): Type qualification, method notation, heading conventions
-3. **Frontmatter Titles** (Rule 13): No duplicate headings
-4. **Heading and Code Block Layout** (Rules 14-18): Heading hierarchy, bare subheaders, lone subheaders, when to use `####`, code block intro sentences
-5. **Code Block Rules** (Rules 19-23): Imports, one concept, `val` preference, no hardcoded output, snippet descriptions
-6. **Table Formatting** (Rule 24): Column alignment
-7. **Scala Version** (Rules 25-26): Default syntax, version-specific tabs
