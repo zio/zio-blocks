@@ -64,37 +64,19 @@ private[scope] final class Finalizers extends AtomicReference[AnyRef](Finalizers
   }
 
   /**
-   * Attempts to CAS-remove a node from the list. Best-effort: if the list has
-   * been concurrently modified such that the node is no longer reachable from
-   * head, the node's cancelled flag is set instead (runAll will skip it).
+   * Cancels a node and attempts to physically remove it from the head of the
+   * list via CAS. If the node is not at the head, it remains in the list with
+   * its cancelled flag set — runAll will skip it. This avoids unsafe non-CAS
+   * writes to interior node pointers under concurrent modification.
    */
   private[scope] def remove(target: Node): Unit = {
     target.cancelled = true
-    // Try to physically remove from list to avoid memory leaks on long-lived scopes.
-    // This is a single-pass CAS walk. If it fails, the node remains with cancelled=true.
-    var prev: Node = null
-    var cur        = get()
-    while ((cur ne Empty) && (cur ne Closed)) {
-      val node = cur.asInstanceOf[Node]
-      if (node eq target) {
-        val nextRef = node.next
-        if (prev == null) {
-          // Target is at head
-          if (compareAndSet(cur, nextRef)) return
-          else return // CAS failed, cancelled flag is already set
-        } else {
-          // Target is in the middle/end — just unlink via prev
-          // This is not CAS-protected but is safe: if runAll() is concurrent,
-          // it already holds a snapshot. If add() is concurrent, it only
-          // touches head. Worst case: a concurrent cancel of prev skips us too.
-          prev.next = nextRef
-          return
-        }
-      }
-      prev = node
-      cur = node.next
+    // Only attempt physical removal if the target is at the head.
+    // For non-head nodes, the cancelled flag is sufficient: runAll skips them.
+    val cur = get()
+    if (cur eq target) {
+      compareAndSet(cur, target.next) // best-effort; if CAS fails, cancelled flag suffices
     }
-    // Node not found in walk — already removed or runAll already took it
   }
 
   /**
@@ -155,7 +137,7 @@ private[scope] object Finalizers {
 
   private[scope] class Node(private val thunk: () => Unit) {
     @volatile var cancelled: Boolean = false
-    var next: AnyRef                 = Empty
+    @volatile var next: AnyRef       = Empty
     def run(): Unit                  = thunk()
   }
 

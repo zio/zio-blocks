@@ -232,7 +232,10 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     val fins        = new internal.Finalizers
     val childScope  = new Scope.Child(self, fins, owner = null, unowned = true)
     val closeHandle = new Scope.CloseHandle(fins, self.finalizers)
-    self.finalizers.addNode(closeHandle)
+    if (!self.finalizers.addNode(closeHandle))
+      throw new IllegalStateException(
+        ErrorMessages.renderOpenOnClosedScope(scopeDisplayName, color = false)
+      )
     $wrap(Scope.OpenScope(childScope, closeHandle))
   }
 
@@ -340,7 +343,7 @@ object Scope {
   private[scope] final class CloseHandle(
     childFinalizers: internal.Finalizers,
     parentFinalizers: internal.Finalizers
-  ) extends internal.Finalizers.Node(null)
+  ) extends internal.Finalizers.Node(() => ())
       with (() => Finalization) {
     override def run(): Unit  = childFinalizers.runAll().orThrow()
     def apply(): Finalization = {
