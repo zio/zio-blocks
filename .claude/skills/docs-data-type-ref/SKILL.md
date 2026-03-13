@@ -98,7 +98,7 @@ Document all ways to create values of the type, organized by method:
 - Conversion from other types
 - Predefined instances (if any)
 
-Each method gets its own `###` subsection with a short explanation and a code example.
+Each method gets its own Markdown subsection with a short explanation and a code example.
 
 #### 5. Predefined Instances (if applicable)
 
@@ -106,7 +106,7 @@ List predefined instances (like `TypeId.int`, `TypeId.string`) organized by cate
 
 #### 6. Core Operations (Required)
 
-Document the primary API organized by category. Group related methods under `###` subsections:
+Document the primary API organized by category. Group related methods under markdown subsections:
 
 For example:
 - **Element Access** (get, apply, head, etc.)
@@ -121,7 +121,7 @@ For each group:
 - Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
 
 For each method:
-a. **Use a `####` heading** with the method name
+a. **Use a Markdown subheader** with the method name
 b. **Explain what it does** in plain language
 c. **Show the method signature** in a plain `scala` code block using the simplest trait interface format — just the method name, parameters, and return type, without extra keywords like `override`, `final`, `sealed`. For example:
 
