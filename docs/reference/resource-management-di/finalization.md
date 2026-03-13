@@ -93,7 +93,7 @@ Scope.global.scoped { scope =>
 
 ### `Finalization#orThrow()`
 
-Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors.
+Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors:
 
 ```scala
 import zio.blocks.chunk.Chunk
