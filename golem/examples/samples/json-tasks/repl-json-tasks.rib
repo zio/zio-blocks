@@ -1,0 +1,6 @@
+let t = tasks("demo");
+let created = t.create-task({ title: "t1" });
+let completed = t.complete-task(1);
+let all = t.get-tasks();
+{ created: created, completed: completed, all: all }
+

@@ -1,0 +1,5 @@
+let t = trigger-target("demo1");
+let a = t.process(10, "hello");
+let b = t.process(32, "world");
+let c = t.ping();
+{ first: a, second: b, ping: c }
