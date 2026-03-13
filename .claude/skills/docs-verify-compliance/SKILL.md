@@ -1,7 +1,7 @@
 ---
 name: docs-verify-compliance
 description: >
-  Fix compliance issues in any documentation file against writing style and mdoc conventions.
+  Fix compliance issues in a documentation file against writing style and mdoc conventions. 
 argument-hint: "[docs-file.md]"
 allowed-tools: Bash
 ---
