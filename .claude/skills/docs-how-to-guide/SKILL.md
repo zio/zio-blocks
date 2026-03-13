@@ -260,7 +260,21 @@ Use the **`docs-examples`** skill to create companion examples. It covers all as
 
 ---
 
-## Step 5: Integrate
+## Step 5: Verify Mdoc Compilation
+
+Before integrating, verify that all code examples in the guide compile:
+
+```bash
+sbt "docs/mdoc --in docs/guides/<guide-name>.md"
+```
+
+**Important:** Always use `--in <file.md>` to compile only this file. Never use bare `sbt docs/mdoc` without `--in` — it recompiles all documentation (~90 seconds).
+
+Fix any compilation errors before proceeding to integration.
+
+---
+
+## Step 6: Integrate
 
 See the **`docs-integrate`** skill for the complete integration checklist (sidebars.js, index.md,
 cross-references, link verification).
@@ -273,6 +287,6 @@ Additional notes for how-to guides:
 
 ---
 
-## Step 6: Review Checklist
+## Step 7: Review Checklist
 
 Before submitting, work through the checklist in [CHECKLIST.md](./CHECKLIST.md).
