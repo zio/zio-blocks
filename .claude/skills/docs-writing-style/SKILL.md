@@ -41,7 +41,8 @@ Apply these conventions consistently in all prose, section headings, and inline 
 
 ## Frontmatter Titles
 
-- **No duplicate markdown heading**: Do not create a markdown heading (`#`) that duplicates the frontmatter title. The frontmatter title is sufficient. Start the document content with a `##` section heading.
+- **No duplicate markdown heading**: Do not create a markdown heading (`#`) that duplicates the frontmatter title. The frontmatter title is sufficient.
+- **Starting content**: For most pages, start the document content with a `##` section heading. **Exception:** Data type reference pages (created via `docs-data-type-ref`) start with a concise, technical definition immediately after the frontmatter with no heading. See `docs-data-type-ref` for the specific pattern.
 
 ## Heading and Code Block Layout Rules
 
