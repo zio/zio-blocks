@@ -29,6 +29,8 @@ The type is immutable and provides four main operations:
 
 ## Core Methods
 
+The following four methods allow you to inspect and handle errors from finalization:
+
 ### `Finalization#isEmpty`
 
 Returns `true` if no finalizer errors were collected:
