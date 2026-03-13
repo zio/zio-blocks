@@ -116,8 +116,6 @@ Scope.global.scoped { scope =>
 
 ## Use Cases
 
-#### Composing with Other ZIO Blocks Types
-
 `Finalizer` integrates with `Scope` to enable resource management patterns:
 
 ```scala mdoc:compile-only
