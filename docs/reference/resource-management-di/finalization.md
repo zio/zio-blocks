@@ -192,6 +192,8 @@ Scope.global.scoped { scope =>
 
 ## Use Cases
 
+Here are common scenarios where finalization handling is useful:
+
 ### Conditional Error Handling
 
 Check if errors occurred and handle them appropriately:
