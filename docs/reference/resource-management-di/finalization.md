@@ -96,6 +96,8 @@ Scope.global.scoped { scope =>
 Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors.
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final class Finalization(val errors: Chunk[Throwable]) {
   def orThrow(): Unit
 }
