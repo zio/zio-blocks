@@ -5,7 +5,7 @@ title: "Finalizer"
 
 `Finalizer` is a minimal capability interface for registering cleanup actions. It exposes only the `defer` method, preventing code from accessing scope internals like resource allocation or closing.
 
-The interface is minimal:
+The structural definition:
 
 ```scala
 trait Finalizer {
@@ -24,11 +24,45 @@ You'll typically encounter `Finalizer` in two ways:
 
 The trait is useful for decoupling code that needs cleanup registration from code that manages the complete scope lifecycle.
 
-## Core Method
+## Obtaining a Finalizer
 
-The main method exposed by `Finalizer` is `defer`:
+`Finalizer` is not typically constructed directly. Instead, it is obtained through a scope:
 
-### `defer(f: => Unit): DeferHandle`
+### From a `Scope`
+
+Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer`:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.Scope
+
+Scope.global.scoped { scope =>
+  import scope.*
+  // scope is both a Scope and a Finalizer
+  val handle = scope.defer {
+    println("Cleanup")
+  }
+  ()  // Return unit
+}
+```
+
+### As a Context Bound
+
+Functions can request a `Finalizer` via `using` parameter, enabling decoupled cleanup registration:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.Finalizer
+
+def setupResource(name: String)(using fin: Finalizer): String = {
+  fin.defer {
+    println(s"Closing $name")
+  }
+  name
+}
+```
+
+## Core Operations
+
+### `Finalizer#defer`
 
 Registers a finalizer (cleanup action) to run when the scope closes. The cleanup action runs in LIFO order along with other finalizers registered on the same scope. Returns a `DeferHandle` that can cancel the registration before the scope closes:
 
@@ -53,15 +87,15 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Package-Level Helper
+### Package-Level `defer` Helper
 
-A package-level convenience function is available:
+A package-level convenience function allows writing `defer { cleanup }` when a `Finalizer` is in scope:
 
 ```scala
 def defer(finalizer: => Unit)(using fin: Finalizer): DeferHandle
 ```
 
-This allows writing `defer { cleanup }` when a `Finalizer` is in scope, rather than `fin.defer { cleanup }`:
+This removes the need to write `fin.defer { cleanup }`. Here's the convenience function in use:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, defer, Finalizer}
@@ -82,23 +116,25 @@ Scope.global.scoped { scope =>
 
 ## Use Cases
 
-### Decoupling Cleanup from Scope Internals
+#### Composing with Other ZIO Blocks Types
 
-Functions that only need to register cleanup don't need to see the full `Scope` API. They can accept a `Finalizer` parameter:
+`Finalizer` integrates with `Scope` to enable resource management patterns:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Finalizer}
 
-def setupResource(name: String)(using fin: Finalizer): String = {
+def openConnection(url: String)(using fin: Finalizer): String = {
   fin.defer {
-    println(s"Closing $name")
+    println(s"Closing connection to $url")
   }
-  name
+  s"Connected to $url"
 }
 
 Scope.global.scoped { scope =>
   import scope.*
-  setupResource("MyResource")
+  openConnection("https://example.com")
+  // Connection closes when scope exits
+  ()
 }
 ```
 
