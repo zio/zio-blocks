@@ -9,7 +9,7 @@ Resource management and dependency injection are fundamental to building reliabl
 
 **Related Types:**
 - [`Resource`](./resource.md) — Lazy recipe for managing resource lifecycles with automatic cleanup
-- [`Scope`](./scope.md) — Compile-time safe resource management and scoped value access
+- [`Scope`](./scope/) — Compile-time safe resource management and scoped value access
 - [`Wire`](./wire.md) — Type-safe recipes for constructing services and their dependencies
 
 ## Overview

@@ -286,6 +286,6 @@ Scope.global.scoped { scope =>
 
 ## See Also
 
-- [`Scope#defer`](./scope.md) — registers finalizers that produce errors
+- [`Scope#defer`](./scope/#defer) — registers finalizers that produce errors
 - [`DeferHandle`](./defer-handle.md) — handle for cancelling finalizers
 - [`Finalizer`](./finalizer.md) — the trait for registering cleanup actions

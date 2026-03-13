@@ -45,7 +45,10 @@ const sidebars = {
            link: { type: "doc", id: "reference/resource-management-di/index" },
            items: [
              "reference/resource-management-di/resource",
-             "reference/resource-management-di/scope",
+             "reference/resource-management-di/scope/index",
+             "reference/resource-management-di/scope/patterns",
+             "reference/resource-management-di/scope/errors",
+             "reference/resource-management-di/scope/api",
              "reference/resource-management-di/wire",
            ]
          },

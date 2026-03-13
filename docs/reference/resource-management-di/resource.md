@@ -221,7 +221,7 @@ val serviceResource = Resource.from[Service](
 )
 ```
 
-See [`Wire`](./wire.md) for how to declare dependency recipes and [`Scope`](./scope.md) for scope-based resource management.
+See [`Wire`](./wire.md) for how to declare dependency recipes and [`Scope`](./scope/) for scope-based resource management.
 
 ## Running the Examples
 
