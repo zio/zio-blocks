@@ -89,6 +89,8 @@ Scope.global.scoped { scope =>
 
 ## Installation
 
+Add the following dependency to your `build.sbt`:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "<version>"
 ```
