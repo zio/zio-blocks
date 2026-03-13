@@ -16,22 +16,18 @@
 
 package zio.blocks.scope.internal
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.scope.{DeferHandle, Finalization}
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong}
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * A thread-safe collection of finalizers that run in LIFO order.
  *
- * This implementation uses a ConcurrentHashMap with monotonic IDs for O(1)
- * addition, O(1) cancellation (true removal), and LIFO execution via descending
- * ID sort during runAll.
+ * Uses a lock-free Treiber stack (CAS-based singly-linked list) for O(1)
+ * addition, cancellation via volatile flag, and LIFO execution without sorting.
  */
-private[scope] final class Finalizers {
-  private val counter = new AtomicLong(0L)
-  private val entries = new ConcurrentHashMap[Long, () => Unit]()
-  private val closed  = new AtomicBoolean(false)
+private[scope] final class Finalizers extends AtomicReference[AnyRef](Finalizers.Empty) {
+  import Finalizers._
 
   /**
    * Adds a finalizer to be run when the scope closes.
@@ -45,13 +41,59 @@ private[scope] final class Finalizers {
    *   a DeferHandle that can be used to cancel the finalizer
    */
   def add(finalizer: => Unit): DeferHandle = {
-    if (closed.get()) return DeferHandle.Noop
-    val id    = counter.getAndIncrement()
     val thunk = () => finalizer
-    entries.put(id, thunk)
-    // Double-check: if closed between get() and put(), remove and don't run
-    if (closed.get()) { entries.remove(id); return DeferHandle.Noop }
-    new DeferHandle.Live(id, entries)
+    val node  = new Node(thunk)
+    if (addNode(node)) new DeferHandle.NodeHandle(node, this)
+    else DeferHandle.Noop
+  }
+
+  /**
+   * Adds a pre-built node to the list. Returns true if successful, false if the
+   * scope is already closed. Package-private for use by Scope.open() to avoid
+   * extra lambda and DeferHandle allocations.
+   */
+  private[scope] def addNode(node: Node): Boolean = {
+    while (true) {
+      val cur = get()
+      if (cur eq Closed) return false
+      node.next = cur
+      if (compareAndSet(cur, node)) return true
+    }
+    throw new AssertionError("unreachable")
+  }
+
+  /**
+   * Attempts to CAS-remove a node from the list. Best-effort: if the list has
+   * been concurrently modified such that the node is no longer reachable from
+   * head, the node's cancelled flag is set instead (runAll will skip it).
+   */
+  private[scope] def remove(target: Node): Unit = {
+    target.cancelled = true
+    // Try to physically remove from list to avoid memory leaks on long-lived scopes.
+    // This is a single-pass CAS walk. If it fails, the node remains with cancelled=true.
+    var prev: Node = null
+    var cur        = get()
+    while ((cur ne Empty) && (cur ne Closed)) {
+      val node = cur.asInstanceOf[Node]
+      if (node eq target) {
+        val nextRef = node.next
+        if (prev == null) {
+          // Target is at head
+          if (compareAndSet(cur, nextRef)) return
+          else return // CAS failed, cancelled flag is already set
+        } else {
+          // Target is in the middle/end — just unlink via prev
+          // This is not CAS-protected but is safe: if runAll() is concurrent,
+          // it already holds a snapshot. If add() is concurrent, it only
+          // touches head. Worst case: a concurrent cancel of prev skips us too.
+          prev.next = nextRef
+          return
+        }
+      }
+      prev = node
+      cur = node.next
+    }
+    // Node not found in walk — already removed or runAll already took it
   }
 
   /**
@@ -64,46 +106,57 @@ private[scope] final class Finalizers {
    *   A Finalization containing any exceptions thrown by finalizers
    */
   def runAll(): Finalization = {
-    if (!closed.compareAndSet(false, true)) return Finalization.empty
-    // Snapshot keys into a list — safe even if concurrent adds sneak in
-    // between compareAndSet and iteration (the double-check in add() will
-    // clean those up, but we may still see them in the iterator).
-    val buf  = new java.util.ArrayList[Long]()
-    val iter = entries.keySet().iterator()
-    while (iter.hasNext) buf.add(iter.next())
-    val ids = new Array[Long](buf.size())
-    var k   = 0
-    while (k < ids.length) { ids(k) = buf.get(k); k += 1 }
-    java.util.Arrays.sort(ids)
-    // Reverse for LIFO order (highest ID = most recently added = runs first)
-    val errorsBuilder = Chunk.newBuilder[Throwable]
-    var j             = ids.length - 1
-    while (j >= 0) {
-      val id    = ids(j)
-      val thunk = entries.remove(id)
-      if (thunk != null) {
-        try thunk()
-        catch { case t: Throwable => errorsBuilder += t }
+    val snapshot = getAndSet(Closed)
+    if ((snapshot eq Closed) || (snapshot eq Empty)) return Finalization.empty
+    var cur                             = snapshot.asInstanceOf[Node]
+    var errors: ChunkBuilder[Throwable] = null
+    while (cur != null) {
+      if (!cur.cancelled) {
+        try cur.run()
+        catch {
+          case t: Throwable =>
+            if (errors == null) errors = Chunk.newBuilder[Throwable]
+            errors += t
+        }
       }
-      j -= 1
+      val next = cur.next
+      cur.next = null // help GC
+      cur = if ((next eq Empty) || (next eq Closed)) null else next.asInstanceOf[Node]
     }
-    Finalization(errorsBuilder.result())
+    if (errors == null) Finalization.empty else Finalization(errors.result())
   }
 
   /**
    * Returns true if this finalizer collection has been closed.
    */
-  def isClosed: Boolean = closed.get()
+  def isClosed: Boolean = get() eq Closed
 
   /**
-   * Returns the current number of registered finalizers.
+   * Returns the current number of registered (non-cancelled) finalizers.
    *
    * Note: This is mainly useful for testing. The count may change concurrently.
    */
-  def size: Int = entries.size()
+  def size: Int = {
+    var count = 0
+    var cur   = get()
+    while ((cur ne Empty) && (cur ne Closed)) {
+      val node = cur.asInstanceOf[Node]
+      if (!node.cancelled) count += 1
+      cur = node.next
+    }
+    count
+  }
 }
 
 private[scope] object Finalizers {
+  private val Empty: AnyRef  = new AnyRef
+  private val Closed: AnyRef = new AnyRef
+
+  private[scope] class Node(private val thunk: () => Unit) {
+    @volatile var cancelled: Boolean = false
+    var next: AnyRef                 = Empty
+    def run(): Unit                  = thunk()
+  }
 
   /**
    * Creates a Finalizers instance that starts in the closed state.
@@ -114,7 +167,7 @@ private[scope] object Finalizers {
    */
   def closed: Finalizers = {
     val f = new Finalizers
-    f.runAll() // Transitions to closed
+    f.runAll()
     f
   }
 }

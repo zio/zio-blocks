@@ -101,6 +101,7 @@ lazy val root = project
     scalaNextTests.jvm,
     scalaNextTests.js,
     benchmarks,
+    `scope-benchmarks`,
     docs,
     `schema-examples`,
     ringbuffer.jvm,
@@ -229,6 +230,18 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
 lazy val `scope-examples` = project
   .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
   .dependsOn(scope.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val `scope-benchmarks` = project
+  .in(file("scope-benchmarks"))
+  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.7.4")))
+  .dependsOn(scope.jvm)
+  .enablePlugins(JmhPlugin)
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
