@@ -131,6 +131,8 @@ Scope.global.scoped { scope =>
 Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged.
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final class Finalization(val errors: Chunk[Throwable]) {
   def suppress(initial: Throwable): Throwable
 }
