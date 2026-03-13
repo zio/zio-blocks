@@ -8,14 +8,9 @@ allowed-tools: Read, Glob, Grep
 
 ## Compile-Checked Code Blocks with mdoc
 
-This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check all Scala code blocks in
-documentation. **Executable code blocks** (examples, use cases) must use one of the mdoc modifiers
-below. **Choosing the right modifier is critical** — incorrect usage causes mdoc compilation
-failures or broken rendered output.
-
-**Exception:** Data type definition blocks (showing a class or trait signature) do NOT use mdoc
-modifiers — use plain ` ```scala ` instead. These are structural illustrations, not executable
-examples.
+This project uses [mdoc](https://scalameta.org/mdoc/) to compile-check executable code blocks
+(examples, use cases). **Exception:** Data type definitions use plain ` ```scala ` without mdoc
+modifiers — they are structural illustrations, not executable examples.
 
 ### Modifier Summary
 
