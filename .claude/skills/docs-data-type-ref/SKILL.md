@@ -292,8 +292,8 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 ## Step 3: Verify Documentation Compliance
 
 Run `/docs-check-compliance` twice:
-1. Against `docs-writing-style` rule
-2. Against `docs-mdoc-conventions` rule
+1. `/docs-check-compliance` with `docs-file` = your reference page and `rule-skill` = `docs-writing-style`
+2. `/docs-check-compliance` with `docs-file` = your reference page and `rule-skill` = `docs-mdoc-conventions`
 
 Both must pass with zero violations before proceeding to Step 4. Fix any violations and re-run until both pass.
 
