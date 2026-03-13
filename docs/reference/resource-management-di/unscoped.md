@@ -227,6 +227,6 @@ Scope.global.scoped { scope =>
 
 ## Integration
 
-- [`Scope.$`](./scope.md) — the operator that uses `Unscoped`
+- [`Scope.$`](./scope/) — the operator that uses `Unscoped`
 - [`Resource`](./resource.md) — types that provide `Unscoped` may be wrapped in resources
-- [`Scope`](./scope.md) — manages the lifecycle of resources
+- [`Scope`](./scope/) — manages the lifecycle of resources
