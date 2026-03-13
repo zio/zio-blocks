@@ -9,6 +9,11 @@ allowed-tools: Skill, Read, Grep, Edit, Bash
 
 # Check Documentation Compliance
 
+## Arguments
+
+1. **docs-file** — Path to documentation file (e.g., `docs/reference/xml.md`)
+2. **rule-skill** — Rule skill name (e.g., `docs-writing-style`, `docs-mdoc-conventions`)
+
 ## Workflow
 
 ### Step 1: Load Rule Skill
@@ -36,7 +41,7 @@ Read: $ARGUMENTS[docs-file]
 
 For each rule from the skill:
 
-1. **Identify violations** — Scan the doc file for breaches of this specific rule. Prove the violation by citing the exact line number, quoting the problematic text, and explaining why it violates the rule.
+1. **Identify violations** — Scan the doc file for breaches of this specific rule
 2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
 3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <section> [rule name]`
 
