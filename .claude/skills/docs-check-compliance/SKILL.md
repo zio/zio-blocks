@@ -43,7 +43,7 @@ Read: $ARGUMENTS[docs-file]
 
 For each rule from the skill:
 
-1. **Identify violations for THIS RULE** — Assume the document is fully compliant with THIS SPECIFIC RULE. Prove yourself wrong by finding evidence of violations against ONLY THIS RULE. Cite exact line numbers, quote problematic text, and explain why it violates THIS RULE. If you cannot prove yourself wrong, THIS RULE has zero violations.
+1. **Identify violations for THIS RULE** — Use adversarial verification: Assume the document is fully compliant with THIS SPECIFIC RULE. Prove yourself wrong by finding evidence of violations against ONLY THIS RULE. Cite exact line numbers, quote problematic text, and explain why it violates THIS RULE. If you cannot prove yourself wrong, THIS RULE has zero violations.
 
 2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
 
