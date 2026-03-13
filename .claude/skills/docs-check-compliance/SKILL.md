@@ -27,7 +27,7 @@ Invoke the rule skill now:
 Skill: $ARGUMENTS[rule-skill]
 ```
 
-Read all rules it defines. These are the only rules you will enforce in Step 3.
+Read all rules it defines. For enumerated rule skills (like `docs-writing-style`), note the rule numbers and organize your verification around each specific rule. These are the only rules you will enforce in Step 3.
 
 ### Step 2: Read Doc File
 
