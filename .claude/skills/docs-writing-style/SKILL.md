@@ -8,17 +8,12 @@ allowed-tools: Read, Glob, Grep
 
 ## Prose Style Rules
 
-- **Project name**: "ZIO Blocks" (not "zio-blocks").
-- **Person**: Use "we" when guiding the reader or walking through examples ("we can create...",
-  "we need to..."). Use "you" when addressing the reader's choices ("if you need...", "you might
-  want to...").
+- **Person**: Use "we" when guiding the reader or walking through examples ("we can create...", "we need to..."). Use "you" when addressing the reader's choices ("if you need...", "you might want to...").
 - **Tense**: Present tense ("returns", "creates", "modifies").
-- **Don't pad**: No filler phrases like "as we can see" or "it's worth noting that". Just state
-  the fact.
+- **Don't pad**: No filler phrases like "as we can see" or "it's worth noting that". Just state the fact.
 - **Capitalize bullet sentences**: When a bullet point is a full sentence, start it with a capital letter.
 - **No manual line breaks in prose**: Do not hard-wrap paragraph text at a fixed column. Write each paragraph as one continuous line.
-- **ASCII art**: Use it for diagrams showing data flow, type relationships, or architecture.
-  Readers find these very helpful for understanding how pieces fit together.
+- **ASCII art**: Use it for diagrams showing data flow, type relationships, or architecture. Readers find these very helpful for understanding how pieces fit together.
 - **Link to related docs**: Use relative paths, e.g., `[TypeName](./type-name.md)`.
 
 ## Referencing Types, Operations, and Constructors
