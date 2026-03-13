@@ -133,7 +133,7 @@ Adds all collected finalizer errors as suppressed exceptions to `initial` and re
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 
-final class Finalization(val errors: Chunk[Throwable]) {
+abstract class Finalization(val errors: Chunk[Throwable]) {
   def suppress(initial: Throwable): Throwable
 }
 ```
