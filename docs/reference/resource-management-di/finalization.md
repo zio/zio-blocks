@@ -3,9 +3,9 @@ id: finalization
 title: "Finalization"
 ---
 
-`Finalization` is the result of running all finalizers in a scope. It collects any errors that occurred during cleanup and provides methods for inspecting and re-throwing those errors:
+`Finalization` is the result of running all finalizers in a scope, collecting any errors that occurred during cleanup:
 
-```scala
+```scala mdoc:compile-only
 final class Finalization(val errors: Chunk[Throwable]) {
   def isEmpty: Boolean
   def nonEmpty: Boolean
@@ -21,15 +21,23 @@ When a scope closes, each registered finalizer runs in LIFO order. If any finali
 `Finalization` collects errors from finalizers in a `Chunk[Throwable]`. The first error in the chunk corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order).
 
 The type is immutable and provides four main operations:
-- **Check if empty**: `isEmpty`, `nonEmpty`
-- **Throw errors**: `orThrow()`
-- **Suppress errors**: `suppress(initial)`
+- **Check if empty**: `Finalization#isEmpty`, `Finalization#nonEmpty`
+- **Throw errors**: `Finalization#orThrow()`
+- **Suppress errors**: `Finalization#suppress(initial)`
 
 ## Core Methods
 
-### `isEmpty: Boolean`
+### `Finalization#isEmpty`
 
 Returns `true` if no finalizer errors were collected:
+
+```scala mdoc:compile-only
+final class Finalization(val errors: Chunk[Throwable]) {
+  def isEmpty: Boolean
+}
+```
+
+Here's an example of checking if finalization succeeded:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -47,9 +55,17 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### `nonEmpty: Boolean`
+### `Finalization#nonEmpty`
 
 Returns `true` if at least one finalizer error was collected:
+
+```scala mdoc:compile-only
+final class Finalization(val errors: Chunk[Throwable]) {
+  def nonEmpty: Boolean
+}
+```
+
+Here's an example of checking for errors:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -69,11 +85,17 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### `orThrow(): Unit`
+### `Finalization#orThrow()`
 
 Throws the first collected error with all remaining errors added as suppressed exceptions. Does nothing if there are no errors.
 
-The first error corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order). Remaining errors are attached as suppressed exceptions using `addSuppressed()`:
+```scala mdoc:compile-only
+final class Finalization(val errors: Chunk[Throwable]) {
+  def orThrow(): Unit
+}
+```
+
+The first error corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order). Remaining errors are attached as suppressed exceptions using `addSuppressed()`. Here's an example:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -96,11 +118,17 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### `suppress(initial: Throwable): Throwable`
+### `Finalization#suppress(initial)`
 
 Adds all collected finalizer errors as suppressed exceptions to `initial` and returns it. If there are no errors, `initial` is returned unchanged.
 
-This is useful when you want to preserve the original error context while attaching cleanup errors:
+```scala mdoc:compile-only
+final class Finalization(val errors: Chunk[Throwable]) {
+  def suppress(initial: Throwable): Throwable
+}
+```
+
+This is useful when you want to preserve the original error context while attaching cleanup errors. Here's an example:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
@@ -244,6 +272,6 @@ Scope.global.scoped { scope =>
 
 ## See Also
 
-- [`Scope.defer`](./scope.md) — registers finalizers that produce errors
+- [`Scope#defer`](./scope.md) — registers finalizers that produce errors
 - [`DeferHandle`](./defer-handle.md) — handle for cancelling finalizers
 - [`Finalizer`](./finalizer.md) — the trait for registering cleanup actions
