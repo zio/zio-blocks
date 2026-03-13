@@ -43,7 +43,7 @@ $[T] (scoped value in scope)
 
 Without Wires, building a multi-layer application requires manual dependency passing:
 
-```scala
+```scala mdoc:compile-only
 final case class Config(dbUrl: String)
 
 final class Database(config: Config) extends AutoCloseable {
@@ -71,7 +71,7 @@ Scope.global.scoped { scope =>
 
 With `Wire` + `Resource.from`, the macro handles the dependency graph:
 
-```scala
+```scala mdoc:compile-only
 Scope.global.scoped { scope =>
   import scope.*
   val app = Resource.from[App](
@@ -109,7 +109,7 @@ Supported Scala versions: 2.13.x and 3.x.
 
 The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -135,7 +135,7 @@ Scope.global.scoped { scope =>
 
 Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -165,7 +165,7 @@ Scope.global.scoped { scope =>
 
 Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
@@ -184,7 +184,7 @@ Scope.global.scoped { scope =>
 
 Use this for custom construction logic when macro derivation doesn't fit:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -213,7 +213,7 @@ Scope.global.scoped { scope =>
 
 Like `Wire.Shared.fromFunction`, but for unique wires:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -253,7 +253,7 @@ The fundamental difference is **reuse semantics**:
 
 In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final class Database {
@@ -304,7 +304,7 @@ trait Wire[-In, +Out] {
 
 Here's how to use these methods:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 val sharedWire = Wire.shared[String]
@@ -329,7 +329,7 @@ trait Wire[-In, +Out] {
 
 Here's how to convert between sharing strategies:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 val original = Wire.shared[String]
@@ -357,7 +357,7 @@ trait Wire[-In, +Out] {
 
 Here's how to use this method:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -387,7 +387,7 @@ trait Wire.Shared[-In, +Out] {
 
 Here's how to use this method:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -415,7 +415,7 @@ When you call `Wire.shared[T]` or `Wire.unique[T]`, the macro performs these che
 
 Example with all three features:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
@@ -447,9 +447,9 @@ val wire = Wire.shared[Service]
 
 ### What happens with subtype conflicts
 
-If a constructor has dependencies of related types (e.g., both `FileInputStream` and `InputStream`), the macro rejects the wire because `Context` is type-indexed and cannot reliably disambiguate.
+If a constructor has dependencies of related types (e.g., both `FileInputStream` and `InputStream`), the macro rejects the wire because `Context` is type-indexed and cannot reliably disambiguate:
 
-```scala
+```scala mdoc:compile-only
 // This will NOT compile
 final class App(input: InputStream, fileInput: FileInputStream)
 val wire = Wire.shared[App]  // error: subtype conflict
@@ -464,7 +464,7 @@ val wire = Wire.shared[App]  // ok
 
 `Wire` is designed for use with `Resource.from[T](wires*)`, which performs whole-graph dependency injection:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final case class AppConfig(dbUrl: String)
