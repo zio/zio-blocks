@@ -420,11 +420,11 @@ import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
 
-final class Logger(using Finalizer) {
+final class Logger(implicit finalizer: Finalizer) {
   def log(msg: String): Unit = println(msg)
 }
 
-final class Database(config: Config)(using scope: Scope) extends AutoCloseable {
+final class Database(config: Config)(implicit scope: Scope) extends AutoCloseable {
   def connect(): Unit = {
     scope.defer(println("database connection closed"))
     println(s"connecting to ${config.dbUrl}")
