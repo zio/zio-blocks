@@ -41,11 +41,11 @@ Read: $ARGUMENTS[docs-file]
 
 For each rule from the skill:
 
-1. **Identify violations** — Scan the doc file for breaches of this specific rule
+1. **Identify violations** — Assume the document is fully compliant with this rule. Prove yourself wrong by finding evidence of violations. Cite exact line numbers, quote problematic text, and explain why it violates the rule. If you cannot prove yourself wrong, the rule has no violations.
 2. **Fix violation** — Apply the minimal fix (edit, add, remove, or restructure)
 3. **Commit separately** — `git add` and `git commit` with focused message: `docs(<docs-file-stem>): fix <section> [rule name]`
 
-Repeat until the rule has no violations.
+Repeat until you cannot prove any further violations exist.
 
 ### Step 4: Compile
 
