@@ -85,17 +85,34 @@ addCommandAlias(
 )
 
 addCommandAlias(
+  "testJS1",
+  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+)
+addCommandAlias(
+  "testJS2",
+  "schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
+)
+addCommandAlias(
   "testJS",
   "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; " +
-    "zioGolemModelJS/test; zioGolemCoreJS/test"
+    "zioGolemModelJS/test; zioGolemCoreJS/test; " +
+  "testJS1; testJS2"
 )
 addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc"
 )
 addCommandAlias(
+  "docJS1",
+  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+)
+addCommandAlias(
+  "docJS2",
+  "schema-xmlJS/doc; schema-yamlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc"
+)
+addCommandAlias(
   "docJS",
-  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc"
+  "docJS1; docJS2"
 )
 
 lazy val root = project
@@ -153,6 +170,7 @@ lazy val root = project
     scalaNextTests.jvm,
     scalaNextTests.js,
     benchmarks,
+    `scope-benchmarks`,
     docs,
     `schema-examples`,
     ringbuffer.jvm,
@@ -281,6 +299,18 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
 lazy val `scope-examples` = project
   .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
   .dependsOn(scope.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val `scope-benchmarks` = project
+  .in(file("scope-benchmarks"))
+  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.7.4")))
+  .dependsOn(scope.jvm)
+  .enablePlugins(JmhPlugin)
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),

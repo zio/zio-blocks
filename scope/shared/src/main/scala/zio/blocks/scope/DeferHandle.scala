@@ -48,10 +48,10 @@ object DeferHandle {
     def cancel(): Unit = ()
   }
 
-  private[scope] final class Live(
-    id: Long,
-    entries: java.util.concurrent.ConcurrentHashMap[Long, () => Unit]
+  private[scope] final class NodeHandle(
+    node: internal.Finalizers.Node,
+    owner: internal.Finalizers
   ) extends DeferHandle {
-    def cancel(): Unit = { entries.remove(id); () }
+    def cancel(): Unit = owner.remove(node)
   }
 }
