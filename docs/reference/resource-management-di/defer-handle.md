@@ -3,7 +3,7 @@ id: defer-handle
 title: "DeferHandle"
 ---
 
-`DeferHandle` is a handle returned by `Scope.defer` that allows cancelling a registered finalizer before the scope closes. Here is the class definition:
+`DeferHandle` is a handle returned by `Scope.defer` that allows cancelling a registered finalizer before the scope closes:
 
 ```scala
 abstract class DeferHandle {
