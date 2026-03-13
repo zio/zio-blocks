@@ -5,7 +5,7 @@ title: "DeferHandle"
 
 `DeferHandle` is a handle returned by `Scope.defer` that allows cancelling a registered finalizer before the scope closes:
 
-```scala
+```scala mdoc:compile-only
 abstract class DeferHandle {
   def cancel(): Unit
 }
@@ -17,7 +17,7 @@ When `Scope#defer(cleanup)` is called, the cleanup action is registered and a `D
 
 `DeferHandle` is not instantiated directly. Instead, it is created by calling `Scope#defer` with a cleanup action:
 
-```scala
+```scala mdoc:compile-only
 trait Scope {
   def defer(cleanup: () => Unit): DeferHandle
 }
@@ -44,7 +44,7 @@ Scope.global.scoped { scope =>
 
 The `DeferHandle#cancel` method removes the registered finalizer so it will not run when the scope closes:
 
-```scala
+```scala mdoc:compile-only
 trait DeferHandle {
   def cancel(): Unit
 }
