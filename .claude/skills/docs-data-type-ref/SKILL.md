@@ -255,7 +255,7 @@ sbt "schema-examples/runMain <package>.<ObjectName2>"
 ```
 
 Rules for this section:
-- List **every `App` object** written in Step 3, one entry per object.
+- List **every `App` object** written in Step 4, one entry per object.
 - For each entry: embed the full source with `SourceFile.print`, then show description, source link, and run command.
 - The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
@@ -289,15 +289,15 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 - Use ASCII art for type hierarchies and data structures.
 - Link to related docs using relative paths: `[TypeName](./type-name.md)`.
 
-## Step 2.5: Verify Documentation Compliance
+## Step 3: Verify Documentation Compliance
 
 **MUST DO:** After completing all documentation in Step 2, you MUST run the `/docs-check-compliance` skill twice:
 1. First run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-writing-style`
 2. Second run: `/docs-check-compliance` with `docs-file` = your new reference page and `rule-skill` = `docs-mdoc-conventions`
 
-Do not skip this verification step. Both compliance checks must pass with zero violations before proceeding to Step 3. Fix any violations found and re-run the compliance checks until both pass.
+Do not skip this verification step. Both compliance checks must pass with zero violations before proceeding to Step 4. Fix any violations found and re-run the compliance checks until both pass.
 
-## Step 3: Write Examples
+## Step 4: Write Examples
 
 Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
 
@@ -308,7 +308,7 @@ Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lower
 - **Coverage**: happy path + at least one failure/edge case, realistic domain types (`Person`, `Order`)
 - **Self-contained**: define all types and imports in the file
 
-## Step 4: Format and Verify
+## Step 5: Format and Verify
 
 Format all Scala files:
 
@@ -339,6 +339,6 @@ sbt "docs/mdoc --in docs/reference/<subdirectory>/"
 
 **Success criterion:** zero `[error]` lines in mdoc output.
 
-## Step 5: Integrate
+## Step 6: Integrate
 
 Use the **`docs-integrate`** skill for integration checklist (sidebars.js, index.md, cross-references).
