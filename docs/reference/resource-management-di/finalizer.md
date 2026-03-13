@@ -15,16 +15,37 @@ trait Finalizer {
 
 This trait serves as a boundary between scope management internals and user code that only needs to register cleanup actions. By exposing only `defer`, code can safely request cleanup registration without requiring full scope access.
 
-## Overview
+## Motivation / Use Case
 
-You'll typically encounter `Finalizer` in two ways:
+`Finalizer` integrates with `Scope` to enable resource management patterns:
 
-1. **Implicit dependency**: As a context bound via `using fin: Finalizer` in user functions
-2. **Via `Scope`**: Since `Scope extends Finalizer`, any scope can be used where a `Finalizer` is expected
+```scala mdoc:compile-only
+import zio.blocks.scope.{Scope, Finalizer}
 
-The trait is useful for decoupling code that needs cleanup registration from code that manages the complete scope lifecycle.
+def openConnection(url: String)(using fin: Finalizer): String = {
+  fin.defer {
+    println(s"Closing connection to $url")
+  }
+  s"Connected to $url"
+}
 
-## Obtaining a Finalizer
+Scope.global.scoped { scope =>
+  import scope.*
+  openConnection("https://example.com")
+  // Connection closes when scope exits
+  ()
+}
+```
+
+By decoupling code that needs cleanup registration from code that manages the complete scope lifecycle, `Finalizer` allows functions to safely register finalizers without requiring full scope access.
+
+## Construction / Creating Instances
+
+`Finalizer` is not typically constructed directly. Instead, it is obtained through a scope:
+
+### From a `Scope`
+
+Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer`:
 
 `Finalizer` is not typically constructed directly. Instead, it is obtained through a scope:
 
@@ -114,29 +135,9 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Use Cases
+## Integration
 
-`Finalizer` integrates with `Scope` to enable resource management patterns:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, Finalizer}
-
-def openConnection(url: String)(using fin: Finalizer): String = {
-  fin.defer {
-    println(s"Closing connection to $url")
-  }
-  s"Connected to $url"
-}
-
-Scope.global.scoped { scope =>
-  import scope.*
-  openConnection("https://example.com")
-  // Connection closes when scope exits
-  ()
-}
-```
-
-## Relationship to Scope
+### Relationship to Scope
 
 `Finalizer` is a supertrait of `Scope`. The structural definition shows this relationship:
 
