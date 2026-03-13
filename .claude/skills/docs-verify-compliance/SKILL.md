@@ -10,11 +10,9 @@ allowed-tools: Bash
 
 ## Workflow
 
-Run these commands in order (twice to catch cascading violations):
+Run these commands in order:
 
 ```bash
-/docs-check-compliance $ARGUMENTS[docs-file] docs-writing-style
-/docs-check-compliance $ARGUMENTS[docs-file] docs-mdoc-conventions
 /docs-check-compliance $ARGUMENTS[docs-file] docs-writing-style
 /docs-check-compliance $ARGUMENTS[docs-file] docs-mdoc-conventions
 sbt "docs/mdoc --in $ARGUMENTS[docs-file]"
