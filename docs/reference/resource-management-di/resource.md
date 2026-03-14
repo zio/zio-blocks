@@ -284,7 +284,20 @@ Scope.global.scoped { implicit scope =>
 
 ### `$[Resource[A]]#allocate` — allocate a scoped resource
 
-Allocates a `$[Resource[A]]` — a resource that is itself a scoped value — within the current scope, returning `$[A]`. This handles the common pattern where a method call on a scoped value produces another resource. The `Resource` is never extracted from `$`; only its acquired result becomes a new scoped value:
+**Understanding scoped resources:** A scoped value `$[A]` is an `A` that is only valid while a scope is alive — you cannot return it or store it outside the scope. A **scoped resource** `$[Resource[A]]` is a `Resource[A]` that is itself a scoped value, meaning the Resource object was allocated and is managed by the scope. The `.allocate` method unwraps a scoped resource and acquires it, returning the acquired value as a new scoped value.
+
+Returns `$[A]` by unwrapping and allocating a `$[Resource[A]]`. Use this when a method on a scoped object returns a Resource and you need to immediately allocate it rather than treating the Resource as a standalone object.
+
+**Motivation:** This pattern arises when a scoped dependency has a factory method that returns a Resource. Instead of manually unwrapping the scoped factory, allocating the Resource, and wrapping the result back into a scoped value, `.allocate` does this in one step, keeping your code clean and preventing accidental scope violations.
+
+**When to use:**
+
+| Situation | Use |
+|---|---|
+| Direct `Resource[A]` that you need to allocate | `resource.allocate` (simpler) |
+| A method on a scoped object returns `Resource[A]` | `$(scopedObj)(_.method()).allocate` (chains naturally) |
+
+The implicit class:
 
 ```scala
 implicit class ScopedResourceOps[A](private val sr: $[Resource[A]]) {
@@ -292,7 +305,7 @@ implicit class ScopedResourceOps[A](private val sr: $[Resource[A]]) {
 }
 ```
 
-To acquire a resource produced by a method on a scoped object:
+Here's a realistic example where a database pool (a scoped object) has a method that returns a Resource for individual connections:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
