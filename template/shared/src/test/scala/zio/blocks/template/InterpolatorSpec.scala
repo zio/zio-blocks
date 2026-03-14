@@ -347,6 +347,162 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("bare < treated as text") {
         val result = InterpolatorRuntime.parseHtml("a < b")
         assertTrue(result.nonEmpty, result.head.isInstanceOf[Dom.Text])
+      },
+      test("whitespace-only input") {
+        val result = InterpolatorRuntime.parseHtml("   ")
+        assertTrue(result == Chunk(Dom.Text("   ")))
+      },
+      test("HTML comment at end of input") {
+        val result = InterpolatorRuntime.parseHtml("text<!-- comment -->")
+        assertTrue(result == Chunk(Dom.Text("text")))
+      },
+      test("HTML comment without closing") {
+        val result = InterpolatorRuntime.parseHtml("<!-- unclosed")
+        assertTrue(result == Chunk(Dom.Text("<!-- unclosed")))
+      },
+      test("processing instruction without closing") {
+        val result = InterpolatorRuntime.parseHtml("<?xml version='1.0'")
+        assertTrue(result == Chunk(Dom.Text("<?xml version='1.0'")))
+      },
+      test("nested script element with inner tags") {
+        val result = InterpolatorRuntime.parseHtml("<script>var x = '<b>bold</b>';</script>")
+        assertTrue(result == Chunk(Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("var x = '<b>bold</b>';")))))
+      },
+      test("nested style element with inner selectors") {
+        val result = InterpolatorRuntime.parseHtml("<style>div > p { color: red; }</style>")
+        assertTrue(result == Chunk(Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("div > p { color: red; }")))))
+      },
+      test("multiple attributes on element") {
+        val result = InterpolatorRuntime.parseHtml("""<div id="main" class="container">x</div>""")
+        assertTrue(
+          result.length == 1,
+          result.head.isInstanceOf[Dom.Element],
+          result.head.asInstanceOf[Dom.Element].attributes.length == 2
+        )
+      },
+      test("self-closing tag with attributes") {
+        val result = InterpolatorRuntime.parseHtml("""<img src="a.png" alt="photo"/>""")
+        assertTrue(
+          result.length == 1,
+          result.head.isInstanceOf[Dom.Element],
+          result.head.asInstanceOf[Dom.Element].tag == "img",
+          result.head.asInstanceOf[Dom.Element].attributes.length == 2
+        )
+      },
+      test("tag with tab and newline whitespace in attributes") {
+        val result = InterpolatorRuntime.parseHtml("<div\tid=\"x\"\nclass=\"y\">z</div>")
+        assertTrue(
+          result.head.asInstanceOf[Dom.Element].attributes.length == 2,
+          result.head.asInstanceOf[Dom.Element].children.length == 1
+        )
+      },
+      test("multiple sibling elements at top level") {
+        val result = InterpolatorRuntime.parseHtml("<p>a</p><p>b</p><p>c</p>")
+        assertTrue(result.length == 3)
+      },
+      test("empty element pairs") {
+        val result = InterpolatorRuntime.parseHtml("<div></div>")
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk.empty)))
+      },
+      test("adjacent text and elements") {
+        val result = InterpolatorRuntime.parseHtml("before<span>mid</span>after")
+        assertTrue(result.length == 3)
+      },
+      test("script with attributes and content") {
+        val result = InterpolatorRuntime.parseHtml("""<script type="module">import x;</script>""")
+        val s      = result.head.asInstanceOf[Dom.Element.Script]
+        assertTrue(
+          s.attributes.length == 1,
+          s.children == Chunk(Dom.Text("import x;"))
+        )
+      },
+      test("style with no content has empty children") {
+        val result = InterpolatorRuntime.parseHtml("<style></style>")
+        assertTrue(result == Chunk(Dom.Element.Style(Chunk.empty, Chunk.empty)))
+      },
+      test("closing tag for mismatched element is handled gracefully") {
+        val result = InterpolatorRuntime.parseHtml("<p>text</div>")
+        assertTrue(result.nonEmpty)
+      },
+      test("attribute with empty value") {
+        val result = InterpolatorRuntime.parseHtml("""<div id="">x</div>""")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(
+          el.attributes.length == 1,
+          el.attributes(0) == Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue(""))
+        )
+      },
+      test("slash in attribute area without prior tag close") {
+        val result = InterpolatorRuntime.parseHtml("<br/>")
+        assertTrue(result == Chunk(Dom.Element.Generic("br", Chunk.empty, Chunk.empty)))
+      },
+      test("multiple boolean attributes") {
+        val result = InterpolatorRuntime.parseHtml("<input disabled required/>")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(el.attributes.length == 2)
+      },
+      test("case-insensitive closing tag") {
+        val result = InterpolatorRuntime.parseHtml("<SCRIPT>code</SCRIPT>")
+        assertTrue(
+          result.head.isInstanceOf[Dom.Element.Script],
+          result.head.asInstanceOf[Dom.Element.Script].children == Chunk(Dom.Text("code"))
+        )
+      }
+    ),
+    suite("buildHtml edge cases")(
+      test("buildHtml with Left(attrValue) argument") {
+        val sc     = new StringContext("<div id=\"", "\">text</div>")
+        val args   = Seq(Left("main"): Either[String, Chunk[Dom]])
+        val result = InterpolatorRuntime.buildHtml(sc, args)
+        assertTrue(result.render == "<div id=\"main\">text</div>")
+      },
+      test("buildHtml returning Empty when input is empty") {
+        val sc     = new StringContext("")
+        val result = InterpolatorRuntime.buildHtml(sc, Seq.empty)
+        assertTrue(result == Dom.Empty)
+      },
+      test("buildHtml with multiple top-level elements") {
+        val sc     = new StringContext("<p>a</p><p>b</p>")
+        val result = InterpolatorRuntime.buildHtml(sc, Seq.empty)
+        assertTrue(result.render.contains("<p>a</p>"), result.render.contains("<p>b</p>"))
+      },
+      test("buildHtml with Right(chunk) content substitution") {
+        val sc     = new StringContext("<div>", "</div>")
+        val child  = Chunk[Dom](Dom.Text("injected"))
+        val args   = Seq(Right(child): Either[String, Chunk[Dom]])
+        val result = InterpolatorRuntime.buildHtml(sc, args)
+        assertTrue(result.render == "<div>injected</div>")
+      }
+    ),
+    suite("parseHtml additional edge cases")(
+      test("sentinel without closing sentinel treats rest as text") {
+        val input  = "\u0000\u0001text"
+        val result = InterpolatorRuntime.parseHtml(input)
+        assertTrue(result.nonEmpty)
+      },
+      test("tag name only at end of input") {
+        val result = InterpolatorRuntime.parseHtml("<abc")
+        assertTrue(result == Chunk(Dom.Element.Generic("abc", Chunk.empty, Chunk.empty)))
+      },
+      test("tag starting with < followed by non-alpha") {
+        val result = InterpolatorRuntime.parseHtml("< text>")
+        // Parser treats '<' as text when followed by space
+        assertTrue(result.nonEmpty)
+      },
+      test("multiple attributes including unquoted") {
+        val result = InterpolatorRuntime.parseHtml("<div id=main class=\"box\" hidden>x</div>")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(el.attributes.length == 3)
+      },
+      test("attribute name runs to end of input without = or >") {
+        val result = InterpolatorRuntime.parseHtml("<div data")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(el.attributes.length == 1)
+      },
+      test("second attr name runs to end of input") {
+        val result = InterpolatorRuntime.parseHtml("<div id=\"x\" data")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(el.attributes.length == 2)
       }
     )
   )

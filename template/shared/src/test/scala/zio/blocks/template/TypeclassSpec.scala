@@ -80,6 +80,20 @@ object TypeclassSpec extends ZIOSpecDefault {
       },
       test("Map empty") {
         assertTrue(ToJs[Map[String, Int]].toJs(Map.empty) == "{}")
+      },
+      test("Map[String, Int] with multiple entries uses comma separator") {
+        val result = ToJs[Map[String, Int]].toJs(scala.collection.immutable.ListMap("a" -> 1, "b" -> 2))
+        assertTrue(result == "{\"a\":1,\"b\":2}")
+      },
+      test("ToJs.fromSchema derives from Schema for case class") {
+        import zio.blocks.schema.Schema
+        case class Point(x: Int, y: Int)
+        object Point {
+          implicit val schema: Schema[Point] = Schema.derived
+        }
+        val point  = Point(1, 2)
+        val result = ToJs[Point].toJs(point)
+        assertTrue(result.contains("\"x\""), result.contains("1"), result.contains("\"y\""), result.contains("2"))
       }
     ),
     suite("ToCss")(

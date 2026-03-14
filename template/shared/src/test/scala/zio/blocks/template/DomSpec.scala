@@ -24,6 +24,17 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(Dom.Empty.render == "")
       }
     ),
+    suite("PreRendered")(
+      test("renders raw HTML without escaping") {
+        assertTrue(Dom.PreRendered("<b>bold</b>").render == "<b>bold</b>")
+      },
+      test("renders empty PreRendered") {
+        assertTrue(Dom.PreRendered("").render == "")
+      },
+      test("renderMinified for PreRendered") {
+        assertTrue(Dom.PreRendered("<i>italic</i>").renderMinified == "<i>italic</i>")
+      }
+    ),
     suite("Element")(
       test("renders empty element") {
         assertTrue(Dom.Element.Generic("div", Chunk.empty, Chunk.empty).render == "<div></div>")
@@ -259,6 +270,9 @@ object DomSpec extends ZIOSpecDefault {
         val s      = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("a > b {}"), Dom.Text("c > d {}")))
         val result = s.render(indent = 2)
         assertTrue(result.contains("a > b {}"), result.contains("c > d {}"))
+      },
+      test("indented rendering of PreRendered") {
+        assertTrue(Dom.PreRendered("<b>raw</b>").render(indent = 2) == "<b>raw</b>")
       }
     ),
     suite("boolAttr")(
@@ -350,6 +364,11 @@ object DomSpec extends ZIOSpecDefault {
         }
         assertTrue(!filtered.render.contains("remove"))
       },
+      test("filter returns Empty when root fails predicate") {
+        val tree     = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("hello")))
+        val filtered = tree.filter(_ => false)
+        assertTrue(filtered == Dom.Empty)
+      },
       test("transform modifies nodes") {
         val tree        = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("hello")))
         val transformed = tree.transform {
@@ -387,6 +406,12 @@ object DomSpec extends ZIOSpecDefault {
           Dom.Text("").isEmpty,
           !Dom.Text("hi").isEmpty,
           !Dom.Element.Generic("div", Chunk.empty, Chunk.empty).isEmpty
+        )
+      },
+      test("isEmpty for PreRendered") {
+        assertTrue(
+          Dom.PreRendered("").isEmpty,
+          !Dom.PreRendered("<b>hi</b>").isEmpty
         )
       }
     ),
@@ -511,6 +536,236 @@ object DomSpec extends ZIOSpecDefault {
         val attr = pa.withSeparator(Chunk("a", "b", "c"), Dom.AttributeSeparator.Comma)
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == "<div class=\"a,b,c\"></div>")
+      }
+    ),
+    suite("PreRendered")(
+      test("PreRendered renders raw HTML") {
+        val pr = Dom.preRendered("<b>raw</b>")
+        assertTrue(pr.render == "<b>raw</b>")
+      },
+      test("PreRendered isEmpty when empty string") {
+        assertTrue(Dom.preRendered("").isEmpty)
+      },
+      test("PreRendered is not empty when non-empty") {
+        assertTrue(!Dom.preRendered("x").isEmpty)
+      },
+      test("PreRendered in renderMinified") {
+        assertTrue(Dom.preRendered("<i>italic</i>").renderMinified == "<i>italic</i>")
+      },
+      test("PreRendered in indented render") {
+        assertTrue(Dom.preRendered("<i>x</i>").render(indent = 2) == "<i>x</i>")
+      }
+    ),
+    suite("Element withAttributes and withChildren")(
+      test("Generic withAttributes replaces attributes") {
+        val el      = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val attr    = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
+        val updated = el.withAttributes(Chunk(attr))
+        assertTrue(updated.render == "<div id=\"x\"></div>")
+      },
+      test("Generic withChildren replaces children") {
+        val el      = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val updated = el.withChildren(Chunk(Dom.Text("hello")))
+        assertTrue(updated.render == "<div>hello</div>")
+      },
+      test("Script withAttributes replaces attributes") {
+        val s       = Dom.Element.Script(Chunk.empty, Chunk.empty)
+        val attr    = Dom.Attribute.KeyValue("type", Dom.AttributeValue.StringValue("module"))
+        val updated = s.withAttributes(Chunk(attr))
+        assertTrue(updated.render == """<script type="module"></script>""")
+      },
+      test("Script withChildren replaces children") {
+        val s       = Dom.Element.Script(Chunk.empty, Chunk.empty)
+        val updated = s.withChildren(Chunk(Dom.Text("code")))
+        assertTrue(updated.render == "<script>code</script>")
+      },
+      test("Style withAttributes replaces attributes") {
+        val s       = Dom.Element.Style(Chunk.empty, Chunk.empty)
+        val attr    = Dom.Attribute.KeyValue("media", Dom.AttributeValue.StringValue("print"))
+        val updated = s.withAttributes(Chunk(attr))
+        assertTrue(updated.render == """<style media="print"></style>""")
+      },
+      test("Style withChildren replaces children") {
+        val s       = Dom.Element.Style(Chunk.empty, Chunk.empty)
+        val updated = s.withChildren(Chunk(Dom.Text("body{}")))
+        assertTrue(updated.render == "<style>body{}</style>")
+      }
+    ),
+    suite("Element apply with multiple modifiers")(
+      test("apply with single modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val result = el(Modifier.stringToModifier("text"))
+        assertTrue(result.render == "<div>text</div>")
+      },
+      test("apply with multiple modifiers") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val result = el(
+          Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))),
+          Modifier.stringToModifier("content")
+        )
+        assertTrue(result.render.contains("id=\"x\""), result.render.contains("content"))
+      }
+    ),
+    suite("Attribute rendering additional variants")(
+      test("MultiValue with Comma separator") {
+        val attr = Dom.Attribute.KeyValue(
+          "accept",
+          Dom.AttributeValue.MultiValue(Chunk("text/html", "text/css"), Dom.AttributeSeparator.Comma)
+        )
+        val el = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<input accept=\"text/html,text/css\"/>")
+      },
+      test("MultiValue with Semicolon separator") {
+        val attr = Dom.Attribute.KeyValue(
+          "style",
+          Dom.AttributeValue.MultiValue(Chunk("color: red", "font-size: 12px"), Dom.AttributeSeparator.Semicolon)
+        )
+        val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div style=\"color: red;font-size: 12px\"></div>")
+      },
+      test("MultiValue with Custom separator") {
+        val attr = Dom.Attribute.KeyValue(
+          "data-list",
+          Dom.AttributeValue.MultiValue(Chunk("x", "y", "z"), Dom.AttributeSeparator.Custom(" | "))
+        )
+        val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div data-list=\"x | y | z\"></div>")
+      },
+      test("MultiValue empty omits attribute entirely") {
+        val attr = Dom.Attribute.KeyValue(
+          "class",
+          Dom.AttributeValue.MultiValue(Chunk.empty, Dom.AttributeSeparator.Comma)
+        )
+        val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div></div>")
+      },
+      test("JsValue with HTML special chars is properly escaped") {
+        val attr = Dom.Attribute.KeyValue(
+          "onclick",
+          Dom.AttributeValue.JsValue(Js("if (a < b) alert(\"xss\")"))
+        )
+        val el = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render.contains("&lt;"),
+          el.render.contains("&quot;"),
+          el.render.contains("onclick=")
+        )
+      },
+      test("BooleanValue(true) renders attribute name only") {
+        val attr = Dom.Attribute.KeyValue("checked", Dom.AttributeValue.BooleanValue(true))
+        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<input checked/>")
+      },
+      test("BooleanValue(false) omits attribute") {
+        val attr = Dom.Attribute.KeyValue("checked", Dom.AttributeValue.BooleanValue(false))
+        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<input/>")
+      },
+      test("StringValue with special chars is escaped") {
+        val attr = Dom.Attribute.KeyValue("title", Dom.AttributeValue.StringValue("a<b&c"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render.contains("a&lt;b&amp;c"))
+      },
+      test("Multiple attributes render in order") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
+        val a2 = Dom.Attribute.BooleanAttribute("disabled")
+        val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("y"))
+        val el = Dom.Element.Generic("input", Chunk(a1, a2, a3), Chunk.empty)
+        assertTrue(
+          el.render.contains("id=\"x\""),
+          el.render.contains("disabled"),
+          el.render.contains("class=\"y\"")
+        )
+      }
+    ),
+    suite("PartialAttribute := variants")(
+      test(":= with Int") {
+        val pa   = new PartialAttribute("tabindex")
+        val attr = pa := 5
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div tabindex=\"5\"></div>")
+      },
+      test(":= with Boolean true creates BooleanValue") {
+        val pa   = new PartialAttribute("disabled")
+        val attr = pa := true
+        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<input disabled/>")
+      },
+      test(":= with Boolean false omits") {
+        val pa   = new PartialAttribute("disabled")
+        val attr = pa := false
+        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<input/>")
+      },
+      test(":= with Chunk[String] creates MultiValue") {
+        val pa   = new PartialAttribute("class")
+        val attr = pa := Chunk("x", "y")
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div class=\"x y\"></div>")
+      },
+      test(":= with varargs creates MultiValue") {
+        val pa   = new PartialAttribute("class")
+        val attr = pa.:=("a", "b", "c")
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == "<div class=\"a b c\"></div>")
+      },
+      test("PartialAttribute as boolean modifier (applyTo)") {
+        val pa      = new PartialAttribute("required")
+        val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
+        val updated = pa.applyTo(el)
+        assertTrue(updated.render == "<input required/>")
+      }
+    ),
+    suite("indented rendering with PreRendered")(
+      test("PreRendered inside element with indentation") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(Dom.preRendered("<b>raw</b>"), Dom.Text("text"))
+        )
+        val result = el.render(indent = 2)
+        assertTrue(result.contains("<b>raw</b>"), result.contains("text"))
+      }
+    ),
+    suite("traversal on Empty and Text")(
+      test("collect on Text") {
+        val t     = Dom.Text("hello")
+        val found = t.collect { case Dom.Text(c) => Dom.Text(c) }
+        assertTrue(found.length == 1)
+      },
+      test("collect on Empty") {
+        val found = Dom.Empty.collect { case Dom.Text(c) => Dom.Text(c) }
+        assertTrue(found.isEmpty)
+      },
+      test("filter on Text returns itself if matching") {
+        val t        = Dom.Text("hello")
+        val filtered = t.filter(_ => true)
+        assertTrue(filtered == t)
+      },
+      test("filter on Text returns Empty if not matching") {
+        val t        = Dom.Text("hello")
+        val filtered = t.filter(_ => false)
+        assertTrue(filtered == Dom.Empty)
+      },
+      test("find on Text") {
+        val t     = Dom.Text("hello")
+        val found = t.find(_ => true)
+        assertTrue(found.contains(t))
+      },
+      test("transform on Text") {
+        val t           = Dom.Text("hello")
+        val transformed = t.transform {
+          case Dom.Text(_) => Dom.Text("world")
+          case other       => other
+        }
+        assertTrue(transformed == Dom.Text("world"))
+      },
+      test("transform on Empty") {
+        val transformed = Dom.Empty.transform {
+          case Dom.Empty => Dom.Text("replaced")
+          case other     => other
+        }
+        assertTrue(transformed == Dom.Text("replaced"))
       }
     )
   )

@@ -573,6 +573,8 @@ lazy val template = crossProject(JSPlatform, JVMPlatform)
     // Exclude macro implementation files from coverage - macros run at compile time, not runtime
     coverageExcludedFiles := Seq(
       ".*TemplateInterpolators.*",
+      ".*TagMacro.*",
+      ".*InlineTag.*",
       ".*BuildInfo.*"
     ).mkString(";"),
     coverageMinimumStmtTotal   := 95,
