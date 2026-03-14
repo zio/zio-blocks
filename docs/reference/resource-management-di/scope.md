@@ -477,7 +477,7 @@ Scope.global.scoped { scope =>
 
 ### Pattern 2: Explicit Scopes with `open()`
 
-Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released.
+Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
