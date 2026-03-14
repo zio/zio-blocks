@@ -102,11 +102,11 @@ sealed trait WitResult[+Ok, +Err] { self =>
    *
    * @return
    *   The success value
-   * @throws WitResult.UnwrapError
+   * @throws UnwrapError
    *   if this is an error result
    */
   def unwrap(): Ok =
-    fold(err => throw WitResult.UnwrapError(err), identity)
+    fold(err => throw UnwrapError(err), identity)
 
   /**
    * Extracts the error value, throwing on success.
@@ -218,7 +218,6 @@ object WitResult {
 
     override def toString: String = s"Err($value)"
   }
-
-  private[runtime] final case class UnwrapError(payload: Any)
-      extends RuntimeException(s"WitResult.unwrap called on Err($payload)")
 }
+
+final case class UnwrapError(payload: Any) extends RuntimeException(s"WitResult.unwrap called on Err($payload)")

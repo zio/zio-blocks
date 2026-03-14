@@ -80,8 +80,9 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; http-model-schemaJVM/test; openapiJVM/test; smithy/test; " +
-    "zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
+  "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
 )
 
 addCommandAlias(
@@ -90,17 +91,17 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJS2",
-  "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
+  "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 addCommandAlias(
   "testJS",
-  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; " +
-    "zioGolemModelJS/test; zioGolemCoreJS/test; " +
-    "testJS1; testJS2"
+  "testJS1; testJS2"
 )
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc"
+  "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
+    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; zioGolemTools/doc"
 )
 addCommandAlias(
   "docJS1",
@@ -108,7 +109,7 @@ addCommandAlias(
 )
 addCommandAlias(
   "docJS2",
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc"
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc; zioGolemModelJS/doc; zioGolemCoreJS/doc"
 )
 addCommandAlias(
   "docJS",
