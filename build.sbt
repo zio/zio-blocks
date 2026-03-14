@@ -104,7 +104,7 @@ lazy val testJVMScala2Command =
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
+    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -112,7 +112,7 @@ lazy val testJSScala2Command =
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
 
 lazy val testJS1Scala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
@@ -124,7 +124,7 @@ lazy val testJS2Scala2Command =
   "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
 
 lazy val testJS2Scala3Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
@@ -134,7 +134,7 @@ lazy val docJVMScala2Command =
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
+    "http-model-schemaJVM/doc; endpointJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
@@ -148,13 +148,13 @@ lazy val docJSScala2Batch2Command =
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
 
 lazy val docJSScala3Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
 
 lazy val docJSScala3Batch2Command =
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
@@ -198,6 +198,9 @@ lazy val root = project
     scope.jvm,
     scope.js,
     `scope-examples`,
+    sql.jvm,
+    sql.js,
+    `sql-zio`,
     schema.jvm,
     schema.js,
     `schema-avro`,
@@ -400,6 +403,45 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
     }),
     coverageMinimumStmtTotal   := 78,
     coverageMinimumBranchTotal := 65
+  )
+
+lazy val sql = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema, scope)
+  .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.sql"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial"     % "sqlite-jdbc" % "3.49.1.0" % Test,
+      "org.postgresql" % "postgresql"  % "42.7.5"   % Test
+    )
+  )
+
+lazy val `sql-zio` = project
+  .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3)))
+  .dependsOn(sql.jvm)
+  .settings(buildInfoSettings("zio.blocks.sql.zio"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio"          % "2.1.24",
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `scope-examples` = project
