@@ -12,8 +12,9 @@ import scala.scalajs.js
  *   - Invoke methods via RPC
  *   - Export type metadata to the host
  *
- * You typically don't create these directly - use
- * [[AgentImplementation.register]] to generate definitions at compile time.
+ * You typically don't create these directly - use `register` method of
+ * `golem.runtime.autowire.AgentImplementation` to generate definitions at
+ * compile time.
  *
  * ==Structure==
  * {{{
