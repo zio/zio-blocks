@@ -205,17 +205,10 @@ Use `Scope.global` to access the root scope:
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
 val result: String = Scope.global.scoped { scope =>
   import scope.*
-  val db = allocate(new Database)
-  $(db)(_.query("SELECT 1"))
+  "no resources allocated"
 }
-// When the scoped block exits, the database is automatically closed
 ```
 
 ### `Scope#scoped` — Create and Enter a Child Scope
