@@ -1,5 +1,6 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import CssLength.{CssLengthIntOps, CssLengthDoubleOps}
 
@@ -94,7 +95,7 @@ object TypeclassSpec extends ZIOSpecDefault {
       test("Double renders as string") {
         assertTrue(ToCss[Double].toCss(1.5) == "1.5")
       },
-      test("Css passthrough") {
+      test("Css passthrough renders") {
         assertTrue(ToCss[Css].toCss(Css("color: red")) == "color: red")
       },
       test("Option[String] Some") {
@@ -159,44 +160,44 @@ object TypeclassSpec extends ZIOSpecDefault {
     ),
     suite("ToElements")(
       test("String to text element") {
-        assertTrue(ToElements[String].toElements("hello") == Vector(Dom.Text("hello")))
+        assertTrue(ToElements[String].toElements("hello") == Chunk(Dom.Text("hello")))
       },
       test("Int to text element") {
-        assertTrue(ToElements[Int].toElements(42) == Vector(Dom.Text("42")))
+        assertTrue(ToElements[Int].toElements(42) == Chunk(Dom.Text("42")))
       },
       test("Dom passthrough") {
-        assertTrue(ToElements[Dom].toElements(Dom.Empty) == Vector(Dom.Empty))
+        assertTrue(ToElements[Dom].toElements(Dom.Empty) == Chunk(Dom.Empty))
       },
       test("Option[String] Some") {
-        assertTrue(ToElements[Option[String]].toElements(Some("x")) == Vector(Dom.Text("x")))
+        assertTrue(ToElements[Option[String]].toElements(Some("x")) == Chunk(Dom.Text("x")))
       },
       test("Option[String] None") {
-        assertTrue(ToElements[Option[String]].toElements(None) == Vector.empty)
+        assertTrue(ToElements[Option[String]].toElements(None) == Chunk.empty)
       },
       test("List[String]") {
         assertTrue(
-          ToElements[List[String]].toElements(List("a", "b")) == Vector(Dom.Text("a"), Dom.Text("b"))
+          ToElements[List[String]].toElements(List("a", "b")) == Chunk(Dom.Text("a"), Dom.Text("b"))
         )
       },
-      test("Vector[Dom]") {
-        val elems = Vector(Dom.Text("x"), Dom.Empty)
-        assertTrue(ToElements[Vector[Dom]].toElements(elems) == Vector(Dom.Text("x"), Dom.Empty))
+      test("Chunk[Dom]") {
+        val elems = Chunk(Dom.Text("x"), Dom.Empty)
+        assertTrue(ToElements[Chunk[Dom]].toElements(elems) == Chunk(Dom.Text("x"), Dom.Empty))
       },
       test("Long to text element") {
-        assertTrue(ToElements[Long].toElements(100L) == Vector(Dom.Text("100")))
+        assertTrue(ToElements[Long].toElements(100L) == Chunk(Dom.Text("100")))
       },
       test("Double to text element") {
-        assertTrue(ToElements[Double].toElements(3.14) == Vector(Dom.Text("3.14")))
+        assertTrue(ToElements[Double].toElements(3.14) == Chunk(Dom.Text("3.14")))
       },
       test("Boolean to text element") {
-        assertTrue(ToElements[Boolean].toElements(true) == Vector(Dom.Text("true")))
+        assertTrue(ToElements[Boolean].toElements(true) == Chunk(Dom.Text("true")))
       },
       test("Char to text element") {
-        assertTrue(ToElements[Char].toElements('x') == Vector(Dom.Text("x")))
+        assertTrue(ToElements[Char].toElements('x') == Chunk(Dom.Text("x")))
       },
       test("Iterable[Dom] to elements") {
         val elems: Iterable[Dom] = List(Dom.Text("a"), Dom.Text("b"))
-        assertTrue(ToElements[Iterable[Dom]].toElements(elems) == Vector(Dom.Text("a"), Dom.Text("b")))
+        assertTrue(ToElements[Iterable[Dom]].toElements(elems) == Chunk(Dom.Text("a"), Dom.Text("b")))
       }
     ),
     suite("ToTagName")(

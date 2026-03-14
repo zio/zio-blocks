@@ -129,6 +129,7 @@ const sidebars = {
          "reference/chunk",
          "path-interpolator",
          "reference/ringbuffer",
+         "reference/html",
          {
            type: "category",
            label: "Streams",

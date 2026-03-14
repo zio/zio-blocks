@@ -1,6 +1,6 @@
 package zio.blocks.template
 
-object Escape {
+private[template] object Escape {
 
   def html(s: String): String = {
     val len = s.length

@@ -1,5 +1,6 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import CssLength.CssLengthIntOps
 
@@ -8,15 +9,15 @@ object InterpolatorSpec extends ZIOSpecDefault {
     suite("css interpolator")(
       test("static CSS string") {
         val result = css"color: red"
-        assertTrue(result == Css("color: red"))
+        assertTrue(result == Css.Raw("color: red"))
       },
       test("CSS with interpolated CssLength") {
         val result = css"margin: ${10.px}"
-        assertTrue(result == Css("margin: 10px"))
+        assertTrue(result == Css.Raw("margin: 10px"))
       },
       test("CSS with interpolated Int") {
         val result = css"width: ${100}"
-        assertTrue(result == Css("width: 100"))
+        assertTrue(result == Css.Raw("width: 100"))
       }
     ),
     suite("js interpolator")(
@@ -35,6 +36,17 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("JS with interpolated Boolean") {
         val result = js"var b = ${true}"
         assertTrue(result == Js("var b = true"))
+      }
+    ),
+    suite("selector interpolator")(
+      test("static selector string") {
+        val result = selector"div.active"
+        assertTrue(result == CssSelector.Raw("div.active"))
+      },
+      test("selector with interpolated string") {
+        val cls    = "highlight"
+        val result = selector".${cls}"
+        assertTrue(result == CssSelector.Raw(".highlight"))
       }
     ),
     suite("html interpolator")(
@@ -144,10 +156,9 @@ object InterpolatorSpec extends ZIOSpecDefault {
         val fromDsl  = script("if (a < b) { alert('<b>hi</b>') }")
         assertTrue(fromHtml == fromDsl)
       },
-      test("multiple top-level elements") {
+      test("multiple top-level elements get wrapped in span") {
         val fromHtml = html"<p>one</p><p>two</p>"
-        val fromDsl  = Dom.Fragment(Vector(p("one"), p("two")))
-        assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render.contains("<p>one</p>"), fromHtml.render.contains("<p>two</p>"))
       },
       test("interpolated value inside element") {
         val name     = "World"
@@ -162,27 +173,27 @@ object InterpolatorSpec extends ZIOSpecDefault {
       },
       test("text only input") {
         val result = InterpolatorRuntime.parseHtml("just text")
-        assertTrue(result == Vector(Dom.Text("just text")))
+        assertTrue(result == Chunk(Dom.Text("just text")))
       },
       test("malformed closing tag without >") {
         val result = InterpolatorRuntime.parseHtml("</div")
-        assertTrue(result == Vector(Dom.Text("</div")))
+        assertTrue(result == Chunk(Dom.Text("</div")))
       },
       test("DOCTYPE is skipped") {
         val result = InterpolatorRuntime.parseHtml("<!DOCTYPE html><p>ok</p>")
-        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
       },
       test("HTML comment is skipped") {
         val result = InterpolatorRuntime.parseHtml("<!-- comment --><div>x</div>")
-        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("x")))))
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("x")))))
       },
       test("malformed DOCTYPE without >") {
         val result = InterpolatorRuntime.parseHtml("<!DOCTYPE html")
-        assertTrue(result == Vector(Dom.Text("<!DOCTYPE html")))
+        assertTrue(result == Chunk(Dom.Text("<!DOCTYPE html")))
       },
       test("processing instruction is skipped") {
         val result = InterpolatorRuntime.parseHtml("<?xml version='1.0'?><p>ok</p>")
-        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
       },
       test("invalid tag name starting with number") {
         val result = InterpolatorRuntime.parseHtml("<3tag>text</3tag>")
@@ -190,48 +201,48 @@ object InterpolatorSpec extends ZIOSpecDefault {
       },
       test("script without closing tag") {
         val result = InterpolatorRuntime.parseHtml("<script>var x = 1")
-        assertTrue(result == Vector(Dom.Element.Script(Vector.empty, Vector(Dom.Text("var x = 1")))))
+        assertTrue(result == Chunk(Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("var x = 1")))))
       },
       test("style without closing tag") {
         val result = InterpolatorRuntime.parseHtml("<style>.cls{color:red}")
-        assertTrue(result == Vector(Dom.Element.Style(Vector.empty, Vector(Dom.Text(".cls{color:red}")))))
+        assertTrue(result == Chunk(Dom.Element.Style(Chunk.empty, Chunk(Dom.Text(".cls{color:red}")))))
       },
       test("script with empty content") {
         val result = InterpolatorRuntime.parseHtml("<script></script>")
-        assertTrue(result == Vector(Dom.Element.Script(Vector.empty, Vector.empty)))
+        assertTrue(result == Chunk(Dom.Element.Script(Chunk.empty, Chunk.empty)))
       },
       test("unclosed element at end of input") {
         val result = InterpolatorRuntime.parseHtml("<div>content")
-        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector(Dom.Text("content")))))
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("content")))))
       },
       test("multiple unclosed elements at end") {
         val result = InterpolatorRuntime.parseHtml("<div><span>text")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector.empty,
-              Vector(Dom.Element.Generic("span", Vector.empty, Vector(Dom.Text("text"))))
+              Chunk.empty,
+              Chunk(Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("text"))))
             )
           )
         )
       },
       test("stray closing tag is ignored") {
         val result = InterpolatorRuntime.parseHtml("</nonexistent><p>ok</p>")
-        assertTrue(result == Vector(Dom.Element.Generic("p", Vector.empty, Vector(Dom.Text("ok")))))
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
       },
       test("mismatched closing tag closes inner elements") {
         val result = InterpolatorRuntime.parseHtml("<div><span><b>x</b></div>")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector.empty,
-              Vector(
+              Chunk.empty,
+              Chunk(
                 Dom.Element.Generic(
                   "span",
-                  Vector.empty,
-                  Vector(Dom.Element.Generic("b", Vector.empty, Vector(Dom.Text("x"))))
+                  Chunk.empty,
+                  Chunk(Dom.Element.Generic("b", Chunk.empty, Chunk(Dom.Text("x"))))
                 )
               )
             )
@@ -241,11 +252,11 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("single-quoted attribute value") {
         val result = InterpolatorRuntime.parseHtml("<div class='foo'>bar</div>")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("foo"))),
-              Vector(Dom.Text("bar"))
+              Chunk(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("foo"))),
+              Chunk(Dom.Text("bar"))
             )
           )
         )
@@ -253,11 +264,11 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("unquoted attribute value") {
         val result = InterpolatorRuntime.parseHtml("<div id=main>text</div>")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
-              Vector(Dom.Text("text"))
+              Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+              Chunk(Dom.Text("text"))
             )
           )
         )
@@ -265,27 +276,27 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("attribute with whitespace around equals") {
         val result = InterpolatorRuntime.parseHtml("<div id = \"main\">text</div>")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
-              Vector(Dom.Text("text"))
+              Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+              Chunk(Dom.Text("text"))
             )
           )
         )
       },
       test("tag at end of input without >") {
         val result = InterpolatorRuntime.parseHtml("<div")
-        assertTrue(result == Vector(Dom.Element.Generic("div", Vector.empty, Vector.empty)))
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk.empty)))
       },
       test("tag with attr at end of input without >") {
         val result = InterpolatorRuntime.parseHtml("<div class")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.BooleanAttribute("class")),
-              Vector.empty
+              Chunk(Dom.Attribute.BooleanAttribute("class")),
+              Chunk.empty
             )
           )
         )
@@ -293,11 +304,11 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("tag with attr value at end of input") {
         val result = InterpolatorRuntime.parseHtml("<div class=\"x\"")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("x"))),
-              Vector.empty
+              Chunk(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("x"))),
+              Chunk.empty
             )
           )
         )
@@ -305,11 +316,11 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("attribute equals at end of input") {
         val result = InterpolatorRuntime.parseHtml("<div class=")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(Dom.Attribute.BooleanAttribute("class")),
-              Vector.empty
+              Chunk(Dom.Attribute.BooleanAttribute("class")),
+              Chunk.empty
             )
           )
         )
@@ -317,21 +328,21 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("second attribute at end of input without >") {
         val result = InterpolatorRuntime.parseHtml("<div id=\"x\" class")
         assertTrue(
-          result == Vector(
+          result == Chunk(
             Dom.Element.Generic(
               "div",
-              Vector(
+              Chunk(
                 Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")),
                 Dom.Attribute.BooleanAttribute("class")
               ),
-              Vector.empty
+              Chunk.empty
             )
           )
         )
       },
       test("self-closing with space before />") {
         val result = InterpolatorRuntime.parseHtml("<br />")
-        assertTrue(result == Vector(Dom.Element.Generic("br", Vector.empty, Vector.empty)))
+        assertTrue(result == Chunk(Dom.Element.Generic("br", Chunk.empty, Chunk.empty)))
       },
       test("bare < treated as text") {
         val result = InterpolatorRuntime.parseHtml("a < b")
