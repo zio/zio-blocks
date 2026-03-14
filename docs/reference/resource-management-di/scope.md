@@ -248,7 +248,7 @@ import zio.blocks.scope.{Scope, Resource}
 val result: Int = Scope.global.scoped { scope =>
   import scope._
   val value = allocate(Resource(42))
-  $(value)(identity)
+  $(value) { v => v }
 }
 
 // After the scoped block, the scope is closed.
