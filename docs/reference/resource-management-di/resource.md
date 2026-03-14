@@ -255,6 +255,66 @@ val cacheResource = Resource.fromAutoCloseable(new Cache())
 val combined = dbResource.zip(cacheResource)
 ```
 
+### `Resource#allocate` — acquire within a scope
+
+Allocates a `Resource[A]` within the current `Scope`, returning a scoped `$[A]`. This is syntax sugar for `scope.allocate(resource)`, available via `import scope._` inside a `scoped` block:
+
+```scala
+implicit class ResourceOps[A](private val r: Resource[A]) {
+  def allocate: $[A]
+}
+```
+
+To allocate a resource and use its value inside a scope:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class Database extends AutoCloseable {
+  def query(sql: String): String = s"Result: $sql"
+  def close(): Unit              = println("Database closed")
+}
+
+Scope.global.scoped { implicit scope =>
+  import scope._
+  val db: $[Database] = Resource.fromAutoCloseable(new Database).allocate
+  $(db)(_.query("SELECT 1"))
+}
+```
+
+### `$[Resource[A]]#allocate` — allocate a scoped resource
+
+Allocates a `$[Resource[A]]` — a resource that is itself a scoped value — within the current scope, returning `$[A]`. This handles the common pattern where a method call on a scoped value produces another resource. The `Resource` is never extracted from `$`; only its acquired result becomes a new scoped value:
+
+```scala
+implicit class ScopedResourceOps[A](private val sr: $[Resource[A]]) {
+  def allocate: $[A]
+}
+```
+
+To acquire a resource produced by a method on a scoped object:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class Connection extends AutoCloseable {
+  def query(sql: String): String = s"Result: $sql"
+  def close(): Unit              = println("Connection closed")
+}
+
+class Pool extends AutoCloseable {
+  def lease(): Resource[Connection] = Resource.fromAutoCloseable(new Connection)
+  def close(): Unit                 = println("Pool closed")
+}
+
+Scope.global.scoped { implicit scope =>
+  import scope._
+  val pool: $[Pool]           = Resource.fromAutoCloseable(new Pool).allocate
+  val conn: $[Connection]     = $(pool)(_.lease()).allocate
+  $(conn)(_.query("SELECT 1"))
+}
+```
+
 ## Shared vs. Unique
 
 The fundamental difference is **reuse semantics**:
