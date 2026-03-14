@@ -736,17 +736,7 @@ class MyService {
 
 **Anti-pattern 2: Trying to return resources**
 
-Do NOT try to return scoped values from functions:
-
-```scala
-// DON'T do this
-def openDatabase(): $[Database] = {
-  Scope.global.scoped { scope =>
-    import scope.*
-    allocate(new Database)  // ERROR: trying to return a scoped value
-  }
-}
-```
+Attempting to return a scoped value from a `scoped` block causes a compile-time error, as detailed in [No given instance of Unscoped[MyType]](#no-given-instance-of-unscopedmytype).
 
 **Fix:** If you need to return a resource, use `open()` and return an `OpenScope` handle instead.
 
