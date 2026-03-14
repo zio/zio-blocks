@@ -612,12 +612,15 @@ try {
         case e: IllegalStateException => s"Error: ${e.getMessage}"
       }
     }
-    println(future.get())  // Will print error message
+    println(future.get())
   }
-  // Output: Error: Cannot create child scope: current thread '...' does not own this scope
 } finally {
   executor.shutdown()
 }
+
+// Output:
+// Error: Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
+// db closed
 ```
 
 **Example 2: Unowned scope (open) — works across threads**
