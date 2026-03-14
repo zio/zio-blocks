@@ -853,8 +853,8 @@ lazy val zioGolemTools = project
     libraryDependencies ++= Seq(
       "com.lihaoyi"   %% "ujson"                 % "3.1.0",
       "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
-      "dev.zio"       %% "zio-schema"            % "1.1.1"  % Test,
-      "dev.zio"       %% "zio-schema-derivation" % "1.1.1"  % Test
+      "dev.zio"       %% "zio-schema"            % "1.8.3"  % Test,
+      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
     )
   )
   .dependsOn(zioGolemModel.jvm, zioGolemMacros)
