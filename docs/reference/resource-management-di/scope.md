@@ -108,15 +108,15 @@ For cases where you need explicit control over when a scope closes, use `open()`
 The returned scope is **unowned** (no thread affinity), and you must close it manually:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, Resource}
-
-val handle: Scope.$[Scope.OpenScope] = Scope.global.open()
+import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
   import scope._
 
+  val handle = scope.open()
+
   // Later, when you're done with the child scope:
-  val openScope: Scope.OpenScope = handle(identity)
+  val openScope = handle(identity)
   val finalization = openScope.close()
 }
 ```
@@ -143,7 +143,7 @@ trait Scope {
 
 We set up a simple `Database` type, then allocate it within a scope:
 
-```scala mdoc:silent
+```scala mdoc:silent:nest
 import zio.blocks.scope.{Scope, Resource}
 
 class Database extends AutoCloseable {
@@ -212,13 +212,17 @@ import zio.blocks.scope.Scope
 Now we register cleanup actions in reverse order, and they execute in that order:
 
 ```scala mdoc:compile-only
+import zio.blocks.scope.Scope
+
+var order: List[String] = List()
+
 Scope.global.scoped { scope =>
   import scope._
 
-  defer { println("Cleanup 3") }
-  defer { println("Cleanup 2") }
-  defer { println("Cleanup 1") }
-  // On scope close: prints "Cleanup 1", then "Cleanup 2", then "Cleanup 3"
+  defer { order = order :+ "3" }
+  defer { order = order :+ "2" }
+  defer { order = order :+ "1" }
+  // On scope close: order will be List("1", "2", "3")
 }
 ```
 
@@ -239,15 +243,16 @@ trait Scope {
 Attempting to allocate in a closed scope throws `IllegalStateException`:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.Scope
+import zio.blocks.scope.{Scope, Resource}
 
-val closedScope: Scope.Child[?] = Scope.global.scoped { scope =>
-  scope
-  // scope is a reference to the child; after the block, it's closed
+val result: Int = Scope.global.scoped { scope =>
+  import scope._
+  val value = allocate(Resource(42))
+  $(value)(identity)
 }
 
-// This would throw IllegalStateException:
-// closedScope.allocate(Resource(42))
+// After the scoped block, the scope is closed.
+// If we tried to use it again, it would throw IllegalStateException
 ```
 
 #### `Scope#isOwner` — Check Thread Ownership
