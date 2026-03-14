@@ -10,10 +10,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(div().render == "<div></div>")
       },
       test("div with string modifier") {
-        assertTrue(div("hello").render == "<div>hello</div>")
+        val result = div("hello").render
+        assertTrue(result == "<div>hello</div>")
       },
       test("div with attribute") {
-        assertTrue(div(id := "main").render == "<div id=\"main\"></div>")
+        val result = div(id := "main").render
+        assertTrue(result == "<div id=\"main\"></div>")
       },
       test("div with multiple attributes and content") {
         val result = div(id := "main", className := "box", "content").render
@@ -26,7 +28,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
       },
       test("nested elements") {
-        assertTrue(ul(li("one"), li("two")).render == "<ul><li>one</li><li>two</li></ul>")
+        val result = ul(li("one"), li("two")).render
+        assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
       test("void elements self-close") {
         assertTrue(
@@ -49,26 +52,30 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("boolean attributes")(
       test("required as boolean attribute via PartialAttribute") {
-        assertTrue(input(required).render == "<input required/>")
+        val result = input(required).render
+        assertTrue(result == "<input required/>")
       },
       test("disabled as boolean attribute") {
-        assertTrue(input(disabled).render == "<input disabled/>")
+        val result = input(disabled).render
+        assertTrue(result == "<input disabled/>")
       },
       test("required with := true") {
-        assertTrue(input(required := true).render == "<input required/>")
+        val result = input(required := true).render
+        assertTrue(result == "<input required/>")
       },
       test("required with := false omits attribute") {
-        assertTrue(input(required := false).render == "<input/>")
+        val result = input(required := false).render
+        assertTrue(result == "<input/>")
       }
     ),
     suite("attribute helpers")(
       test("class attribute via className") {
-        assertTrue(div(className := "container").render == "<div class=\"container\"></div>")
+        val result = div(className := "container").render
+        assertTrue(result == "<div class=\"container\"></div>")
       },
       test("href attribute") {
-        assertTrue(
-          a(href := "https://example.com", "link").render == "<a href=\"https://example.com\">link</a>"
-        )
+        val result = a(href := "https://example.com", "link").render
+        assertTrue(result == "<a href=\"https://example.com\">link</a>")
       },
       test("multi-value attribute via Chunk") {
         val result = div(className := Chunk("a", "b", "c")).render
@@ -87,33 +94,41 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("Option[Modifier] None is no-op") {
         val none: Option[Modifier] = None
-        assertTrue(div(none).render == "<div></div>")
+        val result                 = div(none).render
+        assertTrue(result == "<div></div>")
       },
       test("Option[Modifier] Some applies modifier") {
         val some: Option[Modifier] = Some(Modifier.stringToModifier("text"))
-        assertTrue(div(some).render == "<div>text</div>")
+        val result                 = div(some).render
+        assertTrue(result == "<div>text</div>")
       },
       test("Iterable[Modifier] applies all") {
         val mods: Iterable[Modifier] = List(
           Modifier.stringToModifier("a"),
           Modifier.stringToModifier("b")
         )
-        assertTrue(div(mods).render == "<div>ab</div>")
+        val result = div(mods).render
+        assertTrue(result == "<div>ab</div>")
       }
     ),
     suite("various elements")(
       test("h1 through h6") {
+        val r1 = h1("Title").render
+        val r2 = h2("Sub").render
+        val r3 = h3("Sub2").render
         assertTrue(
-          h1("Title").render == "<h1>Title</h1>",
-          h2("Sub").render == "<h2>Sub</h2>",
-          h3("Sub2").render == "<h3>Sub2</h3>"
+          r1 == "<h1>Title</h1>",
+          r2 == "<h2>Sub</h2>",
+          r3 == "<h3>Sub2</h3>"
         )
       },
       test("p element") {
-        assertTrue(p("paragraph").render == "<p>paragraph</p>")
+        val result = p("paragraph").render
+        assertTrue(result == "<p>paragraph</p>")
       },
       test("span element") {
-        assertTrue(span("inline").render == "<span>inline</span>")
+        val result = span("inline").render
+        assertTrue(result == "<span>inline</span>")
       },
       test("table structure") {
         val result = table(tr(td("cell"))).render
@@ -194,48 +209,77 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("form with apply for additional modifiers") {
         val f      = form(action := "/submit")
         val result = f(Modifier.domToModifier(div("content")), Modifier.domToModifier(button("Submit")))
+        val rendered = result.render
         assertTrue(
-          result.render.contains("action=\"/submit\""),
-          result.render.contains("<div>content</div>"),
-          result.render.contains("<button>Submit</button>")
+          rendered.contains("action=\"/submit\""),
+          rendered.contains("<div>content</div>"),
+          rendered.contains("<button>Submit</button>")
         )
       }
     ),
     suite("uncommon HTML5 tags")(
       test("renders a representative sample of less-common tags") {
+        val rAbbr       = abbr("abbr").render
+        val rAddress    = address("addr").render
+        val rBdi        = bdi("x").render
+        val rBdo        = bdo("x").render
+        val rDfn        = dfn("x").render
+        val rDialog     = dialog("x").render
+        val rFigcaption = figcaption("x").render
+        val rKbd        = kbd("x").render
+        val rMeter      = meter("x").render
+        val rOutput     = output("x").render
+        val rProgress   = progress("x").render
+        val rRuby       = ruby("x").render
+        val rSamp       = samp("x").render
+        val rSearch     = search("x").render
+        val rSlot       = slot("x").render
+        val rTime       = time("x").render
+        val rNoscript   = noscript("x").render
+        val rMap        = map("x").render
+        val rMath       = math("x").render
+        val rData       = data("x").render
+        val rDetails    = details("x").render
+        val rDl         = dl(dt("term"), dd("def")).render
+        val rFigure     = figure("x").render
+        val rMark       = mark("x").render
+        val rIns        = ins("x").render
+        val rDel        = del("x").render
+        val rRp         = rp("x").render
+        val rRt         = rt("x").render
         assertTrue(
-          abbr("abbr").render == "<abbr>abbr</abbr>",
-          address("addr").render == "<address>addr</address>",
-          bdi("x").render == "<bdi>x</bdi>",
-          bdo("x").render == "<bdo>x</bdo>",
+          rAbbr == "<abbr>abbr</abbr>",
+          rAddress == "<address>addr</address>",
+          rBdi == "<bdi>x</bdi>",
+          rBdo == "<bdo>x</bdo>",
           datalist().render == "<datalist></datalist>",
-          dfn("x").render == "<dfn>x</dfn>",
-          dialog("x").render == "<dialog>x</dialog>",
-          figcaption("x").render == "<figcaption>x</figcaption>",
-          kbd("x").render == "<kbd>x</kbd>",
-          meter("x").render == "<meter>x</meter>",
+          rDfn == "<dfn>x</dfn>",
+          rDialog == "<dialog>x</dialog>",
+          rFigcaption == "<figcaption>x</figcaption>",
+          rKbd == "<kbd>x</kbd>",
+          rMeter == "<meter>x</meter>",
           optgroup().render == "<optgroup></optgroup>",
-          output("x").render == "<output>x</output>",
-          progress("x").render == "<progress>x</progress>",
-          ruby("x").render == "<ruby>x</ruby>",
-          samp("x").render == "<samp>x</samp>",
-          search("x").render == "<search>x</search>",
-          slot("x").render == "<slot>x</slot>",
+          rOutput == "<output>x</output>",
+          rProgress == "<progress>x</progress>",
+          rRuby == "<ruby>x</ruby>",
+          rSamp == "<samp>x</samp>",
+          rSearch == "<search>x</search>",
+          rSlot == "<slot>x</slot>",
           svg().render == "<svg></svg>",
-          time("x").render == "<time>x</time>",
-          noscript("x").render == "<noscript>x</noscript>",
-          map("x").render == "<map>x</map>",
-          math("x").render == "<math>x</math>",
+          rTime == "<time>x</time>",
+          rNoscript == "<noscript>x</noscript>",
+          rMap == "<map>x</map>",
+          rMath == "<math>x</math>",
           picture().render == "<picture></picture>",
-          data("x").render == "<data>x</data>",
-          details("x").render == "<details>x</details>",
-          dl(dt("term"), dd("def")).render == "<dl><dt>term</dt><dd>def</dd></dl>",
-          figure("x").render == "<figure>x</figure>",
-          mark("x").render == "<mark>x</mark>",
-          ins("x").render == "<ins>x</ins>",
-          del("x").render == "<del>x</del>",
-          rp("x").render == "<rp>x</rp>",
-          rt("x").render == "<rt>x</rt>"
+          rData == "<data>x</data>",
+          rDetails == "<details>x</details>",
+          rDl == "<dl><dt>term</dt><dd>def</dd></dl>",
+          rFigure == "<figure>x</figure>",
+          rMark == "<mark>x</mark>",
+          rIns == "<ins>x</ins>",
+          rDel == "<del>x</del>",
+          rRp == "<rp>x</rp>",
+          rRt == "<rt>x</rt>"
         )
       },
       test("renders void element tags") {
@@ -251,170 +295,264 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
       },
       test("renders remaining common tags") {
+        val rArticle    = article("x").render
+        val rAside      = aside("x").render
+        val rB          = b("x").render
+        val rBlockquote = blockquote("x").render
+        val rCaption    = caption("x").render
+        val rCite       = cite("x").render
+        val rCode       = code("x").render
+        val rEm         = em("x").render
+        val rFieldset   = fieldset("x").render
+        val rFooter     = footer("x").render
+        val rHeader     = header("x").render
+        val rI          = i("x").render
+        val rLabel      = label("x").render
+        val rLegend     = legend("x").render
+        val rNav        = nav("x").render
+        val rOlLi       = ol(li("x")).render
+        val rOption     = option("x").render
+        val rPre        = pre("x").render
+        val rQ          = q("x").render
+        val rS          = s("x").render
+        val rSection    = section("x").render
+        val rSelectOpt  = select(option("x")).render
+        val rSmall      = small("x").render
+        val rStrong     = strong("x").render
+        val rSub        = sub("x").render
+        val rSummary    = summary("x").render
+        val rSup        = sup("x").render
+        val rTextarea   = textarea("x").render
+        val rU          = u("x").render
+        val rMainEl     = element("main", "x").render
         assertTrue(
-          article("x").render == "<article>x</article>",
-          aside("x").render == "<aside>x</aside>",
+          rArticle == "<article>x</article>",
+          rAside == "<aside>x</aside>",
           audio().render == "<audio></audio>",
-          b("x").render == "<b>x</b>",
-          blockquote("x").render == "<blockquote>x</blockquote>",
+          rB == "<b>x</b>",
+          rBlockquote == "<blockquote>x</blockquote>",
           canvas().render == "<canvas></canvas>",
-          caption("x").render == "<caption>x</caption>",
-          cite("x").render == "<cite>x</cite>",
-          code("x").render == "<code>x</code>",
+          rCaption == "<caption>x</caption>",
+          rCite == "<cite>x</cite>",
+          rCode == "<code>x</code>",
           colgroup().render == "<colgroup></colgroup>",
-          em("x").render == "<em>x</em>",
-          fieldset("x").render == "<fieldset>x</fieldset>",
-          footer("x").render == "<footer>x</footer>",
-          header("x").render == "<header>x</header>",
-          i("x").render == "<i>x</i>",
+          rEm == "<em>x</em>",
+          rFieldset == "<fieldset>x</fieldset>",
+          rFooter == "<footer>x</footer>",
+          rHeader == "<header>x</header>",
+          rI == "<i>x</i>",
           iframe().render == "<iframe></iframe>",
-          label("x").render == "<label>x</label>",
-          legend("x").render == "<legend>x</legend>",
+          rLabel == "<label>x</label>",
+          rLegend == "<legend>x</legend>",
           link().render == "<link/>",
-          element("main", "x").render == "<main>x</main>",
+          rMainEl == "<main>x</main>",
           meta().render == "<meta/>",
-          nav("x").render == "<nav>x</nav>",
-          ol(li("x")).render == "<ol><li>x</li></ol>",
-          option("x").render == "<option>x</option>",
-          pre("x").render == "<pre>x</pre>",
-          q("x").render == "<q>x</q>",
-          s("x").render == "<s>x</s>",
-          section("x").render == "<section>x</section>",
-          select(option("x")).render == "<select><option>x</option></select>",
-          small("x").render == "<small>x</small>",
-          strong("x").render == "<strong>x</strong>",
-          sub("x").render == "<sub>x</sub>",
-          summary("x").render == "<summary>x</summary>",
-          sup("x").render == "<sup>x</sup>",
+          rNav == "<nav>x</nav>",
+          rOlLi == "<ol><li>x</li></ol>",
+          rOption == "<option>x</option>",
+          rPre == "<pre>x</pre>",
+          rQ == "<q>x</q>",
+          rS == "<s>x</s>",
+          rSection == "<section>x</section>",
+          rSelectOpt == "<select><option>x</option></select>",
+          rSmall == "<small>x</small>",
+          rStrong == "<strong>x</strong>",
+          rSub == "<sub>x</sub>",
+          rSummary == "<summary>x</summary>",
+          rSup == "<sup>x</sup>",
           tbody().render == "<tbody></tbody>",
           tfoot().render == "<tfoot></tfoot>",
           thead().render == "<thead></thead>",
-          textarea("x").render == "<textarea>x</textarea>",
-          u("x").render == "<u>x</u>",
+          rTextarea == "<textarea>x</textarea>",
+          rU == "<u>x</u>",
           video().render == "<video></video>"
         )
       }
     ),
     suite("backtick/alternative tag variants")(
       test("object and objectTag both render object element") {
+        val rObj    = `object`("x").render
+        val rObjTag = objectTag("x").render
         assertTrue(
-          `object`("x").render == "<object>x</object>",
-          objectTag("x").render == "<object>x</object>"
+          rObj == "<object>x</object>",
+          rObjTag == "<object>x</object>"
         )
       },
       test("template and templateTag both render template element") {
+        val rTpl    = `template`("x").render
+        val rTplTag = templateTag("x").render
         assertTrue(
-          `template`("x").render == "<template>x</template>",
-          templateTag("x").render == "<template>x</template>"
+          rTpl == "<template>x</template>",
+          rTplTag == "<template>x</template>"
         )
       },
       test("var and varTag both render var element") {
+        val rVar    = `var`("x").render
+        val rVarTag = varTag("x").render
         assertTrue(
-          `var`("x").render == "<var>x</var>",
-          varTag("x").render == "<var>x</var>"
+          rVar == "<var>x</var>",
+          rVarTag == "<var>x</var>"
         )
       }
     ),
     suite("custom element helper")(
       test("element creates custom-named elements") {
-        assertTrue(element("custom-tag", "content").render == "<custom-tag>content</custom-tag>")
+        val result = element("custom-tag", "content").render
+        assertTrue(result == "<custom-tag>content</custom-tag>")
       },
       test("element with attributes") {
-        assertTrue(element("x-app", id := "root").render == "<x-app id=\"root\"></x-app>")
+        val result = element("x-app", id := "root").render
+        assertTrue(result == "<x-app id=\"root\"></x-app>")
       }
     ),
     suite("additional attribute vals")(
       test("scope-related attributes") {
+        val r1 = th(scopeAttr := "col").render
+        val r2 = th(`scope` := "row").render
         assertTrue(
-          th(scopeAttr := "col").render == "<th scope=\"col\"></th>",
-          th(`scope` := "row").render == "<th scope=\"row\"></th>"
+          r1 == "<th scope=\"col\"></th>",
+          r2 == "<th scope=\"row\"></th>"
         )
       },
       test("for-related attributes") {
+        val r1 = label(forAttr := "input1").render
+        val r2 = label(`for` := "input1").render
         assertTrue(
-          label(forAttr := "input1").render == "<label for=\"input1\"></label>",
-          label(`for` := "input1").render == "<label for=\"input1\"></label>"
+          r1 == "<label for=\"input1\"></label>",
+          r2 == "<label for=\"input1\"></label>"
         )
       },
       test("cite and span attributes") {
+        val r1 = blockquote(citeAttr := "url").render
+        val r2 = col(spanAttr := "2").render
         assertTrue(
-          blockquote(citeAttr := "url").render == "<blockquote cite=\"url\"></blockquote>",
-          col(spanAttr := "2").render == "<col span=\"2\"/>"
+          r1 == "<blockquote cite=\"url\"></blockquote>",
+          r2 == "<col span=\"2\"/>"
         )
       },
       test("slot and summary attributes") {
+        val r1 = div(slotAttr := "main").render
+        val r2 = table(summaryAttr := "desc").render
         assertTrue(
-          div(slotAttr := "main").render == "<div slot=\"main\"></div>",
-          table(summaryAttr := "desc").render == "<table summary=\"desc\"></table>"
+          r1 == "<div slot=\"main\"></div>",
+          r2 == "<table summary=\"desc\"></table>"
         )
       },
       test("form and label attribute aliases") {
+        val r1 = input(formAttr := "myform").render
+        val r2 = option(labelAttr := "opt").render
         assertTrue(
-          input(formAttr := "myform").render == "<input form=\"myform\"/>",
-          option(labelAttr := "opt").render == "<option label=\"opt\"></option>"
+          r1 == "<input form=\"myform\"/>",
+          r2 == "<option label=\"opt\"></option>"
         )
       },
       test("httpEquiv attribute") {
-        assertTrue(meta(httpEquiv := "refresh").render == "<meta http-equiv=\"refresh\"/>")
+        val result = meta(httpEquiv := "refresh").render
+        assertTrue(result == "<meta http-equiv=\"refresh\"/>")
       },
       test("xmlns attribute") {
-        assertTrue(html(xmlns := "http://www.w3.org/1999/xhtml").render.contains("xmlns=\""))
+        val result = html(xmlns := "http://www.w3.org/1999/xhtml").render
+        assertTrue(result.contains("xmlns=\""))
       },
       test("miscellaneous attributes") {
+        val rInputAccept     = input(accept := "image/*").render
+        val rDivAccesskey    = div(accesskey := "h").render
+        val rScriptAsync     = script(async).render
+        val rScriptDefer     = script(defer).render
+        val rVideoAutoplay   = video(autoplay).render
+        val rVideoControls   = video(controls).render
+        val rVideoLoop       = video(loop).render
+        val rVideoMuted      = video(muted).render
+        val rImgLoading      = img(loading := "lazy").render
+        val rMetaCharset     = meta(charset := "utf-8").render
+        val rMetaContent     = meta(content := "text").render
+        val rImgCrossorigin  = img(crossorigin := "anonymous").render
+        val rTimeDatetime    = time(datetime := "2024-01-01").render
+        val rDetailsOpen     = details(open).render
+        val rInputList       = input(list := "opts").render
+        val rFormNoValidate  = form(noValidate).render
+        val rFormEncType     = form(encType := "multipart").render
+        val rBtnFormAction   = button(formAction := "/go").render
+        val rBtnFormMethod   = button(formMethod := "post").render
+        val rBtnFormNoVal    = button(formNoValidate).render
+        val rImgSrcSet       = img(srcSet := "a.png 1x").render
+        val rImgSizes        = img(sizes := "100vw").render
+        val rInputMinLen     = input(minLength := "3").render
+        val rInputMaxLen     = input(maxLength := "10").render
+        val rInputSize       = input(size := "20").render
+        val rTextareaCols    = textarea(cols := "40").render
+        val rTextareaRows    = textarea(rows := "5").render
+        val rTextareaWrap    = textarea(wrap := "hard").render
+        val rScriptIntegrity = script(integrity := "sha384-xxx").render
+        val rImgReferrer     = img(referrerpolicy := "no-referrer").render
+        val rOlReversed      = ol(reversed).render
+        val rIframeSandbox   = iframe(sandbox := "allow-scripts").render
+        val rDivSpellcheck   = div(spellcheck := "true").render
+        val rDivTranslate    = div(translate := "yes").render
+        val rVideoPoster     = video(poster := "img.png").render
+        val rVideoPreload    = video(preload := "auto").render
+        val rMeterHigh       = meter(high := "90").render
+        val rMeterLow        = meter(low := "10").render
+        val rMeterOptimum    = meter(optimum := "50").render
+        val rAudioMedia      = audio(media := "all").render
+        val rDivClass        = div(`class` := "x").render
         assertTrue(
-          input(accept := "image/*").render.contains("accept=\"image/*\""),
-          div(accesskey := "h").render.contains("accesskey=\"h\""),
-          script(async).render.contains("async"),
-          script(defer).render.contains("defer"),
-          video(autoplay).render.contains("autoplay"),
-          video(controls).render.contains("controls"),
-          video(loop).render.contains("loop"),
-          video(muted).render.contains("muted"),
-          img(loading := "lazy").render.contains("loading=\"lazy\""),
-          meta(charset := "utf-8").render.contains("charset=\"utf-8\""),
-          meta(content := "text").render.contains("content=\"text\""),
-          img(crossorigin := "anonymous").render.contains("crossorigin="),
-          time(datetime := "2024-01-01").render.contains("datetime="),
-          details(open).render.contains("open"),
-          input(list := "opts").render.contains("list=\"opts\""),
-          form(noValidate).render.contains("novalidate"),
-          form(encType := "multipart").render.contains("enctype="),
-          button(formAction := "/go").render.contains("formaction="),
-          button(formMethod := "post").render.contains("formmethod="),
-          button(formNoValidate).render.contains("formnovalidate"),
-          img(srcSet := "a.png 1x").render.contains("srcset="),
-          img(sizes := "100vw").render.contains("sizes="),
-          input(minLength := "3").render.contains("minlength="),
-          input(maxLength := "10").render.contains("maxlength="),
-          input(size := "20").render.contains("size="),
-          textarea(cols := "40").render.contains("cols="),
-          textarea(rows := "5").render.contains("rows="),
-          textarea(wrap := "hard").render.contains("wrap="),
-          script(integrity := "sha384-xxx").render.contains("integrity="),
-          img(referrerpolicy := "no-referrer").render.contains("referrerpolicy="),
-          ol(reversed).render.contains("reversed"),
-          iframe(sandbox := "allow-scripts").render.contains("sandbox="),
-          div(spellcheck := "true").render.contains("spellcheck="),
-          div(translate := "yes").render.contains("translate="),
-          video(poster := "img.png").render.contains("poster="),
-          video(preload := "auto").render.contains("preload="),
-          meter(high := "90").render.contains("high="),
-          meter(low := "10").render.contains("low="),
-          meter(optimum := "50").render.contains("optimum="),
-          audio(media := "all").render.contains("media="),
-          div(`class` := "x").render.contains("class=")
+          rInputAccept.contains("accept=\"image/*\""),
+          rDivAccesskey.contains("accesskey=\"h\""),
+          rScriptAsync.contains("async"),
+          rScriptDefer.contains("defer"),
+          rVideoAutoplay.contains("autoplay"),
+          rVideoControls.contains("controls"),
+          rVideoLoop.contains("loop"),
+          rVideoMuted.contains("muted"),
+          rImgLoading.contains("loading=\"lazy\""),
+          rMetaCharset.contains("charset=\"utf-8\""),
+          rMetaContent.contains("content=\"text\""),
+          rImgCrossorigin.contains("crossorigin="),
+          rTimeDatetime.contains("datetime="),
+          rDetailsOpen.contains("open"),
+          rInputList.contains("list=\"opts\""),
+          rFormNoValidate.contains("novalidate"),
+          rFormEncType.contains("enctype="),
+          rBtnFormAction.contains("formaction="),
+          rBtnFormMethod.contains("formmethod="),
+          rBtnFormNoVal.contains("formnovalidate"),
+          rImgSrcSet.contains("srcset="),
+          rImgSizes.contains("sizes="),
+          rInputMinLen.contains("minlength="),
+          rInputMaxLen.contains("maxlength="),
+          rInputSize.contains("size="),
+          rTextareaCols.contains("cols="),
+          rTextareaRows.contains("rows="),
+          rTextareaWrap.contains("wrap="),
+          rScriptIntegrity.contains("integrity="),
+          rImgReferrer.contains("referrerpolicy="),
+          rOlReversed.contains("reversed"),
+          rIframeSandbox.contains("sandbox="),
+          rDivSpellcheck.contains("spellcheck="),
+          rDivTranslate.contains("translate="),
+          rVideoPoster.contains("poster="),
+          rVideoPreload.contains("preload="),
+          rMeterHigh.contains("high="),
+          rMeterLow.contains("low="),
+          rMeterOptimum.contains("optimum="),
+          rAudioMedia.contains("media="),
+          rDivClass.contains("class=")
         )
       }
     ),
     suite("aria, dataAttr, attr helpers")(
       test("aria helper") {
-        assertTrue(div(aria("label") := "hi").render == "<div aria-label=\"hi\"></div>")
+        val result = div(aria("label") := "hi").render
+        assertTrue(result == "<div aria-label=\"hi\"></div>")
       },
       test("dataAttr helper") {
-        assertTrue(div(dataAttr("id") := "42").render == "<div data-id=\"42\"></div>")
+        val result = div(dataAttr("id") := "42").render
+        assertTrue(result == "<div data-id=\"42\"></div>")
       },
       test("attr helper") {
-        assertTrue(div(attr("custom") := "val").render == "<div custom=\"val\"></div>")
+        val result = div(attr("custom") := "val").render
+        assertTrue(result == "<div custom=\"val\"></div>")
       }
     ),
     suite("multiAttr with Iterable overload")(
