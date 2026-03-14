@@ -207,8 +207,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("Element apply for curried modifiers")(
       test("form with apply for additional modifiers") {
-        val f      = form(action := "/submit")
-        val result = f(Modifier.domToModifier(div("content")), Modifier.domToModifier(button("Submit")))
+        val f        = form(action := "/submit")
+        val result   = f(Modifier.domToModifier(div("content")), Modifier.domToModifier(button("Submit")))
         val rendered = result.render
         assertTrue(
           rendered.contains("action=\"/submit\""),
