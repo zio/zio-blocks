@@ -115,9 +115,10 @@ Scope.global.scoped { scope =>
 
   val handle = scope.open()
 
-  // Later, when you're done with the child scope:
-  val openScope = handle(identity)
-  val finalization = openScope.close()
+  // Extract and use the OpenScope
+  $(handle) { openScope =>
+    val finalization = openScope.close()
+  }
 }
 ```
 
@@ -334,10 +335,8 @@ Scope.global.scoped { scope =>
   // Create an explicitly-managed child scope
   val childHandle = scope.open()
 
-  // Later, extract the child and close it manually
-  scope.scoped { innerScope =>
-    import innerScope._
-    val child = childHandle(identity)
+  // Extract the child and close it manually
+  $(childHandle) { child =>
     val finalization = child.close()
     // finalization contains any errors from cleanups
   }
