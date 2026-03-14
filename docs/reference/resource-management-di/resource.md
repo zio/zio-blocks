@@ -47,9 +47,9 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 
 Supported Scala versions: 2.13.x and 3.x.
 
-## Shared vs. Unique Strategies
+## Shared and Unique Resources
 
-Resource offers two distinct strategies for managing instance lifecycles: **Shared** for singleton-like resources that are allocated once and reused across multiple scopes, and **Unique** for fresh resources created on each allocation. Understanding when to use each strategy is critical for building efficient and correct resource-management architectures.
+Resource offers two distinct types for managing instance lifecycles: **Shared** for singleton-like resources that are allocated once and reused across multiple scopes, and **Unique** for fresh resources created on each allocation. Understanding when to use each type is critical for building efficient and correct resource-management architectures.
 
 ### When to Use Shared Resources
 
