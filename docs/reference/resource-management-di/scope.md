@@ -572,7 +572,7 @@ The parent scope always outlives its children, so you can safely use parent reso
 
 ## Usage Patterns
 
-#### Pattern: Resource factory
+### Pattern: Resource factory
 
 Return an `OpenScope` to let the caller manage when the scope closes:
 
@@ -600,7 +600,7 @@ try {
 }
 ```
 
-#### Pattern: Hierarchical resources
+### Pattern: Hierarchical resources
 
 When resources depend on each other, nesting `scoped` blocks ensures correct LIFO cleanup:
 
@@ -632,7 +632,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-#### Pattern: Using multiple resources safely
+### Pattern: Using multiple resources safely
 
 Use the N-ary `$` operator to combine operations on multiple scoped values:
 
@@ -668,7 +668,7 @@ For dependency injection patterns with `Wire` and `Resource.from`, see the [Wire
 
 The following runtime errors occur when scope rules are violated:
 
-#### `IllegalStateException` — allocate on closed scope
+### `IllegalStateException` — allocate on closed scope
 
 **When:** You call `allocate`, `open`, or `$` on a scope that has already closed.
 
@@ -676,7 +676,7 @@ The following runtime errors occur when scope rules are violated:
 
 **Fix:** Ensure you only access scoped resources while the scope is still alive. Debug by checking `scope.isClosed` before operations.
 
-#### `IllegalStateException` — cross-thread scope usage
+### `IllegalStateException` — cross-thread scope usage
 
 **When:** You call `scoped { }` on a scope from a different thread than the owner.
 
@@ -688,7 +688,7 @@ The following runtime errors occur when scope rules are violated:
 
 The following compile errors occur when `Scope` type rules are violated:
 
-#### `No given instance of Unscoped[MyType]` — escaping a scope
+### `No given instance of Unscoped[MyType]` — escaping a scope
 
 **When:** You try to return a value from a `scoped { }` block that is not known to be safe data.
 
@@ -710,7 +710,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-#### `Scoped values may only be used as a method receiver` — macro violation
+### `Scoped values may only be used as a method receiver` — macro violation
 
 **When:** You use a scoped value in a way other than as a method receiver (e.g., passing as an argument, capturing in a closure).
 
