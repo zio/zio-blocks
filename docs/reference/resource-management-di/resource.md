@@ -47,6 +47,169 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 
 Supported Scala versions: 2.13.x and 3.x.
 
+## Shared vs. Unique Strategies
+
+Resource offers two distinct strategies for managing instance lifecycles: **Shared** for singleton-like resources that are allocated once and reused across multiple scopes, and **Unique** for fresh resources created on each allocation. Understanding when to use each strategy is critical for building efficient and correct resource-management architectures.
+
+### When to Use Shared Resources
+
+**Shared resources are memoized**: the first allocation initializes the instance; subsequent allocations return the same reference with automatic reference counting. Finalizers run only when the last reference is released. Use shared resources for **expensive, globally singular components** — database connection pools, thread pools, logging systems, caches, and other heavyweight infrastructure that should exist exactly once for the lifetime of the application.
+
+The canonical example is a **database connection pool**. Building a fresh pool for each service layer is wasteful and defeats pooling's purpose. Instead, wrap the pool in a shared resource: both the user service and order service allocate the same pool instance, with the system automatically tracking references and closing the pool only when the last service releases it.
+
+Here's what shared acquisition looks like:
+
+```scala
+object Resource {
+  def shared[A](f: Scope => A): Resource[A]
+}
+```
+
+When you allocate a shared resource, reference counting ensures cleanup happens exactly once:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class DatabasePool extends AutoCloseable {
+  def close(): Unit = println("Pool closed (after all services released)")
+}
+
+val poolResource = Resource.shared { scope =>
+  println("Creating database pool (first allocation only)")
+  new DatabasePool
+}
+
+// Allocate in ServiceA
+Scope.global.scoped { scopeA =>
+  import scopeA._
+  val poolA: $[DatabasePool] = poolResource.allocate
+  println("ServiceA allocated pool")
+
+  // Allocate in ServiceB within a nested scope
+  scopeA.scoped { scopeB =>
+    import scopeB._
+    val poolB: $[DatabasePool] = lower(poolA)
+    println("ServiceB using same pool instance (reference count incremented)")
+  }
+  println("ServiceB released, but pool stays open for ServiceA")
+}
+println("All services released, pool closed")
+```
+
+### When to Use Unique Resources
+
+**Unique resources create fresh instances each time**: every allocation produces a new value. Finalizers run when their owning scope closes, independent of other allocations. Use unique resources for **per-request state, isolated services, and stateful handlers** — anything that should never be shared because it encapsulates request-specific or scope-specific data.
+
+A typical scenario is **per-request caches**: each API request gets its own cache instance to avoid one request polluting another's cached data. Similarly, stateful handlers (parser state machines, transaction contexts, event buffers) need isolation to prevent cross-contamination.
+
+Here's what unique acquisition looks like:
+
+```scala
+object Resource {
+  def unique[A](f: Scope => A): Resource[A]
+}
+```
+
+When you allocate a unique resource, each allocation is independent:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class RequestCache extends AutoCloseable {
+  def close(): Unit = println("Request cache closed")
+}
+
+val cacheResource = Resource.unique { scope =>
+  println("Creating new request cache")
+  new RequestCache
+}
+
+// Two allocations in the same scope produce different instances
+Scope.global.scoped { scope =>
+  import scope._
+  println("Creating first cache...")
+  val cache1: $[RequestCache] = cacheResource.allocate
+
+  println("Creating second cache...")
+  val cache2: $[RequestCache] = cacheResource.allocate
+
+  println("Both caches are independent instances")
+}
+```
+
+### Comparison
+
+| Aspect             | Shared                                             | Unique                                    |
+|--------------------|----------------------------------------------------|-------------------------------------------|
+| **Creation**       | `Resource.shared(f)`                               | `Resource.unique(f)` or `Resource(value)` |
+| **Memoization**    | Yes, with reference counting                       | No, fresh per allocation                  |
+| **When to use**    | Expensive resources (DB connections, thread pools) | Per-request state, isolated handlers      |
+| **Instance reuse** | Same instance across all allocations               | New instance per allocation               |
+| **Finalization**   | Runs when last reference released                  | Runs immediately when scope closes        |
+| **Thread safety**  | Lock-free atomic reference counting                | Per-scope, no global coordination needed  |
+
+### Diamond Dependency Pattern
+
+A classic architecture uses shared resources to solve **diamond dependencies**, where multiple services depend on the same expensive component. Consider an e-commerce application where both `ProductService` and `OrderService` depend on `Logger`:
+
+```
+       CachingApp
+        /      \
+       /        \
+  ProductService  OrderService
+       \        /
+        \      /
+         Logger
+```
+
+Without shared resources, each service would receive a different `Logger` instance. With `Resource.shared`, both services automatically receive the same singleton instance:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class Logger extends AutoCloseable {
+  def log(msg: String): Unit = println(s"LOG: $msg")
+  def close(): Unit = println("Logger closed")
+}
+
+class ProductService(val logger: Logger) {
+  def findProduct(id: String): String = {
+    logger.log(s"Finding product $id")
+    s"Product-$id"
+  }
+}
+
+class OrderService(val logger: Logger) {
+  def createOrder(productId: String): String = {
+    logger.log(s"Creating order for $productId")
+    s"ORD-123"
+  }
+}
+
+class CachingApp(val productService: ProductService, val orderService: OrderService) extends AutoCloseable {
+  def close(): Unit = println("App closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+
+  // Use Wire.shared[Logger] to ensure only one instance is created
+  val app: $[CachingApp] = allocate(
+    Resource.from[CachingApp](
+      Wire.shared[Logger]  // Both services get the same Logger instance
+    )
+  )
+
+  $(app) { a =>
+    println(s"ProductService and OrderService share Logger? ${a.productService.logger eq a.orderService.logger}")
+    a.productService.findProduct("P001")
+    a.orderService.createOrder("P001")
+  }
+}
+```
+
+In this pattern, `Resource.shared` (via `Wire.shared`) guarantees a single `Logger` instance across all services, eliminating duplication while maintaining proper cleanup semantics.
+
 ## Construction
 
 Resources can be created in several ways: from values, from explicit acquire/release pairs, from `AutoCloseable` types, from custom functions, or derived automatically from a type's constructor using the `Resource.from` macros.
@@ -385,19 +548,6 @@ Scope.global.scoped { implicit scope =>
 }
 ```
 
-## Shared vs. Unique
-
-The fundamental difference is **reuse semantics**:
-
-| Aspect             | Shared                                             | Unique                                    |
-|--------------------|----------------------------------------------------|-------------------------------------------|
-| **Creation**       | `Resource.shared(f)`                               | `Resource.unique(f)` or `Resource(value)` |
-| **Memoization**    | Yes, with reference counting                       | No, fresh per allocation                  |
-| **When to use**    | Expensive resources (DB connections, thread pools) | Per-request state, stateful handlers      |
-| **Instance reuse** | Same instance across nested scopes                 | New instance per allocation               |
-| **Finalization**   | Runs when last reference released                  | Runs when scope closes                    |
-
-In a diamond dependency pattern (where `AppService` depends on both `UserService` and `OrderService`, both depending on `Database`), using `Resource.shared[Database]` ensures both services receive the same instance.
 
 ## Integration
 
