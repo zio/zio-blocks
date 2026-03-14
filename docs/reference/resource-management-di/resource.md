@@ -370,7 +370,11 @@ val streamResource = Resource.fromAutoCloseable {
 
 ### `Resource.shared` — memoized with reference counting
 
-Creates a shared resource that memoizes its value across multiple allocations. The first call initializes the value; subsequent calls return the same instance with reference counting. Finalizers run only when the last reference is released:
+Creates a shared resource that memoizes its value across multiple allocations using reference counting. The first allocation initializes the value using an `OpenScope` parented to `Scope.global`; subsequent allocations increment the reference count and return the same instance. Each scope that receives the shared value registers a finalizer that decrements the count. When the count reaches zero, the shared scope closes automatically. This mechanism is **thread-safe and lock-free**, implemented using `AtomicReference` with atomic compare-and-swap operations to avoid contention.
+
+Use shared resources for **expensive, singleton-like components** (database connection pools, thread pools, logging systems, caches) that should exist exactly once for the lifetime of the application, even when multiple services depend on them.
+
+Here's the signature:
 
 ```scala
 object Resource {
@@ -378,17 +382,40 @@ object Resource {
 }
 ```
 
-Here's an example showing memoization:
+Here's a realistic example showing reference counting and automatic cleanup:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 
-var initCount = 0
-
-val sharedResource = Resource.shared[Int] { _ =>
-  initCount += 1
-  initCount
+class ExpensiveComponent extends AutoCloseable {
+  println("ExpensiveComponent initialized (expensive operation)")
+  def close(): Unit = println("ExpensiveComponent cleaned up (last reference released)")
 }
+
+val sharedResource = Resource.shared { scope =>
+  new ExpensiveComponent()
+}
+
+// Multiple services allocating the same shared resource
+Scope.global.scoped { scope =>
+  import scope._
+
+  // First allocation initializes the component
+  println("ServiceA allocating...")
+  val componentA: $[ExpensiveComponent] = sharedResource.allocate
+
+  // ServiceB in a nested scope receives the same instance
+  scope.scoped { innerScope =>
+    import innerScope._
+    println("ServiceB allocating (same instance, ref count += 1)...")
+    val componentB: $[ExpensiveComponent] = sharedResource.allocate
+    println("Both services have the same instance")
+  }
+
+  println("ServiceB released, but component stays alive (ref count -= 1)")
+}
+
+println("ServiceA released, component cleaned up (ref count == 0)")
 ```
 
 ### `Resource.unique` — fresh instances
