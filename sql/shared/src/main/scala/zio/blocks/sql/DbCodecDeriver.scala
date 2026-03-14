@@ -6,7 +6,7 @@ import zio.blocks.schema.derive._
 import zio.blocks.docs.Doc
 import zio.blocks.typeid.TypeId
 
-object DbCodecDeriver extends Deriver[DbCodec] {
+class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -80,7 +80,8 @@ object DbCodecDeriver extends Deriver[DbCodec] {
 
       if (!isTransient) {
         val renamed = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
-        fieldNames(idx) = renamed.getOrElse(field.name)
+        fieldNames(idx) = renamed.getOrElse(columnNameMapper(field.name))
+
         fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
       }
       idx += 1
@@ -481,4 +482,9 @@ object DbCodecDeriver extends Deriver[DbCodec] {
       def toDbValues(value: java.util.UUID): IndexedSeq[DbValue] =
         IndexedSeq(DbValue.DbUUID(value))
     }
+}
+
+object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
+  def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver =
+    new DbCodecDeriver(mapper)
 }

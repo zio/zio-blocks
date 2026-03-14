@@ -45,8 +45,18 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[AllPrimitives] = Schema.derived
   }
 
+  case class CamelCaseFields(firstName: String, lastName: String)
+  object CamelCaseFields {
+    implicit val schema: Schema[CamelCaseFields] = Schema.derived
+  }
+
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
     s.deriving(DbCodecDeriver).derive
+
+  private def deriveCodecWithMapper[A](
+    mapper: SqlNameMapper
+  )(implicit s: Schema[A]): DbCodec[A] =
+    s.deriving(DbCodecDeriver.withColumnNameMapper(mapper)).derive
 
   def spec: Spec[TestEnvironment, Any] = suite("DbCodecSpec")(
     suite("primitive derivation")(
@@ -179,6 +189,35 @@ object DbCodecSpec extends ZIOSpecDefault {
         val codec = deriveCodec[WithRename]
         assertTrue(
           codec.columns == IndexedSeq("user_name", "age")
+        )
+      }
+    ),
+    suite("column name mapping")(
+      test("default SnakeCase mapper: camelCase fields become snake_case columns") {
+        val codec = deriveCodec[CamelCaseFields]
+        assertTrue(
+          codec.columns == IndexedSeq("first_name", "last_name"),
+          codec.columnCount == 2
+        )
+      },
+      test("Modifier.rename overrides SnakeCase mapper") {
+        val codec = deriveCodec[WithRename]
+        assertTrue(
+          codec.columns == IndexedSeq("user_name", "age")
+        )
+      },
+      test("Identity mapper preserves camelCase field names") {
+        val codec = CamelCaseFields.schema.deriving(DbCodecDeriver.withColumnNameMapper(SqlNameMapper.Identity)).derive
+        assertTrue(
+          codec.columns == IndexedSeq("firstName", "lastName"),
+          codec.columnCount == 2
+        )
+      },
+      test("Custom mapper applies custom function") {
+        val upperMapper = SqlNameMapper.Custom(_.toUpperCase)
+        val codec       = CamelCaseFields.schema.deriving(DbCodecDeriver.withColumnNameMapper(upperMapper)).derive
+        assertTrue(
+          codec.columns == IndexedSeq("FIRSTNAME", "LASTNAME")
         )
       }
     ),
