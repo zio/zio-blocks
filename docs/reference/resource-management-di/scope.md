@@ -875,7 +875,9 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**Basic database connection lifecycle management**
+### Basic Database Connection Lifecycle Management
+
+This example demonstrates how to allocate a database connection within a scope, ensure proper cleanup, and handle the connection's lifecycle safely.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -889,7 +891,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 sbt "scope-examples/runMain scope.examples.runDatabaseExample"
 ```
 
-**Using scoped values within for-comprehensions**
+### Using Scoped Values Within For-Comprehensions
+
+This example shows how to use scoped values in for-comprehensions, combining multiple resources and operations while maintaining compile-time safety.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -903,7 +907,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ScopedForComprehe
 sbt "scope-examples/runMain scope.examples.scopedForComprehensionExample"
 ```
 
-**Managing a connection pool with multiple allocations**
+### Managing a Connection Pool with Multiple Allocations
+
+This example demonstrates allocating multiple connections from a pool within the same scope and ensuring all are cleaned up correctly.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -917,7 +923,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 sbt "scope-examples/runMain scope.examples.connectionPoolExample"
 ```
 
-**Handling temporary file resources with automatic cleanup**
+### Handling Temporary File Resources with Automatic Cleanup
+
+This example shows how to allocate temporary file resources and ensure they are automatically cleaned up when the scope closes, even if errors occur.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -931,7 +939,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 sbt "scope-examples/runMain scope.examples.tempFileHandlingExample"
 ```
 
-**Managing database transactions with commit/rollback semantics**
+### Managing Database Transactions with Commit/Rollback Semantics
+
+This example demonstrates managing database transactions within a scope, showing how to handle commit and rollback operations correctly.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -945,7 +955,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 sbt "scope-examples/runMain scope.examples.runTransactionBoundaryExample"
 ```
 
-**Implementing an HTTP client pipeline with request/response interceptors**
+### Implementing an HTTP Client Pipeline with Request/Response Interceptors
+
+This example shows how to build an HTTP client pipeline with interceptors for logging, authentication, and error handling, all managed within a scope.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -959,7 +971,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/HttpClientPipelin
 sbt "scope-examples/runMain scope.examples.httpClientPipelineExample"
 ```
 
-**Managing a shared, cached logger across multiple services**
+### Managing a Shared, Cached Logger Across Multiple Services
+
+This example demonstrates allocating a logger once at the top level and sharing it across multiple services, ensuring it is properly closed when the application shuts down.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -973,7 +987,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 sbt "scope-examples/runMain scope.examples.runCachingExample"
 ```
 
-**Building a layered web service with dependency injection**
+### Building a Layered Web Service with Dependency Injection
+
+This example shows how to build a multi-layered web service using Scope for dependency injection, allocating services at different layers and passing them down through child scopes.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -987,7 +1003,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebService
 sbt "scope-examples/runMain scope.examples.layeredWebServiceExample"
 ```
 
-**Reading configuration from a file with scope management**
+### Reading Configuration from a File with Scope Management
+
+This example demonstrates loading configuration from a file within a scope, ensuring the file handle is properly closed when no longer needed.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1001,7 +1019,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConfigReaderExamp
 sbt "scope-examples/runMain scope.examples.runConfigReaderExample"
 ```
 
-**Implementing a plugin architecture with automatic resource discovery**
+### Implementing a Plugin Architecture with Automatic Resource Discovery
+
+This example shows how to build a plugin system that discovers and loads plugins dynamically, managing their lifecycle with scopes.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1015,7 +1035,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/PluginArchitectur
 sbt "scope-examples/runMain scope.examples.pluginArchitectureExample"
 ```
 
-**Demonstrating thread ownership enforcement in scope hierarchies**
+### Demonstrating Thread Ownership Enforcement in Scope Hierarchies
+
+This example demonstrates how Scope enforces thread ownership, preventing cross-thread scope misuse and illustrating the difference between owned and unowned scopes.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1029,7 +1051,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ThreadOwnershipEx
 sbt "scope-examples/runMain scope.examples.runThreadOwnershipExample"
 ```
 
-**Detecting and demonstrating circular dependency scenarios**
+### Detecting and Demonstrating Circular Dependency Scenarios
+
+This example shows how to detect and handle circular dependencies in resource management, illustrating how scopes help prevent subtle bugs in complex dependency graphs.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1043,7 +1067,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CircularDependenc
 sbt "scope-examples/runMain scope.examples.circularDependencyDemoExample"
 ```
 
-**Using scope with legacy libraries that don't support managed resources**
+### Using Scope with Legacy Libraries that Don't Support Managed Resources
+
+This example demonstrates how to integrate Scope with legacy libraries that don't natively support resource management, using wrapper resources and the `leak` escape hatch when necessary.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1057,7 +1083,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LegacyLibraryInte
 sbt "scope-examples/runMain scope.examples.legacyLibraryInteropExample"
 ```
 
-**Integration testing with automatic setup and teardown**
+### Integration Testing with Automatic Setup and Teardown
+
+This example shows how to use Scope to manage test fixtures and resources in integration tests, ensuring automatic cleanup between test runs and proper resource finalization.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
