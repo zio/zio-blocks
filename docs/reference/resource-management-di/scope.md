@@ -366,28 +366,6 @@ A case class containing a child scope and a `close()` function. Returned by `Sco
 
 **Key difference from `scoped`:** You control when to close; finalizers don't run until you call `close()`.
 
-## Comparison Sections
-
-### Scope vs. try/finally
-
-| Aspect                  | try/finally                       | Scope                                  |
-|-------------------------|-----------------------------------|----------------------------------------|
-| **Nesting depth**       | Grows exponentially (pyramid)     | Flat, composable                       |
-| **Type safety**         | No compile-time verification      | Compile-time phantom types             |
-| **Exception during cleanup** | May skip later finalizers      | All finalizers run (with aggregation)  |
-| **Resource escape**     | Silent use-after-free             | Compile error                          |
-| **Scope creation**      | Implicit (where you write code)   | Explicit (via `scoped` or `open`)      |
-
-### Scope vs. Java's try-with-resources
-
-| Aspect                  | try-with-resources                | Scope                              |
-|-------------------------|-----------------------------------|------------------------------------|
-| **Type support**        | `AutoCloseable` only              | Any value with a `Resource`        |
-| **Custom acquisition**  | Limited                           | Full control via `acquireRelease`  |
-| **Nested resources**    | Nested try blocks                 | Flat composition with `scoped`     |
-| **Use-after-close**     | Runtime error when accessing      | Compile error                      |
-| **Scope reuse**         | No; scope created/destroyed once  | Yes; can create many child scopes  |
-
 ## Advanced Usage
 
 ### Resource Sharing with `Resource.shared`
