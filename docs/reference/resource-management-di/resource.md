@@ -246,6 +246,14 @@ Resources support transformation and composition through `map`, `flatMap`, and `
 
 Transforms the value produced by a resource without affecting finalization. The transformation function is applied after the resource is acquired.
 
+```scala
+trait Resource[+A] {
+  def map[B](f: A => B): Resource[B]
+}
+```
+
+Here's a usage example:
+
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 
@@ -256,6 +264,14 @@ val urlResource = portResource.map(port => s"http://localhost:$port")
 ### `Resource#flatMap` — sequence resources
 
 Sequences two resources, using the result of the first to create the second. Both sets of finalizers are registered and run in LIFO order (inner before outer):
+
+```scala
+trait Resource[+A] {
+  def flatMap[B](f: A => Resource[B]): Resource[B]
+}
+```
+
+Here's an example with dependent resources:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -276,6 +292,14 @@ val dbResource = configResource.flatMap { config =>
 ### `Resource#zip` — combine resources
 
 Combines two resources into a single resource that produces a tuple of both values. Both resources are acquired and both sets of finalizers are registered:
+
+```scala
+trait Resource[+A] {
+  def zip[B](that: Resource[B]): Resource[(A, B)]
+}
+```
+
+Here's an example combining multiple resources:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
