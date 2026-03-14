@@ -244,7 +244,7 @@ Scope.global.scoped { scope =>
 
 The child scope is **unowned** (usable from any thread) but remains **linked to the parent** (if the parent closes, the child's finalizers also run). You must call `close()` to detach and finalize immediately.
 
-From `Scope.global`, the type is `Scope.OpenScope` directly:
+This is useful for resource pools, lazy initialization, or service factories where you need to decouple resource acquisition from cleanup. Unlike `scoped { }`, which ties lifetime to a lexical block, `open()` lets you keep resources alive across function boundaries. Here's a practical example—a database service factory:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -254,15 +254,31 @@ final class Database extends AutoCloseable {
   def close(): Unit = println("db closed")
 }
 
-val os: Scope.OpenScope = Scope.global.open()
+// Service factory: open and allocate, return handle
+def createDatabaseService(): Scope.OpenScope = {
+  val serviceScope = Scope.global.open()
+  val db = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+  println("Database service started")
+  serviceScope  // Caller gets the handle
+}
 
-val db = os.scope.allocate(Resource.fromAutoCloseable(new Database))
+// At application startup
+val databaseService = createDatabaseService()
 
-// ... use db ...
+try {
+  // Use the database from any part of the code
+  val query1 = databaseService.scope.scoped { scope =>
+    import scope.*
+    val db = databaseService.scope.allocate(Resource.fromAutoCloseable(new Database))
+    $(db)(_.query("SELECT 1"))
+  }
 
-val finalization = os.close()
-if (finalization.nonEmpty) {
-  finalization.orThrow()
+  // More operations elsewhere in the application...
+  println(s"Result: $query1")
+
+} finally {
+  // Explicit cleanup on shutdown (decoupled from opening)
+  databaseService.close().orThrow()
 }
 ```
 
