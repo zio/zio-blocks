@@ -265,7 +265,7 @@ Scope.global.scoped { outer =>
     import inner.*
 
     // Retag the parent's database into the child
-    val dbInChild: $[Database] = outer.lower(db)
+    val dbInChild: inner.$[Database] = inner.lower(db)
 
     // Now use it in the child
     $(dbInChild)(_.query("child query"))
@@ -358,9 +358,11 @@ Scope.global.scoped { parent =>
 
   val result = $(os) { h =>
     val child = h.scope
-    val db = child.allocate(Resource.fromAutoCloseable(new java.io.File("dummy")))
-    // ... use db ...
-    h.close().orThrow()
+    val file = child.allocate(
+      Resource.fromAutoCloseable(new java.io.FileInputStream("/dev/null"))
+    )
+    // Use file within child scope
+    ()
   }
   result
 }
@@ -847,8 +849,12 @@ import zio.blocks.scope.*
 Scope.global.scoped { root =>
   import root.*
 
+  class MyDatabase extends AutoCloseable {
+    def close(): Unit = ()
+  }
+
   // Allocate shared infrastructure in root
-  val database = allocate(/* database resource */)
+  val database = allocate(new MyDatabase)
 
   root.scoped { service =>
     import service.*
