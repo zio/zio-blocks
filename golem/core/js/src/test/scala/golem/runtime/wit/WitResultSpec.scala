@@ -31,7 +31,7 @@ class WitResultSpec extends AnyFunSuite {
     } yield a + 1
 
     assert(combined.isErr)
-    assertThrows[WitResult.UnwrapError](combined.unwrap())
+    assertThrows[UnwrapError](combined.unwrap())
   }
 
   test("unwrapForWit rethrows Throwable payloads directly") {
@@ -46,7 +46,7 @@ class WitResultSpec extends AnyFunSuite {
 
   test("unwrapForWit wraps non-throwable payloads") {
     val err    = WitResult.err("boom")
-    val thrown = intercept[WitResult.UnwrapError] {
+    val thrown = intercept[UnwrapError] {
       err.unwrapForWit()
     }
     assert(thrown.payload == "boom")
