@@ -66,7 +66,7 @@ private[template] object TemplateMacros {
   def htmlImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Dom] = {
     import c.universe._
 
-    val scTree = c.prefix.tree.asInstanceOf[Apply].args.head
+    val scTree             = c.prefix.tree.asInstanceOf[Apply].args.head
     val parts: Seq[String] = scTree match {
       case Apply(_, partLiterals) =>
         partLiterals.collect { case Literal(Constant(s: String)) => s }
@@ -76,8 +76,8 @@ private[template] object TemplateMacros {
     val processedArgs = args.zipWithIndex.map { case (argExpr, idx) =>
       val precedingText = if (idx < parts.length) parts(idx) else ""
       val isAttrValue   = precedingText.endsWith("=") ||
-                          precedingText.endsWith("=\"") ||
-                          precedingText.endsWith("=\'")
+        precedingText.endsWith("=\"") ||
+        precedingText.endsWith("=\'")
 
       val argType = argExpr.actualType.widen
 
