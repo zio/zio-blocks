@@ -94,6 +94,35 @@ What's happening in this code:
 
 **LIFO cleanup.** When the `scoped` block exits (normally or via exception), all finalizers run in reverse order. The database's `close()` method was registered automatically because `Database` extends `AutoCloseable`. So cleanup happens at the right time, in the right order, even if an exception occurred.
 
+## Safety Model
+
+Scope's compile-time safety comes from *three reinforcing layers* that work together to prevent resource leaks.
+
+### Layer 1: Type barrier — scope-specific `$[A]`
+
+Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
+
+### Layer 2: Controlled access — `$` macro restricts lambda usage
+
+The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents:
+
+- returning the resource
+- storing it in a local val/var
+- passing it as an argument to a function
+- capturing it in a closure
+
+The `$` macro also requires a **lambda literal** (not a method reference or variable):
+
+```scala
+// does not compile:
+val f: Database => String = _.query("x")
+(scope $ db)(f) // Error: "$ requires a lambda literal ..."
+```
+
+### Layer 3: Scope boundary rule — `scoped` requires `Unscoped[A]`
+
+A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
+
 ## Construction / Creating Instances
 
 ### `Scope.global` — The Root Scope
@@ -542,35 +571,6 @@ Scope.global.scoped { outerScope =>
 The parent scope always outlives its children, so you can safely use parent resources in child scopes via `lower`.
 
 ## Advanced Usage
-
-### Safety Model
-
-Scope's compile-time safety comes from *three reinforcing layers* that work together to prevent resource leaks.
-
-#### Layer 1: Type barrier — scope-specific `$[A]`
-
-Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
-
-#### Layer 2: Controlled access — `$` macro restricts lambda usage
-
-The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents:
-
-- returning the resource
-- storing it in a local val/var
-- passing it as an argument to a function
-- capturing it in a closure
-
-The `$` macro also requires a **lambda literal** (not a method reference or variable):
-
-```scala
-// does not compile:
-val f: Database => String = _.query("x")
-(scope $ db)(f) // Error: "$ requires a lambda literal ..."
-```
-
-#### Layer 3: Scope boundary rule — `scoped` requires `Unscoped[A]`
-
-A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
 
 ### Usage Patterns
 
