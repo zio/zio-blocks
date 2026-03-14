@@ -110,6 +110,8 @@ val f: Database => String = _.query("x")
 (scope $ db)(f) // Error: "$ requires a lambda literal ..."
 ```
 
+A lambda literal is an anonymous function written directly in code (e.g., `_.query("x")` or `x => x + 1`). The macro inspects the actual code you pass, so you must pass the lambda directly: `$(db)(_.query("x"))` compiles, but storing it in a variable first defeats this check. Without this restriction, you could smuggle the resource out indirectly via a stored function.
+
 3. **Scope boundary enforcement via `Unscoped`.** A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
 
 ## Construction / Creating Instances
