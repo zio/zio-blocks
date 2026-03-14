@@ -402,29 +402,144 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Subtypes / Variants
+## Scope Patterns: Choosing the Right Approach
 
-### `Scope.global` — The Global (Root) Scope
+The Scope API provides two primary patterns for managing resource lifetimes. Choosing between them depends on whether you know the scope's lifetime at design time.
 
-The single instance of the global scope. Never closes under normal operation; finalizers registered with `Scope.global.defer` run on JVM shutdown. The `$[A]` type is simply `A` (zero-cost identity type).
+### Pattern 1: Lexical Scopes with `scoped`
 
-**When to use:** As the root for all scope hierarchies. Most user code starts with `Scope.global.scoped { ... }`.
+Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression.
 
-### `Scope.Child[P <: Scope]` — A Child Scope
+```scala mdoc:compile-only
+import zio.blocks.scope.*
 
-A child scope created by `scoped { }` or `open()`. Has its own finalizer registry and a reference to its parent. The `$[A]` type is distinct from the parent's, preventing accidental mixing (use `lower` to convert explicitly).
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
 
-**When to use:** Inside `scoped { }` blocks. You receive a child as the parameter to the block.
+Scope.global.scoped { scope =>
+  import scope.*
 
-**Thread ownership:** If created via `scoped`, owned by the creating thread. If created via `open()`, unowned (all threads can use it).
+  val db = allocate(Resource.fromAutoCloseable(new Database))
+  // Use db here
+  $(db)(_.query("SELECT 1"))
+  // Automatically closed when block exits
+}
+```
 
-### `Scope.OpenScope` — An Explicit Handle
+**Advantages:**
+- **Automatic cleanup:** Finalizers run when the block exits, even on exception
+- **Thread-safe by default:** Lexical scopes are thread-owned, preventing accidental cross-thread use
+- **Composable:** Nest `scoped` blocks to express hierarchical resource dependencies
+- **Clear intent:** The code structure matches the resource lifetime
 
-A case class containing a child scope and a `close()` function. Returned by `Scope#open()`.
+**Disadvantages:**
+- Requires knowing the scope lifetime upfront
+- Cannot easily extend lifetime across function boundaries without returning resources
 
-**When to use:** When you need manual control over scope lifetime (e.g., resource pools, streaming pipelines, or testing).
+**Real-world use cases:**
+- Processing data from a connection within a single function
+- Building a layered service stack (database → connection pool → HTTP client)
+- Integration tests that need clean setup/teardown
+- One-off resource acquisition in an application entry point
 
-**Key difference from `scoped`:** You control when to close; finalizers don't run until you call `close()`.
+### Pattern 2: Explicit Scopes with `open()`
+
+Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def close(): Unit = println("db closed")
+}
+
+// Returns an open scope for the caller to manage
+def acquireDatabase(): Scope.OpenScope = {
+  val os = Scope.global.open()
+  val _ = os.scope.allocate(Resource.fromAutoCloseable(new Database))
+  os
+}
+
+val handle = acquireDatabase()
+try {
+  // Use handle.scope as needed
+  ()
+} finally {
+  handle.close().orThrow()
+}
+```
+
+**Advantages:**
+- **Manual lifetime control:** You decide when to close and finalize resources
+- **Non-lexical lifetimes:** Resources can outlive the function that created them
+- **Shareable across threads:** Open scopes are unowned (usable from any thread)
+- **Flexible patterns:** Enables resource pools, lazy initialization, and streaming
+
+**Disadvantages:**
+- Manual responsibility for cleanup (easy to forget `close()`)
+- Exceptions during cleanup won't prevent the program from continuing (you must call `orThrow()`)
+- Thread-safety is the caller's responsibility
+
+**Real-world use cases:**
+- Database connection pools (acquire once, release on app shutdown)
+- Resource caches or lazy initialization patterns
+- Streaming pipelines with external lifetime management
+- Testing frameworks that need custom setup/teardown hooks
+- Service factories that return resources to be managed by a DI container
+
+### Decision Tree
+
+Ask yourself these questions:
+
+1. **Can I write the code that closes the resource in the same scope/block where I open it?**
+   - Yes → Use `scoped { }`
+   - No → Use `open()`
+
+2. **Do all callers need thread-safe resource isolation?**
+   - Yes (most user code) → Use `scoped { }`
+   - No (shared caches, pools) → Use `open()`
+
+3. **Do I need to return the resource or pass it between functions?**
+   - No → Use `scoped { }`
+   - Yes → Use `open()` with an `OpenScope` handle
+
+### Nesting and Hierarchies
+
+When resources depend on each other, nest `scoped` blocks to express the hierarchy:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+class Connection extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { outerScope =>
+  import outerScope.*
+
+  val db = allocate(Resource.fromAutoCloseable(new Database))
+
+  // Child scope for connection
+  outerScope.scoped { innerScope =>
+    import innerScope.*
+
+    val conn = allocate(Resource.fromAutoCloseable(new Connection))
+    // Use conn and db here
+    // conn closes first (LIFO)
+  }
+
+  // Can still use db here
+  // db closes when outerScope exits
+}
+```
+
+The parent scope always outlives its children, so you can safely use parent resources in child scopes via `lower`.
 
 ## Advanced Usage
 
