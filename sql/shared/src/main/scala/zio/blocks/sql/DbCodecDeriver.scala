@@ -211,6 +211,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       new DbCodec[A] {
         val columns: IndexedSeq[String] = innerCodec.columns
 
+        // Note: wasNull reflects the last column read by the inner codec.
+        // For single-column types (the common case), this is correct.
+        // For multi-column inner types, wasNull only reflects the last column,
+        // so a NULL in an earlier column may not be detected.
         def readValue(reader: DbResultReader, startIndex: Int): A = {
           val innerValue  = innerCodec.readValue(reader, startIndex)
           val result: Any = if (reader.wasNull) None else Some(innerValue)

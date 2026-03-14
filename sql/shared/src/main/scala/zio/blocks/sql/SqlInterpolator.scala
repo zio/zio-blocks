@@ -86,7 +86,9 @@ object DbParam {
   }
 }
 
-implicit class SqlStringContext(val sc: StringContext) extends AnyVal {
+extension (sc: StringContext) {
   def sql(args: DbValue*): Frag =
     Frag(sc.parts.toIndexedSeq, args.toIndexedSeq)
 }
+
+given dbParamToDbValue[A](using p: DbParam[A]): Conversion[A, DbValue] = p.toDbValue(_)

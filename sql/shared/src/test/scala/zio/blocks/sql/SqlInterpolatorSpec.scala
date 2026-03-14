@@ -2,6 +2,7 @@ package zio.blocks.sql
 
 import zio.test.*
 
+import scala.language.implicitConversions
 import java.time._
 import java.util.UUID
 
@@ -130,6 +131,43 @@ object SqlInterpolatorSpec extends ZIOSpecDefault {
           frag.queryParams.isEmpty,
           frag.parts == IndexedSeq("SELECT 1")
         )
+      }
+    ),
+    suite("sql interpolator with DbParam conversion")(
+      test("Int param converts via DbParam") {
+        val frag = sql"SELECT ${42}"
+        assertTrue(
+          frag.queryParams == IndexedSeq(DbValue.DbInt(42)),
+          frag.parts == IndexedSeq("SELECT ", "")
+        )
+      },
+      test("String param converts via DbParam") {
+        val frag = sql"SELECT ${"hello"}"
+        assertTrue(frag.queryParams == IndexedSeq(DbValue.DbString("hello")))
+      },
+      test("Boolean param converts via DbParam") {
+        val frag = sql"SELECT ${true}"
+        assertTrue(frag.queryParams == IndexedSeq(DbValue.DbBoolean(true)))
+      },
+      test("multiple mixed DbParam types") {
+        val frag = sql"INSERT INTO t VALUES (${1}, ${"hello"}, ${true}, ${3.14})"
+        assertTrue(
+          frag.queryParams.length == 4,
+          frag.queryParams(0) == DbValue.DbInt(1),
+          frag.queryParams(1) == DbValue.DbString("hello"),
+          frag.queryParams(2) == DbValue.DbBoolean(true),
+          frag.queryParams(3) == DbValue.DbDouble(3.14)
+        )
+      },
+      test("Option Some converts via DbParam") {
+        val v: Option[Int] = Some(42)
+        val frag           = sql"SELECT ${v}"
+        assertTrue(frag.queryParams == IndexedSeq(DbValue.DbInt(42)))
+      },
+      test("Option None converts via DbParam") {
+        val v: Option[Int] = None
+        val frag           = sql"SELECT ${v}"
+        assertTrue(frag.queryParams == IndexedSeq(DbValue.DbNull))
       }
     )
   )

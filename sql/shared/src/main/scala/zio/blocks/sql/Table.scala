@@ -35,8 +35,9 @@ object Table {
 
   private[sql] def pluralize(s: String): String =
     if (s.isEmpty) s
-    else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh")) s + "es"
-    else if (s.endsWith("z")) s + "zes" // quiz -> quizzes, buzz -> buzzes
+    else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh") || s.endsWith("zz"))
+      s + "es"
+    else if (s.endsWith("z")) s + "zes" // quiz -> quizzes
     else if (s.endsWith("y") && s.length > 1 && !isVowel(s.charAt(s.length - 2))) s.dropRight(1) + "ies"
     else s + "s"
 
