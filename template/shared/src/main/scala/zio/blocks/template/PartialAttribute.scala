@@ -1,5 +1,7 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
+
 final class PartialAttribute(val attrName: String) extends Modifier {
 
   def :=(value: String): Dom.Attribute =
@@ -20,16 +22,16 @@ final class PartialAttribute(val attrName: String) extends Modifier {
   def :=(value: Js): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.JsValue(value))
 
-  def :=(values: Vector[String]): Dom.Attribute =
+  def :=(values: Chunk[String]): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, Dom.AttributeSeparator.Space))
 
   def :=(value1: String, value2: String, rest: String*): Dom.Attribute =
     Dom.Attribute.KeyValue(
       attrName,
-      Dom.AttributeValue.MultiValue((value1 +: value2 +: rest).toVector, Dom.AttributeSeparator.Space)
+      Dom.AttributeValue.MultiValue(Chunk.from(value1 +: value2 +: rest), Dom.AttributeSeparator.Space)
     )
 
-  def withSeparator(values: Vector[String], separator: Dom.AttributeSeparator): Dom.Attribute =
+  def withSeparator(values: Chunk[String], separator: Dom.AttributeSeparator): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, separator))
 
   def applyTo(element: Dom.Element): Dom.Element =

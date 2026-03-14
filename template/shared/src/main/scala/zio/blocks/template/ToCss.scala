@@ -29,7 +29,7 @@ object ToCss {
   }
 
   implicit val cssToCss: ToCss[Css] = new ToCss[Css] {
-    def toCss(a: Css): String = a.value
+    def toCss(a: Css): String = a.render
   }
 
   implicit def optionToCss[A](implicit ev: ToCss[A]): ToCss[Option[A]] = new ToCss[Option[A]] {

@@ -60,6 +60,7 @@ const sidebars = {
          "reference/media-type",
          "reference/http-model",
          "ringbuffer",
+         "reference/template",
       ]
     },
     {

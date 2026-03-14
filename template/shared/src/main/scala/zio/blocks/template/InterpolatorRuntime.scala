@@ -1,6 +1,8 @@
 package zio.blocks.template
 
-object InterpolatorRuntime {
+import zio.blocks.chunk.Chunk
+
+private[template] object InterpolatorRuntime {
 
   def buildCss(sc: StringContext, args: Seq[String]): Css = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
@@ -11,7 +13,19 @@ object InterpolatorRuntime {
       sb.append(partsIter.next())
       if (argsIter.hasNext) sb.append(argsIter.next())
     }
-    Css(sb.toString)
+    Css.Raw(sb.toString)
+  }
+
+  def buildSelector(sc: StringContext, args: Seq[String]): CssSelector = {
+    require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
+    val sb        = new java.lang.StringBuilder
+    val partsIter = sc.parts.iterator
+    val argsIter  = args.iterator
+    while (partsIter.hasNext) {
+      sb.append(partsIter.next())
+      if (argsIter.hasNext) sb.append(argsIter.next())
+    }
+    CssSelector.Raw(sb.toString)
   }
 
   def buildJs(sc: StringContext, args: Seq[String]): Js = {
@@ -26,7 +40,7 @@ object InterpolatorRuntime {
     Js(sb.toString)
   }
 
-  def buildHtml(sc: StringContext, args: Seq[Vector[Dom]]): Dom = {
+  def buildHtml(sc: StringContext, args: Seq[Either[String, Chunk[Dom]]]): Dom = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb    = new java.lang.StringBuilder
     val parts = sc.parts
@@ -34,15 +48,31 @@ object InterpolatorRuntime {
     while (i < parts.length) {
       sb.append(parts(i))
       if (i < args.length) {
-        sb.append(SentinelStr)
-        sb.append(i)
-        sb.append(SentinelStr)
+        args(i) match {
+          case Left(attrValue) =>
+            sb.append(attrValue)
+          case Right(_) =>
+            sb.append(SentinelStr)
+            sb.append(i)
+            sb.append(SentinelStr)
+        }
       }
       i += 1
     }
+    val contentArgs = args.zipWithIndex.collect { case (Right(chunk), idx) => (idx, chunk) }.toMap
     val parsed      = parseHtml(sb.toString)
-    val substituted = substituteArgs(parsed, args)
-    Dom.fragment(substituted)
+    val substituted = substituteContentArgs(parsed, contentArgs)
+    if (substituted.isEmpty) Dom.Empty
+    else if (substituted.length == 1) substituted(0)
+    else {
+      val builder = Chunk.newBuilder[Dom]
+      var j       = 0
+      while (j < substituted.length) {
+        builder += substituted(j)
+        j += 1
+      }
+      Dom.Element.Generic("span", Chunk.empty, builder.result())
+    }
   }
 
   // Two-char sentinel that cannot appear in user HTML
@@ -68,9 +98,9 @@ object InterpolatorRuntime {
 
   private val rawContentElements: Set[String] = Set("script", "style")
 
-  def parseHtml(input: String): Vector[Dom] = {
+  def parseHtml(input: String): Chunk[Dom] = {
     val len    = input.length
-    val result = Vector.newBuilder[Dom]
+    val result = Chunk.newBuilder[Dom]
     val stack  = new java.util.ArrayDeque[StackFrame]()
     var pos    = 0
 
@@ -108,7 +138,7 @@ object InterpolatorRuntime {
             val endPos    = tagParseResult.endPos
 
             if (selfClose || voidElements.contains(tagName)) {
-              val elem = createElement(tagName, attrs, Vector.empty)
+              val elem = createElement(tagName, attrs, Chunk.empty)
               addChild(result, stack, elem)
               pos = endPos
             } else if (rawContentElements.contains(tagName)) {
@@ -116,13 +146,13 @@ object InterpolatorRuntime {
               val contentEnd = indexOfIgnoreCase(input, closeTag, endPos)
               if (contentEnd < 0) {
                 val rawContent = input.substring(endPos)
-                val children   = textVector(rawContent)
+                val children   = textChunk(rawContent)
                 val elem       = createElement(tagName, attrs, children)
                 addChild(result, stack, elem)
                 pos = len
               } else {
                 val rawContent = input.substring(endPos, contentEnd)
-                val children   = textVector(rawContent)
+                val children   = textChunk(rawContent)
                 val elem       = createElement(tagName, attrs, children)
                 addChild(result, stack, elem)
                 pos = contentEnd + closeTag.length
@@ -163,18 +193,17 @@ object InterpolatorRuntime {
     result.result()
   }
 
-  private def substituteArgs(nodes: Vector[Dom], args: Seq[Vector[Dom]]): Vector[Dom] = {
-    val result = Vector.newBuilder[Dom]
+  private def substituteContentArgs(nodes: Chunk[Dom], args: Map[Int, Chunk[Dom]]): Chunk[Dom] = {
+    if (args.isEmpty) return nodes
+    val result = Chunk.newBuilder[Dom]
     var i      = 0
     while (i < nodes.length) {
       nodes(i) match {
         case Dom.Text(content) if content.contains(SentinelStr) =>
-          result ++= splitAndSubstitute(content, args)
+          result ++= splitAndSubstituteContent(content, args)
         case el: Dom.Element =>
-          val newChildren = substituteArgs(el.children, args)
+          val newChildren = substituteContentArgs(el.children, args)
           result += el.withChildren(newChildren)
-        case Dom.Fragment(children) =>
-          result ++= substituteArgs(children, args)
         case other =>
           result += other
       }
@@ -183,8 +212,8 @@ object InterpolatorRuntime {
     result.result()
   }
 
-  private def splitAndSubstitute(text: String, args: Seq[Vector[Dom]]): Vector[Dom] = {
-    val result   = Vector.newBuilder[Dom]
+  private def splitAndSubstituteContent(text: String, args: Map[Int, Chunk[Dom]]): Chunk[Dom] = {
+    val result   = Chunk.newBuilder[Dom]
     val segments = text.split(SentinelStr, -1)
     var i        = 0
     while (i < segments.length) {
@@ -193,8 +222,10 @@ object InterpolatorRuntime {
       } else {
         try {
           val argIdx = java.lang.Integer.parseInt(segments(i))
-          if (argIdx >= 0 && argIdx < args.length)
-            result ++= args(argIdx)
+          args.get(argIdx) match {
+            case Some(chunk) => result ++= chunk
+            case None        => result += Dom.Text(segments(i))
+          }
         } catch {
           case _: NumberFormatException =>
             result += Dom.Text(segments(i))
@@ -207,33 +238,33 @@ object InterpolatorRuntime {
 
   private final class StackFrame(
     val tagName: String,
-    val attributes: Vector[Dom.Attribute]
+    val attributes: Chunk[Dom.Attribute]
   ) {
-    private val children = Vector.newBuilder[Dom]
+    private val children = Chunk.newBuilder[Dom]
 
     def addChild(child: Dom): Unit = children += child
 
-    def childrenResult(): Vector[Dom] = children.result()
+    def childrenResult(): Chunk[Dom] = children.result()
   }
 
   private final class TagParseResult(
     val tagName: String,
-    val attributes: Vector[Dom.Attribute],
+    val attributes: Chunk[Dom.Attribute],
     val selfClosing: Boolean,
     val endPos: Int
   )
 
-  private def createElement(tag: String, attrs: Vector[Dom.Attribute], children: Vector[Dom]): Dom.Element =
+  private def createElement(tag: String, attrs: Chunk[Dom.Attribute], children: Chunk[Dom]): Dom.Element =
     if (tag == "script") Dom.Element.Script(attrs, children)
     else if (tag == "style") Dom.Element.Style(attrs, children)
     else Dom.Element.Generic(tag, attrs, children)
 
-  private def textVector(text: String): Vector[Dom] =
-    if (text.isEmpty) Vector.empty
-    else Vector(Dom.Text(text))
+  private def textChunk(text: String): Chunk[Dom] =
+    if (text.isEmpty) Chunk.empty
+    else Chunk(Dom.Text(text))
 
   private def addChild(
-    result: scala.collection.mutable.Builder[Dom, Vector[Dom]],
+    result: scala.collection.mutable.Builder[Dom, Chunk[Dom]],
     stack: java.util.ArrayDeque[StackFrame],
     child: Dom
   ): Unit =
@@ -241,7 +272,7 @@ object InterpolatorRuntime {
     else stack.peek().addChild(child)
 
   private def addText(
-    result: scala.collection.mutable.Builder[Dom, Vector[Dom]],
+    result: scala.collection.mutable.Builder[Dom, Chunk[Dom]],
     stack: java.util.ArrayDeque[StackFrame],
     text: String
   ): Unit =
@@ -249,7 +280,7 @@ object InterpolatorRuntime {
 
   private def popToTag(
     stack: java.util.ArrayDeque[StackFrame],
-    result: scala.collection.mutable.Builder[Dom, Vector[Dom]],
+    result: scala.collection.mutable.Builder[Dom, Chunk[Dom]],
     tagName: String
   ): Unit = {
     var found = false
@@ -296,7 +327,7 @@ object InterpolatorRuntime {
     val firstChar = tagName.charAt(0)
     if (!((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z'))) return null
 
-    val attrs       = Vector.newBuilder[Dom.Attribute]
+    val attrs       = Chunk.newBuilder[Dom.Attribute]
     var i           = tagEnd
     var selfClosing = false
 
@@ -331,7 +362,7 @@ object InterpolatorRuntime {
   private def parseAttrContinue(
     input: String,
     tagName: String,
-    attrs: scala.collection.mutable.Builder[Dom.Attribute, Vector[Dom.Attribute]],
+    attrs: scala.collection.mutable.Builder[Dom.Attribute, Chunk[Dom.Attribute]],
     attrNameStart: Int,
     attrNameEnd: Int,
     initialSelfClosing: Boolean

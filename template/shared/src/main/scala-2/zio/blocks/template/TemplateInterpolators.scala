@@ -2,6 +2,7 @@ package zio.blocks.template
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
+import zio.blocks.chunk.Chunk
 
 trait TemplateInterpolators {
 
@@ -15,6 +16,10 @@ trait TemplateInterpolators {
 
   implicit class HtmlStringContext(val sc: StringContext) {
     def html(args: Any*): Dom = macro TemplateMacros.htmlImpl
+  }
+
+  implicit class SelectorStringContext(val sc: StringContext) {
+    def selector(args: Any*): CssSelector = macro TemplateMacros.selectorImpl
   }
 }
 
@@ -61,19 +66,61 @@ private[template] object TemplateMacros {
   def htmlImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Dom] = {
     import c.universe._
 
-    val processedArgs = args.map { argExpr =>
-      val argType        = argExpr.actualType.widen
-      val toElementsTc   = typeOf[ToElements[_]].typeConstructor
-      val toElementsType = appliedType(toElementsTc, argType)
-      val instance       = c.inferImplicitValue(toElementsType, silent = true)
-      if (instance == EmptyTree) {
-        c.abort(argExpr.tree.pos, s"No ToElements instance found for type $argType")
+    val scTree = c.prefix.tree.asInstanceOf[Apply].args.head
+    val parts: Seq[String] = scTree match {
+      case Apply(_, partLiterals) =>
+        partLiterals.collect { case Literal(Constant(s: String)) => s }
+      case _ => Seq.empty
+    }
+
+    val processedArgs = args.zipWithIndex.map { case (argExpr, idx) =>
+      val precedingText = if (idx < parts.length) parts(idx) else ""
+      val isAttrValue   = precedingText.endsWith("=") ||
+                          precedingText.endsWith("=\"") ||
+                          precedingText.endsWith("=\'")
+
+      val argType = argExpr.actualType.widen
+
+      if (isAttrValue) {
+        val toAttrValueTc   = typeOf[ToAttrValue[_]].typeConstructor
+        val toAttrValueType = appliedType(toAttrValueTc, argType)
+        val instance        = c.inferImplicitValue(toAttrValueType, silent = true)
+        if (instance == EmptyTree) {
+          c.abort(argExpr.tree.pos, s"No ToAttrValue instance found for type $argType")
+        }
+        q"_root_.scala.Left($instance.toAttrValue(${argExpr.tree})): _root_.scala.util.Either[_root_.java.lang.String, _root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.template.Dom]]"
+      } else {
+        val toElementsTc   = typeOf[ToElements[_]].typeConstructor
+        val toElementsType = appliedType(toElementsTc, argType)
+        val instance       = c.inferImplicitValue(toElementsType, silent = true)
+        if (instance == EmptyTree) {
+          c.abort(argExpr.tree.pos, s"No ToElements instance found for type $argType")
+        }
+        q"_root_.scala.Right($instance.toElements(${argExpr.tree})): _root_.scala.util.Either[_root_.java.lang.String, _root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.template.Dom]]"
       }
-      q"$instance.toElements(${argExpr.tree})"
+    }
+
+    val scExpr   = c.Expr[StringContext](scTree)
+    val argsExpr = c.Expr[Seq[Either[String, Chunk[Dom]]]](q"_root_.scala.Seq(..$processedArgs)")
+    reify(InterpolatorRuntime.buildHtml(scExpr.splice, argsExpr.splice))
+  }
+
+  def selectorImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[CssSelector] = {
+    import c.universe._
+
+    val processedArgs = args.map { argExpr =>
+      val argType   = argExpr.actualType.widen
+      val toCssTc   = typeOf[ToCss[_]].typeConstructor
+      val toCssType = appliedType(toCssTc, argType)
+      val instance  = c.inferImplicitValue(toCssType, silent = true)
+      if (instance == EmptyTree) {
+        c.abort(argExpr.tree.pos, s"No ToCss instance found for type $argType")
+      }
+      q"$instance.toCss(${argExpr.tree})"
     }
 
     val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-    val argsExpr = c.Expr[Seq[Vector[Dom]]](q"_root_.scala.Seq(..$processedArgs)")
-    reify(InterpolatorRuntime.buildHtml(scExpr.splice, argsExpr.splice))
+    val argsExpr = c.Expr[Seq[String]](q"_root_.scala.Seq(..$processedArgs)")
+    reify(InterpolatorRuntime.buildSelector(scExpr.splice, argsExpr.splice))
   }
 }

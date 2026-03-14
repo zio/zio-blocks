@@ -37,7 +37,7 @@ object ToAttrValue {
   }
 
   implicit val cssToAttrValue: ToAttrValue[Css] = new ToAttrValue[Css] {
-    def toAttrValue(a: Css): String = Escape.html(a.value)
+    def toAttrValue(a: Css): String = Escape.html(a.render)
   }
 
   implicit def optionToAttrValue[A](implicit ev: ToAttrValue[A]): ToAttrValue[Option[A]] =
