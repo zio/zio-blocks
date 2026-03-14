@@ -51,6 +51,16 @@ Scope addresses these with a *tight* design. Each design choice solves a specifi
 
 If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same problem space—but optimized for **synchronous code** with **compile-time boundaries**.
 
+## Installation
+
+Add the following dependency to your `build.sbt`:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
+```
+
+Supported Scala versions: **2.13.x** and **3.x**.
+
 ---
 
 ## Getting Started
