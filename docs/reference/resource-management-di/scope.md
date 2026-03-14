@@ -100,7 +100,37 @@ What's happening in this code:
 
 Scope's compile-time safety comes from *three reinforcing layers* that work together to prevent resource leaks.
 
-1. **Type identity per scope.** Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
+1. **Type identity per scope.** Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child). For example, `scope1.$[Database]` and `scope2.$[Database]` are different types—the compiler refuses to mix them:
+
+```scala
+// does not compile:
+Scope.global.scoped { scope1 =>
+  import scope1.*
+  val db1 = allocate(new Database)
+
+  scope1.scoped { scope2 =>
+    import scope2.*
+    val x: scope2.$[Database] = db1  // Error: type mismatch
+    // scope2.$[Database] is not compatible with scope1.$[Database]
+  }
+}
+```
+
+To safely use a parent scope's resource in a child scope, use `lower`:
+
+```scala
+Scope.global.scoped { outer =>
+  import outer.*
+  val db = allocate(new Database)
+
+  outer.scoped { inner =>
+    import inner.*
+    val dbInChild = inner.lower(db)  // ✓ Correct: retags for child scope
+    $(dbInChild)(_.query("SELECT 1"))
+  }
+  // db is still alive here after child closes
+}
+```
 
 2. **Controlled access via the `$` macro.** The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents returning the resource, storing it in a local val/var, passing it as an argument to a function, or capturing it in a closure. The `$` macro also requires a **lambda literal** (not a method reference or variable):
 
