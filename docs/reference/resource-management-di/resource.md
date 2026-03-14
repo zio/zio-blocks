@@ -51,7 +51,18 @@ Supported Scala versions: 2.13.x and 3.x.
 
 Resource offers two distinct types for managing instance lifecycles: **Shared** for singleton-like resources that are allocated once and reused across multiple scopes, and **Unique** for fresh resources created on each allocation. Understanding when to use each type is critical for building efficient and correct resource-management architectures.
 
-### When to Use Shared Resources
+### Comparison
+
+| Aspect             | Shared                                             | Unique                                    |
+|--------------------|----------------------------------------------------|-------------------------------------------|
+| **Creation**       | `Resource.shared(f)`                               | `Resource.unique(f)` or `Resource(value)` |
+| **Memoization**    | Yes, with reference counting                       | No, fresh per allocation                  |
+| **When to use**    | Expensive resources (DB connections, thread pools) | Per-request state, isolated handlers      |
+| **Instance reuse** | Same instance across all allocations               | New instance per allocation               |
+| **Finalization**   | Runs when last reference released                  | Runs immediately when scope closes        |
+| **Thread safety**  | Lock-free atomic reference counting                | Per-scope, no global coordination needed  |
+
+### Shared Resources
 
 **Shared resources are memoized**: the first allocation initializes the instance; subsequent allocations return the same reference with automatic reference counting. Finalizers run only when the last reference is released. Use shared resources for **expensive, globally singular components** — database connection pools, thread pools, logging systems, caches, and other heavyweight infrastructure that should exist exactly once for the lifetime of the application.
 
@@ -96,7 +107,7 @@ Scope.global.scoped { scopeA =>
 println("All services released, pool closed")
 ```
 
-### When to Use Unique Resources
+### Unique Resources
 
 **Unique resources create fresh instances each time**: every allocation produces a new value. Finalizers run when their owning scope closes, independent of other allocations. Use unique resources for **per-request state, isolated services, and stateful handlers** — anything that should never be shared because it encapsulates request-specific or scope-specific data.
 
@@ -136,17 +147,6 @@ Scope.global.scoped { scope =>
   println("Both caches are independent instances")
 }
 ```
-
-### Comparison
-
-| Aspect             | Shared                                             | Unique                                    |
-|--------------------|----------------------------------------------------|-------------------------------------------|
-| **Creation**       | `Resource.shared(f)`                               | `Resource.unique(f)` or `Resource(value)` |
-| **Memoization**    | Yes, with reference counting                       | No, fresh per allocation                  |
-| **When to use**    | Expensive resources (DB connections, thread pools) | Per-request state, isolated handlers      |
-| **Instance reuse** | Same instance across all allocations               | New instance per allocation               |
-| **Finalization**   | Runs when last reference released                  | Runs immediately when scope closes        |
-| **Thread safety**  | Lock-free atomic reference counting                | Per-scope, no global coordination needed  |
 
 ### Diamond Dependency Pattern
 
