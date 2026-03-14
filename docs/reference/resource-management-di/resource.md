@@ -399,6 +399,24 @@ The fundamental difference is **reuse semantics**:
 
 In a diamond dependency pattern (where `AppService` depends on both `UserService` and `OrderService`, both depending on `Database`), using `Resource.shared[Database]` ensures both services receive the same instance.
 
+## Integration
+
+Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
+
+- **[`Scope`](./scope.md)** — Resources require a `Scope` for allocation. The `Scope` manages the lifetime of acquired resources and automatically runs finalizers when the scope closes.
+- **[`Wire`](./wire.md)** — The `Resource.from[T](wires)` macro builds dependency graphs using `Wire` values, enabling constructor-based dependency injection with automatic resource management.
+- **[`Finalizer`](./finalizer.md)** — Resources register their cleanup logic with `Finalizer` objects, which execute in LIFO order when scopes close.
+
+For example, `Resource.from[T]` uses `Wire` to construct instances with their dependencies, automatically registering any `AutoCloseable` cleanup:
+
+```scala
+val serviceResource = Resource.from[Service](
+  Wire(Config("localhost", 8080))
+)
+```
+
+This builds a complete dependency graph: `Config` → `Logger` → `Service`, with all finalizers managed by the containing `Scope`.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `scope-examples` module.
