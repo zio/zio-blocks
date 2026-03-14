@@ -222,7 +222,28 @@ val result: String = Scope.global.scoped { scope =>
 
 `scoped` creates a new child scope with lexical lifetime. All resources allocated within the lambda are automatically cleaned up (LIFO) when the lambda exits, whether normally or via exception:
 
-The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`. The Quickstart section above illustrates this pattern.
+The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("database closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  // Use the database within the scope
+  val result = $(db)(_.query("SELECT 1"))
+  result
+  // db is automatically closed here (scope exits)
+}
+```
 
 ### `Scope#open` — Create an Unowned Child Scope
 
