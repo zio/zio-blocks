@@ -582,7 +582,7 @@ Scope.global.scoped { scope =>
 
 **Example 1: Thread-owned scope (scoped) — fails on worker thread**
 
-Scoped resources cannot be used from threads that don't own the scope:
+Thread-owned scopes cannot be used to create child scopes from a different thread:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -600,10 +600,14 @@ try {
     import scope.*
     val db = allocate(new Database)
 
-    // Try to use the resource from a different thread
+    // Try to create a child scope from a different thread
     val future = executor.submit { () =>
       try {
-        $(db)(_.query("SELECT 1"))
+        scope.scoped { childScope =>
+          import childScope.*
+          val dbInChild = childScope.lower(db)
+          $(dbInChild)(_.query("SELECT 1"))
+        }
       } catch {
         case e: IllegalStateException => s"Error: ${e.getMessage}"
       }
