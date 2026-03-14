@@ -333,6 +333,10 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(markdown)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
+    Test / scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) => Seq("-Yretain-trees")
+      case _            => Nil
+    }),
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC46" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
