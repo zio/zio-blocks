@@ -115,14 +115,21 @@ final class Context[+R] private (
    * @tparam A
    *   the type of the value to add
    * @param a
-   *   the value to add
+   *   the value to add (must not be null)
    * @return
    *   a new context containing the added value
+   * @throws java.lang.NullPointerException
+   *   if `a` is null
    */
   def add[A](a: A)(implicit ev: IsNominalType[A]): Context[R & A] = {
+    if (a == null)
+      throw new NullPointerException(
+        s"Context.add: cannot store null value for type ${ev.typeId.fullName}. " +
+          "Context uses null internally as a sentinel for missing entries."
+      )
     val key        = ev.typeIdErased
     val newEntries = entries.updated(key, a)
-    new Context(newEntries, PlatformCache.empty)
+    new Context(newEntries, null)
   }
 
   /**
@@ -133,16 +140,24 @@ final class Context[+R] private (
    * @tparam A
    *   the type to update (must be a supertype of some type in R)
    * @param f
-   *   the transformation function
+   *   the transformation function (must not return null)
    * @return
    *   a new context with the transformed value
+   * @throws java.lang.NullPointerException
+   *   if `f` returns null
    */
   def update[A >: R](f: A => A)(implicit ev: IsNominalType[A]): Context[R] =
     getOption[A] match {
       case Some(a) =>
+        val result = f(a)
+        if (result == null)
+          throw new NullPointerException(
+            s"Context.update: transform returned null for type ${ev.typeId.fullName}. " +
+              "Context uses null internally as a sentinel for missing entries."
+          )
         val key        = ev.typeIdErased
-        val newEntries = entries.updated(key, f(a))
-        new Context(newEntries, PlatformCache.empty)
+        val newEntries = entries.updated(key, result)
+        new Context(newEntries, null)
       case None => self
     }
 
@@ -165,7 +180,7 @@ final class Context[+R] private (
     else if (self.isEmpty) that.asInstanceOf[Context[R & R1]]
     else {
       val newEntries = entries.union(that.entries)
-      new Context(newEntries, PlatformCache.empty)
+      new Context(newEntries, null)
     }
 
   /**
@@ -182,7 +197,7 @@ final class Context[+R] private (
   def prune[A >: R](implicit ev: IsNominalIntersection[A]): Context[A] = {
     val keys       = ev.typeIdsErased
     val newEntries = entries.pruned(keys)
-    new Context(newEntries, PlatformCache.empty)
+    new Context(newEntries, null)
   }
 
   override def toString: String = {
@@ -196,44 +211,57 @@ final class Context[+R] private (
 object Context {
 
   /** An empty context containing no entries. */
-  val empty: Context[Any] = new Context(ContextEntries.empty, PlatformCache.empty)
+  val empty: Context[Any] = new Context(ContextEntries.empty, null)
 
   private def make[R](entries: ContextEntries): Context[R] =
-    new Context[R](entries, PlatformCache.empty)
+    new Context[R](entries, null)
 
-  /** Creates a context containing a single value. */
+  /**
+   * Creates a context containing a single value.
+   *
+   * @throws java.lang.NullPointerException
+   *   if any value is null
+   */
   def apply[A1](a1: A1)(implicit ev1: IsNominalType[A1]): Context[A1] =
-    make(ContextEntries.empty.updated(ev1.typeIdErased, a1))
+    make(ContextEntries.fromPairs(Array((ev1.typeIdErased, a1))))
 
   def apply[A1, A2](a1: A1, a2: A2)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2]
   ): Context[A1 & A2] =
-    make(ContextEntries.empty.updated(ev1.typeIdErased, a1).updated(ev2.typeIdErased, a2))
+    make(ContextEntries.fromPairs(Array((ev1.typeIdErased, a1), (ev2.typeIdErased, a2))))
 
   def apply[A1, A2, A3](a1: A1, a2: A2, a3: A3)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
     ev3: IsNominalType[A3]
-  ): Context[A1 & A2 & A3] = {
-    val e =
-      ContextEntries.empty.updated(ev1.typeIdErased, a1).updated(ev2.typeIdErased, a2).updated(ev3.typeIdErased, a3)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
     ev3: IsNominalType[A3],
     ev4: IsNominalType[A4]
-  ): Context[A1 & A2 & A3 & A4] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5)(implicit
     ev1: IsNominalType[A1],
@@ -241,15 +269,18 @@ object Context {
     ev3: IsNominalType[A3],
     ev4: IsNominalType[A4],
     ev5: IsNominalType[A5]
-  ): Context[A1 & A2 & A3 & A4 & A5] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5, A6](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6)(implicit
     ev1: IsNominalType[A1],
@@ -258,16 +289,19 @@ object Context {
     ev4: IsNominalType[A4],
     ev5: IsNominalType[A5],
     ev6: IsNominalType[A6]
-  ): Context[A1 & A2 & A3 & A4 & A5 & A6] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-      .updated(ev6.typeIdErased, a6)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5 & A6] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5),
+          (ev6.typeIdErased, a6)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5, A6, A7](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7)(implicit
     ev1: IsNominalType[A1],
@@ -277,17 +311,20 @@ object Context {
     ev5: IsNominalType[A5],
     ev6: IsNominalType[A6],
     ev7: IsNominalType[A7]
-  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-      .updated(ev6.typeIdErased, a6)
-      .updated(ev7.typeIdErased, a7)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5),
+          (ev6.typeIdErased, a6),
+          (ev7.typeIdErased, a7)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5, A6, A7, A8](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8)(implicit
     ev1: IsNominalType[A1],
@@ -298,18 +335,21 @@ object Context {
     ev6: IsNominalType[A6],
     ev7: IsNominalType[A7],
     ev8: IsNominalType[A8]
-  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-      .updated(ev6.typeIdErased, a6)
-      .updated(ev7.typeIdErased, a7)
-      .updated(ev8.typeIdErased, a8)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5),
+          (ev6.typeIdErased, a6),
+          (ev7.typeIdErased, a7),
+          (ev8.typeIdErased, a8)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5, A6, A7, A8, A9](
     a1: A1,
@@ -331,19 +371,22 @@ object Context {
     ev7: IsNominalType[A7],
     ev8: IsNominalType[A8],
     ev9: IsNominalType[A9]
-  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-      .updated(ev6.typeIdErased, a6)
-      .updated(ev7.typeIdErased, a7)
-      .updated(ev8.typeIdErased, a8)
-      .updated(ev9.typeIdErased, a9)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5),
+          (ev6.typeIdErased, a6),
+          (ev7.typeIdErased, a7),
+          (ev8.typeIdErased, a8),
+          (ev9.typeIdErased, a9)
+        )
+      )
+    )
 
   def apply[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10](
     a1: A1,
@@ -367,18 +410,21 @@ object Context {
     ev8: IsNominalType[A8],
     ev9: IsNominalType[A9],
     ev10: IsNominalType[A10]
-  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10] = {
-    val e = ContextEntries.empty
-      .updated(ev1.typeIdErased, a1)
-      .updated(ev2.typeIdErased, a2)
-      .updated(ev3.typeIdErased, a3)
-      .updated(ev4.typeIdErased, a4)
-      .updated(ev5.typeIdErased, a5)
-      .updated(ev6.typeIdErased, a6)
-      .updated(ev7.typeIdErased, a7)
-      .updated(ev8.typeIdErased, a8)
-      .updated(ev9.typeIdErased, a9)
-      .updated(ev10.typeIdErased, a10)
-    make(e)
-  }
+  ): Context[A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 & A9 & A10] =
+    make(
+      ContextEntries.fromPairs(
+        Array(
+          (ev1.typeIdErased, a1),
+          (ev2.typeIdErased, a2),
+          (ev3.typeIdErased, a3),
+          (ev4.typeIdErased, a4),
+          (ev5.typeIdErased, a5),
+          (ev6.typeIdErased, a6),
+          (ev7.typeIdErased, a7),
+          (ev8.typeIdErased, a8),
+          (ev9.typeIdErased, a9),
+          (ev10.typeIdErased, a10)
+        )
+      )
+    )
 }
