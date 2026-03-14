@@ -339,11 +339,20 @@ Scope.global.scoped { scope =>
 
 ### 7) `open()`: non-lexical, explicitly-managed child scopes
 
-`scoped` ties lifetime to a block. `open()` creates a child scope you close explicitly.
+`scoped` ties lifetime to a block. `open()` creates a child scope you close explicitly, returning an `OpenScope` handle.
 
 - The child scope is **unowned** (can be used from any thread)
 - Still **linked to the parent**: parent closing will also close the child
 - You must call `close()` on the handle to detach + finalize now
+
+`OpenScope` is a simple case class pairing the child `Scope` with a `close()` function that returns `Finalization` (collecting errors from finalizers):
+
+```scala
+case class OpenScope(
+  scope: Scope,
+  close: () => Finalization
+)
+```
 
 From `Scope.global` the returned type is `Scope.OpenScope` directly (because global `$[A] = A`):
 
@@ -376,6 +385,48 @@ Scope.global.scoped { parent =>
     // ...
     h.close().orThrow()
   }
+}
+```
+
+The `close()` function returns `Finalization`, which collects errors from finalizers. Call `.orThrow()` to fail on errors or check `.nonEmpty` to inspect:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+val os = Scope.global.open()
+// ... use os.scope ...
+
+val result: Finalization = os.close()
+
+if (result.nonEmpty) {
+  result.orThrow()  // Throws first error with others suppressed
+}
+```
+
+**Resource factory pattern:** Use `open()` when creating scopes on demand for callers who manage cleanup:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+object ResourceFactory {
+  def acquireDatabase(): Scope.OpenScope = {
+    val os = Scope.global.open()
+    val db = os.scope.allocate(
+      Resource.fromAutoCloseable(new Database)
+    )
+    os
+  }
+}
+
+val handle = ResourceFactory.acquireDatabase()
+try {
+  // Use handle.scope for allocations
+} finally {
+  handle.close().orThrow()
 }
 ```
 
