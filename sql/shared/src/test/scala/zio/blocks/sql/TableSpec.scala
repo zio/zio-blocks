@@ -88,6 +88,12 @@ object TableSpec extends ZIOSpecDefault {
       test("pluralizes quiz to quizzes") {
         assertTrue(Table.pluralize("quiz") == "quizzes")
       },
+      test("pluralizes buzz to buzzes") {
+        assertTrue(Table.pluralize("buzz") == "buzzes")
+      },
+      test("pluralizes fuzz to fuzzes") {
+        assertTrue(Table.pluralize("fuzz") == "fuzzes")
+      },
       test("empty string pluralizes to empty string") {
         assertTrue(Table.pluralize("") == "")
       }
