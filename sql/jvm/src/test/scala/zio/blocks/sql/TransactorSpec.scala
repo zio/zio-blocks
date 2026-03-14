@@ -5,6 +5,8 @@ import zio.blocks.schema.*
 import java.sql.DriverManager
 
 object TransactorSpec extends ZIOSpecDefault {
+  // Load SQLite JDBC driver
+  private val _ = Class.forName("org.sqlite.JDBC")
 
   case class User(id: Int, name: String, email: String)
   object User {
