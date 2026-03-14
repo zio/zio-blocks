@@ -134,6 +134,17 @@ object CssSelectorSpec extends ZIOSpecDefault {
         assertTrue(CssSelector.Element("div").withAttributeWord("class", "active").render == """div[class~="active"]""")
       }
     ),
+    suite("Attribute selector render")(
+      test("HyphenPrefix matcher") {
+        val sel =
+          CssSelector.Attribute(CssSelector.Element("div"), "lang", Some(CssSelector.AttributeMatch.HyphenPrefix("en")))
+        assertTrue(sel.render == """div[lang|="en"]""")
+      },
+      test("empty inner selector") {
+        val sel = CssSelector.Attribute(CssSelector.Raw(""), "data-x", None)
+        assertTrue(sel.render == "[data-x]")
+      }
+    ),
     suite("CssSelectable on Dom.Element")(
       test("Element has selector") {
         val el = div()
