@@ -372,6 +372,19 @@ val streamResource = Resource.fromAutoCloseable {
 
 Creates a shared resource that memoizes its value across multiple allocations using reference counting. The first allocation initializes the value using an `OpenScope` parented to `Scope.global`; subsequent allocations increment the reference count and return the same instance. Each scope that receives the shared value registers a finalizer that decrements the count. When the count reaches zero, the shared scope closes automatically. This mechanism is **thread-safe and lock-free**, implemented using `AtomicReference` with atomic compare-and-swap operations to avoid contention.
 
+#### Lifecycle Overview
+
+Under the hood, a shared resource progresses through four states:
+
+1. **Uninitialized** — The resource has never been allocated. The first call triggers initialization.
+2. **Pending** — Initialization is in progress. Other threads wait (via spin-yield) for the value to become available.
+3. **Created** — The value is fully initialized and ready. Each allocation increments the reference count; each scope registers a finalizer to decrement it.
+4. **Destroyed** — The reference count reached zero and the resource was cleaned up. Further allocations will fail.
+
+This state machine ensures that no matter how many threads try to allocate simultaneously, the underlying value initializes exactly once, and cleanup happens exactly once when the last reference is released.
+
+#### When to Use Shared Resources
+
 Use shared resources for **expensive, singleton-like components** (database connection pools, thread pools, logging systems, caches) that should exist exactly once for the lifetime of the application, even when multiple services depend on them.
 
 Here's the signature:
