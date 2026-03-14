@@ -1,0 +1,53 @@
+package zio.blocks.sql
+
+trait DbCodec[A] {
+  def columns: IndexedSeq[String]
+  def readValue(reader: DbResultReader, startIndex: Int): A
+  def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit
+  def toDbValues(value: A): IndexedSeq[DbValue]
+  def columnCount: Int = columns.size
+}
+
+object DbCodec {
+  def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
+}
+
+trait DbResultReader {
+  def getInt(index: Int): Int
+  def getLong(index: Int): Long
+  def getDouble(index: Int): Double
+  def getFloat(index: Int): Float
+  def getBoolean(index: Int): Boolean
+  def getString(index: Int): String
+  def getBigDecimal(index: Int): java.math.BigDecimal
+  def getBytes(index: Int): Array[Byte]
+  def getShort(index: Int): Short
+  def getByte(index: Int): Byte
+  def getLocalDate(index: Int): java.time.LocalDate
+  def getLocalDateTime(index: Int): java.time.LocalDateTime
+  def getLocalTime(index: Int): java.time.LocalTime
+  def getInstant(index: Int): java.time.Instant
+  def getDuration(index: Int): java.time.Duration
+  def getUUID(index: Int): java.util.UUID
+  def wasNull: Boolean
+}
+
+trait DbParamWriter {
+  def setInt(index: Int, value: Int): Unit
+  def setLong(index: Int, value: Long): Unit
+  def setDouble(index: Int, value: Double): Unit
+  def setFloat(index: Int, value: Float): Unit
+  def setBoolean(index: Int, value: Boolean): Unit
+  def setString(index: Int, value: String): Unit
+  def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit
+  def setBytes(index: Int, value: Array[Byte]): Unit
+  def setShort(index: Int, value: Short): Unit
+  def setByte(index: Int, value: Byte): Unit
+  def setLocalDate(index: Int, value: java.time.LocalDate): Unit
+  def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit
+  def setLocalTime(index: Int, value: java.time.LocalTime): Unit
+  def setInstant(index: Int, value: java.time.Instant): Unit
+  def setDuration(index: Int, value: java.time.Duration): Unit
+  def setUUID(index: Int, value: java.util.UUID): Unit
+  def setNull(index: Int, sqlType: Int): Unit
+}
