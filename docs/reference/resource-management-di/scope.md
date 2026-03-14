@@ -467,6 +467,25 @@ Scope.global.scoped { scope =>
 
 Prefer adding an `Unscoped` instance to your type if it's truly safe to return, rather than using `leak`.
 
+## Comparison
+
+`Scope` compares to Java/Scala resource management patterns as follows:
+
+| Aspect                | Scope                  | try/finally           | Using                 | ZIO Scope              |
+|-----------------------|------------------------|-----------------------|-----------------------|------------------------|
+| **Safety model**      | Compile-time           | Runtime               | Runtime               | Runtime                |
+| **Finalization order** | LIFO                   | Manual                | LIFO                  | LIFO                   |
+| **Error collection**  | Yes (Finalization)     | No                    | No                    | Yes                    |
+| **Thread model**      | Synchronous, blocking  | Synchronous, blocking | Synchronous, blocking | Async, non-blocking    |
+| **Cost**              | Zero runtime overhead  | Zero overhead         | Zero overhead         | Allocation + overhead  |
+| **Compile-time checks** | Yes (`$[A]` types)    | No                    | No                    | No                     |
+
+**Scope vs try/finally:** Scope is safer (compile-time), with automatic LIFO finalization and error collection. `try/finally` is more verbose and error-prone for resource hierarchies.
+
+**Scope vs Using:** Similar runtime behavior, but `Scope` prevents leaks at compile time (via `$[A]` types), while `Using` relies on developer discipline.
+
+**Scope vs ZIO Scope:** Both offer LIFO finalization and error collection. ZIO Scope is designed for async/non-blocking code; Scope is designed for synchronous, thread-owned resource management.
+
 ---
 
 ## Getting Started
