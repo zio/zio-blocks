@@ -66,6 +66,7 @@ const sidebars = {
       type: "category",
       label: "Guides",
       items: [
+        "guides/compile-time-resource-safety-with-scope",
         "guides/zio-schema-migration",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",

@@ -3,7 +3,7 @@ id: wire
 title: "Wire"
 ---
 
-`Wire[-In, +Out]` is a **compile-time safe recipe for constructing a service and its dependencies**. Wires describe how to construct an `Out` value given access to its dependencies via a `Context[In]` and a `Scope` for finalization.
+`Wire[-In, +Out]` is a **compile-time safe recipe for constructing a service and its dependencies**. Wires describe how to construct an `Out` value given access to its dependencies via a `Context[In]` and a `Scope` for finalization:
 
 ```scala
 sealed trait Wire[-In, +Out] {
@@ -89,6 +89,8 @@ Scope.global.scoped { scope =>
 
 ## Installation
 
+Add the following dependency to your `build.sbt`:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "<version>"
 ```
@@ -103,9 +105,11 @@ Supported Scala versions: 2.13.x and 3.x.
 
 ## Construction
 
+`Wire` provides multiple ways to create instances, ranging from automatic macro-based derivation to manual construction for custom logic. Here are the main construction methods:
+
 ### Wire.shared[T] — derive a shared wire
 
-The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents.
+The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents:
 
 ```scala
 import zio.blocks.scope._
@@ -131,7 +135,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.unique[T] — derive a unique wire
 
-Like `shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services.
+Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services:
 
 ```scala
 import zio.blocks.scope._
@@ -161,7 +165,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.apply[T] — lift a pre-existing value
 
-Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
+Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
 ```scala
 import zio.blocks.scope._
@@ -180,7 +184,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.Shared.fromFunction — manual shared wire construction
 
-Use this for custom construction logic when macro derivation doesn't fit.
+Use this for custom construction logic when macro derivation doesn't fit:
 
 ```scala
 import zio.blocks.scope._
@@ -209,7 +213,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.Unique.fromFunction — manual unique wire construction
 
-Like `fromFunction`, but for unique wires.
+Like `Wire.Shared.fromFunction`, but for unique wires:
 
 ```scala
 import zio.blocks.scope._
@@ -249,7 +253,7 @@ The fundamental difference is **reuse semantics**:
 | **Instance reuse** | Same instance across entire dependency graph | New instance per allocation |
 | **Finalization** | Runs when last referencing scope closes | Runs when each scope closes |
 
-In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance.
+In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance:
 
 ```scala
 import zio.blocks.scope._
@@ -294,6 +298,15 @@ Scope.global.scoped { scope =>
 Check the sharing strategy of a wire:
 
 ```scala
+trait Wire[-In, +Out] {
+  def isShared: Boolean
+  def isUnique: Boolean = !isShared
+}
+```
+
+Here's how to use these methods:
+
+```scala
 import zio.blocks.scope._
 
 val sharedWire = Wire.shared[String]
@@ -308,6 +321,15 @@ println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
 ### `Wire#shared` and `Wire#unique` — convert between strategies
 
 Convert a wire to the opposite strategy:
+
+```scala
+trait Wire[-In, +Out] {
+  def shared: Wire.Shared[In, Out]
+  def unique: Wire.Unique[In, Out]
+}
+```
+
+Here's how to convert between sharing strategies:
 
 ```scala
 import zio.blocks.scope._
@@ -330,6 +352,14 @@ Calling `shared` on an already-shared wire returns `this` (identity); likewise `
 Converts the wire to a lazy `Resource` by providing the dependency context:
 
 ```scala
+trait Wire[-In, +Out] {
+  def toResource(deps: Context[In]): Resource[Out]
+}
+```
+
+Here's how to use this method:
+
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -349,7 +379,15 @@ Scope.global.scoped { scope =>
 
 ### `Wire#make` — construct directly from a wire
 
-Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety.
+Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety:
+
+```scala
+trait Wire.Shared[-In, +Out] {
+  def make(scope: Scope, context: Context[In]): Out
+}
+```
+
+Here's how to use this method:
 
 ```scala
 import zio.blocks.scope._
@@ -384,11 +422,11 @@ import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
 
-final class Logger(using Finalizer) {
+final class Logger(implicit finalizer: Finalizer) {
   def log(msg: String): Unit = println(msg)
 }
 
-final class Database(config: Config)(using scope: Scope) extends AutoCloseable {
+final class Database(config: Config)(implicit scope: Scope) extends AutoCloseable {
   def connect(): Unit = {
     scope.defer(println("database connection closed"))
     println(s"connecting to ${config.dbUrl}")
