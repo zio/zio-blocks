@@ -418,25 +418,9 @@ The Scope API provides two primary patterns for managing resource lifetimes. Cho
 
 ### Pattern 1: Lexical Scopes with `scoped`
 
-Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression:
+Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression.
 
-```scala mdoc:compile-only
-import zio.blocks.scope.*
-
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val db = allocate(Resource.fromAutoCloseable(new Database))
-  // Use db here
-  $(db)(_.query("SELECT 1"))
-  // Automatically closed when block exits
-}
-```
+The Quickstart section earlier shows a complete example of this pattern. For details on different allocation approaches (with `Resource.fromAutoCloseable()` or directly with `AutoCloseable`), see [Core Operations — allocate](#scope-allocate--acquire-a-resource).
 
 **Advantages:**
 - **Automatic cleanup:** Finalizers run when the block exits, even on exception
@@ -456,7 +440,9 @@ Scope.global.scoped { scope =>
 
 ### Pattern 2: Explicit Scopes with `open()`
 
-Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released:
+Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released.
+
+Instead of the lexical `scoped { }` block, you explicitly open a scope, allocate resources, and control when to close. Here's the key pattern—returning an `OpenScope` handle from a function:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -466,7 +452,6 @@ final class Database extends AutoCloseable {
   def close(): Unit = println("db closed")
 }
 
-// Returns an open scope for the caller to manage
 def acquireDatabase(): Scope.OpenScope = {
   val os = Scope.global.open()
   val _ = os.scope.allocate(Resource.fromAutoCloseable(new Database))
@@ -481,6 +466,8 @@ try {
   handle.close().orThrow()
 }
 ```
+
+For construction and finalization details, see [Scope#open](#scopeopen--create-an-unowned-child-scope).
 
 **Advantages:**
 - **Manual lifetime control:** You decide when to close and finalize resources
