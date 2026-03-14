@@ -580,7 +580,9 @@ Scope.global.scoped { scope =>
 }
 ```
 
-Here's a practical example showing thread ownership constraints and how `open()` enables cross-thread usage:
+**Example 1: Thread-owned scope (scoped) — fails on worker thread**
+
+Scoped resources cannot be used from threads that don't own the scope:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -591,52 +593,63 @@ final class Database extends AutoCloseable {
   def close(): Unit = println("db closed")
 }
 
-// Worker thread pool that tries to use scoped resources
-val executor = Executors.newFixedThreadPool(2)
+val executor = Executors.newFixedThreadPool(1)
 
-// This pattern doesn't work: scoped resources are thread-owned
 try {
-  val result = Scope.global.scoped { scope =>
+  Scope.global.scoped { scope =>
     import scope.*
     val db = allocate(new Database)
 
     // Try to use the resource from a different thread
     val future = executor.submit { () =>
       try {
-        // ERROR: This throws IllegalStateException because the worker thread
-        // doesn't own the scope
         $(db)(_.query("SELECT 1"))
       } catch {
         case e: IllegalStateException => s"Error: ${e.getMessage}"
       }
     }
-    future.get()
+    println(future.get())  // Will print error message
   }
-  println(result)
+  // Output: Error: Cannot create child scope: current thread '...' does not own this scope
 } finally {
   executor.shutdown()
 }
+```
 
-// This pattern works: open() creates unowned scopes usable from any thread
-val executor2 = Executors.newFixedThreadPool(2)
+**Example 2: Unowned scope (open) — works across threads**
+
+Open scopes are unowned and usable from any thread:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+import java.util.concurrent.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+val executor = Executors.newFixedThreadPool(1)
 
 try {
   val poolScope = Scope.global.open()
   val db = poolScope.scope.allocate(Resource.fromAutoCloseable(new Database))
 
-  // Now the resource can be used from worker threads
-  val future = executor2.submit { () =>
+  // Use the resource from a worker thread
+  val future = executor.submit { () =>
     poolScope.scope.scoped { scope =>
       import scope.*
       val dbInChild = scope.lower(db)
       $(dbInChild)(_.query("SELECT 1"))
     }
   }
-  println(s"Result: ${future.get()}")
+  println(future.get())  // Succeeds
 
   poolScope.close().orThrow()
+  // Output: result: SELECT 1
+  // Output: db closed
 } finally {
-  executor2.shutdown()
+  executor.shutdown()
 }
 ```
 
