@@ -240,19 +240,18 @@ trait Scope {
 }
 ```
 
-Attempting to allocate in a closed scope throws `IllegalStateException`:
+Once a scope is closed, attempting to allocate in it throws `IllegalStateException`. The scope-closed state is checked when you call `allocate`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Resource}
 
-val result: Int = Scope.global.scoped { scope =>
+Scope.global.scoped { scope =>
   import scope._
-  val value = allocate(Resource(42))
-  $(value) { v => v }
-}
 
-// After the scoped block, the scope is closed.
-// If we tried to use it again, it would throw IllegalStateException
+  // After the scoped block, the scope is closed
+  // Any attempt to allocate would throw:
+  // scope.allocate(Resource(42))  // IllegalStateException!
+}
 ```
 
 #### `Scope#isOwner` — Check Thread Ownership
