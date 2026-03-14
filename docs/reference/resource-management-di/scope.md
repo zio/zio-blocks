@@ -580,6 +580,68 @@ Scope.global.scoped { scope =>
 }
 ```
 
+Here's a practical example showing thread ownership constraints and how `open()` enables cross-thread usage:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+import java.util.concurrent.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+// Worker thread pool that tries to use scoped resources
+val executor = Executors.newFixedThreadPool(2)
+
+// This pattern doesn't work: scoped resources are thread-owned
+try {
+  val result = Scope.global.scoped { scope =>
+    import scope.*
+    val db = allocate(new Database)
+
+    // Try to use the resource from a different thread
+    val future = executor.submit { () =>
+      try {
+        // ERROR: This throws IllegalStateException because the worker thread
+        // doesn't own the scope
+        $(db)(_.query("SELECT 1"))
+      } catch {
+        case e: IllegalStateException => s"Error: ${e.getMessage}"
+      }
+    }
+    future.get()
+  }
+  println(result)
+} finally {
+  executor.shutdown()
+}
+
+// This pattern works: open() creates unowned scopes usable from any thread
+val executor2 = Executors.newFixedThreadPool(2)
+
+try {
+  val poolScope = Scope.global.open()
+  val db = poolScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+
+  // Now the resource can be used from worker threads
+  val future = executor2.submit { () =>
+    poolScope.scope.scoped { scope =>
+      import scope.*
+      val dbInChild = scope.lower(db)
+      $(dbInChild)(_.query("SELECT 1"))
+    }
+  }
+  println(s"Result: ${future.get()}")
+
+  poolScope.close().orThrow()
+} finally {
+  executor2.shutdown()
+}
+```
+
+The key difference: `scoped { }` creates **owned** scopes (tied to the entering thread), while `open()` creates **unowned** scopes (usable from any thread). Choose based on whether your resources need to cross thread boundaries.
+
 ## Scope Patterns: Choosing the Right Approach
 
 The Scope API provides two primary patterns for managing resource lifetimes. Choosing between them depends on whether you know the scope's lifetime at design time.
