@@ -127,6 +127,346 @@ Scope.global.scoped { scope =>
 |----------|-------------|
 | `Scope.global` | The root scope for the entire application. Exists for the lifetime of the JVM process. Use this to enter the Scope system. |
 
+## Core Operations
+
+### `allocate` — Acquire a Resource
+
+Allocates a `Resource[A]` in this scope, acquiring the underlying value immediately and registering its finalizer.
+
+```scala
+trait Scope {
+  def allocate[A](resource: Resource[A]): $[A]
+  def allocate[A <: AutoCloseable](value: => A): $[A]
+}
+```
+
+The first overload accepts any `Resource`. The second is a convenience for `AutoCloseable` values—their `close()` method is automatically registered as a finalizer.
+
+If the scope is already closed, `allocate` throws `IllegalStateException`. Otherwise, the resource is acquired eagerly and its finalizer is registered to run LIFO when the scope closes.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("database closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  // Using Resource factory
+  val db1: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  // Using AutoCloseable overload (convenience)
+  val db2: $[Database] = allocate(new Database)
+
+  // Both are equivalent; use whichever is more readable
+  ()
+}
+```
+
+### `$` — Access a Scoped Value
+
+The `$` operator safely accesses a scoped value by enforcing it is only used as a method/field receiver, preventing accidental capture or escape.
+
+```scala
+def $[A](sa: $[A])(f: A => B): B
+def $[A1, A2](sa1: $[A1], sa2: $[A2])(f: (A1, A2) => B): B
+// ... N-ary overloads for N=2..5
+```
+
+**Single value (`N=1`):** Use infix or unqualified syntax:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] = allocate(new Database)
+
+  // Infix syntax
+  val result1 = (scope $ db)(_.query("SELECT 1"))
+
+  // Unqualified after `import scope.*`
+  val result2 = $(db)(_.query("SELECT 2"))
+
+  result1 + result2
+}
+```
+
+**Multiple values (`N≥2`):** Use unqualified syntax only:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = "result"
+  def close(): Unit = ()
+}
+
+final class Cache extends AutoCloseable {
+  def key(): String = "cache_key"
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] = allocate(new Database)
+  val cache: $[Cache] = allocate(new Cache)
+
+  // Multiple values: each parameter may only be a receiver
+  val result = $(db, cache)((d, c) => d.query(c.key()))
+  result
+}
+```
+
+The `$` macro enforces receiver-only rules at compile time:
+- ✓ Allowed: `d.method()`, `d.method(c.key())` (method calls, field access)
+- ✗ Rejected: `store(d)`, `() => d.method()`, `d` (returned), `{ val x = d; 1 }` (binding)
+
+If a result type is `Unscoped[B]` (pure data), `$` auto-unwraps it to `B`. Otherwise, it returns `scope.$[B]`.
+
+### `lower` — Use a Parent Value in a Child Scope
+
+`lower` retagges a parent-scoped value into a child scope. This is safe because a parent scope always outlives its children.
+
+```scala
+trait Scope {
+  def lower[A](value: parent.$[A]): $[A]
+}
+```
+
+This is useful when a child scope needs access to resources allocated in its parent:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { outer =>
+  import outer.*
+
+  val db: $[Database] = allocate(new Database)
+
+  // Create an inner scope that needs the database
+  outer.scoped { inner =>
+    import inner.*
+
+    // Retag the parent's database into the child
+    val dbInChild: $[Database] = outer.lower(db)
+
+    // Now use it in the child
+    $(dbInChild)(_.query("child query"))
+  }
+  // When inner exits, its finalizers run
+  // When outer exits, db's finalizers run (still alive for the outer scope)
+}
+```
+
+### `defer` — Register a Manual Finalizer
+
+`defer` registers a cleanup action to run when the scope closes. It returns a `DeferHandle` that can cancel the registration.
+
+```scala
+trait Scope {
+  def defer(f: => Unit): DeferHandle
+}
+```
+
+`defer` is useful for resources that are not wrapped in `Resource`, or when you need explicit control over finalization:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val in = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
+
+  val handle: DeferHandle = defer(in.close())
+
+  val first = in.read()
+
+  // Cancel the finalizer if you manually cleaned up
+  // handle.cancel()
+  ()
+}
+```
+
+If the scope is already closed, `defer` is silently ignored (no-op). The finalizer is guaranteed to run in LIFO order with other finalizers when the scope closes.
+
+### `open` — Non-Lexical Child Scope
+
+`open()` creates a child scope you explicitly close, returning an `OpenScope` handle. Unlike `scoped { }`, this allows non-lexical lifetime management.
+
+```scala
+trait Scope {
+  def open(): $[Scope.OpenScope]
+}
+
+case class Scope.OpenScope(
+  scope: Scope,
+  close: () => Finalization
+)
+```
+
+The child scope is **unowned** (usable from any thread) but remains **linked to the parent** (if the parent closes, the child's finalizers also run). You must call `close()` to detach and finalize immediately.
+
+From `Scope.global`, the type is `Scope.OpenScope` directly (since `global.$[A] = A`):
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = "result"
+  def close(): Unit = println("db closed")
+}
+
+val os: Scope.OpenScope = Scope.global.open()
+
+val db = os.scope.allocate(Resource.fromAutoCloseable(new Database))
+
+// ... use db ...
+
+val finalization = os.close()
+if (finalization.nonEmpty) {
+  finalization.orThrow()
+}
+```
+
+Inside a parent scope, use `open()` safely via the `$` operator:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+Scope.global.scoped { parent =>
+  import parent.*
+
+  val os: $[Scope.OpenScope] = open()
+
+  val result = $(os) { h =>
+    val child = h.scope
+    val db = child.allocate(Resource.fromAutoCloseable(new java.io.File("dummy")))
+    // ... use db ...
+    h.close().orThrow()
+  }
+  result
+}
+```
+
+### `isClosed` — Check If Closed
+
+Returns whether this scope's finalizers have already run.
+
+```scala
+trait Scope {
+  def isClosed: Boolean
+}
+```
+
+Once `isClosed` returns `true`, subsequent calls to `allocate`, `open`, or `$` throw `IllegalStateException`. This is checked to prevent use-after-close bugs.
+
+`Scope.global` returns `false` until JVM shutdown (since it exists for the program's lifetime).
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  assert(!scope.isClosed) // Open scope
+
+  scope.scoped { child =>
+    assert(!child.isClosed) // Child is open while the block runs
+  }
+  // After child block exits, child is closed
+  // But parent scope is still open
+
+  assert(!scope.isClosed) // Still open
+}
+// Scope is now closed
+```
+
+### `isOwner` — Check Thread Ownership
+
+Returns whether the calling thread owns this scope.
+
+```scala
+trait Scope {
+  def isOwner: Boolean
+}
+```
+
+Ownership is used to detect cross-thread scope misuse. Thread ownership rules:
+- `Scope.global`: always returns `true` (any thread may use it)
+- Child scopes created via `scoped { }`: returns `true` only on the thread that entered the block
+- Child scopes created via `open()`: always returns `true` (unowned, usable cross-thread)
+
+Calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  // On the thread that entered scoped, isOwner is true
+  assert(scope.isOwner)
+
+  // On a different thread, isOwner returns false
+  val thread = new Thread {
+    override def run(): Unit = {
+      assert(!scope.isOwner)
+    }
+  }
+  thread.start()
+  thread.join()
+}
+```
+
+### `leak` — Escape Hatch
+
+`leak` unwraps a scoped value, bypassing compile-time safety checks. Emits a compiler warning to discourage accidental use.
+
+```scala
+trait Scope {
+  inline def leak[A](inline sa: $[A]): A
+}
+```
+
+Use `leak` only for unavoidable interop with code that cannot work with `$[A]`. The returned value is no longer tracked by the scope, so it may outlive the scope if stored. This responsibility falls on you.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = "result"
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] = allocate(new Database)
+
+  // Emits a compiler warning
+  val raw: Database = leak(db)
+
+  // Now you're responsible: raw may outlive the scope
+  // raw.query("...") // Unsafe!
+}
+```
+
+Prefer adding an `Unscoped` instance to your type if it's truly safe to return, rather than using `leak`.
+
 ---
 
 ## Getting Started
