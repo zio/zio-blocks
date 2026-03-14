@@ -143,4 +143,5 @@ private[scope] object WireCodeGen {
 
     (inType, wireExpr)
   }
+
 }

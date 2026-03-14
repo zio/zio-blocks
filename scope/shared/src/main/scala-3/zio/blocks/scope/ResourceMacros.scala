@@ -364,7 +364,7 @@ private[scope] object ResourceMacros {
     //     Resource.shared[Mid](f => wire.make(f, ctx))  // Wrong: new instance per call!
     //   }
 
-    // Build a helper to create context from values
+    // Build a helper to create context from values (used for explicit wires)
     def buildContextFromValues(values: List[(TypeRepr, Expr[?])]): Expr[Context[?]] =
       values.foldLeft('{ Context.empty }: Expr[Context[?]]) { case (ctxExpr, (t, valueExpr)) =>
         t.asType match {
@@ -374,9 +374,81 @@ private[scope] object ResourceMacros {
         }
       }
 
-    // Create a Resource expression for a type given its dependencies' Resource expressions
-    // For shared resources, wrap the entire construction (including dep acquisition) in Resource.shared
-    // For unique resources, use flatMap chain so each use creates fresh instances
+    // Generate a direct constructor call for a type, bypassing Wire and Context.
+    // Used for auto-created (non-explicit) wires where the macro knows the constructor.
+    // Defined locally to share the same Quotes context as the caller.
+    def generateDirectCtorCall[OutT: Type](
+      scopeExpr: Expr[Scope],
+      depValues: List[(TypeRepr, Expr[?])]
+    ): Expr[OutT] = {
+      val outTpe = TypeRepr.of[OutT]
+      val outSym = outTpe.typeSymbol
+
+      val ctor       = outSym.primaryConstructor
+      val paramLists = ctor.paramSymss
+
+      val isAutoCloseable = outTpe <:< TypeRepr.of[AutoCloseable]
+
+      def findDepValue(paramType: TypeRepr): Term = {
+        val normalizedParam = paramType.dealias.widen.simplified
+        // Prefer exact type match, fall back to subtype match, abort on ambiguity
+        val exactMatch = depValues.find { case (depTpe, _) =>
+          val normalizedDep = depTpe.dealias.widen.simplified
+          normalizedDep =:= normalizedParam
+        }
+        val matched = exactMatch.orElse {
+          val subtypeMatches = depValues.filter { case (depTpe, _) =>
+            depTpe.dealias.widen.simplified <:< normalizedParam
+          }
+          if (subtypeMatches.size > 1)
+            report.errorAndAbort(
+              s"Ambiguous dependency for ${paramType.show}: " +
+                s"multiple deps match: ${subtypeMatches.map(_._1.show).mkString(", ")}"
+            )
+          subtypeMatches.headOption
+        }
+        matched match {
+          case Some((_, expr)) =>
+            paramType.asType match {
+              case '[pt] => '{ ${ expr }.asInstanceOf[pt] }.asTerm
+            }
+          case None =>
+            report.errorAndAbort(s"Bug: no dep value found for ${paramType.show}")
+        }
+      }
+
+      val argListTerms: List[List[Term]] = paramLists.map { params =>
+        params.map { param =>
+          val paramType = outTpe.memberType(param).dealias.simplified
+          if (MacroCore.isScopeType(paramType) || MacroCore.isFinalizerType(paramType))
+            scopeExpr.asTerm
+          else
+            findDepValue(paramType)
+        }
+      }
+
+      val ctorTerm = Select(New(TypeTree.of[OutT]), ctor)
+      val applied  = argListTerms.foldLeft[Term](ctorTerm) { (fn, args) =>
+        Apply(fn, args)
+      }
+
+      val instanceExpr = applied.asExprOf[OutT]
+
+      if (isAutoCloseable) {
+        '{
+          val instance = $instanceExpr
+          $scopeExpr.defer(instance.asInstanceOf[AutoCloseable].close())
+          instance
+        }
+      } else {
+        instanceExpr
+      }
+    }
+
+    // Create a Resource expression for a type given its dependencies' Resource expressions.
+    // For auto-created (non-explicit) wires, generates direct constructor calls bypassing
+    // Wire and Context entirely — eliminating all Context allocation and lookup overhead.
+    // For explicit (user-provided) wires, uses the original Context-based path.
     def createResourceExpr(
       we: WireInfo,
       depResources: Map[String, (TypeRepr, Expr[Resource[?]])]
@@ -386,25 +458,38 @@ private[scope] object ResourceMacros {
       we.outType.asType match {
         case '[outT] =>
           if (deps.isEmpty) {
-            // Leaf resource - no dependencies
-            val wireExpr = we.wireExpr
-            if (we.isShared) {
-              '{
-                val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                Resource.shared[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
+            if (!we.isExplicit) {
+              // Auto-created leaf: direct construction, no Wire or Context needed
+              if (we.isShared) {
+                '{
+                  Resource.shared[outT] { scope =>
+                    ${ generateDirectCtorCall[outT]('scope, Nil) }
+                  }
+                }
+              } else {
+                '{
+                  Resource.unique[outT] { scope =>
+                    ${ generateDirectCtorCall[outT]('scope, Nil) }
+                  }
+                }
               }
             } else {
-              '{
-                val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                Resource.unique[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
+              // Explicit leaf: use Wire + Context (user-provided makeFn)
+              val wireExpr = we.wireExpr
+              if (we.isShared) {
+                '{
+                  val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                  Resource.shared[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
+                }
+              } else {
+                '{
+                  val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                  Resource.unique[outT](scope => wire.make(scope, Context.empty.asInstanceOf[Context[Any]]))
+                }
               }
             }
           } else if (we.isShared) {
             // Shared type with dependencies - wrap entire construction in Resource.shared
-            // This ensures we get ONE Resource.shared instance, not one per use
-            val wireExpr = we.wireExpr
-
-            // Generate code to acquire all deps and build context inside Resource.shared
             def buildDepAcquisition(
               remainingDeps: List[TypeRepr],
               boundValues: List[(TypeRepr, Expr[?])],
@@ -412,10 +497,17 @@ private[scope] object ResourceMacros {
             ): Expr[outT] =
               remainingDeps match {
                 case Nil =>
-                  val ctxExpr = buildContextFromValues(boundValues)
-                  '{
-                    val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                    wire.make($scopeExpr, $ctxExpr.asInstanceOf[Context[Any]])
+                  if (!we.isExplicit) {
+                    // Auto-created: direct constructor call, bypassing Wire + Context
+                    generateDirectCtorCall[outT](scopeExpr, boundValues)
+                  } else {
+                    // Explicit wire: use Context-based path
+                    val wireExpr = we.wireExpr
+                    val ctxExpr  = buildContextFromValues(boundValues)
+                    '{
+                      val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                      wire.make($scopeExpr, $ctxExpr.asInstanceOf[Context[Any]])
+                    }
                   }
 
                 case dep :: rest =>
@@ -439,19 +531,27 @@ private[scope] object ResourceMacros {
             }
           } else {
             // Unique type with dependencies - use flatMap chain
-            // Each use creates fresh instances (that's what unique means)
-            val wireExpr = we.wireExpr
-
             def buildChain(
               remainingDeps: List[TypeRepr],
               boundValues: List[(TypeRepr, Expr[?])]
             ): Expr[Resource[outT]] =
               remainingDeps match {
                 case Nil =>
-                  val ctxExpr = buildContextFromValues(boundValues)
-                  '{
-                    val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
-                    Resource.unique[outT](scope => wire.make(scope, $ctxExpr.asInstanceOf[Context[Any]]))
+                  if (!we.isExplicit) {
+                    // Auto-created: direct constructor call, bypassing Wire + Context
+                    '{
+                      Resource.unique[outT] { scope =>
+                        ${ generateDirectCtorCall[outT]('scope, boundValues) }
+                      }
+                    }
+                  } else {
+                    // Explicit wire: use Context-based path
+                    val wireExpr = we.wireExpr
+                    val ctxExpr  = buildContextFromValues(boundValues)
+                    '{
+                      val wire = $wireExpr.asInstanceOf[Wire[Any, outT]]
+                      Resource.unique[outT](scope => wire.make(scope, $ctxExpr.asInstanceOf[Context[Any]]))
+                    }
                   }
 
                 case dep :: rest =>

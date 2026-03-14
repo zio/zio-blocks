@@ -223,6 +223,8 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   def isEquivalentTo(other: TypeId[?]): Boolean =
     this.isSubtypeOf(other) && other.isSubtypeOf(this)
 
+  // equals and hashCode are overridden in TypeId.Impl with cached hash for performance.
+  // The sealed trait delegates to structurallyEqual/structuralHash as the default.
   override def equals(other: Any): Boolean = other match {
     case that: TypeId[?] => TypeId.structurallyEqual(this, that)
     case _               => false
@@ -235,18 +237,30 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
 
 object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
-  // Private implementation case class
-  private final case class Impl[A <: AnyKind](
-    name: String,
-    owner: Owner,
-    typeParams: List[TypeParam],
-    typeArgs: List[TypeRepr],
-    defKind: TypeDefKind,
-    selfType: Option[TypeRepr],
-    aliasedTo: Option[TypeRepr],
-    representation: Option[TypeRepr],
-    annotations: List[Annotation]
-  ) extends TypeId[A]
+  // Private implementation class with cached hashCode for performance.
+  // TypeId.hashCode() calls structuralHash which does normalization + tuple
+  // creation + hashing. Caching avoids recomputation on every HashMap/equality op.
+  private final class Impl[A <: AnyKind](
+    val name: String,
+    val owner: Owner,
+    val typeParams: List[TypeParam],
+    val typeArgs: List[TypeRepr],
+    val defKind: TypeDefKind,
+    val selfType: Option[TypeRepr],
+    val aliasedTo: Option[TypeRepr],
+    val representation: Option[TypeRepr],
+    val annotations: List[Annotation]
+  ) extends TypeId[A] {
+    private val cachedHash: Int = TypeIdOps.structuralHash(this)
+
+    override def hashCode(): Int = cachedHash
+
+    override def equals(other: Any): Boolean = other match {
+      case that: TypeId[?] =>
+        (this eq that) || (this.cachedHash == that.hashCode() && TypeId.structurallyEqual(this, that))
+      case _ => false
+    }
+  }
 
   private[blocks] def makeImpl[A](
     name: String,
@@ -258,7 +272,8 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     aliasedTo: Option[TypeRepr],
     representation: Option[TypeRepr],
     annotations: List[Annotation]
-  ): TypeId[A] = Impl[A](name, owner, typeParams, typeArgs, defKind, selfType, aliasedTo, representation, annotations)
+  ): TypeId[A] =
+    new Impl[A](name, owner, typeParams, typeArgs, defKind, selfType, aliasedTo, representation, annotations)
 
   // ========== Smart Constructors ==========
 
@@ -266,7 +281,7 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     name: String,
     owner: Owner,
     kind: TypeDefKind
-  ): TypeId[A] = Impl[A](name, owner, Nil, Nil, kind, None, None, None, Nil)
+  ): TypeId[A] = new Impl[A](name, owner, Nil, Nil, kind, None, None, None, Nil)
 
   def nominal[A <: AnyKind](
     name: String,
@@ -276,7 +291,7 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     defKind: TypeDefKind = TypeDefKind.Unknown,
     selfType: Option[TypeRepr] = None,
     annotations: List[Annotation] = Nil
-  ): TypeId[A] = Impl[A](
+  ): TypeId[A] = new Impl[A](
     name,
     owner,
     typeParams,
@@ -295,7 +310,7 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     aliased: TypeRepr,
     typeArgs: List[TypeRepr] = Nil,
     annotations: List[Annotation] = Nil
-  ): TypeId[A] = Impl[A](
+  ): TypeId[A] = new Impl[A](
     name,
     owner,
     typeParams,
@@ -315,7 +330,7 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     typeArgs: List[TypeRepr] = Nil,
     publicBounds: TypeBounds = TypeBounds.Unbounded,
     annotations: List[Annotation] = Nil
-  ): TypeId[A] = Impl[A](
+  ): TypeId[A] = new Impl[A](
     name,
     owner,
     typeParams,
@@ -334,7 +349,7 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   def applied[A <: AnyKind](
     typeConstructor: TypeId[?],
     args: TypeRepr*
-  ): TypeId[A] = Impl[A](
+  ): TypeId[A] = new Impl[A](
     typeConstructor.name,
     typeConstructor.owner,
     typeConstructor.typeParams,
