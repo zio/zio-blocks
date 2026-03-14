@@ -478,24 +478,57 @@ trait Scope {
 
 Once `isClosed` returns `true`, subsequent calls to `allocate`, `open`, or `$` throw `IllegalStateException`. This is checked to prevent use-after-close bugs.
 
-`Scope.global` returns `false` until JVM shutdown:
+Here's a practical example—a resource manager that guards against using a closed scope:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-Scope.global.scoped { scope =>
-  assert(!scope.isClosed) // Open scope
-
-  scope.scoped { child =>
-    assert(!child.isClosed) // Child is open while the block runs
-  }
-  // After child block exits, child is closed
-  // But parent scope is still open
-
-  assert(!scope.isClosed) // Still open
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
-// Scope is now closed
+
+// A service that holds and manages a scope
+class DatabaseService {
+  private val serviceScope = Scope.global.open()
+  private val db = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+
+  def execute(query: String): Either[String, String] = {
+    if (serviceScope.scope.isClosed) {
+      Left("Database service is closed")
+    } else {
+      try {
+        Right(serviceScope.scope.scoped { scope =>
+          import scope.*
+          val database = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+          $(database)(_.query(query))
+        })
+      } catch {
+        case e: IllegalStateException => Left(s"Service error: ${e.getMessage}")
+      }
+    }
+  }
+
+  def shutdown(): Unit = {
+    serviceScope.close().orThrow()
+    println("Service shutdown complete")
+  }
+}
+
+// Usage
+val service = new DatabaseService
+
+val result1 = service.execute("SELECT 1")
+println(result1)
+
+service.shutdown()
+
+// This would return Left since the service is now closed
+val result2 = service.execute("SELECT 2")
+println(result2)
 ```
+
+`Scope.global` returns `false` until JVM shutdown. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
 
 ### `Scope#isOwner` — Check Thread Ownership
 
