@@ -62,7 +62,7 @@ Supported Scala versions: **2.13.x** and **3.x**.
 
 ## Quickstart
 
-Here's a minimal example showing resource allocation, usage, and cleanup:
+Here's a minimal example showing resource allocation, usage, and cleanup. This example introduces a canonical `Database` stub that we'll reuse throughout this guide:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -162,7 +162,7 @@ From `Scope.global`, the type is `Scope.OpenScope` directly:
 import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
-  def query(sql: String): String = "result"
+  def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
 
@@ -200,7 +200,7 @@ import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("database closed")
+  def close(): Unit = println("db closed")
 }
 
 Scope.global.scoped { scope =>
@@ -229,7 +229,7 @@ import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
-  def close(): Unit = ()
+  def close(): Unit = println("db closed")
 }
 
 Scope.global.scoped { scope =>
@@ -253,8 +253,8 @@ Scope.global.scoped { scope =>
 import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
-  def query(sql: String): String = "result"
-  def close(): Unit = ()
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
 final class Cache extends AutoCloseable {
@@ -291,7 +291,7 @@ import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
-  def close(): Unit = ()
+  def close(): Unit = println("db closed")
 }
 
 Scope.global.scoped { outer =>
@@ -462,6 +462,7 @@ Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you
 import zio.blocks.scope.*
 
 final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
 
@@ -522,12 +523,13 @@ When resources depend on each other, nest `scoped` blocks to express the hierarc
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-class Database extends AutoCloseable {
-  def close(): Unit = ()
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
-class Connection extends AutoCloseable {
-  def close(): Unit = ()
+final class Connection extends AutoCloseable {
+  def close(): Unit = println("connection closed")
 }
 
 Scope.global.scoped { outerScope =>
@@ -669,8 +671,9 @@ Build your acquisition/release logic first using `Resource` combinators, then al
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-class Database extends AutoCloseable {
-  def close(): Unit = ()
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
 val dbResource = Resource.fromAutoCloseable(new Database)
@@ -698,9 +701,9 @@ Here's the correct way to use it:
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
-class Database extends AutoCloseable {
-  def query(sql: String): String = ""
-  def close(): Unit = ()
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
 Scope.global.scoped { scope =>
