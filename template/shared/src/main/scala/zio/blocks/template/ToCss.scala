@@ -49,13 +49,20 @@ object ToCss {
 }
 
 final case class CssLength(value: Double, unit: String) {
-  def render: String = {
-    val v = if (value == value.toLong.toDouble) value.toLong.toString else value.toString
-    v + unit
-  }
+  require(CssLength.validUnits.contains(unit), s"Invalid CSS unit: $unit")
+
+  def render: String =
+    if (value.isNaN || value.isInfinite) "0" + unit
+    else {
+      val v = if (value == value.toLong.toDouble) value.toLong.toString else value.toString
+      v + unit
+    }
 }
 
 object CssLength {
+  private[template] val validUnits: Set[String] =
+    Set("px", "em", "rem", "%", "vh", "vw", "ch", "ex", "vmin", "vmax", "cm", "mm", "in", "pt", "pc")
+
   implicit class CssLengthIntOps(private val n: Int) extends AnyVal {
     def px: CssLength  = CssLength(n.toDouble, "px")
     def em: CssLength  = CssLength(n.toDouble, "em")

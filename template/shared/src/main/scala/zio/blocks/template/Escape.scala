@@ -38,8 +38,23 @@ private[template] object Escape {
     val len = s.length
     if (len == 0) return s
 
-    val sb = new java.lang.StringBuilder(len + 16)
-    var i  = 0
+    var i = 0
+    while (i < len) {
+      val c = s.charAt(i)
+      if (
+        c == '"' || c == '\'' || c == '\\' || c == '\n' || c == '\r' || c == '\t' || c == '\b' || c == '\f' || c == '<' || c == '>' || c == '&' || c == '\u2028' || c == '\u2029' || c < 32
+      ) {
+        return jsStringEscape(s)
+      }
+      i += 1
+    }
+    s
+  }
+
+  private def jsStringEscape(s: String): String = {
+    val len = s.length
+    val sb  = new java.lang.StringBuilder(len + 16)
+    var i   = 0
     while (i < len) {
       val c = s.charAt(i)
       if (c == '"') sb.append("\\\"")
@@ -82,7 +97,11 @@ private[template] object Escape {
       else if (c == '<') sb.append("\\3c ")
       else if (c == '>') sb.append("\\3e ")
       else if (c == '&') sb.append("\\26 ")
-      else sb.append(c)
+      else if (c < 32) {
+        sb.append('\\')
+        sb.append(Integer.toHexString(c.toInt))
+        sb.append(' ')
+      } else sb.append(c)
       i += 1
     }
     sb.toString
