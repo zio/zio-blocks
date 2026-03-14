@@ -10,6 +10,8 @@ title: "Scope"
 - allocates resources eagerly and runs finalizers deterministically in LIFO order
 - is purely synchronous with zero runtime overhead (scoped values erase to underlying types)
 
+Here's the interface definition:
+
 ```scala
 trait Scope {
   type $[+A]
