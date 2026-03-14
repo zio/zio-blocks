@@ -244,7 +244,9 @@ Scope.global.scoped { scope =>
 
 The child scope is **unowned** (usable from any thread) but remains **linked to the parent** (if the parent closes, the child's finalizers also run). You must call `close()` to detach and finalize immediately.
 
-This is useful for resource pools, lazy initialization, or service factories where you need to decouple resource acquisition from cleanup. Unlike `scoped { }`, which ties lifetime to a lexical block, `open()` lets you keep resources alive across function boundaries. Here's a practical example—a database service factory:
+This is useful for resource pools, lazy initialization, or service factories where you need to decouple resource acquisition from cleanup. Unlike `scoped { }`, which ties lifetime to a lexical block, `open()` lets you keep resources alive across function boundaries and explicit time boundaries.
+
+Here's a practical application initialization pattern:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -254,31 +256,26 @@ final class Database extends AutoCloseable {
   def close(): Unit = println("db closed")
 }
 
-// Service factory: open and allocate, return handle
-def createDatabaseService(): Scope.OpenScope = {
-  val serviceScope = Scope.global.open()
-  val db = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
-  println("Database service started")
-  serviceScope  // Caller gets the handle
-}
-
-// At application startup
-val databaseService = createDatabaseService()
+// Application initialization: open resources early, return handle for later cleanup
+val appResources = Scope.global.open()
+val db = appResources.scope.allocate(Resource.fromAutoCloseable(new Database))
 
 try {
-  // Use the database from any part of the code
-  val query1 = databaseService.scope.scoped { scope =>
+  // Use database from anywhere in the application
+  val result = appResources.scope.scoped { scope =>
     import scope.*
-    val db = databaseService.scope.allocate(Resource.fromAutoCloseable(new Database))
-    $(db)(_.query("SELECT 1"))
+    // Can create child scopes and use parent resources with lower()
+    val dbInChild = scope.lower(db)
+    $(dbInChild)(_.query("SELECT 1"))
   }
 
-  // More operations elsewhere in the application...
-  println(s"Result: $query1")
+  println(s"Query result: $result")
+
+  // ... rest of application code ...
 
 } finally {
-  // Explicit cleanup on shutdown (decoupled from opening)
-  databaseService.close().orThrow()
+  // Application shutdown: explicit cleanup (decoupled from creation)
+  appResources.close().orThrow()
 }
 ```
 
