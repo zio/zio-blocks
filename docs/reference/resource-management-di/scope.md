@@ -439,7 +439,7 @@ The Scope API provides two primary patterns for managing resource lifetimes. Cho
 
 ### Pattern 1: Lexical Scopes with `scoped`
 
-Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression.
+Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
