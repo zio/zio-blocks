@@ -6,7 +6,7 @@ import zio.blocks.chunk.Chunk
 private[template] object TagMacro {
 
   def applyImpl(
-    tag: Expr[InlineTag],
+    tag: Expr[Tag],
     modifier: Expr[Modifier],
     modifiers: Expr[Seq[Modifier]]
   )(using Quotes): Expr[Dom.Element] =
@@ -30,7 +30,7 @@ private[template] object TagMacro {
     Dom.Element.Generic(tag, attrs, children)
 
   private def runtimeFallback(
-    tag: Expr[InlineTag],
+    tag: Expr[Tag],
     modifier: Expr[Modifier],
     modifiers: Expr[Seq[Modifier]]
   )(using Quotes): Expr[Dom.Element] =
@@ -51,7 +51,7 @@ private[template] object TagMacro {
     '{ TagMacro.directBuild(${ Expr(tagName) }, $attrChunk, $childChunk) }
   }
 
-  private def extractTagName(tag: Expr[InlineTag])(using Quotes): Option[String] = {
+  private def extractTagName(tag: Expr[Tag])(using Quotes): Option[String] = {
     import quotes.reflect.*
     tag.asTerm.underlying match {
       case Apply(_, List(Literal(StringConstant(name))))                               => Some(name)
@@ -59,8 +59,8 @@ private[template] object TagMacro {
       case Inlined(_, _, Inlined(_, _, Apply(_, List(Literal(StringConstant(name)))))) => Some(name)
       case _                                                                           =>
         tag match {
-          case '{ new InlineTag(${ Expr(name) }) } => Some(name)
-          case _                                   => None
+          case '{ new Tag(${ Expr(name) }) } => Some(name)
+          case _                             => None
         }
     }
   }

@@ -8,10 +8,7 @@ class Tag(val name: String) {
   def apply(): Dom.Element =
     Dom.Element.Generic(name, Chunk.empty, Chunk.empty)
 
-  def apply(modifier: Modifier, modifiers: Modifier*): Dom.Element =
-    runtimeApply(modifier, modifiers: _*)
-
-  def runtimeApply(modifier: Modifier, modifiers: Modifier*): Dom.Element = {
+  def apply(modifier: Modifier, modifiers: Modifier*): Dom.Element = {
     var elem: Dom.Element = Dom.Element.Generic(name, Chunk.empty, Chunk.empty)
     elem = modifier.applyTo(elem)
     var i = 0
