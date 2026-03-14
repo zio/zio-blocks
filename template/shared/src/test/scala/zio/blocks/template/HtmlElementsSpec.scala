@@ -174,6 +174,22 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(s.render == "<style>a > b { color: blue; }</style>")
       }
     ),
+    suite("script/style modifier type coercion")(
+      test("script with non-Script modifier preserves as Script") {
+        val genericChild: Modifier = Modifier.domToModifier(Dom.Text("code"))
+        val s                      = script(genericChild)
+        assertTrue(s.tag == "script", s.render.contains("code"))
+      },
+      test("style with non-Style modifier preserves as Style") {
+        val genericChild: Modifier = Modifier.domToModifier(Dom.Text("css"))
+        val s                      = style(genericChild)
+        assertTrue(s.tag == "style", s.render.contains("css"))
+      },
+      test("element with no modifiers creates empty element") {
+        val el = element("custom")
+        assertTrue(el.render == "<custom></custom>")
+      }
+    ),
     suite("empty helper")(
       test("empty renders nothing") {
         assertTrue(empty.render == "")
@@ -565,6 +581,104 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val a  = multiAttr("style", Dom.AttributeSeparator.Semicolon, "color: red", "font-size: 14px")
         val el = Dom.Element.Generic("div", Chunk(a), Chunk.empty)
         assertTrue(el.render == "<div style=\"color: red;font-size: 14px\"></div>")
+      }
+    ),
+    suite("when and whenSome on elements")(
+      test("when true with multiple modifiers applies all") {
+        val el = div().when(true)(
+          Modifier.attributeToModifier(id := "x"),
+          Modifier.stringToModifier("text")
+        )
+        assertTrue(el.render.contains("id=\"x\""), el.render.contains("text"))
+      },
+      test("when false with multiple modifiers returns unchanged") {
+        val el = div().when(false)(
+          Modifier.attributeToModifier(id := "x"),
+          Modifier.stringToModifier("text")
+        )
+        assertTrue(el.render == "<div></div>")
+      },
+      test("whenSome with Some applies all modifiers from function") {
+        val el = div().whenSome(Some(42)) { n =>
+          Seq(Modifier.stringToModifier(n.toString))
+        }
+        assertTrue(el.render == "<div>42</div>")
+      },
+      test("whenSome with None returns unchanged element") {
+        val el = div().whenSome(Option.empty[Int]) { n =>
+          Seq(Modifier.stringToModifier(n.toString))
+        }
+        assertTrue(el.render == "<div></div>")
+      },
+      test("when true with zero modifiers returns same element") {
+        val el = div("content")
+        val r  = el.when(true)()
+        assertTrue(r.render == "<div>content</div>")
+      },
+      test("whenSome with Some and multiple modifiers") {
+        val el = span().whenSome(Some("cls")) { cls =>
+          Seq(
+            Modifier.attributeToModifier(className := cls),
+            Modifier.stringToModifier("inner")
+          )
+        }
+        assertTrue(el.render.contains("class=\"cls\""), el.render.contains("inner"))
+      }
+    ),
+    suite("element constructor edge cases")(
+      test("script with Js inlineJs") {
+        val s = script().inlineJs(Js("var x = 1 < 2;"))
+        assertTrue(s.render == "<script>var x = 1 < 2;</script>")
+      },
+      test("script externalJs with path") {
+        val s = script().externalJs("/assets/main.js")
+        assertTrue(s.render == """<script src="/assets/main.js"></script>""")
+      },
+      test("style inlineCss with Css ADT") {
+        val c = Css("body { margin: 0 }")
+        val s = style().inlineCss(c)
+        assertTrue(s.render == "<style>body { margin: 0 }</style>")
+      },
+      test("meta charset renders correctly") {
+        val m = meta(charset := "utf-8")
+        assertTrue(m.render == "<meta charset=\"utf-8\"/>")
+      },
+      test("link with rel and href") {
+        val l = link(rel := "stylesheet", href := "/style.css")
+        assertTrue(
+          l.render.contains("rel=\"stylesheet\""),
+          l.render.contains("href=\"/style.css\""),
+          l.render.endsWith("/>")
+        )
+      },
+      test("element helper with no modifiers creates empty element") {
+        val el = element("x-widget")
+        assertTrue(el.render == "<x-widget></x-widget>")
+      },
+      test("element helper is a generic element") {
+        val el = element("section", "content")
+        assertTrue(el.render == "<section>content</section>")
+      }
+    ),
+    suite("HtmlElements constructor with script/style type conversions")(
+      test("script with string modifier creates Script element") {
+        val s = script("console.log(1)")
+        assertTrue(s.tag == "script", s.render == "<script>console.log(1)</script>")
+      },
+      test("script with attribute modifier creates Script element") {
+        val s = script(src := "app.js")
+        assertTrue(s.tag == "script", s.render == """<script src="app.js"></script>""")
+      },
+      test("style with string modifier creates Style element") {
+        val s = style(".cls { color: red }")
+        assertTrue(s.tag == "style", s.render == "<style>.cls { color: red }</style>")
+      },
+      test("script with multiple modifiers") {
+        val s = script(`type` := "module", "import x from 'y';")
+        assertTrue(
+          s.render.contains("type=\"module\""),
+          s.render.contains("import x from 'y';")
+        )
       }
     )
   )
