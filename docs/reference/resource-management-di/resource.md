@@ -704,7 +704,9 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**Basic lifecycle management with temporary files**
+### Basic Lifecycle Management with Temporary Files
+
+This example demonstrates creating and automatically cleaning up temporary files using Resource's lifecycle management. It shows how Resource ensures files are closed even if exceptions occur.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -718,7 +720,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 sbt "scope-examples/runMain scope.examples.TempFileHandlingExample"
 ```
 
-**Acquiring and releasing database connections**
+### Acquiring and Releasing Database Connections
+
+This example demonstrates the acquire-release pattern using Resource to manage database connections. It shows proper connection initialization and guaranteed cleanup.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -732,7 +736,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 sbt "scope-examples/runMain scope.examples.DatabaseConnectionExample"
 ```
 
-**Shared resources with memoization and reference counting**
+### Shared Resources with Memoization and Reference Counting
+
+This example demonstrates Resource.shared to create a singleton logger instance that is automatically cleaned up only when the last service releases it. Shows reference counting in action.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -746,7 +752,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 sbt "scope-examples/runMain scope.examples.CachingSharedLoggerExample"
 ```
 
-**Managing shared expensive resources**
+### Managing Shared Expensive Resources
+
+This example demonstrates using Resource.shared for a database connection pool—an expensive resource that should exist exactly once. Shows how multiple services safely share the same pool instance with automatic cleanup.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -760,7 +768,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 sbt "scope-examples/runMain scope.examples.ConnectionPoolExample"
 ```
 
-**Transactional resource management**
+### Transactional Resource Management
+
+This example demonstrates combining Resource with transaction boundaries. Shows how to manage resources (connections, transactions) that must be coordinated across scopes with proper rollback on failure.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -774,7 +784,9 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 sbt "scope-examples/runMain scope.examples.TransactionBoundaryExample"
 ```
 
-**Multi-layer service construction**
+### Multi-Layer Service Construction
+
+This example demonstrates Resource.from macro to automatically build a complex dependency graph with multiple services. Shows automatic wiring of constructor dependencies and cleanup in correct LIFO order.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
