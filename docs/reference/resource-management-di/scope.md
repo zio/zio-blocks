@@ -209,20 +209,19 @@ We set up the imports needed for our example:
 import zio.blocks.scope.Scope
 ```
 
-Now we register cleanup actions in reverse order, and they execute in that order:
+Here we register cleanup actions, which execute in reverse order:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-var order: List[String] = List()
-
 Scope.global.scoped { scope =>
   import scope._
 
-  defer { order = order :+ "3" }
-  defer { order = order :+ "2" }
-  defer { order = order :+ "1" }
-  // On scope close: order will be List("1", "2", "3")
+  defer { println("Cleanup 3") }
+  defer { println("Cleanup 2") }
+  defer { println("Cleanup 1") }
+  // On scope close: prints "Cleanup 1", then "Cleanup 2", then "Cleanup 3"
+  42
 }
 ```
 
@@ -324,20 +323,24 @@ trait Scope {
 }
 ```
 
-An `OpenScope` wraps the child scope and a close function:
+You can create a child scope using `open()` and manage it explicitly:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-Scope.global.scoped { parentScope =>
-  import parentScope._
+Scope.global.scoped { scope =>
+  import scope._
 
-  val openHandle = parentScope.open()
+  // Create an explicitly-managed child scope
+  val childHandle = scope.open()
 
-  // Extract and use the OpenScope
-  val openScope = openHandle(identity)
-  val result = openScope.close()
-  // result contains any errors from finalizers
+  // Later, extract the child and close it manually
+  scope.scoped { innerScope =>
+    import innerScope._
+    val child = childHandle(identity)
+    val finalization = child.close()
+    // finalization contains any errors from cleanups
+  }
 }
 ```
 
@@ -423,33 +426,29 @@ Scope.global.scoped { scope =>
 
 ### Combining Scopes with Wire
 
-For dependency injection, combine scopes with `Wire` to ensure resource dependencies are resolved correctly:
+For dependency injection, create wires to describe how resources should be constructed and automatically allocate them in a scope:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, Wire, Resource}
+import zio.blocks.scope.{Scope, Wire}
+import zio.blocks.context.Context
 
-// Define a wire configuration
-val configWire = Wire.succeed("app.conf")
+// Create a wire that provides a configuration value
+val configWire = Wire("app.conf")
 
-// Define a database wire that depends on config
-val dbWire = Wire.to { (config: String) =>
-  Resource {
-    val db = "DB connected with " + config
-    db
-  }
-}
+// Create a context with the configuration available
+val ctx = Context.empty
 
 Scope.global.scoped { scope =>
   import scope._
 
-  // Wire automatically resolves and allocates dependencies
-  val dbResource = dbWire.toResource
-  val db = allocate(dbResource)
-  // db is automatically typed as $[String]
+  // Allocate the config wire as a resource
+  val config = allocate(configWire.toResource(ctx))
+  // config is now available in this scope
+  42
 }
 ```
 
-See [Wire](../../../index.md) for more on dependency injection.
+See [Wire](../scope.md) for more on dependency injection.
 
 ### Using Scope with Unscoped
 
