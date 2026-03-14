@@ -825,9 +825,10 @@ Scope.global.scoped { dbScope =>
 
 **4. Control flow — use `$` operator correctly**
 
-The `$` operator is not a traditional function call. Use block syntax:
+The `$` operator is not a traditional function call. Use block syntax.
 
-✅ Correct:
+Here's the correct way to use it:
+
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
 
@@ -840,11 +841,12 @@ Scope.global.scoped { scope =>
   import scope.*
   val db = allocate(Resource.fromAutoCloseable(new Database))
 
-  $(db) { d => d.query("SELECT 1") }  // Correct: block syntax
+  $(db) { d => d.query("SELECT 1") }  // block syntax
 }
 ```
 
-❌ Incorrect:
+Here are common mistakes to avoid:
+
 ```scala
 // Don't try to store, return, or pass the parameter
 $(db)(d => someFunction(d))  // ERROR: can't pass as argument
@@ -855,8 +857,10 @@ val result = $(db)(d => d)    // ERROR: can't return parameter
 
 **Anti-pattern 1: Storing scoped values**
 
+Do NOT try to store scoped values in fields:
+
 ```scala
-// ❌ DON'T do this
+// DON'T do this
 class MyService {
   val db: $[Database] = ???  // ERROR: storing a scoped value in a field
 }
@@ -866,8 +870,10 @@ class MyService {
 
 **Anti-pattern 2: Trying to return resources**
 
+Do NOT try to return scoped values from functions:
+
 ```scala
-// ❌ DON'T do this
+// DON'T do this
 def openDatabase(): $[Database] = {
   Scope.global.scoped { scope =>
     import scope.*
@@ -880,8 +886,10 @@ def openDatabase(): $[Database] = {
 
 **Anti-pattern 3: Forgetting to use the `$` operator**
 
+Do NOT call methods directly on scoped values:
+
 ```scala
-// ❌ DON'T do this
+// DON'T do this
 Scope.global.scoped { scope =>
   import scope.*
   val db = allocate(new Database)
