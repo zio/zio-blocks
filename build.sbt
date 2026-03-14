@@ -560,6 +560,7 @@ lazy val template = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .dependsOn(chunk, schema)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,

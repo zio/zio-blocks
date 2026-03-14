@@ -1,5 +1,6 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object HtmlElementsSpec extends ZIOSpecDefault {
@@ -69,8 +70,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           a(href := "https://example.com", "link").render == "<a href=\"https://example.com\">link</a>"
         )
       },
-      test("multi-value attribute via Vector") {
-        val result = div(className := Vector("a", "b", "c")).render
+      test("multi-value attribute via Chunk") {
+        val result = div(className := Chunk("a", "b", "c")).render
         assertTrue(result == "<div class=\"a b c\"></div>")
       },
       test("multi-value attribute via varargs tuple") {
@@ -158,13 +159,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(s.render == "<style>a > b { color: blue; }</style>")
       }
     ),
-    suite("raw, fragment, empty helpers")(
-      test("raw renders unescaped HTML") {
-        assertTrue(raw("<b>bold</b>").render == "<b>bold</b>")
-      },
-      test("fragment combines children") {
-        assertTrue(fragment(Dom.Text("a"), Dom.Text("b")).render == "ab")
-      },
+    suite("empty helper")(
       test("empty renders nothing") {
         assertTrue(empty.render == "")
       }
@@ -425,12 +420,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("multiAttr with Iterable overload")(
       test("multiAttr with Iterable[String] creates attribute") {
         val a  = multiAttr("class", List("a", "b"))
-        val el = Dom.Element.Generic("div", Vector(a), Vector.empty)
+        val el = Dom.Element.Generic("div", Chunk(a), Chunk.empty)
         assertTrue(el.render == "<div class=\"a b\"></div>")
       },
       test("multiAttr with separator and varargs") {
         val a  = multiAttr("style", Dom.AttributeSeparator.Semicolon, "color: red", "font-size: 14px")
-        val el = Dom.Element.Generic("div", Vector(a), Vector.empty)
+        val el = Dom.Element.Generic("div", Chunk(a), Chunk.empty)
         assertTrue(el.render == "<div style=\"color: red;font-size: 14px\"></div>")
       }
     )

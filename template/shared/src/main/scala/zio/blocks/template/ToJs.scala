@@ -4,7 +4,7 @@ trait ToJs[-A] {
   def toJs(a: A): String
 }
 
-object ToJs {
+object ToJs extends LowPriorityToJs {
 
   def apply[A](implicit ev: ToJs[A]): ToJs[A] = ev
 
@@ -90,5 +90,12 @@ object ToJs {
       sb.append('}')
       sb.toString
     }
+  }
+}
+
+trait LowPriorityToJs {
+  implicit def fromSchema[A](implicit schema: zio.blocks.schema.Schema[A]): ToJs[A] = new ToJs[A] {
+    private[this] lazy val codec = schema.derive(zio.blocks.schema.json.JsonFormat)
+    def toJs(a: A): String       = codec.encodeToString(a)
   }
 }

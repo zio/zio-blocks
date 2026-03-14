@@ -1,5 +1,7 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
+
 sealed trait Dom extends Product with Serializable {
   def render: String = {
     val sb = new java.lang.StringBuilder(256)
@@ -7,11 +9,11 @@ sealed trait Dom extends Product with Serializable {
     sb.toString
   }
 
-  def render(indentation: Boolean): String =
-    if (!indentation) render
+  def render(indent: Int): String =
+    if (indent <= 0) render
     else {
       val sb = new java.lang.StringBuilder(256)
-      Dom.renderIndented(this, sb, level = 0)
+      Dom.renderIndented(this, sb, level = 0, indent = indent)
       sb.toString
     }
 
@@ -37,25 +39,25 @@ sealed trait Dom extends Product with Serializable {
     Dom.transformImpl(this, f)
 
   def isEmpty: Boolean = this match {
-    case Dom.Empty              => true
-    case Dom.Text(c)            => c.isEmpty
-    case Dom.RawHtml(h)         => h.isEmpty
-    case Dom.Fragment(children) => children.forall(_.isEmpty)
-    case _: Dom.Element         => false
+    case Dom.Empty          => true
+    case Dom.Text(c)        => c.isEmpty
+    case Dom.PreRendered(h) => h.isEmpty
+    case _: Dom.Element     => false
   }
 }
 
 object Dom {
 
-  sealed trait Element extends Dom {
+  sealed trait Element extends Dom with CssSelectable {
     def tag: String
-    def attributes: Vector[Attribute]
-    def children: Vector[Dom]
-    def withAttributes(attrs: Vector[Attribute]): Element
-    def withChildren(kids: Vector[Dom]): Element
+    def attributes: Chunk[Attribute]
+    def children: Chunk[Dom]
+    val selector: CssSelector = CssSelector.Element(tag)
+    def withAttributes(attrs: Chunk[Attribute]): Element
+    def withChildren(kids: Chunk[Dom]): Element
 
-    def apply(modifiers: Modifier*): Element = {
-      var elem: Element = this
+    def apply(modifier: Modifier, modifiers: Modifier*): Element = {
+      var elem: Element = modifier.applyTo(this)
       var i             = 0
       while (i < modifiers.length) {
         elem = modifiers(i).applyTo(elem)
@@ -65,12 +67,28 @@ object Dom {
     }
 
     def when(condition: Boolean)(modifiers: Modifier*): Element =
-      if (condition) apply(modifiers: _*) else this
+      if (condition) {
+        var elem: Element = this
+        var i             = 0
+        while (i < modifiers.length) {
+          elem = modifiers(i).applyTo(elem)
+          i += 1
+        }
+        elem
+      } else this
 
     def whenSome[T](option: Option[T])(f: T => Seq[Modifier]): Element =
       option match {
-        case Some(value) => apply(f(value): _*)
-        case None        => this
+        case Some(value) =>
+          val mods          = f(value)
+          var elem: Element = this
+          var i             = 0
+          while (i < mods.length) {
+            elem = mods(i).applyTo(elem)
+            i += 1
+          }
+          elem
+        case None => this
       }
   }
 
@@ -78,20 +96,20 @@ object Dom {
 
     final case class Generic(
       tag: String,
-      attributes: Vector[Attribute],
-      children: Vector[Dom]
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
     ) extends Element {
-      def withAttributes(attrs: Vector[Attribute]): Generic = copy(attributes = attrs)
-      def withChildren(kids: Vector[Dom]): Generic          = copy(children = kids)
+      def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
     }
 
     final case class Script(
-      attributes: Vector[Attribute],
-      children: Vector[Dom]
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
     ) extends Element {
-      def tag: String                                      = "script"
-      def withAttributes(attrs: Vector[Attribute]): Script = copy(attributes = attrs)
-      def withChildren(kids: Vector[Dom]): Script          = copy(children = kids)
+      def tag: String                                     = "script"
+      def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Script          = copy(children = kids)
 
       def inlineJs(code: String): Script =
         copy(children = children :+ Dom.Text(code))
@@ -104,28 +122,26 @@ object Dom {
     }
 
     final case class Style(
-      attributes: Vector[Attribute],
-      children: Vector[Dom]
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
     ) extends Element {
-      def tag: String                                     = "style"
-      def withAttributes(attrs: Vector[Attribute]): Style = copy(attributes = attrs)
-      def withChildren(kids: Vector[Dom]): Style          = copy(children = kids)
+      def tag: String                                    = "style"
+      def withAttributes(attrs: Chunk[Attribute]): Style = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Style          = copy(children = kids)
 
       def inlineCss(code: String): Style =
         copy(children = children :+ Dom.Text(code))
 
       def inlineCss(code: Css): Style =
-        copy(children = children :+ Dom.Text(code.value))
+        copy(children = children :+ Dom.Text(code.render))
     }
   }
 
   final case class Text(content: String) extends Dom
 
-  final case class RawHtml(html: String) extends Dom
-
-  final case class Fragment(children: Vector[Dom]) extends Dom
-
   case object Empty extends Dom
+
+  private[template] final case class PreRendered(html: String) extends Dom
 
   sealed trait Attribute extends Product with Serializable
 
@@ -137,10 +153,10 @@ object Dom {
   sealed trait AttributeValue extends Product with Serializable
 
   object AttributeValue {
-    final case class StringValue(value: String)                                        extends AttributeValue
-    final case class MultiValue(values: Vector[String], separator: AttributeSeparator) extends AttributeValue
-    final case class JsValue(js: Js)                                                   extends AttributeValue
-    final case class BooleanValue(value: Boolean)                                      extends AttributeValue
+    final case class StringValue(value: String)                                       extends AttributeValue
+    final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue
+    final case class JsValue(js: Js)                                                  extends AttributeValue
+    final case class BooleanValue(value: Boolean)                                     extends AttributeValue
   }
 
   sealed trait AttributeSeparator extends Product with Serializable {
@@ -156,19 +172,11 @@ object Dom {
     }
   }
 
-  def element(tag: String, attributes: Vector[Attribute], children: Vector[Dom]): Element =
-    Element.Generic(tag, attributes, children)
-
   def text(content: String): Text = Text(content)
 
-  def raw(html: String): RawHtml = RawHtml(html)
-
-  def fragment(children: Vector[Dom]): Dom =
-    if (children.isEmpty) Empty
-    else if (children.length == 1) children(0)
-    else Fragment(children)
-
   val empty: Dom = Empty
+
+  private[template] def preRendered(html: String): Dom = PreRendered(html)
 
   def boolAttr(name: String, enabled: Boolean = true): Attribute =
     Attribute.KeyValue(name, AttributeValue.BooleanValue(enabled))
@@ -180,10 +188,10 @@ object Dom {
     new PartialMultiAttribute(name, separator)
 
   def multiAttr(name: String, values: Iterable[String]): Attribute =
-    Attribute.KeyValue(name, AttributeValue.MultiValue(values.toVector, AttributeSeparator.Space))
+    Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), AttributeSeparator.Space))
 
   def multiAttr(name: String, separator: AttributeSeparator, values: String*): Attribute =
-    Attribute.KeyValue(name, AttributeValue.MultiValue(values.toVector, separator))
+    Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), separator))
 
   // --- Rendering ---
 
@@ -201,15 +209,8 @@ object Dom {
       case Text(content) =>
         sb.append(Escape.html(content))
 
-      case RawHtml(html) =>
+      case PreRendered(html) =>
         sb.append(html)
-
-      case Fragment(children) =>
-        var i = 0
-        while (i < children.length) {
-          renderTo(children(i), sb, minified)
-          i += 1
-        }
 
       case Empty =>
         ()
@@ -217,8 +218,8 @@ object Dom {
 
   private def renderElement(
     tag: String,
-    attributes: Vector[Attribute],
-    children: Vector[Dom],
+    attributes: Chunk[Attribute],
+    children: Chunk[Dom],
     sb: java.lang.StringBuilder,
     minified: Boolean,
     escapeText: Boolean
@@ -244,7 +245,7 @@ object Dom {
     }
   }
 
-  private def renderAttributes(attrs: Vector[Attribute], sb: java.lang.StringBuilder): Unit = {
+  private def renderAttributes(attrs: Chunk[Attribute], sb: java.lang.StringBuilder): Unit = {
     var i = 0
     while (i < attrs.length) {
       attrs(i) match {
@@ -301,32 +302,22 @@ object Dom {
     }
   // --- Indented rendering ---
 
-  private val Indent = "  "
-
-  private def renderIndented(dom: Dom, sb: java.lang.StringBuilder, level: Int): Unit =
+  private def renderIndented(dom: Dom, sb: java.lang.StringBuilder, level: Int, indent: Int): Unit =
     dom match {
       case el: Element.Generic =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = true)
+        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = true, indent = indent)
 
       case el: Element.Script =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false)
+        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false, indent = indent)
 
       case el: Element.Style =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false)
+        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false, indent = indent)
 
       case Text(content) =>
         sb.append(Escape.html(content))
 
-      case RawHtml(html) =>
+      case PreRendered(html) =>
         sb.append(html)
-
-      case Fragment(children) =>
-        var i = 0
-        while (i < children.length) {
-          if (i > 0) sb.append('\n')
-          renderIndented(children(i), sb, level)
-          i += 1
-        }
 
       case Empty =>
         ()
@@ -334,11 +325,12 @@ object Dom {
 
   private def renderElementIndented(
     tag: String,
-    attributes: Vector[Attribute],
-    children: Vector[Dom],
+    attributes: Chunk[Attribute],
+    children: Chunk[Dom],
     sb: java.lang.StringBuilder,
     level: Int,
-    escapeText: Boolean
+    escapeText: Boolean,
+    indent: Int
   ): Unit = {
     sb.append('<')
     sb.append(tag)
@@ -354,8 +346,7 @@ object Dom {
       children(0) match {
         case Text(content) if !escapeText => sb.append(content)
         case Text(content)                => sb.append(Escape.html(content))
-        case RawHtml(html)                => sb.append(html)
-        case _                            => renderIndented(children(0), sb, level)
+        case _                            => renderIndented(children(0), sb, level, indent)
       }
       sb.append("</")
       sb.append(tag)
@@ -365,15 +356,15 @@ object Dom {
       var i = 0
       while (i < children.length) {
         sb.append('\n')
-        appendIndent(sb, level + 1)
+        appendIndent(sb, level + 1, indent)
         children(i) match {
           case Text(content) if !escapeText => sb.append(content)
-          case child                        => renderIndented(child, sb, level + 1)
+          case child                        => renderIndented(child, sb, level + 1, indent)
         }
         i += 1
       }
       sb.append('\n')
-      appendIndent(sb, level)
+      appendIndent(sb, level, indent)
       sb.append("</")
       sb.append(tag)
       sb.append('>')
@@ -381,19 +372,18 @@ object Dom {
   }
 
   private def isSingleLineContent(dom: Dom): Boolean = dom match {
-    case _: Text    => true
-    case _: RawHtml => true
-    case _          => false
+    case _: Text => true
+    case _       => false
   }
 
-  private def appendIndent(sb: java.lang.StringBuilder, level: Int): Unit = {
+  private def appendIndent(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = {
     var i = 0
-    while (i < level) {
-      sb.append(Indent)
+    val n = level * indent
+    while (i < n) {
+      sb.append(' ')
       i += 1
     }
   }
-
   // --- Traversal ---
 
   private def collectImpl(
@@ -409,12 +399,6 @@ object Dom {
           collectImpl(el.children(i), pf, buf)
           i += 1
         }
-      case Fragment(children) =>
-        var i = 0
-        while (i < children.length) {
-          collectImpl(children(i), pf, buf)
-          i += 1
-        }
       case _ => ()
     }
   }
@@ -424,15 +408,14 @@ object Dom {
     else
       dom match {
         case el: Element =>
-          val filtered = el.children.collect {
-            case c if predicate(c) => filterImpl(c, predicate)
+          val builder = Chunk.newBuilder[Dom]
+          var i       = 0
+          while (i < el.children.length) {
+            val c = el.children(i)
+            if (predicate(c)) builder += filterImpl(c, predicate)
+            i += 1
           }
-          el.withChildren(filtered)
-        case Fragment(children) =>
-          val filtered = children.collect {
-            case c if predicate(c) => filterImpl(c, predicate)
-          }
-          fragment(filtered)
+          el.withChildren(builder.result())
         case other => other
       }
 
@@ -448,14 +431,6 @@ object Dom {
             i += 1
           }
           result
-        case Fragment(children) =>
-          var i                   = 0
-          var result: Option[Dom] = None
-          while (i < children.length && result.isEmpty) {
-            result = findImpl(children(i), predicate)
-            i += 1
-          }
-          result
         case _ => None
       }
 
@@ -465,9 +440,6 @@ object Dom {
       case el: Element =>
         val newChildren = el.children.map(c => transformImpl(c, f))
         el.withChildren(newChildren)
-      case Fragment(children) =>
-        val newChildren = children.map(c => transformImpl(c, f))
-        fragment(newChildren)
       case other => other
     }
   }

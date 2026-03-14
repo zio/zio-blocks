@@ -1,7 +1,9 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
+
 trait ToElements[-A] {
-  def toElements(a: A): Vector[Dom]
+  def toElements(a: A): Chunk[Dom]
 }
 
 object ToElements {
@@ -9,45 +11,45 @@ object ToElements {
   def apply[A](implicit ev: ToElements[A]): ToElements[A] = ev
 
   implicit val stringToElements: ToElements[String] = new ToElements[String] {
-    def toElements(a: String): Vector[Dom] = Vector(Dom.Text(a))
+    def toElements(a: String): Chunk[Dom] = Chunk(Dom.Text(a))
   }
 
   implicit val intToElements: ToElements[Int] = new ToElements[Int] {
-    def toElements(a: Int): Vector[Dom] = Vector(Dom.Text(a.toString))
+    def toElements(a: Int): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
   implicit val longToElements: ToElements[Long] = new ToElements[Long] {
-    def toElements(a: Long): Vector[Dom] = Vector(Dom.Text(a.toString))
+    def toElements(a: Long): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
   implicit val doubleToElements: ToElements[Double] = new ToElements[Double] {
-    def toElements(a: Double): Vector[Dom] = Vector(Dom.Text(a.toString))
+    def toElements(a: Double): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
   implicit val booleanToElements: ToElements[Boolean] = new ToElements[Boolean] {
-    def toElements(a: Boolean): Vector[Dom] = Vector(Dom.Text(a.toString))
+    def toElements(a: Boolean): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
   implicit val charToElements: ToElements[Char] = new ToElements[Char] {
-    def toElements(a: Char): Vector[Dom] = Vector(Dom.Text(a.toString))
+    def toElements(a: Char): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
   implicit val domToElements: ToElements[Dom] = new ToElements[Dom] {
-    def toElements(a: Dom): Vector[Dom] = Vector(a)
+    def toElements(a: Dom): Chunk[Dom] = Chunk(a)
   }
 
   implicit def optionToElements[A](implicit ev: ToElements[A]): ToElements[Option[A]] =
     new ToElements[Option[A]] {
-      def toElements(a: Option[A]): Vector[Dom] = a match {
+      def toElements(a: Option[A]): Chunk[Dom] = a match {
         case Some(v) => ev.toElements(v)
-        case None    => Vector.empty
+        case None    => Chunk.empty
       }
     }
 
   implicit def iterableToElements[A](implicit ev: ToElements[A]): ToElements[Iterable[A]] =
     new ToElements[Iterable[A]] {
-      def toElements(a: Iterable[A]): Vector[Dom] = {
-        val builder = Vector.newBuilder[Dom]
+      def toElements(a: Iterable[A]): Chunk[Dom] = {
+        val builder = Chunk.newBuilder[Dom]
         val it      = a.iterator
         while (it.hasNext) {
           builder ++= ev.toElements(it.next())
@@ -56,10 +58,10 @@ object ToElements {
       }
     }
 
-  implicit def vectorToElements[A](implicit ev: ToElements[A]): ToElements[Vector[A]] =
-    new ToElements[Vector[A]] {
-      def toElements(a: Vector[A]): Vector[Dom] = {
-        val builder = Vector.newBuilder[Dom]
+  implicit def chunkToElements[A](implicit ev: ToElements[A]): ToElements[Chunk[A]] =
+    new ToElements[Chunk[A]] {
+      def toElements(a: Chunk[A]): Chunk[Dom] = {
+        val builder = Chunk.newBuilder[Dom]
         var i       = 0
         while (i < a.length) {
           builder ++= ev.toElements(a(i))
@@ -71,8 +73,8 @@ object ToElements {
 
   implicit def listToElements[A](implicit ev: ToElements[A]): ToElements[List[A]] =
     new ToElements[List[A]] {
-      def toElements(a: List[A]): Vector[Dom] = {
-        val builder = Vector.newBuilder[Dom]
+      def toElements(a: List[A]): Chunk[Dom] = {
+        val builder = Chunk.newBuilder[Dom]
         var rem     = a
         while (rem.nonEmpty) {
           builder ++= ev.toElements(rem.head)

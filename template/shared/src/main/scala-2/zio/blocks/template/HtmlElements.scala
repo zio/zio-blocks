@@ -1,11 +1,13 @@
 package zio.blocks.template
 
+import zio.blocks.chunk.Chunk
+
 trait HtmlElements {
 
   // --- Element constructors ---
 
   private def el(tag: String, modifiers: Seq[Modifier]): Dom.Element = {
-    var elem: Dom.Element = Dom.Element.Generic(tag, Vector.empty, Vector.empty)
+    var elem: Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
     var i                 = 0
     while (i < modifiers.length) {
       elem = modifiers(i).applyTo(elem)
@@ -15,29 +17,31 @@ trait HtmlElements {
   }
 
   private def elScript(modifiers: Seq[Modifier]): Dom.Element.Script = {
-    var elem: Dom.Element = Dom.Element.Script(Vector.empty, Vector.empty)
-    var i                 = 0
+    var elem: Dom.Element.Script = Dom.Element.Script(Chunk.empty, Chunk.empty)
+    var i                        = 0
     while (i < modifiers.length) {
-      elem = modifiers(i).applyTo(elem)
+      val applied = modifiers(i).applyTo(elem)
+      elem = applied match {
+        case s: Dom.Element.Script => s
+        case other                 => Dom.Element.Script(other.attributes, other.children)
+      }
       i += 1
     }
-    elem match {
-      case s: Dom.Element.Script => s
-      case other                 => Dom.Element.Script(other.attributes, other.children)
-    }
+    elem
   }
 
   private def elStyle(modifiers: Seq[Modifier]): Dom.Element.Style = {
-    var elem: Dom.Element = Dom.Element.Style(Vector.empty, Vector.empty)
-    var i                 = 0
+    var elem: Dom.Element.Style = Dom.Element.Style(Chunk.empty, Chunk.empty)
+    var i                       = 0
     while (i < modifiers.length) {
-      elem = modifiers(i).applyTo(elem)
+      val applied = modifiers(i).applyTo(elem)
+      elem = applied match {
+        case s: Dom.Element.Style => s
+        case other                => Dom.Element.Style(other.attributes, other.children)
+      }
       i += 1
     }
-    elem match {
-      case s: Dom.Element.Style => s
-      case other                => Dom.Element.Style(other.attributes, other.children)
-    }
+    elem
   }
 
   def html(modifiers: Modifier*): Dom.Element                 = el("html", modifiers)
@@ -269,9 +273,7 @@ trait HtmlElements {
 
   // --- DOM helper functions ---
 
-  def raw(content: String): Dom.RawHtml = Dom.RawHtml(content)
-  def fragment(children: Dom*): Dom     = Dom.fragment(children.toVector)
-  val empty: Dom                        = Dom.Empty
+  val empty: Dom = Dom.Empty
 
   def aria(name: String): PartialAttribute     = new PartialAttribute("aria-" + name)
   def dataAttr(name: String): PartialAttribute = new PartialAttribute("data-" + name)
