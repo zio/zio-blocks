@@ -3,18 +3,30 @@ id: scope
 title: "Scope"
 ---
 
-ZIO Blocks' `zio.blocks.scope` module is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
+`Scope` is a **compile-time safe resource lifecycle manager** that tags allocated values with a scope-specific type, preventing use-after-close at compile time. Each scope instance has a distinct `$[A]` type that is unique to that scope, making values from different scopes structurally incompatible. The `$` operator macro and `Unscoped` typeclass create multiple layers of compile-time protection, eliminating an entire class of lifetime bugs without runtime overhead.
 
-Each scope instance has a distinct `$[A]` type that is unique to that scope and cannot be named or manipulated directly. This means values allocated in one scope have a structurally incompatible type from values in another scope — attempting to use a resource outside its owning scope is a **compile-time type error**, not a runtime crash. The `$` operator macro further restricts how you can use these values: it only allows using them as method/field receivers, preventing accidental capture in closures or escape to outer scopes. Combined with the `Unscoped` typeclass that marks pure data safe to return from a scope, this creates multiple layers of compile-time protection.
+`Scope`:
+- prevents resource leaks and use-after-close via compile-time type checking
+- allocates resources eagerly and runs finalizers deterministically in LIFO order
+- is purely synchronous with zero runtime overhead (scoped values erase to underlying types)
 
-At runtime the model stays simple:
+```scala
+trait Scope {
+  type $[+A]
 
-- **Allocate eagerly** (no lazy thunks) — When you call `allocate(resource)`, the resource is acquired immediately, not deferred to some later point. This makes resource lifetimes predictable and matches your mental model of when acquisition happens.
-- **Register finalizers** — As each resource is acquired, its cleanup function (or `close()` method for `AutoCloseable`) is registered in a stack-like registry. This registry is part of every scope.
-- **Run finalizers deterministically** when a scope closes (**LIFO** order) — When a scope exits (normally or via exception), all registered finalizers execute in reverse order (last-registered-first-executed). This ensures that resources that depend on each other close in the correct order.
-- **Collect finalizer failures** into a `Finalization` — If a finalizer throws an exception, Scope doesn't stop; it collects all exceptions and either wraps them in a `Finalization` or suppresses them depending on context. This ensures all cleanup runs even if some finalizers fail.
+  def scoped[A](f: Scope => A): A
+  def allocate[A](resource: Resource[A]): $[A]
+  def allocate(value: => AutoCloseable): $[AutoCloseable]
+  def open(): $[OpenScope]
+  def defer(f: => Unit): DeferHandle
+  def lower[A](value: parent.$[A]): $[A]
+  def isClosed: Boolean
+  def isOwner: Boolean
+  def leak[A](value: $[A]): A
+}
+```
 
-## Why Scope?
+## Motivation
 
 Most resource bugs in Scala are "escape" bugs—scenarios where a resource is used outside of its intended lifetime, leading to undefined behavior, crashes, or data corruption:
 
