@@ -19,9 +19,10 @@ package zio.blocks.schema.migration
 import scala.quoted.*
 
 /**
- * Macro that parses a selector function (e.g. `(p: Person) => p.address.street`) into a
- * pure-data [[DynamicOptic]] path at compile time. No runtime reflection.
- * Part of the algebraic migration system (MigrationBuilder → DynamicMigration).
+ * Macro that parses a selector function (e.g.
+ * `(p: Person) => p.address.street`) into a pure-data [[DynamicOptic]] path at
+ * compile time. No runtime reflection. Part of the algebraic migration system
+ * (MigrationBuilder → DynamicMigration).
  */
 object SelectorMacro {
 
@@ -37,7 +38,9 @@ object SelectorMacro {
       case Block(List(DefDef(_, _, _, Some(body))), _) =>
         body
       case _ =>
-        report.errorAndAbort(s"Expected a lambda expression, got: ${term.show}. Use a simple selector (e.g. (p: Person) => p.address.street).")
+        report.errorAndAbort(
+          s"Expected a lambda expression, got: ${term.show}. Use a simple selector (e.g. (p: Person) => p.address.street)."
+        )
     }
 
     def parseTerm(term: Term): List[String] = term match {
@@ -69,7 +72,7 @@ object SelectorMacro {
         report.errorAndAbort(s"Unsupported selector syntax: ${term.show}. Must be simple field access.")
     }
 
-    val body  = lambdaBody(selector.asTerm)
+    val body     = lambdaBody(selector.asTerm)
     val pathList = parseTerm(body)
 
     if (pathList.isEmpty) {
@@ -77,11 +80,11 @@ object SelectorMacro {
     }
 
     def buildOptic(path: List[String]): Expr[DynamicOptic] = path match {
-      case head :: Nil  =>
+      case head :: Nil =>
         '{ DynamicOptic.Field(${ Expr(head) }, None) }
       case head :: tail =>
         '{ DynamicOptic.Field(${ Expr(head) }, Some(${ buildOptic(tail) })) }
-      case Nil          =>
+      case Nil =>
         report.errorAndAbort("Unreachable")
     }
 

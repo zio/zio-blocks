@@ -20,10 +20,11 @@ import zio.blocks.schema.{Schema, SchemaBaseSpec}
 import zio.test._
 import zio.test.Assertion._
 
-/** Proves identity and associativity laws for the migration algebra so that
-  * bounty requirement "Identity & associativity laws hold" is mathematically
-  * verified via ZIO Test properties.
-  */
+/**
+ * Proves identity and associativity laws for the migration algebra so that
+ * bounty requirement "Identity & associativity laws hold" is mathematically
+ * verified via ZIO Test properties.
+ */
 object MigrationLawsSpec extends SchemaBaseSpec {
 
   case class Record(a: String, b: Int)

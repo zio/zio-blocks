@@ -20,7 +20,10 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
-/** Verifies the pure interpreter: Macro S => A extraction → Builder → DynamicMigration → apply(DynamicValue). */
+/**
+ * Verifies the pure interpreter: Macro S => A extraction → Builder →
+ * DynamicMigration → apply(DynamicValue).
+ */
 object DynamicMigrationSpec extends SchemaBaseSpec {
 
   case class PersonV1(name: String, age: Int)
@@ -46,14 +49,14 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           )
           .buildPartial
 
-        val v1       = PersonV1("Alice", 30)
+        val v1        = PersonV1("Alice", 30)
         val dynamicIn = PersonV1.schema.toDynamicValue(v1)
-        val result   = migration.dynamicMigration.apply(dynamicIn)
+        val result    = migration.dynamicMigration.apply(dynamicIn)
 
         assertTrue(result.isRight)
         val dynamicOut = result.toOption.get
         val fields     = dynamicOut.asInstanceOf[DynamicValue.Record].fields
-        val names     = fields.map(_._1)
+        val names      = fields.map(_._1)
         assertTrue(names.toSeq == Seq("name", "age", "email"))
         val emailVal = fields.find(_._1 == "email").map(_._2)
         assertTrue(
@@ -120,7 +123,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           .buildPartial
 
         val notARecord = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val result    = migration.dynamicMigration.apply(notARecord)
+        val result     = migration.dynamicMigration.apply(notARecord)
         assertTrue(result.isLeft)
         assertTrue(result.left.toOption.get.contains("Expected Record"))
       }

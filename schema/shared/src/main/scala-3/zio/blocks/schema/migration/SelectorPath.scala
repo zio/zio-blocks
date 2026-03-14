@@ -17,9 +17,10 @@
 package zio.blocks.schema.migration
 
 /**
- * Pure-data ADT representing a path extracted from a selector (e.g. `_.address.street`).
- * Used by the algebraic migration system (MigrationBuilder / DynamicMigration); no runtime reflection.
- * Case, Element, Key, Value variants to be added later.
+ * Pure-data ADT representing a path extracted from a selector (e.g.
+ * `_.address.street`). Used by the algebraic migration system (MigrationBuilder
+ * / DynamicMigration); no runtime reflection. Case, Element, Key, Value
+ * variants to be added later.
  */
 sealed trait SelectorPath
 

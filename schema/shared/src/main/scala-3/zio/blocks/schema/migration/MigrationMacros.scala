@@ -19,9 +19,10 @@ package zio.blocks.schema.migration
 import scala.quoted.*
 
 /**
- * Compile-time validation for [[MigrationBuilder.build]]. Reflects on Type[A] and Type[B],
- * extracts structural or case class fields, symbolically executes the [[MigrationAction]] vector
- * from the builder's AST, and verifies that the migrated shape aligns with the target schema.
+ * Compile-time validation for [[MigrationBuilder.build]]. Reflects on Type[A]
+ * and Type[B], extracts structural or case class fields, symbolically executes
+ * the [[MigrationAction]] vector from the builder's AST, and verifies that the
+ * migrated shape aligns with the target schema.
  */
 object MigrationMacros {
 
@@ -47,21 +48,21 @@ object MigrationMacros {
     def extractStringLiteral(tree: Tree): Option[String] = tree match {
       case Literal(constant) if constant.value.isInstanceOf[String] =>
         Some(constant.value.asInstanceOf[String])
-      case Apply(_, args) => args.flatMap(extractStringLiteral).headOption
+      case Apply(_, args)      => args.flatMap(extractStringLiteral).headOption
       case Inlined(_, _, body) => extractStringLiteral(body)
-      case Block(stats, expr) =>
+      case Block(stats, expr)  =>
         stats.flatMap {
           case d: DefDef => d.rhs.toList.flatMap(extractStringLiteral)
           case _         => Nil
         }.headOption.orElse(extractStringLiteral(expr))
-      case Typed(expr, _) => extractStringLiteral(expr)
+      case Typed(expr, _)      => extractStringLiteral(expr)
       case s @ Select(qual, _) => extractStringLiteral(qual).orElse(Some(s.name))
-      case _ => None
+      case _                   => None
     }
 
     sealed trait Op
-    case class Add(field: String) extends Op
-    case class Drop(field: String) extends Op
+    case class Add(field: String)            extends Op
+    case class Drop(field: String)           extends Op
     case class Ren(from: String, to: String) extends Op
 
     var operations = List.empty[Op]
@@ -69,8 +70,8 @@ object MigrationMacros {
     // Resolve Idents to their definition RHS (inlined locals from renameField/addField).
     // Uses this.traverseTree (not super) for body/expr in Block/Inlined so that Ident nodes
     // are visited directly and can follow their symbol to a ValDef definition.
-    val valDefs = scala.collection.mutable.Map[Symbol, Tree]()
-    def registerValDef(v: ValDef): Unit = v.rhs.foreach(rhs => { valDefs(v.symbol) = rhs })
+    val valDefs                         = scala.collection.mutable.Map[Symbol, Tree]()
+    def registerValDef(v: ValDef): Unit = v.rhs.foreach { rhs => valDefs(v.symbol) = rhs }
     object collectValDefs extends TreeTraverser {
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = tree match {
         case v: ValDef =>
@@ -80,13 +81,13 @@ object MigrationMacros {
         case Block(stats, expr) =>
           stats.foreach {
             case v: ValDef => registerValDef(v); v.rhs.foreach(traverseTree(_)(owner))
-            case s        => traverseTree(s)(owner)
+            case s         => traverseTree(s)(owner)
           }
           traverseTree(expr)(owner)
         case Inlined(_, bindings, body) =>
           bindings.foreach {
             case v: ValDef => registerValDef(v); v.rhs.foreach(traverseTree(_)(owner))
-            case s        => traverseTree(s)(owner)
+            case s         => traverseTree(s)(owner)
           }
           traverseTree(body)(owner)
         case i: Ident =>
@@ -126,14 +127,25 @@ object MigrationMacros {
     val traverser = new TreeTraverser {
       override def traverseTree(tree: Tree)(owner: Symbol): Unit = tree match {
         case applyTree @ Apply(fun, args) =>
-          val inner   = fun match { case TypeApply(i, _) => i case _ => fun }
-          val symName = inner match { case s: Select => s.name case _ => inner.symbol.name }
+          val inner = fun match {
+            case TypeApply(i, _) => i
+            case _               => fun
+          }
+          val symName = inner match {
+            case s: Select => s.name
+            case _         => inner.symbol.name
+          }
           val funStr  = fun.show
-          val tpeName = try applyTree.tpe.typeSymbol.name catch { case _: Throwable => "" }
+          val tpeName =
+            try applyTree.tpe.typeSymbol.name
+            catch { case _: Throwable => "" }
 
-          val isAdd    = symName == "AddField" || symName == "addField" || funStr.contains("AddField") || tpeName == "AddField"
-          val isDrop   = symName == "DropField" || symName == "dropField" || funStr.contains("DropField") || tpeName == "DropField"
-          val isRename = symName == "Rename" || symName == "renameField" || funStr.contains("Rename") || tpeName == "Rename"
+          val isAdd =
+            symName == "AddField" || symName == "addField" || funStr.contains("AddField") || tpeName == "AddField"
+          val isDrop =
+            symName == "DropField" || symName == "dropField" || funStr.contains("DropField") || tpeName == "DropField"
+          val isRename =
+            symName == "Rename" || symName == "renameField" || funStr.contains("Rename") || tpeName == "Rename"
 
           if (isAdd && args.nonEmpty) {
             extractField(args.head).foreach(f => operations = operations :+ Add(f))
@@ -144,14 +156,14 @@ object MigrationMacros {
             val toName   = extractField(args(1))
             (fromName, toName) match {
               case (Some(f), Some(t)) if f != t => operations = operations :+ Ren(f, t)
-              case _                             =>
+              case _                            =>
             }
           } else if (args.length >= 2 && (funStr.contains("ename") || funStr.contains("Rename")) && !isAdd && !isDrop) {
             val fromName = extractField(args(0))
             val toName   = extractField(args(1))
             (fromName, toName) match {
               case (Some(f), Some(t)) if f != t => operations = operations :+ Ren(f, t)
-              case _                             =>
+              case _                            =>
             }
           }
           super.traverseTree(fun)(owner)
@@ -166,7 +178,7 @@ object MigrationMacros {
           try {
             i.symbol.tree match {
               case v: ValDef => v.rhs.foreach(traverseTree(_)(owner))
-              case _        =>
+              case _         =>
             }
           } catch { case _: Throwable => }
           super.traverseTree(tree)(owner)
@@ -191,9 +203,9 @@ object MigrationMacros {
     // 4. Symbolic execution
     val finalShape = operations.foldLeft(sourceFields) { (shape, op) =>
       op match {
-        case Add(f)       => shape + f
-        case Drop(f)      => shape - f
-        case Ren(f, t)    => (shape - f) + t
+        case Add(f)    => shape + f
+        case Drop(f)   => shape - f
+        case Ren(f, t) => (shape - f) + t
       }
     }
 

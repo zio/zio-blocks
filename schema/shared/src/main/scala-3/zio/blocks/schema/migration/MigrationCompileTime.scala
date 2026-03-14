@@ -17,11 +17,11 @@
 package zio.blocks.schema.migration
 
 /**
- * Scala 3 only: static [[Migration.build]] so the macro receives the full builder
- * expression tree. When you write `val x = chain.build`, the compiler binds the
- * receiver to a temporary and the macro only sees a reference; when you write
- * `Migration.build(chain)`, the macro receives the full `chain` AST and can
- * validate it at compile time.
+ * Scala 3 only: static [[Migration.build]] so the macro receives the full
+ * builder expression tree. When you write `val x = chain.build`, the compiler
+ * binds the receiver to a temporary and the macro only sees a reference; when
+ * you write `Migration.build(chain)`, the macro receives the full `chain` AST
+ * and can validate it at compile time.
  */
 object MigrationCompileTime {
   inline def build[A, B](inline b: MigrationBuilder[A, B]): Migration[A, B] =

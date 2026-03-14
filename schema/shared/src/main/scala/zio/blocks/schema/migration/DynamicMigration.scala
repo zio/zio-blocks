@@ -20,8 +20,9 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicValue
 
 /**
- * Single migration step at a path. Each action has an algebraic [[reverse]] so that
- * [[DynamicMigration.reverse]] is computed without runtime code generation.
+ * Single migration step at a path. Each action has an algebraic [[reverse]] so
+ * that [[DynamicMigration.reverse]] is computed without runtime code
+ * generation.
  */
 sealed trait MigrationAction {
   def at: DynamicOptic
@@ -94,13 +95,16 @@ object MigrationAction {
 }
 
 /**
- * Fully serializable migration: a sequence of actions to apply to a [[DynamicValue]].
- * [[apply]] is the interpreter (Phase 4); [[reverse]] is computed algebraically from
- * each action's [[MigrationAction.reverse]].
+ * Fully serializable migration: a sequence of actions to apply to a
+ * [[DynamicValue]]. [[apply]] is the interpreter (Phase 4); [[reverse]] is
+ * computed algebraically from each action's [[MigrationAction.reverse]].
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
-  /** Pure interpreter: evaluates the sequence of actions against the untyped DynamicValue tree. */
+  /**
+   * Pure interpreter: evaluates the sequence of actions against the untyped
+   * DynamicValue tree.
+   */
   def apply(value: DynamicValue): Either[String, DynamicValue] =
     actions.foldLeft[Either[String, DynamicValue]](Right(value)) { (acc, action) =>
       acc.flatMap(v => applyAction(v, action.at, action))

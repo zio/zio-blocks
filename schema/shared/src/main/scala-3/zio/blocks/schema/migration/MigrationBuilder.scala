@@ -20,8 +20,9 @@ import scala.annotation.unused
 import zio.blocks.schema.Schema
 
 /**
- * Builder that bridges compile-time S => A selectors (via [[SelectorMacro]]) into
- * [[MigrationAction]] vectors, then produces a [[Migration[A, B]]]. All steps are immutable.
+ * Builder that bridges compile-time S => A selectors (via [[SelectorMacro]])
+ * into [[MigrationAction]] vectors, then produces a [[Migration[A, B]]]. All
+ * steps are immutable.
  */
 final class MigrationBuilder[A, B](
   val sourceSchema: Schema[A],

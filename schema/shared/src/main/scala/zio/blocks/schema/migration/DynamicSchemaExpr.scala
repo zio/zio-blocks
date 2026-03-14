@@ -19,9 +19,9 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.DynamicValue
 
 /**
- * Pure expression core for migration transforms. All transformations are encoded as
- * algebraic data; no closures or runtime functions. Each case embeds `.inverse` to
- * enforce the best-effort semantic inverse law.
+ * Pure expression core for migration transforms. All transformations are
+ * encoded as algebraic data; no closures or runtime functions. Each case embeds
+ * `.inverse` to enforce the best-effort semantic inverse law.
  */
 sealed trait DynamicSchemaExpr {
   def inverse: DynamicSchemaExpr
@@ -36,7 +36,10 @@ object DynamicSchemaExpr {
     def inverse: DynamicSchemaExpr = Fail("Cannot invert a literal constant")
   }
 
-  /** Primitive type conversion; typeIds are serializable identifiers (e.g. "Int", "Long"). */
+  /**
+   * Primitive type conversion; typeIds are serializable identifiers (e.g.
+   * "Int", "Long").
+   */
   final case class ConvertPrimitive(fromTypeId: String, toTypeId: String) extends DynamicSchemaExpr {
     def inverse: DynamicSchemaExpr = ConvertPrimitive(toTypeId, fromTypeId)
   }

@@ -19,9 +19,9 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.Schema
 
 /**
- * Mathematical proof of serializability.
- * The compiler will reject Schema.derived if any closure, user-defined function,
- * or non-serializable type leaks into the DynamicMigration ADT.
+ * Mathematical proof of serializability. The compiler will reject
+ * Schema.derived if any closure, user-defined function, or non-serializable
+ * type leaks into the DynamicMigration ADT.
  */
 object MigrationSchemas {
 

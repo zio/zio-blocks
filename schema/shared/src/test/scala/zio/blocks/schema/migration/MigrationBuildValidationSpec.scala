@@ -19,9 +19,11 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.test._
 
-/** Proves the compile-time symbolic execution engine works across Scala 2.13 and 3:
-  * if this test compiles and runs, AddField and Rename were validated to align source and target shape.
-  */
+/**
+ * Proves the compile-time symbolic execution engine works across Scala 2.13 and
+ * 3: if this test compiles and runs, AddField and Rename were validated to
+ * align source and target shape.
+ */
 object MigrationBuildValidationSpec extends SchemaBaseSpec {
 
   case class PersonV1(name: String, age: Int)
@@ -32,9 +34,10 @@ object MigrationBuildValidationSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationBuildValidationSpec")(
     test("compile-time validation succeeds for structurally sound migration") {
-      val migration = Migration.newBuilder[PersonV1, PersonV2]
+      val migration = Migration
+        .newBuilder[PersonV1, PersonV2]
         .renameField(_.name, _.fullName)
-//        .addField(_.active, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
+        .addField(_.active, DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))
         .build
 
       assertTrue(migration.dynamicMigration.actions.length == 2)

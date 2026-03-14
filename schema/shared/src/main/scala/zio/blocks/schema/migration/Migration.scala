@@ -19,8 +19,9 @@ package zio.blocks.schema.migration
 import zio.blocks.schema.Schema
 
 /**
- * Type-safe migration from A to B: wraps a [[DynamicMigration]] with source and target
- * [[Schema]]s so that [[apply]] converts typed values without reflection.
+ * Type-safe migration from A to B: wraps a [[DynamicMigration]] with source and
+ * target [[Schema]]s so that [[apply]] converts typed values without
+ * reflection.
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,

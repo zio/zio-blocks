@@ -17,9 +17,9 @@
 package zio.blocks.schema.migration
 
 /**
- * Pure-data path representation for the algebraic migration system.
- * Supports record fields, variant cases, sequence elements, and map keys/values.
- * Used to target migration actions and to compute structural reverses (e.g. Rename
+ * Pure-data path representation for the algebraic migration system. Supports
+ * record fields, variant cases, sequence elements, and map keys/values. Used to
+ * target migration actions and to compute structural reverses (e.g. Rename
  * reverse targets the new name and renames back to the old).
  */
 sealed trait DynamicOptic {
@@ -50,15 +50,15 @@ object DynamicOptic {
 
   /** Extracts the terminal field name for Rename reversals. */
   def terminalName(optic: DynamicOptic): String = optic match {
-    case Field(name, None)        => name
-    case Field(_, Some(n))        => terminalName(n)
-    case _                        => throw new IllegalArgumentException("Terminal optic must be a Field")
+    case Field(name, None) => name
+    case Field(_, Some(n)) => terminalName(n)
+    case _                 => throw new IllegalArgumentException("Terminal optic must be a Field")
   }
 
   /** Replaces the terminal field name to compute the reverse target path. */
   def replaceTerminal(optic: DynamicOptic, newName: String): DynamicOptic = optic match {
     case Field(_, None)          => Field(newName, None)
-    case Field(name, Some(next))  => Field(name, Some(replaceTerminal(next, newName)))
+    case Field(name, Some(next)) => Field(name, Some(replaceTerminal(next, newName)))
     case _                       => optic
   }
 }
