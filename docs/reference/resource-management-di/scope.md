@@ -159,7 +159,38 @@ leaked.query("SELECT *")  // Use-after-close bug!
 
 By requiring a lambda literal, the macro can analyze the actual code syntax. It rejects any attempt to store or capture the parameter, making smuggling impossible.
 
-3. **Scope boundary enforcement via `Unscoped`.** A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
+3. **Scope boundary enforcement via `Unscoped`.** A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time. For example, trying to return a resource directly fails:
+
+```scala
+// does not compile:
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(new Database)
+  db  // Error: No given instance of Unscoped[$[Database]]
+}
+```
+
+Closures over resources are also rejected:
+
+```scala
+// does not compile:
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(new Database)
+  () => db.query("SELECT 1")  // Error: No given instance of Unscoped[() => String]
+  // (the closure captures db)
+}
+```
+
+Only types with an `Unscoped` instance can cross the scope boundary—typically pure data:
+
+```scala
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(new Database)
+  $(db)(_.query("SELECT 1"))  // ✓ Correct: returns String, which is Unscoped
+}
+```
 
 ## Construction / Creating Instances
 
