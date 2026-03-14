@@ -579,28 +579,28 @@ The following runtime errors occur when scope rules are violated:
 
 ## Compile Errors
 
-The following compile errors occur when `Scope` type rules are violated:
+The following compile errors occur when `Scope` type rules are violated. All examples below use this scoping pattern (see [Quickstart](#quickstart) for full context):
+
+```scala
+Scope.global.scoped { scope =>
+  import scope.*
+  val db: $[Database] = allocate(new Database)
+  // ... usage or error ...
+}
+```
 
 ### `No given instance of Unscoped[MyType]` — escaping a scope
 
 **When:** You try to return a value from a `scoped { }` block that is not known to be safe data.
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope.*
-  val db: $[Database] = allocate(new Database)
-  db  // ERROR: No given instance of Unscoped[$[Database]]
-}
+db  // ERROR: No given instance of Unscoped[$[Database]]
 ```
 
 **Fix:** Only return values with an `Unscoped` instance. If your type is pure data, add `Unscoped` (see [Unscoped reference](./unscoped.md)). Otherwise, extract the data you need from the resource before returning:
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope.*
-  val db: $[Database] = allocate(new Database)
-  $(db)(_.query("data"))  // Returns String, which is Unscoped
-}
+$(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
 ```
 
 ### `Scoped values may only be used as a method receiver` — macro violation
@@ -608,22 +608,13 @@ Scope.global.scoped { scope =>
 **When:** You use a scoped value in a way other than as a method receiver (e.g., passing as an argument, capturing in a closure).
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope.*
-  val db: $[Database] = allocate(new Database)
-
-  $(db)(d => store(d))  // ERROR: Parameter cannot be passed as argument
-}
+$(db)(d => store(d))  // ERROR: Parameter cannot be passed as argument
 ```
 
 **Fix:** Only call methods on the parameter. If you need to extract data, call a method and return the result:
 
 ```scala
-Scope.global.scoped { scope =>
-  import scope.*
-  val db: $[Database] = allocate(new Database)
-  $(db)(_.query("data"))  // ✓ Correct: method call
-}
+$(db)(_.query("data"))  // ✓ Correct: method call
 ```
 
 ## Practical Guidance
