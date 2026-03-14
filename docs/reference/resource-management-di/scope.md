@@ -61,6 +61,64 @@ libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 
 Supported Scala versions: **2.13.x** and **3.x**.
 
+## Construction
+
+### `Scope.global` — The Root Scope
+
+`Scope.global` is the predefined root scope instance. It exists for the lifetime of your application and is the entry point for all scope-based resource management.
+
+```scala
+object Scope {
+  val global: Scope
+}
+```
+
+In `Scope.global`, the `$[A]` type is an identity type (i.e., `$[A] = A`). Finalizers registered in the global scope run on JVM shutdown via a shutdown hook. On Scala.js, global finalizers are not automatically invoked.
+
+Use `Scope.global` to access the root scope:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+val result: String = Scope.global.scoped { scope =>
+  import scope.*
+  "no resources allocated"
+}
+```
+
+### `Scope#scoped` — Lexical Scoped Block
+
+`scoped` creates a new child scope with lexical lifetime. All resources allocated within the lambda are automatically cleaned up (LIFO) when the lambda exits, whether normally or via exception.
+
+```scala
+trait Scope {
+  def scoped[A](f: Scope => A): A
+}
+```
+
+The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("database closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  val db: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  // Use the database within the scope
+  val result = $(db)(_.query("SELECT 1"))
+  result
+  // db is automatically closed here (scope exits)
+}
+```
+
 ---
 
 ## Getting Started
