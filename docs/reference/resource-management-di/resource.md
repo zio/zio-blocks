@@ -210,6 +210,90 @@ Scope.global.scoped { scope =>
 
 In this pattern, `Resource.shared` (via `Wire.shared`) guarantees a single `Logger` instance across all services, eliminating duplication while maintaining proper cleanup semantics.
 
+### Multiple Shared Dependencies
+
+Most applications need more than one shared resource. Here's a realistic example where `CachingApp` depends on both a shared `Logger` and a shared `MetricsCollector`. Both resources are singletons that all services share:
+
+```
+          CachingApp
+           /      \
+          /        \
+         /          \
+    ProductService  OrderService
+     /  \            /  \
+    /    \          /    \
+   Logger Metrics  Logger Metrics
+    \    /          \    /
+     \  /            \  /
+      \/              \/
+   (shared singleton instances)
+```
+
+Here's the implementation:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+class Logger extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[LOG] $msg")
+  def close(): Unit = println("[Logger] Closed")
+}
+
+class MetricsCollector extends AutoCloseable {
+  private var eventCount = 0
+  def recordEvent(name: String): Unit = {
+    eventCount += 1
+    println(s"[METRICS] Event: $name (total: $eventCount)")
+  }
+  def close(): Unit = println(s"[MetricsCollector] Closed after $eventCount events")
+}
+
+class ProductService(val logger: Logger, val metrics: MetricsCollector) {
+  def findProduct(id: String): String = {
+    logger.log(s"Finding product $id")
+    metrics.recordEvent("product.find")
+    s"Product-$id"
+  }
+}
+
+class OrderService(val logger: Logger, val metrics: MetricsCollector) {
+  def createOrder(productId: String): String = {
+    logger.log(s"Creating order for $productId")
+    metrics.recordEvent("order.create")
+    s"ORD-123"
+  }
+}
+
+class CachingApp(
+  val productService: ProductService,
+  val orderService: OrderService
+) extends AutoCloseable {
+  def close(): Unit = println("[CachingApp] Closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+
+  // Both Logger and MetricsCollector are shared (singleton instances)
+  val app: $[CachingApp] = allocate(
+    Resource.from[CachingApp](
+      Wire.shared[Logger],              // One Logger for all services
+      Wire.shared[MetricsCollector]     // One MetricsCollector for all services
+    )
+  )
+
+  $(app) { a =>
+    println(s"ProductService and OrderService share Logger? ${a.productService.logger eq a.orderService.logger}")
+    println(s"ProductService and OrderService share Metrics? ${a.productService.metrics eq a.orderService.metrics}")
+
+    a.productService.findProduct("P001")
+    a.orderService.createOrder("P001")
+  }
+}
+```
+
+When this scope closes, both the `Logger` and `MetricsCollector` are finalized exactly once, regardless of how many services reference them. The macro automatically builds a dependency graph, verifies all wires, and ensures LIFO cleanup order.
+
 ## Construction
 
 Resources can be created in several ways: from values, from explicit acquire/release pairs, from `AutoCloseable` types, from custom functions, or derived automatically from a type's constructor using the `Resource.from` macros.
