@@ -5,36 +5,45 @@ title: "Scope"
 
 `zio.blocks.scope` is a **compile-time safe, zero-cost** resource management library for **Scala 3** (and Scala 2.13). It prevents a large class of lifetime bugs by tagging allocated values with an *unnameable*, scope-specific type and restricting how those values may be used.
 
+Each scope instance has a distinct `$[A]` type that is unique to that scope and cannot be named or manipulated directly. This means values allocated in one scope have a structurally incompatible type from values in another scope — attempting to use a resource outside its owning scope is a **compile-time type error**, not a runtime crash. The `$` operator macro further restricts how you can use these values: it only allows using them as method/field receivers, preventing accidental capture in closures or escape to outer scopes. Combined with the `Unscoped` typeclass that marks pure data safe to return from a scope, this creates multiple layers of compile-time protection.
+
 At runtime the model stays simple:
 
-- **Allocate eagerly** (no lazy thunks)
-- **Register finalizers**
-- **Run finalizers deterministically** when a scope closes (**LIFO** order)
-- Collect finalizer failures into a `Finalization` (and throw/suppress appropriately)
+- **Allocate eagerly** (no lazy thunks) — When you call `allocate(resource)`, the resource is acquired immediately, not deferred to some later point. This makes resource lifetimes predictable and matches your mental model of when acquisition happens.
+- **Register finalizers** — As each resource is acquired, its cleanup function (or `close()` method for `AutoCloseable`) is registered in a stack-like registry. This registry is part of every scope.
+- **Run finalizers deterministically** when a scope closes (**LIFO** order) — When a scope exits (normally or via exception), all registered finalizers execute in reverse order (last-registered-first-executed). This ensures that resources that depend on each other close in the correct order.
+- **Collect finalizer failures** into a `Finalization` — If a finalizer throws an exception, Scope doesn't stop; it collects all exceptions and either wraps them in a `Finalization` or suppresses them depending on context. This ensures all cleanup runs even if some finalizers fail.
 
 ## Why Scope?
 
-Most resource bugs in Scala are "escape" bugs:
+Most resource bugs in Scala are "escape" bugs—scenarios where a resource is used outside of its intended lifetime, leading to undefined behavior, crashes, or data corruption:
 
-- storing a connection/stream in a field and using it after it was closed
-- capturing a resource in a closure that outlives a scope
-- passing a resource to code that might retain it
-- mixing values from different lifetimes ("which scope owns this?")
+- **Storing in fields:** You open a database connection and store it in a field, intending to close it in a finalizer. But if the finalizer runs before you're truly done with the connection, or if you forget to close it, the connection is silently used after closure.
+- **Capturing in closures:** You create a file handle and pass it to an async framework via a callback. The callback might be invoked long after your scope has closed and the file has been released, causing the program to crash or silently read/write corrupted data.
+- **Passing to untrusted code:** You pass a resource to a library function that might store a reference and use it later, outside your scope. You have no way to know when it's safe to close.
+- **Mixing lifetimes:** In large codebases, it becomes unclear which scope owns which resource. A developer might use a resource in the wrong scope, or two scopes might try to close the same resource.
 
-Scope addresses these with a *tight* design:
+Scope addresses these with a *tight* design. Each design choice solves a specific problem and works together with the others:
 
-| Feature | `zio.blocks.scope` |
-|---|---|
-| Compile-time leak prevention | ✓ (`scope.$[A]` + `$` macro + `Unscoped` boundary) |
-| Runtime overhead | ~0 (scoped values erase to `A`) |
-| Allocation model | Eager (allocation happens at `allocate`) |
-| Finalization | Deterministic, LIFO, errors collected |
-| Structured lifetime | Parent/child scopes, `lower` for explicit lifetime widening |
-| Escape hatch | `leak` (warns) |
+1. **Compile-time leak prevention via type tagging** — Every scope has its own `$[A]` type, combined with the `$` macro that restricts how you can use values and the `Unscoped` typeclass that marks safe return types. Together, these prevent returning resources from their scope at compile time. No runtime wrapper objects needed.
+
+2. **Zero runtime overhead** — Scoped values erase to the underlying type `A` at runtime (via casts). There's no boxing, no extra objects, no GC pressure. The compile-time safety is "free."
+
+3. **Eager allocation** — Resources are acquired immediately when you call `allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
+
+4. **Deterministic, LIFO finalization** — Finalizers are guaranteed to run in reverse order of allocation when a scope closes. If acquisition order implies dependencies (common in resource hierarchies), cleanup order is automatically correct. Exceptions in finalizers are collected rather than stopping cleanup.
+
+5. **Structured scopes with parent-child relationships** — Scopes form a hierarchy; children always close before parents. The `lower` operator lets you safely use parent-scoped values in children, since parent will outlive child.
+
+6. **Escape hatch for interop** — The `leak` function lets you break the type system when integrating with legacy code, but it emits a compiler warning so you don't accidentally bypass safety by mistake.
 
 If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same problem space—but optimized for **synchronous code** with **compile-time boundaries**.
 
 ---
+
+## Getting Started
+
+If you're new to Scope, the [Scope Tutorial](./guides/scope-tutorial.md) provides a comprehensive step-by-step introduction with realistic examples and explanations of the core concepts. This reference page covers the API details; the tutorial covers the "why" and "how."
 
 ## Quick start (Scala 3)
 
@@ -60,13 +69,15 @@ final class Database extends AutoCloseable:
   println(out)
 ```
 
-Key points:
+What's happening in this code:
 
-- `allocate(...)` returns a **scoped value**: `scope.$[Database]` (or `$[Database]` after `import scope.*`).
-- You **cannot** call `db.query(...)` directly on `$[Database]`.
-- You use the `$` access operator: `$(db)(...)` (or `(scope $ db)(...)` without the import).
-- The `scoped` block returns a plain `String` because `String: Unscoped`.
-- Finalizers run when the block exits, in **LIFO** order.
+**Allocating resources in a scope.** When you call `Resource.fromAutoCloseable(new Database).allocate`, you're acquiring a database connection. The `allocate` method returns a **scoped value** of type `scope.$[Database]`—notice the `$` wrapper. This type is unique to the `scope` instance. You can import the scope to use the short form `$[Database]`.
+
+**The `$` operator restricts access.** You cannot call `db.query(...)` directly on `$[Database]` because the methods are hidden at the type level. Instead, you use the `$` access operator: `$(db)(f)`, which takes a lambda. The lambda's parameter must be used only as a receiver (for method/field access), preventing accidental capture or escape.
+
+**Safe return from scoped.** The `scoped` block returns a plain `String` (the result of `_.query("SELECT 1")`). This is safe because `String` is marked as `Unscoped`—a typeclass that says "this type is pure data, safe to leave a scope." If you tried to return `db` instead, the compiler would error.
+
+**LIFO cleanup.** When the `scoped` block exits (normally or via exception), all finalizers run in reverse order. The database's `close()` method was registered automatically because `Database` extends `AutoCloseable`. So cleanup happens at the right time, in the right order, even if an exception occurred.
 
 ---
 
@@ -519,13 +530,64 @@ The following operations on a closed scope do **not** throw:
 - `scoped` — runs normally but creates a born-closed child scope
 - `lower` — zero-cost cast, no closed check needed
 
-### Thread ownership rule (JVM)
+### Thread Ownership
 
-- Scopes created by `scoped` are **owned** by the entering thread.
-- Calling `scoped` on a scope you don't own throws `IllegalStateException`.
-- `open()` creates an **unowned** child scope (`isOwner == true` from any thread).
+Scopes enforce **thread affinity** to prevent cross-thread scope misuse. The thread that calls `scoped` becomes the owner of the resulting child scope; only that thread may call `scoped` on it to create grandchild scopes.
 
-(Scala.js uses a trivial ownership model; `isOwner` is effectively always true.)
+#### Ownership rules by scope type
+
+- `Scope.global` — `isOwner` always returns `true`; any thread may create children from it.
+- `Scope.Child` — captures the calling thread at construction; `isOwner` checks `Thread.currentThread() eq owner`.
+- `Scope.open()` — creates an **unowned** child scope; `isOwner` always returns `true` from any thread (for explicitly managed, cross-thread scopes).
+
+#### Violation error
+
+Calling `scoped` on a `Scope.Child` from the wrong thread throws `IllegalStateException`. The message names both the current thread and the owning thread:
+
+```text
+Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
+```
+
+This check runs *before* the closed-scope check, so even a closed scope on the wrong thread reports an ownership error.
+
+#### Platform notes
+
+On the JVM, `isOwner` uses `Thread` identity. On Scala.js (single-threaded), `isOwner` always returns `true`.
+
+#### Code example
+
+The following example shows correct single-thread usage. Scope ownership prevents accidentally passing a child scope to another thread:
+
+```scala
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable:
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+
+// Correct usage: child scopes must be used on the creating thread
+Scope.global.scoped { parentScope =>
+  import parentScope.*
+
+  val parentDb: $[Database] =
+    Resource.fromAutoCloseable(new Database).allocate
+
+  parentScope.scoped { childScope =>
+    import childScope.*
+
+    val childDb: $[Database] =
+      Resource.fromAutoCloseable(new Database).allocate
+
+    // This is safe: child is created and used on the same thread
+    $(childDb)(_.query("SELECT 1"))
+  }
+
+  // If you passed childScope to another thread and tried to call scoped on it,
+  // you would get IllegalStateException about thread ownership mismatch
+}
+```
+
+If you need a scope that crosses thread boundaries, use `open()` instead; it creates an unowned scope that any thread may use.
 
 ---
 
