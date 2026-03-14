@@ -685,27 +685,9 @@ Nest `scoped` blocks to express resource dependencies, as shown in [Nesting and 
 
 **4. Control flow — use `$` operator correctly**
 
-The `$` operator is not a traditional function call. Use block syntax.
+The `$` operator is not a traditional function call. Use block syntax. For comprehensive examples of single and multiple scoped value access, see the [`$` operator documentation](#--access-a-scoped-value) in Core Operations.
 
-Here's the correct way to use it:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.*
-
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-Scope.global.scoped { scope =>
-  import scope.*
-  val db = allocate(Resource.fromAutoCloseable(new Database))
-
-  $(db) { d => d.query("SELECT 1") }  // block syntax
-}
-```
-
-Here are common mistakes to avoid:
+Common mistakes to avoid:
 
 ```scala
 // Don't try to store, return, or pass the parameter
