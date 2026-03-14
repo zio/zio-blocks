@@ -20,10 +20,10 @@ object TransactorZIO {
     new TransactorZIO(JdbcTransactor.fromUrl(url, dialect))
 
   def fromUrl(
-      url: String,
-      user: String,
-      password: String,
-      dialect: SqlDialect
+    url: String,
+    user: String,
+    password: String,
+    dialect: SqlDialect
   ): TransactorZIO =
     new TransactorZIO(JdbcTransactor.fromUrl(url, user, password, dialect))
 
