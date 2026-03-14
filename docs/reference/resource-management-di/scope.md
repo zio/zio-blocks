@@ -110,7 +110,24 @@ val f: Database => String = _.query("x")
 (scope $ db)(f) // Error: "$ requires a lambda literal ..."
 ```
 
-A lambda literal is an anonymous function written directly in code (e.g., `_.query("x")` or `x => x + 1`). The macro inspects the actual code you pass, so you must pass the lambda directly: `$(db)(_.query("x"))` compiles, but storing it in a variable first defeats this check. Without this restriction, you could smuggle the resource out indirectly via a stored function.
+A lambda literal is an anonymous function written directly in code (e.g., `_.query("x")` or `x => x + 1`). The macro inspects the actual code you pass, so you must pass the lambda directly: `$(db)(_.query("x"))` compiles, but storing it in a variable first defeats this check. Without this restriction, you could smuggle the resource out indirectly via a stored function:
+
+```scala
+// hypothetical: if the macro didn't require a lambda literal
+var leaked: Database = null
+
+val f: Database => String = { db =>
+  leaked = db  // Store the database somewhere the macro can't see
+  db.query("x")
+}
+
+$(db)(f)  // Macro sees the call but can't detect the smuggling above
+
+// After the scope closes, the resource is still accessible:
+leaked.query("SELECT *")  // Use-after-close bug!
+```
+
+By requiring a lambda literal, the macro can analyze the actual code syntax. It rejects any attempt to store or capture the parameter, making smuggling impossible.
 
 3. **Scope boundary enforcement via `Unscoped`.** A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
 
