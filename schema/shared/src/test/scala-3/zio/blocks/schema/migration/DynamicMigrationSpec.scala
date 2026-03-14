@@ -17,7 +17,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema._
+import zio.blocks.schema.{DynamicOptic => _, _}
 import zio.test._
 
 /**
@@ -111,7 +111,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           )
         )
       },
-      test("path failure returns Left with path information") {
+      test("path failure returns Left with MigrationError containing path information") {
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
           .addField(
@@ -125,7 +125,118 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         val notARecord = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result     = migration.dynamicMigration.apply(notARecord)
         assertTrue(result.isLeft)
-        assertTrue(result.left.toOption.get.contains("Expected Record"))
+        val err = result.left.toOption.get
+        assertTrue(err.message.contains("Expected Record") || err.toString.contains("Expected Record"))
+      }
+    ),
+    suite("enum operations")(
+      test("RenameCase renames a variant case") {
+        val creditCard  = DynamicValue.Variant("CreditCard", DynamicValue.Primitive(PrimitiveValue.String("4111")))
+        val input       = DynamicValue.Record(Chunk("payment" -> creditCard))
+        val renameOptic = DynamicOptic.Field("payment", None)
+        val migration   = DynamicMigration(Vector(MigrationAction.RenameCase(renameOptic, "CreditCard", "Card")))
+
+        val result = migration.apply(input)
+        assertTrue(result.isRight)
+        val out          = result.toOption.get.asInstanceOf[DynamicValue.Record]
+        val paymentField = out.fields.find(_._1 == "payment").map(_._2)
+        assertTrue(paymentField.exists {
+          case DynamicValue.Variant("Card", _) => true
+          case _                               => false
+        })
+      },
+      test("RenameCase is a no-op for a different case") {
+        val wire      = DynamicValue.Variant("WireTransfer", DynamicValue.Primitive(PrimitiveValue.String("routing123")))
+        val input     = DynamicValue.Record(Chunk("payment" -> wire))
+        val optic     = DynamicOptic.Field("payment", None)
+        val migration = DynamicMigration(Vector(MigrationAction.RenameCase(optic, "CreditCard", "Card")))
+
+        val result = migration.apply(input)
+        assertTrue(result.isRight)
+        val out          = result.toOption.get.asInstanceOf[DynamicValue.Record]
+        val paymentField = out.fields.find(_._1 == "payment").map(_._2)
+        assertTrue(paymentField.exists {
+          case DynamicValue.Variant("WireTransfer", _) => true
+          case _                                       => false
+        })
+      },
+      test("RenameCase.reverse renames back") {
+        val action  = MigrationAction.RenameCase(DynamicOptic.Field("payment", None), "CreditCard", "Card")
+        val reverse = action.reverse.asInstanceOf[MigrationAction.RenameCase]
+        assertTrue(reverse.from == "Card" && reverse.to == "CreditCard")
+      },
+      test("TransformCase applies sub-actions to the matching case's inner value") {
+        val innerRecord = DynamicValue.Record(
+          Chunk(
+            "number" -> DynamicValue.Primitive(PrimitiveValue.String("4111")),
+            "exp"    -> DynamicValue.Primitive(PrimitiveValue.String("12/25"))
+          )
+        )
+        val input = DynamicValue.Record(
+          Chunk("payment" -> DynamicValue.Variant("CreditCard", innerRecord))
+        )
+
+        val dropExpOptic   = DynamicOptic.Field("exp", None)
+        val subAction      = MigrationAction.DropField(dropExpOptic, DynamicSchemaExpr.DefaultValue)
+        val transformOptic = DynamicOptic.Field(
+          "payment",
+          Some(DynamicOptic.Case("CreditCard", None))
+        )
+        val migration = DynamicMigration(Vector(MigrationAction.TransformCase(transformOptic, Vector(subAction))))
+
+        val result = migration.apply(input)
+        assertTrue(result.isRight)
+        val out          = result.toOption.get.asInstanceOf[DynamicValue.Record]
+        val paymentField = out.fields.find(_._1 == "payment").map(_._2)
+        assertTrue(paymentField.exists {
+          case DynamicValue.Variant("CreditCard", inner: DynamicValue.Record) =>
+            !inner.fields.exists(_._1 == "exp") && inner.fields.exists(_._1 == "number")
+          case _ => false
+        })
+      },
+      test("TransformCase is a no-op for a different case") {
+        val wire = DynamicValue.Variant(
+          "WireTransfer",
+          DynamicValue.Record(Chunk("account" -> DynamicValue.Primitive(PrimitiveValue.String("123"))))
+        )
+        val input          = DynamicValue.Record(Chunk("payment" -> wire))
+        val transformOptic = DynamicOptic.Field(
+          "payment",
+          Some(DynamicOptic.Case("CreditCard", None))
+        )
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.TransformCase(
+              transformOptic,
+              Vector(MigrationAction.DropField(DynamicOptic.Field("account", None), DynamicSchemaExpr.DefaultValue))
+            )
+          )
+        )
+
+        val result = migration.apply(input)
+        assertTrue(result.isRight)
+        val out          = result.toOption.get.asInstanceOf[DynamicValue.Record]
+        val paymentField = out.fields.find(_._1 == "payment").map(_._2)
+        assertTrue(paymentField.exists {
+          case DynamicValue.Variant("WireTransfer", inner: DynamicValue.Record) =>
+            inner.fields.exists(_._1 == "account")
+          case _ => false
+        })
+      },
+      test("MigrationError.renderOptic produces the correct path string") {
+        val optic =
+          DynamicOptic.Field("payment", Some(DynamicOptic.Case("CreditCard", Some(DynamicOptic.Field("number", None)))))
+        assertTrue(MigrationError.renderOptic(optic) == ".payment.when[CreditCard].number")
+      },
+      test("error on wrong type includes path information") {
+        val optic      = DynamicOptic.Field("payment", None)
+        val action     = MigrationAction.RenameCase(optic, "CreditCard", "Card")
+        val notVariant = DynamicValue.Record(Chunk("payment" -> DynamicValue.Primitive(PrimitiveValue.Int(1))))
+        val migration  = DynamicMigration(Vector(action))
+        val result     = migration.apply(notVariant)
+        assertTrue(result.isLeft)
+        val err = result.left.toOption.get
+        assertTrue(err.toString.contains(".payment"))
       }
     )
   )

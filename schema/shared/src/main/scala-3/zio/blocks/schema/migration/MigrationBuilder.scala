@@ -57,7 +57,7 @@ final class MigrationBuilder[A, B](
     )
   }
 
-  inline def transformValue[T](inline at: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+  inline def transformField[T](inline at: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
     new MigrationBuilder(
       sourceSchema,
       targetSchema,
@@ -94,6 +94,48 @@ final class MigrationBuilder[A, B](
       sourceSchema,
       targetSchema,
       actions :+ MigrationAction.Optionalize(SelectorMacro.extractPath(source))
+    )
+
+  inline def renameCase[T](inline at: A => T, from: String, to: String): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.RenameCase(SelectorMacro.extractPath(at), from, to)
+    )
+
+  inline def transformCase[T](
+    inline at: A => T,
+    caseName: String,
+    subActions: Vector[MigrationAction]
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformCase(
+        SelectorMacro.extractPath(at).append(DynamicOptic.Case(caseName, None)),
+        subActions
+      )
+    )
+
+  inline def transformElements[T](inline at: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformElements(SelectorMacro.extractPath(at), transform)
+    )
+
+  inline def transformKeys[T](inline at: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformKeys(SelectorMacro.extractPath(at), transform)
+    )
+
+  inline def transformValues[T](inline at: A => T, transform: DynamicSchemaExpr): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      sourceSchema,
+      targetSchema,
+      actions :+ MigrationAction.TransformValues(SelectorMacro.extractPath(at), transform)
     )
 
   def buildPartial: Migration[A, B] =

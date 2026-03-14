@@ -21,7 +21,7 @@ import zio.blocks.schema.Schema
 /**
  * Type-safe migration from A to B: wraps a [[DynamicMigration]] with source and
  * target [[Schema]]s so that [[apply]] converts typed values without
- * reflection.
+ * reflection. Errors carry full [[MigrationError]] path information.
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
@@ -29,10 +29,13 @@ final case class Migration[A, B](
   targetSchema: Schema[B]
 ) {
 
-  def apply(value: A): Either[String, B] = {
+  def apply(value: A): Either[MigrationError, B] = {
     val dynamicIn = sourceSchema.toDynamicValue(value)
     dynamicMigration.apply(dynamicIn).flatMap { dynamicOut =>
-      targetSchema.fromDynamicValue(dynamicOut).left.map(_.message)
+      targetSchema
+        .fromDynamicValue(dynamicOut)
+        .left
+        .map(e => MigrationError(DynamicOptic.Field("(output)", None), e.message))
     }
   }
 

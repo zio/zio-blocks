@@ -28,6 +28,18 @@ sealed trait DynamicSchemaExpr {
 }
 
 object DynamicSchemaExpr {
+
+  /**
+   * Sentinel used exclusively as the `defaultForReverse` stored inside a
+   * [[zio.blocks.schema.migration.MigrationAction.DropField]] so that its
+   * algebraic [[zio.blocks.schema.migration.MigrationAction.reverse]] can
+   * reconstruct an [[zio.blocks.schema.migration.MigrationAction.AddField]].
+   *
+   * It is never evaluated by the interpreter at runtime. If you need to
+   * provide a concrete default when calling
+   * [[zio.blocks.schema.migration.MigrationBuilder.addField]], pass a
+   * [[Literal]] instead.
+   */
   case object DefaultValue extends DynamicSchemaExpr {
     def inverse: DynamicSchemaExpr = Fail("Cannot invert a default value extraction")
   }
