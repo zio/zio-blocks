@@ -1,0 +1,283 @@
+package zio.blocks.template
+
+import zio.blocks.chunk.Chunk
+
+trait HtmlElements {
+
+  // --- Element constructors ---
+
+  private def elScript(modifiers: Seq[Modifier]): Dom.Element.Script = {
+    var elem: Dom.Element.Script = Dom.Element.Script(Chunk.empty, Chunk.empty)
+    var i                        = 0
+    while (i < modifiers.length) {
+      val applied = modifiers(i).applyTo(elem)
+      elem = applied match {
+        case s: Dom.Element.Script => s
+        case other                 => Dom.Element.Script(other.attributes, other.children)
+      }
+      i += 1
+    }
+    elem
+  }
+
+  private def elStyle(modifiers: Seq[Modifier]): Dom.Element.Style = {
+    var elem: Dom.Element.Style = Dom.Element.Style(Chunk.empty, Chunk.empty)
+    var i                       = 0
+    while (i < modifiers.length) {
+      val applied = modifiers(i).applyTo(elem)
+      elem = applied match {
+        case s: Dom.Element.Style => s
+        case other                => Dom.Element.Style(other.attributes, other.children)
+      }
+      i += 1
+    }
+    elem
+  }
+
+  inline def html: Tag                                        = new Tag("html")
+  inline def head: Tag                                        = new Tag("head")
+  inline def body: Tag                                        = new Tag("body")
+  inline def title: Tag                                       = new Tag("title")
+  inline def div: Tag                                         = new Tag("div")
+  inline def span: Tag                                        = new Tag("span")
+  inline def p: Tag                                           = new Tag("p")
+  inline def h1: Tag                                          = new Tag("h1")
+  inline def h2: Tag                                          = new Tag("h2")
+  inline def h3: Tag                                          = new Tag("h3")
+  inline def h4: Tag                                          = new Tag("h4")
+  inline def h5: Tag                                          = new Tag("h5")
+  inline def h6: Tag                                          = new Tag("h6")
+  inline def a: Tag                                           = new Tag("a")
+  inline def abbr: Tag                                        = new Tag("abbr")
+  inline def address: Tag                                     = new Tag("address")
+  inline def area: Tag                                        = new Tag("area")
+  inline def article: Tag                                     = new Tag("article")
+  inline def aside: Tag                                       = new Tag("aside")
+  inline def audio: Tag                                       = new Tag("audio")
+  inline def b: Tag                                           = new Tag("b")
+  inline def base: Tag                                        = new Tag("base")
+  inline def bdi: Tag                                         = new Tag("bdi")
+  inline def bdo: Tag                                         = new Tag("bdo")
+  inline def blockquote: Tag                                  = new Tag("blockquote")
+  inline def br: Tag                                          = new Tag("br")
+  inline def button: Tag                                      = new Tag("button")
+  inline def canvas: Tag                                      = new Tag("canvas")
+  inline def caption: Tag                                     = new Tag("caption")
+  inline def cite: Tag                                        = new Tag("cite")
+  inline def code: Tag                                        = new Tag("code")
+  inline def col: Tag                                         = new Tag("col")
+  inline def colgroup: Tag                                    = new Tag("colgroup")
+  inline def data: Tag                                        = new Tag("data")
+  inline def datalist: Tag                                    = new Tag("datalist")
+  inline def dd: Tag                                          = new Tag("dd")
+  inline def del: Tag                                         = new Tag("del")
+  inline def details: Tag                                     = new Tag("details")
+  inline def dfn: Tag                                         = new Tag("dfn")
+  inline def dialog: Tag                                      = new Tag("dialog")
+  inline def dl: Tag                                          = new Tag("dl")
+  inline def dt: Tag                                          = new Tag("dt")
+  inline def em: Tag                                          = new Tag("em")
+  inline def embed: Tag                                       = new Tag("embed")
+  inline def fieldset: Tag                                    = new Tag("fieldset")
+  inline def figure: Tag                                      = new Tag("figure")
+  inline def figcaption: Tag                                  = new Tag("figcaption")
+  inline def footer: Tag                                      = new Tag("footer")
+  inline def form: Tag                                        = new Tag("form")
+  inline def header: Tag                                      = new Tag("header")
+  inline def hr: Tag                                          = new Tag("hr")
+  inline def i: Tag                                           = new Tag("i")
+  inline def iframe: Tag                                      = new Tag("iframe")
+  inline def img: Tag                                         = new Tag("img")
+  inline def input: Tag                                       = new Tag("input")
+  inline def ins: Tag                                         = new Tag("ins")
+  inline def kbd: Tag                                         = new Tag("kbd")
+  inline def label: Tag                                       = new Tag("label")
+  inline def legend: Tag                                      = new Tag("legend")
+  inline def li: Tag                                          = new Tag("li")
+  inline def link: Tag                                        = new Tag("link")
+  inline def main: Tag                                        = new Tag("main")
+  inline def map: Tag                                         = new Tag("map")
+  inline def mark: Tag                                        = new Tag("mark")
+  inline def math: Tag                                        = new Tag("math")
+  inline def meta: Tag                                        = new Tag("meta")
+  inline def meter: Tag                                       = new Tag("meter")
+  inline def nav: Tag                                         = new Tag("nav")
+  inline def noscript: Tag                                    = new Tag("noscript")
+  inline def `object`: Tag                                    = new Tag("object")
+  inline def objectTag: Tag                                   = new Tag("object")
+  inline def ol: Tag                                          = new Tag("ol")
+  inline def optgroup: Tag                                    = new Tag("optgroup")
+  inline def option: Tag                                      = new Tag("option")
+  inline def output: Tag                                      = new Tag("output")
+  inline def param: Tag                                       = new Tag("param")
+  inline def picture: Tag                                     = new Tag("picture")
+  inline def pre: Tag                                         = new Tag("pre")
+  inline def progress: Tag                                    = new Tag("progress")
+  inline def q: Tag                                           = new Tag("q")
+  inline def rp: Tag                                          = new Tag("rp")
+  inline def rt: Tag                                          = new Tag("rt")
+  inline def ruby: Tag                                        = new Tag("ruby")
+  inline def s: Tag                                           = new Tag("s")
+  inline def samp: Tag                                        = new Tag("samp")
+  def script(modifiers: Modifier*): Dom.Element.Script        = elScript(modifiers)
+  inline def search: Tag                                      = new Tag("search")
+  inline def section: Tag                                     = new Tag("section")
+  inline def select: Tag                                      = new Tag("select")
+  inline def slot: Tag                                        = new Tag("slot")
+  inline def small: Tag                                       = new Tag("small")
+  inline def source: Tag                                      = new Tag("source")
+  inline def strong: Tag                                      = new Tag("strong")
+  def style(modifiers: Modifier*): Dom.Element.Style          = elStyle(modifiers)
+  inline def sub: Tag                                         = new Tag("sub")
+  inline def summary: Tag                                     = new Tag("summary")
+  inline def sup: Tag                                         = new Tag("sup")
+  inline def svg: Tag                                         = new Tag("svg")
+  inline def table: Tag                                       = new Tag("table")
+  inline def tbody: Tag                                       = new Tag("tbody")
+  inline def td: Tag                                          = new Tag("td")
+  inline def `template`: Tag                                  = new Tag("template")
+  inline def templateTag: Tag                                 = new Tag("template")
+  inline def textarea: Tag                                    = new Tag("textarea")
+  inline def tfoot: Tag                                       = new Tag("tfoot")
+  inline def th: Tag                                          = new Tag("th")
+  inline def thead: Tag                                       = new Tag("thead")
+  inline def time: Tag                                        = new Tag("time")
+  inline def tr: Tag                                          = new Tag("tr")
+  inline def track: Tag                                       = new Tag("track")
+  inline def u: Tag                                           = new Tag("u")
+  inline def ul: Tag                                          = new Tag("ul")
+  inline def `var`: Tag                                       = new Tag("var")
+  inline def varTag: Tag                                      = new Tag("var")
+  inline def video: Tag                                       = new Tag("video")
+  inline def wbr: Tag                                         = new Tag("wbr")
+  def element(tag: String, modifiers: Modifier*): Dom.Element = {
+    val t = new Tag(tag)
+    if (modifiers.isEmpty) t.toElement
+    else {
+      var elem: Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+      var i                 = 0
+      while (i < modifiers.length) {
+        elem = modifiers(i).applyTo(elem)
+        i += 1
+      }
+      elem
+    }
+  }
+
+  // --- Attribute helpers ---
+
+  val id: PartialAttribute              = new PartialAttribute("id")
+  val `class`: PartialAttribute         = new PartialAttribute("class")
+  val className: PartialAttribute       = new PartialAttribute("class")
+  val styleAttr: PartialAttribute       = new PartialAttribute("style")
+  val titleAttr: PartialAttribute       = new PartialAttribute("title")
+  val href: PartialAttribute            = new PartialAttribute("href")
+  val src: PartialAttribute             = new PartialAttribute("src")
+  val alt: PartialAttribute             = new PartialAttribute("alt")
+  val width: PartialAttribute           = new PartialAttribute("width")
+  val height: PartialAttribute          = new PartialAttribute("height")
+  val action: PartialAttribute          = new PartialAttribute("action")
+  val method: PartialAttribute          = new PartialAttribute("method")
+  val name: PartialAttribute            = new PartialAttribute("name")
+  val value: PartialAttribute           = new PartialAttribute("value")
+  val `type`: PartialAttribute          = new PartialAttribute("type")
+  val typeAttr: PartialAttribute        = new PartialAttribute("type")
+  val placeholder: PartialAttribute     = new PartialAttribute("placeholder")
+  val required: PartialAttribute        = new PartialAttribute("required")
+  val disabled: PartialAttribute        = new PartialAttribute("disabled")
+  val readonly: PartialAttribute        = new PartialAttribute("readonly")
+  val checked: PartialAttribute         = new PartialAttribute("checked")
+  val selected: PartialAttribute        = new PartialAttribute("selected")
+  val multiple: PartialAttribute        = new PartialAttribute("multiple")
+  val min: PartialAttribute             = new PartialAttribute("min")
+  val max: PartialAttribute             = new PartialAttribute("max")
+  val step: PartialAttribute            = new PartialAttribute("step")
+  val pattern: PartialAttribute         = new PartialAttribute("pattern")
+  val autofocus: PartialAttribute       = new PartialAttribute("autofocus")
+  val autoComplete: PartialAttribute    = new PartialAttribute("autocomplete")
+  val target: PartialAttribute          = new PartialAttribute("target")
+  val rel: PartialAttribute             = new PartialAttribute("rel")
+  val download: PartialAttribute        = new PartialAttribute("download")
+  val role: PartialAttribute            = new PartialAttribute("role")
+  val tabIndex: PartialAttribute        = new PartialAttribute("tabindex")
+  val hidden: PartialAttribute          = new PartialAttribute("hidden")
+  val draggable: PartialAttribute       = new PartialAttribute("draggable")
+  val contentEditable: PartialAttribute = new PartialAttribute("contenteditable")
+  val lang: PartialAttribute            = new PartialAttribute("lang")
+  val dir: PartialAttribute             = new PartialAttribute("dir")
+  val colspan: PartialAttribute         = new PartialAttribute("colspan")
+  val rowspan: PartialAttribute         = new PartialAttribute("rowspan")
+  val `scope`: PartialAttribute         = new PartialAttribute("scope")
+  val scopeAttr: PartialAttribute       = new PartialAttribute("scope")
+  val headers: PartialAttribute         = new PartialAttribute("headers")
+  val `for`: PartialAttribute           = new PartialAttribute("for")
+  val forAttr: PartialAttribute         = new PartialAttribute("for")
+  val encType: PartialAttribute         = new PartialAttribute("enctype")
+  val formAction: PartialAttribute      = new PartialAttribute("formaction")
+  val formMethod: PartialAttribute      = new PartialAttribute("formmethod")
+  val loading: PartialAttribute         = new PartialAttribute("loading")
+  val srcSet: PartialAttribute          = new PartialAttribute("srcset")
+  val sizes: PartialAttribute           = new PartialAttribute("sizes")
+  val minLength: PartialAttribute       = new PartialAttribute("minlength")
+  val maxLength: PartialAttribute       = new PartialAttribute("maxlength")
+  val size: PartialAttribute            = new PartialAttribute("size")
+  val cols: PartialAttribute            = new PartialAttribute("cols")
+  val rows: PartialAttribute            = new PartialAttribute("rows")
+  val wrap: PartialAttribute            = new PartialAttribute("wrap")
+  val accept: PartialAttribute          = new PartialAttribute("accept")
+  val accesskey: PartialAttribute       = new PartialAttribute("accesskey")
+  val async: PartialAttribute           = new PartialAttribute("async")
+  val autoplay: PartialAttribute        = new PartialAttribute("autoplay")
+  val charset: PartialAttribute         = new PartialAttribute("charset")
+  val content: PartialAttribute         = new PartialAttribute("content")
+  val controls: PartialAttribute        = new PartialAttribute("controls")
+  val crossorigin: PartialAttribute     = new PartialAttribute("crossorigin")
+  val datetime: PartialAttribute        = new PartialAttribute("datetime")
+  val defer: PartialAttribute           = new PartialAttribute("defer")
+  val formAttr: PartialAttribute        = new PartialAttribute("form")
+  val formNoValidate: PartialAttribute  = new PartialAttribute("formnovalidate")
+  val high: PartialAttribute            = new PartialAttribute("high")
+  val httpEquiv: PartialAttribute       = new PartialAttribute("http-equiv")
+  val integrity: PartialAttribute       = new PartialAttribute("integrity")
+  val labelAttr: PartialAttribute       = new PartialAttribute("label")
+  val list: PartialAttribute            = new PartialAttribute("list")
+  val loop: PartialAttribute            = new PartialAttribute("loop")
+  val low: PartialAttribute             = new PartialAttribute("low")
+  val media: PartialAttribute           = new PartialAttribute("media")
+  val muted: PartialAttribute           = new PartialAttribute("muted")
+  val noValidate: PartialAttribute      = new PartialAttribute("novalidate")
+  val open: PartialAttribute            = new PartialAttribute("open")
+  val optimum: PartialAttribute         = new PartialAttribute("optimum")
+  val poster: PartialAttribute          = new PartialAttribute("poster")
+  val preload: PartialAttribute         = new PartialAttribute("preload")
+  val referrerpolicy: PartialAttribute  = new PartialAttribute("referrerpolicy")
+  val reversed: PartialAttribute        = new PartialAttribute("reversed")
+  val sandbox: PartialAttribute         = new PartialAttribute("sandbox")
+  val spanAttr: PartialAttribute        = new PartialAttribute("span")
+  val spellcheck: PartialAttribute      = new PartialAttribute("spellcheck")
+  val summaryAttr: PartialAttribute     = new PartialAttribute("summary")
+  val translate: PartialAttribute       = new PartialAttribute("translate")
+  val citeAttr: PartialAttribute        = new PartialAttribute("cite")
+  val slotAttr: PartialAttribute        = new PartialAttribute("slot")
+  val xmlns: PartialAttribute           = new PartialAttribute("xmlns")
+
+  // --- Multi-value attribute helpers ---
+
+  val ariaDescribedby: PartialMultiAttribute =
+    new PartialMultiAttribute("aria-describedby", Dom.AttributeSeparator.Space)
+  val ariaLabelledby: PartialMultiAttribute = new PartialMultiAttribute("aria-labelledby", Dom.AttributeSeparator.Space)
+
+  def multiAttr(name: String): PartialMultiAttribute                                             = Dom.multiAttr(name)
+  def multiAttr(name: String, separator: Dom.AttributeSeparator): PartialMultiAttribute          = Dom.multiAttr(name, separator)
+  def multiAttr(name: String, values: Iterable[String]): Dom.Attribute                           = Dom.multiAttr(name, values)
+  def multiAttr(name: String, separator: Dom.AttributeSeparator, values: String*): Dom.Attribute =
+    Dom.multiAttr(name, separator, values: _*)
+
+  // --- DOM helper functions ---
+
+  val empty: Dom = Dom.Empty
+
+  def aria(name: String): PartialAttribute     = new PartialAttribute("aria-" + name)
+  def dataAttr(name: String): PartialAttribute = new PartialAttribute("data-" + name)
+  def attr(name: String): PartialAttribute     = new PartialAttribute(name)
+}
