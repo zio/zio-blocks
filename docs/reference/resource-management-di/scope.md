@@ -570,9 +570,7 @@ Scope.global.scoped { outerScope =>
 
 The parent scope always outlives its children, so you can safely use parent resources in child scopes via `lower`.
 
-## Advanced Usage
-
-### Usage Patterns
+## Usage Patterns
 
 #### Pattern: Resource factory
 
@@ -662,11 +660,11 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Dependency Injection
+## Dependency Injection
 
 For dependency injection patterns with `Wire` and `Resource.from`, see the [Wire reference](./wire.md) and [Resource reference](./resource.md). Scope integrates naturally with resource factories and constructor-based DI.
 
-### Runtime Errors
+## Runtime Errors
 
 The following runtime errors occur when scope rules are violated:
 
@@ -686,7 +684,7 @@ The following runtime errors occur when scope rules are violated:
 
 **Fix:** Child scopes created via `scoped` are thread-owned. Use `Scope.global.open()` or `open()` to create unowned scopes that can be shared across threads.
 
-### Compile Errors
+## Compile Errors
 
 The following compile errors occur when `Scope` type rules are violated:
 
@@ -735,7 +733,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Practical Guidance
+## Practical Guidance
 
 **When to use `Scope`:**
 - Allocating resources with compile-time safety requirements
