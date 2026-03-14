@@ -212,6 +212,10 @@ println(externalScript.render)
 // <script src="/app.js"></script>
 ```
 
+:::caution
+`script` and `style` elements render their text children **without HTML escaping** (by design—JavaScript and CSS contain `<`, `>` naturally). Never interpolate untrusted user input into script or style content. Use the `js""` interpolator (which applies JS-specific escaping) or the `css""` interpolator instead.
+:::
+
 ## String Interpolators
 
 Template provides four interpolators: `html""`, `css""`, `js""`, and `selector""`. All interpolators are type-safe and leverage typeclasses to convert interpolated values.
@@ -268,7 +272,7 @@ On Scala 3, CSS strings with no variables are folded to compile-time constants (
 
 ### `js""` Interpolator
 
-The `js""` interpolator returns a `Js` value. Variables are converted via the `ToJs[A]` typeclass and automatically escaped:
+The `js""` interpolator returns a `Js` value. Variables are converted via the `ToJs[A]` typeclass and automatically escaped. The `ToJs[String]` instance automatically adds quotes around strings, so you don't need to manually quote them:
 
 ```scala
 import zio.blocks.template._
@@ -276,7 +280,7 @@ import zio.blocks.template._
 val message = "Hello, world!"
 val count = 42
 
-val code = js"console.log('$message'); alert($count);"
+val code = js"console.log($message); alert($count);"
 
 println(code.value)
 // console.log('Hello, world!'); alert(42);
@@ -354,10 +358,10 @@ val child = div > span
 val adjacent = div + span
 
 // General sibling: div ~ span
-val sibling = div ~ sibling
+val sibling = div ~ span
 
 // And (chaining): div.active
-val and = div.`class`("active")
+val and = div & CssSelector.Class("active")
 
 // Or (grouping): div, span
 val or = div | span
@@ -396,19 +400,19 @@ import zio.blocks.template._
 val input = CssSelector.element("input")
 
 // Has attribute
-val hasType = input.attr("type")
+val hasType = input.withAttribute("type")
 
 // Exact match
-val exactType = input.attrEquals("type", "text")
+val exactType = input.withAttribute("type", "text")
 
 // Contains
-val containsClass = input.attrContains("class", "btn")
+val containsClass = input.withAttributeContaining("class", "btn")
 
 // Starts with
-val startsWithHref = input.attrStartsWith("href", "https")
+val startsWithHref = input.withAttributeStarting("href", "https")
 
 // Ends with
-val endsWithPng = input.attrEndsWith("src", ".png")
+val endsWithPng = input.withAttributeEnding("src", ".png")
 
 println(hasType.render)  // input[type]
 println(exactType.render)  // input[type="text"]
@@ -694,20 +698,22 @@ Both positions are escaped, but the typeclass dispatch ensures the correct escap
 
 ### Raw HTML Escape Hatch
 
-If you need to embed raw, unescaped HTML (use with caution), use `Dom.preRendered`:
+
+
+When you need to embed pre-rendered HTML that is already safe and doesn't require escaping, use `Dom.Raw` with your trusted HTML:
 
 ```scala
 import zio.blocks.template._
 
 val trustedHtml = "<strong>Already safe</strong>"
-val raw = Dom.preRendered(trustedHtml)
+val raw = Dom.Raw(trustedHtml)
 
 val page = div(raw)
 println(page.render)
 // <div><strong>Already safe</strong></div>
 ```
 
-Only use `preRendered` when you have already sanitized the HTML or when you control the source completely.
+Only use `Dom.Raw` when the HTML is fully controlled by you and contains no untrusted input.
 
 ## Cross-Version Behavior: Scala 2 vs. Scala 3
 
