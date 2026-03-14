@@ -82,7 +82,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test; otel/test"
 )
 
 addCommandAlias(
@@ -133,6 +133,7 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
+    otel,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -373,6 +374,31 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val otel = project
+  .dependsOn(context.jvm, chunk.jvm)
+  .settings(stdSettings("zio-blocks-otel"))
+  .settings(buildInfoSettings("zio.blocks.otel"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70,
+    coverageExcludedFiles      := Seq(
+      ".*OtelExample.*",
+      ".*OtelSdk.*",
+      ".*PlatformExecutor.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    Compile / scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2."))
+        Seq("-Wconf:cat=unchecked:s")
+      else Nil
+    }
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
