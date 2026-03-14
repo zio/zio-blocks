@@ -298,7 +298,7 @@ When this scope closes, both the `Logger` and `MetricsCollector` are finalized e
 
 Resources can be created in several ways: from values, from explicit acquire/release pairs, from `AutoCloseable` types, from custom functions, or derived automatically from a type's constructor using the `Resource.from` macros.
 
-### `Resource.apply` — wrap a value
+### `Resource.apply` — Wrap a Value
 
 Wraps a by-name value as a resource. If the value implements `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 
@@ -323,7 +323,7 @@ val configResource = Resource(Config(debug = true))
 val dbResource = Resource(new Database("mydb"))
 ```
 
-### `Resource.acquireRelease` — explicit lifecycle
+### `Resource.acquireRelease` — Explicit Lifecycle
 
 Creates a resource with separate acquire and release functions. The acquire thunk runs during allocation; the release function is registered as a finalizer:
 
@@ -346,7 +346,7 @@ val fileResource = Resource.acquireRelease {
 }
 ```
 
-### `Resource.fromAutoCloseable` — type-safe wrapping
+### `Resource.fromAutoCloseable` — Type-Safe Wrapping
 
 Creates a resource specifically for `AutoCloseable` subtypes. This is a compile-time verified alternative to `Resource(value)` when you know the value is closeable:
 
@@ -368,7 +368,7 @@ val streamResource = Resource.fromAutoCloseable {
 }
 ```
 
-### `Resource.shared` — memoized with reference counting
+### `Resource.shared` — Memoized with Reference Counting
 
 Creates a shared resource that memoizes its value across multiple allocations using reference counting. The first allocation initializes the value using an `OpenScope` parented to `Scope.global`; subsequent allocations increment the reference count and return the same instance. Each scope that receives the shared value registers a finalizer that decrements the count. When the count reaches zero, the shared scope closes automatically. This mechanism is **thread-safe and lock-free**, implemented using `AtomicReference` with atomic compare-and-swap operations to avoid contention.
 
@@ -420,7 +420,7 @@ Scope.global.scoped { scope =>
 println("ServiceA released, component cleaned up (ref count == 0)")
 ```
 
-### `Resource.unique` — fresh instances
+### `Resource.unique` — Fresh Instances
 
 Creates a unique resource that produces a fresh instance each time it's allocated. Use for per-request state or resources that should never be shared:
 
@@ -443,7 +443,7 @@ val uniqueResource = Resource.unique[Int] { _ =>
 }
 ```
 
-### `Resource.from[T]` — derive from constructor
+### `Resource.from[T]` — Derive from Constructor
 
 Derives a `Resource[T]` from `T`'s primary constructor, requiring no external dependencies.
 If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method
@@ -474,7 +474,7 @@ when `T` extends `AutoCloseable` — registers `close()` as a scope finalizer. A
 to use `Resource.from[T]` on a type with unsatisfied constructor parameters results in a
 compile-time error.
 
-### `Resource.from[T](wires: Wire[?, ?]*)` — derive with dependency overrides
+### `Resource.from[T](wires: Wire[?, ?]*)` — Derive with Dependency Overrides
 
 Derives a `Resource[T]` from `T`'s constructor, with `Wire` values provided as dependency
 overrides. Any dependency not covered by an explicit wire is auto-derived if the macro can
@@ -518,7 +518,7 @@ in LIFO order — inner dependencies close before outer ones.
 
 Resources support transformation and composition through `map`, `flatMap`, and `zip`.
 
-### `Resource#map` — transform the value
+### `Resource#map` — Transform the Value
 
 Transforms the value produced by a resource without affecting finalization. The transformation function is applied after the resource is acquired.
 
@@ -537,7 +537,7 @@ val portResource = Resource(8080)
 val urlResource = portResource.map(port => s"http://localhost:$port")
 ```
 
-### `Resource#flatMap` — sequence resources
+### `Resource#flatMap` — Sequence Resources
 
 Sequences two resources, using the result of the first to create the second. Both sets of finalizers are registered and run in LIFO order (inner before outer):
 
@@ -565,7 +565,7 @@ val dbResource = configResource.flatMap { config =>
 }
 ```
 
-### `Resource#zip` — combine resources
+### `Resource#zip` — Combine Resources
 
 Combines two resources into a single resource that produces a tuple of both values. Both resources are acquired and both sets of finalizers are registered:
 
@@ -595,7 +595,7 @@ val cacheResource = Resource.fromAutoCloseable(new Cache())
 val combined = dbResource.zip(cacheResource)
 ```
 
-### `Resource#allocate` — acquire within a scope
+### `Resource#allocate` — Acquire Within a Scope
 
 Allocates a `Resource[A]` within the current `Scope`, returning a scoped `$[A]`. This is syntax sugar for `scope.allocate(resource)`, available via `import scope._` inside a `scoped` block:
 
@@ -622,7 +622,7 @@ Scope.global.scoped { implicit scope =>
 }
 ```
 
-### `$[Resource[A]]#allocate` — allocate a scoped resource
+### `$[Resource[A]]#allocate` — Allocate a Scoped Resource
 
 Allocates a `$[Resource[A]]` — a Resource that is itself a scoped value — returning `$[A]`. Use this when a method on a scoped object returns a Resource and you need to immediately acquire it while keeping the result scoped.
 
