@@ -735,22 +735,187 @@ Scope.global.scoped { scope =>
 
 ## Practical Guidance
 
-**When to use `Scope`:**
-- Allocating resources with compile-time safety requirements
-- Building resource hierarchies with guaranteed LIFO cleanup
-- Synchronous code that needs zero-cost resource management
+### Choosing Scope vs Alternatives
 
-**When to use alternatives:**
-- Async code: use `ZIO Scope`
-- Simple try/finally: acceptable for one or two resources
-- Java interop: use `try-with-resources` or `Using` if `Scope` is too restrictive
+**Use Scope when:**
+- You need **compile-time resource safety** — catching escape bugs at compile time rather than runtime
+- Building **resource hierarchies** — multiple resources with dependencies where LIFO cleanup order matters
+- Writing **synchronous code** — pure functions, CLI tools, batch processing, or traditional imperative code
+- You want **zero-cost abstraction** — no runtime overhead, no boxing, no GC pressure
 
-**Best practices:**
-1. Always wrap resources in `Scope.global.scoped { }` at the top level
-2. Use the `$` operator, not direct method calls on `$[A]`
-3. Prefer `allocate` over `defer` unless you need explicit control
-4. Use `Resource` to compose and share complex acquisition/release logic
-5. Add `Unscoped` to pure data types to improve API usability
+**Use alternatives when:**
+- **Async code:** Use `ZIO Scope` (part of ZIO) if you're already in a ZIO application
+- **Single resource:** A simple `try/finally` or `Using` is sufficient and more readable
+- **Limited scope control:** Java's `try-with-resources` works if you only have `AutoCloseable` types
+- **Maximum simplicity:** For one-off scripts or non-critical code where the overhead of Scope learning curve doesn't justify the benefit
+
+### Best Practices: Organizing Your Code
+
+**1. Entry point pattern — use `Scope.global.scoped` at the top level**
+
+Wrap your entire application's resource acquisition in a single lexical scope:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+object MyApp {
+  def main(args: Array[String]): Unit = {
+    Scope.global.scoped { scope =>
+      import scope.*
+      // All resources acquired here
+      // Automatic cleanup when main exits
+    }
+  }
+}
+```
+
+This is your "outer boundary" for resource safety. Everything inside is protected.
+
+**2. Composition — use `Resource` builders before allocation**
+
+Build your acquisition/release logic first using `Resource` combinators, then allocate in the scope:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+val dbResource = Resource.fromAutoCloseable(new Database)
+val cachedDb = dbResource  // Could compose with other Resources here
+
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(cachedDb)
+  // Use db
+}
+```
+
+Keep resource construction and allocation separate for reusability and clarity.
+
+**3. Hierarchy — nest scopes to express resource dependencies**
+
+When resources depend on each other, nest scopes to ensure correct cleanup order:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+class Connection extends AutoCloseable {
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { dbScope =>
+  import dbScope.*
+
+  val db = allocate(Resource.fromAutoCloseable(new Database))
+
+  dbScope.scoped { connScope =>
+    import connScope.*
+    val conn = allocate(Resource.fromAutoCloseable(new Connection))
+    // Use both db and conn
+    // conn closes first (LIFO), then db
+  }
+}
+```
+
+**4. Control flow — use `$` operator correctly**
+
+The `$` operator is not a traditional function call. Use block syntax:
+
+✅ Correct:
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+class Database extends AutoCloseable {
+  def query(sql: String): String = ""
+  def close(): Unit = ()
+}
+
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(Resource.fromAutoCloseable(new Database))
+
+  $(db) { d => d.query("SELECT 1") }  // Correct: block syntax
+}
+```
+
+❌ Incorrect:
+```scala
+// Don't try to store, return, or pass the parameter
+$(db)(d => someFunction(d))  // ERROR: can't pass as argument
+val result = $(db)(d => d)    // ERROR: can't return parameter
+```
+
+### Common Anti-Patterns to Avoid
+
+**Anti-pattern 1: Storing scoped values**
+
+```scala
+// ❌ DON'T do this
+class MyService {
+  val db: $[Database] = ???  // ERROR: storing a scoped value in a field
+}
+```
+
+**Fix:** Keep scoped values local within the scope block or use `open()` for manual management.
+
+**Anti-pattern 2: Trying to return resources**
+
+```scala
+// ❌ DON'T do this
+def openDatabase(): $[Database] = {
+  Scope.global.scoped { scope =>
+    import scope.*
+    allocate(new Database)  // ERROR: trying to return a scoped value
+  }
+}
+```
+
+**Fix:** If you need to return a resource, use `open()` and return an `OpenScope` handle instead.
+
+**Anti-pattern 3: Forgetting to use the `$` operator**
+
+```scala
+// ❌ DON'T do this
+Scope.global.scoped { scope =>
+  import scope.*
+  val db = allocate(new Database)
+  db.query("SELECT 1")  // ERROR: methods are hidden on $[Database]
+}
+```
+
+**Fix:** Always use the `$` operator to access methods on scoped values.
+
+### Type Safety Tips
+
+**Adding `Unscoped` to your data types:**
+
+If you create custom data types that hold only pure data (no resources), add an `Unscoped` instance to allow them to escape scopes safely:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+import zio.blocks.scope.Unscoped
+
+case class QueryResult(rows: List[String], count: Int)
+
+object QueryResult {
+  implicit val unscoped: Unscoped[QueryResult] = new Unscoped[QueryResult] {}
+}
+
+// Now QueryResult can be returned from scoped blocks
+Scope.global.scoped { scope =>
+  import scope.*
+  // ... acquire database ...
+  QueryResult(List("a", "b"), 2)  // Returns safely
+}
+```
+
+**Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles).
 
 ## Integration
 
