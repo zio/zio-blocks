@@ -81,7 +81,7 @@ object DbValueSpec extends ZIOSpecDefault {
       assertTrue(v.value == dur)
     },
     test("DbUUID creation and extraction") {
-      val uuid = UUID.randomUUID()
+      val uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
       val v    = DbValue.DbUUID(uuid)
       assertTrue(v.value == uuid)
     },
