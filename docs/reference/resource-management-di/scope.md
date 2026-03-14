@@ -425,24 +425,43 @@ trait Finalizer {
 }
 ```
 
-`defer` is useful for resources that are not wrapped in `Resource`, or when you need explicit control over finalization:
+`defer` is useful for resources that are not wrapped in `Resource`, or when you need explicit control over finalization. Here's a practical example—managing a temporary file and a logger that don't implement `AutoCloseable`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
+import java.nio.file.*
+
+// A logger that needs manual cleanup but doesn't implement AutoCloseable
+class Logger {
+  def log(msg: String): Unit = println(s"[LOG] $msg")
+  def close(): Unit = println("Logger closed")
+}
 
 Scope.global.scoped { scope =>
   import scope.*
 
-  val in = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
+  // Create a temporary file (not AutoCloseable from standard library)
+  val tempFile = Files.createTempFile("app", ".tmp")
+  defer {
+    Files.deleteIfExists(tempFile)
+    println(s"Temp file deleted: $tempFile")
+  }
 
-  val handle: DeferHandle = defer(in.close())
+  // Create a logger (not AutoCloseable)
+  val logger = new Logger
+  val loggerHandle = defer(logger.close())
 
-  val first = in.read()
+  // Use both resources
+  logger.log("Processing file: " + tempFile)
+  Files.write(tempFile, "data".getBytes())
 
-  // Cancel the finalizer if you manually cleaned up
-  // handle.cancel()
-  ()
+  // If needed, cancel the finalizer and clean up manually
+  val data = Files.readAllBytes(tempFile)
+  logger.log(s"Read ${data.length} bytes")
+
+  // loggerHandle.cancel()  // Would prevent auto-cleanup
 }
+// When the scope exits: logger closes, then temp file is deleted (LIFO order)
 ```
 
 If the scope is already closed, `defer` is silently ignored (no-op). The finalizer is guaranteed to run in LIFO order with other finalizers when the scope closes.
