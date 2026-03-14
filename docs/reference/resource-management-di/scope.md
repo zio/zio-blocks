@@ -168,14 +168,6 @@ if (finalization.nonEmpty) {
 }
 ```
 
-## Predefined Instances
-
-`Scope` has a single predefined instance:
-
-| Instance | Description |
-|----------|-------------|
-| `Scope.global` | The root scope for the entire application. Exists for the lifetime of the JVM process. Use this to enter the Scope system. |
-
 ## Core Operations
 
 ### `Scope#allocate` — Acquire a Resource
