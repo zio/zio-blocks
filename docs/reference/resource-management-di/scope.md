@@ -434,30 +434,6 @@ A case class containing a child scope and a `close()` function. Returned by `Sco
 
 **Key difference from `scoped`:** You control when to close; finalizers don't run until you call `close()`.
 
-## Comparison Sections
-
-### Scope vs. try/finally
-
-| Aspect                | Scope                  | try/finally           |
-|----------------------|------------------------|-----------------------|
-| **Safety model**     | Compile-time           | Runtime               |
-| **Finalization order** | LIFO                  | Manual                |
-| **Error collection** | Yes (Finalization)     | No                    |
-| **Verbosity**        | Concise                | Verbose               |
-| **Cost**             | Zero runtime overhead  | Zero overhead         |
-
-**Scope vs try/finally:** Scope is safer (compile-time), with automatic LIFO finalization and error collection. `try/finally` is more verbose and error-prone for resource hierarchies.
-
-### Scope vs Java's try-with-resources
-
-| Aspect                | Scope                  | try-with-resources    |
-|----------------------|------------------------|-----------------------|
-| **Type support**     | Any value with `Resource` | `AutoCloseable` only |
-| **Custom acquisition** | Full control          | Limited               |
-| **Nested resources** | Flat composition       | Nested try blocks     |
-| **Use-after-close**  | Compile error          | Runtime error         |
-| **Cost**             | Zero runtime overhead  | Zero overhead         |
-
 ## Advanced Usage
 
 ### Safety Model
