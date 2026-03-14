@@ -121,7 +121,9 @@ For each group:
 - Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
 
 For each method:
-a. **Use a Markdown subheader** with the method name
+a. **Use a Markdown subheader** with the method name using the pattern: `` `MethodName` — Brief Description ``
+   - Example: `` `Resource.apply` — Wrap a Value ``
+   - Example: `` `Resource#map` — Transform the Value ``
 b. **Explain what it does** in plain language
 c. **Show the method signature** in a plain `scala` code block using the simplest trait interface format — just the method name, parameters, and return type, without extra keywords like `override`, `final`, `sealed`. For example:
 
