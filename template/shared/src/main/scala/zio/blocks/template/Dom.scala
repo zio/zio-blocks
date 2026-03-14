@@ -195,6 +195,15 @@ object Dom {
 
   // --- Rendering ---
 
+  private def isValidAttrName(name: String): Boolean =
+    name.nonEmpty && name.forall(c => c != '"' && c != '\'' && c != '=' && c != '>' && c != ' ' && c != '/' && c != '<')
+
+  private def isValidTagName(tag: String): Boolean =
+    tag.nonEmpty && {
+      val first = tag.charAt(0)
+      (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z')
+    } && tag.forall(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-')
+
   private def renderTo(dom: Dom, sb: java.lang.StringBuilder, minified: Boolean): Unit =
     dom match {
       case el: Element.Generic =>
@@ -224,6 +233,7 @@ object Dom {
     minified: Boolean,
     escapeText: Boolean
   ): Unit = {
+    if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
     renderAttributes(attributes, sb)
@@ -249,12 +259,16 @@ object Dom {
     var i = 0
     while (i < attrs.length) {
       attrs(i) match {
-        case Attribute.KeyValue(name, value) =>
+        case Attribute.KeyValue(name, value) if isValidAttrName(name) =>
           renderAttributeValue(name, value, sb)
 
-        case Attribute.BooleanAttribute(name) =>
+        case Attribute.KeyValue(_, _) => ()
+
+        case Attribute.BooleanAttribute(name) if isValidAttrName(name) =>
           sb.append(' ')
           sb.append(name)
+
+        case Attribute.BooleanAttribute(_) => ()
       }
       i += 1
     }
@@ -332,6 +346,7 @@ object Dom {
     escapeText: Boolean,
     indent: Int
   ): Unit = {
+    if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
     renderAttributes(attributes, sb)
@@ -391,7 +406,7 @@ object Dom {
     pf: PartialFunction[Dom, Dom],
     buf: scala.collection.mutable.Builder[Dom, List[Dom]]
   ): Unit = {
-    if (pf.isDefinedAt(dom)) buf += pf(dom)
+    pf.lift(dom).foreach(buf += _)
     dom match {
       case el: Element =>
         var i = 0
@@ -444,7 +459,9 @@ object Dom {
     }
   }
 
-  private val voidElements: Set[String] = Set(
+  private def isVoidElement(tag: String): Boolean = Dom.voidElements.contains(tag)
+
+  private[template] val voidElements: Set[String] = Set(
     "area",
     "base",
     "br",
@@ -460,6 +477,4 @@ object Dom {
     "track",
     "wbr"
   )
-
-  private def isVoidElement(tag: String): Boolean = voidElements.contains(tag)
 }

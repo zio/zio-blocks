@@ -46,12 +46,12 @@ object CssSelector {
       val base     = if (inner.toString != "") inner.toString else ""
       val attrPart = matcher match {
         case None                                           => s"[$attribute]"
-        case Some(AttributeMatch.Contains(value))           => s"""[$attribute*="$value"]"""
-        case Some(AttributeMatch.EndsWith(value))           => s"""[$attribute$$="$value"]"""
-        case Some(AttributeMatch.Exact(value))              => s"""[$attribute="$value"]"""
-        case Some(AttributeMatch.HyphenPrefix(value))       => s"""[$attribute|="$value"]"""
-        case Some(AttributeMatch.StartsWith(value))         => s"""[$attribute^="$value"]"""
-        case Some(AttributeMatch.WhitespaceContains(value)) => s"""[$attribute~="$value"]"""
+        case Some(AttributeMatch.Contains(value))           => s"""[$attribute*="${escapeCssSelectorValue(value)}"]"""
+        case Some(AttributeMatch.EndsWith(value))           => s"""[$attribute$$="${escapeCssSelectorValue(value)}"]"""
+        case Some(AttributeMatch.Exact(value))              => s"""[$attribute="${escapeCssSelectorValue(value)}"]"""
+        case Some(AttributeMatch.HyphenPrefix(value))       => s"""[$attribute|="${escapeCssSelectorValue(value)}"]"""
+        case Some(AttributeMatch.StartsWith(value))         => s"""[$attribute^="${escapeCssSelectorValue(value)}"]"""
+        case Some(AttributeMatch.WhitespaceContains(value)) => s"""[$attribute~="${escapeCssSelectorValue(value)}"]"""
       }
       s"$base$attrPart"
     }
@@ -104,4 +104,8 @@ object CssSelector {
   case object Universal extends CssSelector {
     def render: String = "*"
   }
+
+  private def escapeCssSelectorValue(v: String): String =
+    v.replace("\\", "\\\\").replace("\"", "\\\"")
+
 }

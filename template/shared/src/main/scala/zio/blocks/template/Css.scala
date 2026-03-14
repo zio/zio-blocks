@@ -81,8 +81,8 @@ object Css {
   }
 
   final case class Comment(text: String) extends Css {
-    def render: String              = "/*" + text + "*/"
-    def render(indent: Int): String = "/* " + text + " */"
+    def render: String              = "/*" + text.replace("*/", "* /") + "*/"
+    def render(indent: Int): String = "/* " + text.replace("*/", "* /") + " */"
   }
 
   def apply(value: String): Css = Raw(value)

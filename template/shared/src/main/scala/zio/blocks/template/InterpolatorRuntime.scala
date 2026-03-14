@@ -79,22 +79,7 @@ private[template] object InterpolatorRuntime {
   private final val SentinelStr  = "\u0000\u0001"
   private final val SentinelChar = '\u0000'
 
-  private val voidElements: Set[String] = Set(
-    "area",
-    "base",
-    "br",
-    "col",
-    "embed",
-    "hr",
-    "img",
-    "input",
-    "link",
-    "meta",
-    "param",
-    "source",
-    "track",
-    "wbr"
-  )
+  private val voidElements: Set[String] = Dom.voidElements
 
   private val rawContentElements: Set[String] = Set("script", "style")
 
