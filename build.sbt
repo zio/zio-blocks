@@ -133,6 +133,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
+    rpc.jvm,
+    rpc.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -373,6 +375,28 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val rpc = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema)
+  .settings(stdSettings("zio-blocks-rpc", Seq(BuildHelper.Scala3)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.rpc"))
+  .enablePlugins(BuildInfoPlugin)
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio"          % "2.1.24",
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70,
+    coverageExcludedFiles      := Seq(
+      ".*scala-3/zio/blocks/rpc/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
