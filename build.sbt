@@ -311,7 +311,7 @@ lazy val `scope-examples` = project
 
 lazy val `scope-benchmarks` = project
   .in(file("scope-benchmarks"))
-  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq(BuildHelper.Scala3)))
   .dependsOn(scope.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
@@ -706,7 +706,7 @@ lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
-  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-scala-next-tests", Seq(BuildHelper.Scala3)))
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
@@ -722,7 +722,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
 
 lazy val benchmarks = project
-  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-benchmarks", Seq(BuildHelper.Scala3)))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
@@ -763,7 +763,7 @@ lazy val benchmarks = project
 lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .in(file("golem/model"))
-  .settings(stdSettings("zio-golem-model"))
+  .settings(stdSettings("zio-golem-model", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     Compile / unmanagedSourceDirectories ++= {
       val base = baseDirectory.value / "src" / "main"
@@ -793,7 +793,7 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
 lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .in(file("golem/core"))
-  .settings(stdSettings("zio-golem-core"))
+  .settings(stdSettings("zio-golem-core", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     libraryDependencies ++= Seq(
       "org.scalatest" %%% "scalatest" % "3.2.19" % Test
@@ -826,7 +826,7 @@ lazy val zioGolemCoreJVM = zioGolemCore.jvm.dependsOn(zioGolemMacros)
 
 lazy val zioGolemMacros = project
   .in(file("golem/macros"))
-  .settings(stdSettings("zio-golem-macros"))
+  .settings(stdSettings("zio-golem-macros", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     coverageEnabled       := false,
     coverageFailOnMinimum := false,
@@ -848,7 +848,7 @@ lazy val zioGolemMacros = project
 
 lazy val zioGolemTools = project
   .in(file("golem/tools"))
-  .settings(stdSettings("zio-golem-tools"))
+  .settings(stdSettings("zio-golem-tools", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     fork := true,
     libraryDependencies ++= Seq(
@@ -862,7 +862,7 @@ lazy val zioGolemTools = project
 
 lazy val zioGolemExamples = project
   .in(file("golem/examples"))
-  .settings(stdSettings("zio-golem-examples-js"))
+  .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
     name                            := "zio-golem-examples",
@@ -902,7 +902,7 @@ lazy val zioGolemExamples = project
 lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .in(file("golem/quickstart"))
-  .settings(stdSettings("zio-golem-quickstart"))
+  .settings(stdSettings("zio-golem-quickstart", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     publish / skip := true
     // stdSettings already controls compiler flags across the repo; avoid duplicating -experimental here.

@@ -194,9 +194,9 @@ object BuildHelper {
             "-Wconf:msg=Ignoring .*this.* qualifier:s",
             "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
             "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
+            "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
             "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
             "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
-            "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
             "-Werror"
           ) ++ (if (minor >= 5) Seq("-experimental") else Seq.empty)
         case _ =>
