@@ -98,22 +98,11 @@ What's happening in this code:
 
 ## Safety Model
 
-Scope's compile-time safety comes from *three reinforcing layers* that work together to prevent resource leaks.
+Scope prevents resource leaks by enforcing one ownership rule at compile time: a resource may only be used inside the scope that allocated it. Every possible violation falls into one of three escape paths — using a resource in the wrong scope, smuggling it out through the accessor, or returning it from the block — and each path is closed by a dedicated mechanism.
 
-### Layer 1: Type barrier — scope-specific `$[A]`
+**Type identity per scope.** Each `Scope` instance has its own `$[A]` member type, making values from different scopes structurally incompatible. `scope1.$[Database]` and `scope2.$[Database]` are distinct types — the compiler refuses to substitute one for the other. The only way to move a resource between scopes is an explicit `lower` call, which is only valid parent-to-child. This is safe because a parent scope always outlives its children, so the resource is still alive when the child uses it.
 
-Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
-
-### Layer 2: Controlled access — `$` macro restricts lambda usage
-
-The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents:
-
-- returning the resource
-- storing it in a local val/var
-- passing it as an argument to a function
-- capturing it in a closure
-
-The `$` macro also requires a **lambda literal** (not a method reference or variable):
+**Receiver-only access via the `$` macro.** Even within the correct scope, the `$` operator restricts what you can do with a scoped value. The lambda you pass to `$` may only call methods on the parameter — it cannot return the parameter, store it in a `val`, pass it as an argument to another function, or capture it in a closure. The macro additionally requires a lambda *literal*, not a method reference or variable, which closes a subtler escape route:
 
 ```scala
 // does not compile:
@@ -121,9 +110,11 @@ val f: Database => String = _.query("x")
 (scope $ db)(f) // Error: "$ requires a lambda literal ..."
 ```
 
-### Layer 3: Scope boundary rule — `scoped` requires `Unscoped[A]`
+Passing `f` would let you store the raw `Database` before calling `$`, bypassing the receiver-only check.
 
-A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
+**Return-type enforcement via `Unscoped`.** `scoped { ... }` uses the `Unscoped[A]` typeclass to gate what the block is allowed to return. Only types that declare themselves as pure data (via an `Unscoped` instance) can cross the scope boundary — scoped resources and functions that close over them are rejected at the call site. This is the final checkpoint: even if a value passed the first two checks, it cannot leave the scope unless it is statically known to be safe data.
+
+Together these three mechanisms mean that a program that compiles has a machine-checked proof that no resource outlives the scope that owns it.
 
 ## Construction / Creating Instances
 
