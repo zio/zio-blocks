@@ -687,32 +687,7 @@ Keep resource construction and allocation separate for reusability and clarity.
 
 **3. Hierarchy — nest scopes to express resource dependencies**
 
-When resources depend on each other, nest scopes to ensure correct cleanup order:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.*
-
-class Database extends AutoCloseable {
-  def close(): Unit = ()
-}
-
-class Connection extends AutoCloseable {
-  def close(): Unit = ()
-}
-
-Scope.global.scoped { dbScope =>
-  import dbScope.*
-
-  val db = allocate(Resource.fromAutoCloseable(new Database))
-
-  dbScope.scoped { connScope =>
-    import connScope.*
-    val conn = allocate(Resource.fromAutoCloseable(new Connection))
-    // Use both db and conn
-    // conn closes first (LIFO), then db
-  }
-}
-```
+Nest `scoped` blocks to express resource dependencies, as shown in [Nesting and Hierarchies](#nesting-and-hierarchies).
 
 **4. Control flow — use `$` operator correctly**
 
