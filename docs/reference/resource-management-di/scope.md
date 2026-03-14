@@ -298,18 +298,17 @@ When composing scopes, you can bring parent-scoped resources into a child:
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-Scope.global.scoped { parent =>
-  import parent._
+Scope.global.scoped { parentScope =>
+  import parentScope._
 
   val db = allocate(Resource(42))
 
   // Create a child scope
-  val handle = parent.open()
-  parent.scoped { child =>
-    import child._
+  parentScope.scoped { childScope =>
+    import childScope._
 
     // Convert parent-scoped resource to child-scoped
-    val dbInChild = child.lower(db)
+    val dbInChild = childScope.lower(db)
     // Now dbInChild is usable in the child scope
   }
 }
@@ -330,16 +329,15 @@ An `OpenScope` wraps the child scope and a close function:
 ```scala mdoc:compile-only
 import zio.blocks.scope.Scope
 
-Scope.global.scoped { scope =>
-  import scope._
+Scope.global.scoped { parentScope =>
+  import parentScope._
 
-  val openHandle = scope.open()
+  val openHandle = parentScope.open()
 
-  scope.scoped { _ =>
-    val openScope = openHandle(identity)
-    val finalization = openScope.close()
-    // finalization contains any errors from finalizers
-  }
+  // Extract and use the OpenScope
+  val openScope = openHandle(identity)
+  val result = openScope.close()
+  // result contains any errors from finalizers
 }
 ```
 
@@ -407,10 +405,12 @@ class Logger extends AutoCloseable {
 Shared resources are acquired on first use and closed when all references are released:
 
 ```scala mdoc:compile-only
-val sharedLogger = Resource.shared(Resource {
+import zio.blocks.scope.Resource
+
+val sharedLogger = Resource.shared { scope =>
   val logger = new Logger()
   logger
-})
+}
 
 Scope.global.scoped { scope =>
   import scope._
@@ -426,13 +426,12 @@ Scope.global.scoped { scope =>
 For dependency injection, combine scopes with `Wire` to ensure resource dependencies are resolved correctly:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.Scope
-import zio.blocks.wire.Wire
+import zio.blocks.scope.{Scope, Wire, Resource}
 
-// Define a configuration resource
+// Define a wire configuration
 val configWire = Wire.succeed("app.conf")
 
-// Define a database resource that depends on config
+// Define a database wire that depends on config
 val dbWire = Wire.to { (config: String) =>
   Resource {
     val db = "DB connected with " + config
@@ -443,8 +442,9 @@ val dbWire = Wire.to { (config: String) =>
 Scope.global.scoped { scope =>
   import scope._
 
-  // Wire automatically resolves dependencies
-  val db = allocate(dbWire.toResource)
+  // Wire automatically resolves and allocates dependencies
+  val dbResource = dbWire.toResource
+  val db = allocate(dbResource)
   // db is automatically typed as $[String]
 }
 ```
