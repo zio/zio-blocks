@@ -5,7 +5,6 @@ import zio.blocks.schema.*
 import java.sql.DriverManager
 
 object TransactorSpec extends ZIOSpecDefault {
-  // Load SQLite JDBC driver
   private val _ = Class.forName("org.sqlite.JDBC")
 
   case class User(id: Int, name: String, email: String)
@@ -13,13 +12,37 @@ object TransactorSpec extends ZIOSpecDefault {
     implicit val schema: Schema[User] = Schema.derived
   }
 
+  case class AllTypes(
+    intVal: Int,
+    longVal: Long,
+    doubleVal: Double,
+    floatVal: Float,
+    boolVal: Boolean,
+    strVal: String,
+    shortVal: Short,
+    byteVal: Byte
+  )
+  object AllTypes {
+    implicit val schema: Schema[AllTypes] = Schema.derived
+  }
+
+  case class WithOption(id: Int, nickname: Option[String])
+  object WithOption {
+    implicit val schema: Schema[WithOption] = Schema.derived
+  }
+
   private val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-  private given DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[User]       = User.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[AllTypes]   = AllTypes.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[WithOption] = WithOption.schema.deriving(DbCodecDeriver).derive
 
-  private given DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
-
-  private given DbCodec[String] = implicitly[Schema[String]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Int]     = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  private given DbCodec[String]  = implicitly[Schema[String]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Long]    = implicitly[Schema[Long]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Double]  = implicitly[Schema[Double]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Boolean] =
+    implicitly[Schema[Boolean]].deriving(DbCodecDeriver).derive
 
   private def sharedConnTransactor(): (JdbcTransactor, java.sql.Connection) = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -175,6 +198,232 @@ object TransactorSpec extends ZIOSpecDefault {
         val deleted = SqlOps.update(Frag.const("DELETE FROM count_test"))
         assertTrue(deleted == 2)
       }
-    }
+    },
+    suite("type roundtrip tests")(
+      test("Long roundtrip") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_long (v INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_long (v) VALUES (${DbValue.DbLong(9876543210L)})")
+          val result = SqlOps.query[Long](sql"SELECT v FROM rt_long")
+          assertTrue(result == List(9876543210L))
+        }
+      },
+      test("Double roundtrip") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_double (v REAL NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_double (v) VALUES (${DbValue.DbDouble(3.14159)})")
+          val result = SqlOps.query[Double](sql"SELECT v FROM rt_double")
+          assertTrue(result == List(3.14159))
+        }
+      },
+      test("Boolean roundtrip") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_bool (v INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(true)})")
+          SqlOps.update(sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(false)})")
+          val result = SqlOps.query[Boolean](sql"SELECT v FROM rt_bool ORDER BY v")
+          assertTrue(result == List(false, true))
+        }
+      },
+      test("all primitive types roundtrip") {
+        transactor.connect {
+          SqlOps.update(
+            Frag.const(
+              "CREATE TABLE rt_all (" +
+                "int_val INTEGER NOT NULL, " +
+                "long_val INTEGER NOT NULL, " +
+                "double_val REAL NOT NULL, " +
+                "float_val REAL NOT NULL, " +
+                "bool_val INTEGER NOT NULL, " +
+                "str_val TEXT NOT NULL, " +
+                "short_val INTEGER NOT NULL, " +
+                "byte_val INTEGER NOT NULL)"
+            )
+          )
+          SqlOps.update(
+            sql"INSERT INTO rt_all VALUES (${DbValue.DbInt(42)}, ${DbValue.DbLong(123456789L)}, ${DbValue.DbDouble(2.718)}, ${DbValue.DbFloat(1.5f)}, ${DbValue.DbBoolean(true)}, ${DbValue.DbString("test")}, ${DbValue.DbShort(100.toShort)}, ${DbValue.DbByte(7.toByte)})"
+          )
+          val result = SqlOps.query[AllTypes](sql"SELECT * FROM rt_all")
+          assertTrue(
+            result.length == 1,
+            result.head.intVal == 42,
+            result.head.longVal == 123456789L,
+            result.head.doubleVal == 2.718,
+            result.head.floatVal == 1.5f,
+            result.head.boolVal == true,
+            result.head.strVal == "test",
+            result.head.shortVal == 100.toShort,
+            result.head.byteVal == 7.toByte
+          )
+        }
+      },
+      test("DbNull writeParams via Option None roundtrip") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_null (id INTEGER NOT NULL, nick TEXT)"))
+          SqlOps.update(
+            sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("present")})"
+          )
+          SqlOps.update(
+            sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbNull})"
+          )
+          val results = SqlOps.query[WithOption](sql"SELECT id, nick FROM rt_null ORDER BY id")
+          assertTrue(
+            results.length == 2,
+            results(0) == WithOption(1, Some("present")),
+            results(1) == WithOption(2, None)
+          )
+        }
+      },
+      test("multiple rows insert and select") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_multi (id INTEGER NOT NULL, name TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})")
+          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})")
+          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")})")
+          val results = SqlOps.query[User](
+            sql"SELECT id, name, name FROM rt_multi ORDER BY id"
+          )
+          assertTrue(
+            results.length == 3,
+            results(0).id == 1,
+            results(1).id == 2,
+            results(2).id == 3
+          )
+        }
+      },
+      test("queryOne returns None for non-existing row") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_qone (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_qone VALUES (${DbValue.DbInt(1)})")
+          val existing    = SqlOps.queryOne[Int](sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(1)}")
+          val nonExisting = SqlOps.queryOne[Int](sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(999)}")
+          assertTrue(
+            existing == Some(1),
+            nonExisting.isEmpty
+          )
+        }
+      },
+      test("BigDecimal writeParams") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_bigdec (v TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_bigdec (v) VALUES (${DbValue.DbBigDecimal(BigDecimal("123.456"))})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_bigdec")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val str = rs.reader.getString(1)
+              assertTrue(str == "123.456")
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Short and Byte writeParams") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_small (s INTEGER NOT NULL, b INTEGER NOT NULL)"))
+          SqlOps.update(
+            sql"INSERT INTO rt_small VALUES (${DbValue.DbShort(32000.toShort)}, ${DbValue.DbByte(127.toByte)})"
+          )
+          val ps = summon[DbCon].connection.prepareStatement("SELECT s, b FROM rt_small")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val reader = rs.reader
+              val s      = reader.getShort(1)
+              val b      = reader.getByte(2)
+              assertTrue(s == 32000.toShort, b == 127.toByte)
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Float writeParams and read") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_float (v REAL NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_float (v) VALUES (${DbValue.DbFloat(2.5f)})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_float")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val v = rs.reader.getFloat(1)
+              assertTrue(v == 2.5f)
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Char roundtrip via DbChar") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE rt_char (v TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_char (v) VALUES (${DbValue.DbChar('X')})")
+          val result = SqlOps.query[String](sql"SELECT v FROM rt_char")
+          assertTrue(result == List("X"))
+        }
+      },
+      test("UUID roundtrip via TEXT") {
+        transactor.connect {
+          val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+          SqlOps.update(Frag.const("CREATE TABLE rt_uuid (v TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_uuid (v) VALUES (${DbValue.DbUUID(uuid)})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_uuid")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val v = rs.reader.getUUID(1)
+              assertTrue(v == uuid)
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Duration roundtrip via TEXT") {
+        transactor.connect {
+          val dur = java.time.Duration.ofHours(2).plusMinutes(30)
+          SqlOps.update(Frag.const("CREATE TABLE rt_dur (v TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_dur (v) VALUES (${DbValue.DbDuration(dur)})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_dur")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val v = rs.reader.getDuration(1)
+              assertTrue(v == dur)
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Instant writeParams via setTimestamp") {
+        transactor.connect {
+          val instant = java.time.Instant.parse("2024-06-15T10:30:00Z")
+          SqlOps.update(Frag.const("CREATE TABLE rt_inst (v TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_inst (v) VALUES (${DbValue.DbInstant(instant)})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_inst")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val v = rs.reader.getString(1)
+              assertTrue(v != null && v.nonEmpty)
+            } finally rs.close()
+          } finally ps.close()
+        }
+      },
+      test("Bytes roundtrip") {
+        transactor.connect {
+          val bytes = Array[Byte](10, 20, 30, 40, 50)
+          SqlOps.update(Frag.const("CREATE TABLE rt_bytes (v BLOB NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO rt_bytes (v) VALUES (${DbValue.DbBytes(bytes)})")
+          val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_bytes")
+          try {
+            val rs = ps.executeQuery()
+            try {
+              rs.next()
+              val read = rs.reader.getBytes(1)
+              assertTrue(read.sameElements(bytes))
+            } finally rs.close()
+          } finally ps.close()
+        }
+      }
+    )
   )
 }
