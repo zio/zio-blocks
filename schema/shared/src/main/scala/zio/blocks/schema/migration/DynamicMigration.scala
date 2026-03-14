@@ -370,9 +370,12 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
       case DynamicSchemaExpr.ConvertPrimitive(_, toTypeId) =>
         context match {
           case Some(DynamicValue.Primitive(pv)) => convertPrimitive(pv, toTypeId, optic)
-          case Some(other) =>
+          case Some(other)                      =>
             Left(
-              MigrationError(optic, s"ConvertPrimitive: expected a Primitive value, got ${other.getClass.getSimpleName}")
+              MigrationError(
+                optic,
+                s"ConvertPrimitive: expected a Primitive value, got ${other.getClass.getSimpleName}"
+              )
             )
           case None =>
             Left(MigrationError(optic, "ConvertPrimitive: no source value to convert"))
@@ -384,10 +387,12 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     toTypeId: scala.Predef.String,
     optic: DynamicOptic
   ): Either[MigrationError, DynamicValue] = {
-    def prim(pv: PrimitiveValue): Either[MigrationError, DynamicValue] = Right(DynamicValue.Primitive(pv))
+    def prim(pv: PrimitiveValue): Either[MigrationError, DynamicValue]       = Right(DynamicValue.Primitive(pv))
     def fail(msg: scala.Predef.String): Either[MigrationError, DynamicValue] =
       Left(MigrationError(optic, msg))
-    def parse[T <: PrimitiveValue](s: scala.Predef.String, target: scala.Predef.String)(f: => T): Either[MigrationError, DynamicValue] =
+    def parse[T <: PrimitiveValue](s: scala.Predef.String, target: scala.Predef.String)(
+      f: => T
+    ): Either[MigrationError, DynamicValue] =
       scala.util.Try(f).fold(e => fail(s"Cannot parse '$s' as $target: ${e.getMessage}"), prim)
 
     (from, toTypeId) match {
@@ -395,36 +400,36 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
       case (pv, t) if pv.getClass.getSimpleName == t => prim(pv)
 
       // numeric widening (lossless)
-      case (PrimitiveValue.Byte(v), "Short")      => prim(PrimitiveValue.Short(v.toShort))
-      case (PrimitiveValue.Byte(v), "Int")        => prim(PrimitiveValue.Int(v.toInt))
-      case (PrimitiveValue.Byte(v), "Long")       => prim(PrimitiveValue.Long(v.toLong))
-      case (PrimitiveValue.Byte(v), "Float")      => prim(PrimitiveValue.Float(v.toFloat))
-      case (PrimitiveValue.Byte(v), "Double")     => prim(PrimitiveValue.Double(v.toDouble))
-      case (PrimitiveValue.Byte(v), "BigInt")     => prim(PrimitiveValue.BigInt(scala.BigInt(v.toInt)))
-      case (PrimitiveValue.Byte(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toInt)))
-      case (PrimitiveValue.Short(v), "Int")        => prim(PrimitiveValue.Int(v.toInt))
-      case (PrimitiveValue.Short(v), "Long")       => prim(PrimitiveValue.Long(v.toLong))
-      case (PrimitiveValue.Short(v), "Float")      => prim(PrimitiveValue.Float(v.toFloat))
-      case (PrimitiveValue.Short(v), "Double")     => prim(PrimitiveValue.Double(v.toDouble))
-      case (PrimitiveValue.Short(v), "BigInt")     => prim(PrimitiveValue.BigInt(scala.BigInt(v.toInt)))
-      case (PrimitiveValue.Short(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toInt)))
-      case (PrimitiveValue.Int(v), "Long")       => prim(PrimitiveValue.Long(v.toLong))
-      case (PrimitiveValue.Int(v), "Float")      => prim(PrimitiveValue.Float(v.toFloat))
-      case (PrimitiveValue.Int(v), "Double")     => prim(PrimitiveValue.Double(v.toDouble))
-      case (PrimitiveValue.Int(v), "BigInt")     => prim(PrimitiveValue.BigInt(scala.BigInt(v)))
-      case (PrimitiveValue.Int(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
-      case (PrimitiveValue.Long(v), "Float")      => prim(PrimitiveValue.Float(v.toFloat))
-      case (PrimitiveValue.Long(v), "Double")     => prim(PrimitiveValue.Double(v.toDouble))
-      case (PrimitiveValue.Long(v), "BigInt")     => prim(PrimitiveValue.BigInt(scala.BigInt(v)))
-      case (PrimitiveValue.Long(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
-      case (PrimitiveValue.Float(v), "Double")     => prim(PrimitiveValue.Double(v.toDouble))
-      case (PrimitiveValue.Float(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toDouble)))
+      case (PrimitiveValue.Byte(v), "Short")        => prim(PrimitiveValue.Short(v.toShort))
+      case (PrimitiveValue.Byte(v), "Int")          => prim(PrimitiveValue.Int(v.toInt))
+      case (PrimitiveValue.Byte(v), "Long")         => prim(PrimitiveValue.Long(v.toLong))
+      case (PrimitiveValue.Byte(v), "Float")        => prim(PrimitiveValue.Float(v.toFloat))
+      case (PrimitiveValue.Byte(v), "Double")       => prim(PrimitiveValue.Double(v.toDouble))
+      case (PrimitiveValue.Byte(v), "BigInt")       => prim(PrimitiveValue.BigInt(scala.BigInt(v.toInt)))
+      case (PrimitiveValue.Byte(v), "BigDecimal")   => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toInt)))
+      case (PrimitiveValue.Short(v), "Int")         => prim(PrimitiveValue.Int(v.toInt))
+      case (PrimitiveValue.Short(v), "Long")        => prim(PrimitiveValue.Long(v.toLong))
+      case (PrimitiveValue.Short(v), "Float")       => prim(PrimitiveValue.Float(v.toFloat))
+      case (PrimitiveValue.Short(v), "Double")      => prim(PrimitiveValue.Double(v.toDouble))
+      case (PrimitiveValue.Short(v), "BigInt")      => prim(PrimitiveValue.BigInt(scala.BigInt(v.toInt)))
+      case (PrimitiveValue.Short(v), "BigDecimal")  => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toInt)))
+      case (PrimitiveValue.Int(v), "Long")          => prim(PrimitiveValue.Long(v.toLong))
+      case (PrimitiveValue.Int(v), "Float")         => prim(PrimitiveValue.Float(v.toFloat))
+      case (PrimitiveValue.Int(v), "Double")        => prim(PrimitiveValue.Double(v.toDouble))
+      case (PrimitiveValue.Int(v), "BigInt")        => prim(PrimitiveValue.BigInt(scala.BigInt(v)))
+      case (PrimitiveValue.Int(v), "BigDecimal")    => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
+      case (PrimitiveValue.Long(v), "Float")        => prim(PrimitiveValue.Float(v.toFloat))
+      case (PrimitiveValue.Long(v), "Double")       => prim(PrimitiveValue.Double(v.toDouble))
+      case (PrimitiveValue.Long(v), "BigInt")       => prim(PrimitiveValue.BigInt(scala.BigInt(v)))
+      case (PrimitiveValue.Long(v), "BigDecimal")   => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
+      case (PrimitiveValue.Float(v), "Double")      => prim(PrimitiveValue.Double(v.toDouble))
+      case (PrimitiveValue.Float(v), "BigDecimal")  => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v.toDouble)))
       case (PrimitiveValue.Double(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
       case (PrimitiveValue.BigInt(v), "BigDecimal") => prim(PrimitiveValue.BigDecimal(scala.BigDecimal(v)))
 
       // char <-> int
-      case (PrimitiveValue.Char(v), "Int")  => prim(PrimitiveValue.Int(v.toInt))
-      case (PrimitiveValue.Int(v), "Char")  => prim(PrimitiveValue.Char(v.toChar))
+      case (PrimitiveValue.Char(v), "Int") => prim(PrimitiveValue.Int(v.toInt))
+      case (PrimitiveValue.Int(v), "Char") => prim(PrimitiveValue.Char(v.toChar))
 
       // any numeric -> String
       case (PrimitiveValue.Boolean(v), "String")    => prim(PrimitiveValue.String(v.toString))
@@ -447,8 +452,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
       case (PrimitiveValue.String(s), "Float")      => parse(s, "Float")(PrimitiveValue.Float(s.toFloat))
       case (PrimitiveValue.String(s), "Double")     => parse(s, "Double")(PrimitiveValue.Double(s.toDouble))
       case (PrimitiveValue.String(s), "BigInt")     => parse(s, "BigInt")(PrimitiveValue.BigInt(scala.BigInt(s)))
-      case (PrimitiveValue.String(s), "BigDecimal") => parse(s, "BigDecimal")(PrimitiveValue.BigDecimal(scala.BigDecimal(s)))
-      case (PrimitiveValue.String(s), "Char")       =>
+      case (PrimitiveValue.String(s), "BigDecimal") =>
+        parse(s, "BigDecimal")(PrimitiveValue.BigDecimal(scala.BigDecimal(s)))
+      case (PrimitiveValue.String(s), "Char") =>
         if (s.length == 1) prim(PrimitiveValue.Char(s.charAt(0)))
         else fail(s"Cannot convert String '$s' to Char: expected exactly one character")
 

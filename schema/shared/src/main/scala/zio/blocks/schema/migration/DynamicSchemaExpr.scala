@@ -35,8 +35,8 @@ object DynamicSchemaExpr {
    * algebraic [[zio.blocks.schema.migration.MigrationAction.reverse]] can
    * reconstruct an [[zio.blocks.schema.migration.MigrationAction.AddField]].
    *
-   * It is never evaluated by the interpreter at runtime. If you need to
-   * provide a concrete default when calling
+   * It is never evaluated by the interpreter at runtime. If you need to provide
+   * a concrete default when calling
    * [[zio.blocks.schema.migration.MigrationBuilder.addField]], pass a
    * [[Literal]] instead.
    */

@@ -33,13 +33,14 @@ object SelectorMacro {
 
   /**
    * Phantom extension method that marks a collection traversal in a selector
-   * lambda. Never called at runtime — the `SelectorMacro` recognises the `.each`
-   * call in the AST and emits a [[DynamicOptic.Element]] node.
+   * lambda. Never called at runtime — the `SelectorMacro` recognises the
+   * `.each` call in the AST and emits a [[DynamicOptic.Element]] node.
    */
-  extension [A](a: Iterable[A])
+  extension [A](a: Iterable[A]) {
     inline def each: A = throw new UnsupportedOperationException(
       "each is only valid inside a migration selector passed to SelectorMacro.extractPath"
     )
+  }
 
   /**
    * Phantom extension method that marks a variant-case projection in a selector
@@ -48,10 +49,11 @@ object SelectorMacro {
    * the `SelectorMacro` recognises the `.when[B]` call in the AST and emits a
    * [[DynamicOptic.Case]] node using the simple name of `B`.
    */
-  extension [A](a: A)
+  extension [A](a: A) {
     inline def when[B <: A]: B = throw new UnsupportedOperationException(
       "when is only valid inside a migration selector passed to SelectorMacro.extractPath"
     )
+  }
 
   inline def extractPath[S, A](inline selector: S => A): DynamicOptic =
     ${ extractPathImpl('selector) }
@@ -62,8 +64,8 @@ object SelectorMacro {
     // Internal path-segment ADT — richer than a plain String list so we can
     // distinguish field access, collection traversal, and case projection.
     sealed trait Segment
-    case class FieldSeg(name: String) extends Segment
-    case object EachSeg               extends Segment
+    case class FieldSeg(name: String)    extends Segment
+    case object EachSeg                  extends Segment
     case class WhenSeg(typeName: String) extends Segment
 
     def lambdaBody(term: Term): Term = term match {

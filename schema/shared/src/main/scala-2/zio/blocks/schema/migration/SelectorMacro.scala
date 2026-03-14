@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.migration
 
+import scala.language.implicitConversions
 import scala.reflect.macros.blackbox
 
 /**
