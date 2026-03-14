@@ -284,18 +284,11 @@ Scope.global.scoped { implicit scope =>
 
 ### `$[Resource[A]]#allocate` — allocate a scoped resource
 
-**Understanding scoped resources:** A scoped value `$[A]` is an `A` that is only valid while a scope is alive — you cannot return it or store it outside the scope. A **scoped resource** `$[Resource[A]]` is a `Resource[A]` that is itself a scoped value, meaning the Resource object was allocated and is managed by the scope. The `.allocate` method unwraps a scoped resource and acquires it, returning the acquired value as a new scoped value.
+Allocates a `$[Resource[A]]` — a Resource that is itself a scoped value — returning `$[A]`. Use this when a method on a scoped object returns a Resource and you need to immediately acquire it while keeping the result scoped.
 
-Returns `$[A]` by unwrapping and allocating a `$[Resource[A]]`. Use this when a method on a scoped object returns a Resource and you need to immediately allocate it rather than treating the Resource as a standalone object.
+**What is a scoped resource?** A scoped value `$[A]` represents an `A` that is valid only while a scope is alive. A **scoped resource** `$[Resource[A]]` is a Resource object that exists *inside* that scope. When you call a method like `$(pool)(_.lease())` that returns a Resource, the result is typed as `$[Resource[Connection]]` — the Resource itself is scoped. The `.allocate` extension method unwraps this scoped resource and acquires it, returning the acquired value as a new scoped value `$[A]`.
 
-**Motivation:** This pattern arises when a scoped dependency has a factory method that returns a Resource. Instead of manually unwrapping the scoped factory, allocating the Resource, and wrapping the result back into a scoped value, `.allocate` does this in one step, keeping your code clean and preventing accidental scope violations.
-
-**When to use:**
-
-| Situation | Use |
-|---|---|
-| Direct `Resource[A]` that you need to allocate | `resource.allocate` (simpler) |
-| A method on a scoped object returns `Resource[A]` | `$(scopedObj)(_.method()).allocate` (chains naturally) |
+**Motivation:** This pattern appears frequently in resource factories. A scoped object (like a database pool) has methods that produce new Resources. Without this extension, you'd need to unwrap the `$[Resource[A]]` from the `$` context, allocate it separately, and re-wrap the result. The `.allocate` method chains naturally, letting you write `$(pool)(_.lease()).allocate` instead of dealing with intermediate unwrapping.
 
 The implicit class:
 
