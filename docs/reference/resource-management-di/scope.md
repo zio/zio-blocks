@@ -88,7 +88,7 @@ val result: String = Scope.global.scoped { scope =>
 
 ### `Scope#scoped` — Lexical Scoped Block
 
-`scoped` creates a new child scope with lexical lifetime. All resources allocated within the lambda are automatically cleaned up (LIFO) when the lambda exits, whether normally or via exception.
+`scoped` creates a new child scope with lexical lifetime. All resources allocated within the lambda are automatically cleaned up (LIFO) when the lambda exits, whether normally or via exception:
 
 ```scala
 trait Scope {
@@ -96,7 +96,7 @@ trait Scope {
 }
 ```
 
-The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`.
+The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -131,7 +131,7 @@ Scope.global.scoped { scope =>
 
 ### `allocate` — Acquire a Resource
 
-Allocates a `Resource[A]` in this scope, acquiring the underlying value immediately and registering its finalizer.
+Allocates a `Resource[A]` in this scope, acquiring the underlying value immediately and registering its finalizer:
 
 ```scala
 trait Scope {
@@ -142,7 +142,7 @@ trait Scope {
 
 The first overload accepts any `Resource`. The second is a convenience for `AutoCloseable` values—their `close()` method is automatically registered as a finalizer.
 
-If the scope is already closed, `allocate` throws `IllegalStateException`. Otherwise, the resource is acquired eagerly and its finalizer is registered to run LIFO when the scope closes.
+If the scope is already closed, `allocate` throws `IllegalStateException`. Otherwise, the resource is acquired eagerly and its finalizer is registered to run LIFO when the scope closes:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -169,7 +169,7 @@ Scope.global.scoped { scope =>
 
 ### `$` — Access a Scoped Value
 
-The `$` operator safely accesses a scoped value by enforcing it is only used as a method/field receiver, preventing accidental capture or escape.
+The `$` operator safely accesses a scoped value by enforcing it is only used as a method/field receiver, preventing accidental capture or escape:
 
 ```scala
 def $[A](sa: $[A])(f: A => B): B
@@ -237,7 +237,7 @@ If a result type is `Unscoped[B]` (pure data), `$` auto-unwraps it to `B`. Other
 
 ### `lower` — Use a Parent Value in a Child Scope
 
-`lower` retagges a parent-scoped value into a child scope. This is safe because a parent scope always outlives its children.
+`lower` retagges a parent-scoped value into a child scope. This is safe because a parent scope always outlives its children:
 
 ```scala
 trait Scope {
@@ -277,7 +277,7 @@ Scope.global.scoped { outer =>
 
 ### `defer` — Register a Manual Finalizer
 
-`defer` registers a cleanup action to run when the scope closes. It returns a `DeferHandle` that can cancel the registration.
+`defer` registers a cleanup action to run when the scope closes. It returns a `DeferHandle` that can cancel the registration:
 
 ```scala
 trait Scope {
@@ -309,7 +309,7 @@ If the scope is already closed, `defer` is silently ignored (no-op). The finaliz
 
 ### `open` — Non-Lexical Child Scope
 
-`open()` creates a child scope you explicitly close, returning an `OpenScope` handle. Unlike `scoped { }`, this allows non-lexical lifetime management.
+`open()` creates a child scope you explicitly close, returning an `OpenScope` handle. Unlike `scoped { }`, this allows non-lexical lifetime management:
 
 ```scala
 trait Scope {
@@ -370,7 +370,7 @@ Scope.global.scoped { parent =>
 
 ### `isClosed` — Check If Closed
 
-Returns whether this scope's finalizers have already run.
+Returns whether this scope's finalizers have already run:
 
 ```scala
 trait Scope {
@@ -380,7 +380,7 @@ trait Scope {
 
 Once `isClosed` returns `true`, subsequent calls to `allocate`, `open`, or `$` throw `IllegalStateException`. This is checked to prevent use-after-close bugs.
 
-`Scope.global` returns `false` until JVM shutdown (since it exists for the program's lifetime).
+`Scope.global` returns `false` until JVM shutdown (since it exists for the program's lifetime):
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -401,7 +401,7 @@ Scope.global.scoped { scope =>
 
 ### `isOwner` — Check Thread Ownership
 
-Returns whether the calling thread owns this scope.
+Returns whether the calling thread owns this scope:
 
 ```scala
 trait Scope {
@@ -414,7 +414,7 @@ Ownership is used to detect cross-thread scope misuse. Thread ownership rules:
 - Child scopes created via `scoped { }`: returns `true` only on the thread that entered the block
 - Child scopes created via `open()`: always returns `true` (unowned, usable cross-thread)
 
-Calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime.
+Calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.*
@@ -436,7 +436,7 @@ Scope.global.scoped { scope =>
 
 ### `leak` — Escape Hatch
 
-`leak` unwraps a scoped value, bypassing compile-time safety checks. Emits a compiler warning to discourage accidental use.
+`leak` unwraps a scoped value, bypassing compile-time safety checks. Emits a compiler warning to discourage accidental use:
 
 ```scala
 trait Scope {
