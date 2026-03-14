@@ -742,16 +742,7 @@ Attempting to return a scoped value from a `scoped` block causes a compile-time 
 
 **Anti-pattern 3: Forgetting to use the `$` operator**
 
-Do NOT call methods directly on scoped values:
-
-```scala
-// DON'T do this
-Scope.global.scoped { scope =>
-  import scope.*
-  val db = allocate(new Database)
-  db.query("SELECT 1")  // ERROR: methods are hidden on $[Database]
-}
-```
+Calling methods directly on scoped values is prohibited and causes a compile-time error, as detailed in [Scoped values may only be used as a method receiver](#scoped-values-may-only-be-used-as-a-method-receiver).
 
 **Fix:** Always use the `$` operator to access methods on scoped values.
 
