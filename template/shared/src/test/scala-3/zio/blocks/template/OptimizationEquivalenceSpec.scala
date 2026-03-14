@@ -4,112 +4,100 @@ import zio.test._
 
 object OptimizationEquivalenceSpec extends ZIOSpecDefault {
   def spec = suite("Optimization Equivalence")(
-    suite("optimizedApply vs runtimeApply")(
+    suite("macro-optimized Tag.apply produces correct output")(
       test("div with single string child") {
-        val optimized = div.optimizedApply("hello").render
-        val runtime   = div.runtimeApply("hello").render
-        assertTrue(optimized == runtime)
+        val result = div("hello").render
+        assertTrue(result == "<div>hello</div>")
       },
       test("div with single attribute") {
-        val optimized = div.optimizedApply(id := "main").render
-        val runtime   = div.runtimeApply(id := "main").render
-        assertTrue(optimized == runtime)
+        val result = div(id := "main").render
+        assertTrue(result == """<div id="main"></div>""")
       },
       test("div with multiple attributes and text") {
-        val optimized = div.optimizedApply(id := "main", className := "box", "text").render
-        val runtime   = div.runtimeApply(id := "main", className := "box", "text").render
-        assertTrue(optimized == runtime)
+        val result = div(id := "main", className := "box", "text").render
+        assertTrue(
+          result.contains("id=\"main\""),
+          result.contains("class=\"box\""),
+          result.contains("text"),
+          result.startsWith("<div"),
+          result.endsWith("</div>")
+        )
       },
       test("nested elements") {
-        val innerOpt  = p.optimizedApply("inner")
-        val innerRt   = p.runtimeApply("inner")
-        val optimized = div.optimizedApply(innerOpt).render
-        val runtime   = div.runtimeApply(innerRt).render
-        assertTrue(optimized == runtime)
+        val inner  = p("inner")
+        val result = div(inner).render
+        assertTrue(result == "<div><p>inner</p></div>")
       },
       test("multiple children in ul/li") {
-        val li1Opt    = li.optimizedApply("one")
-        val li2Opt    = li.optimizedApply("two")
-        val li1Rt     = li.runtimeApply("one")
-        val li2Rt     = li.runtimeApply("two")
-        val optimized = ul.optimizedApply(li1Opt, li2Opt).render
-        val runtime   = ul.runtimeApply(li1Rt, li2Rt).render
-        assertTrue(optimized == runtime)
+        val li1    = li("one")
+        val li2    = li("two")
+        val result = ul(li1, li2).render
+        assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
       test("void element br with className") {
-        val optimized = br.optimizedApply(className := "spacer").render
-        val runtime   = br.runtimeApply(className := "spacer").render
-        assertTrue(optimized == runtime)
+        val result = br(className := "spacer").render
+        assertTrue(result == """<br class="spacer"/>""")
       },
       test("void element hr with id") {
-        val optimized = hr.optimizedApply(id := "separator").render
-        val runtime   = hr.runtimeApply(id := "separator").render
-        assertTrue(optimized == runtime)
+        val result = hr(id := "separator").render
+        assertTrue(result == """<hr id="separator"/>""")
       },
       test("img with src attribute") {
-        val optimized = img.optimizedApply(src := "x.png").render
-        val runtime   = img.runtimeApply(src := "x.png").render
-        assertTrue(optimized == runtime)
+        val result = img(src := "x.png").render
+        assertTrue(result == """<img src="x.png"/>""")
       },
       test("img with multiple attributes") {
-        val optimized = img.optimizedApply(src := "photo.jpg", alt := "A photo").render
-        val runtime   = img.runtimeApply(src := "photo.jpg", alt := "A photo").render
-        assertTrue(optimized == runtime)
+        val result = img(src := "photo.jpg", alt := "A photo").render
+        assertTrue(
+          result.contains("src=\"photo.jpg\""),
+          result.contains("alt=\"A photo\""),
+          result.startsWith("<img"),
+          result.endsWith("/>")
+        )
       },
       test("span with string child") {
-        val optimized = span.optimizedApply("inline text").render
-        val runtime   = span.runtimeApply("inline text").render
-        assertTrue(optimized == runtime)
+        val result = span("inline text").render
+        assertTrue(result == "<span>inline text</span>")
       },
       test("h1 with string child") {
-        val optimized = h1.optimizedApply("Title").render
-        val runtime   = h1.runtimeApply("Title").render
-        assertTrue(optimized == runtime)
+        val result = h1("Title").render
+        assertTrue(result == "<h1>Title</h1>")
       },
       test("a with href and text") {
-        val optimized = a.optimizedApply(href := "https://example.com", "link").render
-        val runtime   = a.runtimeApply(href := "https://example.com", "link").render
-        assertTrue(optimized == runtime)
+        val result = a(href := "https://example.com", "link").render
+        assertTrue(result == """<a href="https://example.com">link</a>""")
       },
       test("deeply nested elements") {
-        val innerLi   = li.optimizedApply("item")
-        val innerUl   = ul.optimizedApply(innerLi)
-        val optimized = div.optimizedApply(innerUl).render
-        val innerLiR  = li.runtimeApply("item")
-        val innerUlR  = ul.runtimeApply(innerLiR)
-        val runtime   = div.runtimeApply(innerUlR).render
-        assertTrue(optimized == runtime)
+        val innerLi = li("item")
+        val innerUl = ul(innerLi)
+        val result  = div(innerUl).render
+        assertTrue(result == "<div><ul><li>item</li></ul></div>")
       },
       test("input with type attribute") {
-        val optimized = input.optimizedApply(`type` := "text").render
-        val runtime   = input.runtimeApply(`type` := "text").render
-        assertTrue(optimized == runtime)
+        val result = input(`type` := "text").render
+        assertTrue(result == """<input type="text"/>""")
       },
       test("table structure") {
-        val cell      = td.optimizedApply("data")
-        val row       = tr.optimizedApply(cell)
-        val optimized = table.optimizedApply(row).render
-        val cellR     = td.runtimeApply("data")
-        val rowR      = tr.runtimeApply(cellR)
-        val runtime   = table.runtimeApply(rowR).render
-        assertTrue(optimized == runtime)
+        val cell   = td("data")
+        val row    = tr(cell)
+        val result = table(row).render
+        assertTrue(result == "<table><tr><td>data</td></tr></table>")
       },
       test("form with action attribute and children") {
-        val btn       = button.optimizedApply("Submit")
-        val optimized = form.optimizedApply(action := "/submit", btn).render
-        val btnR      = button.runtimeApply("Submit")
-        val runtime   = form.runtimeApply(action := "/submit", btnR).render
-        assertTrue(optimized == runtime)
+        val btn    = button("Submit")
+        val result = form(action := "/submit", btn).render
+        assertTrue(
+          result.contains("action=\"/submit\""),
+          result.contains("<button>Submit</button>")
+        )
       },
       test("element with boolean attribute") {
-        val optimized = input.optimizedApply(disabled).render
-        val runtime   = input.runtimeApply(disabled).render
-        assertTrue(optimized == runtime)
+        val result = input(disabled).render
+        assertTrue(result == "<input disabled/>")
       },
       test("multiple string children") {
-        val optimized = p.optimizedApply("hello ", "world").render
-        val runtime   = p.runtimeApply("hello ", "world").render
-        assertTrue(optimized == runtime)
+        val result = p("hello ", "world").render
+        assertTrue(result == "<p>hello world</p>")
       }
     ),
     suite("constant-folded interpolators")(
