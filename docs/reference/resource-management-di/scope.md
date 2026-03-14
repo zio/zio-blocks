@@ -618,7 +618,7 @@ try {
   executor.shutdown()
 }
 
-// Output:
+// Example Output:
 // Error: Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
 // db closed
 ```
@@ -650,14 +650,16 @@ try {
       $(dbInChild)(_.query("SELECT 1"))
     }
   }
-  println(future.get())  // Succeeds
+  println(future.get())
 
   poolScope.close().orThrow()
-  // Output: result: SELECT 1
-  // Output: db closed
 } finally {
   executor.shutdown()
 }
+
+// Output:
+// result: SELECT 1
+// db closed
 ```
 
 The key difference: `scoped { }` creates **owned** scopes (tied to the entering thread), while `open()` creates **unowned** scopes (usable from any thread). Choose based on whether your resources need to cross thread boundaries.
