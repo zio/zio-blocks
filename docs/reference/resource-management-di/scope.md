@@ -60,7 +60,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 
 Supported Scala versions: **2.13.x** and **3.x**.
 
-## Quick Start
+## Quickstart
 
 Here's a minimal example showing resource allocation, usage, and cleanup:
 
