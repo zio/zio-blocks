@@ -83,7 +83,9 @@ object SqlDialectSpec extends ZIOSpecDefault {
       },
       test("DbUUID -> UUID") {
         assertTrue(
-          SqlDialect.PostgreSQL.typeName(DbValue.DbUUID(UUID.randomUUID())) == "UUID"
+          SqlDialect.PostgreSQL.typeName(
+            DbValue.DbUUID(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
+          ) == "UUID"
         )
       },
       test("paramPlaceholder(1) -> $1") {
@@ -167,7 +169,7 @@ object SqlDialectSpec extends ZIOSpecDefault {
       },
       test("DbUUID -> TEXT") {
         assertTrue(
-          SqlDialect.SQLite.typeName(DbValue.DbUUID(UUID.randomUUID())) == "TEXT"
+          SqlDialect.SQLite.typeName(DbValue.DbUUID(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))) == "TEXT"
         )
       },
       test("paramPlaceholder(1) -> ?") {
