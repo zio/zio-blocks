@@ -491,17 +491,29 @@ final class Database extends AutoCloseable {
 // A service that holds and manages a scope
 class DatabaseService {
   private val serviceScope = Scope.global.open()
-  private val db = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+
+  // Initialize database once at startup
+  private val db = {
+    try {
+      serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
+    } catch {
+      case e: IllegalStateException =>
+        serviceScope.close().orThrow()
+        throw e
+    }
+  }
+
+  def isAvailable: Boolean = !serviceScope.scope.isClosed
 
   def execute(query: String): Either[String, String] = {
     if (serviceScope.scope.isClosed) {
-      Left("Database service is closed")
+      Left("Database service has been shut down")
     } else {
       try {
         Right(serviceScope.scope.scoped { scope =>
           import scope.*
-          val database = serviceScope.scope.allocate(Resource.fromAutoCloseable(new Database))
-          $(database)(_.query(query))
+          val dbInChild = scope.lower(db)
+          $(dbInChild)(_.query(query))
         })
       } catch {
         case e: IllegalStateException => Left(s"Service error: ${e.getMessage}")
@@ -510,22 +522,25 @@ class DatabaseService {
   }
 
   def shutdown(): Unit = {
-    serviceScope.close().orThrow()
-    println("Service shutdown complete")
+    if (!serviceScope.scope.isClosed) {
+      serviceScope.close().orThrow()
+      println("Service shutdown complete")
+    }
   }
 }
 
 // Usage
 val service = new DatabaseService
+println(s"Service available: ${service.isAvailable}")
 
 val result1 = service.execute("SELECT 1")
-println(result1)
+println(s"Query result: $result1")
 
 service.shutdown()
 
-// This would return Left since the service is now closed
+// Attempting to use after shutdown is now safe
 val result2 = service.execute("SELECT 2")
-println(result2)
+println(s"Query after shutdown: $result2")
 ```
 
 `Scope.global` returns `false` until JVM shutdown. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
