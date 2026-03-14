@@ -58,6 +58,42 @@ libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 
 Supported Scala versions: **2.13.x** and **3.x**.
 
+## Quick Start
+
+Here's a minimal example showing resource allocation, usage, and cleanup:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.*
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+val out: String =
+  Scope.global.scoped { scope =>
+    import scope.*
+
+    val db: $[Database] =
+      Resource.fromAutoCloseable(new Database).allocate
+
+    // Safe access: the lambda parameter can only be used as a receiver
+    $(db)(_.query("SELECT 1"))
+  }
+
+println(out)
+```
+
+What's happening in this code:
+
+**Allocating resources in a scope.** When you call `Resource.fromAutoCloseable(new Database).allocate`, you're acquiring a database connection. The `allocate` method returns a **scoped value** of type `scope.$[Database]`—notice the `$` wrapper. This type is unique to the `scope` instance. You can import the scope to use the short form `$[Database]`.
+
+**The `$` operator restricts access.** You cannot call `db.query(...)` directly on `$[Database]` because the methods are hidden at the type level. Instead, you use the `$` access operator: `$(db)(f)`, which takes a lambda. The lambda's parameter must be used only as a receiver (for method/field access), preventing accidental capture or escape.
+
+**Safe return from scoped.** The `scoped` block returns a plain `String` (the result of `_.query("SELECT 1")`). This is safe because `String` is marked as `Unscoped`—a typeclass that says "this type is pure data, safe to leave a scope." If you tried to return `db` instead, the compiler would error.
+
+**LIFO cleanup.** When the `scoped` block exits (normally or via exception), all finalizers run in reverse order. The database's `close()` method was registered automatically because `Database` extends `AutoCloseable`. So cleanup happens at the right time, in the right order, even if an exception occurred.
+
 ## Construction / Creating Instances
 
 ### `Scope.global` — The Root Scope
@@ -634,42 +670,6 @@ Scope.global.scoped { scope =>
 3. Prefer `allocate` over `defer` unless you need explicit control
 4. Use `Resource` to compose and share complex acquisition/release logic
 5. Add `Unscoped` to pure data types to improve API usability
-
-## Quick Start
-
-Here's a minimal example showing resource allocation, usage, and cleanup:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.*
-
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-val out: String =
-  Scope.global.scoped { scope =>
-    import scope.*
-
-    val db: $[Database] =
-      Resource.fromAutoCloseable(new Database).allocate
-
-    // Safe access: the lambda parameter can only be used as a receiver
-    $(db)(_.query("SELECT 1"))
-  }
-
-println(out)
-```
-
-What's happening in this code:
-
-**Allocating resources in a scope.** When you call `Resource.fromAutoCloseable(new Database).allocate`, you're acquiring a database connection. The `allocate` method returns a **scoped value** of type `scope.$[Database]`—notice the `$` wrapper. This type is unique to the `scope` instance. You can import the scope to use the short form `$[Database]`.
-
-**The `$` operator restricts access.** You cannot call `db.query(...)` directly on `$[Database]` because the methods are hidden at the type level. Instead, you use the `$` access operator: `$(db)(f)`, which takes a lambda. The lambda's parameter must be used only as a receiver (for method/field access), preventing accidental capture or escape.
-
-**Safe return from scoped.** The `scoped` block returns a plain `String` (the result of `_.query("SELECT 1")`). This is safe because `String` is marked as `Unscoped`—a typeclass that says "this type is pure data, safe to leave a scope." If you tried to return `db` instead, the compiler would error.
-
-**LIFO cleanup.** When the `scoped` block exits (normally or via exception), all finalizers run in reverse order. The database's `close()` method was registered automatically because `Database` extends `AutoCloseable`. So cleanup happens at the right time, in the right order, even if an exception occurred.
 
 ## Integration
 
