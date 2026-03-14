@@ -55,6 +55,14 @@ Resources can be created in several ways: from values, from explicit acquire/rel
 
 Wraps a by-name value as a resource. If the value implements `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
 
+```scala
+object Resource {
+  def apply[A](value: => A): Resource[A]
+}
+```
+
+Here's how to use it:
+
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 
@@ -72,6 +80,14 @@ val dbResource = Resource(new Database("mydb"))
 
 Creates a resource with separate acquire and release functions. The acquire thunk runs during allocation; the release function is registered as a finalizer:
 
+```scala
+object Resource {
+  def acquireRelease[A](acquire: => A)(release: A => Unit): Resource[A]
+}
+```
+
+Here's an example with file handling:
+
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 import java.io.FileInputStream
@@ -87,6 +103,14 @@ val fileResource = Resource.acquireRelease {
 
 Creates a resource specifically for `AutoCloseable` subtypes. This is a compile-time verified alternative to `Resource(value)` when you know the value is closeable:
 
+```scala
+object Resource {
+  def fromAutoCloseable[A <: AutoCloseable](value: => A): Resource[A]
+}
+```
+
+Here's an example with a stream:
+
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 import java.io.BufferedInputStream
@@ -100,6 +124,14 @@ val streamResource = Resource.fromAutoCloseable {
 ### `Resource.shared` — memoized with reference counting
 
 Creates a shared resource that memoizes its value across multiple allocations. The first call initializes the value; subsequent calls return the same instance with reference counting. Finalizers run only when the last reference is released:
+
+```scala
+object Resource {
+  def shared[A](f: Scope => A): Resource[A]
+}
+```
+
+Here's an example showing memoization:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -115,6 +147,14 @@ val sharedResource = Resource.shared[Int] { _ =>
 ### `Resource.unique` — fresh instances
 
 Creates a unique resource that produces a fresh instance each time it's allocated. Use for per-request state or resources that should never be shared:
+
+```scala
+object Resource {
+  def unique[A](f: Scope => A): Resource[A]
+}
+```
+
+Here's an example showing fresh instances:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
