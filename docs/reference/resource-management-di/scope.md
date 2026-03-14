@@ -100,20 +100,9 @@ What's happening in this code:
 
 Scope's compile-time safety comes from *three reinforcing layers* that work together to prevent resource leaks.
 
-### Layer 1: Type barrier — scope-specific `$[A]`
+**Type identity per scope.** Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
 
-Every scope has a distinct `$[A]` type. This makes values from different scopes **structurally incompatible** at compile time, so you cannot accidentally use a resource in the wrong scope without an explicit conversion (`lower` for parent → child).
-
-### Layer 2: Controlled access — `$` macro restricts lambda usage
-
-The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents:
-
-- returning the resource
-- storing it in a local val/var
-- passing it as an argument to a function
-- capturing it in a closure
-
-The `$` macro also requires a **lambda literal** (not a method reference or variable):
+**Controlled access via the `$` macro.** The `$` operator only allows using an unwrapped value as a **method/field receiver**. This prevents returning the resource, storing it in a local val/var, passing it as an argument to a function, or capturing it in a closure. The `$` macro also requires a **lambda literal** (not a method reference or variable):
 
 ```scala
 // does not compile:
@@ -121,9 +110,7 @@ val f: Database => String = _.query("x")
 (scope $ db)(f) // Error: "$ requires a lambda literal ..."
 ```
 
-### Layer 3: Scope boundary rule — `scoped` requires `Unscoped[A]`
-
-A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
+**Scope boundary enforcement via `Unscoped`.** A `scoped { ... }` block can only return values with an `Unscoped` instance (pure data). Resources and closures cannot escape the scope boundary at compile time.
 
 ## Construction / Creating Instances
 
