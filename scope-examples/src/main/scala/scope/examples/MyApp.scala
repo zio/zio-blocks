@@ -1,42 +1,30 @@
 package scope.examples
 
-import zio.blocks.scope.Scope.OpenScope
-import zio.blocks.scope.{Resource, Scope}
-
 object MyApp extends App {
-  import zio.blocks.scope._
 
-  case class Config(host: String, port: Int)
+  import zio.blocks.scope.{Scope, Resource, Unscoped}
+  import scala.concurrent.duration.FiniteDuration
 
-  class Logger(config: Config) extends AutoCloseable {
-    def log(msg: String): Unit = println(s"[$msg] from ${config.host}:${config.port}")
-    def close(): Unit          = log("Logger shutting down")
+  case class ProcessingResult(count: Int, elapsed: FiniteDuration)
+
+  object ProcessingResult {
+    implicit val unscoped: Unscoped[ProcessingResult] = new Unscoped[ProcessingResult] {}
   }
 
-  class Service(logger: Logger) extends AutoCloseable {
-    def run(): Unit   = logger.log("Service running")
-    def close(): Unit = logger.log("Service shutting down")
+  def processData(): ProcessingResult = Scope.global.scoped { scope =>
+    import scope.*
+
+    val startTime = System.nanoTime()
+    val input = allocate(Resource.fromAutoCloseable(new java.io.ByteArrayInputStream("test".getBytes)))
+    val count = $(input)(_.available())
+
+    val elapsed = System.nanoTime() - startTime
+
+    ProcessingResult(count, FiniteDuration(elapsed, java.util.concurrent.TimeUnit.NANOSECONDS))
   }
 
-  // Provide wires for Config; the macro derives Logger and Service automatically
-  val serviceResource = Resource.from[Service](
-    Wire(Config("localhost", 8080))
-  )
+  val result = processData()
+  println(result)
 
-  Scope.global.scoped { scope =>
-    import scope._
-    val service: $[Service] = allocate(serviceResource)
 
-    $(service)(_.run())
-  }
-
-}
-
-object MyApp2 extends App {
-
-  case class Config(url: String)
-  val resource = Resource(Config("jdbc://localhost"))
-  val url      = Scope.global.scoped { scope =>
-    resource.make(scope).url
-  }
 }
