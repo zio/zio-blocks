@@ -30,7 +30,7 @@ def openConnection(url: String)(implicit fin: Finalizer): String = {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   openConnection("https://example.com")
   // Connection closes when scope exits
   ()
@@ -51,7 +51,7 @@ Any `Scope` instance can be used as a `Finalizer` since `Scope extends Finalizer
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   // scope is both a Scope and a Finalizer
   val handle = scope.defer {
     println("Cleanup")
@@ -87,7 +87,7 @@ Registers a finalizer (cleanup action) to run when the scope closes. The cleanup
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val handle1 = scope.defer {
     println("Cleanup 1")
@@ -124,7 +124,7 @@ def setupWithCleanup()(implicit fin: Finalizer) = {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   setupWithCleanup()
   // Cleanup prints when scope closes
   ()  // Return unit (which is Unscoped)
@@ -149,7 +149,7 @@ Finalizers registered with `Finalizer#defer` run in **LIFO order** (last registe
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   scope.defer { println("First registered, runs last") }
   scope.defer { println("Second registered, runs first") }

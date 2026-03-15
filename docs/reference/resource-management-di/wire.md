@@ -60,7 +60,7 @@ final class App(service: UserService) {
 
 // Manual wiring:
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config("jdbc:postgres://localhost/db")
   val db = Resource.fromAutoCloseable(new Database(config)).allocate
   val service = new UserService($(db)(identity))
@@ -73,7 +73,7 @@ With `Wire` + `Resource.from`, the macro handles the dependency graph:
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val app = Resource.from[App](
     Wire(Config("jdbc:postgres://localhost/db"))
   ).allocate
@@ -125,7 +125,7 @@ final class Database(config: Config) extends AutoCloseable {
 val wire: Wire.Shared[Config, Database] = Wire.shared[Database]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config(debug = true)
   val deps = Context[Config](config)
   val db = allocate(wire.toResource(deps))
@@ -148,7 +148,7 @@ final class RequestHandler {
 val wire: Wire.Unique[Any, RequestHandler] = Wire.unique[RequestHandler]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val deps = Context.empty[Any]
   val resource = wire.toResource(deps)
 
@@ -176,7 +176,7 @@ val config = Config("jdbc:postgres://localhost/db")
 val wire: Wire.Shared[Any, Config] = Wire(config)
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val cfg = allocate(wire.toResource(Context.empty[Any]))
   $(cfg)(_.dbUrl)
 }
@@ -203,7 +203,7 @@ val wire: Wire.Shared[Config, Client] =
   }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config(30)
   val deps = Context[Config](config)
   val client = allocate(wire.toResource(deps))
@@ -229,7 +229,7 @@ val wire: Wire.Unique[Any, RequestContext] =
   }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val deps = Context.empty[Any]
   val resource = wire.toResource(deps)
 
@@ -285,7 +285,7 @@ val resource = Resource.from[App](
 )
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val app = resource.allocate
   $(app)(_.check())  // true: Database is shared
 }
@@ -373,7 +373,7 @@ val deps = Context[Config](Config("hello"))
 val resource: Resource[Config] = wire.toResource(deps)
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val cfg = allocate(resource)
   $(cfg)(_.value)
 }
@@ -402,7 +402,7 @@ final class Service {
 val wire = Wire.shared[Service]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val service = wire.asInstanceOf[Wire.Shared[Any, Service]].make(scope, Context.empty[Any])
   println(service.getName)
 }

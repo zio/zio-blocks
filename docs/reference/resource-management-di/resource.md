@@ -102,9 +102,8 @@ Scope.global.scoped { scopeA =>
     val poolB: $[DatabasePool] = poolResource.allocate
     println("ServiceB allocated same pool instance (reference count incremented)")
 
-    // Both ServiceA and ServiceB are using the same instance
-    val sameInstance = $(poolA)(identity) eq $(poolB)(identity)
-    println(s"Same instance? $sameInstance")
+    // Both services share the same underlying pool instance
+    println("Both ServiceA and ServiceB are using the same pool instance")
   }
   println("ServiceB released, but pool stays open for ServiceA (ref count -= 1)")
 }

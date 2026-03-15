@@ -42,7 +42,7 @@ Here's an example of checking if finalization succeeded:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   $(open()) { openScope =>
     defer {
@@ -72,7 +72,7 @@ Here's an example of checking for errors:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   $(open()) { openScope =>
     defer {
@@ -104,7 +104,7 @@ The first error corresponds to the head of the chunk (the first finalizer that f
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   $(open()) { openScope =>
     defer { throw Exception("Error 2") }
     defer { throw Exception("Error 1") }
@@ -139,7 +139,7 @@ This is useful when you want to preserve the original error context while attach
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val initialError = Exception("Original error")
 
@@ -162,7 +162,7 @@ Errors in the finalization are ordered by when finalizers ran (in LIFO sequence)
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   $(open()) { openScope =>
     // Registered first, runs last (LIFO)
@@ -195,7 +195,7 @@ Check if errors occurred and handle them appropriately:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   $(open()) { openScope =>
     defer {
@@ -221,7 +221,7 @@ import zio.blocks.scope.Scope
 
 def doWork(): Unit = {
   Scope.global.scoped { scope =>
-    import scope.*
+    import scope._
 
     try {
       throw Exception("Work failed")
@@ -255,7 +255,7 @@ Inspect and log all errors without stopping execution:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   $(open()) { openScope =>
     defer { throw Exception("Error 1") }

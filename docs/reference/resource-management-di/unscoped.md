@@ -43,7 +43,7 @@ You can still extract computed results by using the `$` operator to unwrap scope
 import zio.blocks.scope.{Scope, Resource}
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val intValue = allocate(Resource(42))
   // Extract the Int value (not the Resource), computed inside the scope
@@ -72,7 +72,7 @@ object ProcessingResult {
 }
 
 def processData(): ProcessingResult = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val startTime = java.time.Instant.now()
   val input = allocate(Resource(Seq(1, 2, 3, 4, 5)))

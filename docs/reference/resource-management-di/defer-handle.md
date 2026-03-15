@@ -31,7 +31,7 @@ The following example demonstrates creating a `DeferHandle`:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val handle = defer {
     println("This cleanup will run when scope closes, unless cancelled")
@@ -64,7 +64,7 @@ import zio.blocks.scope.Scope
 import java.io.ByteArrayOutputStream
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val buffer = allocate(ByteArrayOutputStream())
   val closeHandle = defer {
@@ -93,7 +93,7 @@ import zio.blocks.scope.Scope
 import java.io.ByteArrayOutputStream
 
 val result = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val buffer = allocate(ByteArrayOutputStream())
 
@@ -124,7 +124,7 @@ Cancel finalizers based on runtime conditions:
 import zio.blocks.scope.Scope
 
 def acquireResource(shouldCleanup: Boolean) = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val resource = "important resource"
   val handle = scope.defer {
@@ -152,7 +152,7 @@ import zio.blocks.scope.Scope
 import java.io.ByteArrayInputStream
 
 val result = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val stream = allocate(ByteArrayInputStream("data".getBytes))
   val handle = defer {
@@ -176,7 +176,7 @@ When `defer()` is called on an already-closed scope, a no-op handle is returned:
 import zio.blocks.scope.Scope
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val handle = scope.defer {
     println("This will run when scope closes")
@@ -199,7 +199,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
 val result = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val handle = defer {
     println("Finalizer")
