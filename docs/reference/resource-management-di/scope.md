@@ -953,7 +953,9 @@ val result = $(db)(d => d)    // ERROR: can't return parameter
 
 **Anti-pattern 1: Storing scoped values**
 
-Do NOT try to store scoped values in fields:
+**Anti-pattern 1: Storing scoped values in fields**
+
+Scoped values are local to the `scoped` block they're created in. Trying to store them as class fields will fail—the compiler prevents this because the resource would already be cleaned up by the time the field is accessed.
 
 ```scala
 // DON'T do this
@@ -962,19 +964,19 @@ class MyService {
 }
 ```
 
-**Fix:** Keep scoped values local within the scope block or use `open()` for manual management.
+To fix this, keep scoped values local within the scope block where they're used. If you need a resource to live longer than a single scope block, use `open()` to get an `OpenScope` handle that you can manually manage across your application's lifetime.
 
 **Anti-pattern 2: Trying to return resources**
 
-Attempting to return a scoped value from a `scoped` block causes a compile-time error, as detailed in [No given instance of Unscoped[MyType]](#no-given-instance-of-unscopedmytype).
+Scoped values cannot be returned from a `scoped` block—only pure data (types with an `Unscoped` instance) can escape. See [No given instance of Unscoped[MyType]](#no-given-instance-of-unscopedmytype--escaping-a-scope) for details on how the type system enforces this.
 
-**Fix:** If you need to return a resource, use `open()` and return an `OpenScope` handle instead.
+If you need a resource to persist beyond the scope block, use `Scope.global.open()` or the scope's `open()` method to create a handle. You can then return that handle to your caller, who is responsible for closing it when done.
 
 **Anti-pattern 3: Forgetting to use the `$` operator**
 
-Calling methods directly on scoped values is prohibited and causes a compile-time error, as detailed in [Scoped values may only be used as a method receiver](#scoped-values-may-only-be-used-as-a-method-receiver).
+Scoped values cannot be used directly in method calls—you must use the `$` macro operator to access them. Trying to call a method on a bare scoped value reference will fail at compile time. See [Scoped values may only be used as a method receiver](#scoped-values-may-only-be-used-as-a-method-receiver--macro-violation) for details.
 
-**Fix:** Always use the `$` operator to access methods on scoped values.
+Always wrap scoped values in the `$` operator when calling methods: `$(db)(_.query(...))` not `db.query(...)`.
 
 ### Type Safety Tips
 
