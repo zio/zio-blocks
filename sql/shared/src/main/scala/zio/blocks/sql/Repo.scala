@@ -50,6 +50,43 @@ class Repo[E, ID](
     SqlOps.update(frag)(using con)
   }
 
+  // Inserts the entity and returns it by re-reading from the database using its ID.
+  // Note: for auto-generated IDs, use RETURNING clause or getGeneratedKeys instead.
+  def insertReturning(entity: E)(using con: DbCon): E = {
+    insert(entity)
+    findById(getId(entity)).getOrElse(
+      throw new NoSuchElementException(s"Entity not found after insert in table $tbl")
+    )
+  }
+
+  def insertAll(entities: Iterable[E])(using con: DbCon): Int = {
+    if (entities.isEmpty) return 0
+    val first  = entities.head
+    val values = codec.toDbValues(first)
+    val sqlStr = Repo.buildInsertFrag(tbl, allCols, values).sql(con.dialect)
+    val start  = System.nanoTime()
+    try {
+      val ps = con.connection.prepareStatement(sqlStr)
+      try {
+        entities.foreach { entity =>
+          val vals = codec.toDbValues(entity)
+          SqlOps.writeParams(ps.paramWriter, vals)
+          ps.addBatch()
+        }
+        val counts   = ps.executeBatch()
+        val total    = counts.sum
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, IndexedSeq.empty, duration, total))
+        total
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, IndexedSeq.empty, duration, e))
+        throw e
+    }
+  }
+
   def update(entity: E)(using con: DbCon): Int = {
     val entityValues = codec.toDbValues(entity)
     val idValues     = idCodec.toDbValues(getId(entity))
