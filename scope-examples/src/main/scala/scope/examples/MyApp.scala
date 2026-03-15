@@ -5,7 +5,7 @@ object MyApp extends App {
   import zio.blocks.scope.{Scope, Resource, Unscoped}
   import scala.concurrent.duration.FiniteDuration
 
-  case class ProcessingResult(count: Int, elapsed: FiniteDuration)
+  class ProcessingResult(val count: Int, val elapsed: FiniteDuration)
 
   object ProcessingResult {
     implicit val unscoped: Unscoped[ProcessingResult] = new Unscoped[ProcessingResult] {}
@@ -20,7 +20,7 @@ object MyApp extends App {
 
     val elapsed = System.nanoTime() - startTime
 
-    ProcessingResult(count, FiniteDuration(elapsed, java.util.concurrent.TimeUnit.NANOSECONDS))
+    new ProcessingResult(count, FiniteDuration(elapsed, java.util.concurrent.TimeUnit.NANOSECONDS))
   }
 
   val result = processData()
