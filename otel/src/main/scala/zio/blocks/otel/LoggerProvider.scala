@@ -39,14 +39,14 @@ object LoggerProvider {
   def builder: LoggerProviderBuilder = new LoggerProviderBuilder(
     resource = Resource.default,
     processors = Seq.empty,
-    contextStorage = null
+    contextStorage = None
   )
 }
 
 final class LoggerProviderBuilder private[otel] (
   private var resource: Resource,
   private var processors: Seq[LogRecordProcessor],
-  private var contextStorage: ContextStorage[Option[SpanContext]]
+  private var contextStorage: Option[ContextStorage[Option[SpanContext]]] = None
 ) {
 
   def setResource(resource: Resource): LoggerProviderBuilder = {
@@ -60,14 +60,12 @@ final class LoggerProviderBuilder private[otel] (
   }
 
   def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): LoggerProviderBuilder = {
-    this.contextStorage = contextStorage
+    this.contextStorage = Some(contextStorage)
     this
   }
 
   def build(): LoggerProvider = {
-    val cs =
-      if (contextStorage != null) contextStorage
-      else ContextStorage.create[Option[SpanContext]](None)
+    val cs = contextStorage.getOrElse(ContextStorage.create[Option[SpanContext]](None))
     new LoggerProvider(resource, processors, cs)
   }
 }

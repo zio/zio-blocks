@@ -109,7 +109,7 @@ object OtlpJsonEncoder {
         case '\b' => sb.append("\\b")
         case '\f' => sb.append("\\f")
         case _    =>
-          if (c < 0x20) {
+          if (c < 0x20 || (c >= 0xd800 && c <= 0xdfff)) {
             sb.append("\\u")
             sb.append(String.format("%04x", c.toInt))
           } else {
@@ -507,6 +507,8 @@ object OtlpJsonEncoder {
     writeKeyString(sb, "traceId", log.traceId.map(_.toHex).getOrElse(""))
     sb.append(',')
     writeKeyString(sb, "spanId", log.spanId.map(_.toHex).getOrElse(""))
+    sb.append(',')
+    writeKeyInt(sb, "flags", log.traceFlags.map(f => f.toByte.toInt & 0xff).getOrElse(0))
 
     sb.append('}')
   }
