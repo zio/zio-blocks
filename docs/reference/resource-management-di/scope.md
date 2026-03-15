@@ -692,7 +692,7 @@ Scope.global.scoped { scope =>
 
 **Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles). If you encounter the compile error [`No given instance of Unscoped[MyType]`](#no-given-instance-of-unscopedmytype--escaping-a-scope), see the compile errors section for how to fix it. For the complete API and examples, see the [Unscoped reference](./unscoped.md).
 
-## Scope Patterns: Choosing the Right Approach
+## Lexical vs Explicit Scopes
 
 The Scope API provides two primary patterns for managing resource lifetimes. Choose `Scope#scoped` if you can write both the code that acquires and the code that releases the resource in the same expression; choose `Scope#open()` if the resource lifetime must outlive the function that creates it. Most user code should prefer `scoped` for automatic cleanup and thread safety—use `open()` only when you need manual lifetime control, such as in connection pools or DI containers.
 
