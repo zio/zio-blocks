@@ -109,12 +109,12 @@ object MigrationAction {
         case _ => Left(MigrationError.ActionFailed(this, at, "Target is not a record"))
       }
     def reverse: MigrationAction = {
-        val parent = if (at.nodes.length <= 1) DynamicOptic.root else new DynamicOptic(at.nodes.dropRight(1))
-        at.nodes.lastOption match {
-          case Some(DynamicOptic.Node.Field(from)) =>
-            RenameField(parent.field(to), from)
-          case _ => this
-        }
+      val parent = if (at.nodes.length <= 1) DynamicOptic.root else new DynamicOptic(at.nodes.dropRight(1))
+      at.nodes.lastOption match {
+        case Some(DynamicOptic.Node.Field(from)) =>
+          RenameField(parent.field(to), from)
+        case _ => this
+      }
     }
   }
 
