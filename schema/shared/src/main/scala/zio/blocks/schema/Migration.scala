@@ -1,26 +1,26 @@
 /*
-  * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
-  *
-  * Licensed under the Apache License, Version 2.0 (the "License");
-  * you may not use this file except in compliance with the License.
-  * You may obtain a copy of the License at
-  *
-  *   http://www.apache.org/licenses/LICENSE-2.0
-  *
-  * Unless required by applicable law or agreed to in writing, software
-  * distributed under the License is distributed on an "AS IS" BASIS,
-  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  * See the License for the specific language governing permissions and
-  * limitations under the License.
-  */
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
 
 /**
-  * A migration describes a transformation from one schema version to another.
-  */
+ * A migration describes a transformation from one schema version to another.
+ */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
   sourceSchema: Schema[A],
@@ -41,8 +41,8 @@ final case class Migration[A, B](
 
 final case class DynamicMigration(actions: Chunk[MigrationAction]) {
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-      case (acc, action) => acc.flatMap(action.apply)
+    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) { case (acc, action) =>
+      acc.flatMap(action.apply)
     }
 
   def ++(that: DynamicMigration): DynamicMigration =
@@ -69,9 +69,10 @@ object MigrationAction {
         case DynamicValue.Record(fields) =>
           at.nodes.lastOption match {
             case Some(DynamicOptic.Node.Field(fieldName)) =>
-              default.evalDynamic(value).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map { results =>
-                val defaultValue = results.headOption.getOrElse(DynamicValue.Null)
-                DynamicValue.Record(fields :+ (fieldName -> defaultValue))
+              default.evalDynamic(value).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map {
+                results =>
+                  val defaultValue = results.headOption.getOrElse(DynamicValue.Null)
+                  DynamicValue.Record(fields :+ (fieldName -> defaultValue))
               }
             case _ => Left(MigrationError.ActionFailed(this, at, "Last optic node is not a field"))
           }
@@ -102,7 +103,7 @@ object MigrationAction {
             case Some(DynamicOptic.Node.Field(from)) =>
               Right(DynamicValue.Record(fields.map {
                 case (name, val_) if name == from => (to, val_)
-                case other => other
+                case other                        => other
               }))
             case _ => Left(MigrationError.ActionFailed(this, at, "Last optic node is not a field"))
           }
@@ -118,33 +119,37 @@ object MigrationAction {
     }
   }
 
-  case class Join(at: DynamicOptic, sourcePaths: Chunk[DynamicOptic], combiner: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class Join(at: DynamicOptic, sourcePaths: Chunk[DynamicOptic], combiner: SchemaExpr[DynamicValue, Any])
+      extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val inputs = sourcePaths.flatMap(p => value.get(p).toChunk)
       if (inputs.size != sourcePaths.size) {
         Left(MigrationError.ActionFailed(this, at, s"Could not resolve all source paths for join"))
       } else {
         val inputVal = if (inputs.size == 1) inputs.head else DynamicValue.Sequence(inputs)
-        combiner.evalDynamic(inputVal).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map { results =>
-          val result = results.headOption.getOrElse(DynamicValue.Null)
-          value.modify(at)(_ => result)
+        combiner.evalDynamic(inputVal).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map {
+          results =>
+            val result = results.headOption.getOrElse(DynamicValue.Null)
+            value.modify(at)(_ => result)
         }
       }
     }
     def reverse: MigrationAction = Split(at, sourcePaths, combiner)
   }
 
-  case class Split(at: DynamicOptic, targetPaths: Chunk[DynamicOptic], splitter: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class Split(at: DynamicOptic, targetPaths: Chunk[DynamicOptic], splitter: SchemaExpr[DynamicValue, Any])
+      extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val sourceVal = value.get(at).toChunk.headOption.getOrElse(DynamicValue.Null)
-      splitter.evalDynamic(sourceVal).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).flatMap { results =>
-        if (results.size != targetPaths.size) {
-          Left(MigrationError.ActionFailed(this, at, "Splitter did not produce expected number of outputs"))
-        } else {
-          targetPaths.zip(results).foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-            case (acc, (path, val_)) => acc.map(v => v.modify(path)(_ => val_))
+      splitter.evalDynamic(sourceVal).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).flatMap {
+        results =>
+          if (results.size != targetPaths.size) {
+            Left(MigrationError.ActionFailed(this, at, "Splitter did not produce expected number of outputs"))
+          } else {
+            targetPaths.zip(results).foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+              case (acc, (path, val_)) => acc.map(v => v.modify(path)(_ => val_))
+            }
           }
-        }
       }
     }
     def reverse: MigrationAction = Join(at, targetPaths, splitter)
@@ -152,10 +157,14 @@ object MigrationAction {
 
   case class TransformValue(at: DynamicOptic, transform: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      transform.evalDynamic(value.get(at).toChunk.headOption.getOrElse(DynamicValue.Null)).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map { results =>
-        val result = results.headOption.getOrElse(DynamicValue.Null)
-        value.modify(at)(_ => result)
-      }
+      transform
+        .evalDynamic(value.get(at).toChunk.headOption.getOrElse(DynamicValue.Null))
+        .left
+        .map(err => MigrationError.ActionFailed(this, at, err.toString))
+        .map { results =>
+          val result = results.headOption.getOrElse(DynamicValue.Null)
+          value.modify(at)(_ => result)
+        }
 
     def reverse: MigrationAction = ???
   }
@@ -179,5 +188,5 @@ object Migration {
 sealed trait MigrationError
 object MigrationError {
   case class ActionFailed(action: MigrationAction, path: DynamicOptic, message: String) extends MigrationError
-  case class SchemaError(error: zio.blocks.schema.SchemaError) extends MigrationError
+  case class SchemaError(error: zio.blocks.schema.SchemaError)                          extends MigrationError
 }
