@@ -57,6 +57,22 @@ Scope.global.scoped { scope =>
 }
 ```
 
+## Creating Instances
+
+`Unscoped` is a marker typeclass with no methods. To mark your own type as safe to escape scopes, create an implicit instance:
+
+```scala mdoc:compile-only
+import zio.blocks.scope.Unscoped
+
+case class UserId(value: Long)
+
+object UserId {
+  implicit val unscoped: Unscoped[UserId] = new Unscoped[UserId] {}
+}
+```
+
+Only create instances for **pure data types** that don't hold resources. Never create instances for types that contain connections, streams, handles, or any resource-like fields.
+
 ## Returning Unscoped Data from Scopes
 
 Extract computed results that don't hold resources:
