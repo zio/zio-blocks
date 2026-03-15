@@ -809,7 +809,7 @@ Scope.global.scoped { scope =>
 
 ### `No given instance of Unscoped[MyType]` — escaping a scope
 
-When you try to return a value from a `scoped { }` block, the Scope system prevents you from accidentally returning resources or other unsafe types. Only values with an `Unscoped` instance can leave the scope—these are types guaranteed to be pure data with no embedded resources or cleanup logic.
+This error occurs when the type you return from a `scoped { }` block has no `Unscoped` instance. See [Scope boundary enforcement via `Unscoped`](#safety-model) for the full explanation of why this restriction exists.
 
 If you write:
 ```scala
@@ -977,27 +977,7 @@ Scope.global.scoped { scope =>
 
 **Adding `Unscoped` to your data types:**
 
-If you create custom data types that hold only pure data (no resources), add an `Unscoped` instance to allow them to escape scopes safely:
-
-```scala mdoc:compile-only
-import zio.blocks.scope._
-import zio.blocks.scope.Unscoped
-
-case class QueryResult(rows: List[String], count: Int)
-
-object QueryResult {
-  implicit val unscoped: Unscoped[QueryResult] = new Unscoped[QueryResult] {}
-}
-
-// Now QueryResult can be returned from scoped blocks
-Scope.global.scoped { scope =>
-  import scope._
-  // ... acquire database ...
-  QueryResult(List("a", "b"), 2)  // Returns safely
-}
-```
-
-**Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles).
+If your custom types hold only pure data and need to escape scopes, add an `Unscoped` instance. See [Option 2 in the compile errors section](#no-given-instance-of-unscopedmytype--escaping-a-scope) for a worked example, and the [Unscoped reference](./unscoped.md) for full details. Never add `Unscoped` to types that hold resources (connections, streams, file handles).
 
 ## Integration
 
