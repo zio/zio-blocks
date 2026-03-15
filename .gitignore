@@ -52,6 +52,9 @@ project/metals.sbt
 schema/jvm/src/test/resources/json-schema-test-suite/
 .cursor/mcp.json
 
+# Generated data
+github-data/
+
 # Internal working directories (Sisyphus/OpenCode)
 .sisyphus/
 .opencode/
