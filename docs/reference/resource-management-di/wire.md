@@ -532,7 +532,7 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**Basic wire construction: deriving shared wires, lifting values, and converting to resources**
+Basic wire construction demonstrates how to create and use `Wire` for dependency injection. View the example source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -542,11 +542,13 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireBasicExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain wire.WireBasicExample"
 ```
 
-**Comparing shared vs unique semantics: shared wires reuse the same instance across dependents, while unique wires create fresh instances**
+Comparing shared vs unique semantics shows how shared wires reuse the same instance across dependents, while unique wires create fresh instances. View the example:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -556,11 +558,13 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.sca
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireSharedUniqueExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain wire.WireSharedUniqueExample"
 ```
 
-**Manual wire construction: using fromFunction for custom construction logic**
+Manual wire construction demonstrates how to use `fromFunction` for custom construction logic. View the example:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -569,6 +573,8 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.sca
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireFromFunctionExample.scala))
+
+Run this example with:
 
 ```bash
 sbt "scope-examples/runMain wire.WireFromFunctionExample"
