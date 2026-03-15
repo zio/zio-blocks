@@ -32,9 +32,10 @@ final class SelectorEachOps[A](val a: Iterable[A]) extends AnyVal {
 
 /**
  * Phantom implicit class that marks a variant-case projection inside a selector
- * lambda. `B` must be a subtype of the receiver so that the selector type-checks
- * at the call site. Never called at runtime — `SelectorMacro` recognises the
- * `.when[B]` call in the AST and emits a [[DynamicOptic.Case]] node.
+ * lambda. `B` must be a subtype of the receiver so that the selector
+ * type-checks at the call site. Never called at runtime — `SelectorMacro`
+ * recognises the `.when[B]` call in the AST and emits a [[DynamicOptic.Case]]
+ * node.
  */
 final class SelectorWhenOps[A](val a: A) extends AnyVal {
   def when[B <: A]: B = throw new UnsupportedOperationException(
@@ -44,8 +45,8 @@ final class SelectorWhenOps[A](val a: A) extends AnyVal {
 
 object SelectorMacro {
 
-  implicit def selectorEachOps[A](a: Iterable[A]): SelectorEachOps[A]   = new SelectorEachOps(a)
-  implicit def selectorWhenOps[A](a: A): SelectorWhenOps[A]              = new SelectorWhenOps(a)
+  implicit def selectorEachOps[A](a: Iterable[A]): SelectorEachOps[A] = new SelectorEachOps(a)
+  implicit def selectorWhenOps[A](a: A): SelectorWhenOps[A]           = new SelectorWhenOps(a)
 
   def extractPathImpl[S, A](c: blackbox.Context)(selector: c.Expr[S => A]): c.Expr[DynamicOptic] = {
     import c.universe._
@@ -53,8 +54,8 @@ object SelectorMacro {
     // Internal path-segment ADT — richer than a plain String list so we can
     // distinguish field access, collection traversal, and case projection.
     sealed trait Segment
-    case class FieldSeg(name: String)   extends Segment
-    case object EachSeg                 extends Segment
+    case class FieldSeg(name: String)    extends Segment
+    case object EachSeg                  extends Segment
     case class WhenSeg(typeName: String) extends Segment
 
     def parseTree(tree: Tree): List[Segment] = tree match {

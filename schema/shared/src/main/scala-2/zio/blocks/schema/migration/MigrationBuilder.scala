@@ -224,7 +224,7 @@ object MigrationBuilderMacros {
     default: c.Expr[DynamicSchemaExpr]
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
-    val _ = target
+    val _     = target
     val optic = SelectorMacro.extractPathImpl(c)(source)
     c.Expr[MigrationBuilder[A, B]](
       q"new zio.blocks.schema.migration.MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ zio.blocks.schema.migration.MigrationAction.Mandate($optic, $default))"
@@ -236,7 +236,7 @@ object MigrationBuilderMacros {
     target: c.Expr[B => Option[T]]
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
-    val _ = target
+    val _     = target
     val optic = SelectorMacro.extractPathImpl(c)(source)
     c.Expr[MigrationBuilder[A, B]](
       q"new zio.blocks.schema.migration.MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ zio.blocks.schema.migration.MigrationAction.Optionalize($optic))"
@@ -249,7 +249,7 @@ object MigrationBuilderMacros {
     converter: c.Expr[DynamicSchemaExpr]
   ): c.Expr[MigrationBuilder[A, B]] = {
     import c.universe._
-    val _ = target
+    val _     = target
     val optic = SelectorMacro.extractPathImpl(c)(source)
     c.Expr[MigrationBuilder[A, B]](
       q"new zio.blocks.schema.migration.MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ zio.blocks.schema.migration.MigrationAction.ChangeType($optic, $converter))"

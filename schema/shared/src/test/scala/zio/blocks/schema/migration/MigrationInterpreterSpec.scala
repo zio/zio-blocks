@@ -17,7 +17,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, SchemaBaseSpec}
+import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema, SchemaBaseSpec}
 import zio.test._
 
 /**
@@ -26,6 +26,24 @@ import zio.test._
  * because they rely on inline methods.
  */
 object MigrationInterpreterSpec extends SchemaBaseSpec {
+
+  // Defined at object scope so Schema.derived macros resolve correctly in Scala 2.13.
+  case class WrapA(x: String)
+  case class WrapB(x: String, y: Int)
+  case class WrapC(x: String, y: Int, z: Boolean)
+  implicit val wrapASchema: Schema[WrapA] = Schema.derived
+  implicit val wrapBSchema: Schema[WrapB] = Schema.derived
+  implicit val wrapCSchema: Schema[WrapC] = Schema.derived
+
+  case class WrapP(a: String)
+  case class WrapQ(a: String, b: Int)
+  implicit val wrapPSchema: Schema[WrapP] = Schema.derived
+  implicit val wrapQSchema: Schema[WrapQ] = Schema.derived
+
+  case class WrapSrc(n: String)
+  case class WrapTgt(n: String)
+  implicit val wrapSrcSchema: Schema[WrapSrc] = Schema.derived
+  implicit val wrapTgtSchema: Schema[WrapTgt] = Schema.derived
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationInterpreterSpec")(
     suite("enum — RenameCase")(
@@ -745,14 +763,7 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
     ),
     suite("Migration type-safe wrapper")(
       test("Migration.++ composes two migrations") {
-        import zio.blocks.schema.Schema
-        case class A(x: String)
-        case class B(x: String, y: Int)
-        case class C(x: String, y: Int, z: Boolean)
-        implicit val sa: Schema[A] = Schema.derived
-        implicit val sb: Schema[B] = Schema.derived
-        implicit val sc: Schema[C] = Schema.derived
-        val m1                     = Migration(
+        val m1 = Migration(
           DynamicMigration(
             Vector(
               MigrationAction.AddField(
@@ -761,8 +772,8 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
               )
             )
           ),
-          sa,
-          sb
+          wrapASchema,
+          wrapBSchema
         )
         val m2 = Migration(
           DynamicMigration(
@@ -773,19 +784,14 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
               )
             )
           ),
-          sb,
-          sc
+          wrapBSchema,
+          wrapCSchema
         )
         val composed = m1 ++ m2
         assertTrue(composed.dynamicMigration.actions.length == 2)
       },
       test("Migration.andThen is the same as ++") {
-        import zio.blocks.schema.Schema
-        case class P(a: String)
-        case class Q(a: String, b: Int)
-        implicit val sp: Schema[P] = Schema.derived
-        implicit val sq: Schema[Q] = Schema.derived
-        val m1                     = Migration(
+        val m1 = Migration(
           DynamicMigration(
             Vector(
               MigrationAction.AddField(
@@ -794,21 +800,16 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
               )
             )
           ),
-          sp,
-          sq
+          wrapPSchema,
+          wrapQSchema
         )
-        val m2 = Migration(DynamicMigration(Vector.empty), sq, sq)
+        val m2 = Migration(DynamicMigration(Vector.empty), wrapQSchema, wrapQSchema)
         assertTrue(m1.andThen(m2).dynamicMigration.actions == (m1 ++ m2).dynamicMigration.actions)
       },
       test("Migration.reverse swaps source and target schemas") {
-        import zio.blocks.schema.Schema
-        case class V1(n: String)
-        case class V2(n: String)
-        implicit val sv1: Schema[V1] = Schema.derived
-        implicit val sv2: Schema[V2] = Schema.derived
-        val m                        = Migration(DynamicMigration(Vector.empty), sv1, sv2)
-        val r                        = m.reverse
-        assertTrue(r.sourceSchema == sv2 && r.targetSchema == sv1)
+        val m = Migration(DynamicMigration(Vector.empty), wrapSrcSchema, wrapTgtSchema)
+        val r = m.reverse
+        assertTrue(r.sourceSchema == wrapTgtSchema && r.targetSchema == wrapSrcSchema)
       }
     ),
     suite("MigrationSchemas — serialization round-trips")(
