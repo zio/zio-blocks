@@ -18,7 +18,26 @@ When the `$` operator is used to access a scoped value, if the result type has a
 
 ## Motivation / Use Case
 
-The `Unscoped` typeclass enables compile-time verification that you're only extracting safe data from scopes. This prevents accidental resource leaks where a database connection, stream, or file handle escapes its scope:
+The exact problem: A `scoped` block automatically closes all resources when it exits. If you accidentally returned a resource (like a database connection or file handle) from the block, it would be closed—but you might try to use it later, causing a **use-after-close** crash.
+
+```scala mdoc:compile-only
+import zio.blocks.scope.{Scope, Resource}
+
+final class Database {
+  def query(sql: String) = s"result: $sql"
+}
+
+// Without Unscoped constraint, this compiles (BAD):
+// val db: Database = Scope.global.scoped { scope =>
+//   val db = allocate(Resource(new Database()))
+//   db  // BUG: returns the resource itself, not data extracted from it
+// }
+// db.query("SELECT 1")  // CRASH: use-after-close (scope already closed it)
+```
+
+The solution: `Unscoped` makes this a **compile error** instead of a runtime bug. When a `scoped` block returns a value, that value's type must have an `Unscoped` instance—meaning the type checker verifies you're only extracting *computed results* (like `Int`, `String`, or aggregate data), not resources themselves.
+
+You can still extract computed results by using the `$` operator to unwrap scoped values *within* the scope:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Resource}
@@ -27,14 +46,14 @@ Scope.global.scoped { scope =>
   import scope.*
 
   val intValue = allocate(Resource(42))
-  // Int: Unscoped, so $ unwraps it
+  // Extract the Int value (not the Resource), computed inside the scope
   val n: Int = $(intValue)(x => x + 1)
 
   val text = allocate(Resource("hello"))
-  // String: Unscoped, so $ unwraps it
+  // Extract the String value (not the Resource), computed inside the scope
   val s: String = $(text)(x => x.toUpperCase)
 
-  (n, s)
+  (n, s)  // Tuple of pure data: safe to return
 }
 ```
 
