@@ -948,11 +948,9 @@ $(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
 
 **Why this restriction exists:** Scoped values are bound to a specific cleanup phase. Allowing them to escape (via arguments or closures) would let them be used after cleanup, causing crashes or data corruption. By restricting usage to method calls only, the macro ensures the resource never leaves its scope.
 
-## Practical Guidance
+## Best Practices
 
-### Best Practices: Organizing Your Code
-
-#### Entry point pattern — use `Scope.global.scoped` at the top level
+### Entry point pattern — use `Scope.global.scoped` at the top level
 
 Wrap your entire application's resource acquisition in a single lexical scope:
 
@@ -972,7 +970,7 @@ object MyApp {
 
 This is your "outer boundary" for resource safety. Everything inside is protected.
 
-#### Composition — use `Resource` builders before allocation
+### Composition — use `Resource` builders before allocation
 
 Build resource acquisition/release logic outside the scope, then allocate once inside. This separates *construction* (how) from *allocation* (when), making code testable and reusable.
 
