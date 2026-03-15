@@ -18,14 +18,7 @@ abstract class Finalization(val errors: Chunk[Throwable]) {
 
 When a scope closes, each registered finalizer runs in LIFO order. If any finalizer throws an exception, that error is caught and collected into a `Finalization`. This type ensures that all finalizers run even if some fail, and allows the caller to decide how to handle accumulated errors.
 
-## Overview
-
 `Finalization` collects errors from finalizers in a `Chunk[Throwable]`. The first error in the chunk corresponds to the head of the chunk (the first finalizer that failed in LIFO execution order).
-
-The type is immutable and provides four main operations:
-- **Check if empty**: `Finalization#isEmpty`, `Finalization#nonEmpty`
-- **Throw errors**: `Finalization#orThrow()`
-- **Suppress errors**: `Finalization#suppress(initial)`
 
 ## Core Methods
 
