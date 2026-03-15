@@ -666,7 +666,9 @@ The key difference: `scoped { }` creates **owned** scopes (tied to the entering 
 
 ## Returning Data from a Scope
 
-If you create custom data types that hold only pure data (no resources), add an `Unscoped` instance to allow them to escape scopes safely:
+A `scoped { }` block can only return values that have an `Unscoped` instance—that is, pure data types with no embedded resources or cleanup logic. This restriction prevents resource leaks: you cannot accidentally return a resource that would be cleaned up before you could use it.
+
+For built-in types like `String`, `Int`, or `List[String]`, `Unscoped` instances exist automatically. To return instances of your custom data types, you must provide an `Unscoped` instance:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -686,10 +688,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-**Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles).
-
-
-If your custom types hold only pure data and need to escape scopes, add an `Unscoped` instance. See [Option 2 in the compile errors section](#no-given-instance-of-unscopedmytype--escaping-a-scope) for a worked example, and the [Unscoped reference](./unscoped.md) for full details. Never add `Unscoped` to types that hold resources (connections, streams, file handles).
+**Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles). If you encounter the compile error [`No given instance of Unscoped[MyType]`](#no-given-instance-of-unscopedmytype--escaping-a-scope), see the compile errors section for how to fix it. For the complete API and examples, see the [Unscoped reference](./unscoped.md).
 
 ## Scope Patterns: Choosing the Right Approach
 
