@@ -300,7 +300,7 @@ Resources can be created in several ways: from values, from explicit acquire/rel
 
 ### `Resource.apply` — Wrap a Value
 
-Wraps a by-name value as a resource. If the value implements `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
+Wraps a by-name value as a resource. If the value implements `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
 ```scala
 object Resource {
@@ -447,7 +447,7 @@ val uniqueResource = Resource.unique[Int] { _ =>
 
 Derives a `Resource[T]` from `T`'s primary constructor, requiring no external dependencies.
 If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method
-as a finalizer.
+as a finalizer:
 
 ```scala
 object Resource {
@@ -478,7 +478,7 @@ compile-time error.
 
 Derives a `Resource[T]` from `T`'s constructor, with `Wire` values provided as dependency
 overrides. Any dependency not covered by an explicit wire is auto-derived if the macro can
-construct it; otherwise a compile-time error is produced.
+construct it; otherwise a compile-time error is produced:
 
 ```scala
 object Resource {
@@ -520,7 +520,7 @@ Resources support transformation and composition through `map`, `flatMap`, and `
 
 ### `Resource#map` — Transform the Value
 
-Transforms the value produced by a resource without affecting finalization. The transformation function is applied after the resource is acquired.
+Transforms the value produced by a resource without affecting finalization. The transformation function is applied after the resource is acquired:
 
 ```scala
 trait Resource[+A] {
@@ -695,7 +695,7 @@ cd zio-blocks
 
 ### Basic Lifecycle Management with Temporary Files
 
-This example demonstrates creating and automatically cleaning up temporary files using Resource's lifecycle management. It shows how Resource ensures files are closed even if exceptions occur.
+This example demonstrates creating and automatically cleaning up temporary files using Resource's lifecycle management. It shows how Resource ensures files are closed even if exceptions occur:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -705,13 +705,15 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TempFileHandlingExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain scope.examples.TempFileHandlingExample"
 ```
 
 ### Acquiring and Releasing Database Connections
 
-This example demonstrates the acquire-release pattern using Resource to manage database connections. It shows proper connection initialization and guaranteed cleanup.
+This example demonstrates the acquire-release pattern using Resource to manage database connections. It shows proper connection initialization and guaranteed cleanup:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -721,13 +723,15 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/DatabaseConnectionExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain scope.examples.DatabaseConnectionExample"
 ```
 
 ### Shared Resources with Memoization and Reference Counting
 
-This example demonstrates Resource.shared to create a singleton logger instance that is automatically cleaned up only when the last service releases it. Shows reference counting in action.
+This example demonstrates Resource.shared to create a singleton logger instance that is automatically cleaned up only when the last service releases it. Shows reference counting in action:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -737,13 +741,15 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CachingSharedLoggerExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain scope.examples.CachingSharedLoggerExample"
 ```
 
 ### Managing Shared Expensive Resources
 
-This example demonstrates using Resource.shared for a database connection pool—an expensive resource that should exist exactly once. Shows how multiple services safely share the same pool instance with automatic cleanup.
+This example demonstrates using Resource.shared for a database connection pool—an expensive resource that should exist exactly once. Shows how multiple services safely share the same pool instance with automatic cleanup:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -753,13 +759,15 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConnectionPoolExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain scope.examples.ConnectionPoolExample"
 ```
 
 ### Transactional Resource Management
 
-This example demonstrates combining Resource with transaction boundaries. Shows how to manage resources (connections, transactions) that must be coordinated across scopes with proper rollback on failure.
+This example demonstrates combining Resource with transaction boundaries. Shows how to manage resources (connections, transactions) that must be coordinated across scopes with proper rollback on failure:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -769,13 +777,15 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala))
 
+Run this example with:
+
 ```bash
 sbt "scope-examples/runMain scope.examples.TransactionBoundaryExample"
 ```
 
 ### Multi-Layer Service Construction
 
-This example demonstrates Resource.from macro to automatically build a complex dependency graph with multiple services. Shows automatic wiring of constructor dependencies and cleanup in correct LIFO order.
+This example demonstrates Resource.from macro to automatically build a complex dependency graph with multiple services. Shows automatic wiring of constructor dependencies and cleanup in correct LIFO order:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
