@@ -921,7 +921,19 @@ Build resource acquisition/release logic outside the scope, then allocate once i
 
 **Example: Using `.zip()` to combine independent resources:**
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+final class Cache extends AutoCloseable {
+  def get(key: String): Option[String] = None
+  def close(): Unit = println("cache closed")
+}
+
 // Compose outside scope — reusable across multiple applications
 val dbResource = Resource.fromAutoCloseable(new Database)
 val cacheResource = Resource.fromAutoCloseable(new Cache)
@@ -937,22 +949,27 @@ Scope.global.scoped { scope =>
 
 **Example: Using `.flatMap()` for dependent resources:**
 
-```scala
-// Config resource must be acquired first, then database
-val configResource = Resource(loadConfig())
-val dbResource = Resource.fromAutoCloseable(new Database)
+```scala mdoc:compile-only
+import zio.blocks.scope._
 
-// flatMap chains them: config → database (second depends on first result)
-val chainedResources = configResource.flatMap { cfg =>
-  dbResource.map { db =>
-    (cfg, db)
-  }
+final class Config(val host: String, val port: Int)
+
+final class Database(val config: Config) extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
 }
 
+// Config resource must be acquired first, then database
+val configResource = Resource(new Config("localhost", 5432))
+val dbResource = configResource.flatMap { cfg =>
+  Resource.fromAutoCloseable(new Database(cfg))
+}
+
+// Allocate the dependent chain
 Scope.global.scoped { scope =>
   import scope._
-  val (cfg, db) = allocate(chainedResources)
-  // Use config to initialize database, cleanup in reverse order
+  val db = allocate(dbResource)
+  // db was initialized with config; cleanup happens in reverse order
 }
 ```
 
@@ -966,10 +983,29 @@ The `$` operator is not a traditional function call. Use block syntax. For compr
 
 Common mistakes to avoid:
 
-```scala
-// Don't try to store, return, or pass the parameter
-$(db)(d => someFunction(d))  // ERROR: can't pass as argument
-val result = $(db)(d => d)    // ERROR: can't return parameter
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+def processDb(db: Database): String = db.query("SELECT 1")
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(Resource.fromAutoCloseable(new Database))
+
+  // ERROR: can't pass scoped value as argument
+  // $(db)(d => processDb(d))
+
+  // ERROR: can't return bare scoped value
+  // val result = $(db)(d => d)
+
+  // CORRECT: call methods on the scoped value
+  val result = $(db)(_.query("SELECT 1"))
+}
 ```
 
 ### Common Anti-Patterns to Avoid
