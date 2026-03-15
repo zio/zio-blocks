@@ -59,4 +59,3 @@ schema/jvm/src/test/resources/json-schema-test-suite/
 
 # Project-specific files to exclude
 .git-rewrite/
-scope-examples/src/main/scala/scope/examples/MyApp.scala
