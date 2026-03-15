@@ -89,7 +89,7 @@ val result = processData()
 println(result)
 ```
 
-Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances:
+Only create instances for **pure data types** that don't hold resources. Never create instances for types that contain connections, streams, handles, or any resource-like fields.
 
 ## Predefined Instances
 
