@@ -809,17 +809,54 @@ $(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
 
 ### `Scoped values may only be used as a method receiver` — macro violation
 
-**When:** You use a scoped value in a way other than as a method receiver (e.g., passing as an argument, capturing in a closure).
+**What this means:** A scoped value (the parameter inside a `$(value)` lambda) can only be used as the receiver of a method call—the object you call `.method()` on. It cannot be passed to other functions, stored in variables, or captured in nested lambdas. This restriction prevents the resource from leaking out of its scope and being used after cleanup.
+
+**When you hit this error:**
+
+The macro detects several violations:
+
+- **Passing as an argument:**
+  ```scala
+  $(db)(d => store(d))    // ERROR: cannot pass scoped value to a function
+  $(db)(d => println(d))  // ERROR: cannot pass to println
+  ```
+
+- **Storing in a variable:**
+  ```scala
+  $(db)(d => {
+    val conn = d           // ERROR: cannot bind to val/var
+    conn.query()
+  })
+  ```
+
+- **Returning the value itself:**
+  ```scala
+  $(db)(d => d)           // ERROR: must call a method, not return bare reference
+  ```
+
+- **Capturing in a nested lambda or closure:**
+  ```scala
+  $(db)(d =>
+    () => d.query()       // ERROR: cannot capture in nested lambda
+  )
+  ```
+
+**What works — calling methods on the parameter:**
 
 ```scala
-$(db)(d => store(d))  // ERROR: Parameter cannot be passed as argument
+$(db)(d => d.query("SELECT * FROM users"))      // ✓ Method call on receiver
+$(db)(_.query("data"))                           // ✓ Using underscore shorthand
+$(db)(d => d.execute(statement).rows)           // ✓ Chain method calls
 ```
 
-**Fix:** Only call methods on the parameter. If you need to extract data, call a method and return the result:
+If you need to transform or extract data from a resource before using it elsewhere, call a method to extract what you need:
 
 ```scala
-$(db)(_.query("data"))  // ✓ Correct: method call
+$(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
+// The returned String can now be passed to other functions
 ```
+
+**Why this restriction exists:** Scoped values are bound to a specific cleanup phase. Allowing them to escape (via arguments or closures) would let them be used after cleanup, causing crashes or data corruption. By restricting usage to method calls only, the macro ensures the resource never leaves its scope.
 
 ## Practical Guidance
 
