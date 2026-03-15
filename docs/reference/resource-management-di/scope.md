@@ -858,20 +858,6 @@ $(db)(_.query("data"))  // ✓ Correct: method call
 
 ## Practical Guidance
 
-### Choosing Scope vs Alternatives
-
-**Use Scope when:**
-- You need **compile-time resource safety** — catching escape bugs at compile time rather than runtime
-- Building **resource hierarchies** — multiple resources with dependencies where LIFO cleanup order matters
-- Writing **synchronous code** — pure functions, CLI tools, batch processing, or traditional imperative code
-- You want **zero-cost abstraction** — no runtime overhead, no boxing, no GC pressure
-
-**Use alternatives when:**
-- **Async code:** Use `ZIO Scope` (part of ZIO) if you're already in a ZIO application
-- **Single resource:** A simple `try/finally` or `Using` is sufficient and more readable
-- **Limited scope control:** Java's `try-with-resources` works if you only have `AutoCloseable` types
-- **Maximum simplicity:** For one-off scripts or non-critical code where the overhead of Scope learning curve doesn't justify the benefit
-
 ### Best Practices: Organizing Your Code
 
 **1. Entry point pattern — use `Scope.global.scoped` at the top level**
