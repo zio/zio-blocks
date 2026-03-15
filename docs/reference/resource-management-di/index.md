@@ -7,20 +7,15 @@ title: "Resource Management & Dependency Injection"
 
 Resource management and dependency injection are fundamental to building reliable, maintainable applications. ZIO Blocks provides three complementary types that work together to eliminate common lifetime bugs while enabling powerful composition patterns: **Scope** provides compile-time safe resource boundaries, **Resource** encapsulates acquisition and cleanup with automatic finalization, and **Wire** describes dependency graphs with type-safe construction recipes. Together, they form a cohesive system for managing object lifecycles, preventing resource leaks, and building dependency-injected architectures.
 
-**Related Types:**
-- [`Resource`](./resource.md) — Lazy recipe for managing resource lifecycles with automatic cleanup
-- [`Scope`](./scope.md) — Compile-time safe resource management and scoped value access
-- [`Wire`](./wire.md) — Type-safe recipes for constructing services and their dependencies
-
 ## Overview
 
 These three types solve the fundamental problem of managing resources and dependencies in concurrent, long-lived applications:
 
-**Scope** is the foundation — it provides a compile-time safe boundary that prevents resources from escaping their intended lifetime. Using path-dependent types, Scope ensures that values allocated in one scope cannot accidentally be used in another scope, catching lifetime violations at compile time rather than causing runtime bugs.
+**[Scope](./scope.md)** is the foundation — it provides a compile-time safe boundary that prevents resources from escaping their intended lifetime. Using path-dependent types, Scope ensures that values allocated in one scope cannot accidentally be used in another scope, catching lifetime violations at compile time rather than causing runtime bugs.
 
-**Resource** builds on Scope to describe how to acquire and finalize resources. Rather than executing immediately, a Resource is a lazy recipe that composes naturally with `map`, `flatMap`, and `zip`. When allocated within a scope, finalizers run automatically in LIFO order, ensuring cleanup happens even when errors occur.
+**[Resource](./resource.md)** builds on Scope to describe how to acquire and finalize resources. Rather than executing immediately, a Resource is a lazy recipe that composes naturally with `map`, `flatMap`, and `zip`. When allocated within a scope, finalizers run automatically in LIFO order, ensuring cleanup happens even when errors occur.
 
-**Wire** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution, cycle detection, and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates.
+**[Wire](./wire.md)** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution, cycle detection, and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates.
 
 ### How They Work Together
 
