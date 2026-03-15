@@ -809,17 +809,30 @@ Scope.global.scoped { scope =>
 
 ### `No given instance of Unscoped[MyType]` — escaping a scope
 
-**When:** You try to return a value from a `scoped { }` block that is not known to be safe data.
+When you try to return a value from a `scoped { }` block, the Scope system prevents you from accidentally returning resources or other unsafe types. Only values with an `Unscoped` instance can leave the scope—these are types guaranteed to be pure data with no embedded resources or cleanup logic.
 
+If you write:
 ```scala
 db  // ERROR: No given instance of Unscoped[$[Database]]
 ```
 
-**Fix:** Only return values with an `Unscoped` instance. If your type is pure data, add `Unscoped` (see [Unscoped reference](./unscoped.md)). Otherwise, extract the data you need from the resource before returning:
+The compiler rejects this because `db` is a scoped resource (type `$[Database]`), not safe data. Even though you're inside the `scoped` block, the type system prevents you from returning it because it would be useless outside the scope (the resource would already be cleaned up).
+
+To fix this, you have two options:
+
+**Option 1: Extract data from the resource before returning**
+
+Call a method on the resource to get pure data (strings, numbers, etc.) that are naturally `Unscoped`:
 
 ```scala
 $(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
 ```
+
+The `String` returned by `query()` is pure data with no cleanup logic, so it can safely escape the scope.
+
+**Option 2: Implement `Unscoped` for your custom types**
+
+If you create custom types that hold only pure data, add an `Unscoped` instance so they can escape scopes. See the [Unscoped reference](./unscoped.md) for details and examples.
 
 ### `Scoped values may only be used as a method receiver` — macro violation
 
