@@ -22,13 +22,13 @@ trait MigrationBuilderVersionSpecific[A, B] {
   self: MigrationBuilder[A, B] =>
 
   inline def addField(inline target: B => Any, default: SchemaExpr[DynamicValue, ?]): MigrationBuilder[A, B] =
-    $ { MigrationBuilderMacros.addFieldImpl[A, B]('this, 'target, 'default) }
+    ${ MigrationBuilderMacros.addFieldImpl[A, B]('this, 'target, 'default) }
 
   inline def dropField(inline source: A => Any): MigrationBuilder[A, B] =
-    $ { MigrationBuilderMacros.dropFieldImpl[A, B]('this, 'source) }
+    ${ MigrationBuilderMacros.dropFieldImpl[A, B]('this, 'source) }
 
   inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] =
-    $ { MigrationBuilderMacros.renameFieldImpl[A, B]('this, 'from, 'to) }
+    ${ MigrationBuilderMacros.renameFieldImpl[A, B]('this, 'from, 'to) }
 }
 
 object MigrationBuilderMacros {
@@ -40,9 +40,9 @@ object MigrationBuilderMacros {
     val fieldName = extractFieldName(target)
     ' {
       new MigrationBuilder(
-        $ {builder}.sourceSchema,
-        $ {builder}.targetSchema,
-        $ {builder}.actions :+ MigrationAction.AddField(DynamicOptic.root.field($ {Expr(fieldName)}), $default)
+        ${builder}.sourceSchema,
+        ${builder}.targetSchema,
+        ${builder}.actions :+ MigrationAction.AddField(DynamicOptic.root.field(${Expr(fieldName)}), $default)
       )
     }
   }
@@ -54,9 +54,9 @@ object MigrationBuilderMacros {
     val fieldName = extractFieldName(source)
     ' {
       new MigrationBuilder(
-        $ {builder}.sourceSchema,
-        $ {builder}.targetSchema,
-        $ {builder}.actions :+ MigrationAction.DropField(DynamicOptic.root.field($ {Expr(fieldName)}), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic))
+        ${builder}.sourceSchema,
+        ${builder}.targetSchema,
+        ${builder}.actions :+ MigrationAction.DropField(DynamicOptic.root.field(${Expr(fieldName)}), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic))
       )
     }
   }
@@ -70,9 +70,9 @@ object MigrationBuilderMacros {
     val toName = extractFieldName(to)
     ' {
       new MigrationBuilder(
-        $ {builder}.sourceSchema,
-        $ {builder}.targetSchema,
-        $ {builder}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field($ {Expr(fromName)}), $ {Expr(toName)})
+        ${builder}.sourceSchema,
+        ${builder}.targetSchema,
+        ${builder}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field(${Expr(fromName)}), ${Expr(toName)})
       )
     }
   }
@@ -82,7 +82,7 @@ object MigrationBuilderMacros {
     expr.asTerm match {
       case Inlined(_, _, Lambda(_, Select(_, name))) => name
       case Inlined(_, _, Lambda(_, Block(List(), Select(_, name)))) => name
-      case _ => report.errorAndAbort(s"Could not extract field name from selector: $ {expr.show}")
+      case _ => report.errorAndAbort(s"Could not extract field name from selector: ${expr.show}")
     }
   }
 }
