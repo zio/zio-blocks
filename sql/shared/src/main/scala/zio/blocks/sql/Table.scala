@@ -23,17 +23,22 @@ object Table {
     Table(tableName, codec, dialect)
   }
 
+  def derived[A](tableName: String, dialect: SqlDialect)(implicit schema: Schema[A]): Table[A] = {
+    val codec = schema.deriving(DbCodecDeriver).derive
+    Table(tableName, codec, dialect)
+  }
+
   private def deriveTableName[A](schema: Schema[A]): String = {
     val configured = schema.reflect.modifiers.collectFirst { case Modifier.config("sql.table_name", value) =>
       value
     }
     configured.getOrElse {
       val typeName = schema.reflect.typeId.name
-      pluralize(SqlNameMapper.SnakeCase(typeName))
+      SqlNameMapper.SnakeCase(typeName)
     }
   }
 
-  private[sql] def pluralize(s: String): String =
+  def pluralize(s: String): String =
     if (s.isEmpty) s
     else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh") || s.endsWith("zz"))
       s + "es"
