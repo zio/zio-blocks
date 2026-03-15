@@ -18,23 +18,26 @@ package zio.blocks.otel
 
 import java.lang.invoke.MethodHandles
 import java.util.concurrent._
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-object PlatformExecutor {
-
-  lazy val executor: ScheduledExecutorService = createExecutor()
+final class PlatformExecutor private (val executor: ScheduledExecutorService) {
 
   def schedule(initialDelay: Long, period: Long, unit: TimeUnit)(task: Runnable): ScheduledFuture[_] =
     executor.scheduleAtFixedRate(task, initialDelay, period, unit)
 
   def shutdown(): Unit =
     executor.shutdown()
+}
 
-  private val daemonWarningPrinted: AtomicBoolean = new AtomicBoolean(false)
+object PlatformExecutor {
+
+  val hasLoom: Boolean = ContextStorage.hasLoom
+
+  def create(): PlatformExecutor =
+    new PlatformExecutor(createExecutor())
 
   private def createExecutor(): ScheduledExecutorService =
-    if (ContextStorage.hasLoom) createVirtualThreadExecutor()
+    if (hasLoom) createVirtualThreadExecutor()
     else createDaemonThreadExecutor()
 
   private def createVirtualThreadExecutor(): ScheduledExecutorService =
@@ -67,11 +70,6 @@ object PlatformExecutor {
     }
 
   private def createDaemonThreadExecutor(): ScheduledExecutorService = {
-    if (daemonWarningPrinted.compareAndSet(false, true)) {
-      System.err.println(
-        "[zio-blocks-otel] Virtual threads not available. Using daemon thread pool for background scheduling."
-      )
-    }
     val counter                = new AtomicLong(0L)
     val factory: ThreadFactory = new ThreadFactory {
       def newThread(r: Runnable): Thread = {
