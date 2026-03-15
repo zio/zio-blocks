@@ -1,0 +1,6 @@
+tree ac06d0e7642c2ae2d8599e3c24cfc3f69165133f
+parent d117969bc1bb56a9cd19d000aa31743c64204904
+author Andriy Plokhotnyuk <plokhotnyuk@gmail.com> 1745216120 +0200
+committer Andriy Plokhotnyuk <plokhotnyuk@gmail.com> 1745261177 +0200
+
+Add `Schema.derived`

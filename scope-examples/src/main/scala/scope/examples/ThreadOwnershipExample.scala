@@ -95,25 +95,27 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
         val latch = new CountDownLatch(1)
 
         executor.execute { () =>
-          val workerThread = Thread.currentThread().getName
-          println(s"[Worker] On thread: $workerThread\n")
+          try {
+            val workerThread = Thread.currentThread().getName
+            println(s"[Worker] On thread: $workerThread\n")
 
-          // Using the unowned scope from a different thread - this works!
-          childScope.scoped { workerChild =>
-            import workerChild._
-            println(s"[Worker] Created child of unowned scope")
+            // Using the unowned scope from a different thread - this works!
+            childScope.scoped { workerChild =>
+              import workerChild._
+              println(s"[Worker] Created child of unowned scope")
 
-            val res: $[ThreadAwareResource] =
-              allocate(Resource(new ThreadAwareResource("CrossThreadResource")))
+              val res: $[ThreadAwareResource] =
+                allocate(Resource(new ThreadAwareResource("CrossThreadResource")))
 
-            $(res) { r =>
-              println(s"[Worker] ${r.getInfo}\n")
+              $(res) { r =>
+                println(s"[Worker] ${r.getInfo}\n")
+              }
+
+              println("[Worker] Worker scope closed")
             }
-
-            println("[Worker] Worker scope closed")
+          } finally {
+            latch.countDown()
           }
-
-          latch.countDown()
         }
 
         // Wait for worker thread to finish
@@ -123,8 +125,8 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
         executor.shutdown()
       }
 
-      // Clean up the open scope
-      handle.close()
+      // Clean up the open scope and propagate any finalizer failures
+      handle.close().orThrow()
       println("[Main] Unowned scope closed\n")
     }
   }

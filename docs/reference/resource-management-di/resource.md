@@ -99,12 +99,16 @@ Scope.global.scoped { scopeA =>
   // Allocate in ServiceB within a nested scope
   scopeA.scoped { scopeB =>
     import scopeB._
-    val poolB: $[DatabasePool] = lower(poolA)
-    println("ServiceB using same pool instance (reference count incremented)")
+    val poolB: $[DatabasePool] = poolResource.allocate
+    println("ServiceB allocated same pool instance (reference count incremented)")
+
+    // Both ServiceA and ServiceB are using the same instance
+    val sameInstance = $(poolA)(identity) eq $(poolB)(identity)
+    println(s"Same instance? $sameInstance")
   }
-  println("ServiceB released, but pool stays open for ServiceA")
+  println("ServiceB released, but pool stays open for ServiceA (ref count -= 1)")
 }
-println("All services released, pool closed")
+println("All services released, pool closed (ref count == 0)")
 ```
 
 ### Unique Resources

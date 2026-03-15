@@ -78,11 +78,10 @@ def processData(): ProcessingResult = Scope.global.scoped { scope =>
   val input = allocate(Resource(Seq(1, 2, 3, 4, 5)))
   val count = $(input)(_.length)
 
-  val elapsed = Duration.fromNanos(
-    java.time.Instant.now().toEpochMilli - startTime.toEpochMilli
-  ).toNanos
+  val endTime = java.time.Instant.now()
+  val elapsed = java.time.Duration.between(startTime, endTime).toNanos
 
-  ProcessingResult(count, FiniteDuration(elapsed, "ns"))
+  ProcessingResult(count, FiniteDuration(elapsed, java.util.concurrent.TimeUnit.NANOSECONDS))
 }
 
 val result = processData()
