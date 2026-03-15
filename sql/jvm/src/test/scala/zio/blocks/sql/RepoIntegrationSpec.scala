@@ -12,14 +12,30 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[User] = Schema.derived
   }
 
-  private val userTable = Table.derived[User](SqlDialect.SQLite)
+  enum Priority {
+    case Low, Medium, High
+  }
+  object Priority {
+    implicit val schema: Schema[Priority] = Schema.derived
+  }
 
-  private given DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
-  private given DbCodec[Int]  = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  case class Task(id: Int, title: String, priority: Priority)
+  object Task {
+    implicit val schema: Schema[Task] = Schema.derived
+  }
+
+  private val userTable = Table.derived[User](SqlDialect.SQLite)
+  private val taskTable = Table.derived[Task](SqlDialect.SQLite)
+
+  private given DbCodec[User]     = User.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[Task]     = Task.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[Int]      = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Priority] = Priority.schema.deriving(DbCodecDeriver).derive
 
   private val intCodec: DbCodec[Int] = summon[DbCodec[Int]]
 
   private val userRepo = Repo(userTable, "id", intCodec, (_: User).id)
+  private val taskRepo = Repo(taskTable, "id", intCodec, (_: Task).id)
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -37,6 +53,11 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       SqlOps.update(
         Frag.const(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
+        )
+      )
+      SqlOps.update(
+        Frag.const(
+          "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
         )
       )
     }
@@ -204,6 +225,61 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           assertTrue(userRepo.count == 0L)
         }
       }
-    }
+    },
+    suite("enum integration")(
+      test("insert and findById with enum field") {
+        withFreshDb { tx =>
+          tx.connect {
+            taskRepo.insert(Task(1, "Write tests", Priority.High))
+            val found = taskRepo.findById(1)
+            assertTrue(
+              found.isDefined,
+              found.get.id == 1,
+              found.get.title == "Write tests",
+              found.get.priority == Priority.High
+            )
+          }
+        }
+      },
+      test("enum values round-trip through database") {
+        withFreshDb { tx =>
+          tx.connect {
+            taskRepo.insert(Task(1, "Low task", Priority.Low))
+            taskRepo.insert(Task(2, "Medium task", Priority.Medium))
+            taskRepo.insert(Task(3, "High task", Priority.High))
+
+            val t1 = taskRepo.findById(1)
+            val t2 = taskRepo.findById(2)
+            val t3 = taskRepo.findById(3)
+
+            assertTrue(
+              t1.get.priority == Priority.Low,
+              t2.get.priority == Priority.Medium,
+              t3.get.priority == Priority.High
+            )
+          }
+        }
+      },
+      test("update enum field") {
+        withFreshDb { tx =>
+          tx.connect {
+            taskRepo.insert(Task(1, "A task", Priority.Low))
+            taskRepo.update(Task(1, "A task", Priority.High))
+            val found = taskRepo.findById(1)
+            assertTrue(found.get.priority == Priority.High)
+          }
+        }
+      },
+      test("findAll with enum fields") {
+        withFreshDb { tx =>
+          tx.connect {
+            taskRepo.insert(Task(1, "Task 1", Priority.Low))
+            taskRepo.insert(Task(2, "Task 2", Priority.High))
+            val all = taskRepo.findAll
+            assertTrue(all.size == 2)
+          }
+        }
+      }
+    )
   )
 }

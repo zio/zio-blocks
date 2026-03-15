@@ -249,9 +249,35 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
           }
         }
       }
+    } else if (isSimpleEnum(cases)) {
+      val discr                    = binding.discriminator
+      val constructorByName        = buildConstructorMap(cases)
+      val caseNames: Array[String] = collectCaseNames(cases)
+      val caseNamesJoined          = caseNames.mkString(", ")
+
+      new DbCodec[A] {
+        val columns: IndexedSeq[String] = IndexedSeq("value")
+
+        def readValue(reader: DbResultReader, startIndex: Int): A = {
+          val name = reader.getString(startIndex)
+          constructorByName.get(name) match {
+            case Some(ctor) => ctor.construct(null, 0).asInstanceOf[A]
+            case None       =>
+              throw new IllegalArgumentException(
+                s"Unknown enum variant '${name}'. Expected one of: ${caseNamesJoined}"
+              )
+          }
+        }
+
+        def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+          writer.setString(startIndex, enumName(discr, cases, value))
+
+        def toDbValues(value: A): IndexedSeq[DbValue] =
+          IndexedSeq(DbValue.DbString(enumName(discr, cases, value)))
+      }
     } else {
       throw new UnsupportedOperationException(
-        "DbCodec does not support sum types (sealed trait/enum) as SQL columns"
+        "DbCodec does not support sum types (sealed trait/enum) with data fields as SQL columns"
       )
     }
   }
@@ -308,6 +334,79 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       typeId.name == "Option" &&
       cases.length == 2 &&
       cases(1).name == "Some"
+
+  private def isSimpleEnum[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
+    cases.forall { case_ =>
+      val caseReflect = case_.value
+      caseReflect.asRecord.exists(_.fields.isEmpty) ||
+      (caseReflect.isVariant && caseReflect.asVariant.exists(v => isSimpleEnum(v.cases)))
+    }
+
+  private def buildConstructorMap[F[_, _], A](
+    cases: IndexedSeq[Term[F, A, ?]]
+  )(implicit F: HasBinding[F]): Map[String, Constructor[?]] = {
+    val builder = Map.newBuilder[String, Constructor[?]]
+    collectConstructors(cases, builder)
+    builder.result()
+  }
+
+  private def collectConstructors[F[_, _], A](
+    cases: IndexedSeq[Term[F, A, ?]],
+    builder: scala.collection.mutable.Builder[(String, Constructor[?]), Map[String, Constructor[?]]]
+  )(implicit F: HasBinding[F]): Unit = {
+    var idx = 0
+    while (idx < cases.length) {
+      val case_       = cases(idx)
+      val caseReflect = case_.value
+      if (caseReflect.isVariant) {
+        val nestedVariant = caseReflect.asVariant.get
+        collectConstructors(
+          nestedVariant.cases.asInstanceOf[IndexedSeq[Term[F, A, ?]]],
+          builder
+        )
+      } else {
+        val recordBinding = F.binding(caseReflect.asRecord.get.recordBinding)
+        val constructor   = recordBinding.asInstanceOf[Binding.Record[Any]].constructor
+        builder += (case_.name -> constructor)
+      }
+      idx += 1
+    }
+  }
+
+  private def collectCaseNames[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Array[String] = {
+    val builder                                 = Array.newBuilder[String]
+    def go(cs: IndexedSeq[Term[F, A, ?]]): Unit = {
+      var idx = 0
+      while (idx < cs.length) {
+        val case_       = cs(idx)
+        val caseReflect = case_.value
+        if (caseReflect.isVariant) {
+          go(caseReflect.asVariant.get.cases.asInstanceOf[IndexedSeq[Term[F, A, ?]]])
+        } else {
+          builder += case_.name
+        }
+        idx += 1
+      }
+    }
+    go(cases)
+    builder.result()
+  }
+
+  private def enumName[F[_, _], A](
+    discr: Discriminator[A],
+    cases: IndexedSeq[Term[F, A, ?]],
+    value: A
+  )(implicit F: HasBinding[F]): String = {
+    val idx   = discr.discriminate(value)
+    val case_ = cases(idx)
+    if (case_.value.isVariant) {
+      val nestedVariant = case_.value.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+      val nestedDiscr   = F.binding(nestedVariant.variantBinding).asInstanceOf[Binding.Variant[A]].discriminator
+      enumName(nestedDiscr, nestedVariant.cases.asInstanceOf[IndexedSeq[Term[F, A, ?]]], value)
+    } else {
+      case_.name
+    }
+  }
 
   private val unitCodec: DbCodec[Unit] = new DbCodec[Unit] {
     val columns: IndexedSeq[String]                                           = IndexedSeq.empty
