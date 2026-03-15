@@ -65,7 +65,7 @@ Supported Scala versions: **2.13.x** and **3.x**.
 Here's a minimal example showing resource allocation, usage, and cleanup. This example introduces a canonical `Database` stub that we'll reuse throughout this guide:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -74,7 +74,7 @@ final class Database extends AutoCloseable {
 
 val out: String =
   Scope.global.scoped { scope =>
-    import scope.*
+    import scope._
 
     val db: $[Database] =
       Resource.fromAutoCloseable(new Database).allocate
@@ -105,11 +105,11 @@ Scope's compile-time safety comes from *three reinforcing layers* that work toge
 ```scala
 // does not compile:
 Scope.global.scoped { scope1 =>
-  import scope1.*
+  import scope1._
   val db1 = allocate(new Database)
 
   scope1.scoped { scope2 =>
-    import scope2.*
+    import scope2._
     val x: scope2.$[Database] = db1  // Error: type mismatch
     // scope2.$[Database] is not compatible with scope1.$[Database]
   }
@@ -120,11 +120,11 @@ To safely use a parent scope's resource in a child scope, use `lower`:
 
 ```scala
 Scope.global.scoped { outer =>
-  import outer.*
+  import outer._
   val db = allocate(new Database)
 
   outer.scoped { inner =>
-    import inner.*
+    import inner._
     val dbInChild = inner.lower(db)  // ✓ Correct: retags for child scope
     $(dbInChild)(_.query("SELECT 1"))
   }
@@ -164,7 +164,7 @@ By requiring a lambda literal, the macro can analyze the actual code syntax. It 
 ```scala
 // does not compile:
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val db = allocate(new Database)
   db  // Error: No given instance of Unscoped[$[Database]]
 }
@@ -175,7 +175,7 @@ Closures over resources are also rejected:
 ```scala
 // does not compile:
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val db = allocate(new Database)
   () => db.query("SELECT 1")  // Error: No given instance of Unscoped[() => String]
   // (the closure captures db)
@@ -186,7 +186,7 @@ Only types with an `Unscoped` instance can cross the scope boundary—typically 
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val db = allocate(new Database)
   $(db)(_.query("SELECT 1"))  // ✓ Correct: returns String, which is Unscoped
 }
@@ -203,10 +203,10 @@ In `Scope.global`, the `$[A]` type is an identity type (i.e., `$[A] = A`). Final
 Use `Scope.global` to access the root scope:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 val result: String = Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   "no resources allocated"
 }
 ```
@@ -218,7 +218,7 @@ val result: String = Scope.global.scoped { scope =>
 The lambda receives the child scope as a parameter. You can import its members to use the short form `$[A]` instead of `scope.$[A]`:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -226,7 +226,7 @@ final class Database extends AutoCloseable {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val db: $[Database] =
     Resource.fromAutoCloseable(new Database).allocate
@@ -249,7 +249,7 @@ This is useful for resource pools, lazy initialization, or service factories whe
 Here's a practical application initialization pattern:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -263,7 +263,7 @@ val db = appResources.scope.allocate(Resource.fromAutoCloseable(new Database))
 try {
   // Use database from anywhere in the application
   val result = appResources.scope.scoped { scope =>
-    import scope.*
+    import scope._
     // Can create child scopes and use parent resources with lower()
     val dbInChild = scope.lower(db)
     $(dbInChild)(_.query("SELECT 1"))
@@ -297,7 +297,7 @@ The first overload accepts any `Resource`. The second is a convenience for `Auto
 If the scope is already closed, `allocate` throws `IllegalStateException`. Otherwise, the resource is acquired eagerly and its finalizer is registered to run LIFO when the scope closes:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -305,7 +305,7 @@ final class Database extends AutoCloseable {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   // Using Resource factory
   val db1: $[Database] =
@@ -326,7 +326,7 @@ The `$` operator safely accesses a scoped value by enforcing it is only used as 
 **Single value:** Use infix or unqualified syntax:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -334,14 +334,14 @@ final class Database extends AutoCloseable {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val db: $[Database] = allocate(new Database)
 
   // Infix syntax
   val result1 = (scope $ db)(_.query("SELECT 1"))
 
-  // Unqualified after `import scope.*`
+  // Unqualified after `import scope._`
   val result2 = $(db)(_.query("SELECT 2"))
 
   result1 + result2
@@ -351,7 +351,7 @@ Scope.global.scoped { scope =>
 **Multiple values:** Use unqualified syntax only:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -364,7 +364,7 @@ final class Cache extends AutoCloseable {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   val db: $[Database] = allocate(new Database)
   val cache: $[Cache] = allocate(new Cache)
@@ -388,7 +388,7 @@ If a result type is `Unscoped[B]` (pure data), `$` auto-unwraps it to `B`. Other
 This is useful when a child scope needs access to resources allocated in its parent:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -396,13 +396,13 @@ final class Database extends AutoCloseable {
 }
 
 Scope.global.scoped { outer =>
-  import outer.*
+  import outer._
 
   val db: $[Database] = allocate(new Database)
 
   // Create an inner scope that needs the database
   outer.scoped { inner =>
-    import inner.*
+    import inner._
 
     // Retag the parent's database into the child
     val dbInChild: inner.$[Database] = inner.lower(db)
@@ -428,7 +428,7 @@ trait Finalizer {
 `defer` is useful for resources that are not wrapped in `Resource`, or when you need explicit control over finalization. Here's a practical example—managing a temporary file and a logger that don't implement `AutoCloseable`:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 import java.nio.file.*
 
 // A logger that needs manual cleanup but doesn't implement AutoCloseable
@@ -438,7 +438,7 @@ class Logger {
 }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
 
   // Create a temporary file (not AutoCloseable from standard library)
   val tempFile = Files.createTempFile("app", ".tmp")
@@ -481,7 +481,7 @@ Once `isClosed` returns `true`, subsequent calls to `allocate`, `open`, or `$` t
 Here's a practical example—a resource manager that guards against using a closed scope:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -511,7 +511,7 @@ class DatabaseService {
     } else {
       try {
         Right(serviceScope.scope.scoped { scope =>
-          import scope.*
+          import scope._
           val dbInChild = scope.lower(db)
           $(dbInChild)(_.query(query))
         })
@@ -563,7 +563,7 @@ Ownership is used to detect cross-thread scope misuse. Thread ownership rules:
 Calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
   // On the thread that entered scoped, isOwner is true
@@ -585,7 +585,7 @@ Scope.global.scoped { scope =>
 Thread-owned scopes cannot be used to create child scopes from a different thread:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 import java.util.concurrent.*
 
 final class Database extends AutoCloseable {
@@ -597,14 +597,14 @@ val executor = Executors.newFixedThreadPool(1)
 
 try {
   Scope.global.scoped { scope =>
-    import scope.*
+    import scope._
     val db = allocate(new Database)
 
     // Try to create a child scope from a different thread
     val future = executor.submit { () =>
       try {
         scope.scoped { childScope =>
-          import childScope.*
+          import childScope._
           val dbInChild = childScope.lower(db)
           $(dbInChild)(_.query("SELECT 1"))
         }
@@ -628,7 +628,7 @@ try {
 Open scopes are unowned and usable from any thread:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 import java.util.concurrent.*
 
 final class Database extends AutoCloseable {
@@ -645,7 +645,7 @@ try {
   // Use the resource from a worker thread
   val future = executor.submit { () =>
     poolScope.scope.scoped { scope =>
-      import scope.*
+      import scope._
       val dbInChild = scope.lower(db)
       $(dbInChild)(_.query("SELECT 1"))
     }
@@ -697,7 +697,7 @@ Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you
 Instead of the lexical `scoped { }` block, you explicitly open a scope, allocate resources, and control when to close. Here's the key pattern—returning an `OpenScope` handle from a function:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -760,7 +760,7 @@ Ask yourself these questions:
 When resources depend on each other, nest `scoped` blocks to express the hierarchy:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -822,7 +822,7 @@ The following compile errors occur when `Scope` type rules are violated. All exa
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val db: $[Database] = allocate(new Database)
   // ... usage or error ...
 }
@@ -865,12 +865,12 @@ $(db)(_.query("data"))  // ✓ Correct: method call
 Wrap your entire application's resource acquisition in a single lexical scope:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 object MyApp {
   def main(args: Array[String]): Unit = {
     Scope.global.scoped { scope =>
-      import scope.*
+      import scope._
       // All resources acquired here
       // Automatic cleanup when main exits
     }
@@ -885,7 +885,7 @@ This is your "outer boundary" for resource safety. Everything inside is protecte
 Build your acquisition/release logic first using `Resource` combinators, then allocate in the scope:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -896,7 +896,7 @@ val dbResource = Resource.fromAutoCloseable(new Database)
 val cachedDb = dbResource  // Could compose with other Resources here
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val db = allocate(cachedDb)
   // Use db
 }
@@ -954,7 +954,7 @@ Calling methods directly on scoped values is prohibited and causes a compile-tim
 If you create custom data types that hold only pure data (no resources), add an `Unscoped` instance to allow them to escape scopes safely:
 
 ```scala mdoc:compile-only
-import zio.blocks.scope.*
+import zio.blocks.scope._
 import zio.blocks.scope.Unscoped
 
 case class QueryResult(rows: List[String], count: Int)
@@ -965,7 +965,7 @@ object QueryResult {
 
 // Now QueryResult can be returned from scoped blocks
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   // ... acquire database ...
   QueryResult(List("a", "b"), 2)  // Returns safely
 }
