@@ -192,7 +192,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-## Construction / Creating Instances
+## Construction
 
 ### `Scope.global` — The Root Scope
 
