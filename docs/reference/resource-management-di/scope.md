@@ -763,23 +763,37 @@ For dependency injection patterns with `Wire` and `Resource.from`, see the [Wire
 
 ## Runtime Errors
 
-The following runtime errors occur when scope rules are violated:
+Runtime errors occur when you violate scope rules at runtime—typically by accessing resources after the scope has already cleaned them up, or by mixing scopes across threads.
 
-### `IllegalStateException` — allocate on closed scope
+### `IllegalStateException` — accessing a closed scope
 
-**When:** You call `allocate`, `open`, or `$` on a scope that has already closed.
+This error occurs when you attempt to acquire resources (via `allocate`, `open`, or the `$` operator) on a scope that has already closed. Every `scoped { }` block cleans up its resources as soon as the block exits, so any attempt to use the scope after that point fails.
 
-**Message:** "Cannot acquire resource: scope has already been closed. ..."
+The error message is typically:
+```
+Cannot acquire resource: scope has already been closed. ...
+```
 
-**Fix:** Ensure you only access scoped resources while the scope is still alive. Debug by checking `scope.isClosed` before operations.
+This usually happens when you:
+- Store a scope in a field or closure and try to use it later after the enclosing `scoped` block has exited
+- Accidentally pass a scope to an async operation that runs after cleanup
+
+To avoid this, keep the scope's lifetime clear: allocate resources, use them, then let them clean up when the scope exits. If you need resources to survive longer, use `Scope.global.open()` to get a handle you can manage manually. You can also check `scope.isClosed` before attempting operations as a defensive check.
 
 ### `IllegalStateException` — cross-thread scope usage
 
-**When:** You call `scoped { }` on a scope from a different thread than the owner.
+Scopes are thread-owned by default. When you create a child scope using `scoped { }`, it's owned by the thread that created it. If you try to access that scope (allocate resources, create child scopes) from a different thread, the scope will reject it.
 
-**Message:** "Cannot create child scope: current thread '...' does not own this scope (owner: '...')"
+The error message is typically:
+```
+Cannot create child scope: current thread '...' does not own this scope (owner: '...')
+```
 
-**Fix:** Child scopes created via `scoped` are thread-owned. Use `Scope.global.open()` or `open()` to create unowned scopes that can be shared across threads.
+This happens when you try to:
+- Pass a scope to another thread and use it there
+- Share a scope across multiple threads that call `scoped { }` on it
+
+To fix this, use thread-unowned scopes when you need to share across threads. Instead of `scope.scoped { }` (which creates a thread-owned child), use `Scope.global.open()` or the scope's `open()` method directly to get an `OpenScope` handle. These unowned scopes can be safely passed and used from any thread, though you're responsible for manual cleanup via the returned handle.
 
 ## Compile Errors
 
