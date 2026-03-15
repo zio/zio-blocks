@@ -56,7 +56,6 @@ This method is:
 
 - **Thread-safe**: Can be called from any thread without synchronization
 - **Idempotent**: Calling it multiple times has the same effect as calling once
-- **O(1)**: cancellation is a simple removal from an internal map (not O(n))
 
 If the scope has already closed (and the finalizer has already run or been discarded), calling `DeferHandle#cancel` is a no-op. In the following example, we register a cleanup action, then cancel it before the scope closes:
 
