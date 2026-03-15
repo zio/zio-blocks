@@ -424,6 +424,76 @@ object TransactorSpec extends ZIOSpecDefault {
           } finally ps.close()
         }
       }
+    ),
+    suite("Frag extension methods")(
+      test("frag.query delegates to SqlOps.query") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE ext_query (id INTEGER NOT NULL, name TEXT NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})")
+          SqlOps.update(sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})")
+          val viaOps = SqlOps.query[Int](sql"SELECT id FROM ext_query ORDER BY id")
+          val viaExt = sql"SELECT id FROM ext_query ORDER BY id".query[Int]
+          assertTrue(viaOps == viaExt, viaExt == List(1, 2))
+        }
+      },
+      test("frag.queryOne returns Some for match, None for no match") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE ext_qone (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO ext_qone VALUES (${DbValue.DbInt(42)})")
+          val found    = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(42)}".queryOne[Int]
+          val notFound = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(999)}".queryOne[Int]
+          assertTrue(found == Some(42), notFound.isEmpty)
+        }
+      },
+      test("frag.queryLimit returns at most N rows") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE ext_qlimit (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(1)})")
+          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(2)})")
+          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(3)})")
+          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(4)})")
+          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(5)})")
+          val limited = sql"SELECT id FROM ext_qlimit ORDER BY id".queryLimit[Int](2)
+          val all     = sql"SELECT id FROM ext_qlimit ORDER BY id".query[Int]
+          assertTrue(limited == List(1, 2), all.length == 5)
+        }
+      },
+      test("frag.queryLimit with limit larger than result set returns all") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE ext_qlimit2 (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(1)})")
+          SqlOps.update(sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(2)})")
+          val result = sql"SELECT id FROM ext_qlimit2 ORDER BY id".queryLimit[Int](100)
+          assertTrue(result == List(1, 2))
+        }
+      },
+      test("frag.update returns affected row count") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE ext_upd (id INTEGER NOT NULL)"))
+          sql"INSERT INTO ext_upd VALUES (${DbValue.DbInt(1)})".update
+          sql"INSERT INTO ext_upd VALUES (${DbValue.DbInt(2)})".update
+          val count = Frag.const("DELETE FROM ext_upd").update
+          assertTrue(count == 2)
+        }
+      },
+      test("SqlOps.queryLimit stops early") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE qlimit_ops (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(1)})")
+          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(2)})")
+          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(3)})")
+          val result = SqlOps.queryLimit[Int](sql"SELECT id FROM qlimit_ops ORDER BY id", 2)
+          assertTrue(result == List(1, 2))
+        }
+      },
+      test("SqlOps.queryLimit with zero returns empty") {
+        transactor.connect {
+          SqlOps.update(Frag.const("CREATE TABLE qlimit_zero (id INTEGER NOT NULL)"))
+          SqlOps.update(sql"INSERT INTO qlimit_zero VALUES (${DbValue.DbInt(1)})")
+          val result = SqlOps.queryLimit[Int](sql"SELECT id FROM qlimit_zero", 0)
+          assertTrue(result.isEmpty)
+        }
+      }
     )
   )
 }
