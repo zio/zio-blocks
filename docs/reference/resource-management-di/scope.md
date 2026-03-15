@@ -664,7 +664,7 @@ try {
 
 The key difference: `scoped { }` creates **owned** scopes (tied to the entering thread), while `open()` creates **unowned** scopes (usable from any thread). Choose based on whether your resources need to cross thread boundaries.
 
-## Returning Data from a Scope
+## Returning Unscoped Data from a Scope
 
 A `scoped { }` block can only return values that have an `Unscoped` instance—that is, pure data types with no embedded resources or cleanup logic. This restriction prevents resource leaks: you cannot accidentally return a resource that would be cleaned up before you could use it.
 
