@@ -3,6 +3,7 @@ package zio.blocks.sql
 import zio.test._
 import zio.blocks.schema._
 import java.sql.DriverManager
+import scala.collection.mutable.ArrayBuffer
 
 object RepoIntegrationSpec extends ZIOSpecDefault {
   private val _ = Class.forName("org.sqlite.JDBC")
@@ -45,6 +46,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
         }
         f
       }
@@ -62,6 +64,49 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       )
     }
     f(tx)
+  }
+
+  private def withFreshDbAndLogger[A](f: (JdbcTransactor, CapturingLogger) => A): A = {
+    val conn       = DriverManager.getConnection("jdbc:sqlite::memory:")
+    val testLogger = new CapturingLogger
+    val tx         = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+      override def connect[B](f: DbCon ?=> B): B = {
+        val dbConn       = new JdbcConnection(conn)
+        given con: DbCon = new DbCon {
+          val connection: DbConnection = dbConn
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = testLogger
+        }
+        f
+      }
+    }
+    tx.connect {
+      SqlOps.update(
+        Frag.const(
+          "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
+        )
+      )
+      SqlOps.update(
+        Frag.const(
+          "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
+        )
+      )
+    }
+    testLogger.clear()
+    f(tx, testLogger)
+  }
+
+  private class CapturingLogger extends SqlLogger {
+    val successes: ArrayBuffer[SqlLogger.SuccessEvent] = ArrayBuffer.empty
+    val errors: ArrayBuffer[SqlLogger.ErrorEvent]      = ArrayBuffer.empty
+
+    def onSuccess(event: SqlLogger.SuccessEvent): Unit = successes += event
+    def onError(event: SqlLogger.ErrorEvent): Unit     = errors += event
+
+    def clear(): Unit = {
+      successes.clear()
+      errors.clear()
+    }
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("RepoIntegrationSpec")(
@@ -277,6 +322,163 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
             taskRepo.insert(Task(2, "Task 2", Priority.High))
             val all = taskRepo.findAll
             assertTrue(all.size == 2)
+          }
+        }
+      }
+    ),
+    suite("insertReturning")(
+      test("returns the inserted entity") {
+        withFreshDb { tx =>
+          tx.connect {
+            val returned = userRepo.insertReturning(User(1, "Alice", "alice@test.com"))
+            assertTrue(
+              returned.id == 1,
+              returned.name == "Alice",
+              returned.email == "alice@test.com"
+            )
+          }
+        }
+      },
+      test("entity exists in database after insertReturning") {
+        withFreshDb { tx =>
+          tx.connect {
+            userRepo.insertReturning(User(1, "Bob", "bob@test.com"))
+            val found = userRepo.findById(1)
+            assertTrue(
+              found.isDefined,
+              found.get.name == "Bob"
+            )
+          }
+        }
+      }
+    ),
+    suite("insertAll")(
+      test("inserts multiple entities in batch") {
+        withFreshDb { tx =>
+          tx.connect {
+            val count = userRepo.insertAll(
+              List(
+                User(1, "Alice", "a@test.com"),
+                User(2, "Bob", "b@test.com"),
+                User(3, "Charlie", "c@test.com")
+              )
+            )
+            assertTrue(count == 3)
+          }
+        }
+      },
+      test("all entities are queryable after insertAll") {
+        withFreshDb { tx =>
+          tx.connect {
+            userRepo.insertAll(
+              List(
+                User(1, "Alice", "a@test.com"),
+                User(2, "Bob", "b@test.com"),
+                User(3, "Charlie", "c@test.com")
+              )
+            )
+            val all = userRepo.findAll
+            assertTrue(
+              all.size == 3,
+              all.map(_.name).toSet == Set("Alice", "Bob", "Charlie")
+            )
+          }
+        }
+      },
+      test("insertAll with empty iterable returns 0") {
+        withFreshDb { tx =>
+          tx.connect {
+            val count = userRepo.insertAll(List.empty[User])
+            assertTrue(count == 0, userRepo.count == 0L)
+          }
+        }
+      },
+      test("insertAll with single entity") {
+        withFreshDb { tx =>
+          tx.connect {
+            val count = userRepo.insertAll(List(User(1, "Solo", "solo@test.com")))
+            assertTrue(count == 1, userRepo.count == 1L)
+          }
+        }
+      }
+    ),
+    suite("SqlLogger")(
+      test("onSuccess is called for insert") {
+        withFreshDbAndLogger { (tx, logger) =>
+          tx.connect {
+            userRepo.insert(User(1, "Alice", "a@test.com"))
+            assertTrue(
+              logger.successes.size == 1,
+              logger.successes.head.sql.contains("INSERT INTO"),
+              logger.successes.head.rowCount == 1,
+              logger.errors.isEmpty
+            )
+          }
+        }
+      },
+      test("onSuccess is called for query") {
+        withFreshDbAndLogger { (tx, logger) =>
+          tx.connect {
+            userRepo.insert(User(1, "Alice", "a@test.com"))
+            logger.clear()
+            val _ = userRepo.findAll
+            assertTrue(
+              logger.successes.size == 1,
+              logger.successes.head.sql.contains("SELECT"),
+              logger.successes.head.rowCount == 1,
+              logger.errors.isEmpty
+            )
+          }
+        }
+      },
+      test("onError is called on SQL error") {
+        withFreshDbAndLogger { (tx, logger) =>
+          tx.connect {
+            try {
+              SqlOps.update(Frag.const("INSERT INTO nonexistent_table (id) VALUES (1)"))
+            } catch {
+              case _: Throwable => ()
+            }
+            assertTrue(
+              logger.errors.size == 1,
+              logger.errors.head.sql.contains("nonexistent_table"),
+              logger.successes.isEmpty
+            )
+          }
+        }
+      },
+      test("duration is non-negative") {
+        withFreshDbAndLogger { (tx, logger) =>
+          tx.connect {
+            userRepo.insert(User(1, "Alice", "a@test.com"))
+            assertTrue(!logger.successes.head.duration.isNegative)
+          }
+        }
+      },
+      test("insertAll logs success") {
+        withFreshDbAndLogger { (tx, logger) =>
+          tx.connect {
+            userRepo.insertAll(
+              List(
+                User(1, "Alice", "a@test.com"),
+                User(2, "Bob", "b@test.com")
+              )
+            )
+            assertTrue(
+              logger.successes.size == 1,
+              logger.successes.head.sql.contains("INSERT INTO"),
+              logger.successes.head.rowCount == 2,
+              logger.errors.isEmpty
+            )
+          }
+        }
+      },
+      test("noop logger does not throw") {
+        withFreshDb { tx =>
+          tx.connect {
+            userRepo.insert(User(1, "Alice", "a@test.com"))
+            val _ = userRepo.findAll
+            assertTrue(true)
           }
         }
       }
