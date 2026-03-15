@@ -666,35 +666,73 @@ The key difference: `scoped { }` creates **owned** scopes (tied to the entering 
 
 ## Scope Patterns: Choosing the Right Approach
 
-The Scope API provides two primary patterns for managing resource lifetimes. Choosing between them depends on whether you know the scope's lifetime at design time.
+The Scope API provides two primary patterns for managing resource lifetimes. Choose `Scope#scoped` if you can write both the code that acquires and the code that releases the resource in the same expression; choose `Scope#open()` if the resource lifetime must outlive the function that creates it. Most user code should prefer `scoped` for automatic cleanup and thread safety—use `open()` only when you need manual lifetime control, such as in connection pools or DI containers.
 
-### Pattern 1: Lexical Scopes with `scoped`
+### Lexical Scopes with `Scope#scoped`
 
-Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression.
+Use `Scope#scoped` when the resource lifetime is lexically bounded. Lexical scopes are thread-owned by default, preventing accidental cross-thread access and providing automatic cleanup even on exception. This makes them safe and composable: you can nest `scoped` blocks to express hierarchical resource dependencies, and the code structure naturally matches the resource lifetime.
 
-The Quickstart section earlier shows a complete example of this pattern. For details on different allocation approaches (with `Resource.fromAutoCloseable()` or directly with `AutoCloseable`), see [Core Operations — allocate](#scopeallocate--acquire-a-resource).
+Here's a basic pattern showing how to acquire and use a resource within a single scope:
 
-**Advantages:**
-- **Automatic cleanup:** Finalizers run when the block exits, even on exception
-- **Thread-safe by default:** Lexical scopes are thread-owned, preventing accidental cross-thread use
-- **Composable:** Nest `scoped` blocks to express hierarchical resource dependencies
-- **Clear intent:** The code structure matches the resource lifetime
+```scala mdoc:compile-only
+import zio.blocks.scope._
 
-**Disadvantages:**
-- Requires knowing the scope lifetime upfront
-- Cannot easily extend lifetime across function boundaries without returning resources
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
 
-**Real-world use cases:**
-- Processing data from a connection within a single function
-- Building a layered service stack (database → connection pool → HTTP client)
-- Integration tests that need clean setup/teardown
-- One-off resource acquisition in an application entry point
+Scope.global.scoped { scope =>
+  import scope._
 
-### Pattern 2: Explicit Scopes with `open()`
+  val db = allocate(new Database)
+  $(db)(_.query("SELECT * FROM users"))
+  // db closes when scope exits
+}
+```
 
-Use `Scope#open()` when **the resource lifetime is not lexically bounded**—you need manual control over when resources are acquired and released.
+The only trade-off is that you must know the scope's lifetime upfront and cannot easily extend resource lifetime across function boundaries without returning resources themselves. For details on different allocation approaches (with `Resource.fromAutoCloseable()` or directly with `AutoCloseable`), see [Core Operations — allocate](#scopeallocate--acquire-a-resource).
 
-Instead of the lexical `scoped { }` block, you explicitly open a scope, allocate resources, and control when to close. Here's the key pattern—returning an `OpenScope` handle from a function:
+#### Nesting for hierarchical resources
+
+When resources depend on each other, nest `scoped` blocks to express the hierarchy. Parent scopes always outlive their children, so you can safely use parent resources in child scopes:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+final class Connection extends AutoCloseable {
+  def close(): Unit = println("connection closed")
+}
+
+Scope.global.scoped { outerScope =>
+  import outerScope._
+
+  val db = allocate(new Database)
+
+  // Child scope for connection
+  outerScope.scoped { innerScope =>
+    import innerScope._
+
+    val conn = allocate(new Connection)
+    // Use conn and db here
+    // conn closes first (LIFO)
+  }
+
+  // Can still use db here
+  // db closes when outerScope exits
+}
+```
+
+### Explicit Scopes with `Scope#open`
+
+Use `Scope#open()` when the resource lifetime is not lexically bounded. Open scopes are unowned (usable from any thread), which makes them suitable for patterns like connection pools, resource caches, and DI containers where resources must outlive the function that creates them. This pattern gives you full control over resource acquisition and release timing.
+
+The trade-off is that you accept full responsibility for cleanup: forgetting to call `close()` leaves resources open, and any exception during cleanup must be explicitly handled. Here's the key pattern—returning an `OpenScope` handle from a function:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -718,79 +756,6 @@ try {
   handle.close().orThrow()
 }
 ```
-
-For construction and finalization details, see [Scope#open](#scopeopen--create-an-unowned-child-scope).
-
-**Advantages:**
-- **Manual lifetime control:** You decide when to close and finalize resources
-- **Non-lexical lifetimes:** Resources can outlive the function that created them
-- **Shareable across threads:** Open scopes are unowned (usable from any thread)
-- **Flexible patterns:** Enables resource pools, lazy initialization, and streaming
-
-**Disadvantages:**
-- Manual responsibility for cleanup (easy to forget `close()`)
-- Exceptions during cleanup won't prevent the program from continuing (you must call `orThrow()`)
-- Thread-safety is the caller's responsibility
-
-**Real-world use cases:**
-- Database connection pools (acquire once, release on app shutdown)
-- Resource caches or lazy initialization patterns
-- Streaming pipelines with external lifetime management
-- Testing frameworks that need custom setup/teardown hooks
-- Service factories that return resources to be managed by a DI container
-
-### Decision Tree
-
-Ask yourself these questions:
-
-1. **Can I write the code that closes the resource in the same scope/block where I open it?**
-   - Yes → Use `scoped { }`
-   - No → Use `open()`
-
-2. **Do all callers need thread-safe resource isolation?**
-   - Yes (most user code) → Use `scoped { }`
-   - No (shared caches, pools) → Use `open()`
-
-3. **Do I need to return the resource or pass it between functions?**
-   - No → Use `scoped { }`
-   - Yes → Use `open()` with an `OpenScope` handle
-
-### Nesting and Hierarchies
-
-When resources depend on each other, nest `scoped` blocks to express the hierarchy:
-
-```scala mdoc:compile-only
-import zio.blocks.scope._
-
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-final class Connection extends AutoCloseable {
-  def close(): Unit = println("connection closed")
-}
-
-Scope.global.scoped { outerScope =>
-  import outerScope.*
-
-  val db = allocate(Resource.fromAutoCloseable(new Database))
-
-  // Child scope for connection
-  outerScope.scoped { innerScope =>
-    import innerScope.*
-
-    val conn = allocate(Resource.fromAutoCloseable(new Connection))
-    // Use conn and db here
-    // conn closes first (LIFO)
-  }
-
-  // Can still use db here
-  // db closes when outerScope exits
-}
-```
-
-The parent scope always outlives its children, so you can safely use parent resources in child scopes via `lower`.
 
 ## Dependency Injection
 
@@ -906,7 +871,7 @@ Keep resource construction and allocation separate for reusability and clarity.
 
 **3. Hierarchy — nest scopes to express resource dependencies**
 
-Nest `scoped` blocks to express resource dependencies, as shown in [Nesting and Hierarchies](#nesting-and-hierarchies).
+Nest `scoped` blocks to express resource dependencies, as shown in [Nesting for hierarchical resources](#nesting-for-hierarchical-resources).
 
 **4. Control flow — use `$` operator correctly**
 
