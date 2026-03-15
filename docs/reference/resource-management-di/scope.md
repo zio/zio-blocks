@@ -194,6 +194,8 @@ Scope.global.scoped { scope =>
 
 ## Construction / Creating Instances
 
+Scopes can be created in two ways: as lexical child scopes with `scoped { }`, which are tied to a specific code block, or as unowned scopes with `open()`, which can be managed across thread and time boundaries.
+
 ### `Scope.global` — The Root Scope
 
 `Scope.global` is the predefined root scope instance. It exists for the lifetime of your application and is the entry point for all scope-based resource management.
@@ -280,6 +282,8 @@ try {
 ```
 
 ## Core Operations
+
+The primary operations on `Scope` allow you to allocate resources, access scoped values safely, manage parent-child relationships, and register finalizers.
 
 ### `Scope#allocate` — Acquire a Resource
 
