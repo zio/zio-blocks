@@ -50,6 +50,30 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[CamelCaseFields] = Schema.derived
   }
 
+  enum Color {
+    case Red, Green, Blue
+  }
+  object Color {
+    implicit val schema: Schema[Color] = Schema.derived
+  }
+
+  enum Status {
+    case Active, Inactive, Pending
+  }
+  object Status {
+    implicit val schema: Schema[Status] = Schema.derived
+  }
+
+  case class WithEnum(id: Int, color: Color)
+  object WithEnum {
+    implicit val schema: Schema[WithEnum] = Schema.derived
+  }
+
+  case class WithOptionalEnum(id: Int, status: Option[Status])
+  object WithOptionalEnum {
+    implicit val schema: Schema[WithOptionalEnum] = Schema.derived
+  }
+
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
     s.deriving(DbCodecDeriver).derive
 
@@ -169,6 +193,59 @@ object DbCodecSpec extends ZIOSpecDefault {
         val values = codec.toDbValues(WithOption(1, None))
         assertTrue(
           values == IndexedSeq(DbValue.DbInt(1), DbValue.DbNull)
+        )
+      }
+    ),
+    suite("enum/sealed trait handling")(
+      test("simple enum produces single String column") {
+        val codec = deriveCodec[Color]
+        assertTrue(
+          codec.columns == IndexedSeq("value"),
+          codec.columnCount == 1
+        )
+      },
+      test("enum toDbValues produces variant name as DbString") {
+        val codec = deriveCodec[Color]
+        assertTrue(
+          codec.toDbValues(Color.Red) == IndexedSeq(DbValue.DbString("Red")),
+          codec.toDbValues(Color.Green) == IndexedSeq(DbValue.DbString("Green")),
+          codec.toDbValues(Color.Blue) == IndexedSeq(DbValue.DbString("Blue"))
+        )
+      },
+      test("enum in record uses snake_case column name") {
+        val codec = deriveCodec[WithEnum]
+        assertTrue(
+          codec.columns == IndexedSeq("id", "color"),
+          codec.columnCount == 2
+        )
+      },
+      test("enum in record toDbValues") {
+        val codec  = deriveCodec[WithEnum]
+        val values = codec.toDbValues(WithEnum(1, Color.Blue))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Blue"))
+        )
+      },
+      test("optional enum with Some produces string value") {
+        val codec  = deriveCodec[WithOptionalEnum]
+        val values = codec.toDbValues(WithOptionalEnum(1, Some(Status.Active)))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Active"))
+        )
+      },
+      test("optional enum with None produces DbNull") {
+        val codec  = deriveCodec[WithOptionalEnum]
+        val values = codec.toDbValues(WithOptionalEnum(1, None))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbNull)
+        )
+      },
+      test("all enum variants round-trip via toDbValues") {
+        val codec = deriveCodec[Status]
+        assertTrue(
+          codec.toDbValues(Status.Active) == IndexedSeq(DbValue.DbString("Active")),
+          codec.toDbValues(Status.Inactive) == IndexedSeq(DbValue.DbString("Inactive")),
+          codec.toDbValues(Status.Pending) == IndexedSeq(DbValue.DbString("Pending"))
         )
       }
     ),
