@@ -22,7 +22,7 @@ import scala.reflect.macros.whitebox
 trait MigrationBuilderVersionSpecific[A, B] {
   self: MigrationBuilder[A, B] =>
 
-  def addField(target: B => Any, default: SchemaExpr[DynamicValue, ?]): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
+  def addField(target: B => Any, default: SchemaExpr[DynamicValue, Any]): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
 
   def dropField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
@@ -52,8 +52,8 @@ object MigrationBuilderMacros {
   private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
     import c.universe._
     tree match {
-      case q"($_.name) => $_.$field" => field.decodedName.toString
-      case q"($_: $_) => $_.$field" => field.decodedName.toString
+      case Function(_, Select(_, field)) => field.decodedName.toString
+      case Function(_, Block(_, Select(_, field))) => field.decodedName.toString
       case _ => c.abort(c.enclosingPosition, s"Could not extract field name from selector: $tree")
     }
   }
