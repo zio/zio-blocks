@@ -55,7 +55,8 @@ object MigrationBuilderMacros {
   private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
     import c.universe._
 
-    def unblock(t: Tree): Tree = t match {
+    def unblock(t: Tree): Tree =
+    t match {
       case Block(Nil, expr) => unblock(expr)
       case _ => t
     }
