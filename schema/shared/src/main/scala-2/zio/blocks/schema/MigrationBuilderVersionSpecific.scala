@@ -56,15 +56,15 @@ object MigrationBuilderMacros {
     import c.universe._
 
     def unblock(t: Tree): Tree =
-    t match {
-      case Block(Nil, expr) => unblock(expr)
-      case _ => t
-    }
+      t match {
+        case Block(Nil, expr) => unblock(expr)
+        case _                => t
+      }
 
     unblock(tree) match {
-      case Function(_, Select(_, field)) => field.decodedName.toString
+      case Function(_, Select(_, field))           => field.decodedName.toString
       case Function(_, Block(_, Select(_, field))) => field.decodedName.toString
-      case _ => c.abort(c.enclosingPosition, s"Could not extract field name from selector: $tree")
+      case _                                       => c.abort(c.enclosingPosition, s"Could not extract field name from selector: $tree")
     }
   }
 }
