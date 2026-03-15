@@ -889,7 +889,7 @@ $(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
 
 ### Best Practices: Organizing Your Code
 
-**1. Entry point pattern — use `Scope.global.scoped` at the top level**
+#### Entry point pattern — use `Scope.global.scoped` at the top level
 
 Wrap your entire application's resource acquisition in a single lexical scope:
 
@@ -909,7 +909,7 @@ object MyApp {
 
 This is your "outer boundary" for resource safety. Everything inside is protected.
 
-**2. Composition — use `Resource` builders before allocation**
+#### Composition — use `Resource` builders before allocation
 
 Build your acquisition/release logic first using `Resource` combinators, then allocate in the scope. This separates resource *construction* (how to acquire/release) from *usage* (when to use), making your code more testable and reusable.
 
@@ -937,11 +937,11 @@ All resources composed via these methods are acquired together when you call `al
 - **Clarity:** Your scoped block focuses on usage, not resource setup
 - **Deterministic cleanup:** Resources clean up in LIFO order (last acquired, first released)
 
-**3. Hierarchy — nest scopes to express resource dependencies**
+#### Hierarchy — nest scopes to express resource dependencies
 
 Nest `scoped` blocks to express resource dependencies, as shown in [Nesting for hierarchical resources](#nesting-for-hierarchical-resources).
 
-**4. Control flow — use `$` operator correctly**
+#### Control flow — use `$` operator correctly
 
 The `$` operator is not a traditional function call. Use block syntax. For comprehensive examples of single and multiple scoped value access, see the [`$` operator documentation](#--access-a-scoped-value) in Core Operations.
 
