@@ -144,8 +144,12 @@ object MigrationMacros {
             symName == "AddField" || symName == "addField" || funStr.contains("AddField") || tpeName == "AddField"
           val isDrop =
             symName == "DropField" || symName == "dropField" || funStr.contains("DropField") || tpeName == "DropField"
+          // Exclude renameCase / RenameCase — those rename enum case labels, not record field names.
+          val isCaseOp = symName.contains("Case") || funStr.contains("renameCase") || funStr.contains("RenameCase") ||
+            funStr.contains("transformCase") || funStr.contains("TransformCase")
           val isRename =
-            symName == "Rename" || symName == "renameField" || funStr.contains("Rename") || tpeName == "Rename"
+            !isCaseOp &&
+              (symName == "Rename" || symName == "renameField" || funStr.contains("Rename") || tpeName == "Rename")
 
           if (isAdd && args.nonEmpty) {
             extractField(args.head).foreach(f => operations = operations :+ Add(f))
@@ -158,7 +162,10 @@ object MigrationMacros {
               case (Some(f), Some(t)) if f != t => operations = operations :+ Ren(f, t)
               case _                            =>
             }
-          } else if (args.length >= 2 && (funStr.contains("ename") || funStr.contains("Rename")) && !isAdd && !isDrop) {
+          } else if (
+            !isCaseOp && args.length >= 2 && (funStr
+              .contains("ename") || funStr.contains("Rename")) && !isAdd && !isDrop
+          ) {
             val fromName = extractField(args(0))
             val toName   = extractField(args(1))
             (fromName, toName) match {
