@@ -429,7 +429,7 @@ trait Finalizer {
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
-import java.nio.file.*
+import java.nio.file._
 
 // A logger that needs manual cleanup but doesn't implement AutoCloseable
 class Logger {
@@ -586,7 +586,7 @@ Thread-owned scopes cannot be used to create child scopes from a different threa
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
-import java.util.concurrent.*
+import java.util.concurrent._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
@@ -629,7 +629,7 @@ Open scopes are unowned and usable from any thread:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
-import java.util.concurrent.*
+import java.util.concurrent._
 
 final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
