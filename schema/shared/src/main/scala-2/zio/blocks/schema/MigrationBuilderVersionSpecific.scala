@@ -34,14 +34,14 @@ object MigrationBuilderMacros {
     import c.universe._
     val _ = (tagA, tagB)
     val fieldName = extractFieldName(c)(target)
-    q"new MigrationBuilder($ {c.prefix}.sourceSchema, $ {c.prefix}.targetSchema, $ {c.prefix}.actions :+ MigrationAction.AddField(DynamicOptic.root.field($fieldName), $default))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.AddField(DynamicOptic.root.field($fieldName), $default))"
   }
 
   def dropFieldImpl[A, B](c: whitebox.Context)(source: c.Tree)(implicit tagA: c.WeakTypeTag[A], tagB: c.WeakTypeTag[B]): c.Tree = {
     import c.universe._
     val _ = (tagA, tagB)
     val fieldName = extractFieldName(c)(source)
-    q"new MigrationBuilder($ {c.prefix}.sourceSchema, $ {c.prefix}.targetSchema, $ {c.prefix}.actions :+ MigrationAction.DropField(DynamicOptic.root.field($fieldName), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic)))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.DropField(DynamicOptic.root.field($fieldName), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic)))"
   }
 
   def renameFieldImpl[A, B](c: whitebox.Context)(from: c.Tree, to: c.Tree)(implicit tagA: c.WeakTypeTag[A], tagB: c.WeakTypeTag[B]): c.Tree = {
@@ -49,7 +49,7 @@ object MigrationBuilderMacros {
     val _ = (tagA, tagB)
     val fromName = extractFieldName(c)(from)
     val toName = extractFieldName(c)(to)
-    q"new MigrationBuilder($ {c.prefix}.sourceSchema, $ {c.prefix}.targetSchema, $ {c.prefix}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field($fromName), $toName))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field($fromName), $toName))"
   }
 
   private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
