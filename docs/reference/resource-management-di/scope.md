@@ -668,23 +668,25 @@ The key difference: `scoped { }` creates **owned** scopes (tied to the entering 
 
 A `scoped { }` block can only return values that have an `Unscoped` instance—that is, pure data types with no embedded resources or cleanup logic. This restriction prevents resource leaks: you cannot accidentally return a resource that would be cleaned up before you could use it.
 
-For built-in types like `String`, `Int`, or `List[String]`, `Unscoped` instances exist automatically. To return instances of your custom data types, you must provide an `Unscoped` instance:
+For built-in types like `String`, `Int`, or `List[String]`, `Unscoped` instances exist automatically. However, when your custom type contains a field whose type has no predefined `Unscoped` instance (such as `java.util.Date`, a legacy Java type that is pure data but not automatically recognized), automatic derivation won't work. In such cases, you must provide an `Unscoped` instance explicitly, asserting that your type holds only pure data:
 
 ```scala mdoc:compile-only
+import java.util.Date
 import zio.blocks.scope._
 import zio.blocks.scope.Unscoped
 
-case class QueryResult(rows: List[String], count: Int)
+// java.util.Date has no predefined Unscoped instance, so Unscoped.derived
+// won't work here — we must provide the instance explicitly
+case class QueryResult(rows: List[String], count: Int, executedAt: Date)
 
 object QueryResult {
   implicit val unscoped: Unscoped[QueryResult] = new Unscoped[QueryResult] {}
 }
 
-// Now QueryResult can be returned from scoped blocks
 Scope.global.scoped { scope =>
   import scope._
   // ... acquire database ...
-  QueryResult(List("a", "b"), 2)  // Returns safely
+  QueryResult(List("a", "b"), 2, new Date())  // Returns safely
 }
 ```
 
