@@ -42,7 +42,7 @@ Scope addresses these with a *tight* design. Each design choice solves a specifi
 
 2. **Zero runtime overhead** — Scoped values erase to the underlying type `A` at runtime (via casts). There's no boxing, no extra objects, no GC pressure. The compile-time safety is "free."
 
-3. **Eager allocation** — Resources are acquired immediately when you call `Scope#allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
+3. **Eager allocation** — Resources are acquired immediately when you call `allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
 
 4. **Deterministic, LIFO finalization** — Finalizers are guaranteed to run in reverse order of allocation when a scope closes. If acquisition order implies dependencies (common in resource hierarchies), cleanup order is automatically correct. Exceptions in finalizers are collected rather than stopping cleanup.
 
@@ -116,7 +116,7 @@ Scope.global.scoped { scope1 =>
 }
 ```
 
-To safely use a parent scope's resource in a child scope, use `Scope#lower`:
+To safely use a parent scope's resource in a child scope, use `lower`:
 
 ```scala
 Scope.global.scoped { outer =>
@@ -193,8 +193,6 @@ Scope.global.scoped { scope =>
 ```
 
 ## Construction / Creating Instances
-
-Scopes can be created in two ways: as lexical child scopes with `scoped { }`, which are tied to a specific code block, or as unowned scopes with `open()`, which can be managed across thread and time boundaries.
 
 ### `Scope.global` — The Root Scope
 
@@ -282,8 +280,6 @@ try {
 ```
 
 ## Core Operations
-
-The primary operations on `Scope` allow you to allocate resources, access scoped values safely, manage parent-child relationships, and register finalizers.
 
 ### `Scope#allocate` — Acquire a Resource
 
@@ -588,7 +584,7 @@ Scope.global.scoped { scope =>
 
 Thread-owned scopes cannot be used to create child scopes from a different thread:
 
-```scala mdoc:silent:reset
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 import java.util.concurrent.*
 
@@ -596,11 +592,7 @@ final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
-```
 
-Attempting to call `scope.scoped { }` from a different thread throws an error:
-
-```scala mdoc:compile-only
 val executor = Executors.newFixedThreadPool(1)
 
 try {
@@ -626,7 +618,7 @@ try {
   executor.shutdown()
 }
 
-// Output:
+// Example Output:
 // Error: Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
 // db closed
 ```
@@ -635,7 +627,7 @@ try {
 
 Open scopes are unowned and usable from any thread:
 
-```scala mdoc:silent:reset
+```scala mdoc:compile-only
 import zio.blocks.scope.*
 import java.util.concurrent.*
 
@@ -643,11 +635,7 @@ final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
-```
 
-Calling `scope.scoped { }` from a worker thread succeeds with an unowned scope:
-
-```scala mdoc:compile-only
 val executor = Executors.newFixedThreadPool(1)
 
 try {
@@ -684,7 +672,7 @@ The Scope API provides two primary patterns for managing resource lifetimes. Cho
 
 Use `Scope#scoped` when **the resource lifetime is lexically bounded**—that is, you can write the code that acquires and releases the resource in the same expression.
 
-The Quickstart section earlier shows a complete example of this pattern. For details on different allocation approaches (with `Resource.fromAutoCloseable()` or directly with `AutoCloseable`), see [Core Operations — allocate](#scope-allocate--acquire-a-resource).
+The Quickstart section earlier shows a complete example of this pattern. For details on different allocation approaches (with `Resource.fromAutoCloseable()` or directly with `AutoCloseable`), see [Core Operations — allocate](#scopeallocate--acquire-a-resource).
 
 **Advantages:**
 - **Automatic cleanup:** Finalizers run when the block exits, even on exception
@@ -814,7 +802,7 @@ The following runtime errors occur when scope rules are violated:
 
 ### `IllegalStateException` — allocate on closed scope
 
-**When:** You call `Scope#allocate`, `Scope#open`, or `Scope#$` on a scope that has already closed.
+**When:** You call `allocate`, `open`, or `$` on a scope that has already closed.
 
 **Message:** "Cannot acquire resource: scope has already been closed. ..."
 
@@ -1023,7 +1011,7 @@ Key integration points:
 
 ### Wire + Resource.from
 
-For dependency injection patterns, Scope works naturally with [`Wire`](./wire.md) and [`Resource.from`](./resource.md) to build layered service architectures. Allocate resources in a parent scope, then use `Scope#lower` to pass them to child scopes as needed.
+For dependency injection patterns, Scope works naturally with [`Wire`](./wire.md) and [`Resource.from`](./resource.md) to build layered service architectures. Allocate resources in a parent scope, then use `lower` to pass them to child scopes as needed.
 
 ## Running the Examples
 
