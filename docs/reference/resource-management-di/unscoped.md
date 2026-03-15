@@ -74,62 +74,26 @@ Only add `Unscoped` instances for pure data types that don't hold resources. Res
 
 ## Predefined Instances
 
-The following types have built-in `Unscoped` instances:
+All built-in instances follow a simple principle: **if a type cannot hold resources, it gets an `Unscoped` instance**. Collections inherit this property from their elements — `List[Int]` is unscoped because `Int` is unscoped.
 
-### Primitives
-
+**Primitive and atomic values** (cannot hold resources by nature):
 - `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`, `Double`, `Unit`
+- `String`, `BigInt`, `BigDecimal`
+- `java.util.UUID`
 
-### Text
+**Collections with conditional instances** (safe when elements/entries are unscoped):
+- Sequences: `Array[A]`, `List[A]`, `Vector[A]`, `Seq[A]`, `IndexedSeq[A]`, `Iterable[A]`
+- Sets: `Set[A]`
+- Maps: `Map[K, V]` (when both `K` and `V` are unscoped)
+- Wrappers: `Option[A]`, `Either[A, B]`, `Tuple2[A, B]` through `Tuple4[A, B, C, D]`
+- ZIO types: `zio.blocks.chunk.Chunk[A]`
 
-- `String`
-
-### Numeric
-
-- `BigInt`, `BigDecimal`
-
-### Collections
-
-- `Array[A]` (when `A: Unscoped`)
-- `List[A]` (when `A: Unscoped`)
-- `Vector[A]` (when `A: Unscoped`)
-- `Set[A]` (when `A: Unscoped`)
-- `Seq[A]` (when `A: Unscoped`)
-- `IndexedSeq[A]` (when `A: Unscoped`)
-- `Iterable[A]` (when `A: Unscoped`)
-- `Map[K, V]` (when `K: Unscoped` and `V: Unscoped`)
-
-### Containers
-
-- `Option[A]` (when `A: Unscoped`)
-- `Either[A, B]` (when `A: Unscoped` and `B: Unscoped`)
-
-### Tuples
-
-- 2-tuples through 4-tuples (when all elements are `Unscoped`)
-
-### Time Types
-
-- `java.time.Instant`
-- `java.time.LocalDate`, `LocalTime`, `LocalDateTime`
-- `java.time.ZonedDateTime`, `OffsetDateTime`
+**Standard library time types** (immutable, cannot hold resources):
+- `java.time.Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `ZonedDateTime`, `OffsetDateTime`
 - `java.time.Duration`, `Period`, `ZoneId`, `ZoneOffset`
 - `scala.concurrent.duration.Duration`, `FiniteDuration`
 
-### Other Types
-
-- `java.util.UUID`
-- `zio.blocks.chunk.Chunk[A]` (when `A: Unscoped`)
-
-### Low-Priority Instances
-
-The `Nothing` type always has an `Unscoped` instance (at low priority) since it's the bottom type:
-
-```scala
-implicit val given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
-```
-
-This is rarely used in practice but ensures there are no type errors for impossible cases.
+All other types (resources, handles, connections) must be manually defined if needed.
 
 
 ## Thread Safety
