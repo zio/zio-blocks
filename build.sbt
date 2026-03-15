@@ -382,15 +382,26 @@ lazy val otel = project
   .settings(buildInfoSettings("zio.blocks.otel"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
+    Compile / unmanagedSourceDirectories ++= {
+      val base = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq(base / "scala-2")
+        case Some((3, _)) => Seq(base / "scala-3")
+        case _            => Seq.empty
+      }
+    },
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
-    ),
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
     coverageMinimumStmtTotal   := 80,
     coverageMinimumBranchTotal := 70,
     coverageExcludedFiles      := Seq(
-      ".*OtelExample.*",
-      ".*OtelSdk.*",
       ".*PlatformExecutor.*",
       ".*BuildInfo.*"
     ).mkString(";"),

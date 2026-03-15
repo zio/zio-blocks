@@ -40,8 +40,10 @@ object BatchProcessorSpec extends ZIOSpecDefault {
 
   def spec: Spec[Any, Nothing] = suite("BatchProcessor")(
     test("enqueue items and forceFlush delivers them to exportFn") {
+      val pe                   = PlatformExecutor.create()
       val (exportFn, captured) = collectingExporter[String]()
-      val processor            = new BatchProcessor[String](exportFn, flushIntervalMillis = 600000L)
+      val processor            =
+        new BatchProcessor[String](exportFn, executor = pe.executor, flushIntervalMillis = 600000L)
       try {
         processor.enqueue("a")
         processor.enqueue("b")
@@ -49,11 +51,16 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         processor.forceFlush()
         val batches = captured.get()
         assertTrue(batches.flatten.toSet == Set("a", "b", "c"))
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("exports in batches of maxBatchSize when more items than maxBatchSize") {
+      val pe                   = PlatformExecutor.create()
       val (exportFn, captured) = collectingExporter[Int]()
-      val processor            = new BatchProcessor[Int](exportFn, maxBatchSize = 3, flushIntervalMillis = 600000L)
+      val processor            =
+        new BatchProcessor[Int](exportFn, executor = pe.executor, maxBatchSize = 3, flushIntervalMillis = 600000L)
       try {
         (1 to 7).foreach(processor.enqueue)
         processor.forceFlush()
@@ -63,20 +70,34 @@ object BatchProcessorSpec extends ZIOSpecDefault {
             batches.forall(_.size <= 3) &&
             batches.flatten.toSet == (1 to 7).toSet
         )
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("drops oldest items when queue exceeds maxQueueSize") {
+      val pe                   = PlatformExecutor.create()
       val (exportFn, captured) = collectingExporter[Int]()
       val processor            =
-        new BatchProcessor[Int](exportFn, maxQueueSize = 5, maxBatchSize = 100, flushIntervalMillis = 600000L)
+        new BatchProcessor[Int](
+          exportFn,
+          executor = pe.executor,
+          maxQueueSize = 5,
+          maxBatchSize = 100,
+          flushIntervalMillis = 600000L
+        )
       try {
         (1 to 10).foreach(processor.enqueue)
         processor.forceFlush()
         val items = captured.get().flatten
         assertTrue(items.size <= 5)
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("retries on retryable failure up to maxRetries") {
+      val pe                                    = PlatformExecutor.create()
       val attempts                              = new AtomicInteger(0)
       val exportFn: Seq[String] => ExportResult = { _ =>
         val n = attempts.incrementAndGet()
@@ -84,50 +105,78 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         else ExportResult.Success
       }
       val processor =
-        new BatchProcessor[String](exportFn, maxRetries = 5, flushIntervalMillis = 600000L, retryBaseMillis = 1L)
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 5,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 1L
+        )
       try {
         processor.enqueue("x")
         processor.forceFlush()
         assertTrue(attempts.get() == 3)
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("drops batch on non-retryable failure without retry") {
+      val pe                                    = PlatformExecutor.create()
       val attempts                              = new AtomicInteger(0)
       val exportFn: Seq[String] => ExportResult = { _ =>
         attempts.incrementAndGet()
         ExportResult.Failure(retryable = false, message = "fatal")
       }
-      val processor = new BatchProcessor[String](exportFn, flushIntervalMillis = 600000L)
+      val processor =
+        new BatchProcessor[String](exportFn, executor = pe.executor, flushIntervalMillis = 600000L)
       try {
         processor.enqueue("x")
         processor.forceFlush()
         assertTrue(attempts.get() == 1)
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("drops batch after max retries exceeded") {
+      val pe                                    = PlatformExecutor.create()
       val attempts                              = new AtomicInteger(0)
       val exportFn: Seq[String] => ExportResult = { _ =>
         attempts.incrementAndGet()
         ExportResult.Failure(retryable = true, message = "always fails")
       }
       val processor =
-        new BatchProcessor[String](exportFn, maxRetries = 3, flushIntervalMillis = 600000L, retryBaseMillis = 1L)
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 3,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 1L
+        )
       try {
         processor.enqueue("x")
         processor.forceFlush()
         assertTrue(attempts.get() == 4) // 1 initial + 3 retries
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     },
     test("shutdown flushes remaining items") {
+      val pe                   = PlatformExecutor.create()
       val (exportFn, captured) = collectingExporter[String]()
-      val processor            = new BatchProcessor[String](exportFn, flushIntervalMillis = 600000L)
+      val processor            =
+        new BatchProcessor[String](exportFn, executor = pe.executor, flushIntervalMillis = 600000L)
       processor.enqueue("a")
       processor.enqueue("b")
       processor.shutdown()
+      pe.shutdown()
       val items = captured.get().flatten
       assertTrue(items.toSet == Set("a", "b"))
     },
     test("background flush triggers periodically") {
+      val pe                                           = PlatformExecutor.create()
       val latch                                        = new CountDownLatch(1)
       val (exportFn, captured)                         = collectingExporter[String]()
       val wrappedExportFn: Seq[String] => ExportResult = { batch =>
@@ -135,13 +184,17 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         latch.countDown()
         result
       }
-      val processor = new BatchProcessor[String](wrappedExportFn, flushIntervalMillis = 50L)
+      val processor =
+        new BatchProcessor[String](wrappedExportFn, executor = pe.executor, flushIntervalMillis = 50L)
       try {
         processor.enqueue("auto")
         val flushed = latch.await(2, TimeUnit.SECONDS)
         val items   = captured.get().flatten
         assertTrue(flushed && items.contains("auto"))
-      } finally processor.shutdown()
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
     }
   ) @@ TestAspect.sequential
 }
