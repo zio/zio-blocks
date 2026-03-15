@@ -77,20 +77,7 @@ If any step fails: return to phase 1, fix, get green in phase 2, rerun the faili
 
 ### 4. Format
 
-Run once after verify passes. Use the most targeted alias available:
-
-| Alias | Scope | When to use |
-|---|---|---|
-| `sbt fmtDirty` | Uncommitted files only (`diff-ref=HEAD`) | After editing 1–2 files before a commit |
-| `sbt fmtChanged` | Files changed vs `main` (`diff-ref=main`) | After a multi-commit feature branch |
-| `sbt fmt` | All files | After merges or large-scale refactors |
-
-To verify without rewriting:
-
-| Alias | Scope |
-|---|---|
-| `sbt "++2.13; checkDirty"` | Uncommitted files only |
-| `sbt "++2.13; check"` | All files (CI-style) |
+Run once after verify passes.
 
 ## Cross-Version Code Structure
 
