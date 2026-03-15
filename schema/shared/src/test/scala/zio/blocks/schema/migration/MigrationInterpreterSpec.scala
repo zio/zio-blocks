@@ -425,6 +425,183 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
         val expr    = DynamicSchemaExpr.ConvertPrimitive("Int", "Long")
         val inverse = expr.inverse.asInstanceOf[DynamicSchemaExpr.ConvertPrimitive]
         assertTrue(inverse.fromTypeId == "Long" && inverse.toTypeId == "Int")
+      },
+      test("Byte widens to Short, Int, Long, Float, Double, BigInt, BigDecimal") {
+        def convert(to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Byte(3.toByte))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Byte", to))
+            )
+          ).apply(input)
+        }
+        assertTrue(
+          convert("Short").isRight &&
+            convert("Int").isRight &&
+            convert("Long").isRight &&
+            convert("Float").isRight &&
+            convert("Double").isRight &&
+            convert("BigInt").isRight &&
+            convert("BigDecimal").isRight
+        )
+      },
+      test("Short widens to Int, Long, Float, Double, BigInt, BigDecimal") {
+        def convert(to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Short(10.toShort))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Short", to))
+            )
+          ).apply(input)
+        }
+        assertTrue(
+          convert("Int").isRight &&
+            convert("Long").isRight &&
+            convert("Float").isRight &&
+            convert("Double").isRight &&
+            convert("BigInt").isRight &&
+            convert("BigDecimal").isRight
+        )
+      },
+      test("Int widens to Float, BigInt, BigDecimal") {
+        def convert(to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Int(5))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Int", to))
+            )
+          ).apply(input)
+        }
+        assertTrue(convert("Float").isRight && convert("BigInt").isRight && convert("BigDecimal").isRight)
+      },
+      test("Long widens to Float, Double, BigInt, BigDecimal") {
+        def convert(to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Long(100L))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Long", to))
+            )
+          ).apply(input)
+        }
+        assertTrue(
+          convert("Float").isRight &&
+            convert("Double").isRight &&
+            convert("BigInt").isRight &&
+            convert("BigDecimal").isRight
+        )
+      },
+      test("Float widens to Double and BigDecimal") {
+        def convert(to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Float(1.5f))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Float", to))
+            )
+          ).apply(input)
+        }
+        assertTrue(convert("Double").isRight && convert("BigDecimal").isRight)
+      },
+      test("Double widens to BigDecimal") {
+        val input     = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Double(2.5))))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.ChangeType(
+              DynamicOptic.Field("n", None),
+              DynamicSchemaExpr.ConvertPrimitive("Double", "BigDecimal")
+            )
+          )
+        )
+        assertTrue(migration.apply(input).isRight)
+      },
+      test("BigInt widens to BigDecimal") {
+        val input     = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(42)))))
+        val migration = DynamicMigration(
+          Vector(
+            MigrationAction.ChangeType(
+              DynamicOptic.Field("n", None),
+              DynamicSchemaExpr.ConvertPrimitive("BigInt", "BigDecimal")
+            )
+          )
+        )
+        assertTrue(migration.apply(input).isRight)
+      },
+      test("Char converts to Int and back") {
+        val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Char('A'))))
+        val toInt = DynamicMigration(
+          Vector(
+            MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Char", "Int"))
+          )
+        ).apply(input)
+        assertTrue(toInt == Right(DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Int(65))))))
+        val backToChar = DynamicMigration(
+          Vector(
+            MigrationAction.ChangeType(DynamicOptic.Field("n", None), DynamicSchemaExpr.ConvertPrimitive("Int", "Char"))
+          )
+        ).apply(toInt.toOption.get)
+        assertTrue(
+          backToChar == Right(DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.Char('A')))))
+        )
+      },
+      test("numeric types convert to String") {
+        def toStr(pv: PrimitiveValue, from: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(pv)))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(
+                DynamicOptic.Field("n", None),
+                DynamicSchemaExpr.ConvertPrimitive(from, "String")
+              )
+            )
+          ).apply(input)
+        }
+        assertTrue(
+          toStr(PrimitiveValue.Boolean(true), "Boolean").isRight &&
+            toStr(PrimitiveValue.Byte(1.toByte), "Byte").isRight &&
+            toStr(PrimitiveValue.Short(2.toShort), "Short").isRight &&
+            toStr(PrimitiveValue.Long(3L), "Long").isRight &&
+            toStr(PrimitiveValue.Float(4.0f), "Float").isRight &&
+            toStr(PrimitiveValue.Double(5.0), "Double").isRight &&
+            toStr(PrimitiveValue.Char('Z'), "Char").isRight &&
+            toStr(PrimitiveValue.BigInt(BigInt(6)), "BigInt").isRight &&
+            toStr(PrimitiveValue.BigDecimal(BigDecimal(7)), "BigDecimal").isRight
+        )
+      },
+      test("String parses to Boolean, Byte, Short, Long, Float, Double, BigInt, BigDecimal") {
+        def parse(s: String, to: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.String(s))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(
+                DynamicOptic.Field("n", None),
+                DynamicSchemaExpr.ConvertPrimitive("String", to)
+              )
+            )
+          ).apply(input)
+        }
+        assertTrue(
+          parse("true", "Boolean").isRight &&
+            parse("1", "Byte").isRight &&
+            parse("2", "Short").isRight &&
+            parse("3", "Long").isRight &&
+            parse("4.0", "Float").isRight &&
+            parse("5.0", "Double").isRight &&
+            parse("123456789", "BigInt").isRight &&
+            parse("9.99", "BigDecimal").isRight
+        )
+      },
+      test("String to Char: single char succeeds, multi-char fails") {
+        def parse(s: String) = {
+          val input = DynamicValue.Record(Chunk("n" -> DynamicValue.Primitive(PrimitiveValue.String(s))))
+          DynamicMigration(
+            Vector(
+              MigrationAction.ChangeType(
+                DynamicOptic.Field("n", None),
+                DynamicSchemaExpr.ConvertPrimitive("String", "Char")
+              )
+            )
+          ).apply(input)
+        }
+        assertTrue(parse("X").isRight && parse("too long").isLeft)
       }
     ),
     suite("TransformValue")(
@@ -632,6 +809,85 @@ object MigrationInterpreterSpec extends SchemaBaseSpec {
         val m                        = Migration(DynamicMigration(Vector.empty), sv1, sv2)
         val r                        = m.reverse
         assertTrue(r.sourceSchema == sv2 && r.targetSchema == sv1)
+      }
+    ),
+    suite("MigrationSchemas — serialization round-trips")(
+      test("DynamicOptic variants round-trip through Schema") {
+        import MigrationSchemas._
+        val optics: List[DynamicOptic] = List(
+          DynamicOptic.Field("a", None),
+          DynamicOptic.Field("a", Some(DynamicOptic.Field("b", None))),
+          DynamicOptic.Case("X", None),
+          DynamicOptic.Case("X", Some(DynamicOptic.Field("f", None))),
+          DynamicOptic.Element(None),
+          DynamicOptic.Element(Some(DynamicOptic.Field("g", None))),
+          DynamicOptic.Key(None),
+          DynamicOptic.Value(None)
+        )
+        val results = optics.map { o =>
+          val dv        = dynamicOpticSchema.toDynamicValue(o)
+          val roundTrip = dynamicOpticSchema.fromDynamicValue(dv)
+          roundTrip.map(_ == o)
+        }
+        assertTrue(results.forall(_ == Right(true)))
+      },
+      test("DynamicSchemaExpr variants round-trip through Schema") {
+        import MigrationSchemas._
+        val literal                        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val convert                        = DynamicSchemaExpr.ConvertPrimitive("Int", "Long")
+        val biTransform                    = DynamicSchemaExpr.BiTransform(literal, DynamicSchemaExpr.Fail("no"))
+        val exprs: List[DynamicSchemaExpr] = List(
+          DynamicSchemaExpr.DefaultValue,
+          literal,
+          convert,
+          biTransform,
+          DynamicSchemaExpr.Fail("oops")
+        )
+        val results = exprs.map { e =>
+          val dv = dynamicSchemaExprSchema.toDynamicValue(e)
+          dynamicSchemaExprSchema.fromDynamicValue(dv).map(_ == e)
+        }
+        assertTrue(results.forall(_ == Right(true)))
+      },
+      test("MigrationAction variants round-trip through Schema") {
+        import MigrationSchemas._
+        val optic                          = DynamicOptic.Field("x", None)
+        val default                        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val actions: List[MigrationAction] = List(
+          MigrationAction.AddField(optic, default),
+          MigrationAction.DropField(optic, default),
+          MigrationAction.Rename(optic, "y"),
+          MigrationAction.TransformValue(optic, default),
+          MigrationAction.Mandate(optic, default),
+          MigrationAction.Optionalize(optic),
+          MigrationAction.ChangeType(optic, DynamicSchemaExpr.ConvertPrimitive("Int", "Long")),
+          MigrationAction.RenameCase(optic, "A", "B"),
+          MigrationAction.TransformCase(optic, Vector(MigrationAction.DropField(optic, default))),
+          MigrationAction.TransformElements(optic, default),
+          MigrationAction.TransformKeys(optic, default),
+          MigrationAction.TransformValues(optic, default)
+        )
+        val results = actions.map { a =>
+          val dv = migrationActionSchema.toDynamicValue(a)
+          migrationActionSchema.fromDynamicValue(dv).map(_ == a)
+        }
+        assertTrue(results.forall(_ == Right(true)))
+      },
+      test("DynamicMigration round-trips through Schema") {
+        import MigrationSchemas._
+        val optic = DynamicOptic.Field("name", None)
+        val dm    = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(optic, "fullName"),
+            MigrationAction.AddField(
+              DynamicOptic.Field("active", None),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+            )
+          )
+        )
+        val dv        = dynamicMigrationSchema.toDynamicValue(dm)
+        val roundTrip = dynamicMigrationSchema.fromDynamicValue(dv)
+        assertTrue(roundTrip == Right(dm))
       }
     )
   )
