@@ -824,6 +824,94 @@ Scope.global.scoped { scope =>
 
 For more details on `Wire` sharing strategies, resource composition, and advanced DI patterns, see the [Wire reference](./wire.md) and [Resource reference](./resource.md).
 
+## Best Practices
+
+### Entry point pattern — use `Scope.global.scoped` at the top level
+
+Wrap your entire application's resource acquisition in a single lexical scope:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+object MyApp {
+  def main(args: Array[String]): Unit = {
+    Scope.global.scoped { scope =>
+      import scope._
+      // All resources acquired here
+      // Automatic cleanup when main exits
+    }
+  }
+}
+```
+
+This is your "outer boundary" for resource safety. Everything inside is protected.
+
+### Composition — use `Resource` builders before allocation
+
+Build resource acquisition/release logic outside the scope, then allocate once inside. This separates *construction* (how) from *allocation* (when), making code testable and reusable.
+
+**Key combinators:**
+
+- **`.map(f)`** — Transform a resource's value
+- **`.flatMap(f)`** — Chain resources where the second depends on the first
+- **`.zip(other)`** — Combine two independent resources
+
+**Example: Using `.zip()` to combine independent resources:**
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+final class Cache extends AutoCloseable {
+  def get(key: String): Option[String] = None
+  def close(): Unit = println("cache closed")
+}
+
+// Compose outside scope — reusable across multiple applications
+val dbResource = Resource.fromAutoCloseable(new Database)
+val cacheResource = Resource.fromAutoCloseable(new Cache)
+val appResources = dbResource.zip(cacheResource)
+
+// Allocate once inside scope
+Scope.global.scoped { scope =>
+  import scope._
+  val (db, cache) = allocate(appResources)
+  // Use both — cleanup happens in LIFO order (cache first, then db)
+}
+```
+
+**Example: Using `.flatMap()` for dependent resources:**
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Config(val host: String, val port: Int)
+
+final class Database(val config: Config) extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+// Config resource must be acquired first, then database
+val configResource = Resource(new Config("localhost", 5432))
+val dbResource = configResource.flatMap { cfg =>
+  Resource.fromAutoCloseable(new Database(cfg))
+}
+
+// Allocate the dependent chain
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(dbResource)
+  // db was initialized with config; cleanup happens in reverse order
+}
+```
+
+To learn more about building and composing resources, see the [Resource reference](./resource.md).
+
 ## Runtime Errors
 
 Runtime errors occur when you violate scope rules at runtime—typically by accessing resources after the scope has already cleaned them up, or by mixing scopes across threads.
@@ -947,94 +1035,6 @@ $(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
 ```
 
 **Why this restriction exists:** Scoped values are bound to a specific cleanup phase. Allowing them to escape (via arguments or closures) would let them be used after cleanup, causing crashes or data corruption. By restricting usage to method calls only, the macro ensures the resource never leaves its scope.
-
-## Best Practices
-
-### Entry point pattern — use `Scope.global.scoped` at the top level
-
-Wrap your entire application's resource acquisition in a single lexical scope:
-
-```scala mdoc:compile-only
-import zio.blocks.scope._
-
-object MyApp {
-  def main(args: Array[String]): Unit = {
-    Scope.global.scoped { scope =>
-      import scope._
-      // All resources acquired here
-      // Automatic cleanup when main exits
-    }
-  }
-}
-```
-
-This is your "outer boundary" for resource safety. Everything inside is protected.
-
-### Composition — use `Resource` builders before allocation
-
-Build resource acquisition/release logic outside the scope, then allocate once inside. This separates *construction* (how) from *allocation* (when), making code testable and reusable.
-
-**Key combinators:**
-
-- **`.map(f)`** — Transform a resource's value
-- **`.flatMap(f)`** — Chain resources where the second depends on the first
-- **`.zip(other)`** — Combine two independent resources
-
-**Example: Using `.zip()` to combine independent resources:**
-
-```scala mdoc:compile-only
-import zio.blocks.scope._
-
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-final class Cache extends AutoCloseable {
-  def get(key: String): Option[String] = None
-  def close(): Unit = println("cache closed")
-}
-
-// Compose outside scope — reusable across multiple applications
-val dbResource = Resource.fromAutoCloseable(new Database)
-val cacheResource = Resource.fromAutoCloseable(new Cache)
-val appResources = dbResource.zip(cacheResource)
-
-// Allocate once inside scope
-Scope.global.scoped { scope =>
-  import scope._
-  val (db, cache) = allocate(appResources)
-  // Use both — cleanup happens in LIFO order (cache first, then db)
-}
-```
-
-**Example: Using `.flatMap()` for dependent resources:**
-
-```scala mdoc:compile-only
-import zio.blocks.scope._
-
-final class Config(val host: String, val port: Int)
-
-final class Database(val config: Config) extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
-
-// Config resource must be acquired first, then database
-val configResource = Resource(new Config("localhost", 5432))
-val dbResource = configResource.flatMap { cfg =>
-  Resource.fromAutoCloseable(new Database(cfg))
-}
-
-// Allocate the dependent chain
-Scope.global.scoped { scope =>
-  import scope._
-  val db = allocate(dbResource)
-  // db was initialized with config; cleanup happens in reverse order
-}
-```
-
-To learn more about building and composing resources, see the [Resource reference](./resource.md).
 
 ## Integration
 
