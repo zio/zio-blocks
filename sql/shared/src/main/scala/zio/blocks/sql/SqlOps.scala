@@ -4,62 +4,107 @@ object SqlOps {
 
   def query[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
-    val ps     = con.connection.prepareStatement(sqlStr)
+    val start  = System.nanoTime()
     try {
-      writeParams(ps.paramWriter, frag.queryParams)
-      val rs = ps.executeQuery()
+      val ps = con.connection.prepareStatement(sqlStr)
       try {
-        val reader  = rs.reader
-        val builder = List.newBuilder[A]
-        while (rs.next()) {
-          builder += codec.readValue(reader, 1)
-        }
-        builder.result()
-      } finally rs.close()
-    } finally ps.close()
+        writeParams(ps.paramWriter, frag.queryParams)
+        val rs = ps.executeQuery()
+        try {
+          val reader  = rs.reader
+          val builder = List.newBuilder[A]
+          var count   = 0
+          while (rs.next()) {
+            builder += codec.readValue(reader, 1)
+            count += 1
+          }
+          val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+          con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+          builder.result()
+        } finally rs.close()
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+        throw e
+    }
   }
 
   def queryLimit[A](frag: Frag, limit: Int)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
-    val ps     = con.connection.prepareStatement(sqlStr)
+    val start  = System.nanoTime()
     try {
-      writeParams(ps.paramWriter, frag.queryParams)
-      val rs = ps.executeQuery()
+      val ps = con.connection.prepareStatement(sqlStr)
       try {
-        val reader  = rs.reader
-        val builder = List.newBuilder[A]
-        var count   = 0
-        while (count < limit && rs.next()) {
-          builder += codec.readValue(reader, 1)
-          count += 1
-        }
-        builder.result()
-      } finally rs.close()
-    } finally ps.close()
+        writeParams(ps.paramWriter, frag.queryParams)
+        val rs = ps.executeQuery()
+        try {
+          val reader  = rs.reader
+          val builder = List.newBuilder[A]
+          var count   = 0
+          while (count < limit && rs.next()) {
+            builder += codec.readValue(reader, 1)
+            count += 1
+          }
+          val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+          con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+          builder.result()
+        } finally rs.close()
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+        throw e
+    }
   }
 
   def queryOne[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): Option[A] = {
     val sqlStr = frag.sql(con.dialect)
-    val ps     = con.connection.prepareStatement(sqlStr)
+    val start  = System.nanoTime()
     try {
-      writeParams(ps.paramWriter, frag.queryParams)
-      val rs = ps.executeQuery()
+      val ps = con.connection.prepareStatement(sqlStr)
       try {
-        if (rs.next()) Some(codec.readValue(rs.reader, 1)) else None
-      } finally rs.close()
-    } finally ps.close()
+        writeParams(ps.paramWriter, frag.queryParams)
+        val rs = ps.executeQuery()
+        try {
+          val result   = if (rs.next()) Some(codec.readValue(rs.reader, 1)) else None
+          val count    = if (result.isDefined) 1 else 0
+          val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+          con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+          result
+        } finally rs.close()
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+        throw e
+    }
   }
 
   def update(frag: Frag)(using con: DbCon): Int = {
     val sqlStr = frag.sql(con.dialect)
-    val ps     = con.connection.prepareStatement(sqlStr)
+    val start  = System.nanoTime()
     try {
-      writeParams(ps.paramWriter, frag.queryParams)
-      ps.executeUpdate()
-    } finally ps.close()
+      val ps = con.connection.prepareStatement(sqlStr)
+      try {
+        writeParams(ps.paramWriter, frag.queryParams)
+        val count    = ps.executeUpdate()
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+        count
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+        throw e
+    }
   }
 
-  private def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue]): Unit = {
+  private[sql] def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue]): Unit = {
     var i = 0
     while (i < params.length) {
       val idx = i + 1

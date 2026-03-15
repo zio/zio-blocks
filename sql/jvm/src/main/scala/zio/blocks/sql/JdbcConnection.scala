@@ -30,6 +30,10 @@ class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends 
   def close(): Unit = underlying.close()
 
   def paramWriter: DbParamWriter = new JdbcParamWriter(underlying)
+
+  def addBatch(): Unit = underlying.addBatch()
+
+  def executeBatch(): Array[Int] = underlying.executeBatch()
 }
 
 class JdbcResultSet(val underlying: java.sql.ResultSet) extends DbResultSet {

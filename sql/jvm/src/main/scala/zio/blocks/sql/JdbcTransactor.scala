@@ -2,7 +2,11 @@ package zio.blocks.sql
 
 import java.sql.{Connection, DriverManager}
 
-class JdbcTransactor(connectionFactory: () => Connection, val dialect: SqlDialect) extends Transactor {
+class JdbcTransactor(
+  connectionFactory: () => Connection,
+  val dialect: SqlDialect,
+  val sqlLogger: SqlLogger = SqlLogger.noop
+) extends Transactor {
 
   def connect[A](f: DbCon ?=> A): A = {
     val conn   = connectionFactory()
@@ -11,6 +15,7 @@ class JdbcTransactor(connectionFactory: () => Connection, val dialect: SqlDialec
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
+        val logger: SqlLogger        = JdbcTransactor.this.sqlLogger
       }
       f
     } finally {
@@ -27,6 +32,7 @@ class JdbcTransactor(connectionFactory: () => Connection, val dialect: SqlDialec
       given tx: DbTx = new DbTx {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
+        val logger: SqlLogger        = JdbcTransactor.this.sqlLogger
       }
       val result = f
       conn.commit()

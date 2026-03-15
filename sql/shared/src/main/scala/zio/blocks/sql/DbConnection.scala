@@ -15,6 +15,8 @@ trait DbPreparedStatement extends AutoCloseable {
   def executeUpdate(): Int
   def close(): Unit
   def paramWriter: DbParamWriter
+  def addBatch(): Unit
+  def executeBatch(): Array[Int]
 }
 
 trait DbResultSet extends AutoCloseable {

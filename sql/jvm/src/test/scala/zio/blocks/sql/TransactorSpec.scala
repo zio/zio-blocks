@@ -52,6 +52,7 @@ object TransactorSpec extends ZIOSpecDefault {
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
         }
         f
       }
@@ -63,6 +64,7 @@ object TransactorSpec extends ZIOSpecDefault {
           given tx: DbTx = new DbTx {
             val connection: DbConnection = dbConn
             val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
           }
           val result = f
           conn.commit()
