@@ -42,7 +42,7 @@ Scope addresses these with a *tight* design. Each design choice solves a specifi
 
 2. **Zero runtime overhead** — Scoped values erase to the underlying type `A` at runtime (via casts). There's no boxing, no extra objects, no GC pressure. The compile-time safety is "free."
 
-3. **Eager allocation** — Resources are acquired immediately when you call `allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
+3. **Eager allocation** — Resources are acquired immediately when you call `Scope#allocate`, not deferred to some later point. This makes lifetimes predictable and your code matches your mental model.
 
 4. **Deterministic, LIFO finalization** — Finalizers are guaranteed to run in reverse order of allocation when a scope closes. If acquisition order implies dependencies (common in resource hierarchies), cleanup order is automatically correct. Exceptions in finalizers are collected rather than stopping cleanup.
 
@@ -116,7 +116,7 @@ Scope.global.scoped { scope1 =>
 }
 ```
 
-To safely use a parent scope's resource in a child scope, use `lower`:
+To safely use a parent scope's resource in a child scope, use `Scope#lower`:
 
 ```scala
 Scope.global.scoped { outer =>
@@ -802,7 +802,7 @@ The following runtime errors occur when scope rules are violated:
 
 ### `IllegalStateException` — allocate on closed scope
 
-**When:** You call `allocate`, `open`, or `$` on a scope that has already closed.
+**When:** You call `Scope#allocate`, `Scope#open`, or `Scope#$` on a scope that has already closed.
 
 **Message:** "Cannot acquire resource: scope has already been closed. ..."
 
@@ -1011,7 +1011,7 @@ Key integration points:
 
 ### Wire + Resource.from
 
-For dependency injection patterns, Scope works naturally with [`Wire`](./wire.md) and [`Resource.from`](./resource.md) to build layered service architectures. Allocate resources in a parent scope, then use `lower` to pass them to child scopes as needed.
+For dependency injection patterns, Scope works naturally with [`Wire`](./wire.md) and [`Resource.from`](./resource.md) to build layered service architectures. Allocate resources in a parent scope, then use `Scope#lower` to pass them to child scopes as needed.
 
 ## Running the Examples
 
