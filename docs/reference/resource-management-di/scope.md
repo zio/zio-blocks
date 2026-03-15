@@ -848,7 +848,7 @@ This is your "outer boundary" for resource safety. Everything inside is protecte
 
 ### Composition — use `Resource` builders before allocation
 
-Build resource acquisition/release logic outside the scope, then allocate once inside. This separates *construction* (how) from *allocation* (when), making code testable and reusable.
+Build resource acquisition/release logic outside the scope, then `Scope#allocate` once inside. This separates *construction* (how) from *allocation* (when), making code testable and reusable.
 
 **Key combinators:**
 
