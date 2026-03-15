@@ -38,7 +38,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-### Returning Aggregated Data from Scopes
+## Returning Unscoped Data from Scopes
 
 Extract computed results that don't hold resources:
 
@@ -70,61 +70,7 @@ val result = processData()
 println(result)
 ```
 
-### Type-Safe Resource Boundary
-
-The compiler prevents accidentally extracting resources:
-
-```scala
-import zio.blocks.scope.Scope
-import java.io.ByteArrayInputStream
-
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val stream = scope.allocate(ByteArrayInputStream("data".getBytes))
-
-  // ✗ This doesn't compile: InputStream is not Unscoped
-  // val s: ByteArrayInputStream = stream(x => x)
-
-  // ✓ This works: you must stay within the scope
-  stream(s => s.toString)
-}
-```
-
-## Construction / Creating Instances
-
-Mark your own types as safe to escape scopes by defining an implicit instance:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Unscoped
-
-case class UserId(value: Long)
-
-object UserId {
-  implicit val unscoped: Unscoped[UserId] = new Unscoped[UserId] {}
-}
-
-case class User(id: UserId, name: String)
-
-object User {
-  implicit val unscoped: Unscoped[User] = new Unscoped[User] {}
-}
-```
-
 Only add `Unscoped` instances for pure data types that don't hold resources. Resource types (streams, connections, handles) should NOT have instances:
-
-```scala mdoc:compile-only
-import zio.blocks.scope.Unscoped
-import java.io.InputStream
-
-// ✗ DO NOT do this!
-// implicit val unscoped: Unscoped[InputStream] = new Unscoped[InputStream] {}
-// InputStream is a resource and must stay scoped
-
-// ✓ DO this instead
-case class StreamMetadata(name: String, size: Long)
-implicit val unscoped: Unscoped[StreamMetadata] = new Unscoped[StreamMetadata] {}
-```
 
 ## Predefined Instances
 
@@ -185,45 +131,10 @@ implicit val given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {
 
 This is rarely used in practice but ensures there are no type errors for impossible cases.
 
-## Core Operations: How `Unscoped` Works with `$`
 
-The `$` operator's return type depends on whether the result has an `Unscoped` instance:
-
-```scala
-infix transparent inline def $[A, B](sa: $[A])(inline f: A => B): B | $[B]
-```
-
-When the result type `B` has an `Unscoped` instance, the `$` operator returns `B` directly (unwrapped). Otherwise, it returns `$[B]` (still scoped):
-
-```scala mdoc:compile-only
-import zio.blocks.scope.{Scope, Resource}
-import java.io.ByteArrayInputStream
-
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val intValue = allocate(Resource(42))
-  val result1 = $(intValue)(x => x + 1)  // returns Int (Unscoped exists)
-  val result1Type = result1: Int  // verifies it's Int, not $[Int]
-
-  val stream = allocate(ByteArrayInputStream("data".getBytes))
-  val result2 = $(stream)(s => s.toString)  // returns String (Unscoped exists)
-  val result2Type = result2: String  // works because String is Unscoped
-}
-```
-
-## Advanced Usage: Properties and Considerations
-
-### Thread Safety
+## Thread Safety
 
 `Unscoped` instances themselves are immutable and thread-safe. However, the types they mark must be truly immutable for safe concurrent use. For example, `Array[Int]` is mutable—if shared across threads without synchronization, it could cause data races.
-
-### Performance
-
-`Unscoped` instances are zero-cost abstractions:
-- No runtime overhead—instances are marker types with no state
-- The `$` operator's return type is determined at compile time based on the presence of an `Unscoped` instance
-- No runtime type checks or casting needed
 
 ## Integration
 
