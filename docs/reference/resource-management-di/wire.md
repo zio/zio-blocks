@@ -293,6 +293,8 @@ Scope.global.scoped { scope =>
 
 ## Core Operations
 
+The `Wire` interface provides a set of operations for inspecting and transforming wires:
+
 ### `Wire#isShared` and `Wire#isUnique`
 
 Check the sharing strategy of a wire:
