@@ -34,4 +34,19 @@ object Frag {
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
   def const(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
+
+  extension (frag: Frag) {
+
+    def query[A](using DbCon, DbCodec[A]): List[A] =
+      SqlOps.query[A](frag)
+
+    def queryOne[A](using DbCon, DbCodec[A]): Option[A] =
+      SqlOps.queryOne[A](frag)
+
+    def queryLimit[A](limit: Int)(using DbCon, DbCodec[A]): List[A] =
+      SqlOps.queryLimit[A](frag, limit)
+
+    def update(using DbCon): Int =
+      SqlOps.update(frag)
+  }
 }

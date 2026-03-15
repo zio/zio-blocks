@@ -19,8 +19,36 @@ object SqlOps {
     } finally ps.close()
   }
 
-  def queryOne[A](frag: Frag)(using DbCon, DbCodec[A]): Option[A] =
-    query[A](frag).headOption
+  def queryLimit[A](frag: Frag, limit: Int)(using con: DbCon, codec: DbCodec[A]): List[A] = {
+    val sqlStr = frag.sql(con.dialect)
+    val ps     = con.connection.prepareStatement(sqlStr)
+    try {
+      writeParams(ps.paramWriter, frag.queryParams)
+      val rs = ps.executeQuery()
+      try {
+        val reader  = rs.reader
+        val builder = List.newBuilder[A]
+        var count   = 0
+        while (count < limit && rs.next()) {
+          builder += codec.readValue(reader, 1)
+          count += 1
+        }
+        builder.result()
+      } finally rs.close()
+    } finally ps.close()
+  }
+
+  def queryOne[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): Option[A] = {
+    val sqlStr = frag.sql(con.dialect)
+    val ps     = con.connection.prepareStatement(sqlStr)
+    try {
+      writeParams(ps.paramWriter, frag.queryParams)
+      val rs = ps.executeQuery()
+      try {
+        if (rs.next()) Some(codec.readValue(rs.reader, 1)) else None
+      } finally rs.close()
+    } finally ps.close()
+  }
 
   def update(frag: Frag)(using con: DbCon): Int = {
     val sqlStr = frag.sql(con.dialect)
