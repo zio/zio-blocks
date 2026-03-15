@@ -39,7 +39,7 @@ final case class Migration[A, B](
     Migration(this.dynamicMigration.reverse, this.targetSchema, this.sourceSchema)
 }
 
-final case class DynamicMigration(actions: Chunk[MigrationAction]) {
+final case class DynamicMigration(actions: Chunk[MigrationAction])  {
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
     actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
       case (acc, action) => acc.flatMap(action.apply)
@@ -63,7 +63,7 @@ sealed trait MigrationAction {
 }
 
 object MigrationAction {
-  case class AddField(at: DynamicOptic, default: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class AddField(at: DynamicOptic, default: SchemaExpr[DynamicValue, Any]) extends MigrationAction  {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       value match {
         case DynamicValue.Record(fields) =>
@@ -80,7 +80,7 @@ object MigrationAction {
     def reverse: MigrationAction = DropField(at, default)
   }
 
-  case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[DynamicValue, Any]) extends MigrationAction  {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       value match {
         case DynamicValue.Record(fields) =>
@@ -94,7 +94,7 @@ object MigrationAction {
     def reverse: MigrationAction = AddField(at, defaultForReverse)
   }
 
-  case class RenameField(at: DynamicOptic, to: String) extends MigrationAction {
+  case class RenameField(at: DynamicOptic, to: String) extends MigrationAction  {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       value match {
         case DynamicValue.Record(fields) =>
@@ -118,7 +118,7 @@ object MigrationAction {
     }
   }
 
-  case class Join(at: DynamicOptic, sourcePaths: Chunk[DynamicOptic], combiner: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class Join(at: DynamicOptic, sourcePaths: Chunk[DynamicOptic], combiner: SchemaExpr[DynamicValue, Any]) extends MigrationAction  {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val inputs = sourcePaths.flatMap(p => value.get(p).toChunk)
       if (inputs.size != sourcePaths.size) {
@@ -134,7 +134,7 @@ object MigrationAction {
     def reverse: MigrationAction = Split(at, sourcePaths, combiner)
   }
 
-  case class Split(at: DynamicOptic, targetPaths: Chunk[DynamicOptic], splitter: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
+  case class Split(at: DynamicOptic, targetPaths: Chunk[DynamicOptic], splitter: SchemaExpr[DynamicValue, Any]) extends MigrationAction  {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       val sourceVal = value.get(at).toChunk.headOption.getOrElse(DynamicValue.Null)
       splitter.evalDynamic(sourceVal).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).flatMap { results =>
@@ -150,13 +150,13 @@ object MigrationAction {
     def reverse: MigrationAction = Join(at, targetPaths, splitter)
   }
 
-  case class TransformValue(at: DynamicOptic, transform: SchemaExpr[DynamicValue, Any]) extends MigrationAction {
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = 
+  case class TransformValue(at: DynamicOptic, transform: SchemaExpr[DynamicValue, Any]) extends MigrationAction  {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       transform.evalDynamic(value.get(at).toChunk.headOption.getOrElse(DynamicValue.Null)).left.map(err => MigrationError.ActionFailed(this, at, err.toString)).map { results =>
         val result = results.headOption.getOrElse(DynamicValue.Null)
         value.modify(at)(_ => result)
       }
-        
+
     def reverse: MigrationAction = ???
   }
 }
@@ -166,8 +166,8 @@ final class MigrationBuilder[A, B](
   val targetSchema: Schema[B],
   val actions: Chunk[MigrationAction]
 ) extends MigrationBuilderVersionSpecific[A, B] {
-  
-  def build: Migration[A, B] = 
+
+  def build: Migration[A, B] =
     Migration(DynamicMigration(actions), sourceSchema, targetSchema)
 }
 

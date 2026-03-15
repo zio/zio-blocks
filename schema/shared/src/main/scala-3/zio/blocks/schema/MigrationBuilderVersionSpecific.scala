@@ -21,20 +21,20 @@ import scala.quoted.*
 trait MigrationBuilderVersionSpecific[A, B] {
   self: MigrationBuilder[A, B] =>
 
-  inline def addField(inline target: B => Any, default: SchemaExpr[DynamicValue, ?]): MigrationBuilder[A, B] = 
+  inline def addField(inline target: B => Any, default: SchemaExpr[DynamicValue, ?]): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.addFieldImpl[A, B]('this, 'target, 'default) }
 
-  inline def dropField(inline source: A => Any): MigrationBuilder[A, B] = 
+  inline def dropField(inline source: A => Any): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.dropFieldImpl[A, B]('this, 'source) }
 
-  inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] = 
+  inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] =
     ${ MigrationBuilderMacros.renameFieldImpl[A, B]('this, 'from, 'to) }
 }
 
 object MigrationBuilderMacros {
   def addFieldImpl[A: Type, B: Type](
-    builder: Expr[MigrationBuilder[A, B]], 
-    target: Expr[B => Any], 
+    builder: Expr[MigrationBuilder[A, B]],
+    target: Expr[B => Any],
     default: Expr[SchemaExpr[DynamicValue, ?]]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val fieldName = extractFieldName(target)
@@ -48,7 +48,7 @@ object MigrationBuilderMacros {
   }
 
   def dropFieldImpl[A: Type, B: Type](
-    builder: Expr[MigrationBuilder[A, B]], 
+    builder: Expr[MigrationBuilder[A, B]],
     source: Expr[A => Any]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val fieldName = extractFieldName(source)
@@ -62,8 +62,8 @@ object MigrationBuilderMacros {
   }
 
   def renameFieldImpl[A: Type, B: Type](
-    builder: Expr[MigrationBuilder[A, B]], 
-    from: Expr[A => Any], 
+    builder: Expr[MigrationBuilder[A, B]],
+    from: Expr[A => Any],
     to: Expr[B => Any]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val fromName = extractFieldName(from)

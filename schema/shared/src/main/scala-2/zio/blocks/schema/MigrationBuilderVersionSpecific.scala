@@ -33,28 +33,28 @@ object MigrationBuilderMacros {
   def addFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(target: c.Tree, default: c.Tree): c.Tree = {
     import c.universe._
     val fieldName = extractFieldName(c)(target)
-    q"new MigrationBuilder(\${c.prefix}.sourceSchema, \${c.prefix}.targetSchema, \${c.prefix}.actions :+ MigrationAction.AddField(DynamicOptic.root.field(\$fieldName), \$default))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.AddField(DynamicOptic.root.field($fieldName), $default))"
   }
 
   def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(source: c.Tree): c.Tree = {
     import c.universe._
     val fieldName = extractFieldName(c)(source)
-    q"new MigrationBuilder(\${c.prefix}.sourceSchema, \${c.prefix}.targetSchema, \${c.prefix}.actions :+ MigrationAction.DropField(DynamicOptic.root.field(\$fieldName), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic)))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.DropField(DynamicOptic.root.field($fieldName), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic)))"
   }
 
   def renameFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(from: c.Tree, to: c.Tree): c.Tree = {
     import c.universe._
     val fromName = extractFieldName(c)(from)
     val toName = extractFieldName(c)(to)
-    q"new MigrationBuilder(\${c.prefix}.sourceSchema, \${c.prefix}.targetSchema, \${c.prefix}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field(\$fromName), \$toName))"
+    q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.RenameField(DynamicOptic.root.field($fromName), $toName))"
   }
 
   private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
     import c.universe._
     tree match {
-      case q"(\$_.name) => \$_.\$field" => field.decodedName.toString
-      case q"(\$_: \$_) => \$_.\$field" => field.decodedName.toString
-      case _ => c.abort(c.enclosingPosition, s"Could not extract field name from selector: \$tree")
+      case q"($_.name) => $_.$field" => field.decodedName.toString
+      case q"($_: $_) => $_.$field" => field.decodedName.toString
+      case _ => c.abort(c.enclosingPosition, s"Could not extract field name from selector: $tree")
     }
   }
 }
