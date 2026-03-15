@@ -787,50 +787,42 @@ try {
 
 ## Dependency Injection
 
-`Scope` and `Scope.open()` are excellent building blocks for dependency injection containers. When constructing service instances that depend on resources (databases, HTTP clients, configuration readers), `Scope.open()` allows you to manage the entire dependency graph's lifetime as a cohesive unit, ensuring proper initialization order and cleanup in reverse.
+`Scope` integrates seamlessly with `Wire` and `Resource.from` for automatic dependency injection. `Wire` describes a recipe for constructing a service and its dependencies, while `Scope` manages the resource lifetime. Together they eliminate manual dependency passing and ensure proper cleanup in LIFO order.
 
-Here's a simple example of a DI factory that manages multiple resources:
+Here's an example using `Wire` and `Resource.from` within a scope:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 
-final class Database extends AutoCloseable {
+final class Config(val dbUrl: String)
+
+final class Database(config: Config) extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
+  def close(): Unit = println(s"db closed (${config.dbUrl})")
 }
 
-final class Cache extends AutoCloseable {
-  def put(k: String, v: String): Unit = {}
-  def close(): Unit = println("cache closed")
+final class UserService(db: Database) {
+  def getUser(id: Int): String = s"user $id from ${db.query("SELECT * FROM users")}"
 }
 
-// A DI factory that returns a handle to all initialized services
-def createAppServices(): Scope.OpenScope = {
-  val os = Scope.global.open()
-  val scope = os.scope
+final class App(service: UserService) {
+  def run(): Unit = println(service.getUser(1))
+}
+
+// Wire describes the dependency graph: App -> UserService -> Database -> Config
+// Resource.from uses the Wire to automatically construct the entire graph
+Scope.global.scoped { scope =>
   import scope._
-
-  // Allocate resources in dependency order
-  val _db = allocate(Resource.fromAutoCloseable(new Database))
-  val _cache = allocate(Resource.fromAutoCloseable(new Cache))
-
-  // Register shutdown hook (runs in LIFO order)
-  scope.defer(println("services shutting down"))
-
-  os
-}
-
-val appHandle = createAppServices()
-try {
-  // Services are now ready to use with all resources initialized
-  // Cleanup happens automatically in reverse order when appHandle closes
-  ()
-} finally {
-  appHandle.close().orThrow()
+  val config = Config("jdbc:postgres://localhost/db")
+  val app = allocate(Resource.from[App](
+    Wire(config)
+  ))
+  $(app)(_.run())
+  // All resources (Database, App) clean up automatically in reverse order
 }
 ```
 
-For advanced patterns with automatic service construction and wire-style dependency resolution, see the [Wire reference](./wire.md) and [Resource reference](./resource.md).
+For more details on `Wire` sharing strategies, resource composition, and advanced DI patterns, see the [Wire reference](./wire.md) and [Resource reference](./resource.md).
 
 ## Runtime Errors
 
