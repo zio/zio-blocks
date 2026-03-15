@@ -16,8 +16,8 @@
 
 package zio.blocks.schema
 
-import zio.test.*
-import zio.test.Assertion.*
+import zio.test._
+import zio.test.Assertion._
 import zio.blocks.chunk.Chunk
 
 object MigrationSpec extends ZIOSpecDefault {
