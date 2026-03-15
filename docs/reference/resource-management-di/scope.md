@@ -787,7 +787,50 @@ try {
 
 ## Dependency Injection
 
-For dependency injection patterns with `Wire` and `Resource.from`, see the [Wire reference](./wire.md) and [Resource reference](./resource.md). Scope integrates naturally with resource factories and constructor-based DI.
+`Scope` and `Scope.open()` are excellent building blocks for dependency injection containers. When constructing service instances that depend on resources (databases, HTTP clients, configuration readers), `Scope.open()` allows you to manage the entire dependency graph's lifetime as a cohesive unit, ensuring proper initialization order and cleanup in reverse.
+
+Here's a simple example of a DI factory that manages multiple resources:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+final class Cache extends AutoCloseable {
+  def put(k: String, v: String): Unit = {}
+  def close(): Unit = println("cache closed")
+}
+
+// A DI factory that returns a handle to all initialized services
+def createAppServices(): Scope.OpenScope = {
+  val os = Scope.global.open()
+  val scope = os.scope
+  import scope._
+
+  // Allocate resources in dependency order
+  val _db = allocate(Resource.fromAutoCloseable(new Database))
+  val _cache = allocate(Resource.fromAutoCloseable(new Cache))
+
+  // Register shutdown hook (runs in LIFO order)
+  scope.defer(println("services shutting down"))
+
+  os
+}
+
+val appHandle = createAppServices()
+try {
+  // Services are now ready to use with all resources initialized
+  // Cleanup happens automatically in reverse order when appHandle closes
+  ()
+} finally {
+  appHandle.close().orThrow()
+}
+```
+
+For advanced patterns with automatic service construction and wire-style dependency resolution, see the [Wire reference](./wire.md) and [Resource reference](./resource.md).
 
 ## Runtime Errors
 
