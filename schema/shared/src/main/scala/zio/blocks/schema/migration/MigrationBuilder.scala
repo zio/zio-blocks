@@ -27,8 +27,8 @@ import zio.blocks.schema.migration.MigrationAction._
  * via the `DynamicOptic.root.field("name")` API or derived from typed
  * `Optic[A, B]` values using `schema.opticFor(...)`.
  *
- * `MigrationBuilder` is immutable — every method returns a new builder with
- * the additional action appended.
+ * `MigrationBuilder` is immutable — every method returns a new builder with the
+ * additional action appended.
  *
  * {{{
  *   val migration: DynamicMigration =
@@ -60,22 +60,22 @@ final class MigrationBuilder[A, B] private (
     append(Rename(at, to))
 
   /**
-   * Replace the value at `at` with `newValue`.
-   * `oldValue` is used when reversing.
+   * Replace the value at `at` with `newValue`. `oldValue` is used when
+   * reversing.
    */
   def transformValue(at: DynamicOptic, newValue: DynamicValue, oldValue: DynamicValue): MigrationBuilder[A, B] =
     append(TransformValue(at, newValue, oldValue))
 
   /**
-   * Mandate (unwrap) an optional field at `at`.
-   * Absent values are replaced with `default`.
+   * Mandate (unwrap) an optional field at `at`. Absent values are replaced with
+   * `default`.
    */
   def mandate(at: DynamicOptic, default: DynamicValue): MigrationBuilder[A, B] =
     append(Mandate(at, default))
 
   /**
-   * Wrap the value at `at` in `Some(...)`.
-   * `defaultForReverse` is used when reversing (mandating).
+   * Wrap the value at `at` in `Some(...)`. `defaultForReverse` is used when
+   * reversing (mandating).
    */
   def optionalize(at: DynamicOptic, defaultForReverse: DynamicValue): MigrationBuilder[A, B] =
     append(Optionalize(at, defaultForReverse))

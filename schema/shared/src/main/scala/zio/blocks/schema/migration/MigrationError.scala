@@ -43,8 +43,8 @@ sealed trait MigrationError {
 object MigrationError {
 
   /**
-   * A required field was absent in the source [[zio.blocks.schema.DynamicValue]]
-   * at the given path.
+   * A required field was absent in the source
+   * [[zio.blocks.schema.DynamicValue]] at the given path.
    */
   final case class FieldNotFound(at: DynamicOptic, fieldName: String) extends MigrationError {
     def message: String = s"Field '$fieldName' not found"

@@ -22,16 +22,17 @@ import zio.blocks.schema.{DynamicOptic, Schema}
  * A type-safe migration from schema version `A` to schema version `B`.
  *
  * `Migration` wraps a [[DynamicMigration]] together with the source
- * [[Schema]][A] and target [[Schema]][B], providing a fully type-safe API
- * while retaining all the serializability and introspectability properties of
- * the underlying [[DynamicMigration]].
+ * [[Schema]][A] and target [[Schema]][B], providing a fully type-safe API while
+ * retaining all the serializability and introspectability properties of the
+ * underlying [[DynamicMigration]].
  *
- * === Laws ===
+ * ===Laws===
  *
  *   - '''Identity''': `Migration.identity(s).apply(a) == Right(a)`
  *   - '''Reverse''': if `m.apply(a) == Right(b)` then
  *     `m.reverse.apply(b) == Right(a)` (when information is preserved)
- *   - '''Structural reverse''': `m.reverse.reverse.dynamicMigration == m.dynamicMigration`
+ *   - '''Structural reverse''':
+ *     `m.reverse.reverse.dynamicMigration == m.dynamicMigration`
  *
  * @param dynamicMigration
  *   The underlying untyped migration.
@@ -47,8 +48,8 @@ final case class Migration[A, B](
 ) {
 
   /**
-   * Apply this migration to `value`, converting an `A` into a `B`, or
-   * returning the first [[MigrationError]] encountered.
+   * Apply this migration to `value`, converting an `A` into a `B`, or returning
+   * the first [[MigrationError]] encountered.
    */
   def apply(value: A): Either[MigrationError, B] = {
     val dv = from.toDynamicValue(value)

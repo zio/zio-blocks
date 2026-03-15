@@ -24,9 +24,8 @@ import zio.blocks.schema.migration.MigrationAction._
  * A fully serializable, untyped migration that transforms a
  * [[zio.blocks.schema.DynamicValue]] from one schema version to another.
  *
- * `DynamicMigration` is pure data — it contains no user functions, no
- * closures, no reflection, and no runtime code generation. As a result it can
- * be:
+ * `DynamicMigration` is pure data — it contains no user functions, no closures,
+ * no reflection, and no runtime code generation. As a result it can be:
  *   - serialized and stored in a registry
  *   - applied dynamically at runtime
  *   - introspected to generate DDL / DML
@@ -36,7 +35,7 @@ import zio.blocks.schema.migration.MigrationAction._
  * with the source and target [[zio.blocks.schema.Schema]]s, providing a
  * type-safe API.
  *
- * === Laws ===
+ * ===Laws===
  *
  *   - '''Identity''': `DynamicMigration.identity.apply(v) == Right(v)`
  *   - '''Associativity''': `(m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)`
@@ -52,9 +51,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * first [[MigrationError]] encountered.
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
-    var current: DynamicValue                     = value
-    var error: MigrationError                     = null
-    val iter                                      = actions.iterator
+    var current: DynamicValue = value
+    var error: MigrationError = null
+    val iter                  = actions.iterator
     while (iter.hasNext && (error eq null)) {
       DynamicMigration.applyAction(current, iter.next()) match {
         case Right(next) => current = next
@@ -76,8 +75,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   /**
    * The structural inverse of this migration.
    *
-   * For any migration `m` and value `a` such that `m.apply(a) == Right(b)`,
-   * the reverse satisfies `m.reverse.apply(b) == Right(a)` when sufficient
+   * For any migration `m` and value `a` such that `m.apply(a) == Right(b)`, the
+   * reverse satisfies `m.reverse.apply(b) == Right(a)` when sufficient
    * information was preserved.
    *
    * Always satisfies: `m.reverse.reverse == m`
@@ -88,7 +87,9 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
 object DynamicMigration {
 
-  /** The identity migration: applies no actions and returns the input unchanged. */
+  /**
+   * The identity migration: applies no actions and returns the input unchanged.
+   */
   val identity: DynamicMigration = DynamicMigration(Vector.empty)
 
   // ── Action interpreter ───────────────────────────────────────────────────
@@ -170,8 +171,8 @@ object DynamicMigration {
     }
 
   /**
-   * Remove the field identified by the last [[DynamicOptic.Node.Field]] in
-   * `at` from its parent record.
+   * Remove the field identified by the last [[DynamicOptic.Node.Field]] in `at`
+   * from its parent record.
    */
   private def dropField(
     root: DynamicValue,

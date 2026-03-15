@@ -20,15 +20,14 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicValue}
 
 /**
- * A single, atomic migration step that operates on a [[DynamicValue]] at a
- * path identified by a [[DynamicOptic]].
+ * A single, atomic migration step that operates on a [[DynamicValue]] at a path
+ * identified by a [[DynamicOptic]].
  *
  * `MigrationAction` is pure data — no user functions, no closures, no
  * reflection. Every action carries enough information to execute both the
  * forward transformation and its structural reverse.
  *
- * Actions are composed into a [[DynamicMigration]] via
- * [[DynamicMigration.++]].
+ * Actions are composed into a [[DynamicMigration]] via [[DynamicMigration.++]].
  */
 sealed trait MigrationAction {
 
@@ -99,8 +98,8 @@ object MigrationAction {
   }
 
   /**
-   * Mandates an optional field at `at` by unwrapping the `Option` and
-   * replacing absent values with `default`.
+   * Mandates an optional field at `at` by unwrapping the `Option` and replacing
+   * absent values with `default`.
    *
    * Reverse: [[Optionalize]].
    */
@@ -120,8 +119,8 @@ object MigrationAction {
   }
 
   /**
-   * Joins multiple source fields (at `sourcePaths`) into a single field at
-   * `at` using `combiner`.
+   * Joins multiple source fields (at `sourcePaths`) into a single field at `at`
+   * using `combiner`.
    *
    * Constraints: all source and target values must be primitives.
    *
@@ -178,7 +177,8 @@ object MigrationAction {
    * Applies a nested sequence of actions to the body of the case `caseName` at
    * `at`.
    *
-   * Reverse: [[TransformCase]] with all inner actions reversed in reverse order.
+   * Reverse: [[TransformCase]] with all inner actions reversed in reverse
+   * order.
    */
   final case class TransformCase(at: DynamicOptic, caseName: String, actions: Vector[MigrationAction])
       extends MigrationAction {
