@@ -11,6 +11,14 @@ class Repo[E, ID](
   private val tbl: String       = table.name
   private val codec: DbCodec[E] = table.codec
 
+  private val longCodec: DbCodec[Long] = new DbCodec[Long] {
+    val columns: IndexedSeq[String]                                           = IndexedSeq("count")
+    def readValue(reader: DbResultReader, startIndex: Int): Long              = reader.getLong(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Long): Unit =
+      writer.setLong(startIndex, value)
+    def toDbValues(value: Long): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbLong(value))
+  }
+
   // === Read Operations ===
 
   def findAll(using con: DbCon): List[E] = {
@@ -30,48 +38,38 @@ class Repo[E, ID](
     findById(id).isDefined
 
   def count(using con: DbCon): Long = {
-    val ps = con.connection.prepareStatement(s"SELECT COUNT(*) FROM $tbl")
-    try {
-      val rs = ps.executeQuery()
-      try {
-        if (rs.next()) rs.reader.getLong(1) else 0L
-      } finally rs.close()
-    } finally ps.close()
+    val frag = Frag.const(s"SELECT COUNT(*) FROM $tbl")
+    SqlOps.queryOne[Long](frag)(using con, longCodec).getOrElse(0L)
   }
 
   // === Write Operations ===
 
-  def insert(entity: E)(using con: DbCon): Unit = {
+  def insert(entity: E)(using con: DbCon): Int = {
     val values = codec.toDbValues(entity)
     val frag   = Repo.buildInsertFrag(tbl, allCols, values)
     SqlOps.update(frag)(using con)
-    ()
   }
 
-  def update(entity: E)(using con: DbCon): Unit = {
+  def update(entity: E)(using con: DbCon): Int = {
     val entityValues = codec.toDbValues(entity)
     val idValues     = idCodec.toDbValues(getId(entity))
     val frag         = Repo.buildUpdateFrag(tbl, table.columns, entityValues, idColumn, idValues)
     SqlOps.update(frag)(using con)
-    ()
   }
 
-  def deleteById(id: ID)(using con: DbCon): Unit = {
+  def deleteById(id: ID)(using con: DbCon): Int = {
     val frag = Frag(
       IndexedSeq(s"DELETE FROM $tbl WHERE $idColumn = ", ""),
       idCodec.toDbValues(id)
     )
     SqlOps.update(frag)(using con)
-    ()
   }
 
-  def delete(entity: E)(using con: DbCon): Unit =
+  def delete(entity: E)(using con: DbCon): Int =
     deleteById(getId(entity))
 
-  def truncate()(using con: DbCon): Unit = {
+  def truncate()(using con: DbCon): Int =
     SqlOps.update(Frag.const(s"DELETE FROM $tbl"))(using con)
-    ()
-  }
 }
 
 object Repo {

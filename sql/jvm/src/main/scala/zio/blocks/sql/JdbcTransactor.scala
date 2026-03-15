@@ -13,7 +13,10 @@ class JdbcTransactor(connectionFactory: () => Connection, val dialect: SqlDialec
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
       }
       f
-    } finally dbConn.close()
+    } finally {
+      try dbConn.close()
+      catch { case _: Throwable => () }
+    }
   }
 
   def transact[A](f: DbTx ?=> A): A = {
@@ -30,9 +33,13 @@ class JdbcTransactor(connectionFactory: () => Connection, val dialect: SqlDialec
       result
     } catch {
       case e: Throwable =>
-        conn.rollback()
+        try conn.rollback()
+        catch { case rb: Throwable => e.addSuppressed(rb) }
         throw e
-    } finally dbConn.close()
+    } finally {
+      try dbConn.close()
+      catch { case _: Throwable => () }
+    }
   }
 }
 
@@ -43,4 +50,7 @@ object JdbcTransactor {
 
   def fromUrl(url: String, user: String, password: String, dialect: SqlDialect): JdbcTransactor =
     new JdbcTransactor(() => DriverManager.getConnection(url, user, password), dialect)
+
+  def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): JdbcTransactor =
+    new JdbcTransactor(() => dataSource.getConnection, dialect)
 }

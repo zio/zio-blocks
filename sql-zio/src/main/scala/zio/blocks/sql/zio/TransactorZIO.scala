@@ -27,6 +27,9 @@ object TransactorZIO {
   ): TransactorZIO =
     new TransactorZIO(JdbcTransactor.fromUrl(url, user, password, dialect))
 
+  def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): TransactorZIO =
+    new TransactorZIO(JdbcTransactor.fromDataSource(dataSource, dialect))
+
   // ZLayer for dependency injection
   def layer(url: String, dialect: SqlDialect): ZLayer[Any, Nothing, TransactorZIO] =
     ZLayer.succeed(fromUrl(url, dialect))
