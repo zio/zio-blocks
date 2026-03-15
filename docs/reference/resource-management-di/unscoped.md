@@ -3,7 +3,7 @@ id: unscoped
 title: "Unscoped"
 ---
 
-`Unscoped[A]` is a marker typeclass for types that can safely escape a scope without tracking. Types with an `Unscoped` instance are considered "safe data"—they don't hold resources and can be freely extracted from a scope:
+`Unscoped[A]` is a marker typeclass for types that can safely escape a scope without tracking. Types with an `Unscoped` instance are considered "safe data"—they don't hold resources and can be freely extracted from a scope. Here's the definition:
 
 ```scala
 trait Unscoped[A]
@@ -18,7 +18,7 @@ When the `$` operator is used to access a scoped value, if the result type has a
 
 ## Motivation / Use Case
 
-The exact problem: A `scoped` block automatically closes all resources when it exits. If you accidentally returned a resource (like a database connection or file handle) from the block, it would be closed—but you might try to use it later, causing a **use-after-close** crash.
+The exact problem: A `scoped` block automatically closes all resources when it exits. If you accidentally returned a resource (like a database connection or file handle) from the block, it would be closed—but you might try to use it later, causing a **use-after-close** crash. Here's an example (this would fail without `Unscoped`):
 
 ```scala mdoc:compile-only
 import zio.blocks.scope.{Scope, Resource}
