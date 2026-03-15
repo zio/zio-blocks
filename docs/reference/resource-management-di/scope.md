@@ -588,7 +588,7 @@ Scope.global.scoped { scope =>
 
 Thread-owned scopes cannot be used to create child scopes from a different thread:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.scope.*
 import java.util.concurrent.*
 
@@ -596,7 +596,11 @@ final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
+```
 
+Attempting to call `scope.scoped { }` from a different thread throws an error:
+
+```scala mdoc:compile-only
 val executor = Executors.newFixedThreadPool(1)
 
 try {
@@ -622,7 +626,7 @@ try {
   executor.shutdown()
 }
 
-// Example Output:
+// Output:
 // Error: Cannot create child scope: current thread 'pool-1-thread-1' does not own this scope (owner: 'main')
 // db closed
 ```
@@ -631,7 +635,7 @@ try {
 
 Open scopes are unowned and usable from any thread:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.scope.*
 import java.util.concurrent.*
 
@@ -639,7 +643,11 @@ final class Database extends AutoCloseable {
   def query(sql: String): String = s"result: $sql"
   def close(): Unit = println("db closed")
 }
+```
 
+Calling `scope.scoped { }` from a worker thread succeeds with an unowned scope:
+
+```scala mdoc:compile-only
 val executor = Executors.newFixedThreadPool(1)
 
 try {
