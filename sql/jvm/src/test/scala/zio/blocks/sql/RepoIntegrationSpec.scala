@@ -58,6 +58,14 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
+    test("insert returns 1 for single insert") {
+      withFreshDb { tx =>
+        tx.connect {
+          val rows = userRepo.insert(User(1, "Alice", "alice@test.com"))
+          assertTrue(rows == 1)
+        }
+      }
+    },
     test("findById returns None for non-existing") {
       withFreshDb { tx =>
         tx.connect {
@@ -118,12 +126,32 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
+    test("update returns 1 for existing, 0 for non-existing") {
+      withFreshDb { tx =>
+        tx.connect {
+          userRepo.insert(User(1, "Alice", "a@test.com"))
+          val updated    = userRepo.update(User(1, "Alice Updated", "new@test.com"))
+          val notUpdated = userRepo.update(User(999, "Ghost", "ghost@test.com"))
+          assertTrue(updated == 1, notUpdated == 0)
+        }
+      }
+    },
     test("deleteById removes the row") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
           userRepo.deleteById(1)
           assertTrue(userRepo.findById(1).isEmpty)
+        }
+      }
+    },
+    test("deleteById returns 1 for existing, 0 for non-existing") {
+      withFreshDb { tx =>
+        tx.connect {
+          userRepo.insert(User(1, "Alice", "a@test.com"))
+          val deleted    = userRepo.deleteById(1)
+          val notDeleted = userRepo.deleteById(999)
+          assertTrue(deleted == 1, notDeleted == 0)
         }
       }
     },
