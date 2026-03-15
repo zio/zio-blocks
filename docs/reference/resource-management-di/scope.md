@@ -1034,6 +1034,8 @@ Scope.global.scoped { scope =>
 }
 ```
 
+To learn more about building and composing resources, see the [Resource reference](./resource.md).
+
 ## Integration
 
 Scope integrates seamlessly with ZIO Blocks' other data types for building complex resource management systems.
