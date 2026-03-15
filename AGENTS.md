@@ -40,7 +40,7 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 #   "++<scala2>; project <project>; coverage; test; coverageReport"  — coverage, Scala 2
 #   "++3.7.4; <project>/test; ++<scala2>; <project>/test" — cross-Scala
 #   "++3.7.4; <project>/fmtDirty"                         — format main sources
-#   "++3.7.4; <project>/Test/fmtDirty"                    — format test sources
+#   "++3.7.4; <project>/Test/scalafmt"                    — format test sources
 #   scalafmtSbt                                           — format build files
 #
 # IMPORTANT: --client mode preserves Scala version across invocations.
