@@ -44,7 +44,7 @@ object TracerProvider {
     resource = Resource.default,
     sampler = AlwaysOnSampler,
     processors = Seq.empty,
-    contextStorage = null
+    contextStorage = None
   )
 }
 
@@ -52,7 +52,7 @@ final class TracerProviderBuilder private[otel] (
   private var resource: Resource,
   private var sampler: Sampler,
   private var processors: Seq[SpanProcessor],
-  private var contextStorage: ContextStorage[Option[SpanContext]]
+  private var contextStorage: Option[ContextStorage[Option[SpanContext]]] = None
 ) {
 
   def setResource(resource: Resource): TracerProviderBuilder = {
@@ -71,14 +71,12 @@ final class TracerProviderBuilder private[otel] (
   }
 
   def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): TracerProviderBuilder = {
-    this.contextStorage = contextStorage
+    this.contextStorage = Some(contextStorage)
     this
   }
 
   def build(): TracerProvider = {
-    val cs =
-      if (contextStorage != null) contextStorage
-      else ContextStorage.create[Option[SpanContext]](None)
+    val cs = contextStorage.getOrElse(ContextStorage.create[Option[SpanContext]](None))
     new TracerProvider(resource, sampler, processors, cs)
   }
 }

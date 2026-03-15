@@ -45,7 +45,8 @@ final class OtlpJsonTraceExporter(
   config: ExporterConfig,
   resource: Resource,
   scope: InstrumentationScope,
-  httpSender: HttpSender
+  httpSender: HttpSender,
+  platformExecutor: PlatformExecutor
 ) extends SpanProcessor {
 
   private val url     = config.endpoint + "/v1/traces"
@@ -57,6 +58,7 @@ final class OtlpJsonTraceExporter(
       val response = httpSender.send(url, headers, body)
       OtlpJsonExporter.mapResponse(response)
     },
+    executor = platformExecutor.executor,
     maxQueueSize = config.maxQueueSize,
     maxBatchSize = config.maxBatchSize,
     flushIntervalMillis = config.flushIntervalMillis
@@ -80,7 +82,8 @@ final class OtlpJsonLogExporter(
   config: ExporterConfig,
   resource: Resource,
   scope: InstrumentationScope,
-  httpSender: HttpSender
+  httpSender: HttpSender,
+  platformExecutor: PlatformExecutor
 ) extends LogRecordProcessor {
 
   private val url     = config.endpoint + "/v1/logs"
@@ -92,6 +95,7 @@ final class OtlpJsonLogExporter(
       val response = httpSender.send(url, headers, body)
       OtlpJsonExporter.mapResponse(response)
     },
+    executor = platformExecutor.executor,
     maxQueueSize = config.maxQueueSize,
     maxBatchSize = config.maxBatchSize,
     flushIntervalMillis = config.flushIntervalMillis

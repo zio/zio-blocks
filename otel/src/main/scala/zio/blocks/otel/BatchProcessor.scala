@@ -17,6 +17,7 @@
 package zio.blocks.otel
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -31,6 +32,7 @@ object ExportResult {
 
 final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
+  executor: ScheduledExecutorService,
   maxQueueSize: Int = 2048,
   maxBatchSize: Int = 512,
   flushIntervalMillis: Long = 5000,
@@ -46,7 +48,7 @@ final class BatchProcessor[A](
   }
 
   private val scheduledFuture: ScheduledFuture[_] =
-    PlatformExecutor.schedule(flushIntervalMillis, flushIntervalMillis, TimeUnit.MILLISECONDS)(flushTask)
+    executor.scheduleAtFixedRate(flushTask, flushIntervalMillis, flushIntervalMillis, TimeUnit.MILLISECONDS)
 
   def enqueue(item: A): Unit =
     if (!isShutdown.get()) {
@@ -109,7 +111,7 @@ final class BatchProcessor[A](
             "[zio-blocks-otel] BatchProcessor export failed after " + (attempt + 1) + " attempts: " + message + ". Dropping " + batch.size + " items."
           )
         } else {
-          val delayMs = retryBaseMillis * (1L << attempt)
+          val delayMs = math.min(retryBaseMillis * (1L << attempt), 30000L)
           try Thread.sleep(delayMs)
           catch { case _: InterruptedException => Thread.currentThread().interrupt() }
           exportWithRetry(batch, attempt + 1)
