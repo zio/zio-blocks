@@ -666,7 +666,28 @@ The key difference: `scoped { }` creates **owned** scopes (tied to the entering 
 
 ## Returning Data from a Scope
 
-**Adding `Unscoped` to your data types:**
+If you create custom data types that hold only pure data (no resources), add an `Unscoped` instance to allow them to escape scopes safely:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+import zio.blocks.scope.Unscoped
+
+case class QueryResult(rows: List[String], count: Int)
+
+object QueryResult {
+  implicit val unscoped: Unscoped[QueryResult] = new Unscoped[QueryResult] {}
+}
+
+// Now QueryResult can be returned from scoped blocks
+Scope.global.scoped { scope =>
+  import scope._
+  // ... acquire database ...
+  QueryResult(List("a", "b"), 2)  // Returns safely
+}
+```
+
+**Only add `Unscoped` for pure data types.** Never add it for types that hold resources (connections, streams, file handles).
+
 
 If your custom types hold only pure data and need to escape scopes, add an `Unscoped` instance. See [Option 2 in the compile errors section](#no-given-instance-of-unscopedmytype--escaping-a-scope) for a worked example, and the [Unscoped reference](./unscoped.md) for full details. Never add `Unscoped` to types that hold resources (connections, streams, file handles).
 
