@@ -911,27 +911,31 @@ This is your "outer boundary" for resource safety. Everything inside is protecte
 
 **2. Composition — use `Resource` builders before allocation**
 
-Build your acquisition/release logic first using `Resource` combinators, then allocate in the scope:
+Build your acquisition/release logic first using `Resource` combinators, then allocate in the scope. This separates resource *construction* (how to acquire/release) from *usage* (when to use), making your code more testable and reusable.
 
-```scala mdoc:compile-only
-import zio.blocks.scope._
+Instead of allocating everything inside the scope, compose resources outside using combinators like `.map`, `.flatMap`, and `.zip`. This way, you can test resource logic independently, reuse composed resources across multiple scopes, and easily swap implementations.
 
-final class Database extends AutoCloseable {
-  def query(sql: String): String = s"result: $sql"
-  def close(): Unit = println("db closed")
-}
+The key insight is to separate resource *construction* from *allocation*. Build your resources using combinators first, then allocate once in the scope. This way, you can:
 
-val dbResource = Resource.fromAutoCloseable(new Database)
-val cachedDb = dbResource  // Could compose with other Resources here
+- Reuse the same composed resource in multiple scopes
+- Test resource logic independently
+- Swap implementations without changing your scoped block
+- Ensure deterministic cleanup order
 
-Scope.global.scoped { scope =>
-  import scope._
-  val db = allocate(cachedDb)
-  // Use db
-}
-```
+**Composition methods:**
 
-Keep resource construction and allocation separate for reusability and clarity.
+- **`.map(f)`** — Transform a resource's value without affecting its cleanup logic
+- **`.flatMap(f)`** — Chain two resources where the second depends on the result of the first (use for config → database scenarios)
+- **`.zip(other)`** — Combine two independent resources into a tuple, acquiring and finalizing both
+
+All resources composed via these methods are acquired together when you call `allocate()`, and they all finalize together in LIFO order (last acquired, first released) when the scope exits.
+
+**Why this pattern matters:**
+
+- **Testability:** You can test resource composition logic independently of any scope
+- **Reusability:** Compose the same resources in different ways, or use the same composition in multiple places
+- **Clarity:** Your scoped block focuses on usage, not resource setup
+- **Deterministic cleanup:** Resources clean up in LIFO order (last acquired, first released)
 
 **3. Hierarchy — nest scopes to express resource dependencies**
 
