@@ -664,6 +664,12 @@ try {
 
 The key difference: `scoped { }` creates **owned** scopes (tied to the entering thread), while `open()` creates **unowned** scopes (usable from any thread). Choose based on whether your resources need to cross thread boundaries.
 
+## Returning Data from a Scope
+
+**Adding `Unscoped` to your data types:**
+
+If your custom types hold only pure data and need to escape scopes, add an `Unscoped` instance. See [Option 2 in the compile errors section](#no-given-instance-of-unscopedmytype--escaping-a-scope) for a worked example, and the [Unscoped reference](./unscoped.md) for full details. Never add `Unscoped` to types that hold resources (connections, streams, file handles).
+
 ## Scope Patterns: Choosing the Right Approach
 
 The Scope API provides two primary patterns for managing resource lifetimes. Choose `Scope#scoped` if you can write both the code that acquires and the code that releases the resource in the same expression; choose `Scope#open()` if the resource lifetime must outlive the function that creates it. Most user code should prefer `scoped` for automatic cleanup and thread safety—use `open()` only when you need manual lifetime control, such as in connection pools or DI containers.
@@ -972,12 +978,6 @@ Scope.global.scoped { scope =>
   // db was initialized with config; cleanup happens in reverse order
 }
 ```
-
-### Type Safety Tips
-
-**Adding `Unscoped` to your data types:**
-
-If your custom types hold only pure data and need to escape scopes, add an `Unscoped` instance. See [Option 2 in the compile errors section](#no-given-instance-of-unscopedmytype--escaping-a-scope) for a worked example, and the [Unscoped reference](./unscoped.md) for full details. Never add `Unscoped` to types that hold resources (connections, streams, file handles).
 
 ## Integration
 
