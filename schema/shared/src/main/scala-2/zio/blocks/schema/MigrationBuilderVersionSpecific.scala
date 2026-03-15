@@ -30,19 +30,19 @@ trait MigrationBuilderVersionSpecific[A, B] {
 }
 
 object MigrationBuilderMacros {
-  def addFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(target: c.Tree, default: c.Tree): c.Tree = {
+  def addFieldImpl[A, B](c: whitebox.Context)(target: c.Tree, default: c.Tree)(implicit tagA: c.WeakTypeTag[A], tagB: c.WeakTypeTag[B]): c.Tree = {
     import c.universe._
     val fieldName = extractFieldName(c)(target)
     q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.AddField(DynamicOptic.root.field($fieldName), $default))"
   }
 
-  def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(source: c.Tree): c.Tree = {
+  def dropFieldImpl[A, B](c: whitebox.Context)(source: c.Tree)(implicit tagA: c.WeakTypeTag[A], tagB: c.WeakTypeTag[B]): c.Tree = {
     import c.universe._
     val fieldName = extractFieldName(c)(source)
     q"new MigrationBuilder(${c.prefix}.sourceSchema, ${c.prefix}.targetSchema, ${c.prefix}.actions :+ MigrationAction.DropField(DynamicOptic.root.field($fieldName), SchemaExpr.Literal(DynamicValue.Null, Schema.dynamic)))"
   }
 
-  def renameFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: whitebox.Context)(from: c.Tree, to: c.Tree): c.Tree = {
+  def renameFieldImpl[A, B](c: whitebox.Context)(from: c.Tree, to: c.Tree)(implicit tagA: c.WeakTypeTag[A], tagB: c.WeakTypeTag[B]): c.Tree = {
     import c.universe._
     val fromName = extractFieldName(c)(from)
     val toName = extractFieldName(c)(to)
@@ -51,7 +51,13 @@ object MigrationBuilderMacros {
 
   private def extractFieldName(c: whitebox.Context)(tree: c.Tree): String = {
     import c.universe._
-    tree match {
+    
+    def unblock(t: Tree): Tree = t match {
+      case Block(Nil, expr) => unblock(expr)
+      case _ => t
+    }
+
+    unblock(tree) match {
       case Function(_, Select(_, field)) => field.decodedName.toString
       case Function(_, Block(_, Select(_, field))) => field.decodedName.toString
       case _ => c.abort(c.enclosingPosition, s"Could not extract field name from selector: $tree")
