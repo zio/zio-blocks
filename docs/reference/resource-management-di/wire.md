@@ -92,13 +92,13 @@ Scope.global.scoped { scope =>
 Add the following dependency to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x.
@@ -545,7 +545,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wireBasicExample"
+sbt "scope-examples/runMain wire.wireBasicExample"
 ```
 
 Comparing shared vs unique semantics shows how shared wires reuse the same instance across dependents, while unique wires create fresh instances. View the example:
@@ -561,7 +561,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wireSharedUniqueExample"
+sbt "scope-examples/runMain wire.wireSharedUniqueExample"
 ```
 
 Manual wire construction demonstrates how to use `fromFunction` for custom construction logic. View the example:
@@ -577,5 +577,5 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wireFromFunctionExample"
+sbt "scope-examples/runMain wire.wireFromFunctionExample"
 ```

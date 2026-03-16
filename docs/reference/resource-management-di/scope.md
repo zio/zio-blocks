@@ -1104,7 +1104,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConnectionPoolExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.ConnectionPoolExample"
+sbt "scope-examples/runMain scope.examples.connectionPoolExample"
 ```
 
 ### Handling Temporary File Resources with Automatic Cleanup
@@ -1120,7 +1120,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TempFileHandlingExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.TempFileHandlingExample"
+sbt "scope-examples/runMain scope.examples.tempFileHandlingExample"
 ```
 
 ### Managing Database Transactions with Commit/Rollback Semantics
@@ -1136,7 +1136,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.TransactionBoundaryExample"
+sbt "scope-examples/runMain scope.examples.runTransactionBoundaryExample"
 ```
 
 ### Implementing an HTTP Client Pipeline with Request/Response Interceptors
@@ -1152,7 +1152,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/HttpClientPipelin
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/HttpClientPipelineExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.HttpClientPipelineExample"
+sbt "scope-examples/runMain scope.examples.httpClientPipelineExample"
 ```
 
 ### Managing a Shared, Cached Logger Across Multiple Services
@@ -1168,7 +1168,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CachingSharedLoggerExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.CachingSharedLoggerExample"
+sbt "scope-examples/runMain scope.examples.runCachingExample"
 ```
 
 ### Building a Layered Web Service with Dependency Injection
@@ -1184,7 +1184,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebService
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.LayeredWebServiceExample"
+sbt "scope-examples/runMain scope.examples.layeredWebServiceExample"
 ```
 
 ### Reading Configuration from a File with Scope Management
@@ -1200,7 +1200,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConfigReaderExamp
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConfigReaderExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.ConfigReaderExample"
+sbt "scope-examples/runMain scope.examples.runConfigReaderExample"
 ```
 
 ### Implementing a Plugin Architecture with Automatic Resource Discovery
@@ -1216,7 +1216,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/PluginArchitectur
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/PluginArchitectureExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.PluginArchitectureExample"
+sbt "scope-examples/runMain scope.examples.pluginArchitectureExample"
 ```
 
 ### Demonstrating Thread Ownership Enforcement in Scope Hierarchies
@@ -1248,7 +1248,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CircularDependenc
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CircularDependencyDemoExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.CircularDependencyDemoExample"
+sbt "scope-examples/runMain scope.examples.circularDependencyDemoExample"
 ```
 
 ### Using Scope with Legacy Libraries that Don't Support Managed Resources
@@ -1264,7 +1264,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LegacyLibraryInte
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LegacyLibraryInteropExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.LegacyLibraryInteropExample"
+sbt "scope-examples/runMain scope.examples.legacyLibraryInteropExample"
 ```
 
 ### Integration Testing with Automatic Setup and Teardown
