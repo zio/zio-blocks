@@ -45,6 +45,7 @@ Scope.global.scoped { scope =>
   import scope._
 
   $(open()) { openScope =>
+    import openScope.scope._
     defer {
       println("Cleanup")
     }
@@ -75,6 +76,7 @@ Scope.global.scoped { scope =>
   import scope._
 
   $(open()) { openScope =>
+    import openScope.scope._
     defer {
       throw new Exception("Cleanup failed")
     }
