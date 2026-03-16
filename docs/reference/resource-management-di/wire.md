@@ -545,7 +545,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.WireBasicExample"
+sbt "scope-examples/runMain wireBasicExample"
 ```
 
 Comparing shared vs unique semantics shows how shared wires reuse the same instance across dependents, while unique wires create fresh instances. View the example:
@@ -561,7 +561,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.WireSharedUniqueExample"
+sbt "scope-examples/runMain wireSharedUniqueExample"
 ```
 
 Manual wire construction demonstrates how to use `fromFunction` for custom construction logic. View the example:
@@ -577,5 +577,5 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.WireFromFunctionExample"
+sbt "scope-examples/runMain wireFromFunctionExample"
 ```

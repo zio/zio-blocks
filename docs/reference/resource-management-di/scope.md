@@ -1232,7 +1232,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ThreadOwnershipEx
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ThreadOwnershipExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.ThreadOwnershipExample"
+sbt "scope-examples/runMain runThreadOwnershipExample"
 ```
 
 ### Detecting and Demonstrating Circular Dependency Scenarios
