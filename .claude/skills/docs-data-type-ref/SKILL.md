@@ -1,6 +1,6 @@
 ---
 name: docs-data-type-ref
-description: Use when the user asks to write a reference page for a ZIO Blocks data type, API documentation, or class/trait/object documentation.
+description: Write a reference documentation page for a specific data type in ZIO Blocks. Use when the user asks to document a data type, write an API reference for a type, or create a reference page for a class/trait/object.
 argument-hint: "[fully-qualified-type-name or simple-type-name]"
 allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 ---
@@ -15,30 +15,9 @@ $ARGUMENTS
 
 ## Step 1: Deep Source Code Research
 
-Before writing anything, build a complete mental model of the type:
+Use the **`docs-research`** skill to find the source file, read tests, identify examples, find usages, read related docs, and search GitHub history. It covers steps for identifying the type, finding supporting information, and building a complete mental model.
 
-1. **Find the source file**: Use Glob to find the primary source file for the type. Check all Scala version directories (`*/src/main/scala*/`). The type may have platform-specific or version-specific variants.
-2. **Read the full source**: Read the entire source file. Identify:
-   - The type signature (class/trait/object, type parameters, variance, extends clauses)
-   - All public methods, their signatures, and what they do
-   - Companion object methods (factory methods, smart constructors, predefined instances)
-   - Nested types and type aliases
-   - Implicit instances and extension methods
-3. **Find tests**: Search `*/src/test/scala/` for test files referencing the type. Tests reveal:
-   - Intended usage patterns and idioms
-   - Edge cases and expected behavior
-   - Real-world examples
-4. **Find existing examples**: Use Glob and Grep to locate examples in `schema-examples/` or any directory with "examples" in its name.
-5. **Find usages**: Grep for the type name across the codebase to find how it's used by other modules — this reveals integration points and relationships.
-6. **Read related docs**: Check `docs/` and `docs/reference/` for pages that reference this type.
-7. **Search GitHub history**: Run `sbt "gh-query --verbose <TypeName>"` to search GitHub issues, PRs, and comments for discussions about the type. Use the results to:
-   - Understand design decisions and rationale behind the API
-   - Find known caveats, gotchas, or non-obvious behavior surfaced in issues
-   - Discover common user questions or pain points to address in the docs
-   - Identify changelog entries or breaking changes worth noting
-   - Surface examples or idioms shared by contributors in PRs
-
-   Run multiple queries as needed (e.g., the simple type name, the fully-qualified name, related feature keywords) to get thorough coverage.
+**Additional guidance for reference pages**: Ensure you also locate the type's full public API (all public methods and companion object methods), as this will form the core of your documentation.
 
 ## Step 2: Write the Documentation
 
@@ -119,7 +98,7 @@ Document all ways to create values of the type, organized by method:
 - Conversion from other types
 - Predefined instances (if any)
 
-Each method gets its own `###` subsection with a short explanation and a code example.
+Each method gets its own Markdown subsection with a short explanation and a code example.
 
 #### 5. Predefined Instances (if applicable)
 
@@ -127,7 +106,7 @@ List predefined instances (like `TypeId.int`, `TypeId.string`) organized by cate
 
 #### 6. Core Operations (Required)
 
-Document the primary API organized by category. Group related methods under `###` subsections:
+Document the primary API organized by category. Group related methods under markdown subsections:
 
 For example:
 - **Element Access** (get, apply, head, etc.)
@@ -142,7 +121,9 @@ For each group:
 - Note performance characteristics inline when relevant (e.g., "O(1)", "O(n)")
 
 For each method:
-a. **Use a `####` heading** with the method name
+a. **Use a Markdown subheader** with the method name using the pattern: `` `MethodName` — Brief Description ``
+   - Example: `` `Resource.apply` — Wrap a Value ``
+   - Example: `` `Resource#map` — Transform the Value ``
 b. **Explain what it does** in plain language
 c. **Show the method signature** in a plain `scala` code block using the simplest trait interface format — just the method name, parameters, and return type, without extra keywords like `override`, `final`, `sealed`. For example:
 
@@ -247,7 +228,9 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**<Short description of what this App demonstrates>**
+### <Example Title>
+
+<Short description of what this App demonstrates and the use case it covers.>
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -261,7 +244,9 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName>.scala")
 sbt "schema-examples/runMain <package>.<ObjectName>"
 ```
 
-**<Short description of the next App>**
+### <Next Example Title>
+
+<Short description of what this App demonstrates and the use case it covers.>
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -276,9 +261,9 @@ sbt "schema-examples/runMain <package>.<ObjectName2>"
 ```
 
 Rules for this section:
-- List **every `App` object** written in Step 3, one entry per object.
-- For each entry: embed the full source with `SourceFile.print`, then show description, source link, and run command.
-- The bolded description must be a short plain-English description of what that specific `App` demonstrates — not the object name rephrased.
+- List **every `App` object** written in Step 4, one entry per object.
+- For each entry: use a `###` heading (simple title), followed by a short descriptive paragraph, then embed the full source with `SourceFile.print`, source link, and run command.
+- The heading should be a simple, concise title (e.g., "Basic Usage", "Error Handling"). The paragraph below explains what the example demonstrates and the use case it covers.
 - Keep the two numbered steps (clone, run individually) in that order; do not add or remove steps.
 - If no example `App` objects were written (rare), omit this section entirely.
 - **Always embed full source** — `SourceFile.print` keeps docs and examples in sync automatically.
@@ -310,7 +295,11 @@ SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
 - Use ASCII art for type hierarchies and data structures.
 - Link to related docs using relative paths: `[TypeName](./type-name.md)`.
 
-## Step 3: Write Examples
+## Step 3: Verify Documentation Compliance
+
+Run `/docs-verify-compliance` skill.
+
+## Step 4: Write Examples
 
 Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
 
@@ -321,7 +310,7 @@ Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lower
 - **Coverage**: happy path + at least one failure/edge case, realistic domain types (`Person`, `Order`)
 - **Self-contained**: define all types and imports in the file
 
-## Step 4: Format and Verify
+## Step 5: Format and Verify
 
 Format all Scala files:
 
@@ -338,11 +327,20 @@ sbt check
 Verify mdoc compilation:
 
 ```bash
+# Single file:
 sbt "docs/mdoc --in docs/reference/<type-name-kebab-case>.md"
+
+# Multiple files — repeat --in/--out pairs:
+sbt "docs/mdoc --in docs/reference/file1.md --out out/file1.md --in docs/reference/file2.md --out out/file2.md"
+
+# Or use a directory to cover all files in it:
+sbt "docs/mdoc --in docs/reference/<subdirectory>/"
 ```
 
-**Success criterion:** zero formatting violations and zero `[error]` lines in mdoc output.
+> **Never use bare `sbt docs/mdoc`** without `--in` — it recompiles all documentation (~90 seconds).
 
-## Step 5: Integrate
+**Success criterion:** zero `[error]` lines in mdoc output.
+
+## Step 6: Integrate
 
 Use the **`docs-integrate`** skill for integration checklist (sidebars.js, index.md, cross-references).
