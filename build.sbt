@@ -133,6 +133,8 @@ lazy val root = project
     `scope-examples`,
     sql.jvm,
     sql.js,
+    `sql-query`.jvm,
+    `sql-query`.js,
     `sql-zio`,
     schema.jvm,
     schema.js,
@@ -324,6 +326,24 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
       "org.xerial"     % "sqlite-jdbc" % "3.49.1.0" % Test,
       "org.postgresql" % "postgresql"  % "42.7.5"   % Test
     )
+  )
+
+lazy val `sql-query` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(sql)
+  .settings(stdSettings("zio-blocks-sql-query", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.sql.query"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `sql-zio` = project
