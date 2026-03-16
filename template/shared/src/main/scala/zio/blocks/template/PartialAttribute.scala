@@ -2,7 +2,7 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 
-final class PartialAttribute(val attrName: String) extends Modifier {
+final class PartialAttribute(val attrName: String) {
 
   def :=(value: String): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value))
@@ -34,6 +34,4 @@ final class PartialAttribute(val attrName: String) extends Modifier {
   def withSeparator(values: Chunk[String], separator: Dom.AttributeSeparator): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, separator))
 
-  def applyTo(element: Dom.Element): Dom.Element =
-    element.withAttributes(element.attributes :+ Dom.Attribute.BooleanAttribute(attrName))
 }

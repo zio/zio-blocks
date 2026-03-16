@@ -317,7 +317,10 @@ object TypeclassSpec extends ZIOSpecDefault {
     ),
     suite("CssColor")(
       test("Hex renders with hash") {
-        assertTrue(CssColor.Hex("ff0000").render == "#ff0000")
+        assertTrue(CssColor.Hex("ff0000").map(_.render).contains("#ff0000"))
+      },
+      test("Hex validates format") {
+        assertTrue(CssColor.Hex("invalid").isEmpty)
       },
       test("Rgb renders") {
         assertTrue(CssColor.Rgb(255, 0, 0).render == "rgb(255,0,0)")
@@ -328,8 +331,14 @@ object TypeclassSpec extends ZIOSpecDefault {
       test("Hsl renders with percent") {
         assertTrue(CssColor.Hsl(120, 50, 50).render == "hsl(120,50%,50%)")
       },
-      test("Named renders name directly") {
-        assertTrue(CssColor.Named("red").render == "red")
+      test("Named validates against whitelist") {
+        assertTrue(CssColor.Named("red").map(_.render).contains("red"))
+      },
+      test("Named rejects invalid names") {
+        assertTrue(CssColor.Named("notacolor").isEmpty)
+      },
+      test("Named unsafe allows any string") {
+        assertTrue(CssColor.Named.unsafe("anything").render == "anything")
       }
     )
   )

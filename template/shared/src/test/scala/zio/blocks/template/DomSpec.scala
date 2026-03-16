@@ -709,11 +709,17 @@ object DomSpec extends ZIOSpecDefault {
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == "<div class=\"a b c\"></div>")
       },
-      test("PartialAttribute as boolean modifier (applyTo)") {
-        val pa      = new PartialAttribute("required")
+      test("BooleanAttribute as modifier (applyTo)") {
+        val ba      = Dom.Attribute.BooleanAttribute("required")
         val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
-        val updated = pa.applyTo(el)
+        val updated = ba.applyTo(el)
         assertTrue(updated.render == "<input required/>")
+      },
+      test("BooleanAttribute disabled=false does not add attribute") {
+        val ba      = Dom.Attribute.BooleanAttribute("disabled", enabled = false)
+        val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
+        val updated = ba.applyTo(el)
+        assertTrue(updated.render == "<input/>")
       }
     ),
     suite("indented rendering with PreRendered")(
