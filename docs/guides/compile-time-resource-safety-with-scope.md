@@ -483,7 +483,7 @@ class Connection(db: String, id: Int) extends AutoCloseable {
 }
 
 Scope.global.scoped { parentScope =>
-  import parentScope.*
+  import parentScope._
 
   // Open database in parent scope
   val db = allocate(Resource(new Database("maindb")))
@@ -495,7 +495,7 @@ Scope.global.scoped { parentScope =>
 
   // Create a child scope (e.g., for a request)
   parentScope.scoped { childScope =>
-    import childScope.*
+    import childScope._
 
     // Lower the parent-scoped database into the child scope
     val dbInChild = childScope.lower(db)
@@ -555,7 +555,7 @@ Scope.global.scoped { scope =>
     try {
       // Use the scope to allocate and manage the resource
       requestScope.scoped { innerScope =>
-        import innerScope.*
+        import innerScope._
 
         val pool = allocate(Resource(new ConnectionPool()))
 
