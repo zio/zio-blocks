@@ -123,11 +123,10 @@ final class ThreadAwareResource(val name: String) extends AutoCloseable {
         println()
       } finally {
         executor.shutdown()
+        // Clean up the open scope and propagate any finalizer failures
+        handle.close().orThrow()
+        println("[Main] Unowned scope closed\n")
       }
-
-      // Clean up the open scope and propagate any finalizer failures
-      handle.close().orThrow()
-      println("[Main] Unowned scope closed\n")
     }
   }
 
