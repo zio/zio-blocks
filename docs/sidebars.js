@@ -42,15 +42,15 @@ const sidebars = {
          {
            type: "category",
            label: "Resource Management & DI",
-           link: { type: "doc", id: "reference/resource-management-di/index" },
+           link: { type: "doc", id: "reference/resource-management/index" },
            items: [
-             "reference/resource-management-di/scope",
-             "reference/resource-management-di/resource",
-             "reference/resource-management-di/wire",
-             "reference/resource-management-di/unscoped",
-             "reference/resource-management-di/defer-handle",
-             "reference/resource-management-di/finalizer",
-             "reference/resource-management-di/finalization",
+             "reference/resource-management/scope",
+             "reference/resource-management/resource",
+             "reference/resource-management/wire",
+             "reference/resource-management/unscoped",
+             "reference/resource-management/defer-handle",
+             "reference/resource-management/finalizer",
+             "reference/resource-management/finalization",
            ]
          },
          "reference/combinators",

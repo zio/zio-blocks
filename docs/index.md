@@ -314,7 +314,7 @@ Scope.global.scoped { connScope =>
 
 New to Scope? Check out the [Scope Tutorial](./guides/compile-time-resource-safety-with-scope.md) for a comprehensive step-by-step guide that walks you through the concepts, patterns, and real-world examples. The tutorial is designed for newcomers and covers everything from basic resource management to advanced dependency injection.
 
-For detailed API documentation, see the [Scope Reference](./reference/resource-management-di/scope.md).
+For detailed API documentation, see the [Scope Reference](./reference/resource-management/scope.md).
 
 ---
 
@@ -620,8 +620,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
-- [Scope](./reference/resource-management-di/scope.md) - Compile-time safe resource management and DI
-- [Wire](./reference/resource-management-di/wire.md) - Recipes for constructing services and dependencies
+- [Scope](./reference/resource-management/scope.md) - Compile-time safe resource management and DI
+- [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](./reference/typeid.md) - Type identity and metadata
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
