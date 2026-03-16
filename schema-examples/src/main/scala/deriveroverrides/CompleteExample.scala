@@ -22,14 +22,14 @@ import zio.blocks.schema.CompanionOptics
 object CompleteExample extends App {
 
   // Custom codecs
-  val stringifyInt = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-    def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+  val stringifyInt = new JsonBinaryCodec[Int] {
+    def decodeValue(in: JsonReader): Int = in.readStringAsInt()
     def encodeValue(x: Int, out: JsonWriter): Unit     = out.writeVal(x.toString)
   }
 
-  val padStringCodec = new JsonBinaryCodec[String](JsonBinaryCodec.objectType) {
-    def decodeValue(in: JsonReader, default: String): String =
-      in.readString(default).trim
+  val padStringCodec = new JsonBinaryCodec[String] {
+    def decodeValue(in: JsonReader): String =
+      in.readString().trim
 
     def encodeValue(x: String, out: JsonWriter): Unit =
       out.writeVal(s"[${x}]") // Add brackets for visibility
@@ -81,16 +81,16 @@ object CompleteExample extends App {
     .instance(
       TypeId.of[UserProfile],
       "score",
-      new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-        def decodeValue(in: JsonReader, default: Int): Int = in.readInt()
+      new JsonBinaryCodec[Int] {
+        def decodeValue(in: JsonReader): Int = in.readInt()
         def encodeValue(x: Int, out: JsonWriter): Unit     = out.writeVal(x)
       }
     )
     // Level 1: Optic-based — highest priority, overrides both above for exact path
     .instance(
       UserProfile.age,
-      new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
-        def decodeValue(in: JsonReader, default: Int): Int =
+      new JsonBinaryCodec[Int] {
+        def decodeValue(in: JsonReader): Int =
           in.readStringAsInt()
 
         def encodeValue(x: Int, out: JsonWriter): Unit =
