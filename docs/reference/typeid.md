@@ -100,24 +100,44 @@ def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
 
 **Type Aliases and Opaque Types**
 
-TypeId preserves the distinction between nominal type definitions and their aliases, enabling normalization when needed:
+TypeId preserves the distinction between nominal type definitions and their aliases, enabling both identity checks and normalization. This is impossible with pure Scala, where aliases are indistinguishable at runtime:
 
 ```scala mdoc:compile-only
 import zio.blocks.typeid._
 
+// Type aliases (Scala 2 & 3)
 type Age = Int
 type Email = String
 
+// Opaque types (Scala 3 only)
+opaque type UserId = String
+opaque type OrderId = String
+
 val ageId = TypeId.of[Age]
 val emailId = TypeId.of[Email]
+val userIdId = TypeId.of[UserId]
+val orderIdId = TypeId.of[OrderId]
 
-// These are distinct from the base types
+// TypeId preserves the alias identity
 val intId = TypeId.int
 val stringId = TypeId.string
 
-// But we can normalize aliases to their underlying types
+// Compare types for identity — aliases are distinct from their base types
+val ageIsInt = ageId.isEquivalentTo(intId)           // false
+val emailIsString = emailId.isEquivalentTo(stringId) // false
+val userIdIsString = userIdId.isEquivalentTo(stringId) // false
+
+// Different opaque types are also distinct
+val userIdIsOrderId = userIdId.isEquivalentTo(orderIdId) // false
+
+// But we can normalize aliases to their underlying types when needed
 val normalizedAge = TypeId.normalize(ageId)
 val normalizedEmail = TypeId.normalize(emailId)
+val normalizedUserId = TypeId.normalize(userIdId)
+
+val normalizedAgeIsInt = normalizedAge.isEquivalentTo(intId)         // true
+val normalizedEmailIsString = normalizedEmail.isEquivalentTo(stringId) // true
+val normalizedUserIdIsString = normalizedUserId.isEquivalentTo(stringId) // true
 ```
 
 ### How TypeId Fits into the Schema Stack
@@ -139,100 +159,6 @@ TypeId is fundamental to ZIO Blocks' schema system. Here's where it fits in the 
 ```
 
 Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code.
-
-### TypeId vs Pure Scala Alternatives
-
-Pure Scala already has mechanisms for runtime type checking. Here's when TypeId is necessary vs when simpler approaches suffice:
-
-#### Sealed Hierarchies — Use Pattern Matching
-
-For compile-time-known sealed type hierarchies, pure Scala pattern matching is simpler and sufficient:
-
-```scala mdoc:compile-only
-sealed trait Animal
-case class Dog(name: String) extends Animal
-case class Cat(name: String) extends Animal
-
-// Pure Scala: Pattern matching (simple, no reflection)
-def handleAnimal(animal: Animal): String = animal match {
-  case dog: Dog => s"Handling ${dog.name}"
-  case cat: Cat => s"Handling ${cat.name}"
-}
-```
-
-#### Polymorphic Registries — Use TypeId
-
-When types are discovered at runtime (from network, plugins, dynamic sources), TypeId enables:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// TypeId enables type-indexed lookup for dynamically discovered types
-val schemaMap: Map[TypeId.Erased, String] = Map(
-  TypeId.of[String].erased -> "string codec",
-  TypeId.of[Int].erased -> "int codec"
-  // Add more types at runtime without modifying pattern matches
-)
-```
-
-#### Type Parameters — Use TypeId
-
-Pure Scala loses generic type parameters at runtime. TypeId preserves them:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// Pure Scala: Lost at runtime
-def inspectList1[A](list: List[A]): String = {
-  val classTag = scala.reflect.ClassTag[A](getClass)
-  // Can't get full type info including variance, bounds, etc.
-  "List[?]"
-}
-
-// TypeId: Full information preserved
-def inspectList2[A](implicit typeId: TypeId[List[A]]): String = {
-  s"List[${typeId.typeArgs.head}] with ${typeId.typeParams.length} params"
-}
-```
-
-#### Comparison Table
-
-| Scenario | Pure Scala | TypeId |
-|----------|-----------|--------|
-| Sealed hierarchies known at compile time | ✓ Pattern matching | Overkill |
-| Dynamic type registry (types unknown in advance) | ✗ Requires reflection | ✓ Type-indexed lookup |
-| Type parameters (List[A], Map[K,V]) | ✗ Erased | ✓ Preserved |
-| Type aliases vs base types | ✗ Same at runtime | ✓ Distinguishable |
-| Codec generation | ✗ Limited to class name | ✓ Full metadata |
-| Cross-platform (JVM + JS) | ✗ JVM-only reflection | ✓ Works everywhere |
-
-**Rule of thumb:** Use pure Scala if all types are known at compile time and sealed. Use TypeId when types come from external sources (wire protocols, plugins, dynamic discovery).
-
-The following snippet shows the common workflow:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-// Derive TypeId for your types
-case class Person(name: String, age: Int)
-val personId: TypeId[Person] = TypeId.of[Person]
-```
-
-Once derived, you can access rich type information from it:
-
-```scala mdoc
-personId.name
-personId.fullName
-personId.isCaseClass
-```
-
-Or use predefined TypeIds for built-in types:
-
-```scala mdoc
-TypeId.int.fullName
-TypeId.string.fullName
-TypeId.list.arity
-```
 
 ## Installation
 
