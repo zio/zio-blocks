@@ -23,7 +23,104 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-## Overview
+## Motivation
+
+### Why TypeId Exists
+
+In Scala, type information is erased at runtime — the JVM and JavaScript runtimes do not preserve generic type parameters or compile-time type structure. This erasure makes it difficult to implement universal serialization (JSON, binary formats, XML, YAML), code generation, and schema-based transformations that rely on full type knowledge.
+
+`TypeId[A]` solves this problem by capturing and preserving complete type metadata at compile time, making it available as a pure data structure at runtime. This metadata includes the type's name, package location, type parameters, variance, parent types, annotations, and classification (case class, sealed trait, enum, etc.).
+
+### Real-World Use Cases
+
+**Schema-Driven Serialization**
+
+TypeId is central to ZIO Blocks' universal schema system. Every schema derivation receives a TypeId so that codec generators (for JSON, YAML, MessagePack, binary formats, XML) can decide how to serialize and deserialize data:
+
+```
+                    TypeId[Person]
+                        │
+        ┌───────────────┼───────────────┐
+        ▼               ▼               ▼
+    JsonBinary      YamlBinary      XmlBinary
+    Codec[Person]  Codec[Person]   Codec[Person]
+```
+
+Code generators use TypeId metadata to emit specialized, efficient codecs. For example, a JSON codec generator inspects whether a type is a case class (preserving field names), a sealed trait (handling variants), or an opaque type (wrapping the underlying type).
+
+**Type-Indexed Registries and Lookup**
+
+Applications often maintain registries of schemas or validators keyed by type. TypeId provides a pure, hashable data structure for this:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+case class Person(name: String, age: Int)
+case class Order(id: String, total: Double)
+
+// Build a registry of type IDs
+val typeRegistry: Map[TypeId.Erased, String] = Map(
+  TypeId.of[Person].erased -> "Person schema",
+  TypeId.of[Order].erased -> "Order schema",
+  TypeId.of[String].erased -> "String schema"
+)
+
+// Later, look up metadata by type at runtime
+def getMetadata(typeId: TypeId[?]): Option[String] =
+  typeRegistry.get(typeId.erased)
+```
+
+**Type-Safe Polymorphic Operations**
+
+When working with sealed type hierarchies, TypeId allows you to dispatch to the correct handler based on type relationships:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case class Cat(name: String) extends Animal
+
+val dogId = TypeId.of[Dog]
+val catId = TypeId.of[Cat]
+val animalId = TypeId.of[Animal]
+
+// Check inheritance at runtime
+if (dogId.isSubtypeOf(animalId)) {
+  println("Dog is a subtype of Animal")
+}
+
+// Or match on type relationships
+def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
+  case t if t.isEquivalentTo(dogId) => "Handling dog"
+  case t if t.isEquivalentTo(catId) => "Handling cat"
+  case _ => "Handling unknown animal"
+}
+```
+
+**Type Aliases and Opaque Types**
+
+TypeId preserves the distinction between nominal type definitions and their aliases, enabling normalization when needed:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+type Age = Int
+type Email = String
+
+val ageId = TypeId.of[Age]
+val emailId = TypeId.of[Email]
+
+// These are distinct from the base types
+val intId = TypeId.int
+val stringId = TypeId.string
+
+// But we can normalize aliases to their underlying types
+val normalizedAge = TypeId.normalize(ageId)
+val normalizedEmail = TypeId.normalize(emailId)
+```
+
+### How TypeId Fits into the Schema Stack
 
 TypeId is fundamental to ZIO Blocks' schema system. Here's where it fits in the stack:
 
@@ -41,12 +138,7 @@ TypeId is fundamental to ZIO Blocks' schema system. Here's where it fits in the 
          └──────────────────────────────────────┘
 ```
 
-TypeId enables:
-
-- **Type identification** - Uniquely identify types across serialization boundaries
-- **Subtype checking** - Determine inheritance relationships at runtime
-- **Type normalization** - Resolve type aliases to their underlying types
-- **Schema derivation** - Automatically derive schemas for user-defined types
+Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code:
 
 The following snippet shows the common workflow:
 
