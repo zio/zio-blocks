@@ -111,11 +111,15 @@ object Dom {
       def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Script          = copy(children = kids)
 
-      def inlineJs(code: String): Script =
-        copy(children = children :+ Dom.Text(code))
+      def inlineJs(code: String): Script = {
+        val escaped = code.replace("</", "<\\/")
+        copy(children = children :+ Dom.Text(escaped))
+      }
 
-      def inlineJs(code: Js): Script =
-        copy(children = children :+ Dom.Text(code.value))
+      def inlineJs(code: Js): Script = {
+        val escaped = code.value.replace("</", "<\\/")
+        copy(children = children :+ Dom.Text(escaped))
+      }
 
       def externalJs(url: String): Script =
         copy(attributes = attributes :+ Attribute.KeyValue("src", AttributeValue.StringValue(url)))
@@ -146,8 +150,12 @@ object Dom {
   sealed trait Attribute extends Product with Serializable
 
   object Attribute {
-    final case class KeyValue(name: String, value: AttributeValue) extends Attribute
-    final case class BooleanAttribute(name: String)                extends Attribute
+    final case class KeyValue(name: String, value: AttributeValue)           extends Attribute
+    final case class BooleanAttribute(name: String, enabled: Boolean = true) extends Attribute with Modifier {
+      def applyTo(element: Element): Element =
+        if (enabled) element.withAttributes(element.attributes :+ this)
+        else element
+    }
   }
 
   sealed trait AttributeValue extends Product with Serializable
@@ -178,8 +186,8 @@ object Dom {
 
   private[template] def preRendered(html: String): Dom = PreRendered(html)
 
-  def boolAttr(name: String, enabled: Boolean = true): Attribute =
-    Attribute.KeyValue(name, AttributeValue.BooleanValue(enabled))
+  def boolAttr(name: String, enabled: Boolean = true): Attribute.BooleanAttribute =
+    Attribute.BooleanAttribute(name, enabled)
 
   def multiAttr(name: String): PartialMultiAttribute =
     new PartialMultiAttribute(name, AttributeSeparator.Space)
@@ -264,11 +272,11 @@ object Dom {
 
         case Attribute.KeyValue(_, _) => ()
 
-        case Attribute.BooleanAttribute(name) if isValidAttrName(name) =>
+        case Attribute.BooleanAttribute(name, enabled) if enabled && isValidAttrName(name) =>
           sb.append(' ')
           sb.append(name)
 
-        case Attribute.BooleanAttribute(_) => ()
+        case Attribute.BooleanAttribute(_, _) => ()
       }
       i += 1
     }

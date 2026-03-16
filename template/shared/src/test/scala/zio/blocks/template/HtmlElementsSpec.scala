@@ -51,7 +51,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     ),
     suite("boolean attributes")(
-      test("required as boolean attribute via PartialAttribute") {
+      test("required as boolean attribute via BooleanAttribute") {
         val result = input(required).render
         assertTrue(result == "<input required/>")
       },
@@ -59,12 +59,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result = input(disabled).render
         assertTrue(result == "<input disabled/>")
       },
-      test("required with := true") {
-        val result = input(required := true).render
+      test("BooleanAttribute enabled=true renders") {
+        val result = input(Dom.boolAttr("required", enabled = true)).render
         assertTrue(result == "<input required/>")
       },
-      test("required with := false omits attribute") {
-        val result = input(required := false).render
+      test("BooleanAttribute enabled=false omits attribute") {
+        val result = input(Dom.boolAttr("required", enabled = false)).render
         assertTrue(result == "<input/>")
       }
     ),
@@ -679,6 +679,108 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           s.render.contains("type=\"module\""),
           s.render.contains("import x from 'y';")
         )
+      }
+    ),
+    suite("inline JS")(
+      test("script().inlineJs with simple alert") {
+        val result = script().inlineJs(Js("alert('hello')")).render
+        assertTrue(result == "<script>alert('hello')</script>")
+      },
+      test("script().inlineJs with datastar expression") {
+        val result = script().inlineJs(Js("$count++")).render
+        assertTrue(result == "<script>$count++</script>")
+      },
+      test("script().inlineJs does not escape HTML special chars") {
+        val result = script().inlineJs(Js("if (x < 10 && y > 5) {}")).render
+        assertTrue(
+          !result.contains("&lt;"),
+          !result.contains("&amp;"),
+          result.contains("x < 10 && y > 5")
+        )
+      },
+      test("script().externalJs with path") {
+        val result = script().externalJs("/app.js").render
+        assertTrue(result == "<script src=\"/app.js\"></script>")
+      },
+      test("script with type attribute and inlineJs") {
+        val result = script(`type` := "module").inlineJs(Js("import { x } from './mod.js'")).render
+        assertTrue(
+          result.contains("type=\"module\""),
+          result.contains("import { x } from './mod.js'")
+        )
+      },
+      test("script().inlineJs with multiline JS") {
+        val code   = """function add(a, b) {
+  return a + b;
+"}"""
+        val result = script().inlineJs(Js(code)).render
+        assertTrue(result.contains("function add"), result.contains("return a + b"))
+      },
+      test("Js constructor preserves content") {
+        val js = Js("var x = 1; console.log(x);").toString()
+        assertTrue(js.contains("console.log"))
+      }
+    ),
+    suite("inline CSS")(
+      test("style().inlineCss with Css.Raw") {
+        val result = style().inlineCss(Css.Raw("body { margin: 0; }")).render
+        assertTrue(result == "<style>body { margin: 0; }</style>")
+      },
+      test("style().inlineCss with Css.Rule containing declarations") {
+        val rule = Css.Rule(
+          CssSelector.Element("div"),
+          Chunk(
+            Css.Declaration("color", "red"),
+            Css.Declaration("margin", "10px")
+          )
+        )
+        val result = style().inlineCss(rule).render
+        assertTrue(
+          result.contains("div"),
+          result.contains("color:red") || result.contains("color: red"),
+          result.contains("margin:10px") || result.contains("margin: 10px")
+        )
+      },
+      test("style().inlineCss with Css.Sheet containing multiple rules") {
+        val rule1  = Css.Rule(CssSelector.Element("body"), Chunk(Css.Declaration("margin", "0")))
+        val rule2  = Css.Rule(CssSelector.Element("p"), Chunk(Css.Declaration("color", "blue")))
+        val sheet  = Css.Sheet(Chunk(rule1, rule2))
+        val result = style().inlineCss(sheet).render
+        assertTrue(
+          result.contains("body"),
+          result.contains("p"),
+          result.contains("margin") || result.contains("color")
+        )
+      },
+      test("style().inlineCss does not escape HTML special chars") {
+        val result = style().inlineCss(Css.Raw("div > p { color: red; }")).render
+        assertTrue(
+          !result.contains("&gt;"),
+          result.contains("div > p")
+        )
+      },
+      test("style with media attribute and inlineCss") {
+        val result = style(media := "screen").inlineCss(Css.Raw("body { margin: 0; }")).render
+        assertTrue(
+          result.contains("media=\"screen\""),
+          result.contains("body { margin: 0; }")
+        )
+      }
+    ),
+    suite("interpolator + inline integration")(
+      test("js interpolator with script().inlineJs") {
+        val name   = "World"
+        val result = script().inlineJs(js"console.log(\"$name\")").render
+        assertTrue(result.contains("console.log"), result.contains("World"))
+      },
+      test("css interpolator with style().inlineCss") {
+        val color  = "red"
+        val result = style().inlineCss(css"body { color: $color; }").render
+        assertTrue(result.contains("body"), result.contains("color"), result.contains("red"))
+      },
+      test("css interpolator zero-arg with inlineCss") {
+        val result = style().inlineCss(css"body { margin: 0; }").render
+        assertTrue(result == "<style>body { margin: 0; }</style>")
       }
     )
   )

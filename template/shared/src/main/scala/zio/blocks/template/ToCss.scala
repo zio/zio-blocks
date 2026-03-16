@@ -87,8 +87,18 @@ sealed trait CssColor extends Product with Serializable {
 }
 
 object CssColor {
-  final case class Hex(value: String) extends CssColor {
+  final case class Hex private (value: String) extends CssColor {
     def render: String = "#" + value
+  }
+
+  object Hex {
+    def apply(value: String): Option[CssColor] = {
+      val v = if (value.startsWith("#")) value.drop(1) else value
+      if (v.matches("[0-9a-fA-F]{3,8}")) Some(new Hex(v.toLowerCase))
+      else None
+    }
+
+    def unsafe(value: String): CssColor = new Hex(value)
   }
 
   final case class Rgb(r: Int, g: Int, b: Int) extends CssColor {
@@ -103,7 +113,174 @@ object CssColor {
     def render: String = "hsl(" + h + "," + s + "%," + l + "%)"
   }
 
-  final case class Named(name: String) extends CssColor {
+  final case class Named private (name: String) extends CssColor {
     def render: String = name
+  }
+
+  object Named {
+    private val validColors: Set[String] = Set(
+      "aliceblue",
+      "antiquewhite",
+      "aqua",
+      "aquamarine",
+      "azure",
+      "beige",
+      "bisque",
+      "black",
+      "blanchedalmond",
+      "blue",
+      "blueviolet",
+      "brown",
+      "burlywood",
+      "cadetblue",
+      "chartreuse",
+      "chocolate",
+      "coral",
+      "cornflowerblue",
+      "cornsilk",
+      "crimson",
+      "cyan",
+      "darkblue",
+      "darkcyan",
+      "darkgoldenrod",
+      "darkgray",
+      "darkgreen",
+      "darkgrey",
+      "darkkhaki",
+      "darkmagenta",
+      "darkolivegreen",
+      "darkorange",
+      "darkorchid",
+      "darkred",
+      "darksalmon",
+      "darkseagreen",
+      "darkslateblue",
+      "darkslategray",
+      "darkslategrey",
+      "darkturquoise",
+      "darkviolet",
+      "deeppink",
+      "deepskyblue",
+      "dimgray",
+      "dimgrey",
+      "dodgerblue",
+      "firebrick",
+      "floralwhite",
+      "forestgreen",
+      "fuchsia",
+      "gainsboro",
+      "ghostwhite",
+      "gold",
+      "goldenrod",
+      "gray",
+      "green",
+      "greenyellow",
+      "grey",
+      "honeydew",
+      "hotpink",
+      "indianred",
+      "indigo",
+      "ivory",
+      "khaki",
+      "lavender",
+      "lavenderblush",
+      "lawngreen",
+      "lemonchiffon",
+      "lightblue",
+      "lightcoral",
+      "lightcyan",
+      "lightgoldenrodyellow",
+      "lightgray",
+      "lightgreen",
+      "lightgrey",
+      "lightpink",
+      "lightsalmon",
+      "lightseagreen",
+      "lightskyblue",
+      "lightslategray",
+      "lightslategrey",
+      "lightsteelblue",
+      "lightyellow",
+      "lime",
+      "limegreen",
+      "linen",
+      "magenta",
+      "maroon",
+      "mediumaquamarine",
+      "mediumblue",
+      "mediumorchid",
+      "mediumpurple",
+      "mediumseagreen",
+      "mediumslateblue",
+      "mediumspringgreen",
+      "mediumturquoise",
+      "mediumvioletred",
+      "midnightblue",
+      "mintcream",
+      "mistyrose",
+      "moccasin",
+      "navajowhite",
+      "navy",
+      "oldlace",
+      "olive",
+      "olivedrab",
+      "orange",
+      "orangered",
+      "orchid",
+      "palegoldenrod",
+      "palegreen",
+      "paleturquoise",
+      "palevioletred",
+      "papayawhip",
+      "peachpuff",
+      "peru",
+      "pink",
+      "plum",
+      "powderblue",
+      "purple",
+      "rebeccapurple",
+      "red",
+      "rosybrown",
+      "royalblue",
+      "saddlebrown",
+      "salmon",
+      "sandybrown",
+      "seagreen",
+      "seashell",
+      "sienna",
+      "silver",
+      "skyblue",
+      "slateblue",
+      "slategray",
+      "slategrey",
+      "snow",
+      "springgreen",
+      "steelblue",
+      "tan",
+      "teal",
+      "thistle",
+      "tomato",
+      "turquoise",
+      "violet",
+      "wheat",
+      "white",
+      "whitesmoke",
+      "yellow",
+      "yellowgreen",
+      "transparent",
+      "currentcolor",
+      "inherit",
+      "initial",
+      "unset",
+      "revert"
+    )
+
+    def apply(name: String): Option[CssColor] = {
+      val lower = name.toLowerCase
+      if (validColors.contains(lower)) Some(new Named(lower))
+      else None
+    }
+
+    def unsafe(name: String): CssColor = new Named(name)
   }
 }
