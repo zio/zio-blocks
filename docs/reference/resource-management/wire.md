@@ -3,7 +3,7 @@ id: wire
 title: "Wire"
 ---
 
-`Wire[-In, +Out]` is a **compile-time safe recipe for constructing a service and its dependencies**. Wires describe how to construct an `Out` value given access to its dependencies via a `Context[In]` and a `Scope` for finalization.
+`Wire[-In, +Out]` is a **compile-time safe recipe for constructing a service and its dependencies**. Wires describe how to construct an `Out` value given access to its dependencies via a `Context[In]` and a `Scope` for finalization:
 
 ```scala
 sealed trait Wire[-In, +Out] {
@@ -60,7 +60,7 @@ final class App(service: UserService) {
 
 // Manual wiring:
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config("jdbc:postgres://localhost/db")
   val db = Resource.fromAutoCloseable(new Database(config)).allocate
   val service = new UserService($(db)(identity))
@@ -73,7 +73,7 @@ With `Wire` + `Resource.from`, the macro handles the dependency graph:
 
 ```scala
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val app = Resource.from[App](
     Wire(Config("jdbc:postgres://localhost/db"))
   ).allocate
@@ -89,23 +89,27 @@ Scope.global.scoped { scope =>
 
 ## Installation
 
+Add the following dependency to your `build.sbt`:
+
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x.
 
 ## Construction
 
+`Wire` provides multiple ways to create instances, ranging from automatic macro-based derivation to manual construction for custom logic. Here are the main construction methods:
+
 ### Wire.shared[T] — derive a shared wire
 
-The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents.
+The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents:
 
 ```scala
 import zio.blocks.scope._
@@ -121,7 +125,7 @@ final class Database(config: Config) extends AutoCloseable {
 val wire: Wire.Shared[Config, Database] = Wire.shared[Database]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config(debug = true)
   val deps = Context[Config](config)
   val db = allocate(wire.toResource(deps))
@@ -131,7 +135,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.unique[T] — derive a unique wire
 
-Like `shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services.
+Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services:
 
 ```scala
 import zio.blocks.scope._
@@ -144,7 +148,7 @@ final class RequestHandler {
 val wire: Wire.Unique[Any, RequestHandler] = Wire.unique[RequestHandler]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val deps = Context.empty[Any]
   val resource = wire.toResource(deps)
 
@@ -161,7 +165,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.apply[T] — lift a pre-existing value
 
-Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer.
+Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
 ```scala
 import zio.blocks.scope._
@@ -172,7 +176,7 @@ val config = Config("jdbc:postgres://localhost/db")
 val wire: Wire.Shared[Any, Config] = Wire(config)
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val cfg = allocate(wire.toResource(Context.empty[Any]))
   $(cfg)(_.dbUrl)
 }
@@ -180,7 +184,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.Shared.fromFunction — manual shared wire construction
 
-Use this for custom construction logic when macro derivation doesn't fit.
+Use this for custom construction logic when macro derivation doesn't fit:
 
 ```scala
 import zio.blocks.scope._
@@ -199,7 +203,7 @@ val wire: Wire.Shared[Config, Client] =
   }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val config = Config(30)
   val deps = Context[Config](config)
   val client = allocate(wire.toResource(deps))
@@ -209,7 +213,7 @@ Scope.global.scoped { scope =>
 
 ### Wire.Unique.fromFunction — manual unique wire construction
 
-Like `fromFunction`, but for unique wires.
+Like `Wire.Shared.fromFunction`, but for unique wires:
 
 ```scala
 import zio.blocks.scope._
@@ -225,7 +229,7 @@ val wire: Wire.Unique[Any, RequestContext] =
   }
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val deps = Context.empty[Any]
   val resource = wire.toResource(deps)
 
@@ -249,7 +253,7 @@ The fundamental difference is **reuse semantics**:
 | **Instance reuse** | Same instance across entire dependency graph | New instance per allocation |
 | **Finalization** | Runs when last referencing scope closes | Runs when each scope closes |
 
-In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance.
+In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance:
 
 ```scala
 import zio.blocks.scope._
@@ -281,7 +285,7 @@ val resource = Resource.from[App](
 )
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val app = resource.allocate
   $(app)(_.check())  // true: Database is shared
 }
@@ -289,9 +293,20 @@ Scope.global.scoped { scope =>
 
 ## Core Operations
 
+The `Wire` interface provides a set of operations for inspecting and transforming wires:
+
 ### `Wire#isShared` and `Wire#isUnique`
 
 Check the sharing strategy of a wire:
+
+```scala
+trait Wire[-In, +Out] {
+  def isShared: Boolean
+  def isUnique: Boolean = !isShared
+}
+```
+
+Here's how to use these methods:
 
 ```scala
 import zio.blocks.scope._
@@ -308,6 +323,15 @@ println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
 ### `Wire#shared` and `Wire#unique` — convert between strategies
 
 Convert a wire to the opposite strategy:
+
+```scala
+trait Wire[-In, +Out] {
+  def shared: Wire.Shared[In, Out]
+  def unique: Wire.Unique[In, Out]
+}
+```
+
+Here's how to convert between sharing strategies:
 
 ```scala
 import zio.blocks.scope._
@@ -330,6 +354,14 @@ Calling `shared` on an already-shared wire returns `this` (identity); likewise `
 Converts the wire to a lazy `Resource` by providing the dependency context:
 
 ```scala
+trait Wire[-In, +Out] {
+  def toResource(deps: Context[In]): Resource[Out]
+}
+```
+
+Here's how to use this method:
+
+```scala
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -341,7 +373,7 @@ val deps = Context[Config](Config("hello"))
 val resource: Resource[Config] = wire.toResource(deps)
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val cfg = allocate(resource)
   $(cfg)(_.value)
 }
@@ -349,7 +381,15 @@ Scope.global.scoped { scope =>
 
 ### `Wire#make` — construct directly from a wire
 
-Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety.
+Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety:
+
+```scala
+trait Wire.Shared[-In, +Out] {
+  def make(scope: Scope, context: Context[In]): Out
+}
+```
+
+Here's how to use this method:
 
 ```scala
 import zio.blocks.scope._
@@ -362,7 +402,7 @@ final class Service {
 val wire = Wire.shared[Service]
 
 Scope.global.scoped { scope =>
-  import scope.*
+  import scope._
   val service = wire.asInstanceOf[Wire.Shared[Any, Service]].make(scope, Context.empty[Any])
   println(service.getName)
 }
@@ -384,11 +424,11 @@ import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
 
-final class Logger(using Finalizer) {
+final class Logger(implicit finalizer: Finalizer) {
   def log(msg: String): Unit = println(msg)
 }
 
-final class Database(config: Config)(using scope: Scope) extends AutoCloseable {
+final class Database(config: Config)(implicit scope: Scope) extends AutoCloseable {
   def connect(): Unit = {
     scope.defer(println("database connection closed"))
     println(s"connecting to ${config.dbUrl}")
@@ -492,7 +532,7 @@ cd zio-blocks
 
 **2. Run individual examples with sbt:**
 
-**Basic wire construction: deriving shared wires, lifting values, and converting to resources**
+Basic wire construction demonstrates how to create and use `Wire` for dependency injection. View the example source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -502,11 +542,13 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireBasicExample.scala))
 
+Run this example with:
+
 ```bash
-sbt "scope-examples/runMain wire.WireBasicExample"
+sbt "scope-examples/runMain wire.wireBasicExample"
 ```
 
-**Comparing shared vs unique semantics: shared wires reuse the same instance across dependents, while unique wires create fresh instances**
+Comparing shared vs unique semantics shows how shared wires reuse the same instance across dependents, while unique wires create fresh instances. View the example:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -516,11 +558,13 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.sca
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireSharedUniqueExample.scala))
 
+Run this example with:
+
 ```bash
-sbt "scope-examples/runMain wire.WireSharedUniqueExample"
+sbt "scope-examples/runMain wire.wireSharedUniqueExample"
 ```
 
-**Manual wire construction: using fromFunction for custom construction logic**
+Manual wire construction demonstrates how to use `fromFunction` for custom construction logic. View the example:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -530,6 +574,8 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.sca
 
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/wire/WireFromFunctionExample.scala))
 
+Run this example with:
+
 ```bash
-sbt "scope-examples/runMain wire.WireFromFunctionExample"
+sbt "scope-examples/runMain wire.wireFromFunctionExample"
 ```

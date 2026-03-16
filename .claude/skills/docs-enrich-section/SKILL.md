@@ -87,8 +87,14 @@ Checklist for the example:
 After enriching the section, run the mdoc compilation check to ensure all code examples are syntactically correct and type-check:
 
 ```bash
-sbt docs/mdoc
+# Single file:
+sbt "docs/mdoc --in <path/to/file.md>"
+
+# Multiple files — repeat --in/--out pairs:
+sbt "docs/mdoc --in docs/reference/file1.md --out out/file1.md --in docs/reference/file2.md --out out/file2.md"
 ```
+
+> **Never use bare `sbt docs/mdoc`** without `--in` — it recompiles all documentation (~90 seconds).
 
 **Success criterion:** The output contains **zero `[error]` lines**. Warnings are acceptable.
 

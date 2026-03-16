@@ -43,6 +43,14 @@ addCommandAlias(
   "fmtChanged",
   "; set scalafmtFilter in ThisBuild := \"diff-ref=main\"; scalafmtAll; set scalafmtFilter in ThisBuild := \"\""
 )
+addCommandAlias(
+  "fmtDirty",
+  "; set scalafmtFilter in ThisBuild := \"diff-ref=HEAD\"; scalafmtAll; set scalafmtFilter in ThisBuild := \"\""
+)
+addCommandAlias(
+  "checkDirty",
+  "; set scalafmtFilter in ThisBuild := \"diff-ref=HEAD\"; scalafmtCheckAll; set scalafmtFilter in ThisBuild := \"\""
+)
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(

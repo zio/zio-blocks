@@ -9,6 +9,7 @@ project/project/target
 .bloop
 cs
 sbt/
+.zio-sbt
 
 # Mill
 out/
@@ -55,3 +56,10 @@ schema/jvm/src/test/resources/json-schema-test-suite/
 .sisyphus/
 .opencode/
 .claude/settings.local.json
+
+# Project-specific files to exclude
+.git-rewrite/
+github-data/
+SCOPE_CONSOLIDATION_PLAN.md
+shell.nix
+scope-examples/src/main/scala/scope/examples/MyApp.scala
