@@ -1088,7 +1088,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/DatabaseConnectionExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.DatabaseConnectionExample"
+sbt "scope-examples/runMain runDatabaseExample"
 ```
 
 ### Managing a Connection Pool with Multiple Allocations
