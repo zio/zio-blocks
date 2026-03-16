@@ -24,7 +24,19 @@ Nested resources make this worse. If you're reading a config file and then openi
 
 Consider a typical `try/finally` pattern in Scala:
 
-```scala mdoc:compile-only
+```scala mdoc:compile-only mdoc:silent:reset
+trait Connection extends AutoCloseable {
+  def createStatement(): Statement
+}
+trait Statement extends AutoCloseable {
+  def executeQuery(sql: String): ResultSet
+}
+trait ResultSet
+def openConnection(): Connection = ???
+def process(result: ResultSet): Unit = ???
+def handleError(e: Exception): Unit = ???
+val sql = ""
+
 try {
   val connection = openConnection()
   try {
@@ -713,22 +725,23 @@ This section lists the most common runtime and compile errors, explains what cau
 
 **`IllegalStateException: Scope is closed`** when calling `allocate`, `defer`, `$`, or `open` on a closed scope:
 
-```scala mdoc:compile-only
+```scala mdoc:compile-only mdoc:silent:reset
 import zio.blocks.scope._
+import zio.blocks.scope.Resource
 
 class Database extends AutoCloseable {
   override def close(): Unit = ()
 }
 
-var db: Option[Scope#$[Database]] = None
+var db: Option[Database] = None  // Wrong: trying to escape scoped value
 
 Scope.global.scoped { scope =>
   import scope._
-  db = Some(allocate(Resource(new Database())))
+  // db = Some(allocate(Resource.fromAutoCloseable(new Database())))  // Error: can't assign scope.$[Database] to Option[Database]
 }
 
 // scope is now closed; this throws IllegalStateException:
-// db.foreach(d => $(d) { _ => })
+// db.foreach(_.close())
 ```
 
 **Fix:** Ensure all resource usage happens before the scoped block exits. If you need to return a resource reference, return only the underlying value (wrapped in an `Unscoped` type).
@@ -738,6 +751,7 @@ Scope.global.scoped { scope =>
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 var scope: Option[Scope] = None
 
