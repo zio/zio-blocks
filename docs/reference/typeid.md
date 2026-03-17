@@ -128,7 +128,36 @@ def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
 
 TypeId preserves the distinction of opaque types, treating them as distinct from their representation type. This enables runtime type checking that respects the semantic boundaries that opaque types provide.
 
-Opaque types are a Scala 3 feature that allow you to create distinct types that have a different representation at runtime. TypeId captures this distinction, unlike pure Scala reflection which cannot distinguish opaque types from their underlying types.
+Opaque types are a Scala 3 feature that allow you to create distinct types that have a different representation at runtime. TypeId captures this distinction, unlike pure Scala reflection which cannot distinguish opaque types from their underlying types. Here's the concrete difference:
+
+```scala
+// Define opaque types wrapping String
+opaque type UserId = String
+opaque type Email = String
+
+// Pure Scala reflection (cannot distinguish)
+classOf[UserId] == classOf[String]  // true — erased to String
+classOf[Email] == classOf[String]   // true — erased to String
+// Problem: cannot distinguish UserId from Email or String at runtime
+
+// TypeId (preserves distinction)
+TypeId.of[UserId] != TypeId.of[String]  // true — preserved
+TypeId.of[Email] != TypeId.of[String]   // true — preserved
+TypeId.of[UserId] != TypeId.of[Email]   // true — opaque types are distinct
+
+// Real-world use case: type-safe validator registry
+val validators: Map[TypeId.Erased, String => Boolean] = Map(
+  TypeId.of[UserId].erased -> { id => id.nonEmpty && id.forall(_.isDigit) },
+  TypeId.of[Email].erased -> { email => email.contains("@") && email.contains(".") }
+)
+
+// Dispatch to correct validator based on opaque type
+def validate(value: String, typeId: TypeId[_]): Boolean =
+  validators.get(typeId.erased).map(_(value)).getOrElse(false)
+
+validate("12345", TypeId.of[UserId])              // Checks digits only
+validate("user@example.com", TypeId.of[Email])    // Checks email format
+```
 
 ### How TypeId Fits into the Schema Stack
 
