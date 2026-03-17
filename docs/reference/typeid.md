@@ -3,9 +3,20 @@ id: typeid
 title: "TypeId"
 ---
 
-`TypeId[A]` represents the identity of a type or type constructor at runtime. It provides rich type identity information including the type's name, owner (package/class/object), type parameters, classification (nominal, alias, or opaque), parent types, and annotations.
+`TypeId[A]` represents the identity of a type or type constructor at runtime — it captures complete type metadata (names, type parameters, parent types, annotations, classification) that would otherwise be erased by the JVM and Scala.js. Use `TypeId` when you need to preserve full type information as data for serialization, code generation, registry lookups, or type-safe dispatching.
 
-The structural type signature is:
+In Scala and the JVM, compile-time type information is erased at runtime. This means generic type parameters, sealed trait variants, and even opaque types become indistinguishable at runtime — `List[Int]` and `List[String]` both look like `List` to the JVM. This erasure makes it nearly impossible to implement universal serializers that work across formats (JSON, YAML, XML, MessagePack), code generators, or schema-driven transformations without losing semantic information. `TypeId` solves this by capturing complete type structure at compile time and making it available as a hashable, inspectable value at runtime.
+
+When to use `TypeId` vs alternatives:
+
+| Use Case | Best Choice |
+|---|---|
+| Encode type info as data for serialization, code generation, or dispatch  | `TypeId`           |
+| Create arrays of the correct runtime type                                   | `ClassTag`         |
+| Check if a single value matches a known type                                | Pattern match with `TypeTest` |
+| Manually handle a handful of hardcoded types                                | Hard-coded `if/else` |
+
+The `TypeId` trait exposes the type's structure through a rich set of properties and predicates:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -21,6 +32,21 @@ sealed trait TypeId[A <: AnyKind] {
   def isAlias: Boolean
   // ... many more properties
 }
+```
+
+Derive a `TypeId` for any type using the `TypeId.of` macro and then inspect the type's structure at runtime:
+
+```scala
+import zio.blocks.typeid._
+
+case class Person(name: String, age: Int)
+
+val id = TypeId.of[Person]
+
+// Inspect type structure at runtime
+println(s"Type name: ${id.name}")           // "Person"
+println(s"Full name: ${id.fullName}")       // "Person"
+println(s"Is case class: ${id.isCaseClass}") // true
 ```
 
 ## Motivation
@@ -52,7 +78,7 @@ Code generators use TypeId metadata to emit specialized, efficient codecs. For e
 
 Applications often maintain registries of schemas or validators keyed by type. TypeId provides a pure, hashable data structure for this:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.typeid._
 
 case class Person(name: String, age: Int)
@@ -74,7 +100,7 @@ def getMetadata(typeId: TypeId[?]): Option[String] =
 
 When working with sealed type hierarchies, TypeId allows you to dispatch to the correct handler based on type relationships:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.typeid._
 
 sealed trait Animal
@@ -150,13 +176,13 @@ case class User(id: Long, email: String)
 
 You can derive a TypeId using the `TypeId.of` macro, which works identically in both Scala 2 and Scala 3:
 
-```scala mdoc
+```scala
 val userId: TypeId[User] = TypeId.of[User]
 ```
 
 Or use implicit derivation:
 
-```scala mdoc
+```scala
 val userIdImplicit: TypeId[User] = implicitly[TypeId[User]]
 ```
 
@@ -218,18 +244,17 @@ Once derived, you can inspect a TypeId's structure and metadata through its prop
 
 ### Basic Properties
 
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-case class Person(name: String, age: Int)
-val id = TypeId.of[Person]
-```
-
 You can inspect the basic properties of a TypeId:
 
-```scala mdoc
-id.name
-id.fullName
-id.arity
+```scala
+import zio.blocks.typeid._
+
+case class Person(name: String, age: Int)
+val id = TypeId.of[Person]
+
+id.name       // "Person"
+id.fullName   // "Person"
+id.arity      // 0
 ```
 
 Additional properties include `TypeId#owner` (Owner representing the package/enclosing type), `TypeId#typeParams` (List of TypeParam for type constructors), and `TypeId#typeArgs` (List of TypeRepr for applied types).
@@ -238,20 +263,22 @@ Additional properties include `TypeId#owner` (Owner representing the package/enc
 
 TypeId provides predicates to classify types:
 
-```scala mdoc
-id.isClass
-id.isCaseClass
-id.isProperType
-id.isTypeConstructor
+```scala
+val id = TypeId.of[Person]
+
+id.isClass        // true
+id.isCaseClass    // true
+id.isProperType   // true
+id.isTypeConstructor // false
 ```
 
 Other classification predicates include `TypeId#isTrait`, `TypeId#isObject`, `TypeId#isEnum`, `TypeId#isValueClass`, `TypeId#isSealed`, `TypeId#isAlias`, `TypeId#isOpaque`, `TypeId#isAbstract`, `TypeId#isApplied`, `TypeId#isTuple`, `TypeId#isProduct`, `TypeId#isSum`, `TypeId#isEither`, and `TypeId#isOption`.
 
 ### Subtype Relationships
 
-TypeId can determine inheritance relationships at runtime:
+TypeId can determine inheritance relationships at runtime. Use the subtype checking methods:
 
-```scala mdoc:silent:reset
+```scala
 import zio.blocks.typeid._
 
 sealed trait Animal
@@ -259,14 +286,10 @@ case class Dog(name: String) extends Animal
 
 val dogId = TypeId.of[Dog]
 val animalId = TypeId.of[Animal]
-```
 
-Use the subtype checking methods:
-
-```scala mdoc
-dogId.isSubtypeOf(animalId)
-animalId.isSupertypeOf(dogId)
-dogId.isEquivalentTo(dogId)
+dogId.isSubtypeOf(animalId)     // true
+animalId.isSupertypeOf(dogId)   // true
+dogId.isEquivalentTo(dogId)     // true
 ```
 
 Subtype checking handles direct inheritance, enum cases and their parent enums, sealed trait subtypes, transitive inheritance, and variance-aware subtyping for applied types.
