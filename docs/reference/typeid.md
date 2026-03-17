@@ -159,7 +159,7 @@ validate("12345", TypeId.of[UserId])              // Checks digits only
 validate("user@example.com", TypeId.of[Email])    // Checks email format
 ```
 
-### How TypeId Fits into the Schema Stack
+### TypeId and the Schema Stack
 
 TypeId is fundamental to ZIO Blocks' schema system. Here's where it fits in the stack:
 
