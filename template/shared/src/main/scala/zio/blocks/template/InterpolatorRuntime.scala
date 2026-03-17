@@ -75,7 +75,7 @@ private[template] object InterpolatorRuntime {
     }
   }
 
-  // Two-char sentinel that cannot appear in user HTML
+  // Reserved sentinel unlikely to appear in user content; if present, behavior is undefined
   private final val SentinelStr  = "\u0000\u0001"
   private final val SentinelChar = '\u0000'
 

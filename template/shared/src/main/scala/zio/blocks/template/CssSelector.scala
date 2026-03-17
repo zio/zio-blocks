@@ -1,5 +1,20 @@
 package zio.blocks.template
 
+/**
+ * A sealed ADT representing CSS selectors with type-safe composition.
+ *
+ * Selectors can be combined using operators:
+ *   - `>` — child combinator
+ *   - `>>` — descendant combinator
+ *   - `+` — adjacent sibling
+ *   - `~` — general sibling
+ *   - `&` — concatenation (and)
+ *   - `|` — grouping (or)
+ *
+ * Values in attribute selectors are escaped to prevent CSS injection. Use
+ * `CssSelector.Raw(string)` for selectors not expressible via the ADT.
+ */
+
 sealed trait CssSelector extends CssSelectable with Product with Serializable {
 
   val selector: CssSelector = this

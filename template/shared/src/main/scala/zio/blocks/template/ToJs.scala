@@ -1,5 +1,20 @@
 package zio.blocks.template
 
+/**
+ * Typeclass for values that can be safely interpolated into JavaScript via
+ * `js"..."` .
+ *
+ * Escaping rules:
+ *   - `String` is quoted with `"` and JS-escaped (including `</script>`
+ *     protection)
+ *   - Numeric types render as unquoted literals
+ *   - `Boolean` renders as `true`/`false`
+ *   - `Option` renders as the value or `null`
+ *   - `List`/`Map` render as JSON arrays/objects
+ *   - Types with a [[zio.blocks.schema.Schema]] auto-derive via JSON
+ *     serialization
+ */
+
 trait ToJs[-A] {
   def toJs(a: A): String
 }
