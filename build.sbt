@@ -182,6 +182,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `streams-benchmark`,
     docs,
     `schema-examples`,
     ringbuffer.jvm,
@@ -384,13 +385,65 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Pure)
-  .settings(stdSettings("zio-blocks-streams"))
+  .crossType(CrossType.Full)
+  .dependsOn(scope, chunk, combinators)
+  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala33, Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .settings(
+    // Streams source requires Scala 3 (inline, summonFrom, etc.).
+    // Under 2.13 CI runs, skip compilation entirely.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
+  )
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // Streams requires JDK 21+ (Project Loom virtual threads).
+    // Override the default -release flag so Thread.ofVirtual() is available.
+    // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
+    // compilation of streams (tests will be skipped due to compilation failure).
+    scalacOptions ~= { opts =>
+      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
+        .map(_._1)
+    },
+    scalacOptions ++= {
+      val jdkVersion = System.getProperty("java.specification.version", "17").toInt
+      if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
+    },
+    scalacOptions ++= Seq(
+      // scope.leak is used intentionally throughout Streams internals
+      "-Wconf:msg=being leaked from scope:s",
+      // Streams is a WIP module; suppress unused-import warnings during development
+      "-Wconf:msg=unused.*import:s",
+      "-Wconf:msg=unused.*local.*val:s",
+      // Alphanumeric infix in tests (andThen, etc.)
+      "-Wconf:msg=Alphanumeric method.*infix:s"
+    ),
+    javacOptions ++= {
+      val jdkVersion = System.getProperty("java.specification.version", "17").toInt
+      if (jdkVersion >= 21) Seq("--release", "21") else Seq("--release", jdkVersion.toString)
+    }
+  )
+  .jsSettings(
+    jsSettings,
+    scalacOptions ++= Seq(
+      // scope.leak is used intentionally throughout Streams internals
+      "-Wconf:msg=being leaked from scope:s",
+      // Alphanumeric infix in tests (andThen, etc.)
+      "-Wconf:msg=Alphanumeric method.*infix:s"
+    )
+  )
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
@@ -974,6 +1027,55 @@ lazy val ringbufferBenchmarks = project
     libraryDependencies ++= Seq(
       "org.jctools" % "jctools-core" % "4.0.6"
     )
+  )
+
+lazy val `streams-benchmark` = project
+  .in(file("streams-benchmark"))
+  .settings(stdSettings("zio-blocks-streams-benchmark", Seq("3.7.4")))
+  .dependsOn(streams.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    // Requires JDK 21+ for Thread.ofVirtual() (Project Loom)
+    scalacOptions ~= { opts =>
+      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
+        .map(_._1)
+    },
+    scalacOptions ++= {
+      val jdkVersion = System.getProperty("java.specification.version", "17").toInt
+      if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
+    },
+    scalacOptions ++= Seq(
+      "-Wconf:msg=being leaked from scope:s",
+      "-Wconf:msg=unused.*import:s"
+    ),
+    javacOptions ++= {
+      val jdkVersion = System.getProperty("java.specification.version", "17").toInt
+      if (jdkVersion >= 21) Seq("--release", "21") else Seq("--release", jdkVersion.toString)
+    },
+    libraryDependencies ++= Seq(
+      // fs2 — pull-based functional streams (Cats Effect)
+      "co.fs2"        %% "fs2-core"    % "3.11.0",
+      "org.typelevel" %% "cats-effect" % "3.5.7",
+      // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
+      "org.apache.pekko" %% "pekko-stream" % "1.1.3",
+      // Kyo — algebraic effect streams (Scala 3 only)
+      "io.getkyo" %% "kyo-prelude" % "0.19.0",
+      "io.getkyo" %% "kyo-core"    % "0.19.0",
+      // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
+      "com.softwaremill.ox" %% "core" % "1.0.2"
+    ),
+    assembly / assemblyJarName       := "streams-benchmark.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
+      case x if x.contains("reference.conf")    => MergeStrategy.concat
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `schema-examples` = project
