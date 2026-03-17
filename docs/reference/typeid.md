@@ -100,9 +100,11 @@ def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
 
 **Type Aliases and Opaque Types**
 
-TypeId preserves the distinction between nominal type definitions and their aliases, enabling both identity checks and normalization. This is impossible with pure Scala, where aliases are indistinguishable at runtime:
+TypeId preserves the distinction between nominal type definitions and their aliases, enabling both identity checks and normalization. This is impossible with pure Scala, where aliases are indistinguishable at runtime.
 
-```scala mdoc:compile-only
+First, let's set up the types and derive their TypeIds:
+
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 // Type aliases (Scala 2 & 3)
@@ -118,26 +120,38 @@ val emailId = TypeId.of[Email]
 val userIdId = TypeId.of[UserId]
 val orderIdId = TypeId.of[OrderId]
 
-// TypeId preserves the alias identity
 val intId = TypeId.int
 val stringId = TypeId.string
+```
 
-// Compare types for identity — aliases are distinct from their base types
-val ageIsInt = ageId.isEquivalentTo(intId)           // false
-val emailIsString = emailId.isEquivalentTo(stringId) // false
-val userIdIsString = userIdId.isEquivalentTo(stringId) // false
+Now we can see that aliases are distinct from their base types:
 
-// Different opaque types are also distinct
-val userIdIsOrderId = userIdId.isEquivalentTo(orderIdId) // false
+```scala mdoc
+ageId.isEquivalentTo(intId)
+emailId.isEquivalentTo(stringId)
+userIdId.isEquivalentTo(stringId)
+```
 
-// But we can normalize aliases to their underlying types when needed
+Different opaque types are also distinct:
+
+```scala mdoc
+userIdId.isEquivalentTo(orderIdId)
+```
+
+But we can normalize aliases to their underlying types when needed:
+
+```scala mdoc:silent
 val normalizedAge = TypeId.normalize(ageId)
 val normalizedEmail = TypeId.normalize(emailId)
 val normalizedUserId = TypeId.normalize(userIdId)
+```
 
-val normalizedAgeIsInt = normalizedAge.isEquivalentTo(intId)         // true
-val normalizedEmailIsString = normalizedEmail.isEquivalentTo(stringId) // true
-val normalizedUserIdIsString = normalizedUserId.isEquivalentTo(stringId) // true
+After normalization, aliases match their base types:
+
+```scala mdoc
+normalizedAge.isEquivalentTo(intId)
+normalizedEmail.isEquivalentTo(stringId)
+normalizedUserId.isEquivalentTo(stringId)
 ```
 
 ### How TypeId Fits into the Schema Stack
