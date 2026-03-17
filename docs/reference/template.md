@@ -292,9 +292,10 @@ The interpolator protects against `</script>` injection:
 import zio.blocks.template._
 
 val dangerous = "</script><script>alert('XSS')</script>"
-val safe = js"console.log('$dangerous');"
+val safe = js"console.log($dangerous);"
 
 // The </script> is escaped as \u003c/script\u003e
+// Output: console.log("\u003c/script\u003e<script>alert('XSS')</script>")
 ```
 
 ### `selector""` Interpolator
@@ -665,7 +666,7 @@ The `ToJs` typeclass escapes strings to prevent breaking out of script contexts:
 import zio.blocks.template._
 
 val dangerous = "</script><script>alert('XSS')</script>"
-val safe = js"console.log('$dangerous');"
+val safe = js"console.log($dangerous);"
 
 // The </script> is escaped as \u003c/script\u003e to prevent closing the script tag
 ```
@@ -696,24 +697,21 @@ println(el.render)
 
 Both positions are escaped, but the typeclass dispatch ensures the correct escaping strategy for each context.
 
-### Raw HTML Escape Hatch
+### Safety by Design: No Raw HTML Escape Hatch
 
 
 
-When you need to embed pre-rendered HTML that is already safe and doesn't require escaping, use `Dom.Raw` with your trusted HTML:
+Template intentionally provides no public `Dom.Raw` API for embedding arbitrary HTML. This is by design: there is no safe way to interpolate untrusted HTML, and HTML templating libraries that provide raw escape hatches are a known source of XSS vulnerabilities.
 
-```scala
-import zio.blocks.template._
 
-val trustedHtml = "<strong>Already safe</strong>"
-val raw = Dom.Raw(trustedHtml)
 
-val page = div(raw)
-println(page.render)
-// <div><strong>Already safe</strong></div>
-```
+If you need dynamic HTML content:
 
-Only use `Dom.Raw` when the HTML is fully controlled by you and contains no untrusted input.
+- Use the DSL to construct it type-safely (`div(content)`)
+
+- Use `html"..."` interpolators with proper context-aware escaping
+
+- Pre-render trusted content at build time, not at runtime
 
 ## Cross-Version Behavior: Scala 2 vs. Scala 3
 
@@ -770,7 +768,7 @@ val page = html(
     footer(
       p("© 2026 My App")
     ),
-    script().inlineJs(js"console.log('Page loaded for $userName');")
+    script().inlineJs(js"console.log($userName); console.log('Page loaded');")
   )
 )
 

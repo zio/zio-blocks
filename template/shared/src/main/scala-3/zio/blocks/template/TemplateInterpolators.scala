@@ -3,6 +3,22 @@ package zio.blocks.template
 import scala.quoted._
 import zio.blocks.chunk.Chunk
 
+/**
+ * Provides string interpolators for HTML, CSS, JavaScript, and CSS selectors.
+ *
+ * Interpolators:
+ *   - `html"..."` — produces [[Dom]], position-aware: uses [[ToTagName]] for
+ *     `<$$tag>`, [[ToAttrName]] for `$$attr=`, [[ToAttrValue]] for `=$$value`,
+ *     [[ToElements]] for content
+ *   - `css"..."` — produces [[Css]], uses [[ToCss]] for interpolated values
+ *   - `js"..."` — produces [[Js]], uses [[ToJs]] for interpolated values
+ *     (strings are quoted and escaped)
+ *   - `selector"..."` — produces [[CssSelector]], uses [[ToCss]] for
+ *     interpolated values
+ *
+ * On Scala 3, zero-argument interpolations are constant-folded at compile time.
+ */
+
 trait TemplateInterpolators {
 
   extension (inline sc: StringContext) {

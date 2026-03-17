@@ -2,6 +2,21 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * A sealed ADT representing CSS content.
+ *
+ * Variants:
+ *   - [[Css.Rule]] — a single CSS rule: `selector { property: value; ... }`
+ *   - [[Css.Sheet]] — multiple rules
+ *   - [[Css.Raw]] — raw CSS string (for media queries, keyframes, etc.)
+ *   - [[Css.Comment]] — CSS comment: `/* text */`
+ *
+ * Rendering:
+ *   - `render` produces minified CSS
+ *   - `render(indent)` produces pretty-printed CSS with the specified
+ *     indentation
+ */
+
 sealed trait Css extends Product with Serializable {
   def render: String
   def render(indent: Int): String
