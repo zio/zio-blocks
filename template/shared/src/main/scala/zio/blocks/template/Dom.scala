@@ -2,13 +2,65 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * A sealed algebraic data type (ADT) representing an HTML document node.
+ *
+ * The Dom trait models HTML as an abstract syntax tree where each node is
+ * either:
+ *   - Text content (automatically HTML-escaped during rendering)
+ *   - An empty node (renders to nothing)
+ *   - An Element with a tag, attributes, and child nodes
+ *   - PreRendered HTML (internal use; bypasses escaping for macro-optimized
+ *     output)
+ *
+ * ===Rendering===
+ * Text content is HTML-escaped by default to prevent injection attacks.
+ * However, Script and Style elements intentionally render their children
+ * WITHOUT escaping, allowing inline JavaScript and CSS to be rendered as-is.
+ *
+ * Use `render` for minified HTML or `render(indent: Int)` for pretty-printed
+ * output with N spaces per indentation level.
+ *
+ * ===Tree Operations===
+ * The ADT supports traversal via `collect`, `filter`, `find`, and `transform`
+ * methods for navigating and transforming the tree structure.
+ *
+ * @see
+ *   [[Dom.Element]] for element construction
+ * @see
+ *   [[Dom.Text]] for text content
+ * @see
+ *   [[Dom.Empty]] for empty nodes
+ */
 sealed trait Dom extends Product with Serializable {
+
+  /**
+   * Renders the DOM tree to a minified HTML string.
+   *
+   * Text content is HTML-escaped. Script and Style elements render their
+   * children without escaping to allow inline code.
+   *
+   * @return
+   *   minified HTML output with no extra whitespace
+   */
   def render: String = {
     val sb = new java.lang.StringBuilder(256)
     Dom.renderTo(this, sb, minified = false)
     sb.toString
   }
 
+  /**
+   * Renders the DOM tree to a pretty-printed HTML string with indentation.
+   *
+   * Text content is HTML-escaped. Script and Style elements render their
+   * children without escaping to allow inline code.
+   *
+   * @param indent
+   *   the number of spaces per indentation level; if <= 0, behaves like
+   *   `render`
+   * @return
+   *   formatted HTML with newlines and indentation
+   */
   def render(indent: Int): String =
     if (indent <= 0) render
     else {
@@ -17,27 +69,88 @@ sealed trait Dom extends Product with Serializable {
       sb.toString
     }
 
+  /**
+   * Renders the DOM tree to a minified HTML string (alias for `render`).
+   *
+   * @return
+   *   minified HTML output
+   */
   def renderMinified: String = {
     val sb = new java.lang.StringBuilder(256)
     Dom.renderTo(this, sb, minified = true)
     sb.toString
   }
 
+  /**
+   * Collects all nodes in the tree matching the given partial function.
+   *
+   * Traverses the entire tree in depth-first order, applying the partial
+   * function to each node and collecting matches.
+   *
+   * @param pf
+   *   the partial function to apply; nodes that match contribute their
+   *   transformed values
+   * @return
+   *   a list of matching nodes (or their transformed versions)
+   */
   def collect(pf: PartialFunction[Dom, Dom]): List[Dom] = {
     val buf = List.newBuilder[Dom]
     Dom.collectImpl(this, pf, buf)
     buf.result()
   }
 
+  /**
+   * Filters the tree to keep only nodes satisfying the predicate.
+   *
+   * Removes any node for which the predicate returns false, and recursively
+   * filters children. Empty branches collapse to `Empty`.
+   *
+   * @param predicate
+   *   the condition each node must satisfy
+   * @return
+   *   a new tree with non-matching nodes removed
+   */
   def filter(predicate: Dom => Boolean): Dom =
     Dom.filterImpl(this, predicate)
 
+  /**
+   * Finds the first node in the tree satisfying the predicate.
+   *
+   * Traverses the tree in depth-first order and returns the first matching
+   * node.
+   *
+   * @param predicate
+   *   the condition to search for
+   * @return
+   *   `Some(node)` if a match is found, `None` otherwise
+   */
   def find(predicate: Dom => Boolean): Option[Dom] =
     Dom.findImpl(this, predicate)
 
+  /**
+   * Transforms every node in the tree using the given function.
+   *
+   * Applies the transformation function to each node in depth-first order, then
+   * recursively transforms children of Elements. Suitable for rewriting the
+   * tree, e.g., removing nodes, modifying attributes, or simplifying structure.
+   *
+   * @param f
+   *   the transformation function to apply to each node
+   * @return
+   *   a new tree with all nodes transformed
+   */
   def transform(f: Dom => Dom): Dom =
     Dom.transformImpl(this, f)
 
+  /**
+   * Checks whether this node renders to empty HTML.
+   *
+   * Returns true if the node is `Empty`, a `Text` with empty content, or a
+   * `PreRendered` with empty HTML.
+   *
+   * @return
+   *   true if this node produces no output when rendered
+   */
   def isEmpty: Boolean = this match {
     case Dom.Empty          => true
     case Dom.Text(c)        => c.isEmpty
@@ -48,6 +161,18 @@ sealed trait Dom extends Product with Serializable {
 
 object Dom {
 
+  /**
+   * A sealed trait for HTML elements with a tag, attributes, and children.
+   *
+   * Subtypes include:
+   *   - [[Dom.Element.Generic]] — standard HTML elements
+   *   - [[Dom.Element.Script]] — script tags (children rendered without
+   *     escaping)
+   *   - [[Dom.Element.Style]] — style tags (children rendered without escaping)
+   *
+   * Elements support modifier chaining via `apply(modifier, ...)` and
+   * `when(condition)(...)` for fluent construction.
+   */
   sealed trait Element extends Dom with CssSelectable {
     def tag: String
     def attributes: Chunk[Attribute]
@@ -94,6 +219,19 @@ object Dom {
 
   object Element {
 
+    /**
+     * A generic HTML element.
+     *
+     * Represents any standard HTML tag (e.g., "div", "p", "span"). Text content
+     * in children is HTML-escaped during rendering.
+     *
+     * @param tag
+     *   the element tag name (e.g., "div", "h1")
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes
+     */
     final case class Generic(
       tag: String,
       attributes: Chunk[Attribute],
@@ -103,6 +241,19 @@ object Dom {
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
     }
 
+    /**
+     * An HTML script element.
+     *
+     * The Script element renders its children WITHOUT HTML-escaping, allowing
+     * inline JavaScript to be rendered as-is. Provides convenience methods
+     * `inlineJs(code)` to inject escaped JavaScript or `externalJs(url)` to
+     * link external scripts.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes (typically Text with JavaScript code)
+     */
     final case class Script(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -125,6 +276,18 @@ object Dom {
         copy(attributes = attributes :+ Attribute.KeyValue("src", AttributeValue.StringValue(url)))
     }
 
+    /**
+     * An HTML style element.
+     *
+     * The Style element renders its children WITHOUT HTML-escaping, allowing
+     * inline CSS to be rendered as-is. Provides convenience method
+     * `inlineCss(code)` to inject CSS code directly.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes (typically Text with CSS code)
+     */
     final case class Style(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -141,10 +304,37 @@ object Dom {
     }
   }
 
+  /**
+   * A text node containing HTML content to be escaped during rendering.
+   *
+   * Text nodes are automatically HTML-escaped to prevent XSS attacks when
+   * rendered (except within Script and Style elements, which are unescaped).
+   *
+   * @param content
+   *   the text content (will be HTML-escaped in output)
+   */
   final case class Text(content: String) extends Dom
 
+  /**
+   * An empty DOM node that renders to nothing.
+   *
+   * Used as a neutral element for filtering and tree operations.
+   */
   case object Empty extends Dom
 
+  /**
+   * A pre-rendered HTML node with raw, unescaped HTML content.
+   *
+   * '''This type is internal only''' (`private[template]`) and is intended for
+   * use by macros and code generation to inject optimized or pre-computed HTML.
+   * Users should not construct PreRendered values directly.
+   *
+   * PreRendered bypasses HTML escaping and is unsafe if constructed from
+   * untrusted input.
+   *
+   * @param html
+   *   raw HTML string (not escaped)
+   */
   private[template] final case class PreRendered(html: String) extends Dom
 
   sealed trait Attribute extends Product with Serializable
