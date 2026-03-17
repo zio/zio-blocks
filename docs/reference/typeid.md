@@ -98,61 +98,11 @@ def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
 }
 ```
 
-**Type Aliases and Opaque Types**
+**Opaque Types**
 
-TypeId preserves the distinction between nominal type definitions and their aliases, enabling both identity checks and normalization. This is impossible with pure Scala, where aliases are indistinguishable at runtime.
+TypeId preserves the distinction of opaque types, treating them as distinct from their representation type. This enables runtime type checking that respects the semantic boundaries that opaque types provide.
 
-First, let's set up the types and derive their TypeIds:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-// Type aliases (Scala 2 & 3)
-type Age = Int
-type Email = String
-
-// Opaque types (Scala 3 only)
-opaque type UserId = String
-opaque type OrderId = String
-
-val ageId = TypeId.of[Age]
-val emailId = TypeId.of[Email]
-val userIdId = TypeId.of[UserId]
-val orderIdId = TypeId.of[OrderId]
-
-val intId = TypeId.int
-val stringId = TypeId.string
-```
-
-Now we can see that aliases are distinct from their base types:
-
-```scala mdoc
-ageId.isEquivalentTo(intId)
-emailId.isEquivalentTo(stringId)
-userIdId.isEquivalentTo(stringId)
-```
-
-Different opaque types are also distinct:
-
-```scala mdoc
-userIdId.isEquivalentTo(orderIdId)
-```
-
-But we can normalize aliases to their underlying types when needed:
-
-```scala mdoc:silent
-val normalizedAge = TypeId.normalize(ageId)
-val normalizedEmail = TypeId.normalize(emailId)
-val normalizedUserId = TypeId.normalize(userIdId)
-```
-
-After normalization, aliases match their base types:
-
-```scala mdoc
-normalizedAge.isEquivalentTo(intId)
-normalizedEmail.isEquivalentTo(stringId)
-normalizedUserId.isEquivalentTo(stringId)
-```
+Opaque types are a Scala 3 feature that allow you to create distinct types that have a different representation at runtime. TypeId captures this distinction, unlike pure Scala reflection which cannot distinguish opaque types from their underlying types.
 
 ### How TypeId Fits into the Schema Stack
 
