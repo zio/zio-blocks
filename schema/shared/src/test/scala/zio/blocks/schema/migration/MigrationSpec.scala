@@ -242,7 +242,7 @@ object MigrationSpec extends SchemaBaseSpec {
         ),
         suite("TransformElements")(
           test("applies action to every sequence element") {
-            val dv = DynamicValue.Sequence(Chunk(pInt(1), pInt(2), pInt(3)))
+            val dv     = DynamicValue.Sequence(Chunk(pInt(1), pInt(2), pInt(3)))
             val result = Migration.applyAction(
               dv,
               MigrationAction.TransformElements(Nil, MigrationAction.TransformValue(Nil, FieldTransform.IntToLong))
@@ -295,7 +295,7 @@ object MigrationSpec extends SchemaBaseSpec {
         ),
         suite("Sequence")(
           test("applies sub-actions left-to-right") {
-            val dv = record("name" -> pStr("old"), "age" -> pInt(1))
+            val dv     = record("name" -> pStr("old"), "age" -> pInt(1))
             val result = Migration.applyAction(
               dv,
               MigrationAction.Sequence(

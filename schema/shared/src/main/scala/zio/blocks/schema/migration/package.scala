@@ -17,8 +17,7 @@
 package zio.blocks.schema
 
 /**
- * Compile-time type-level tree representations for the Schema Migration
- * System.
+ * Compile-time type-level tree representations for the Schema Migration System.
  *
  * These sealed traits have no member values — they exist only at the type
  * level, as phantoms. They mirror the [[Reflect]] node structure and are used
@@ -46,8 +45,8 @@ package object migration {
   sealed trait SNil
 
   /**
-   * Non-empty heterogeneous list cell used for record fields and variant
-   * cases. `H` is a (label, Tree) tuple; `T` is the remaining list.
+   * Non-empty heterogeneous list cell used for record fields and variant cases.
+   * `H` is a (label, Tree) tuple; `T` is the remaining list.
    */
   sealed trait SCons[H, T]
 
@@ -68,8 +67,8 @@ package object migration {
   sealed trait SMap[KeyTree, ValTree]
 
   /**
-   * Compile-time representation of any
-   * [[zio.blocks.schema.Reflect.Primitive]]; treated as a leaf.
+   * Compile-time representation of any [[zio.blocks.schema.Reflect.Primitive]];
+   * treated as a leaf.
    */
   sealed trait SPrimitive
 

@@ -23,9 +23,8 @@ import zio.blocks.schema.DynamicValue
  * serializable — no opaque functions are stored anywhere.
  *
  * A `path` is a sequence of record-field names that navigates from the root
- * [[DynamicValue]] to the target node. An empty path means "the value
- * itself". For variant cases the case name is the last element of a case
- * path.
+ * [[DynamicValue]] to the target node. An empty path means "the value itself".
+ * For variant cases the case name is the last element of a case path.
  */
 sealed trait MigrationAction
 
@@ -55,8 +54,8 @@ object MigrationAction {
   final case class AddField(path: List[String], value: DynamicValue) extends MigrationAction
 
   /**
-   * Rename a field from `srcPath.last` to `tgtPath.last` within the same
-   * parent record (`srcPath.init` must equal `tgtPath.init`).
+   * Rename a field from `srcPath.last` to `tgtPath.last` within the same parent
+   * record (`srcPath.init` must equal `tgtPath.init`).
    */
   final case class RenameField(srcPath: List[String], tgtPath: List[String]) extends MigrationAction
 
@@ -74,10 +73,10 @@ object MigrationAction {
   final case class RenameCase(srcPath: List[String], tgtPath: List[String]) extends MigrationAction
 
   /**
-   * Declare that the variant case reached by `casePath` no longer exists in
-   * the target schema. Applying this action when the current value IS that
-   * case produces a [[zio.blocks.schema.SchemaError]]. When the current case
-   * is different this action is a no-op.
+   * Declare that the variant case reached by `casePath` no longer exists in the
+   * target schema. Applying this action when the current value IS that case
+   * produces a [[zio.blocks.schema.SchemaError]]. When the current case is
+   * different this action is a no-op.
    */
   final case class DropCase(casePath: List[String]) extends MigrationAction
 
@@ -86,8 +85,8 @@ object MigrationAction {
   /**
    * Convert an `Option[T]` field at `path` to a plain `T`.
    *
-   *  - `Some(v)` → unwrapped `v`
-   *  - `None`    → `default`
+   *   - `Some(v)` → unwrapped `v`
+   *   - `None` → `default`
    */
   final case class Mandate(path: List[String], default: DynamicValue) extends MigrationAction
 

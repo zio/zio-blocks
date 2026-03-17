@@ -49,8 +49,8 @@ object FieldTransform {
   final case class StringToInt(radix: Int) extends FieldTransform
 
   /**
-   * Replace the target value entirely with the fixed [[DynamicValue]]
-   * `value`, ignoring the original value.
+   * Replace the target value entirely with the fixed [[DynamicValue]] `value`,
+   * ignoring the original value.
    */
   final case class Constant(value: DynamicValue) extends FieldTransform
 }

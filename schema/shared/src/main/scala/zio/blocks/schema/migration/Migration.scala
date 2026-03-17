@@ -41,8 +41,8 @@ final case class Migration[A, B](actions: List[MigrationAction]) {
 
   /**
    * Apply this migration to a [[DynamicValue]] and return the migrated
-   * [[DynamicValue]] or a [[SchemaError]] if the value does not conform to
-   * the expected structure.
+   * [[DynamicValue]] or a [[SchemaError]] if the value does not conform to the
+   * expected structure.
    */
   def apply(dv: DynamicValue): Either[SchemaError, DynamicValue] =
     Migration.interpret(dv, actions)
@@ -88,22 +88,30 @@ object Migration {
       case MigrationAction.DropField(path) =>
         if (path.isEmpty) Left(SchemaError.expectationMismatch(Nil, "DropField path must not be empty"))
         else
-          navigateAndModify(dv, path.init, {
-            case r: DynamicValue.Record =>
-              Right(DynamicValue.Record(r.fields.filter(_._1 != path.last)))
-            case _ =>
-              Left(SchemaError.expectationMismatch(Nil, "DropField: expected a record at path"))
-          })
+          navigateAndModify(
+            dv,
+            path.init,
+            {
+              case r: DynamicValue.Record =>
+                Right(DynamicValue.Record(r.fields.filter(_._1 != path.last)))
+              case _ =>
+                Left(SchemaError.expectationMismatch(Nil, "DropField: expected a record at path"))
+            }
+          )
 
       case MigrationAction.AddField(path, value) =>
         if (path.isEmpty) Left(SchemaError.expectationMismatch(Nil, "AddField path must not be empty"))
         else
-          navigateAndModify(dv, path.init, {
-            case r: DynamicValue.Record =>
-              Right(DynamicValue.Record(r.fields :+ (path.last -> value)))
-            case _ =>
-              Left(SchemaError.expectationMismatch(Nil, "AddField: expected a record at path"))
-          })
+          navigateAndModify(
+            dv,
+            path.init,
+            {
+              case r: DynamicValue.Record =>
+                Right(DynamicValue.Record(r.fields :+ (path.last -> value)))
+              case _ =>
+                Left(SchemaError.expectationMismatch(Nil, "AddField: expected a record at path"))
+            }
+          )
 
       case MigrationAction.RenameField(srcPath, tgtPath) =>
         if (srcPath.isEmpty || tgtPath.isEmpty)
@@ -111,20 +119,24 @@ object Migration {
         else {
           val srcName = srcPath.last
           val tgtName = tgtPath.last
-          navigateAndModify(dv, srcPath.init, {
-            case r: DynamicValue.Record =>
-              var found  = false
-              val errOpt = Option.empty[SchemaError]
-              val renamed = r.fields.map { kv =>
-                if (kv._1 == srcName && !found) { found = true; (tgtName, kv._2) }
-                else kv
-              }
-              if (!found) Left(SchemaError.missingField(Nil, srcName))
-              else if (errOpt.isDefined) Left(errOpt.get)
-              else Right(DynamicValue.Record(renamed))
-            case _ =>
-              Left(SchemaError.expectationMismatch(Nil, "RenameField: expected a record at path"))
-          })
+          navigateAndModify(
+            dv,
+            srcPath.init,
+            {
+              case r: DynamicValue.Record =>
+                var found   = false
+                val errOpt  = Option.empty[SchemaError]
+                val renamed = r.fields.map { kv =>
+                  if (kv._1 == srcName && !found) { found = true; (tgtName, kv._2) }
+                  else kv
+                }
+                if (!found) Left(SchemaError.missingField(Nil, srcName))
+                else if (errOpt.isDefined) Left(errOpt.get)
+                else Right(DynamicValue.Record(renamed))
+              case _ =>
+                Left(SchemaError.expectationMismatch(Nil, "RenameField: expected a record at path"))
+            }
+          )
         }
 
       case MigrationAction.TransformValue(path, transform) =>
@@ -138,13 +150,17 @@ object Migration {
         else {
           val srcCase = srcPath.last
           val tgtCase = tgtPath.last
-          navigateAndModify(dv, srcPath.init, {
-            case v: DynamicValue.Variant if v.caseNameValue == srcCase =>
-              Right(DynamicValue.Variant(tgtCase, v.value))
-            case v: DynamicValue.Variant => Right(v) // different case — no-op
-            case _ =>
-              Left(SchemaError.expectationMismatch(Nil, "RenameCase: expected a variant at path"))
-          })
+          navigateAndModify(
+            dv,
+            srcPath.init,
+            {
+              case v: DynamicValue.Variant if v.caseNameValue == srcCase =>
+                Right(DynamicValue.Variant(tgtCase, v.value))
+              case v: DynamicValue.Variant => Right(v) // different case — no-op
+              case _                       =>
+                Left(SchemaError.expectationMismatch(Nil, "RenameCase: expected a variant at path"))
+            }
+          )
         }
 
       case MigrationAction.DropCase(casePath) =>
@@ -152,31 +168,39 @@ object Migration {
           Left(SchemaError.expectationMismatch(Nil, "DropCase path must not be empty"))
         else {
           val caseName = casePath.last
-          navigateAndModify(dv, casePath.init, {
-            case v: DynamicValue.Variant if v.caseNameValue == caseName =>
-              Left(SchemaError.expectationMismatch(Nil, s"Case '$caseName' is no longer supported"))
-            case v: DynamicValue.Variant => Right(v) // different case — no-op
-            case _ =>
-              Left(SchemaError.expectationMismatch(Nil, "DropCase: expected a variant at path"))
-          })
+          navigateAndModify(
+            dv,
+            casePath.init,
+            {
+              case v: DynamicValue.Variant if v.caseNameValue == caseName =>
+                Left(SchemaError.expectationMismatch(Nil, s"Case '$caseName' is no longer supported"))
+              case v: DynamicValue.Variant => Right(v) // different case — no-op
+              case _                       =>
+                Left(SchemaError.expectationMismatch(Nil, "DropCase: expected a variant at path"))
+            }
+          )
         }
 
       // ── Option operations ───────────────────────────────────────────────
 
       case MigrationAction.Mandate(path, default) =>
-        navigateAndModify(dv, path, {
-          case v: DynamicValue.Variant if v.caseNameValue == "None" => Right(default)
-          case v: DynamicValue.Variant if v.caseNameValue == "Some" =>
-            v.value match {
-              case r: DynamicValue.Record =>
-                r.fields.find(_._1 == "value") match {
-                  case Some((_, inner)) => Right(inner)
-                  case None             => Left(SchemaError.missingField(Nil, "value"))
-                }
-              case other => Right(other)
-            }
-          case other => Right(other) // not an Option — pass through
-        })
+        navigateAndModify(
+          dv,
+          path,
+          {
+            case v: DynamicValue.Variant if v.caseNameValue == "None" => Right(default)
+            case v: DynamicValue.Variant if v.caseNameValue == "Some" =>
+              v.value match {
+                case r: DynamicValue.Record =>
+                  r.fields.find(_._1 == "value") match {
+                    case Some((_, inner)) => Right(inner)
+                    case None             => Left(SchemaError.missingField(Nil, "value"))
+                  }
+                case other => Right(other)
+              }
+            case other => Right(other) // not an Option — pass through
+          }
+        )
 
       case MigrationAction.Optionalize(path) =>
         navigateAndModify(
@@ -188,40 +212,52 @@ object Migration {
       // ── Collection operations ───────────────────────────────────────────
 
       case MigrationAction.TransformElements(path, elemAction) =>
-        navigateAndModify(dv, path, {
-          case s: DynamicValue.Sequence =>
-            s.elements
-              .foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) { (acc, elem) =>
-                acc.flatMap(chunk => applyAction(elem, elemAction).map(chunk :+ _))
-              }
-              .map(DynamicValue.Sequence(_))
-          case _ =>
-            Left(SchemaError.expectationMismatch(Nil, "TransformElements: expected a sequence at path"))
-        })
+        navigateAndModify(
+          dv,
+          path,
+          {
+            case s: DynamicValue.Sequence =>
+              s.elements
+                .foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) { (acc, elem) =>
+                  acc.flatMap(chunk => applyAction(elem, elemAction).map(chunk :+ _))
+                }
+                .map(DynamicValue.Sequence(_))
+            case _ =>
+              Left(SchemaError.expectationMismatch(Nil, "TransformElements: expected a sequence at path"))
+          }
+        )
 
       case MigrationAction.TransformKeys(path, keyAction) =>
-        navigateAndModify(dv, path, {
-          case m: DynamicValue.Map =>
-            m.entries
-              .foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) { (acc, kv) =>
-                acc.flatMap(chunk => applyAction(kv._1, keyAction).map(k => chunk :+ (k, kv._2)))
-              }
-              .map(DynamicValue.Map(_))
-          case _ =>
-            Left(SchemaError.expectationMismatch(Nil, "TransformKeys: expected a map at path"))
-        })
+        navigateAndModify(
+          dv,
+          path,
+          {
+            case m: DynamicValue.Map =>
+              m.entries
+                .foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) { (acc, kv) =>
+                  acc.flatMap(chunk => applyAction(kv._1, keyAction).map(k => chunk :+ (k, kv._2)))
+                }
+                .map(DynamicValue.Map(_))
+            case _ =>
+              Left(SchemaError.expectationMismatch(Nil, "TransformKeys: expected a map at path"))
+          }
+        )
 
       case MigrationAction.TransformValues(path, valAction) =>
-        navigateAndModify(dv, path, {
-          case m: DynamicValue.Map =>
-            m.entries
-              .foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) { (acc, kv) =>
-                acc.flatMap(chunk => applyAction(kv._2, valAction).map(v => chunk :+ (kv._1, v)))
-              }
-              .map(DynamicValue.Map(_))
-          case _ =>
-            Left(SchemaError.expectationMismatch(Nil, "TransformValues: expected a map at path"))
-        })
+        navigateAndModify(
+          dv,
+          path,
+          {
+            case m: DynamicValue.Map =>
+              m.entries
+                .foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) { (acc, kv) =>
+                  acc.flatMap(chunk => applyAction(kv._2, valAction).map(v => chunk :+ (kv._1, v)))
+                }
+                .map(DynamicValue.Map(_))
+            case _ =>
+              Left(SchemaError.expectationMismatch(Nil, "TransformValues: expected a map at path"))
+          }
+        )
 
       // ── Composition ─────────────────────────────────────────────────────
 
@@ -231,8 +267,8 @@ object Migration {
   // ── Navigation helper ────────────────────────────────────────────────────────
 
   /**
-   * Descend through `path` (a sequence of record-field names), apply `f` at
-   * the innermost value, and rebuild the enclosing records on the way out.
+   * Descend through `path` (a sequence of record-field names), apply `f` at the
+   * innermost value, and rebuild the enclosing records on the way out.
    */
   private[migration] def navigateAndModify(
     dv: DynamicValue,
@@ -240,25 +276,25 @@ object Migration {
     f: DynamicValue => Either[SchemaError, DynamicValue]
   ): Either[SchemaError, DynamicValue] =
     path match {
-      case Nil  => f(dv)
+      case Nil          => f(dv)
       case head :: tail =>
         dv match {
           case r: DynamicValue.Record =>
-            var found  = false
-            var result = Option.empty[Either[SchemaError, DynamicValue]]
+            var found   = false
+            var result  = Option.empty[Either[SchemaError, DynamicValue]]
             val updated = r.fields.map { kv =>
               if (kv._1 == head && !found) {
                 found = true
                 navigateAndModify(kv._2, tail, f) match {
-                  case Right(v)    => (kv._1, v)
-                  case Left(e) =>
+                  case Right(v) => (kv._1, v)
+                  case Left(e)  =>
                     result = Some(Left(e))
                     kv
                 }
               } else kv
             }
             result match {
-              case Some(err) => err
+              case Some(err)      => err
               case None if !found =>
                 Left(SchemaError.missingField(Nil, head))
               case None =>

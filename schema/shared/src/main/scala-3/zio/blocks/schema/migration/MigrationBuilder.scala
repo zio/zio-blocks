@@ -29,24 +29,24 @@ import zio.blocks.schema.DynamicValue
  * }}}
  */
 type RemoveField[Label <: String, Fields] = Fields match {
-  case SNil                       => SNil
-  case SCons[(Label, ?), tail]    => tail
-  case SCons[(h, v), tail]        => SCons[(h, v), RemoveField[Label, tail]]
+  case SNil                    => SNil
+  case SCons[(Label, ?), tail] => tail
+  case SCons[(h, v), tail]     => SCons[(h, v), RemoveField[Label, tail]]
 }
 
 /**
  * Strip the entry labelled `Label` from the field list of an [[SRecord]] (or
- * [[SVariant]]).  When the last entry is removed the wrapped [[SRecord]] /
+ * [[SVariant]]). When the last entry is removed the wrapped [[SRecord]] /
  * [[SVariant]] collapses to [[SNil]] so that `.build` can require `=:= SNil`.
  */
 type DropFromRecord[Label <: String, Fields] = RemoveField[Label, Fields] match {
-  case SNil  => SNil
-  case _     => SRecord[RemoveField[Label, Fields]]
+  case SNil => SNil
+  case _    => SRecord[RemoveField[Label, Fields]]
 }
 
 type DropFromVariant[Label <: String, Cases] = RemoveField[Label, Cases] match {
-  case SNil  => SNil
-  case _     => SVariant[RemoveField[Label, Cases]]
+  case SNil => SNil
+  case _    => SVariant[RemoveField[Label, Cases]]
 }
 
 /**
@@ -54,13 +54,13 @@ type DropFromVariant[Label <: String, Cases] = RemoveField[Label, Cases] match {
  * when all children are consumed.
  */
 type DropFromTree[Label <: String, Tree] = Tree match {
-  case SNil                  => SNil
-  case SRecord[fields]       => DropFromRecord[Label, fields]
-  case SVariant[cases]       => DropFromVariant[Label, cases]
-  case SSequence[e]          => SSequence[DropFromTree[Label, e]]
-  case SMap[k, v]            => SMap[k, v]   // map keys/values consumed wholesale
-  case SPrimitive            => SNil
-  case SWrapper[w]           => SNil
+  case SNil            => SNil
+  case SRecord[fields] => DropFromRecord[Label, fields]
+  case SVariant[cases] => DropFromVariant[Label, cases]
+  case SSequence[e]    => SSequence[DropFromTree[Label, e]]
+  case SMap[k, v]      => SMap[k, v] // map keys/values consumed wholesale
+  case SPrimitive      => SNil
+  case SWrapper[w]     => SNil
 }
 
 // ── MigrationBuilder ─────────────────────────────────────────────────────────
@@ -70,15 +70,19 @@ type DropFromTree[Label <: String, Tree] = Tree match {
  *
  * Each call to a field/case mapping method returns a new builder with updated
  * `SrcTree` / `TgtTree` type parameters, reflecting that the named field has
- * been "accounted for". [[build]] compiles only when both trees have been
- * fully consumed (both equal to [[SNil]]).
+ * been "accounted for". [[build]] compiles only when both trees have been fully
+ * consumed (both equal to [[SNil]]).
  *
  * Construct an initial builder via [[Migration.builder]].
  *
- * @tparam A        source type
- * @tparam B        target type
- * @tparam SrcTree  remaining unaccounted fields of the source schema
- * @tparam TgtTree  remaining unaccounted fields of the target schema
+ * @tparam A
+ *   source type
+ * @tparam B
+ *   target type
+ * @tparam SrcTree
+ *   remaining unaccounted fields of the source schema
+ * @tparam TgtTree
+ *   remaining unaccounted fields of the target schema
  */
 final class MigrationBuilder[A, B, SrcTree, TgtTree] private[migration] (
   private[migration] val accumulated: List[MigrationAction]
@@ -87,8 +91,8 @@ final class MigrationBuilder[A, B, SrcTree, TgtTree] private[migration] (
   // ── Record field operations ─────────────────────────────────────────────────
 
   /**
-   * Rename field `src` (in the source schema) to `tgt` (in the target
-   * schema), optionally at a nested `parentPath`.
+   * Rename field `src` (in the source schema) to `tgt` (in the target schema),
+   * optionally at a nested `parentPath`.
    *
    * Both `src` and `tgt` must be literal string types inferred from the
    * value-level arguments.
@@ -150,8 +154,8 @@ final class MigrationBuilder[A, B, SrcTree, TgtTree] private[migration] (
     )
 
   /**
-   * Convert a plain `T` source field to an `Option[T]` target field by
-   * wrapping in `Some`.
+   * Convert a plain `T` source field to an `Option[T]` target field by wrapping
+   * in `Some`.
    */
   def optionalizeField[Field <: String & Singleton](
     field: Field,
@@ -189,8 +193,8 @@ final class MigrationBuilder[A, B, SrcTree, TgtTree] private[migration] (
 
   /**
    * Declare that all remaining fields / cases in both trees are identical and
-   * require no migration. Compiles only when `SrcTree =:= TgtTree` — i.e.,
-   * the remaining structures are provably the same.
+   * require no migration. Compiles only when `SrcTree =:= TgtTree` — i.e., the
+   * remaining structures are provably the same.
    *
    * No runtime action is appended: values for these fields are already correct
    * in the source [[DynamicValue]].
