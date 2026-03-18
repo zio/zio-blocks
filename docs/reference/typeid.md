@@ -9,12 +9,12 @@ In Scala and the JVM, compile-time type information is erased at runtime. This m
 
 When to use `TypeId` vs alternatives:
 
-| Use Case | Best Choice |
-|---|---|
-| Encode type info as data for serialization, code generation, or dispatch  | `TypeId`           |
-| Create arrays of the correct runtime type                                   | `ClassTag`         |
-| Check if a single value matches a known type                                | Pattern match with `TypeTest` |
-| Manually handle a handful of hardcoded types                                | Hard-coded `if/else` |
+| Use Case                                                                 | Best Choice                   |
+|--------------------------------------------------------------------------|-------------------------------|
+| Encode type info as data for serialization, code generation, or dispatch | `TypeId`                      |
+| Create arrays of the correct runtime type                                | `ClassTag`                    |
+| Check if a single value matches a known type                             | Pattern match with `TypeTest` |
+| Manually handle a handful of hardcoded types                             | Hard-coded `if/else`          |
 
 The `TypeId` trait exposes the type's structure through a rich set of properties and predicates:
 
