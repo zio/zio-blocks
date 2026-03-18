@@ -423,12 +423,12 @@ runnableId.typeParams.map(_.kind)
 runnableId.typeParams.head.kind.arity
 ```
 
-| Kind | Notation | Arity | Examples |
-|---|---|---|---|
-| `Kind.Type` / `Kind.Star` | `*` | 0 | `Int`, `Box[Int]` |
-| `Kind.Star1` | `* -> *` | 1 | `Container`, `Option` |
-| `Kind.Star2` | `* -> * -> *` | 2 | `Cache`, `Either` |
-| `Kind.HigherStar1` | `(* -> *) -> *` | 1 | `Runnable` |
+| Kind                      | Notation        | Arity | Examples              |
+|---------------------------|-----------------|-------|-----------------------|
+| `Kind.Type` / `Kind.Star` | `*`             | 0     | `Int`, `Box[Int]`     |
+| `Kind.Star1`              | `* -> *`        | 1     | `Container`, `Option` |
+| `Kind.Star2`              | `* -> * -> *`   | 2     | `Cache`, `Either`     |
+| `Kind.HigherStar1`        | `(* -> *) -> *` | 1     | `Runnable`            |
 
 ## Subtype Relationships
 
