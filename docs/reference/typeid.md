@@ -539,51 +539,6 @@ myId.owner.lastName
 myId.owner.isRoot
 ```
 
-### Building Owners for Comparisons and Registries
-
-When you need to filter, compare, or look up types by origin, construct owners using `Owner.fromPackagePath` or the `/` combinator:
-
-```scala mdoc
-val owner1 = Owner.fromPackagePath("com.example.app")
-owner1.asString
-owner1.parent.asString
-owner1.lastName
-```
-
-```scala mdoc
-val owner2 = Owner.Root / "com" / "example"
-owner2.asString
-owner2 == owner1
-```
-
-**Realistic use case: filtering schemas by namespace in a multi-module system:**
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-case class User(id: Int, name: String)
-case class Product(id: String, price: Double)
-
-val userTypeId = TypeId.of[User]
-val productTypeId = TypeId.of[Product]
-
-// Check if a type originates from a specific module
-def isInternalDomain(typeId: TypeId[_]): Boolean = {
-  val internalOwner = Owner.fromPackagePath("com.myapp.internal.domain")
-  typeId.owner.asString.startsWith(internalOwner.asString)
-}
-
-// Build a type registry keyed by (package, name) to handle collisions
-val typeRegistry: Map[(String, String), String] = Map(
-  (userTypeId.owner.asString, userTypeId.name) -> "User Schema v1",
-  (productTypeId.owner.asString, productTypeId.name) -> "Product Schema v1"
-)
-
-// Look up a type-specific codec by origin + name
-def lookupCodec(typeId: TypeId[_]): Option[String] =
-  typeRegistry.get((typeId.owner.asString, typeId.name))
-```
-
 ### Owner Structure: Packages, Terms, and Types
 
 An Owner is a chain of segments: packages, terms (objects/values), and types. For a type defined as:
@@ -619,14 +574,36 @@ moduleOwner.asString
 
 ### TermPath
 
-`TermPath` represents paths to term values, used for singleton types like `x.type`. It's similar to Owner but focuses on value paths:
+`TermPath` represents paths to term values and is used for singleton types like `obj.field.type`. Derive a TypeId for a singleton to see its term path in action:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+object AppConfig {
+  val production = "prod-db"
+  val development = "dev-db"
+}
+```
+
+```scala mdoc
+val prodSingletonId = TypeId.of[AppConfig.production.type]
+prodSingletonId
+
+val devSingletonId = TypeId.of[AppConfig.development.type]
+devSingletonId
+```
+
+Construct TermPath manually using `fromOwner` and append segments with `/`:
 
 ```scala mdoc
 val path = TermPath.fromOwner(
-  Owner.fromPackagePath("com.example").term("MyObject"),
-  "value"
+  Owner.fromPackagePath("com.example").term("AppConfig"),
+  "production"
 )
 path.asString
+
+val extendedPath = path / "nested"
+extendedPath.asString
 ```
 
 ### Predefined Owners
