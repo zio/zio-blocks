@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.json.{Json, JsonEncoder, JsonFormat}
+import zio.blocks.schema.json._
 import zio.blocks.schema.patch.{Patch, PatchMode}
 
 trait SyntaxVersionSpecific {
@@ -13,7 +13,7 @@ trait SyntaxVersionSpecific {
 
     def show(implicit schema: Schema[A]): String = schema.toDynamicValue(self).toString
 
-    def toJson(implicit jsonEncoder: JsonEncoder[A]): Json = jsonEncoder.encode(self)
+    def toJson(implicit schema: Schema[A]): Json = schema.getInstance(JsonFormat).encodeValue(self)
 
     def toJsonString(implicit schema: Schema[A]): String = schema.getInstance(JsonFormat).encodeToString(self)
 

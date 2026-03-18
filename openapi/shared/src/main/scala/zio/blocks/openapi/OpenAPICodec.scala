@@ -29,7 +29,7 @@ import zio.blocks.docs.{
 }
 import zio.blocks.docs.{Link => MdLink}
 import zio.blocks.schema.SchemaError
-import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
+import zio.blocks.schema.json._
 
 object OpenAPICodec {
 
@@ -47,20 +47,20 @@ object OpenAPICodec {
     if (extensions.isEmpty) base
     else new Json.Object(base.value ++ Chunk.from(extensions))
 
-  private def field[A](a: A)(implicit enc: JsonEncoder[A]): Option[Json] = Some(enc.encode(a))
+  private def field[A](a: A)(implicit enc: JsonBinaryCodec[A]): Option[Json] = Some(enc.encodeValue(a))
 
-  private def optField[A](a: Option[A])(implicit enc: JsonEncoder[A]): Option[Json] = a.map(enc.encode)
+  private def optField[A](a: Option[A])(implicit enc: JsonBinaryCodec[A]): Option[Json] = a.map(enc.encodeValue)
 
-  private def chunkField[A](a: Chunk[A])(implicit enc: JsonEncoder[A]): Option[Json] =
+  private def chunkField[A](a: Chunk[A])(implicit enc: JsonBinaryCodec[A]): Option[Json] =
     if (a.isEmpty) None
     else {
       val builder = ChunkBuilder.make[Json](a.length)
-      a.foreach(v => builder += enc.encode(v))
+      a.foreach(v => builder += enc.encodeValue(v))
       Some(new Json.Array(builder.result()))
     }
 
-  private def chunkMapField[V](a: ChunkMap[String, V])(implicit enc: JsonEncoder[V]): Option[Json] =
-    if (a.isEmpty) None else Some(JsonEncoder.mapEncoder(enc).encode(a))
+  private def chunkMapField[V](a: ChunkMap[String, V])(implicit enc: JsonBinaryCodec[V]): Option[Json] =
+    if (a.isEmpty) None else Some(new Json.Object(a.toChunk.map(kv => (kv._1, enc.encodeValue(kv._2)))))
 
   private def boolField(a: Boolean, default: Boolean = false): Option[Json] =
     if (a == default) None else Some(Json.Boolean(a))
@@ -72,14 +72,14 @@ object OpenAPICodec {
   private def getField(jObj: Json.Object, name: String): Option[Json] =
     jObj.value.find(_._1 == name).map(_._2)
 
-  private def reqField[A](jObj: Json.Object, name: String)(implicit dec: JsonDecoder[A]): Either[SchemaError, A] =
+  private def reqField[A](jObj: Json.Object, name: String)(implicit dec: JsonBinaryCodec[A]): Either[SchemaError, A] =
     getField(jObj, name) match {
       case Some(json) => dec.decode(json)
-      case None       => Left(SchemaError(s"Missing required field: $name"))
+      case _          => Left(SchemaError(s"Missing required field: $name"))
     }
 
   private def optFieldDec[A](jObj: Json.Object, name: String)(implicit
-    dec: JsonDecoder[A]
+    dec: JsonBinaryCodec[A]
   ): Either[SchemaError, Option[A]] =
     getField(jObj, name) match {
       case Some(Json.Null) | None => Right(None)
@@ -87,7 +87,7 @@ object OpenAPICodec {
     }
 
   private def chunkFieldDec[A](jObj: Json.Object, name: String)(implicit
-    dec: JsonDecoder[A]
+    dec: JsonBinaryCodec[A]
   ): Either[SchemaError, Chunk[A]] =
     getField(jObj, name) match {
       case None                  => Right(Chunk.empty)
@@ -108,7 +108,7 @@ object OpenAPICodec {
     }
 
   private def chunkMapFieldDec[V](jObj: Json.Object, name: String)(implicit
-    dec: JsonDecoder[V]
+    dec: JsonBinaryCodec[V]
   ): Either[SchemaError, ChunkMap[String, V]] =
     getField(jObj, name) match {
       case None                   => Right(ChunkMap.empty)
@@ -131,7 +131,7 @@ object OpenAPICodec {
   private def boolFieldDec(jObj: Json.Object, name: String, default: Boolean = false): Either[SchemaError, Boolean] =
     getField(jObj, name) match {
       case None       => Right(default)
-      case Some(json) => JsonDecoder.booleanDecoder.decode(json)
+      case Some(json) => JsonBinaryCodec.booleanCodec.decode(json)
     }
 
   private def extractExtensions(jObj: Json.Object): ChunkMap[String, Json] = {
@@ -205,11 +205,11 @@ object OpenAPICodec {
   // Doc
   // ---------------------------------------------------------------------------
 
-  implicit val docJsonEncoder: JsonEncoder[Doc] = JsonEncoder.instance[Doc] { doc =>
+  implicit val docJsonEncoder: JsonBinaryCodec[Doc] = JsonBinaryCodec.instance[Doc] { doc =>
     Json.String(Renderer.render(doc))
   }
 
-  implicit val docJsonDecoder: JsonDecoder[Doc] = JsonDecoder.instance[Doc] { json =>
+  implicit val docJsonDecoder: JsonBinaryCodec[Doc] = JsonBinaryCodec.instance[Doc] { json =>
     json match {
       case str: Json.String =>
         Parser.parse(str.value) match {
@@ -453,7 +453,7 @@ object OpenAPICodec {
   // Discriminator
   // ---------------------------------------------------------------------------
 
-  implicit val discriminatorJsonEncoder: JsonEncoder[Discriminator] = JsonEncoder.instance[Discriminator] { d =>
+  implicit val discriminatorJsonEncoder: JsonBinaryCodec[Discriminator] = JsonEncoder.instance[Discriminator] { d =>
     obj(
       "propertyName" -> field(d.propertyName),
       "mapping"      -> chunkMapField(d.mapping)

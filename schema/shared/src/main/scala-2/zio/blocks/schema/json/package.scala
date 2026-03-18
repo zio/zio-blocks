@@ -34,54 +34,39 @@ private object JsonInterpolatorMacros {
     val processedArgs: Seq[Tree] = if (args.size == contexts.size) {
       contexts.zip(args).map { case (ctx, argExpr) =>
         val argType = argExpr.actualType.widen
-        ctx match {
-          case InterpolationContext.Key =>
-            val keyableTc       = typeOf[Keyable[_]].typeConstructor
-            val keyableType     = appliedType(keyableTc, argType)
-            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
-            if (keyableInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"Type $argType cannot be used as JSON key. " +
-                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
-              )
-            }
-            // Pre-convert to String using Keyable
-            q"$keyableInstance.asKey(${argExpr.tree})"
-
-          case InterpolationContext.Value =>
-            val encoderTc       = typeOf[JsonEncoder[_]].typeConstructor
-            val encoderType     = appliedType(encoderTc, argType)
-            val encoderInstance = c.inferImplicitValue(encoderType, silent = true)
-            if (encoderInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"No JsonEncoder found for type $argType. " +
-                  "Add a Schema[T] or explicit JsonEncoder[T] instance."
-              )
-            }
-            // Pre-encode to Json using JsonEncoder, with null check
-            val v = c.freshName(TermName("v"))
-            q"""{
-              val $v = ${argExpr.tree}
-              if ($v.asInstanceOf[AnyRef] == null) _root_.zio.blocks.schema.json.Json.Null
-              else $encoderInstance.encode($v)
-            }"""
-
-          case InterpolationContext.InString =>
-            // Validate Keyable[A] for inside-string interpolation
-            val keyableTc       = typeOf[Keyable[_]].typeConstructor
-            val keyableType     = appliedType(keyableTc, argType)
-            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
-            if (keyableInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"Type $argType cannot be used inside a JSON string literal. " +
-                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
-              )
-            }
-            // Pre-convert to String using Keyable
-            q"$keyableInstance.asKey(${argExpr.tree})"
+        if (argType <:< typeOf[Json]) {
+          ctx match {
+            case InterpolationContext.Value =>
+              val v = c.freshName(TermName("v"))
+              q"""{
+                val $v = ${argExpr.tree}
+                if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
+                else Json.jsonCodec.encodeValue($v)
+              }"""
+            case _ => q"Json.jsonCodec.encodeKey(${argExpr.tree})"
+          }
+        } else {
+          ctx match {
+            case InterpolationContext.Value =>
+              val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
+              val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
+              if (schemaInstance == EmptyTree) {
+                c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
+              }
+              val v = c.freshName(TermName("v"))
+              q"""{
+                val $v = ${argExpr.tree}
+                if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
+                else $schemaInstance.getInstance(_root_.zio.blocks.schema.json.JsonFormat).encodeValue($v)
+              }"""
+            case _ =>
+              val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
+              val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
+              if (schemaInstance == EmptyTree) {
+                c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
+              }
+              q"$schemaInstance.getInstance(_root_.zio.blocks.schema.json.JsonFormat).encodeKey(${argExpr.tree})"
+          }
         }
       }
     } else {

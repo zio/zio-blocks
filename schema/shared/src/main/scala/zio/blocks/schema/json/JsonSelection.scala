@@ -293,7 +293,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Decodes the single selected value to type A. */
-  def as[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, A] = either match {
+  def as[A](implicit decoder: JsonBinaryCodec[A]): Either[SchemaError, A] = either match {
     case Right(v) =>
       val len = v.length
       if (len == 1) decoder.decode(v.head)
@@ -302,7 +302,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   }
 
   /** Decodes all selected values to type A. */
-  def asAll[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, Chunk[A]] = either match {
+  def asAll[A](implicit decoder: JsonBinaryCodec[A]): Either[SchemaError, Chunk[A]] = either match {
     case Right(v1) =>
       new Right({
         val len = v1.length

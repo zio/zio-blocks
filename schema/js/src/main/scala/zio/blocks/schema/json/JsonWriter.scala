@@ -1745,13 +1745,12 @@ final class JsonWriter private[json] (
       val buf = this.buf
       val ds  = digits
       buf(pos) = 'E'
-      var sb: Byte = '+'
+      pos += 1
       if (exp < 0) {
-        sb = '-'
+        buf(pos) = '-'
+        pos += 1
         exp = -exp
       }
-      buf(pos + 1) = sb
-      pos += 2
       var q = exp.toInt
       if (exp == q) {
         pos += digitCount(q)

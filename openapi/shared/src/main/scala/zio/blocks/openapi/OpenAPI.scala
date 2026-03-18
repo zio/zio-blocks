@@ -3,7 +3,7 @@ package zio.blocks.openapi
 import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json._
 
 /**
  * The root object of an OpenAPI 3.1 document.

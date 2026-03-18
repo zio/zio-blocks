@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.schema.json.{Json, JsonEncoder, JsonFormat}
+import zio.blocks.schema.json.{Json, JsonFormat}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 
 trait SyntaxVersionSpecific {
@@ -29,7 +29,7 @@ trait SyntaxVersionSpecific {
 
     def show(using schema: Schema[A]): String = schema.toDynamicValue(self).toString
 
-    def toJson(using jsonEncoder: JsonEncoder[A]): Json = jsonEncoder.encode(self)
+    def toJson(using schema: Schema[A]): Json = schema.getInstance(JsonFormat).encodeValue(self)
 
     def toJsonString(using schema: Schema[A]): String = schema.getInstance(JsonFormat).encodeToString(self)
 

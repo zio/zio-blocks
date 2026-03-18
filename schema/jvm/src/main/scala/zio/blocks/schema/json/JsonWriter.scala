@@ -1594,8 +1594,8 @@ final class JsonWriter private[json] (
       val ds  = digits
       val s   = exp >> 63
       exp = (exp + s) ^ s
-      ByteArrayAccess.setShort(buf, pos, (0x2b45L - (s << 9)).toShort)
-      pos += 2
+      ByteArrayAccess.setShort(buf, pos, 0x2d45L.toShort)
+      pos += 1 - s.toInt
       var q = exp
       if (exp < 100000000L) {
         pos += digitCount(exp)
@@ -3544,6 +3544,10 @@ object JsonWriter {
         e10 += 2
         m10 = q
       }
+      if (e10 == 0) {
+        m10 *= 10
+        e10 -= 1
+      }
       val sign = bits >> 31
       new BigDecimal(java.math.BigDecimal.valueOf((m10 ^ sign) - sign, -e10))
     }
@@ -3622,6 +3626,10 @@ object JsonWriter {
           e10 += 2
           m10 = q2
         }
+      }
+      if (e10 == 0) {
+        m10 *= 10
+        e10 -= 1
       }
       val sign = bits >> 63
       new BigDecimal(java.math.BigDecimal.valueOf((m10 ^ sign) - sign, -e10))
