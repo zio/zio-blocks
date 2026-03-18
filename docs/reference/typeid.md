@@ -911,6 +911,8 @@ TypeId provides instances for common types. These are useful as building blocks 
 
 ### Primitives
 
+Use these for primitive types:
+
 ```scala
 TypeId.unit      // scala.Unit
 TypeId.boolean   // scala.Boolean
@@ -927,6 +929,8 @@ TypeId.bigDecimal // scala.BigDecimal
 ```
 
 ### Collections
+
+Use these for collection and container types:
 
 ```scala
 TypeId.option     // scala.Option
@@ -945,6 +949,8 @@ TypeId.chunk      // zio.blocks.chunk.Chunk
 ```
 
 ### java.time Types
+
+Use these for java.time date and time types:
 
 ```scala
 TypeId.dayOfWeek      // java.time.DayOfWeek
@@ -966,6 +972,8 @@ TypeId.zonedDateTime  // java.time.ZonedDateTime
 ```
 
 ### java.util Types
+
+Use these for java.util utility types:
 
 ```scala
 TypeId.currency   // java.util.Currency
