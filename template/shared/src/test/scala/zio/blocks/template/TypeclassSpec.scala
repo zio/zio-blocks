@@ -214,19 +214,6 @@ object TypeclassSpec extends ZIOSpecDefault {
         assertTrue(ToElements[Iterable[Dom]].toElements(elems) == Chunk(Dom.Text("a"), Dom.Text("b")))
       }
     ),
-    suite("ToTagName")(
-      test("SafeTagName") {
-        assertTrue(ToTagName[SafeTagName].toTagName(SafeTagName.unsafe("div")) == "div")
-      }
-    ),
-    suite("ToAttrName")(
-      test("SafeAttrName") {
-        assertTrue(ToAttrName[SafeAttrName].toAttrName(SafeAttrName.unsafe("id")) == "id")
-      },
-      test("EventAttrName") {
-        assertTrue(ToAttrName[EventAttrName].toAttrName(EventAttrName.unsafe("onclick")) == "onclick")
-      }
-    ),
     suite("ToAttrValue")(
       test("String is HTML-escaped") {
         assertTrue(ToAttrValue[String].toAttrValue("a&b") == "a&amp;b")

@@ -7,9 +7,8 @@ import zio.blocks.chunk.Chunk
  * Provides string interpolators for HTML, CSS, JavaScript, and CSS selectors.
  *
  * Interpolators:
- *   - `html"..."` — produces [[Dom]], position-aware: uses [[ToTagName]] for
- *     `<$$tag>`, [[ToAttrName]] for `$$attr=`, [[ToAttrValue]] for `=$$value`,
- *     [[ToElements]] for content
+ *   - `html"..."` — produces [[Dom]], position-aware: uses [[ToAttrValue]] for
+ *     `=$$value`, [[ToElements]] for content
  *   - `css"..."` — produces [[Css]], uses [[ToCss]] for interpolated values
  *   - `js"..."` — produces [[Js]], uses [[ToJs]] for interpolated values
  *     (strings are quoted and escaped)
@@ -130,38 +129,6 @@ private[template] object TemplateMacros {
       val argType = argExpr.asTerm.tpe.widen
 
       context match {
-        case HtmlContext.TagName =>
-          val tc = TypeRepr.of[ToTagName].appliedTo(argType)
-          Implicits.search(tc) match {
-            case success: ImplicitSearchSuccess =>
-              argType.asType match {
-                case '[t] =>
-                  val inst = success.tree.asExprOf[ToTagName[t]]
-                  val arg  = argExpr.asExprOf[t]
-                  '{ Left($inst.toTagName($arg)) }
-              }
-            case _: ImplicitSearchFailure =>
-              report.errorAndAbort(
-                s"No ToTagName instance found for type ${argType.show}. Tag name interpolation requires SafeTagName."
-              )
-          }
-
-        case HtmlContext.AttrName =>
-          val tc = TypeRepr.of[ToAttrName].appliedTo(argType)
-          Implicits.search(tc) match {
-            case success: ImplicitSearchSuccess =>
-              argType.asType match {
-                case '[t] =>
-                  val inst = success.tree.asExprOf[ToAttrName[t]]
-                  val arg  = argExpr.asExprOf[t]
-                  '{ Left($inst.toAttrName($arg)) }
-              }
-            case _: ImplicitSearchFailure =>
-              report.errorAndAbort(
-                s"No ToAttrName instance found for type ${argType.show}. Attribute name interpolation requires SafeAttrName or EventAttrName."
-              )
-          }
-
         case HtmlContext.AttrValue =>
           val tc = TypeRepr.of[ToAttrValue].appliedTo(argType)
           Implicits.search(tc) match {
@@ -236,74 +203,14 @@ private[template] object TemplateMacros {
 
   private sealed trait HtmlContext
   private object HtmlContext {
-    case object TagName   extends HtmlContext
-    case object AttrName  extends HtmlContext
     case object AttrValue extends HtmlContext
     case object Content   extends HtmlContext
   }
 
-  private def determineContexts(parts: Seq[String]): Seq[HtmlContext] = {
-    sealed trait State
-    case object InText                    extends State
-    case object InTagName                 extends State
-    case object InClosingTagName          extends State
-    case class InTag(afterSpace: Boolean) extends State
-    case object InAttrEq                  extends State
-    case class InAttrValueQ(quote: Char)  extends State
-    case object InAttrValue               extends State
-
-    var state: State = InText
-
+  private def determineContexts(parts: Seq[String]): Seq[HtmlContext] =
     parts.init.map { part =>
-      var i = 0
-      while (i < part.length) {
-        val c = part.charAt(i)
-        state match {
-          case InText =>
-            if (c == '<') {
-              if (i + 1 < part.length && part.charAt(i + 1) == '/') {
-                state = InClosingTagName
-                i += 1
-              } else {
-                state = InTagName
-              }
-            }
-          case InTagName =>
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') state = InTag(afterSpace = true)
-            else if (c == '>') state = InText
-            else if (c == '/') {
-              if (i + 1 < part.length && part.charAt(i + 1) == '>') { state = InText; i += 1 }
-            }
-          case InClosingTagName =>
-            if (c == '>') state = InText
-          case InTag(_) =>
-            if (c == '>') state = InText
-            else if (c == '/') {
-              if (i + 1 < part.length && part.charAt(i + 1) == '>') { state = InText; i += 1 }
-            } else if (c == '=') state = InAttrEq
-            else if (c == ' ' || c == '\t' || c == '\n' || c == '\r') state = InTag(afterSpace = true)
-            else state = InTag(afterSpace = false)
-          case InAttrEq =>
-            if (c == '"') state = InAttrValueQ('"')
-            else if (c == '\'') state = InAttrValueQ('\'')
-            else if (c == ' ' || c == '\t') ()
-            else state = InAttrValue
-          case InAttrValueQ(q) =>
-            if (c == q) state = InTag(afterSpace = false)
-          case InAttrValue =>
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') state = InTag(afterSpace = true)
-            else if (c == '>') state = InText
-        }
-        i += 1
-      }
-
-      state match {
-        case InTagName | InClosingTagName             => HtmlContext.TagName
-        case InTag(true)                              => HtmlContext.AttrName
-        case InTag(false)                             => HtmlContext.AttrName
-        case InAttrEq | InAttrValue | _: InAttrValueQ => HtmlContext.AttrValue
-        case InText                                   => HtmlContext.Content
-      }
+      val trimmed = part.trim
+      if (trimmed.endsWith("=") || trimmed.endsWith("='") || trimmed.endsWith("=\"")) HtmlContext.AttrValue
+      else HtmlContext.Content
     }
-  }
 }
