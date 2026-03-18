@@ -505,9 +505,18 @@ Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationAr
 
 ## Namespaces and Owners
 
-Types are organized hierarchically. The `owner` property tells you where a type is defined.
+Every type has an `owner` — the hierarchical path that tells you where the type is defined (its package, enclosing object, or enclosing type). Owner is essential when you need to identify types by their origin, filter schemas by namespace, or build type-indexed registries that respect module boundaries.
+
+When building cross-module systems (middleware, gateways, plugin registries, code generators), you often need to distinguish between types from different packages or modules. For example, you might want to:
+- Apply different serialization strategies to types from `com.internal.domain` vs `com.external.api`
+- Build a type registry keyed by both type name *and* origin package (to handle name collisions across modules)
+- Validate that a deserialized type comes from a trusted package
+
+Owner gives you the tools to make these decisions at runtime.
 
 ### Inspecting Owners
+
+When you derive a TypeId, the `owner` property captures where the type is defined:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -522,9 +531,17 @@ myId.owner.asString
 myId.fullName
 ```
 
-### Building Owners
+Owner provides methods to inspect and navigate the hierarchy:
 
-For comparisons or manual construction, build owners with `Owner.fromPackagePath` or the `/` combinator:
+```scala mdoc
+myId.owner.parent
+myId.owner.lastName
+myId.owner.isRoot
+```
+
+### Building Owners for Comparisons and Registries
+
+When you need to filter, compare, or look up types by origin, construct owners using `Owner.fromPackagePath` or the `/` combinator:
 
 ```scala mdoc
 val owner1 = Owner.fromPackagePath("com.example.app")
@@ -536,6 +553,80 @@ owner1.lastName
 ```scala mdoc
 val owner2 = Owner.Root / "com" / "example"
 owner2.asString
+owner2 == owner1
+```
+
+**Realistic use case: filtering schemas by namespace in a multi-module system:**
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+case class User(id: Int, name: String)
+case class Product(id: String, price: Double)
+
+val userTypeId = TypeId.of[User]
+val productTypeId = TypeId.of[Product]
+
+// Check if a type originates from a specific module
+def isInternalDomain(typeId: TypeId[_]): Boolean = {
+  val internalOwner = Owner.fromPackagePath("com.myapp.internal.domain")
+  typeId.owner.asString.startsWith(internalOwner.asString)
+}
+
+// Build a type registry keyed by (package, name) to handle collisions
+val typeRegistry: Map[(String, String), String] = Map(
+  (userTypeId.owner.asString, userTypeId.name) -> "User Schema v1",
+  (productTypeId.owner.asString, productTypeId.name) -> "Product Schema v1"
+)
+
+// Look up a type-specific codec by origin + name
+def lookupCodec(typeId: TypeId[_]): Option[String] =
+  typeRegistry.get((typeId.owner.asString, typeId.name))
+```
+
+### Owner Structure: Packages, Terms, and Types
+
+An Owner is a chain of segments: packages, terms (objects/values), and types. For a type defined as:
+
+```scala
+package com.example
+object Outer {
+  class Inner
+}
+```
+
+The owner of `Inner` has three segments: `com`, `example` (packages), and `Outer` (term):
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+object ExampleModule {
+  case class Config(timeout: Int)
+}
+```
+
+```scala mdoc
+val configId = TypeId.of[ExampleModule.Config]
+configId.owner.asString
+```
+
+You can construct nested owners using the `term()` and `tpe()` methods:
+
+```scala mdoc
+val moduleOwner = Owner.fromPackagePath("com.example").term("ExampleModule")
+moduleOwner.asString
+```
+
+### TermPath
+
+`TermPath` represents paths to term values, used for singleton types like `x.type`. It's similar to Owner but focuses on value paths:
+
+```scala mdoc
+val path = TermPath.fromOwner(
+  Owner.fromPackagePath("com.example").term("MyObject"),
+  "value"
+)
+path.asString
 ```
 
 ### Predefined Owners
@@ -550,18 +641,6 @@ Common package namespaces are available as predefined owners (used internally by
 | `Owner.javaLang`                 | `java.lang`                  |
 | `Owner.javaTime`                 | `java.time`                  |
 | `Owner.javaUtil`                 | `java.util`                  |
-
-### TermPath
-
-`TermPath` represents paths to term values, used for singleton types:
-
-```scala mdoc
-val path = TermPath.fromOwner(
-  Owner.fromPackagePath("com.example").term("MyObject"),
-  "value"
-)
-path.asString
-```
 
 ## TypeRepr — Type Expressions
 
