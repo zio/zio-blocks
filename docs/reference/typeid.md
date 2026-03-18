@@ -293,16 +293,16 @@ originId.defKind
 
 `TypeDefKind` has these variants:
 
-| Variant | Description |
-|---|---|
-| `Class(isFinal, isAbstract, isCase, isValue, bases)` | Class definitions |
-| `Trait(isSealed, bases)` | Trait definitions |
-| `Object(bases)` | Singleton objects |
-| `Enum(bases)` | Scala 3 enums |
-| `EnumCase(parentEnum, ordinal, isObjectCase)` | Enum cases |
-| `TypeAlias` | Type aliases (`type Foo = Bar`) |
-| `OpaqueType(publicBounds)` | Opaque types |
-| `AbstractType` | Abstract type members |
+| Variant                                              | Description                     |
+|------------------------------------------------------|---------------------------------|
+| `Class(isFinal, isAbstract, isCase, isValue, bases)` | Class definitions               |
+| `Trait(isSealed, bases)`                             | Trait definitions               |
+| `Object(bases)`                                      | Singleton objects               |
+| `Enum(bases)`                                        | Scala 3 enums                   |
+| `EnumCase(parentEnum, ordinal, isObjectCase)`        | Enum cases                      |
+| `TypeAlias`                                          | Type aliases (`type Foo = Bar`) |
+| `OpaqueType(publicBounds)`                           | Opaque types                    |
+| `AbstractType`                                       | Abstract type members           |
 
 Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
 
@@ -312,45 +312,62 @@ When you derive a TypeId for a generic type, the macro captures its type paramet
 
 ### Inspecting Type Parameters
 
+Define your own generic types and derive their TypeIds to see how type parameters are captured:
+
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
+
+sealed trait Container[+A]
+case class Box[+A](value: A) extends Container[A]
+
+sealed trait Cache[K, +V]
+case class LRUCache[K, +V](maxSize: Int) extends Cache[K, V]
 ```
 
-```scala mdoc
-val listId = TypeId.list
-listId.typeParams
-listId.arity
-```
+A single-parameter type constructor:
 
 ```scala mdoc
-val mapId = TypeId.map
-mapId.typeParams
-mapId.arity
+val containerId = TypeId.of[Container]
+containerId.typeParams
+containerId.arity
+```
+
+A two-parameter type constructor with mixed variance (invariant `K`, covariant `V`):
+
+```scala mdoc
+val cacheId = TypeId.of[Cache]
+cacheId.typeParams
+cacheId.arity
 ```
 
 Each `TypeParam` records the parameter's name, position, variance, bounds, and kind:
 
 ```scala mdoc
-val listParam = listId.typeParams.head
-listParam.name
-listParam.variance
-listParam.kind
-listParam.isCovariant
+val containerParam = containerId.typeParams.head
+containerParam.name
+containerParam.variance
+containerParam.kind
+containerParam.isCovariant
+```
+
+```scala mdoc
+val cacheParams = cacheId.typeParams
+cacheParams.map(p => (p.name, p.variance))
 ```
 
 ### Inspecting Type Arguments
 
-For applied types like `List[Int]`, inspect the type arguments:
+When you derive a TypeId for an *applied* type (a generic type with concrete arguments), the type arguments are captured:
 
 ```scala mdoc
-val listIntId = TypeId.of[List[Int]]
-listIntId.typeArgs
-listIntId.isApplied
+val boxIntId = TypeId.of[Box[Int]]
+boxIntId.typeArgs
+boxIntId.isApplied
 ```
 
 ```scala mdoc
-val mapStringIntId = TypeId.of[Map[String, Int]]
-mapStringIntId.typeArgs
+val cacheStringIntId = TypeId.of[LRUCache[String, Int]]
+cacheStringIntId.typeArgs
 ```
 
 ### Variance
@@ -368,12 +385,12 @@ Variance.Covariant.flip
 
 Kind describes the "type of a type" — whether it's a proper type or a type constructor:
 
-| Kind | Notation | Examples |
-|---|---|---|
-| `Kind.Type` / `Kind.Star` | `*` | `Int`, `String` |
-| `Kind.Star1` | `* -> *` | `List`, `Option` |
-| `Kind.Star2` | `* -> * -> *` | `Map`, `Either` |
-| `Kind.HigherStar1` | `(* -> *) -> *` | `Functor` |
+| Kind                      | Notation        | Examples         |
+|---------------------------|-----------------|------------------|
+| `Kind.Type` / `Kind.Star` | `*`             | `Int`, `String`  |
+| `Kind.Star1`              | `* -> *`        | `List`, `Option` |
+| `Kind.Star2`              | `* -> * -> *`   | `Map`, `Either`  |
+| `Kind.HigherStar1`        | `(* -> *) -> *` | `Functor`        |
 
 ```scala mdoc
 Kind.Star1.arity
