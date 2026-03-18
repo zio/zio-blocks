@@ -493,15 +493,15 @@ TypeId.of[Plain].annotations
 
 Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values:
 
-| Type | Description |
-|---|---|
-| `Annotation(typeId, args)` | An annotation instance with its type and arguments |
-| `AnnotationArg.Const(value)` | A constant value argument |
-| `AnnotationArg.Named(name, value)` | A named parameter |
-| `AnnotationArg.ArrayArg(values)` | An array of arguments |
-| `AnnotationArg.Nested(annotation)` | A nested annotation |
-| `AnnotationArg.ClassOf(tpe)` | A `classOf[T]` argument |
-| `AnnotationArg.EnumValue(enumType, valueName)` | An enum constant |
+| Type                                           | Description                                        |
+|------------------------------------------------|----------------------------------------------------|
+| `Annotation(typeId, args)`                     | An annotation instance with its type and arguments |
+| `AnnotationArg.Const(value)`                   | A constant value argument                          |
+| `AnnotationArg.Named(name, value)`             | A named parameter                                  |
+| `AnnotationArg.ArrayArg(values)`               | An array of arguments                              |
+| `AnnotationArg.Nested(annotation)`             | A nested annotation                                |
+| `AnnotationArg.ClassOf(tpe)`                   | A `classOf[T]` argument                            |
+| `AnnotationArg.EnumValue(enumType, valueName)` | An enum constant                                   |
 
 ## Namespaces and Owners
 
