@@ -383,21 +383,52 @@ Variance.Covariant.flip
 
 ### Kind
 
-Kind describes the "type of a type" — whether it's a proper type or a type constructor:
+Kind describes the "type of a type" — whether it's a proper type or a type constructor. Derive TypeIds for types of different kinds to see this in action:
 
-| Kind                      | Notation        | Examples         |
-|---------------------------|-----------------|------------------|
-| `Kind.Type` / `Kind.Star` | `*`             | `Int`, `String`  |
-| `Kind.Star1`              | `* -> *`        | `List`, `Option` |
-| `Kind.Star2`              | `* -> * -> *`   | `Map`, `Either`  |
-| `Kind.HigherStar1`        | `(* -> *) -> *` | `Functor`        |
+A proper type (`*`) — takes no type parameters:
 
 ```scala mdoc
-Kind.Star1.arity
-Kind.Star2.arity
-Kind.Type.isProperType
-Kind.Star1.isProperType
+val properTypeId = TypeId.of[Box[Int]]
+properTypeId.typeParams.map(_.kind)
+properTypeId.arity
 ```
+
+A unary type constructor (`* -> *`) — takes one type parameter:
+
+```scala mdoc
+val containerKind = TypeId.of[Container].typeParams.map(_.kind)
+containerKind
+TypeId.of[Container].arity
+```
+
+A binary type constructor (`* -> * -> *`) — takes two type parameters:
+
+```scala mdoc
+val cacheKind = TypeId.of[Cache].typeParams.map(_.kind)
+cacheKind
+TypeId.of[Cache].arity
+```
+
+A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself takes a type parameter:
+
+```scala mdoc:silent
+trait Runnable[F[_]] {
+  def run[A](fa: F[A]): A
+}
+```
+
+```scala mdoc
+val runnableId = TypeId.of[Runnable]
+runnableId.typeParams.map(_.kind)
+runnableId.typeParams.head.kind.arity
+```
+
+| Kind | Notation | Arity | Examples |
+|---|---|---|---|
+| `Kind.Type` / `Kind.Star` | `*` | 0 | `Int`, `Box[Int]` |
+| `Kind.Star1` | `* -> *` | 1 | `Container`, `Option` |
+| `Kind.Star2` | `* -> * -> *` | 2 | `Cache`, `Either` |
+| `Kind.HigherStar1` | `(* -> *) -> *` | 1 | `Runnable` |
 
 ## Subtype Relationships
 
