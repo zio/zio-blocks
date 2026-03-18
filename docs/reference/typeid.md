@@ -589,11 +589,15 @@ val owner4 = (Owner.Root / "com").tpe("MyClass")
 
 Owner provides introspection properties:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 val owner = Owner.fromPackagePath("com.example")
+```
 
+Inspect owner properties to see where a type is located:
+
+```scala mdoc
 owner.asString    // "com.example" - dot-separated path
 owner.isRoot      // true if empty
 owner.parent      // Parent owner (or Root)
@@ -617,7 +621,7 @@ Owner.javaUtil                   // java.util
 
 `TermPath` represents paths to term values, used to construct singleton types:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 // com.example.MyObject.value.type
@@ -625,10 +629,15 @@ val path = TermPath.fromOwner(
   Owner.fromPackagePath("com.example").term("MyObject"),
   "value"
 )
+```
 
+Access TermPath properties and compose paths:
+
+```scala mdoc
 path.asString     // "com.example.MyObject.value"
 path.isEmpty      // false
 val nested = path / "nested"   // Append segment
+nested.asString
 ```
 
 ## Type Parameters
@@ -675,11 +684,15 @@ TypeParam(
 
 TypeParam provides introspection:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 val param = TypeParam.covariant("A", 0)
+```
 
+Inspect type parameter properties:
+
+```scala mdoc
 param.name              // "A"
 param.index             // Position in parameter list
 param.variance          // Covariant, Contravariant, or Invariant
@@ -724,11 +737,15 @@ TypeBounds.alias(aliasType)
 
 TypeBounds provides introspection:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 val bounds = TypeBounds.upper(TypeRepr.Ref(TypeId.int))
+```
 
+Inspect type bounds properties:
+
+```scala mdoc
 bounds.lower            // Option[TypeRepr]
 bounds.upper            // Option[TypeRepr]
 bounds.isUnbounded      // No bounds specified
@@ -746,19 +763,28 @@ Represents type parameter variance:
 ```scala mdoc:compile-only
 import zio.blocks.typeid._
 
-val variance = Variance.Covariant
-val other = Variance.Contravariant
-
 Variance.Covariant      // +A
 Variance.Contravariant  // -A
 Variance.Invariant      // A
+```
 
+You can inspect variance properties and combine them:
+
+```scala mdoc:silent
+import zio.blocks.typeid._
+
+val variance = Variance.Covariant
+val other = Variance.Contravariant
+```
+
+```scala mdoc
 variance.symbol         // "+", "-", or ""
 variance.isCovariant
 variance.isContravariant
 variance.isInvariant
 variance.flip           // Covariant <-> Contravariant
 val combined = variance * other        // Combine variances
+combined
 ```
 
 ### Kind
@@ -783,11 +809,13 @@ Kind.Arrow(List(Kind.Star1), Kind.Type) // (* -> *) -> *
 
 Kind provides introspection:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.typeid._
 
 val kind = Kind.Star1
+```
 
+```scala mdoc
 kind.isProperType   // kind == Kind.Type
 kind.arity          // Number of type parameters
 ```
