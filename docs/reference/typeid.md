@@ -542,14 +542,14 @@ owner2.asString
 
 Common package namespaces are available as predefined owners (used internally by TypeId):
 
-| Owner | Package |
-|---|---|
-| `Owner.scala` | `scala` |
-| `Owner.scalaUtil` | `scala.util` |
+| Owner                            | Package                      |
+|----------------------------------|------------------------------|
+| `Owner.scala`                    | `scala`                      |
+| `Owner.scalaUtil`                | `scala.util`                 |
 | `Owner.scalaCollectionImmutable` | `scala.collection.immutable` |
-| `Owner.javaLang` | `java.lang` |
-| `Owner.javaTime` | `java.time` |
-| `Owner.javaUtil` | `java.util` |
+| `Owner.javaLang`                 | `java.lang`                  |
+| `Owner.javaTime`                 | `java.time`                  |
+| `Owner.javaUtil`                 | `java.util`                  |
 
 ### TermPath
 
