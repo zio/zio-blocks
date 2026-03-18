@@ -231,8 +231,7 @@ object DomSpec extends ZIOSpecDefault {
         )
         val result = el.render(indent = 2)
         assertTrue(
-          result.contains("id=\"main\""),
-          result.contains("\n  <p>hi</p>")
+          result == "<div id=\"main\">\n  <p>hi</p>\n  <p>there</p>\n</div>"
         )
       },
       test("indented rendering of void elements") {
@@ -245,7 +244,7 @@ object DomSpec extends ZIOSpecDefault {
           )
         )
         val result = el.render(indent = 2)
-        assertTrue(result.contains("<br/>"), result.contains("<hr/>"))
+        assertTrue(result == "<div>\n  <br/>\n  <hr/>\n</div>")
       },
       test("indented rendering of script element") {
         val s = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("var x = 1 < 2;")))
@@ -264,12 +263,12 @@ object DomSpec extends ZIOSpecDefault {
       test("indented script with multiple children does not escape") {
         val s      = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("a < b;"), Dom.Text("c > d;")))
         val result = s.render(indent = 2)
-        assertTrue(result.contains("a < b;"), result.contains("c > d;"))
+        assertTrue(result == "<script>\n  a < b;\n  c > d;\n</script>")
       },
       test("indented style with multiple children does not escape") {
         val s      = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("a > b {}"), Dom.Text("c > d {}")))
         val result = s.render(indent = 2)
-        assertTrue(result.contains("a > b {}"), result.contains("c > d {}"))
+        assertTrue(result == "<style>\n  a > b {}\n  c > d {}\n</style>")
       },
       test("indented rendering of PreRendered") {
         assertTrue(Dom.PreRendered("<b>raw</b>").render(indent = 2) == "<b>raw</b>")
@@ -362,7 +361,7 @@ object DomSpec extends ZIOSpecDefault {
           case el: Dom.Element => el.tag != "span"
           case _               => true
         }
-        assertTrue(!filtered.render.contains("remove"))
+        assertTrue(filtered.render == "<div><p>keep</p></div>")
       },
       test("filter returns Empty when root fails predicate") {
         val tree     = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("hello")))
@@ -398,7 +397,7 @@ object DomSpec extends ZIOSpecDefault {
           case Dom.Text("old") => Dom.Text("new")
           case other           => other
         }
-        assertTrue(!transformed.render.contains("old"), transformed.render.contains("new"))
+        assertTrue(transformed.render == "<div><p>new</p><span>new</span></div>")
       },
       test("isEmpty") {
         assertTrue(
@@ -603,7 +602,7 @@ object DomSpec extends ZIOSpecDefault {
           Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))),
           Modifier.stringToModifier("content")
         )
-        assertTrue(result.render.contains("id=\"x\""), result.render.contains("content"))
+        assertTrue(result.render == """<div id="x">content</div>""")
       }
     ),
     suite("Attribute rendering additional variants")(
@@ -646,9 +645,7 @@ object DomSpec extends ZIOSpecDefault {
         )
         val el = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(
-          el.render.contains("&lt;"),
-          el.render.contains("&quot;"),
-          el.render.contains("onclick=")
+          el.render == """<button onclick="if (a &lt; b) alert(&quot;xss&quot;)"></button>"""
         )
       },
       test("BooleanValue(true) renders attribute name only") {
@@ -664,7 +661,7 @@ object DomSpec extends ZIOSpecDefault {
       test("StringValue with special chars is escaped") {
         val attr = Dom.Attribute.KeyValue("title", Dom.AttributeValue.StringValue("a<b&c"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render.contains("a&lt;b&amp;c"))
+        assertTrue(el.render == "<div title=\"a&lt;b&amp;c\"></div>")
       },
       test("Multiple attributes render in order") {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
@@ -672,9 +669,7 @@ object DomSpec extends ZIOSpecDefault {
         val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("y"))
         val el = Dom.Element.Generic("input", Chunk(a1, a2, a3), Chunk.empty)
         assertTrue(
-          el.render.contains("id=\"x\""),
-          el.render.contains("disabled"),
-          el.render.contains("class=\"y\"")
+          el.render == """<input id="x" disabled class="y"/>"""
         )
       }
     ),
@@ -730,7 +725,7 @@ object DomSpec extends ZIOSpecDefault {
           Chunk(Dom.preRendered("<b>raw</b>"), Dom.Text("text"))
         )
         val result = el.render(indent = 2)
-        assertTrue(result.contains("<b>raw</b>"), result.contains("text"))
+        assertTrue(result == "<div>\n  <b>raw</b>\n  text\n</div>")
       }
     ),
     suite("traversal on Empty and Text")(

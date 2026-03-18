@@ -20,11 +20,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("div with multiple attributes and content") {
         val result = div(id := "main", className := "box", "content").render
         assertTrue(
-          result.contains("id=\"main\""),
-          result.contains("class=\"box\""),
-          result.contains("content"),
-          result.startsWith("<div"),
-          result.endsWith("</div>")
+          result == """<div id="main" class="box">content</div>"""
         )
       },
       test("nested elements") {
@@ -43,10 +39,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("img as void element with attributes") {
         val result = img(src := "pic.png", alt := "photo").render
         assertTrue(
-          result.startsWith("<img"),
-          result.contains("src=\"pic.png\""),
-          result.contains("alt=\"photo\""),
-          result.endsWith("/>")
+          result == """<img src="pic.png" alt="photo"/>"""
         )
       }
     ),
@@ -178,12 +171,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("script with non-Script modifier preserves as Script") {
         val genericChild: Modifier = Modifier.domToModifier(Dom.Text("code"))
         val s                      = script(genericChild)
-        assertTrue(s.tag == "script", s.render.contains("code"))
+        assertTrue(s.tag == "script", s.render == "<script>code</script>")
       },
       test("style with non-Style modifier preserves as Style") {
         val genericChild: Modifier = Modifier.domToModifier(Dom.Text("css"))
         val s                      = style(genericChild)
-        assertTrue(s.tag == "style", s.render.contains("css"))
+        assertTrue(s.tag == "style", s.render == "<style>css</style>")
       },
       test("element with no modifiers creates empty element") {
         val el = element("custom")
@@ -227,9 +220,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result   = f(Modifier.domToModifier(div("content")), Modifier.domToModifier(button("Submit")))
         val rendered = result.render
         assertTrue(
-          rendered.contains("action=\"/submit\""),
-          rendered.contains("<div>content</div>"),
-          rendered.contains("<button>Submit</button>")
+          rendered == """<form action="/submit"><div>content</div><button>Submit</button></form>"""
         )
       }
     ),
@@ -468,7 +459,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("xmlns attribute") {
         val result = html(xmlns := "http://www.w3.org/1999/xhtml").render
-        assertTrue(result.contains("xmlns=\""))
+        assertTrue(result == """<html xmlns="http://www.w3.org/1999/xhtml"></html>""")
       },
       test("miscellaneous attributes") {
         val rInputAccept     = input(accept := "image/*").render
@@ -513,47 +504,47 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rAudioMedia      = audio(media := "all").render
         val rDivClass        = div(`class` := "x").render
         assertTrue(
-          rInputAccept.contains("accept=\"image/*\""),
-          rDivAccesskey.contains("accesskey=\"h\""),
-          rScriptAsync.contains("async"),
-          rScriptDefer.contains("defer"),
-          rVideoAutoplay.contains("autoplay"),
-          rVideoControls.contains("controls"),
-          rVideoLoop.contains("loop"),
-          rVideoMuted.contains("muted"),
-          rImgLoading.contains("loading=\"lazy\""),
-          rMetaCharset.contains("charset=\"utf-8\""),
-          rMetaContent.contains("content=\"text\""),
-          rImgCrossorigin.contains("crossorigin="),
-          rTimeDatetime.contains("datetime="),
-          rDetailsOpen.contains("open"),
-          rInputList.contains("list=\"opts\""),
-          rFormNoValidate.contains("novalidate"),
-          rFormEncType.contains("enctype="),
-          rBtnFormAction.contains("formaction="),
-          rBtnFormMethod.contains("formmethod="),
-          rBtnFormNoVal.contains("formnovalidate"),
-          rImgSrcSet.contains("srcset="),
-          rImgSizes.contains("sizes="),
-          rInputMinLen.contains("minlength="),
-          rInputMaxLen.contains("maxlength="),
-          rInputSize.contains("size="),
-          rTextareaCols.contains("cols="),
-          rTextareaRows.contains("rows="),
-          rTextareaWrap.contains("wrap="),
-          rScriptIntegrity.contains("integrity="),
-          rImgReferrer.contains("referrerpolicy="),
-          rOlReversed.contains("reversed"),
-          rIframeSandbox.contains("sandbox="),
-          rDivSpellcheck.contains("spellcheck="),
-          rDivTranslate.contains("translate="),
-          rVideoPoster.contains("poster="),
-          rVideoPreload.contains("preload="),
-          rMeterHigh.contains("high="),
-          rMeterLow.contains("low="),
-          rMeterOptimum.contains("optimum="),
-          rAudioMedia.contains("media="),
-          rDivClass.contains("class=")
+          rInputAccept == """<input accept="image/*"/>""",
+          rDivAccesskey == """<div accesskey="h"></div>""",
+          rScriptAsync == "<script async></script>",
+          rScriptDefer == "<script defer></script>",
+          rVideoAutoplay == "<video autoplay></video>",
+          rVideoControls == "<video controls></video>",
+          rVideoLoop == "<video loop></video>",
+          rVideoMuted == "<video muted></video>",
+          rImgLoading == """<img loading="lazy"/>""",
+          rMetaCharset == """<meta charset="utf-8"/>""",
+          rMetaContent == """<meta content="text"/>""",
+          rImgCrossorigin == """<img crossorigin="anonymous"/>""",
+          rTimeDatetime == """<time datetime="2024-01-01"></time>""",
+          rDetailsOpen == "<details open></details>",
+          rInputList == """<input list="opts"/>""",
+          rFormNoValidate == "<form novalidate></form>",
+          rFormEncType == """<form enctype="multipart"></form>""",
+          rBtnFormAction == """<button formaction="/go"></button>""",
+          rBtnFormMethod == """<button formmethod="post"></button>""",
+          rBtnFormNoVal == "<button formnovalidate></button>",
+          rImgSrcSet == """<img srcset="a.png 1x"/>""",
+          rImgSizes == """<img sizes="100vw"/>""",
+          rInputMinLen == """<input minlength="3"/>""",
+          rInputMaxLen == """<input maxlength="10"/>""",
+          rInputSize == """<input size="20"/>""",
+          rTextareaCols == """<textarea cols="40"></textarea>""",
+          rTextareaRows == """<textarea rows="5"></textarea>""",
+          rTextareaWrap == """<textarea wrap="hard"></textarea>""",
+          rScriptIntegrity == """<script integrity="sha384-xxx"></script>""",
+          rImgReferrer == """<img referrerpolicy="no-referrer"/>""",
+          rOlReversed == "<ol reversed></ol>",
+          rIframeSandbox == """<iframe sandbox="allow-scripts"></iframe>""",
+          rDivSpellcheck == """<div spellcheck="true"></div>""",
+          rDivTranslate == """<div translate="yes"></div>""",
+          rVideoPoster == """<video poster="img.png"></video>""",
+          rVideoPreload == """<video preload="auto"></video>""",
+          rMeterHigh == """<meter high="90"></meter>""",
+          rMeterLow == """<meter low="10"></meter>""",
+          rMeterOptimum == """<meter optimum="50"></meter>""",
+          rAudioMedia == """<audio media="all"></audio>""",
+          rDivClass == """<div class="x"></div>"""
         )
       }
     ),
@@ -589,7 +580,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           Modifier.attributeToModifier(id := "x"),
           Modifier.stringToModifier("text")
         )
-        assertTrue(el.render.contains("id=\"x\""), el.render.contains("text"))
+        assertTrue(el.render == """<div id="x">text</div>""")
       },
       test("when false with multiple modifiers returns unchanged") {
         val el = div().when(false)(
@@ -622,7 +613,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
             Modifier.stringToModifier("inner")
           )
         }
-        assertTrue(el.render.contains("class=\"cls\""), el.render.contains("inner"))
+        assertTrue(el.render == """<span class="cls">inner</span>""")
       }
     ),
     suite("element constructor edge cases")(
@@ -646,9 +637,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("link with rel and href") {
         val l = link(rel := "stylesheet", href := "/style.css")
         assertTrue(
-          l.render.contains("rel=\"stylesheet\""),
-          l.render.contains("href=\"/style.css\""),
-          l.render.endsWith("/>")
+          l.render == """<link rel="stylesheet" href="/style.css"/>"""
         )
       },
       test("element helper with no modifiers creates empty element") {
@@ -676,8 +665,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("script with multiple modifiers") {
         val s = script(`type` := "module", "import x from 'y';")
         assertTrue(
-          s.render.contains("type=\"module\""),
-          s.render.contains("import x from 'y';")
+          s.render == """<script type="module">import x from 'y';</script>"""
         )
       }
     ),
@@ -695,7 +683,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(
           !result.contains("&lt;"),
           !result.contains("&amp;"),
-          result.contains("x < 10 && y > 5")
+          result == "<script>if (x < 10 && y > 5) {}</script>"
         )
       },
       test("script().externalJs with path") {
@@ -705,8 +693,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("script with type attribute and inlineJs") {
         val result = script(`type` := "module").inlineJs(Js("import { x } from './mod.js'")).render
         assertTrue(
-          result.contains("type=\"module\""),
-          result.contains("import { x } from './mod.js'")
+          result == """<script type="module">import { x } from './mod.js'</script>"""
         )
       },
       test("script().inlineJs with multiline JS") {
@@ -714,11 +701,11 @@ object HtmlElementsSpec extends ZIOSpecDefault {
   return a + b;
 "}"""
         val result = script().inlineJs(Js(code)).render
-        assertTrue(result.contains("function add"), result.contains("return a + b"))
+        assertTrue(result == "<script>" + code + "</script>")
       },
       test("Js constructor preserves content") {
         val js = Js("var x = 1; console.log(x);").toString()
-        assertTrue(js.contains("console.log"))
+        assertTrue(js == "var x = 1; console.log(x);")
       }
     ),
     suite("inline CSS")(
@@ -736,9 +723,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
         val result = style().inlineCss(rule).render
         assertTrue(
-          result.contains("div"),
-          result.contains("color:red") || result.contains("color: red"),
-          result.contains("margin:10px") || result.contains("margin: 10px")
+          result == "<style>div{color:red;margin:10px;}</style>"
         )
       },
       test("style().inlineCss with Css.Sheet containing multiple rules") {
@@ -747,36 +732,32 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val sheet  = Css.Sheet(Chunk(rule1, rule2))
         val result = style().inlineCss(sheet).render
         assertTrue(
-          result.contains("body"),
-          result.contains("p"),
-          result.contains("margin") || result.contains("color")
+          result == "<style>body{margin:0;}p{color:blue;}</style>"
         )
       },
       test("style().inlineCss does not escape HTML special chars") {
         val result = style().inlineCss(Css.Raw("div > p { color: red; }")).render
         assertTrue(
-          !result.contains("&gt;"),
-          result.contains("div > p")
+          result == "<style>div > p { color: red; }</style>"
         )
       },
       test("style with media attribute and inlineCss") {
         val result = style(media := "screen").inlineCss(Css.Raw("body { margin: 0; }")).render
         assertTrue(
-          result.contains("media=\"screen\""),
-          result.contains("body { margin: 0; }")
+          result == """<style media="screen">body { margin: 0; }</style>"""
         )
       }
     ),
     suite("interpolator + inline integration")(
       test("js interpolator with script().inlineJs") {
         val name   = "World"
-        val result = script().inlineJs(js"console.log(\"$name\")").render
-        assertTrue(result.contains("console.log"), result.contains("World"))
+        val result = script().inlineJs(js"console.log($name)").render
+        assertTrue(result == """<script>console.log("World")</script>""")
       },
       test("css interpolator with style().inlineCss") {
         val color  = "red"
         val result = style().inlineCss(css"body { color: $color; }").render
-        assertTrue(result.contains("body"), result.contains("color"), result.contains("red"))
+        assertTrue(result == "<style>body { color: red; }</style>")
       },
       test("css interpolator zero-arg with inlineCss") {
         val result = style().inlineCss(css"body { margin: 0; }").render

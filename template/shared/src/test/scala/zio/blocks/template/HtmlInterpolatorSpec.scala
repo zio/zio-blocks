@@ -2,53 +2,9 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 import zio.test._
-import CssLength.CssLengthIntOps
 
-object InterpolatorSpec extends ZIOSpecDefault {
-  def spec = suite("Interpolators")(
-    suite("css interpolator")(
-      test("static CSS string") {
-        val result = css"color: red"
-        assertTrue(result == Css.Raw("color: red"))
-      },
-      test("CSS with interpolated CssLength") {
-        val result = css"margin: ${10.px}"
-        assertTrue(result == Css.Raw("margin: 10px"))
-      },
-      test("CSS with interpolated Int") {
-        val result = css"width: ${100}"
-        assertTrue(result == Css.Raw("width: 100"))
-      }
-    ),
-    suite("js interpolator")(
-      test("static JS string") {
-        val result = js"var x = 1"
-        assertTrue(result == Js("var x = 1"))
-      },
-      test("JS with interpolated Int") {
-        val result = js"var x = ${42}"
-        assertTrue(result == Js("var x = 42"))
-      },
-      test("JS with interpolated String is quoted and escaped") {
-        val result = js"var s = ${"hello"}"
-        assertTrue(result == Js("var s = \"hello\""))
-      },
-      test("JS with interpolated Boolean") {
-        val result = js"var b = ${true}"
-        assertTrue(result == Js("var b = true"))
-      }
-    ),
-    suite("selector interpolator")(
-      test("static selector string") {
-        val result = selector"div.active"
-        assertTrue(result == CssSelector.Raw("div.active"))
-      },
-      test("selector with interpolated string") {
-        val cls    = "highlight"
-        val result = selector".${cls}"
-        assertTrue(result == CssSelector.Raw(".highlight"))
-      }
-    ),
+object HtmlInterpolatorSpec extends ZIOSpecDefault {
+  def spec = suite("HtmlInterpolatorSpec")(
     suite("html interpolator")(
       test("static HTML string produces typed DOM") {
         val result = html"<div>hello</div>"
@@ -158,7 +114,7 @@ object InterpolatorSpec extends ZIOSpecDefault {
       },
       test("multiple top-level elements get wrapped in span") {
         val fromHtml = html"<p>one</p><p>two</p>"
-        assertTrue(fromHtml.render.contains("<p>one</p>"), fromHtml.render.contains("<p>two</p>"))
+        assertTrue(fromHtml.render == "<span><p>one</p><p>two</p></span>")
       },
       test("interpolated value inside element") {
         val name     = "World"
@@ -464,7 +420,7 @@ object InterpolatorSpec extends ZIOSpecDefault {
       test("buildHtml with multiple top-level elements") {
         val sc     = new StringContext("<p>a</p><p>b</p>")
         val result = InterpolatorRuntime.buildHtml(sc, Seq.empty)
-        assertTrue(result.render.contains("<p>a</p>"), result.render.contains("<p>b</p>"))
+        assertTrue(result.render == "<span><p>a</p><p>b</p></span>")
       },
       test("buildHtml with Right(chunk) content substitution") {
         val sc     = new StringContext("<div>", "</div>")

@@ -87,6 +87,18 @@ For version-specific code: ONE shared `package.scala` extending a trait with per
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
 
+### Render Assertions
+
+Always assert the **full rendered string** with `==`. Never use `.contains()`:
+
+```scala
+// ✅ Correct — catches all regressions (attribute order, whitespace, closing tags)
+assertTrue(result.render == """<div class="main">content</div>""")
+
+// ❌ Wrong — misses attribute order, extra whitespace, missing tags
+assertTrue(result.render.contains("main"))
+```
+
 ## Git & CI (Prefer `gh` CLI)
 
 Commit often, whenever fast loop is green.

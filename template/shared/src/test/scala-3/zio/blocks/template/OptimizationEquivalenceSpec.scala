@@ -16,11 +16,7 @@ object OptimizationEquivalenceSpec extends ZIOSpecDefault {
       test("div with multiple attributes and text") {
         val result = div(id := "main", className := "box", "text").render
         assertTrue(
-          result.contains("id=\"main\""),
-          result.contains("class=\"box\""),
-          result.contains("text"),
-          result.startsWith("<div"),
-          result.endsWith("</div>")
+          result == """<div id="main" class="box">text</div>"""
         )
       },
       test("nested elements") {
@@ -49,10 +45,7 @@ object OptimizationEquivalenceSpec extends ZIOSpecDefault {
       test("img with multiple attributes") {
         val result = img(src := "photo.jpg", alt := "A photo").render
         assertTrue(
-          result.contains("src=\"photo.jpg\""),
-          result.contains("alt=\"A photo\""),
-          result.startsWith("<img"),
-          result.endsWith("/>")
+          result == """<img src="photo.jpg" alt="A photo"/>"""
         )
       },
       test("span with string child") {
@@ -87,8 +80,7 @@ object OptimizationEquivalenceSpec extends ZIOSpecDefault {
         val btn    = button("Submit")
         val result = form(action := "/submit", btn).render
         assertTrue(
-          result.contains("action=\"/submit\""),
-          result.contains("<button>Submit</button>")
+          result == """<form action="/submit"><button>Submit</button></form>"""
         )
       },
       test("element with boolean attribute") {
