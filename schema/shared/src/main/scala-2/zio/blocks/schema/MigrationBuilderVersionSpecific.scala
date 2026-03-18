@@ -19,9 +19,9 @@ package zio.blocks.schema
 import scala.language.experimental.macros
 
 /**
- * Scala 2 selector-based API for MigrationBuilder. Mixes in methods that
- * accept selector lambdas (e.g. `_.name`) and convert them to DynamicOptic at
- * compile time via blackbox macros.
+ * Scala 2 selector-based API for MigrationBuilder. Mixes in methods that accept
+ * selector lambdas (e.g. `_.name`) and convert them to DynamicOptic at compile
+ * time via blackbox macros.
  *
  * Each method here overloads the corresponding DynamicOptic-based method
  * defined in MigrationBuilder itself. Overload resolution picks the selector
