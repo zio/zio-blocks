@@ -69,6 +69,7 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
     "$dynamicref",
     "$dynamicanchor",
     "cyclic ref",
+    "empty enum",
     "strict-tree schema",
     "dynamic anchor and reference link"
   )
