@@ -59,7 +59,7 @@ In Scala, type information is erased at runtime — the JVM and JavaScript runti
 
 ### Real-World Use Cases
 
-**Schema-Driven Serialization**
+#### Schema-Driven Serialization
 
 TypeId is central to ZIO Blocks' universal schema system. Every schema derivation receives a TypeId so that codec generators (for JSON, YAML, MessagePack, binary formats, XML) can decide how to serialize and deserialize data:
 
@@ -74,7 +74,7 @@ TypeId is central to ZIO Blocks' universal schema system. Every schema derivatio
 
 Code generators use TypeId metadata to emit specialized, efficient codecs. For example, a JSON codec generator inspects whether a type is a case class (preserving field names), a sealed trait (handling variants), or an opaque type (wrapping the underlying type).
 
-**Type-Indexed Registries and Lookup**
+#### Type-Indexed Registries and Lookup
 
 Applications often maintain registries of schemas or validators keyed by type. TypeId provides a pure, hashable data structure for this:
 
@@ -96,7 +96,7 @@ def getMetadata(typeId: TypeId[?]): Option[String] =
   typeRegistry.get(typeId.erased)
 ```
 
-**Type-Safe Polymorphic Operations**
+#### Type-Safe Polymorphic Operations
 
 When working with sealed type hierarchies, TypeId allows you to dispatch to the correct handler based on type relationships:
 
@@ -124,7 +124,7 @@ def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
 }
 ```
 
-**Opaque Types**
+#### Opaque Types
 
 TypeId preserves the distinction of opaque types, treating them as distinct from their representation type. This enables runtime type checking that respects the semantic boundaries that opaque types provide.
 
