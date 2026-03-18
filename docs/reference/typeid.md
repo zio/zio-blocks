@@ -580,28 +580,28 @@ TypeId.of[Map[String, Int]].typeArgs
 
 ### TypeRepr Variants
 
-| Category | Variant | Example |
-|---|---|---|
-| **Common** | `Ref(id)` | `Int`, `String` — reference to a named type |
-| | `ParamRef(param, depth)` | `A` — reference to a type parameter |
-| | `Applied(tycon, args)` | `List[Int]` — parameterized type |
-| **Compound** | `Intersection(types)` | `A & B` (Scala 3) or `A with B` (Scala 2) |
-| | `Union(types)` | `A \| B` (Scala 3) |
-| | `Tuple(elems)` | `(A, B, C)`, named tuples |
-| | `Function(params, result)` | `(A, B) => C` |
-| | `ContextFunction(params, result)` | `(A, B) ?=> C` (Scala 3) |
-| **Special** | `Singleton(path)` | `x.type` |
-| | `ThisType(owner)` | `this.type` |
-| | `TypeProjection(qualifier, name)` | `Outer#Inner` |
-| | `TypeSelect(qualifier, name)` | `qual.Member` |
-| | `Structural(parents, members)` | `{ def foo: Int }` |
-| **Advanced** | `TypeLambda(params, body)` | `[X] =>> F[X]` |
-| | `Wildcard(bounds)` | `?`, `? <: Upper` |
-| | `ByName(underlying)` | `=> A` |
-| | `Repeated(element)` | `A*` |
-| | `Annotated(underlying, annotations)` | `A @anno` |
-| | `Constant.*` | `42`, `"foo"`, `true` (literal types) |
-| **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types |
+| Category     | Variant                                          | Example                                     |
+|--------------|--------------------------------------------------|---------------------------------------------|
+| **Common**   | `Ref(id)`                                        | `Int`, `String` — reference to a named type |
+|              | `ParamRef(param, depth)`                         | `A` — reference to a type parameter         |
+|              | `Applied(tycon, args)`                           | `List[Int]` — parameterized type            |
+| **Compound** | `Intersection(types)`                            | `A & B` (Scala 3) or `A with B` (Scala 2)   |
+|              | `Union(types)`                                   | `A \| B` (Scala 3)                          |
+|              | `Tuple(elems)`                                   | `(A, B, C)`, named tuples                   |
+|              | `Function(params, result)`                       | `(A, B) => C`                               |
+|              | `ContextFunction(params, result)`                | `(A, B) ?=> C` (Scala 3)                    |
+| **Special**  | `Singleton(path)`                                | `x.type`                                    |
+|              | `ThisType(owner)`                                | `this.type`                                 |
+|              | `TypeProjection(qualifier, name)`                | `Outer#Inner`                               |
+|              | `TypeSelect(qualifier, name)`                    | `qual.Member`                               |
+|              | `Structural(parents, members)`                   | `{ def foo: Int }`                          |
+| **Advanced** | `TypeLambda(params, body)`                       | `[X] =>> F[X]`                              |
+|              | `Wildcard(bounds)`                               | `?`, `? <: Upper`                           |
+|              | `ByName(underlying)`                             | `=> A`                                      |
+|              | `Repeated(element)`                              | `A*`                                        |
+|              | `Annotated(underlying, annotations)`             | `A @anno`                                   |
+|              | `Constant.*`                                     | `42`, `"foo"`, `true` (literal types)       |
+| **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types                               |
 
 ## Opaque Types and Type Aliases
 
