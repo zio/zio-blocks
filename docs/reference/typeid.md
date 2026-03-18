@@ -36,17 +36,18 @@ sealed trait TypeId[A <: AnyKind] {
 
 Derive a `TypeId` for any type using the `TypeId.of` macro and then inspect the type's structure at runtime:
 
-```scala
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
 case class Person(name: String, age: Int)
 
 val id = TypeId.of[Person]
+```
 
-// Inspect type structure at runtime
-println(s"Type name: ${id.name}")           // "Person"
-println(s"Full name: ${id.fullName}")       // "Person"
-println(s"Is case class: ${id.isCaseClass}") // true
+```scala mdoc
+id.name
+id.fullName
+id.isCaseClass
 ```
 
 ## Motivation
@@ -189,13 +190,11 @@ libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "<version>"
 
 Cross-platform support: TypeId works on JVM and Scala.js.
 
-## Creating TypeIds
+## Deriving and Inspecting TypeIds
 
-TypeId can be created automatically via macro derivation or manually using smart constructors for advanced use cases.
+The primary way to use TypeId is to **derive** it for your types, then **inspect** the result. The `TypeId.of` macro extracts complete type information at compile time.
 
-### Automatic Derivation
-
-The simplest way to get a TypeId is via macro derivation:
+### Basic Derivation
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -203,881 +202,459 @@ import zio.blocks.typeid._
 case class User(id: Long, email: String)
 ```
 
-You can derive a TypeId using the `TypeId.of` macro, which works identically in both Scala 2 and Scala 3:
+Derive a TypeId using the `TypeId.of` macro:
 
 ```scala mdoc
-val userId: TypeId[User] = TypeId.of[User]
+val userId = TypeId.of[User]
 ```
 
 Or use implicit derivation:
 
 ```scala mdoc
-val userIdImplicit: TypeId[User] = implicitly[TypeId[User]]
+val userIdImplicit = implicitly[TypeId[User]]
 ```
 
-The macro extracts complete type information including type name, owner, type parameters, variance, parent types (for sealed traits and enums), and classification (case class, sealed trait, enum, etc.).
+### Inspecting Properties
 
-### Manual Construction
+Once derived, inspect the type's structure through its properties:
 
-For manual type registration or testing, use smart constructors. For example, to create a nominal type:
-
-```scala mdoc:compile-only
-// Nominal types (classes, traits, objects)
-val myTypeId = TypeId.nominal[MyType](
-  name = "MyType",
-  owner = Owner.fromPackagePath("com.example"),
-  defKind = TypeDefKind.Class(isCase = true)
-)
+```scala mdoc
+userId.name
+userId.fullName
+userId.owner.asString
+userId.arity
+userId.isCaseClass
+userId.isProperType
+userId.isTypeConstructor
 ```
-
-To construct type aliases and opaque types:
-
-```scala mdoc:compile-only
-// Type aliases
-val aliasId = TypeId.alias[Age](
-  name = "Age",
-  owner = Owner.fromPackagePath("com.example"),
-  aliased = TypeRepr.Ref(TypeId.int)
-)
-
-// Opaque types (Scala 3)
-val emailId = TypeId.opaque[Email](
-  name = "Email",
-  owner = Owner.fromPackagePath("com.example"),
-  representation = TypeRepr.Ref(TypeId.string)
-)
-```
-
-### Applied Types
-
-Create applied types (type constructors with arguments):
-
-```scala mdoc:compile-only
-// List[Int]
-val listIntId = TypeId.applied[List[Int]](
-  TypeId.list,
-  TypeRepr.Ref(TypeId.int)
-)
-
-// Map[String, Int]
-val mapId = TypeId.applied[Map[String, Int]](
-  TypeId.map,
-  TypeRepr.Ref(TypeId.string),
-  TypeRepr.Ref(TypeId.int)
-)
-```
-
-## TypeId Properties
-
-Once derived, you can inspect a TypeId's structure and metadata through its properties.
-
-### Basic Properties
-
-You can inspect the basic properties of a TypeId:
-
-```scala
-import zio.blocks.typeid._
-
-case class Person(name: String, age: Int)
-val id = TypeId.of[Person]
-
-id.name       // "Person"
-id.fullName   // "Person"
-id.arity      // 0
-```
-
-Additional properties include `TypeId#owner` (Owner representing the package/enclosing type), `TypeId#typeParams` (List of TypeParam for type constructors), and `TypeId#typeArgs` (List of TypeRepr for applied types).
-
-### Type Classification
-
-TypeId provides predicates to classify types:
-
-```scala
-val id = TypeId.of[Person]
-
-id.isClass        // true
-id.isCaseClass    // true
-id.isProperType   // true
-id.isTypeConstructor // false
-```
-
-Other classification predicates include `TypeId#isTrait`, `TypeId#isObject`, `TypeId#isEnum`, `TypeId#isValueClass`, `TypeId#isSealed`, `TypeId#isAlias`, `TypeId#isOpaque`, `TypeId#isAbstract`, `TypeId#isApplied`, `TypeId#isTuple`, `TypeId#isProduct`, `TypeId#isSum`, `TypeId#isEither`, and `TypeId#isOption`.
-
-### Subtype Relationships
-
-TypeId can determine inheritance relationships at runtime. Use the subtype checking methods:
-
-```scala
-import zio.blocks.typeid._
-
-sealed trait Animal
-case class Dog(name: String) extends Animal
-
-val dogId = TypeId.of[Dog]
-val animalId = TypeId.of[Animal]
-
-dogId.isSubtypeOf(animalId)     // true
-animalId.isSupertypeOf(dogId)   // true
-dogId.isEquivalentTo(dogId)     // true
-```
-
-Subtype checking handles direct inheritance, enum cases and their parent enums, sealed trait subtypes, transitive inheritance, and variance-aware subtyping for applied types.
 
 ### Pattern Matching
 
-TypeId provides extractors for pattern matching:
+TypeId provides extractors for pattern matching on derived types:
 
-```scala mdoc:compile-only
-typeId match {
+```scala mdoc
+userId match {
   case TypeId.Nominal(name, owner, params, defKind, parents) =>
-    // Regular types
-
-  case TypeId.Alias(name, owner, params, aliased) =>
-    // Type aliases - aliased is the underlying TypeRepr
-
-  case TypeId.Opaque(name, owner, params, repr, bounds) =>
-    // Opaque types - repr is the representation type
-
-  case TypeId.Sealed(name) =>
-    // Sealed traits
-
-  case TypeId.Enum(name, owner) =>
-    // Scala 3 enums
+    s"Nominal type '$name' in ${owner.asString}"
+  case TypeId.Alias(name, _, _, aliased) =>
+    s"Alias '$name'"
+  case TypeId.Opaque(name, _, _, repr, _) =>
+    s"Opaque '$name'"
 }
 ```
 
-## TypeRepr
+The extractors are:
+- `TypeId.Nominal(name, owner, params, defKind, parents)` — classes, traits, objects
+- `TypeId.Alias(name, owner, params, aliased)` — type aliases
+- `TypeId.Opaque(name, owner, params, repr, bounds)` — opaque types
+- `TypeId.Sealed(name)` — sealed traits
+- `TypeId.Enum(name, owner)` — Scala 3 enums
 
-`TypeRepr` represents type expressions in the Scala type system. While `TypeId` identifies a type definition, `TypeRepr` represents how types are used in expressions.
+## Type Classification
 
-### Basic Type References
+TypeId captures what *kind* of type definition each type is — class, trait, object, enum, etc. Derive a TypeId and use classification predicates or inspect `defKind` directly.
 
-Reference a named type or type parameter:
-
-```scala mdoc:compile-only
-// Reference to a named type
-TypeRepr.Ref(TypeId.int)            // Int
-TypeRepr.Ref(TypeId.string)         // String
-
-// Reference to a type parameter
-TypeRepr.ParamRef(TypeParam.A)      // A
-TypeRepr.ParamRef(param, depth = 1) // nested binder reference
-```
-
-### Applied Types
-
-Represent parameterized types like `List[Int]`:
-
-```scala mdoc:compile-only
-// List[Int]
-TypeRepr.Applied(
-  TypeRepr.Ref(TypeId.list),
-  List(TypeRepr.Ref(TypeId.int))
-)
-
-// Map[String, Int]
-TypeRepr.Applied(
-  TypeRepr.Ref(TypeId.map),
-  List(TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.int))
-)
-```
-
-### Compound Types
-
-Represent intersection and union types:
-
-```scala mdoc:compile-only
-// Intersection: A & B (Scala 3) or A with B (Scala 2)
-TypeRepr.Intersection(List(typeA, typeB))
-
-// Union: A | B (Scala 3 only)
-TypeRepr.Union(List(typeA, typeB))
-
-// Convenience constructors handle edge cases
-TypeRepr.intersection(List(typeA))      // returns typeA (not Intersection)
-TypeRepr.intersection(Nil)              // returns AnyType
-TypeRepr.union(List(typeA))             // returns typeA
-TypeRepr.union(Nil)                     // returns NothingType
-```
-
-### Function Types
-
-Represent function types with their parameters and result:
-
-```scala mdoc:compile-only
-// A => B
-TypeRepr.Function(List(typeA), typeB)
-
-// (A, B) => C
-TypeRepr.Function(List(typeA, typeB), typeC)
-
-// (A, B) ?=> C (context function, Scala 3)
-TypeRepr.ContextFunction(List(typeA, typeB), typeC)
-```
-
-### Tuple Types
-
-Represent tuple types, including named tuples:
-
-```scala mdoc:compile-only
-// (A, B, C)
-TypeRepr.Tuple(List(
-  TupleElement(None, typeA),
-  TupleElement(None, typeB),
-  TupleElement(None, typeC)
-))
-
-// Named tuples (Scala 3.5+): (name: String, age: Int)
-TypeRepr.Tuple(List(
-  TupleElement(Some("name"), TypeRepr.Ref(TypeId.string)),
-  TupleElement(Some("age"), TypeRepr.Ref(TypeId.int))
-))
-
-// Convenience for unnamed tuples
-TypeRepr.tuple(List(typeA, typeB, typeC))
-```
-
-### Structural Types
-
-Represent structural types with members:
-
-```scala mdoc:compile-only
-// { def foo: Int }
-TypeRepr.Structural(
-  parents = Nil,
-  members = List(
-    Member.Def("foo", Nil, Nil, TypeRepr.Ref(TypeId.int))
-  )
-)
-
-// AnyRef { type T; val x: T }
-TypeRepr.Structural(
-  parents = List(TypeRepr.Ref(anyRefId)),
-  members = List(
-    Member.TypeMember("T"),
-    Member.Val("x", TypeRepr.ParamRef(paramT))
-  )
-)
-```
-
-### Path-Dependent and Singleton Types
-
-Represent singleton and path-dependent types:
-
-```scala mdoc:compile-only
-// x.type (singleton type)
-TypeRepr.Singleton(TermPath.fromOwner(owner, "x"))
-
-// this.type
-TypeRepr.ThisType(owner)
-
-// Outer#Inner (type projection)
-TypeRepr.TypeProjection(outerType, "Inner")
-
-// qualifier.Member (type selection)
-TypeRepr.TypeSelect(qualifierType, "Member")
-```
-
-### Special Types
-
-TypeRepr provides constructors for special type forms:
-
-```scala mdoc:compile-only
-TypeRepr.AnyType       // Any
-TypeRepr.NothingType   // Nothing
-TypeRepr.NullType      // Null
-TypeRepr.UnitType      // Unit
-TypeRepr.AnyKindType   // AnyKind (for kind-polymorphic contexts)
-```
-
-### Constant/Literal Types
-
-Represent literal types like `42` or `"foo"`:
-
-```scala mdoc:compile-only
-TypeRepr.Constant.IntConst(42)         // 42 (literal type)
-TypeRepr.Constant.StringConst("foo")   // "foo"
-TypeRepr.Constant.BooleanConst(true)   // true
-TypeRepr.Constant.ClassOfConst(tpe)    // classOf[T]
-```
-
-### Type Lambdas (Scala 3)
-
-Represent higher-order type expressions:
-
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-val paramF = TypeParam("F", 0, kind = Kind.Star1)
-val paramX = TypeParam("X", 0)
-
-// [X] =>> F[X]
-TypeRepr.TypeLambda(
-  params = List(paramX),
-  body = TypeRepr.Applied(
-    TypeRepr.ParamRef(paramF),
-    List(TypeRepr.ParamRef(paramX))
-  )
-)
+sealed trait Shape
+case class Circle(radius: Double) extends Shape
+case class Square(side: Double) extends Shape
+case object Origin
 ```
-
-### Wildcards and Bounds
-
-Represent wildcard types and type parameter bounds:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-val upperType = TypeRepr.Ref(TypeId.int)
-val lowerType = TypeRepr.Ref(TypeId.string)
-
-// ?
-TypeRepr.Wildcard()
-
-// ? <: Upper
-TypeRepr.Wildcard(TypeBounds.upper(upperType))
-
-// ? >: Lower
-TypeRepr.Wildcard(TypeBounds.lower(lowerType))
-
-// ? >: Lower <: Upper
-TypeRepr.Wildcard(TypeBounds(lowerType, upperType))
-```
-
-### Parameter Modifiers
-
-Represent by-name, varargs, and annotated types:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-val typeA = TypeRepr.Ref(TypeId.int)
-
-// => A (by-name)
-TypeRepr.ByName(typeA)
-
-// A* (varargs/repeated)
-TypeRepr.Repeated(typeA)
-
-// A @annotation
-TypeRepr.Annotated(typeA, Nil)
-```
-
-## Namespaces and Type Names
-
-Types are organized hierarchically using owners, term paths, and other namespace constructs that capture where types are defined.
-
-### Owner
-
-`Owner` represents where a type is defined in the package hierarchy:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// From package path
-val owner1 = Owner.fromPackagePath("com.example.app")
-
-// Build incrementally
-val owner2 = Owner.Root / "com" / "example"
-
-// Add term (object) segment
-val owner3 = (Owner.Root / "com").term("MyObject")
-
-// Add type segment
-val owner4 = (Owner.Root / "com").tpe("MyClass")
-```
-
-Owner provides introspection properties:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-val owner = Owner.fromPackagePath("com.example")
-```
-
-Inspect owner properties to see where a type is located:
 
 ```scala mdoc
-owner.asString    // "com.example" - dot-separated path
-owner.isRoot      // true if empty
-owner.parent      // Parent owner (or Root)
-owner.lastName    // Last segment name
+val shapeId  = TypeId.of[Shape]
+val circleId = TypeId.of[Circle]
+val originId = TypeId.of[Origin.type]
 ```
 
-### Predefined Owners
-
-TypeId provides common package namespaces as predefined owners:
-
-```scala
-Owner.scala                      // scala
-Owner.scalaUtil                  // scala.util
-Owner.scalaCollectionImmutable   // scala.collection.immutable
-Owner.javaLang                   // java.lang
-Owner.javaTime                   // java.time
-Owner.javaUtil                   // java.util
-```
-
-### TermPath
-
-`TermPath` represents paths to term values, used to construct singleton types:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-// com.example.MyObject.value.type
-val path = TermPath.fromOwner(
-  Owner.fromPackagePath("com.example").term("MyObject"),
-  "value"
-)
-```
-
-Access TermPath properties and compose paths:
+### Classification Predicates
 
 ```scala mdoc
-path.asString     // "com.example.MyObject.value"
-path.isEmpty      // false
-val nested = path / "nested"   // Append segment
-nested.asString
+shapeId.isTrait
+shapeId.isSealed
+
+circleId.isClass
+circleId.isCaseClass
+
+originId.isObject
 ```
 
-## Type Parameters
+### The `defKind` Property
 
-TypeId represents the type parameters of generic types through the TypeParam, TypeBounds, Variance, and Kind types, providing fine-grained metadata about parametricity.
-
-### TypeParam
-
-Represents a type parameter specification:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-val upperType = TypeRepr.Ref(TypeId.int)
-val someType = TypeRepr.Ref(TypeId.string)
-
-// Basic type parameter
-TypeParam("A", index = 0)
-
-// Covariant (+A)
-TypeParam("A", 0, Variance.Covariant)
-TypeParam.covariant("A", 0)
-
-// Contravariant (-A)
-TypeParam("A", 0, Variance.Contravariant)
-TypeParam.contravariant("A", 0)
-
-// With bounds (A <: Upper)
-TypeParam.bounded("A", 0, upper = upperType)
-
-// Higher-kinded (F[_])
-TypeParam.higherKinded("F", 0, arity = 1)
-TypeParam("F", 0, kind = Kind.Star1)
-
-// Full specification
-TypeParam(
-  name = "A",
-  index = 0,
-  variance = Variance.Covariant,
-  bounds = TypeBounds.upper(someType),
-  kind = Kind.Type
-)
-```
-
-TypeParam provides introspection:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-val param = TypeParam.covariant("A", 0)
-```
-
-Inspect type parameter properties:
+For more detail, inspect `defKind` directly:
 
 ```scala mdoc
-param.name              // "A"
-param.index             // Position in parameter list
-param.variance          // Covariant, Contravariant, or Invariant
-param.bounds            // TypeBounds
-param.kind              // Kind (*, * -> *, etc.)
-
-param.isCovariant       // variance == Covariant
-param.isContravariant   // variance == Contravariant
-param.isInvariant       // variance == Invariant
-param.hasUpperBound     // bounds.upper.isDefined
-param.hasLowerBound     // bounds.lower.isDefined
-param.isProperType      // kind == Kind.Type
-param.isTypeConstructor // kind != Kind.Type
+circleId.defKind
+shapeId.defKind
+originId.defKind
 ```
 
-### TypeBounds
+`TypeDefKind` has these variants:
 
-Represents type parameter bounds:
+| Variant | Description |
+|---|---|
+| `Class(isFinal, isAbstract, isCase, isValue, bases)` | Class definitions |
+| `Trait(isSealed, bases)` | Trait definitions |
+| `Object(bases)` | Singleton objects |
+| `Enum(bases)` | Scala 3 enums |
+| `EnumCase(parentEnum, ordinal, isObjectCase)` | Enum cases |
+| `TypeAlias` | Type aliases (`type Foo = Bar`) |
+| `OpaqueType(publicBounds)` | Opaque types |
+| `AbstractType` | Abstract type members |
 
-```scala mdoc:compile-only
+Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
+
+## Type Parameters and Generics
+
+When you derive a TypeId for a generic type, the macro captures its type parameters (variance, bounds, kind) and any applied type arguments.
+
+### Inspecting Type Parameters
+
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
-
-val upperType = TypeRepr.Ref(TypeId.int)
-val lowerType = TypeRepr.Ref(TypeId.string)
-val aliasType = TypeRepr.Ref(TypeId.double)
-
-// No bounds (>: Nothing <: Any)
-TypeBounds.Unbounded
-
-// Upper bound only (<: Upper)
-TypeBounds.upper(upperType)
-
-// Lower bound only (>: Lower)
-TypeBounds.lower(lowerType)
-
-// Both bounds (>: Lower <: Upper)
-TypeBounds(lowerType, upperType)
-
-// Type alias bounds (lower == upper)
-TypeBounds.alias(aliasType)
 ```
-
-TypeBounds provides introspection:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-val bounds = TypeBounds.upper(TypeRepr.Ref(TypeId.int))
-```
-
-Inspect type bounds properties:
 
 ```scala mdoc
-bounds.lower            // Option[TypeRepr]
-bounds.upper            // Option[TypeRepr]
-bounds.isUnbounded      // No bounds specified
-bounds.hasOnlyUpper     // Only upper bound
-bounds.hasOnlyLower     // Only lower bound
-bounds.hasBothBounds    // Both bounds specified
-bounds.isAlias          // lower == upper
-bounds.aliasType        // Option[TypeRepr] if alias
+val listId = TypeId.list
+listId.typeParams
+listId.arity
+```
+
+```scala mdoc
+val mapId = TypeId.map
+mapId.typeParams
+mapId.arity
+```
+
+Each `TypeParam` records the parameter's name, position, variance, bounds, and kind:
+
+```scala mdoc
+val listParam = listId.typeParams.head
+listParam.name
+listParam.variance
+listParam.kind
+listParam.isCovariant
+```
+
+### Inspecting Type Arguments
+
+For applied types like `List[Int]`, inspect the type arguments:
+
+```scala mdoc
+val listIntId = TypeId.of[List[Int]]
+listIntId.typeArgs
+listIntId.isApplied
+```
+
+```scala mdoc
+val mapStringIntId = TypeId.of[Map[String, Int]]
+mapStringIntId.typeArgs
 ```
 
 ### Variance
 
-Represents type parameter variance:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-Variance.Covariant      // +A
-Variance.Contravariant  // -A
-Variance.Invariant      // A
-```
-
-You can inspect variance properties and combine them:
-
-```scala mdoc:silent
-import zio.blocks.typeid._
-
-val variance = Variance.Covariant
-val other = Variance.Contravariant
-```
+Variance values are `Covariant` (+), `Contravariant` (-), and `Invariant`:
 
 ```scala mdoc
-variance.symbol         // "+", "-", or ""
-variance.isCovariant
-variance.isContravariant
-variance.isInvariant
-variance.flip           // Covariant <-> Contravariant
-val combined = variance * other        // Combine variances
-combined
+Variance.Covariant.symbol
+Variance.Contravariant.symbol
+Variance.Invariant.symbol
+Variance.Covariant.flip
 ```
 
 ### Kind
 
-Represents the "kind" of a type (type of types):
+Kind describes the "type of a type" — whether it's a proper type or a type constructor:
 
-```scala mdoc:compile-only
-Kind.Type               // * (proper type like Int, String)
-Kind.Star               // Alias for Type
-Kind.Star1              // * -> * (List, Option)
-Kind.Star2              // * -> * -> * (Map, Either)
-Kind.HigherStar1        // (* -> *) -> * (Functor, Monad)
+| Kind | Notation | Examples |
+|---|---|---|
+| `Kind.Type` / `Kind.Star` | `*` | `Int`, `String` |
+| `Kind.Star1` | `* -> *` | `List`, `Option` |
+| `Kind.Star2` | `* -> * -> *` | `Map`, `Either` |
+| `Kind.HigherStar1` | `(* -> *) -> *` | `Functor` |
 
-Kind.constructor(0)     // *
-Kind.constructor(1)     // * -> *
-Kind.constructor(2)     // * -> * -> *
-
-// Custom kinds
-Kind.Arrow(List(Kind.Type), Kind.Type)  // * -> *
-Kind.Arrow(List(Kind.Star1), Kind.Type) // (* -> *) -> *
+```scala mdoc
+Kind.Star1.arity
+Kind.Star2.arity
+Kind.Type.isProperType
+Kind.Star1.isProperType
 ```
 
-Kind provides introspection:
+## Subtype Relationships
 
-```scala mdoc:silent
+TypeId can determine inheritance relationships at runtime, handling direct inheritance, sealed trait subtypes, transitive inheritance, and variance-aware subtyping for applied types.
+
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-val kind = Kind.Star1
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case class Cat(name: String) extends Animal
 ```
 
 ```scala mdoc
-kind.isProperType   // kind == Kind.Type
-kind.arity          // Number of type parameters
+val dogId    = TypeId.of[Dog]
+val animalId = TypeId.of[Animal]
+
+dogId.isSubtypeOf(animalId)
+animalId.isSupertypeOf(dogId)
+dogId.isEquivalentTo(dogId)
+dogId.isEquivalentTo(animalId)
 ```
 
-## Members (Structural Types)
+Covariant type constructors preserve subtyping:
 
-Structural types use members to represent the fields, methods, and type members that comprise their interface.
-
-### Val/Var Members
-
-Represent value and variable members in structural types:
-
-```scala mdoc:compile-only
-// val x: Int
-Member.Val("x", TypeRepr.Ref(TypeId.int))
-
-// var y: String
-Member.Val("y", TypeRepr.Ref(TypeId.string), isVar = true)
-```
-
-### Method Members
-
-Represent method members with their parameters and return type:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// def foo: Int
-Member.Def("foo", Nil, Nil, TypeRepr.Ref(TypeId.int))
-
-// def bar(x: Int): String
-Member.Def(
-  name = "bar",
-  typeParams = Nil,
-  paramLists = List(List(Param("x", TypeRepr.Ref(TypeId.int)))),
-  result = TypeRepr.Ref(TypeId.string)
-)
-
-// def baz[A](x: A)(implicit y: Ordering[A]): List[A]
-val paramA = TypeParam("A", 0)
-val orderingA = TypeRepr.Applied(TypeRepr.Ref(TypeId.int), List(TypeRepr.ParamRef(paramA)))
-val listA = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.ParamRef(paramA)))
-
-Member.Def(
-  name = "baz",
-  typeParams = List(paramA),
-  paramLists = List(
-    List(Param("x", TypeRepr.ParamRef(paramA))),
-    List(Param("y", orderingA, isImplicit = true))
-  ),
-  result = listA
-)
-```
-
-### Type Members
-
-Represent type members with optional bounds:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-val upperType = TypeRepr.Ref(TypeId.int)
-val aliasType = TypeRepr.Ref(TypeId.string)
-
-// type T
-Member.TypeMember("T")
-
-// type T <: Upper
-Member.TypeMember("T", upperBound = Some(upperType))
-
-// type T = Alias (isAlias when lower == upper)
-Member.TypeMember("T",
-  lowerBound = Some(aliasType),
-  upperBound = Some(aliasType)
-)
-```
-
-## TypeDefKind
-
-Classifies what kind of type definition a TypeId represents. The kind metadata tells you whether a type is a class, trait, object, enum, or special form like a type alias.
-
-### Class
-
-Represents a class definition:
-
-```scala mdoc:compile-only
-// Represents a class definition
-TypeDefKind.Class(
-  isFinal = false,
-  isAbstract = false,
-  isCase = true,       // case class
-  isValue = false,     // extends AnyVal
-  bases = Nil          // parent types
-)
-```
-
-### Trait
-
-Represents a trait definition:
-
-```scala mdoc:compile-only
-TypeDefKind.Trait(
-  isSealed = true,
-  bases = Nil
-)
-```
-
-### Object
-
-Represents a singleton object:
-
-```scala mdoc:compile-only
-TypeDefKind.Object(
-  bases = Nil
-)
-```
-
-### Enum (Scala 3)
-
-Represents enum definitions and cases:
-
-```scala mdoc:compile-only
-TypeDefKind.Enum(
-  bases = Nil
-)
-```
-
-For enum cases:
-
-```scala mdoc:compile-only
-TypeDefKind.EnumCase(
-  parentEnum = TypeRepr.Ref(TypeId.int), // Simplified example
-  ordinal = 0,
-  isObjectCase = true
-)
-```
-
-### Type Aliases and Opaque Types
-
-Represents type aliases and opaque type definitions:
-
-```scala mdoc:compile-only
-TypeDefKind.TypeAlias              // type Foo = Bar
-
-TypeDefKind.OpaqueType(
-  publicBounds = TypeBounds.Unbounded  // Bounds visible outside
-)
-
-TypeDefKind.AbstractType           // Abstract type member
+```scala mdoc
+val listDogId    = TypeId.of[List[Dog]]
+val listAnimalId = TypeId.of[List[Animal]]
+listDogId.isSubtypeOf(listAnimalId)
 ```
 
 ## Annotations
 
-Annotations represent Scala/Java annotations attached to types:
+TypeId captures annotations attached to types at compile time, making them available at runtime as data.
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-Annotation(
-  typeId = TypeId.int,
-  args = List(
-    AnnotationArg.Named("message",
-      AnnotationArg.Const("use newMethod")),
-    AnnotationArg.Named("since",
-      AnnotationArg.Const("1.0"))
-  )
+@transient
+case class ImportantData(id: Int, payload: String)
+```
+
+Derive the TypeId and inspect its annotations:
+
+```scala mdoc
+val importantId = TypeId.of[ImportantData]
+importantId.annotations
+importantId.annotations.map(_.name)
+```
+
+An unannotated type has no annotations:
+
+```scala mdoc:silent
+case class Plain(x: Int)
+```
+
+```scala mdoc
+TypeId.of[Plain].annotations
+```
+
+### Annotation Data Model
+
+Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values:
+
+| Type | Description |
+|---|---|
+| `Annotation(typeId, args)` | An annotation instance with its type and arguments |
+| `AnnotationArg.Const(value)` | A constant value argument |
+| `AnnotationArg.Named(name, value)` | A named parameter |
+| `AnnotationArg.ArrayArg(values)` | An array of arguments |
+| `AnnotationArg.Nested(annotation)` | A nested annotation |
+| `AnnotationArg.ClassOf(tpe)` | A `classOf[T]` argument |
+| `AnnotationArg.EnumValue(enumType, valueName)` | An enum constant |
+
+## Namespaces and Owners
+
+Types are organized hierarchically. The `owner` property tells you where a type is defined.
+
+### Inspecting Owners
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class MyType(x: Int)
+```
+
+```scala mdoc
+val myId = TypeId.of[MyType]
+myId.owner
+myId.owner.asString
+myId.fullName
+```
+
+### Building Owners
+
+For comparisons or manual construction, build owners with `Owner.fromPackagePath` or the `/` combinator:
+
+```scala mdoc
+val owner1 = Owner.fromPackagePath("com.example.app")
+owner1.asString
+owner1.parent.asString
+owner1.lastName
+```
+
+```scala mdoc
+val owner2 = Owner.Root / "com" / "example"
+owner2.asString
+```
+
+### Predefined Owners
+
+Common package namespaces are available as predefined owners (used internally by TypeId):
+
+| Owner | Package |
+|---|---|
+| `Owner.scala` | `scala` |
+| `Owner.scalaUtil` | `scala.util` |
+| `Owner.scalaCollectionImmutable` | `scala.collection.immutable` |
+| `Owner.javaLang` | `java.lang` |
+| `Owner.javaTime` | `java.time` |
+| `Owner.javaUtil` | `java.util` |
+
+### TermPath
+
+`TermPath` represents paths to term values, used for singleton types:
+
+```scala mdoc
+val path = TermPath.fromOwner(
+  Owner.fromPackagePath("com.example").term("MyObject"),
+  "value"
 )
+path.asString
 ```
 
-Annotation arguments come in several forms:
+## TypeRepr — Type Expressions
 
-```scala mdoc:compile-only
+`TypeRepr` represents type expressions in the Scala type system. While `TypeId` identifies a type *definition*, `TypeRepr` represents how types are *used* in expressions — as type arguments, parent types, alias targets, and more.
+
+You encounter `TypeRepr` values when inspecting `typeArgs`, parent types in `defKind`, and alias targets:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+```scala mdoc
+TypeId.of[List[Int]].typeArgs
+TypeId.of[Map[String, Int]].typeArgs
+```
+
+### TypeRepr Variants
+
+| Category | Variant | Example |
+|---|---|---|
+| **Common** | `Ref(id)` | `Int`, `String` — reference to a named type |
+| | `ParamRef(param, depth)` | `A` — reference to a type parameter |
+| | `Applied(tycon, args)` | `List[Int]` — parameterized type |
+| **Compound** | `Intersection(types)` | `A & B` (Scala 3) or `A with B` (Scala 2) |
+| | `Union(types)` | `A \| B` (Scala 3) |
+| | `Tuple(elems)` | `(A, B, C)`, named tuples |
+| | `Function(params, result)` | `(A, B) => C` |
+| | `ContextFunction(params, result)` | `(A, B) ?=> C` (Scala 3) |
+| **Special** | `Singleton(path)` | `x.type` |
+| | `ThisType(owner)` | `this.type` |
+| | `TypeProjection(qualifier, name)` | `Outer#Inner` |
+| | `TypeSelect(qualifier, name)` | `qual.Member` |
+| | `Structural(parents, members)` | `{ def foo: Int }` |
+| **Advanced** | `TypeLambda(params, body)` | `[X] =>> F[X]` |
+| | `Wildcard(bounds)` | `?`, `? <: Upper` |
+| | `ByName(underlying)` | `=> A` |
+| | `Repeated(element)` | `A*` |
+| | `Annotated(underlying, annotations)` | `A @anno` |
+| | `Constant.*` | `42`, `"foo"`, `true` (literal types) |
+| **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types |
+
+## Opaque Types and Type Aliases
+
+### Opaque Types
+
+TypeId preserves the distinction of opaque types — they are not erased to their representation type:
+
+```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-val value = "someValue"
-val values = List("a", "b")
-val name = "paramName"
-val typeRepr = TypeRepr.Ref(TypeId.int)
-val enumType = TypeId.int
-val valueName = "VALUE"
-
-AnnotationArg.Const(value)           // Constant value
-AnnotationArg.ArrayArg(values)       // Array of args
-AnnotationArg.Named(name, AnnotationArg.Const(value))     // Named parameter
-AnnotationArg.Nested(Annotation(TypeId.string, Nil))     // Nested annotation
-AnnotationArg.ClassOf(typeRepr)      // classOf[T]
-AnnotationArg.EnumValue(enumType, valueName)  // Enum constant
+opaque type UserId = String
+opaque type Email = String
 ```
 
-## Predefined TypeIds
+```scala mdoc
+val userIdType = TypeId.of[UserId]
+val emailType  = TypeId.of[Email]
 
-TypeId provides instances for common types. These are useful as building blocks when constructing applied types:
+userIdType.name
+userIdType.isOpaque
 
-### Primitives
-
-Use these for primitive types:
-
-```scala mdoc:compile-only
-TypeId.unit      // scala.Unit
-TypeId.boolean   // scala.Boolean
-TypeId.byte      // scala.Byte
-TypeId.short     // scala.Short
-TypeId.int       // scala.Int
-TypeId.long      // scala.Long
-TypeId.float     // scala.Float
-TypeId.double    // scala.Double
-TypeId.char      // scala.Char
-TypeId.string    // java.lang.String
-TypeId.bigInt    // scala.BigInt
-TypeId.bigDecimal // scala.BigDecimal
+userIdType.isEquivalentTo(TypeId.string)
+userIdType.isEquivalentTo(emailType)
 ```
 
-### Collections
+This enables type-safe registries keyed by opaque type — see the [Erased TypeId](#erased-typeid-and-registries) section.
 
-Use these for collection and container types:
+### Type Aliases and Normalization
 
-```scala mdoc:compile-only
-TypeId.option     // scala.Option
-TypeId.some       // scala.Some
-TypeId.none       // scala.None
-TypeId.list       // scala.collection.immutable.List
-TypeId.vector     // scala.collection.immutable.Vector
-TypeId.set        // scala.collection.immutable.Set
-TypeId.seq        // scala.collection.immutable.Seq
-TypeId.indexedSeq // scala.collection.immutable.IndexedSeq
-TypeId.map        // scala.collection.immutable.Map
-TypeId.either     // scala.util.Either
-TypeId.array      // scala.Array
-TypeId.arraySeq   // scala.collection.immutable.ArraySeq
-TypeId.chunk      // zio.blocks.chunk.Chunk
+Type aliases can be normalized to their underlying types:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+type Age = Int
+val ageId = TypeId.alias[Age]("Age", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
 ```
 
-### java.time Types
+```scala mdoc
+ageId.name
+ageId.isAlias
 
-Use these for java.time date and time types:
-
-```scala mdoc:compile-only
-TypeId.dayOfWeek      // java.time.DayOfWeek
-TypeId.duration       // java.time.Duration
-TypeId.instant        // java.time.Instant
-TypeId.localDate      // java.time.LocalDate
-TypeId.localDateTime  // java.time.LocalDateTime
-TypeId.localTime      // java.time.LocalTime
-TypeId.month          // java.time.Month
-TypeId.monthDay       // java.time.MonthDay
-TypeId.offsetDateTime // java.time.OffsetDateTime
-TypeId.offsetTime     // java.time.OffsetTime
-TypeId.period         // java.time.Period
-TypeId.year           // java.time.Year
-TypeId.yearMonth      // java.time.YearMonth
-TypeId.zoneId         // java.time.ZoneId
-TypeId.zoneOffset     // java.time.ZoneOffset
-TypeId.zonedDateTime  // java.time.ZonedDateTime
+val normalized = TypeId.normalize(ageId)
+normalized.fullName
 ```
 
-### java.util Types
+Normalization resolves chains of aliases (e.g., `type MyIntList = IntList` where `type IntList = List[Int]` resolves to `List[Int]`).
 
-Use these for java.util utility types:
+## Erased TypeId and Registries
 
-```scala mdoc:compile-only
-TypeId.currency   // java.util.Currency
-TypeId.uuid       // java.util.UUID
+### Erased TypeId
+
+For type-indexed collections where the type parameter doesn't matter, erase it:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+```scala mdoc
+val erased: TypeId.Erased = TypeId.int.erased
+erased
+```
+
+### Equality and Hashing
+
+TypeId uses structural equality:
+
+```scala mdoc
+val alias1 = TypeId.alias[Int]("A", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+val alias2 = TypeId.alias[Int]("A", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
+
+alias1 == alias2
+
+val map = Map(alias1 -> "value")
+map.get(alias2)
+```
+
+### Building Registries
+
+Erased TypeIds are the key to building type-indexed maps:
+
+```scala mdoc
+val registry: Map[TypeId.Erased, String] = Map(
+  TypeId.int.erased    -> "Integer type",
+  TypeId.string.erased -> "String type"
+)
+
+registry.get(TypeId.int.erased)
+registry.get(TypeId.double.erased)
+```
+
+### Runtime Reflection
+
+On JVM, TypeId can retrieve the corresponding `Class` and construct instances:
+
+```scala
+val typeId = TypeId.of[Person]
+val clazz: Option[Class[_]] = typeId.clazz
+
+// Construct instances (JVM only)
+val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30))
 ```
 
 ## Integration with Schema
@@ -1119,7 +696,7 @@ object Email {
 
 ### Schema Derivation
 
-The `Deriver` trait receives TypeId for each node in the schema. The key methods that receive TypeId are (simplified example):
+The `Deriver` trait receives TypeId for each node in the schema:
 
 ```scala
 trait Deriver[TC[_]] {
@@ -1137,97 +714,155 @@ trait Deriver[TC[_]] {
 
 Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code. Note: The actual `Deriver` API includes additional parameters like `binding`, `doc`, and `modifiers` — see the source for the complete signature.
 
-## Type Normalization
+## Predefined TypeIds
 
-Type aliases are normalized to their underlying types for comparison:
+TypeId provides instances for common types:
 
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
+**Primitives:** `TypeId.unit`, `boolean`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`, `string`, `bigInt`, `bigDecimal`
 
-type Age = Int
-val owner = Owner.Root
+**Collections:** `TypeId.option`, `some`, `none`, `list`, `vector`, `set`, `seq`, `indexedSeq`, `map`, `either`, `array`, `arraySeq`, `chunk`
 
-val ageId = TypeId.alias[Age]("Age", owner, Nil, TypeRepr.Ref(TypeId.int))
-```
+**java.time:** `TypeId.dayOfWeek`, `duration`, `instant`, `localDate`, `localDateTime`, `localTime`, `month`, `monthDay`, `offsetDateTime`, `offsetTime`, `period`, `year`, `yearMonth`, `zoneId`, `zoneOffset`, `zonedDateTime`
 
-When you normalize an alias, it resolves to the underlying type:
+**java.util:** `TypeId.currency`, `uuid`
 
-```scala mdoc
-val normalized = TypeId.normalize(ageId)
-normalized.fullName
-```
+## Advanced — Manual Construction
 
-Normalization handles nested aliases and type arguments, resolving chains like `type MyIntList = IntList` where `type IntList = List[Int]` down to `List[Int]`.
+For testing, code generation, or manual type registration, TypeId provides smart constructors that bypass macro derivation.
 
-## Equality and Hashing
-
-TypeId uses structural equality that accounts for type aliases:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-val owner = Owner.Root
-val alias1 = TypeId.alias[Int]("A", owner, Nil, TypeRepr.Ref(TypeId.int))
-val alias2 = TypeId.alias[Int]("A", owner, Nil, TypeRepr.Ref(TypeId.int))
-```
-
-Structurally identical TypeIds are considered equal:
-
-```scala mdoc
-alias1 == alias2
-```
-
-This structural equality works correctly in hash-based collections:
-
-```scala mdoc
-val map = Map(alias1 -> "value")
-map.get(alias2)
-```
-
-## Erased TypeId
-
-For type-indexed collections where the type parameter doesn't matter, you can erase the type parameter:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-```
-
-```scala mdoc
-// TypeId.Erased is TypeId[TypeId.Unknown]
-val erased: TypeId.Erased = TypeId.int.erased
-```
-
-Erased TypeIds are useful for building type registries keyed by type:
+### Nominal Types
 
 ```scala mdoc:compile-only
-// Use in maps keyed by type
-val typeRegistry: Map[TypeId.Erased, String] = Map(
-  TypeId.int.erased -> "Int Schema",
-  TypeId.string.erased -> "String Schema"
+import zio.blocks.typeid._
+
+val myTypeId = TypeId.nominal[Any](
+  name = "MyType",
+  owner = Owner.fromPackagePath("com.example"),
+  defKind = TypeDefKind.Class(isCase = true)
 )
 ```
 
-## Runtime Reflection
+### Type Aliases and Opaque Types
 
-On JVM, TypeId can retrieve the corresponding `Class` and construct instances:
+```scala mdoc:compile-only
+import zio.blocks.typeid._
 
-```scala
-val typeId = TypeId.of[Person]
-val clazz: Option[Class[_]] = typeId.clazz
+val aliasId = TypeId.alias[Any](
+  name = "Age",
+  owner = Owner.fromPackagePath("com.example"),
+  aliased = TypeRepr.Ref(TypeId.int)
+)
 
-// Construct instances (JVM only)
-val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30))
+val opaqueId = TypeId.opaque[Any](
+  name = "Email",
+  owner = Owner.fromPackagePath("com.example"),
+  representation = TypeRepr.Ref(TypeId.string)
+)
 ```
 
-## TypeId vs Related Concepts
+### Applied Types
 
-TypeId provides richer type information than other Scala/JVM reflection mechanisms:
+```scala mdoc:compile-only
+import zio.blocks.typeid._
 
-**TypeId vs `scala.reflect.ClassTag`:** ClassTag only provides the erased class; TypeId gives you full structural information including type parameters, parent types, annotations, and variance.
+// List[Int]
+val listIntId = TypeId.applied[List[Int]](
+  TypeId.list,
+  TypeRepr.Ref(TypeId.int)
+)
 
-**TypeId vs `java.lang.Class`:** Class is JVM-only and always erased; TypeId is pure Scala, works cross-platform (JVM and Scala.js), and preserves complete type structure.
+// Map[String, Int]
+val mapId = TypeId.applied[Map[String, Int]](
+  TypeId.map,
+  TypeRepr.Ref(TypeId.string),
+  TypeRepr.Ref(TypeId.int)
+)
+```
 
-**TypeId vs Scala 2 `TypeTag` / Scala 3 `TypeTest`:** These introduce heavier compiler-runtime dependencies and macro complexity. TypeId is a pure data structure that works uniformly across Scala versions.
+### TypeRepr Construction
+
+For building type expressions programmatically (e.g., in code generators):
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+// Basic references
+TypeRepr.Ref(TypeId.int)
+TypeRepr.ParamRef(TypeParam("A", 0))
+
+// Applied: List[Int]
+TypeRepr.Applied(
+  TypeRepr.Ref(TypeId.list),
+  List(TypeRepr.Ref(TypeId.int))
+)
+
+// Compound types
+TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+TypeRepr.Function(List(TypeRepr.Ref(TypeId.int)), TypeRepr.Ref(TypeId.string))
+TypeRepr.tuple(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
+
+// Special types
+TypeRepr.AnyType
+TypeRepr.NothingType
+TypeRepr.Wildcard(TypeBounds.upper(TypeRepr.Ref(TypeId.int)))
+TypeRepr.ByName(TypeRepr.Ref(TypeId.int))
+TypeRepr.Repeated(TypeRepr.Ref(TypeId.int))
+
+// Literal types
+TypeRepr.Constant.IntConst(42)
+TypeRepr.Constant.StringConst("foo")
+```
+
+### TypeParam Construction
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+TypeParam("A", index = 0)                                  // Invariant A
+TypeParam.covariant("A", 0)                                // +A
+TypeParam.contravariant("A", 0)                            // -A
+TypeParam.bounded("A", 0, upper = TypeRepr.Ref(TypeId.int)) // A <: Int
+TypeParam.higherKinded("F", 0, arity = 1)                  // F[_]
+```
+
+### Annotation Construction
+
+For testing annotation-based dispatch without actual annotated types:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+Annotation(
+  typeId = TypeId.int, // Simplified — would normally be the annotation's TypeId
+  args = List(
+    AnnotationArg.Named("message", AnnotationArg.Const("use newMethod")),
+    AnnotationArg.Named("since", AnnotationArg.Const("1.0"))
+  )
+)
+```
+
+### Members (Structural Types)
+
+For constructing structural type representations:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+// { val x: Int; def foo(y: String): Boolean }
+TypeRepr.Structural(
+  parents = Nil,
+  members = List(
+    Member.Val("x", TypeRepr.Ref(TypeId.int)),
+    Member.Def(
+      name = "foo",
+      typeParams = Nil,
+      paramLists = List(List(Param("y", TypeRepr.Ref(TypeId.string)))),
+      result = TypeRepr.Ref(TypeId.boolean)
+    )
+  )
+)
+```
 
 ## Running the Examples
 
@@ -1236,6 +871,7 @@ The following example applications demonstrate TypeId usage:
 - `schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala` — Deriving TypeIds and accessing properties
 - `schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala` — Subtype relationships and variance
 - `schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala` — Type aliases and normalization
+- `schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala` — Opaque types and type-safe registries
 
 Run them with:
 
@@ -1243,4 +879,5 @@ Run them with:
 sbt "schema-examples/runMain typeid.TypeIdBasicExample"
 sbt "schema-examples/runMain typeid.TypeIdSubtypingExample"
 sbt "schema-examples/runMain typeid.TypeIdNormalizationExample"
+sbt "schema-examples/runMain typeid.OpaqueTypesExample"
 ```
