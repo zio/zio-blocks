@@ -574,37 +574,46 @@ moduleOwner.asString
 
 ### TermPath
 
-`TermPath` represents paths to term values and is used for singleton types like `obj.field.type`. Derive a TypeId for a singleton to see its term path in action:
+`TermPath` represents paths to singleton types — values like `obj.field.type` that are distinct types at compile time. When you derive a TypeId for a singleton, the macro extracts the full term path and stores it as `TypeRepr.Singleton(path)`.
+
+**How the macro captures singleton paths:**
+
+When you write `TypeId.of[MyConfig.production.type]`, the macro detects that this is a singleton type (a `TermRef` in Scala's reflection API) and recursively walks the qualifier chain to build the term path: `MyConfig` → `production`. This is different from regular types, which use `Owner` to record where the *type definition* lives.
+
+Derive a TypeId for a singleton and see the term path:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-object AppConfig {
-  val production = "prod-db"
-  val development = "dev-db"
+object HttpStatus {
+  val OK = 200
+  val NotFound = 404
 }
 ```
 
 ```scala mdoc
-val prodSingletonId = TypeId.of[AppConfig.production.type]
-prodSingletonId
+val okSingletonId = TypeId.of[HttpStatus.OK.type]
+okSingletonId.name
 
-val devSingletonId = TypeId.of[AppConfig.development.type]
-devSingletonId
+val notFoundSingletonId = TypeId.of[HttpStatus.NotFound.type]
+notFoundSingletonId.name
 ```
 
-Construct TermPath manually using `fromOwner` and append segments with `/`:
+Singleton types are represented internally as `TypeRepr.Singleton(path)`. Construct a TermPath manually to represent the same value:
 
 ```scala mdoc
-val path = TermPath.fromOwner(
-  Owner.fromPackagePath("com.example").term("AppConfig"),
-  "production"
+val okPath = TermPath.fromOwner(
+  Owner.Root.term("HttpStatus"),
+  "OK"
 )
-path.asString
+okPath.asString
 
-val extendedPath = path / "nested"
-extendedPath.asString
+// Append nested segments with the / operator
+val nestedPath = okPath / "metadata"
+nestedPath.asString
 ```
+
+**When to use TermPath:** Singleton types create type-indexed maps and constants where different instances of the same base value have distinct types. For example, `HttpStatus.OK` and `HttpStatus.NotFound` are both `Int` at runtime, but their singleton types are distinct, enabling you to dispatch differently based on which specific value is referenced.
 
 ### Predefined Owners
 
