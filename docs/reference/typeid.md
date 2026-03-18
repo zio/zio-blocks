@@ -221,7 +221,7 @@ The macro extracts complete type information including type name, owner, type pa
 
 For manual type registration or testing, use smart constructors. For example, to create a nominal type:
 
-```scala
+```scala mdoc:compile-only
 // Nominal types (classes, traits, objects)
 val myTypeId = TypeId.nominal[MyType](
   name = "MyType",
@@ -232,7 +232,7 @@ val myTypeId = TypeId.nominal[MyType](
 
 To construct type aliases and opaque types:
 
-```scala
+```scala mdoc:compile-only
 // Type aliases
 val aliasId = TypeId.alias[Age](
   name = "Age",
@@ -252,7 +252,7 @@ val emailId = TypeId.opaque[Email](
 
 Create applied types (type constructors with arguments):
 
-```scala
+```scala mdoc:compile-only
 // List[Int]
 val listIntId = TypeId.applied[List[Int]](
   TypeId.list,
@@ -327,7 +327,7 @@ Subtype checking handles direct inheritance, enum cases and their parent enums, 
 
 TypeId provides extractors for pattern matching:
 
-```scala
+```scala mdoc:compile-only
 typeId match {
   case TypeId.Nominal(name, owner, params, defKind, parents) =>
     // Regular types
@@ -354,7 +354,7 @@ typeId match {
 
 Reference a named type or type parameter:
 
-```scala
+```scala mdoc:compile-only
 // Reference to a named type
 TypeRepr.Ref(TypeId.int)            // Int
 TypeRepr.Ref(TypeId.string)         // String
@@ -368,7 +368,7 @@ TypeRepr.ParamRef(param, depth = 1) // nested binder reference
 
 Represent parameterized types like `List[Int]`:
 
-```scala
+```scala mdoc:compile-only
 // List[Int]
 TypeRepr.Applied(
   TypeRepr.Ref(TypeId.list),
@@ -386,7 +386,7 @@ TypeRepr.Applied(
 
 Represent intersection and union types:
 
-```scala
+```scala mdoc:compile-only
 // Intersection: A & B (Scala 3) or A with B (Scala 2)
 TypeRepr.Intersection(List(typeA, typeB))
 
@@ -404,7 +404,7 @@ TypeRepr.union(Nil)                     // returns NothingType
 
 Represent function types with their parameters and result:
 
-```scala
+```scala mdoc:compile-only
 // A => B
 TypeRepr.Function(List(typeA), typeB)
 
@@ -419,7 +419,7 @@ TypeRepr.ContextFunction(List(typeA, typeB), typeC)
 
 Represent tuple types, including named tuples:
 
-```scala
+```scala mdoc:compile-only
 // (A, B, C)
 TypeRepr.Tuple(List(
   TupleElement(None, typeA),
@@ -441,7 +441,7 @@ TypeRepr.tuple(List(typeA, typeB, typeC))
 
 Represent structural types with members:
 
-```scala
+```scala mdoc:compile-only
 // { def foo: Int }
 TypeRepr.Structural(
   parents = Nil,
@@ -464,7 +464,7 @@ TypeRepr.Structural(
 
 Represent singleton and path-dependent types:
 
-```scala
+```scala mdoc:compile-only
 // x.type (singleton type)
 TypeRepr.Singleton(TermPath.fromOwner(owner, "x"))
 
@@ -482,7 +482,7 @@ TypeRepr.TypeSelect(qualifierType, "Member")
 
 TypeRepr provides constructors for special type forms:
 
-```scala
+```scala mdoc:compile-only
 TypeRepr.AnyType       // Any
 TypeRepr.NothingType   // Nothing
 TypeRepr.NullType      // Null
@@ -494,7 +494,7 @@ TypeRepr.AnyKindType   // AnyKind (for kind-polymorphic contexts)
 
 Represent literal types like `42` or `"foo"`:
 
-```scala
+```scala mdoc:compile-only
 TypeRepr.Constant.IntConst(42)         // 42 (literal type)
 TypeRepr.Constant.StringConst("foo")   // "foo"
 TypeRepr.Constant.BooleanConst(true)   // true
@@ -505,10 +505,15 @@ TypeRepr.Constant.ClassOfConst(tpe)    // classOf[T]
 
 Represent higher-order type expressions:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val paramF = TypeParam("F", 0, kind = Kind.Star1)
+val paramX = TypeParam("X", 0)
+
 // [X] =>> F[X]
 TypeRepr.TypeLambda(
-  params = List(TypeParam("X", 0)),
+  params = List(paramX),
   body = TypeRepr.Applied(
     TypeRepr.ParamRef(paramF),
     List(TypeRepr.ParamRef(paramX))
@@ -520,7 +525,12 @@ TypeRepr.TypeLambda(
 
 Represent wildcard types and type parameter bounds:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val upperType = TypeRepr.Ref(TypeId.int)
+val lowerType = TypeRepr.Ref(TypeId.string)
+
 // ?
 TypeRepr.Wildcard()
 
@@ -538,7 +548,11 @@ TypeRepr.Wildcard(TypeBounds(lowerType, upperType))
 
 Represent by-name, varargs, and annotated types:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val typeA = TypeRepr.Ref(TypeId.int)
+
 // => A (by-name)
 TypeRepr.ByName(typeA)
 
@@ -546,7 +560,7 @@ TypeRepr.ByName(typeA)
 TypeRepr.Repeated(typeA)
 
 // A @annotation
-TypeRepr.Annotated(typeA, List(annotation))
+TypeRepr.Annotated(typeA, Nil)
 ```
 
 ## Namespaces and Type Names
@@ -557,23 +571,29 @@ Types are organized hierarchically using owners, term paths, and other namespace
 
 `Owner` represents where a type is defined in the package hierarchy:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
 // From package path
-val owner = Owner.fromPackagePath("com.example.app")
+val owner1 = Owner.fromPackagePath("com.example.app")
 
 // Build incrementally
-val owner = Owner.Root / "com" / "example"
+val owner2 = Owner.Root / "com" / "example"
 
 // Add term (object) segment
-val owner = (Owner.Root / "com").term("MyObject")
+val owner3 = (Owner.Root / "com").term("MyObject")
 
 // Add type segment
-val owner = (Owner.Root / "com").tpe("MyClass")
+val owner4 = (Owner.Root / "com").tpe("MyClass")
 ```
 
 Owner provides introspection properties:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val owner = Owner.fromPackagePath("com.example")
+
 owner.asString    // "com.example" - dot-separated path
 owner.isRoot      // true if empty
 owner.parent      // Parent owner (or Root)
@@ -597,7 +617,9 @@ Owner.javaUtil                   // java.util
 
 `TermPath` represents paths to term values, used to construct singleton types:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
 // com.example.MyObject.value.type
 val path = TermPath.fromOwner(
   Owner.fromPackagePath("com.example").term("MyObject"),
@@ -606,7 +628,7 @@ val path = TermPath.fromOwner(
 
 path.asString     // "com.example.MyObject.value"
 path.isEmpty      // false
-path / "nested"   // Append segment
+val nested = path / "nested"   // Append segment
 ```
 
 ## Type Parameters
@@ -617,7 +639,12 @@ TypeId represents the type parameters of generic types through the TypeParam, Ty
 
 Represents a type parameter specification:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val upperType = TypeRepr.Ref(TypeId.int)
+val someType = TypeRepr.Ref(TypeId.string)
+
 // Basic type parameter
 TypeParam("A", index = 0)
 
@@ -630,7 +657,7 @@ TypeParam("A", 0, Variance.Contravariant)
 TypeParam.contravariant("A", 0)
 
 // With bounds (A <: Upper)
-TypeParam.bounded("A", 0, upper = TypeRepr.Ref(upperType))
+TypeParam.bounded("A", 0, upper = upperType)
 
 // Higher-kinded (F[_])
 TypeParam.higherKinded("F", 0, arity = 1)
@@ -648,7 +675,11 @@ TypeParam(
 
 TypeParam provides introspection:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val param = TypeParam.covariant("A", 0)
+
 param.name              // "A"
 param.index             // Position in parameter list
 param.variance          // Covariant, Contravariant, or Invariant
@@ -668,7 +699,13 @@ param.isTypeConstructor // kind != Kind.Type
 
 Represents type parameter bounds:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val upperType = TypeRepr.Ref(TypeId.int)
+val lowerType = TypeRepr.Ref(TypeId.string)
+val aliasType = TypeRepr.Ref(TypeId.double)
+
 // No bounds (>: Nothing <: Any)
 TypeBounds.Unbounded
 
@@ -687,7 +724,11 @@ TypeBounds.alias(aliasType)
 
 TypeBounds provides introspection:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val bounds = TypeBounds.upper(TypeRepr.Ref(TypeId.int))
+
 bounds.lower            // Option[TypeRepr]
 bounds.upper            // Option[TypeRepr]
 bounds.isUnbounded      // No bounds specified
@@ -702,7 +743,12 @@ bounds.aliasType        // Option[TypeRepr] if alias
 
 Represents type parameter variance:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val variance = Variance.Covariant
+val other = Variance.Contravariant
+
 Variance.Covariant      // +A
 Variance.Contravariant  // -A
 Variance.Invariant      // A
@@ -712,14 +758,14 @@ variance.isCovariant
 variance.isContravariant
 variance.isInvariant
 variance.flip           // Covariant <-> Contravariant
-variance * other        // Combine variances
+val combined = variance * other        // Combine variances
 ```
 
 ### Kind
 
 Represents the "kind" of a type (type of types):
 
-```scala
+```scala mdoc:compile-only
 Kind.Type               // * (proper type like Int, String)
 Kind.Star               // Alias for Type
 Kind.Star1              // * -> * (List, Option)
@@ -737,7 +783,11 @@ Kind.Arrow(List(Kind.Star1), Kind.Type) // (* -> *) -> *
 
 Kind provides introspection:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val kind = Kind.Star1
+
 kind.isProperType   // kind == Kind.Type
 kind.arity          // Number of type parameters
 ```
@@ -750,7 +800,7 @@ Structural types use members to represent the fields, methods, and type members 
 
 Represent value and variable members in structural types:
 
-```scala
+```scala mdoc:compile-only
 // val x: Int
 Member.Val("x", TypeRepr.Ref(TypeId.int))
 
@@ -762,7 +812,9 @@ Member.Val("y", TypeRepr.Ref(TypeId.string), isVar = true)
 
 Represent method members with their parameters and return type:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
 // def foo: Int
 Member.Def("foo", Nil, Nil, TypeRepr.Ref(TypeId.int))
 
@@ -775,11 +827,15 @@ Member.Def(
 )
 
 // def baz[A](x: A)(implicit y: Ordering[A]): List[A]
+val paramA = TypeParam("A", 0)
+val orderingA = TypeRepr.Applied(TypeRepr.Ref(TypeId.int), List(TypeRepr.ParamRef(paramA)))
+val listA = TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.ParamRef(paramA)))
+
 Member.Def(
   name = "baz",
-  typeParams = List(TypeParam.A),
+  typeParams = List(paramA),
   paramLists = List(
-    List(Param("x", TypeRepr.ParamRef(TypeParam.A))),
+    List(Param("x", TypeRepr.ParamRef(paramA))),
     List(Param("y", orderingA, isImplicit = true))
   ),
   result = listA
@@ -790,7 +846,12 @@ Member.Def(
 
 Represent type members with optional bounds:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val upperType = TypeRepr.Ref(TypeId.int)
+val aliasType = TypeRepr.Ref(TypeId.string)
+
 // type T
 Member.TypeMember("T")
 
@@ -812,7 +873,7 @@ Classifies what kind of type definition a TypeId represents. The kind metadata t
 
 Represents a class definition:
 
-```scala
+```scala mdoc:compile-only
 // Represents a class definition
 TypeDefKind.Class(
   isFinal = false,
@@ -827,7 +888,7 @@ TypeDefKind.Class(
 
 Represents a trait definition:
 
-```scala
+```scala mdoc:compile-only
 TypeDefKind.Trait(
   isSealed = true,
   bases = Nil
@@ -838,7 +899,7 @@ TypeDefKind.Trait(
 
 Represents a singleton object:
 
-```scala
+```scala mdoc:compile-only
 TypeDefKind.Object(
   bases = Nil
 )
@@ -848,7 +909,7 @@ TypeDefKind.Object(
 
 Represents enum definitions and cases:
 
-```scala
+```scala mdoc:compile-only
 TypeDefKind.Enum(
   bases = Nil
 )
@@ -856,7 +917,7 @@ TypeDefKind.Enum(
 
 For enum cases:
 
-```scala
+```scala mdoc:compile-only
 TypeDefKind.EnumCase(
   parentEnum = TypeRepr.Ref(TypeId.int), // Simplified example
   ordinal = 0,
@@ -868,7 +929,7 @@ TypeDefKind.EnumCase(
 
 Represents type aliases and opaque type definitions:
 
-```scala
+```scala mdoc:compile-only
 TypeDefKind.TypeAlias              // type Foo = Bar
 
 TypeDefKind.OpaqueType(
@@ -882,9 +943,11 @@ TypeDefKind.AbstractType           // Abstract type member
 
 Annotations represent Scala/Java annotations attached to types:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
 Annotation(
-  typeId = TypeId.of[deprecated],
+  typeId = TypeId.int,
   args = List(
     AnnotationArg.Named("message",
       AnnotationArg.Const("use newMethod")),
@@ -896,11 +959,20 @@ Annotation(
 
 Annotation arguments come in several forms:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+val value = "someValue"
+val values = List("a", "b")
+val name = "paramName"
+val typeRepr = TypeRepr.Ref(TypeId.int)
+val enumType = TypeId.int
+val valueName = "VALUE"
+
 AnnotationArg.Const(value)           // Constant value
 AnnotationArg.ArrayArg(values)       // Array of args
-AnnotationArg.Named(name, value)     // Named parameter
-AnnotationArg.Nested(annotation)     // Nested annotation
+AnnotationArg.Named(name, AnnotationArg.Const(value))     // Named parameter
+AnnotationArg.Nested(Annotation(TypeId.string, Nil))     // Nested annotation
 AnnotationArg.ClassOf(typeRepr)      // classOf[T]
 AnnotationArg.EnumValue(enumType, valueName)  // Enum constant
 ```
@@ -913,7 +985,7 @@ TypeId provides instances for common types. These are useful as building blocks 
 
 Use these for primitive types:
 
-```scala
+```scala mdoc:compile-only
 TypeId.unit      // scala.Unit
 TypeId.boolean   // scala.Boolean
 TypeId.byte      // scala.Byte
@@ -932,7 +1004,7 @@ TypeId.bigDecimal // scala.BigDecimal
 
 Use these for collection and container types:
 
-```scala
+```scala mdoc:compile-only
 TypeId.option     // scala.Option
 TypeId.some       // scala.Some
 TypeId.none       // scala.None
@@ -952,7 +1024,7 @@ TypeId.chunk      // zio.blocks.chunk.Chunk
 
 Use these for java.time date and time types:
 
-```scala
+```scala mdoc:compile-only
 TypeId.dayOfWeek      // java.time.DayOfWeek
 TypeId.duration       // java.time.Duration
 TypeId.instant        // java.time.Instant
@@ -975,7 +1047,7 @@ TypeId.zonedDateTime  // java.time.ZonedDateTime
 
 Use these for java.util utility types:
 
-```scala
+```scala mdoc:compile-only
 TypeId.currency   // java.util.Currency
 TypeId.uuid       // java.util.UUID
 ```
@@ -1099,7 +1171,7 @@ val erased: TypeId.Erased = TypeId.int.erased
 
 Erased TypeIds are useful for building type registries keyed by type:
 
-```scala
+```scala mdoc:compile-only
 // Use in maps keyed by type
 val typeRegistry: Map[TypeId.Erased, String] = Map(
   TypeId.int.erased -> "Int Schema",
