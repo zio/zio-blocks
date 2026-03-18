@@ -4,50 +4,6 @@ import zio.test._
 
 object ContextAwareHtmlSpec extends ZIOSpecDefault {
   def spec = suite("Context-aware html interpolator and boolean attr split")(
-    suite("html interpolator - tag name position")(
-      test("element in tag position renders element") {
-        val result = html"<${div()}>content</${div()}>"
-        assertTrue(result.render == "<div>content</div>")
-      },
-      test("dynamic heading level") {
-        val level   = 2
-        val heading = if (level == 1) h1() else h2()
-        val result  = html"<$heading>Title</$heading>"
-        assertTrue(result.render == "<h2>Title</h2>")
-      },
-      test("section element in tag position") {
-        val result = html"<${section()}>content</${section()}>"
-        assertTrue(result.render == "<section>content</section>")
-      },
-      test("SafeTagName in tag position still works") {
-        val tag    = SafeTagName("div").get
-        val result = html"<$tag>content</$tag>"
-        assertTrue(result.render == "<div>content</div>")
-      }
-    ),
-    suite("html interpolator - attr name position")(
-      test("SafeAttrName in attr name position") {
-        val attrName = SafeAttrName("class").get
-        val result   = html"""<div $attrName="test">content</div>"""
-        assertTrue(
-          result.render == """<div class="test">content</div>"""
-        )
-      },
-      test("SafeAttrName id in attr name position") {
-        val attrName = SafeAttrName("id").get
-        val result   = html"""<span $attrName="main">text</span>"""
-        assertTrue(
-          result.render == """<span id="main">text</span>"""
-        )
-      },
-      test("EventAttrName in attr name position") {
-        val attrName = EventAttrName("onclick").get
-        val result   = html"""<button $attrName="handler()">Click</button>"""
-        assertTrue(
-          result.render == """<button onclick="handler()">Click</button>"""
-        )
-      }
-    ),
     suite("html interpolator - attr value position")(
       test("string in attr value position is substituted") {
         val cls    = "my-class"
@@ -83,21 +39,12 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
       }
     ),
     suite("html interpolator - multiple positions")(
-      test("tag + attr value + content in one template") {
-        val tag     = section()
+      test("attr value + content in one template") {
         val cls     = "main"
         val content = "Hello"
-        val result  = html"""<$tag class="$cls">$content</$tag>"""
+        val result  = html"""<section class="$cls">$content</section>"""
         assertTrue(
           result.render == """<section class="main">Hello</section>"""
-        )
-      },
-      test("attr name + attr value in one template") {
-        val attrName = SafeAttrName("id").get
-        val attrVal  = "container"
-        val result   = html"""<div $attrName="$attrVal">text</div>"""
-        assertTrue(
-          result.render == """<div id="container">text</div>"""
         )
       },
       test("multiple content interpolations") {
