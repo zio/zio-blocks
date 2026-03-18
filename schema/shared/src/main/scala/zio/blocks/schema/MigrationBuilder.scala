@@ -19,29 +19,56 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 
 /**
- * Builder for constructing a Migration[A, B] by appending MigrationActions.
- * Paths are specified via DynamicOptic (e.g. DynamicOptic.root.field("name")).
- * Selector-based API (S => A) requires macro support and is not yet implemented.
+ * Phantom type tracking which target fields have been accounted for in this
+ * builder. Populated via intersection types by selector macros (pending
+ * implementation).
  */
-final case class MigrationBuilder[A, B](actions: Chunk[MigrationAction]) {
+sealed trait BuilderState
 
-  def addField(at: DynamicOptic, value: MigrationExpr): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.AddField(at, value))
+/**
+ * Marks that a target field named `Name` has been addressed by a migration
+ * action.
+ */
+sealed trait HasField[Name <: String] extends BuilderState
 
-  def dropField(at: DynamicOptic, defaultForReverse: MigrationExpr): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.DropField(at, defaultForReverse))
+/**
+ * Builder for constructing a Migration[A, B] by appending MigrationActions.
+ *
+ * Two path-specification styles are available:
+ *   - Selector-based (preferred): `_.fieldName` lambdas converted to
+ *     DynamicOptic at compile time via MigrationBuilderVersionSpecific macros.
+ *   - Optic-based (internal): explicit `DynamicOptic` values for testing and
+ *     low-level use.
+ *
+ * The `State` phantom type parameter is intended to track which target fields
+ * have been addressed at compile time via `HasField` intersection types.
+ * Population of `State` currently requires macro support (pending); all methods
+ * preserve `State` unchanged for now.
+ */
+class MigrationBuilder[A, B, State <: BuilderState] private[schema] (val actions: Chunk[MigrationAction])
+    extends MigrationBuilderVersionSpecific[A, B, State] {
 
-  def renameField(from: DynamicOptic, to: DynamicOptic): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.RenameField(from, to))
+  def addField(at: DynamicOptic, value: MigrationExpr): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.AddField(at, value))
 
-  def transformValue(at: DynamicOptic, transform: MigrationExpr, inverseTransform: MigrationExpr): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.TransformValue(at, transform, inverseTransform))
+  def dropField(at: DynamicOptic, defaultForReverse: MigrationExpr): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.DropField(at, defaultForReverse))
 
-  def optionalize(at: DynamicOptic, defaultForReverse: MigrationExpr): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Optionalize(at, defaultForReverse))
+  def renameField(from: DynamicOptic, to: DynamicOptic): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.RenameField(from, to))
 
-  def mandate(at: DynamicOptic): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Mandate(at))
+  def transformValue(
+    at: DynamicOptic,
+    transform: MigrationExpr,
+    inverseTransform: MigrationExpr
+  ): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.TransformValue(at, transform, inverseTransform))
+
+  def optionalize(at: DynamicOptic, defaultForReverse: MigrationExpr): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.Optionalize(at, defaultForReverse))
+
+  def mandate(at: DynamicOptic): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.Mandate(at))
 
   def join(
     left: DynamicOptic,
@@ -50,8 +77,8 @@ final case class MigrationBuilder[A, B](actions: Chunk[MigrationAction]) {
     transform: MigrationExpr,
     inverseLeft: MigrationExpr,
     inverseRight: MigrationExpr
-  ): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Join(left, right, into, transform, inverseLeft, inverseRight))
+  ): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.Join(left, right, into, transform, inverseLeft, inverseRight))
 
   def split(
     from: DynamicOptic,
@@ -60,14 +87,20 @@ final case class MigrationBuilder[A, B](actions: Chunk[MigrationAction]) {
     leftExpr: MigrationExpr,
     rightExpr: MigrationExpr,
     inverseTransform: MigrationExpr
-  ): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Split(from, intoLeft, intoRight, leftExpr, rightExpr, inverseTransform))
+  ): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(
+      actions :+ MigrationAction.Split(from, intoLeft, intoRight, leftExpr, rightExpr, inverseTransform)
+    )
 
-  def renameCase(at: DynamicOptic, from: String, to: String): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.RenameCase(at, from, to))
+  def renameCase(at: DynamicOptic, from: String, to: String): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.RenameCase(at, from, to))
 
-  def changeFieldType(at: DynamicOptic, converter: MigrationExpr, inverseConverter: MigrationExpr): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.ChangeFieldType(at, converter, inverseConverter))
+  def changeFieldType(
+    at: DynamicOptic,
+    converter: MigrationExpr,
+    inverseConverter: MigrationExpr
+  ): MigrationBuilder[A, B, State] =
+    new MigrationBuilder(actions :+ MigrationAction.ChangeFieldType(at, converter, inverseConverter))
 
   def build(implicit sourceSchema: Schema[A], targetSchema: Schema[B]): Migration[A, B] =
     Migration(sourceSchema, targetSchema, DynamicMigration(actions))
@@ -79,5 +112,5 @@ final case class MigrationBuilder[A, B](actions: Chunk[MigrationAction]) {
 
 object MigrationBuilder {
 
-  def apply[A, B]: MigrationBuilder[A, B] = MigrationBuilder(Chunk.empty)
+  def apply[A, B]: MigrationBuilder[A, B, BuilderState] = new MigrationBuilder(Chunk.empty)
 }

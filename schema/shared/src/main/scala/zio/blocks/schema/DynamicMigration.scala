@@ -31,8 +31,8 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
     DynamicMigration(actions.reverse.map(MigrationAction.invert))
 
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
-      (acc, action) => acc.flatMap(DynamicMigration.applyAction(action, _))
+    actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) { (acc, action) =>
+      acc.flatMap(DynamicMigration.applyAction(action, _))
     }
 }
 
@@ -95,13 +95,13 @@ object DynamicMigration {
 
       case Join(left, right, into, transform, _, _) =>
         for {
-          lv       <- getOne(left)
-          rv       <- getOne(right)
+          lv      <- getOne(left)
+          rv      <- getOne(right)
           combined = DynamicValue.Record(("_left", lv), ("_right", rv))
-          joined   <- transform.eval(combined).left.map(e => e.copy(at = into))
-          step1    <- delete(left)
-          step2    <- step1.deleteOrFail(right).left.map(se => MigrationError(se.message, right))
-          result   <- step2.insertOrFail(into, joined).left.map(se => MigrationError(se.message, into))
+          joined  <- transform.eval(combined).left.map(e => e.copy(at = into))
+          step1   <- delete(left)
+          step2   <- step1.deleteOrFail(right).left.map(se => MigrationError(se.message, right))
+          result  <- step2.insertOrFail(into, joined).left.map(se => MigrationError(se.message, into))
         } yield result
 
       case Split(from, intoLeft, intoRight, leftExpr, rightExpr, _) =>
@@ -155,13 +155,13 @@ sealed trait MigrationAction {
 
 object MigrationAction {
 
-  final case class AddField(at: DynamicOptic, value: MigrationExpr) extends MigrationAction
+  final case class AddField(at: DynamicOptic, value: MigrationExpr)              extends MigrationAction
   final case class DropField(at: DynamicOptic, defaultForReverse: MigrationExpr) extends MigrationAction
-  final case class RenameField(from: DynamicOptic, to: DynamicOptic) extends MigrationAction
+  final case class RenameField(from: DynamicOptic, to: DynamicOptic)             extends MigrationAction
   final case class TransformValue(at: DynamicOptic, transform: MigrationExpr, inverseTransform: MigrationExpr)
       extends MigrationAction
   final case class Optionalize(at: DynamicOptic, defaultForReverse: MigrationExpr) extends MigrationAction
-  final case class Mandate(at: DynamicOptic) extends MigrationAction
+  final case class Mandate(at: DynamicOptic)                                       extends MigrationAction
 
   final case class Join(
     left: DynamicOptic,
@@ -186,27 +186,27 @@ object MigrationAction {
       extends MigrationAction
 
   final case class TransformElements(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction
-  final case class TransformKeys(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction
-  final case class TransformValues(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction
+  final case class TransformKeys(at: DynamicOptic, transform: MigrationExpr)     extends MigrationAction
+  final case class TransformValues(at: DynamicOptic, transform: MigrationExpr)   extends MigrationAction
   final case class ChangeFieldType(at: DynamicOptic, converter: MigrationExpr, inverseConverter: MigrationExpr)
       extends MigrationAction
 
   def invert(action: MigrationAction): MigrationAction =
     action match {
-      case AddField(at, value)                    => DropField(at, value)
-      case DropField(at, default)                 => AddField(at, default)
-      case RenameField(from, to)                  => RenameField(to, from)
-      case TransformValue(at, t, inv)            => TransformValue(at, inv, t)
-      case Optionalize(at, _)                     => Mandate(at)
-      case Mandate(at) =>
+      case AddField(at, value)        => DropField(at, value)
+      case DropField(at, default)     => AddField(at, default)
+      case RenameField(from, to)      => RenameField(to, from)
+      case TransformValue(at, t, inv) => TransformValue(at, inv, t)
+      case Optionalize(at, _)         => Mandate(at)
+      case Mandate(at)                =>
         Optionalize(at, MigrationExpr.Literal(DynamicValue.Variant("None", DynamicValue.Record(Chunk.empty))))
-      case Join(left, right, into, t, invL, invR)  => Split(into, left, right, invL, invR, t)
-      case Split(from, intoLeft, intoRight, lE, rE, inv) => Join(intoLeft, intoRight, from, inv, lE, rE)
-      case RenameCase(at, from, to)               => RenameCase(at, to, from)
-      case TransformCase(at, from, to, adapt)    => TransformCase(at, to, from, adapt.map(invert).reverse)
-      case TransformElements(at, _)               => action
-      case TransformKeys(at, _)                   => action
-      case TransformValues(at, _)                 => action
+      case Join(left, right, into, t, invL, invR)           => Split(into, left, right, invL, invR, t)
+      case Split(from, intoLeft, intoRight, lE, rE, inv)    => Join(intoLeft, intoRight, from, inv, lE, rE)
+      case RenameCase(at, from, to)                         => RenameCase(at, to, from)
+      case TransformCase(at, from, to, adapt)               => TransformCase(at, to, from, adapt.map(invert).reverse)
+      case TransformElements(at, _)                         => action
+      case TransformKeys(at, _)                             => action
+      case TransformValues(at, _)                           => action
       case ChangeFieldType(at, converter, inverseConverter) =>
         ChangeFieldType(at, inverseConverter, converter)
     }

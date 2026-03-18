@@ -21,8 +21,14 @@ import zio.test._
 
 object MigrationSpec extends SchemaBaseSpec {
 
-  private val root = DynamicOptic.root
+  private val root                              = DynamicOptic.root
   private def field(name: String): DynamicOptic = root.field(name)
+
+  private case class PersonV1(name: String, age: Int)
+  private case class PersonV2(fullName: String, age: Int)
+
+  private implicit val schemaPersonV1: Schema[PersonV1] = Schema.derived[PersonV1]
+  private implicit val schemaPersonV2: Schema[PersonV2] = Schema.derived[PersonV2]
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
     suite("DynamicMigration")(
@@ -42,10 +48,16 @@ object MigrationSpec extends SchemaBaseSpec {
       ),
       suite("Associativity")(
         test("(m1 ++ m2) ++ m3 and m1 ++ (m2 ++ m3) give same result") {
-          val v = DynamicValue.Record(("f", DynamicValue.int(42)))
+          val v  = DynamicValue.Record(("f", DynamicValue.int(42)))
           val m1 = DynamicMigration(Chunk.single(MigrationAction.RenameField(field("f"), field("g"))))
-          val m2 = DynamicMigration(Chunk.single(MigrationAction.TransformValue(field("g"), MigrationExpr.IntToString, MigrationExpr.StringToInt)))
-          val m3 = DynamicMigration(Chunk.single(MigrationAction.AddField(field("h"), MigrationExpr.Literal(DynamicValue.boolean(true)))))
+          val m2 = DynamicMigration(
+            Chunk.single(
+              MigrationAction.TransformValue(field("g"), MigrationExpr.IntToString, MigrationExpr.StringToInt)
+            )
+          )
+          val m3 = DynamicMigration(
+            Chunk.single(MigrationAction.AddField(field("h"), MigrationExpr.Literal(DynamicValue.boolean(true))))
+          )
           val r1 = ((m1 ++ m2) ++ m3)(v)
           val r2 = (m1 ++ (m2 ++ m3))(v)
           assertTrue(r1 == r2)
@@ -53,17 +65,22 @@ object MigrationSpec extends SchemaBaseSpec {
       ),
       suite("Structural reverse")(
         test("m.reverse.reverse.actions length equals m.actions length") {
-          val m = DynamicMigration(Chunk(
-            MigrationAction.RenameField(field("a"), field("b")),
-            MigrationAction.AddField(field("c"), MigrationExpr.Literal(DynamicValue.int(0)))
-          ))
+          val m = DynamicMigration(
+            Chunk(
+              MigrationAction.RenameField(field("a"), field("b")),
+              MigrationAction.AddField(field("c"), MigrationExpr.Literal(DynamicValue.int(0)))
+            )
+          )
           assertTrue(m.reverse.reverse.actions.length == m.actions.length)
         }
       ),
       suite("RenameField round-trip")(
         test("apply then reverse recovers original") {
-          val v = DynamicValue.Record(("firstName", DynamicValue.string("Ada")), ("lastName", DynamicValue.string("Lovelace")))
-          val m = DynamicMigration(Chunk.single(MigrationAction.RenameField(field("firstName"), field("first"))))
+          val v = DynamicValue.Record(
+            ("firstName", DynamicValue.string("Ada")),
+            ("lastName", DynamicValue.string("Lovelace"))
+          )
+          val m       = DynamicMigration(Chunk.single(MigrationAction.RenameField(field("firstName"), field("first"))))
           val applied = m(v)
           val round   = applied.flatMap(m.reverse(_))
           assertTrue(round.map(_.sortFields) == Right(v.sortFields))
@@ -72,7 +89,9 @@ object MigrationSpec extends SchemaBaseSpec {
       suite("AddField / DropField round-trip")(
         test("AddField then reverse (DropField) recovers original") {
           val v = DynamicValue.Record(("x", DynamicValue.int(1)))
-          val m = DynamicMigration(Chunk.single(MigrationAction.AddField(field("y"), MigrationExpr.Literal(DynamicValue.int(2)))))
+          val m = DynamicMigration(
+            Chunk.single(MigrationAction.AddField(field("y"), MigrationExpr.Literal(DynamicValue.int(2))))
+          )
           val applied = m(v)
           val round   = applied.flatMap(m.reverse(_))
           assertTrue(round == Right(v))
@@ -81,9 +100,11 @@ object MigrationSpec extends SchemaBaseSpec {
       suite("TransformValue round-trip")(
         test("IntToString then StringToInt recovers original") {
           val v = DynamicValue.Record(("age", DynamicValue.int(36)))
-          val m = DynamicMigration(Chunk.single(
-            MigrationAction.TransformValue(field("age"), MigrationExpr.IntToString, MigrationExpr.StringToInt)
-          ))
+          val m = DynamicMigration(
+            Chunk.single(
+              MigrationAction.TransformValue(field("age"), MigrationExpr.IntToString, MigrationExpr.StringToInt)
+            )
+          )
           val applied = m(v)
           val round   = applied.flatMap(m.reverse(_))
           assertTrue(round == Right(v))
@@ -91,8 +112,8 @@ object MigrationSpec extends SchemaBaseSpec {
       ),
       suite("RenameCase round-trip")(
         test("RenameCase then reverse recovers original") {
-          val v = DynamicValue.Variant("Active", DynamicValue.Record(("since", DynamicValue.string("2020-01-01"))))
-          val m = DynamicMigration(Chunk.single(MigrationAction.RenameCase(root, "Active", "Enabled")))
+          val v       = DynamicValue.Variant("Active", DynamicValue.Record(("since", DynamicValue.string("2020-01-01"))))
+          val m       = DynamicMigration(Chunk.single(MigrationAction.RenameCase(root, "Active", "Enabled")))
           val applied = m(v)
           val round   = applied.flatMap(m.reverse(_))
           assertTrue(round == Right(v))
@@ -107,16 +128,18 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(Migration.identity[String].apply("hello") == Right("hello"))
       },
       test("typed round-trip: RenameField via Migration[PersonV1, PersonV2]") {
-        case class PersonV1(name: String, age: Int)
-        case class PersonV2(fullName: String, age: Int)
-        implicit val schemaV1: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val schemaV2: Schema[PersonV2] = Schema.derived[PersonV2]
         val migration = MigrationBuilder[PersonV1, PersonV2]
           .renameField(field("name"), field("fullName"))
           .build
-        val p1 = PersonV1("Alice", 30)
-        val result = migration.apply(p1)
+        val result = migration.apply(PersonV1("Alice", 30))
         assertTrue(result == Right(PersonV2("Alice", 30)))
+      },
+      test("selector-based renameField: PersonV1 -> PersonV2") {
+        val migration = MigrationBuilder[PersonV1, PersonV2]
+          .renameField(_.name, _.fullName)
+          .build
+        val result = migration.apply(PersonV1("Bob", 25))
+        assertTrue(result == Right(PersonV2("Bob", 25)))
       }
     )
   )

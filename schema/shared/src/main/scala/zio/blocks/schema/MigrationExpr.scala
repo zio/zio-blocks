@@ -26,8 +26,8 @@ import java.util.regex.Pattern
 sealed trait MigrationExpr {
 
   /**
-   * Evaluates this expression with the given input (e.g. the value at a path
-   * or the root context). Returns the resulting DynamicValue or a MigrationError.
+   * Evaluates this expression with the given input (e.g. the value at a path or
+   * the root context). Returns the resulting DynamicValue or a MigrationError.
    */
   def eval(input: DynamicValue): Either[MigrationError, DynamicValue]
 }
@@ -69,7 +69,10 @@ object MigrationExpr {
           (fieldMap.get("_left"), fieldMap.get("_right")) match {
             case (Some(l), Some(r)) =>
               (l, r) match {
-                case (DynamicValue.Primitive(PrimitiveValue.String(a)), DynamicValue.Primitive(PrimitiveValue.String(b))) =>
+                case (
+                      DynamicValue.Primitive(PrimitiveValue.String(a)),
+                      DynamicValue.Primitive(PrimitiveValue.String(b))
+                    ) =>
                   Right(DynamicValue.Primitive(PrimitiveValue.String(a + separator + b)))
                 case _ =>
                   Left(MigrationError("StringConcat: expected (String, String)", DynamicOptic.root))
