@@ -205,13 +205,13 @@ case class User(id: Long, email: String)
 
 You can derive a TypeId using the `TypeId.of` macro, which works identically in both Scala 2 and Scala 3:
 
-```scala
+```scala mdoc
 val userId: TypeId[User] = TypeId.of[User]
 ```
 
 Or use implicit derivation:
 
-```scala
+```scala mdoc
 val userIdImplicit: TypeId[User] = implicitly[TypeId[User]]
 ```
 
