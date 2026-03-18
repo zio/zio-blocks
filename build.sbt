@@ -90,7 +90,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test"
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test; codegen/test"
 )
 
 addCommandAlias(
@@ -102,6 +102,14 @@ addCommandAlias(
   "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 addCommandAlias(
+  "testJS1",
+  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+)
+addCommandAlias(
+  "testJS2",
+  "schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
+)
+addCommandAlias(
   "testJS",
   "testJS1; testJS2"
 )
@@ -109,7 +117,7 @@ addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; zioGolemTools/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; zioGolemTools/doc; codegen/doc"
 )
 addCommandAlias(
   "docJS1",
@@ -118,6 +126,14 @@ addCommandAlias(
 addCommandAlias(
   "docJS2",
   "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc; zioGolemModelJS/doc; zioGolemCoreJS/doc"
+)
+addCommandAlias(
+  "docJS1",
+  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+)
+addCommandAlias(
+  "docJS2",
+  "schema-xmlJS/doc; schema-yamlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc"
 )
 addCommandAlias(
   "docJS",
@@ -146,6 +162,7 @@ lazy val root = project
     `schema-messagepack`.js,
     `schema-thrift`,
     `schema-bson`,
+    codegen,
     `schema-toon`.jvm,
     `schema-toon`.js,
     `schema-xml`.jvm,
@@ -516,6 +533,19 @@ lazy val `schema-avro` = project
     }),
     coverageMinimumStmtTotal   := 96,
     coverageMinimumBranchTotal := 91
+  )
+
+lazy val codegen = project
+  .settings(stdSettings("zio-blocks-codegen"))
+  .settings(buildInfoSettings("zio.blocks.codegen"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 75
   )
 
 lazy val `schema-thrift` = project
