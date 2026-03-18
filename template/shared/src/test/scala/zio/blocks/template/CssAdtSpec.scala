@@ -18,7 +18,7 @@ object CssAdtSpec extends ZIOSpecDefault {
              |  margin: 0;
              |}""".stripMargin
         )
-        assertTrue(raw.render.contains("body {"))
+        assertTrue(raw.render == "body {\n  margin: 0;\n}")
       }
     ),
     suite("Css.apply factory")(
@@ -111,9 +111,7 @@ object CssAdtSpec extends ZIOSpecDefault {
         )
         val rendered = sheet.render
         assertTrue(
-          rendered.contains("/*reset*/"),
-          rendered.contains("* { box-sizing: border-box; }"),
-          rendered.contains("body{margin:0;}")
+          rendered == "/*reset*/* { box-sizing: border-box; }body{margin:0;}"
         )
       }
     )

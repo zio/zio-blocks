@@ -55,7 +55,7 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes angle brackets for script safety") {
         val result = Escape.jsString("</script>")
-        assertTrue(result.contains("\\u003c"))
+        assertTrue(result == "\\u003c/script\\u003e")
       },
       test("escapes single quotes") {
         assertTrue(Escape.jsString("a'b") == "a\\'b")
@@ -65,10 +65,10 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes control characters") {
         val result = Escape.jsString("a\u0001b")
-        assertTrue(result.contains("\\u0001"))
+        assertTrue(result == "a\\u0001b")
       },
       test("escapes greater-than sign") {
-        assertTrue(Escape.jsString("a>b").contains("\\u003e"))
+        assertTrue(Escape.jsString("a>b") == "a\\u003eb")
       },
       test("jsString escapes Unicode line separators") {
         assertTrue(
@@ -94,17 +94,14 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("escapes angle brackets") {
         val result = Escape.cssString("<div>")
-        assertTrue(result.contains("\\3c ") && result.contains("\\3e "))
+        assertTrue(result == "\\3c div\\3e ")
       },
       test("escapes ampersand") {
         assertTrue(Escape.cssString("a&b") == "a\\26 b")
       },
       test("cssString with all escape types at once") {
         val result = Escape.cssString("\\\"'<>&")
-        assertTrue(
-          result.contains("\\\\"),
-          result.contains("\\\"")
-        )
+        assertTrue(result == "\\\\\\\"\\\'\\3c \\3e \\26 ")
       }
     )
   )

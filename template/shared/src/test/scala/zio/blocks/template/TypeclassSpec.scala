@@ -93,7 +93,7 @@ object TypeclassSpec extends ZIOSpecDefault {
         }
         val point  = Point(1, 2)
         val result = ToJs[Point].toJs(point)
-        assertTrue(result.contains("\"x\""), result.contains("1"), result.contains("\"y\""), result.contains("2"))
+        assertTrue(result == "{\"x\":1,\"y\":2}")
       }
     ),
     suite("ToCss")(
@@ -317,7 +317,7 @@ object TypeclassSpec extends ZIOSpecDefault {
     ),
     suite("CssColor")(
       test("Hex renders with hash") {
-        assertTrue(CssColor.Hex("ff0000").map(_.render).contains("#ff0000"))
+        assertTrue(CssColor.Hex("ff0000").map(_.render) == Some("#ff0000"))
       },
       test("Hex validates format") {
         assertTrue(CssColor.Hex("invalid").isEmpty)
@@ -332,7 +332,7 @@ object TypeclassSpec extends ZIOSpecDefault {
         assertTrue(CssColor.Hsl(120, 50, 50).render == "hsl(120,50%,50%)")
       },
       test("Named validates against whitelist") {
-        assertTrue(CssColor.Named("red").map(_.render).contains("red"))
+        assertTrue(CssColor.Named("red").map(_.render) == Some("red"))
       },
       test("Named rejects invalid names") {
         assertTrue(CssColor.Named("notacolor").isEmpty)
