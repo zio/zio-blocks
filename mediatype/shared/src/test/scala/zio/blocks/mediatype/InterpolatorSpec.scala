@@ -4,40 +4,40 @@ import zio.test._
 import zio.test.Assertion._
 
 object InterpolatorSpec extends MediaTypeBaseSpec {
-  def spec = suite("mediaType interpolator")(
+  def spec = suite("mt interpolator")(
     suite("valid media types")(
       test("parses simple type") {
-        val mt = mediaType"application/json"
-        assertTrue(mt.fullType == "application/json")
+        val result = mt"application/json"
+        assertTrue(result.fullType == "application/json")
       },
       test("returns predefined instance for known types") {
-        val mt = mediaType"application/json"
-        assertTrue(mt eq MediaTypes.application.json)
+        val result = mt"application/json"
+        assertTrue(result eq MediaTypes.application.json)
       },
       test("parses type with parameters") {
-        val mt = mediaType"text/html; charset=utf-8"
+        val result = mt"text/html; charset=utf-8"
         assertTrue(
-          mt.mainType == "text",
-          mt.subType == "html",
-          mt.parameters == Map("charset" -> "utf-8")
+          result.mainType == "text",
+          result.subType == "html",
+          result.parameters == Map("charset" -> "utf-8")
         )
       },
       test("creates new instance for unknown types") {
-        val mt = mediaType"custom/unknown"
+        val result = mt"custom/unknown"
         assertTrue(
-          mt.mainType == "custom",
-          mt.subType == "unknown"
+          result.mainType == "custom",
+          result.subType == "unknown"
         )
       },
       test("handles wildcards") {
-        val mt = mediaType"*/*"
-        assertTrue(mt.fullType == "*/*")
+        val result = mt"*/*"
+        assertTrue(result.fullType == "*/*")
       },
       test("handles complex subtypes") {
-        val mt = mediaType"text/vnd.api+json"
+        val result = mt"text/vnd.api+json"
         assertTrue(
-          mt.mainType == "text",
-          mt.subType == "vnd.api+json"
+          result.mainType == "text",
+          result.subType == "vnd.api+json"
         )
       }
     ),
@@ -46,7 +46,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType""
+          mt""
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: cannot be empty"))))
       },
@@ -54,7 +54,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"applicationjson"
+          mt"applicationjson"
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: must contain '/' separator"))))
       },
@@ -62,7 +62,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"/json"
+          mt"/json"
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
@@ -70,7 +70,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"application/"
+          mt"application/"
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: subtype cannot be empty"))))
       },
@@ -78,7 +78,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"   "
+          mt"   "
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: must contain '/' separator"))))
       },
@@ -86,7 +86,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"/"
+          mt"/"
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
@@ -94,7 +94,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"  /json"
+          mt"  /json"
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: main type cannot be empty"))))
       },
@@ -102,7 +102,7 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
         typeCheck {
           """
           import zio.blocks.mediatype._
-          mediaType"text/  "
+          mt"text/  "
           """
         }.map(assert(_)(isLeft(containsString("Invalid media type: subtype cannot be empty"))))
       },
@@ -111,9 +111,9 @@ object InterpolatorSpec extends MediaTypeBaseSpec {
           """
           import zio.blocks.mediatype._
           val x = "json"
-          mediaType"application/$x"
+          mt"application/$x"
           """
-        }.map(assert(_)(isLeft(containsString("mediaType interpolator does not support variable interpolation"))))
+        }.map(assert(_)(isLeft(containsString("mt interpolator does not support variable interpolation"))))
       }
     )
   )

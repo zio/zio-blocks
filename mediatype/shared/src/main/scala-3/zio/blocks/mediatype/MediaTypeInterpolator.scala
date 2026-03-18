@@ -21,7 +21,7 @@ import scala.quoted.*
 trait MediaTypeInterpolator {
 
   extension (inline ctx: StringContext) {
-    inline def mediaType(inline args: Any*): MediaType =
+    inline def mt(inline args: Any*): MediaType =
       ${ MediaTypeInterpolatorMacros.apply('ctx, 'args) }
   }
 }
@@ -34,16 +34,16 @@ private[mediatype] object MediaTypeInterpolatorMacros {
       case '{ StringContext(${ Varargs(parts) }: _*) } =>
         parts.map {
           case Expr(s: String) => s
-          case _               => report.errorAndAbort("mediaType interpolator requires literal strings only")
+          case _               => report.errorAndAbort("mt interpolator requires literal strings only")
         }
       case _ =>
-        report.errorAndAbort("mediaType interpolator requires literal strings only")
+        report.errorAndAbort("mt interpolator requires literal strings only")
     }
 
     args match {
       case Varargs(Nil) => ()
       case Varargs(_)   =>
-        report.errorAndAbort("mediaType interpolator does not support variable interpolation")
+        report.errorAndAbort("mt interpolator does not support variable interpolation")
       case _ => ()
     }
 

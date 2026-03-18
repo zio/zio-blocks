@@ -42,6 +42,20 @@ final case class MediaType(
 }
 
 object MediaType {
+  lazy val any: MediaType          = MediaTypes.any
+  val application: MediaTypes.application.type   = MediaTypes.application
+  val audio: MediaTypes.audio.type               = MediaTypes.audio
+  val chemical: MediaTypes.chemical.type         = MediaTypes.chemical
+  val font: MediaTypes.font.type                 = MediaTypes.font
+  val image: MediaTypes.image.type               = MediaTypes.image
+  val message: MediaTypes.message.type           = MediaTypes.message
+  val model: MediaTypes.model.type               = MediaTypes.model
+  val multipart: MediaTypes.multipart.type       = MediaTypes.multipart
+  val text: MediaTypes.text.type                 = MediaTypes.text
+  val video: MediaTypes.video.type               = MediaTypes.video
+  val x_conference: MediaTypes.x_conference.type = MediaTypes.x_conference
+  val x_shader: MediaTypes.x_shader.type         = MediaTypes.x_shader
+
   private lazy val contentTypeMap: Map[String, MediaType] =
     MediaTypes.allMediaTypes.map(m => m.fullType.toLowerCase -> m).toMap
 

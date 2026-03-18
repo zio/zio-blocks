@@ -6,26 +6,26 @@ import scala.reflect.macros.blackbox
 trait MediaTypeInterpolator {
 
   implicit class MediaTypeStringContext(val sc: StringContext) {
-    def mediaType(args: Any*): MediaType = macro MediaTypeMacros.mediaTypeImpl
+    def mt(args: Any*): MediaType = macro MediaTypeMacros.mtImpl
   }
 }
 
 private[mediatype] object MediaTypeMacros {
 
-  def mediaTypeImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[MediaType] = {
+  def mtImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[MediaType] = {
     import c.universe._
 
     val parts = c.prefix.tree match {
       case Apply(_, List(Apply(_, rawParts))) =>
         rawParts.map {
           case Literal(Constant(part: String)) => part
-          case _                               => c.abort(c.enclosingPosition, "mediaType interpolator requires literal strings only")
+          case _                               => c.abort(c.enclosingPosition, "mt interpolator requires literal strings only")
         }
-      case _ => c.abort(c.enclosingPosition, "mediaType interpolator requires literal strings only")
+      case _ => c.abort(c.enclosingPosition, "mt interpolator requires literal strings only")
     }
 
     if (args.nonEmpty) {
-      c.abort(c.enclosingPosition, "mediaType interpolator does not support variable interpolation")
+      c.abort(c.enclosingPosition, "mt interpolator does not support variable interpolation")
     }
 
     val mediaTypeStr = parts.mkString
