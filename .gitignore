@@ -63,3 +63,8 @@ github-data/
 SCOPE_CONSOLIDATION_PLAN.md
 shell.nix
 scope-examples/src/main/scala/scope/examples/MyApp.scala
+
+# Code search indexes
+.ck/
+.ckignore
+.cqs/
