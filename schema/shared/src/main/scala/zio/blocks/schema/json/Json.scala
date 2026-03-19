@@ -2339,7 +2339,8 @@ object Json {
         new String(in.readString())
       } else if (x == 'f' || x == 't') {
         in.rollbackToken()
-        Boolean.apply(in.readBoolean())
+        if (in.readBoolean()) Json.True
+        else Json.False
       } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
         new Number(in.readBigDecimal())

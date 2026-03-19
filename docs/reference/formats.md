@@ -120,15 +120,9 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// Using JsonEncoder/JsonDecoder
-val jsonEncoder = JsonEncoder[Person]
-val jsonDecoder = JsonDecoder[Person]
-
 val person = Person("Alice", 30)
-val json: Json = jsonEncoder.encode(person)
-// {"name":"Alice","age":30}
-
-val decoded: Either[SchemaError, Person] = jsonDecoder.decode(json)
+val bytes: Array[Byte] = person.toJsonBytes
+val decoded: Either[SchemaError, Person] = bytes.fromJson[Person]
 ```
 
 ## Avro Format
