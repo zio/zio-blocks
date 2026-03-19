@@ -614,18 +614,16 @@ nestedPath.asString
 
 **When to use TermPath:** In TypeRepr expressions and code generators that need to represent the compile-time path to a value. While singleton types are erased at runtime, TermPath captures this distinction for reflection and metaprogramming scenarios.
 
-### Predefined Owners
+### Constructing Owners for Common Packages
 
-Common package namespaces are available as predefined owners (used internally by TypeId):
+To construct owners for common packages, use `Owner.fromPackagePath`:
 
-| Owner                            | Package                      |
-|----------------------------------|------------------------------|
-| `Owner.scala`                    | `scala`                      |
-| `Owner.scalaUtil`                | `scala.util`                 |
-| `Owner.scalaCollectionImmutable` | `scala.collection.immutable` |
-| `Owner.javaLang`                 | `java.lang`                  |
-| `Owner.javaTime`                 | `java.time`                  |
-| `Owner.javaUtil`                 | `java.util`                  |
+```scala mdoc
+Owner.fromPackagePath("scala")
+Owner.fromPackagePath("scala.collection.immutable")
+Owner.fromPackagePath("java.lang")
+Owner.fromPackagePath("java.time")
+```
 
 ## TypeRepr — Type Expressions
 
