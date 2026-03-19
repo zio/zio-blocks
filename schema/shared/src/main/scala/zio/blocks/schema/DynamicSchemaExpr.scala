@@ -175,6 +175,12 @@ object DynamicSchemaExpr {
 
         case DynamicOptic.Node.Wrapped =>
           walkPath(current, nodes, idx + 1)
+
+        case _: DynamicOptic.Node.TypeSearch =>
+          Left(SchemaError.conversionFailed(Nil, s"TypeSearch nodes are not supported in schema expressions"))
+
+        case _: DynamicOptic.Node.SchemaSearch =>
+          Left(SchemaError.conversionFailed(Nil, s"SchemaSearch nodes are not supported in schema expressions"))
       }
     }
   }
