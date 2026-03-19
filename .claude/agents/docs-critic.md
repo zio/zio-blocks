@@ -14,7 +14,7 @@ You will receive:
 1. A documentation file path to review
 2. A list of relevant Scala source file paths (read them yourself)
 3. A list of related documentation file paths (read them yourself)
-4. (Optional) Results from mechanical checks already performed — skip those areas
+4. (Optional) Results from mechanical checks already performed — skip the specific checks that were already performed, not the entire dimension
 
 ## Review Dimensions
 
@@ -60,6 +60,7 @@ Rate each finding:
 ## Report Format
 
 You MUST structure your response exactly like this:
+Valid dimension tags: `content-quality`, `accuracy`, `completeness`, `consistency`
 
 ## Docs Critic Report: <filename>
 
