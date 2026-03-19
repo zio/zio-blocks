@@ -397,7 +397,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.toOption.get.contains("Added[(\"age\" : String)]")
+            result.left.exists(_.contains("Added[(\"age\" : String)]"))
           )
         }
       },
@@ -418,7 +418,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.toOption.get.contains("Dropped[(\"age\" : String)]")
+            result.left.exists(_.contains("Dropped[(\"age\" : String)]"))
           )
         }
       },
@@ -438,7 +438,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.toOption.get.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]")
+            result.left.exists(_.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]"))
           )
         }
       },
@@ -459,7 +459,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.toOption.get.contains("Transformed[(\"age\" : String), (\"age\" : String)]")
+            result.left.exists(_.contains("Transformed[(\"age\" : String), (\"age\" : String)]"))
           )
         }
       },
@@ -482,8 +482,8 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.toOption.get.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]"),
-            result.swap.toOption.get.contains("Added[(\"email\" : String)]")
+            result.left.exists(_.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]")),
+            result.left.exists(_.contains("Added[(\"email\" : String)]"))
           )
         }
       }

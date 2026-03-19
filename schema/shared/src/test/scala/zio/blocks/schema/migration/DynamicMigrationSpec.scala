@@ -146,12 +146,13 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(m(input).flatMap(m.reverse(_)) == Right(input))
       },
 
-      test("semantic inverse for optionalize/mandate") {
-        // Start with a required value, optionalize wraps in Some, mandate unwraps
+      test("semantic inverse for optionalize is irreversible") {
+        // Optionalize is irreversible because there's no way to recover the original
+        // required value from an optional one without a default
         val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val m     = DynamicMigration.single(MigrationAction.Optionalize(DynamicOptic.root))
-        // Optionalize.reverse is Mandate with empty default
-        assertTrue(m(input).flatMap(m.reverse(_)) == Right(input))
+        // Optionalize.reverse is Irreversible
+        assertTrue(m(input).flatMap(m.reverse(_)).isLeft)
       },
 
       test("semantic inverse for rename at nested path") {
@@ -1026,25 +1027,23 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           DynamicOptic.root.field("myField"),
           dynamicLiteral(1)
         )
-        assertTrue(action.fieldName == "myField")
+        assertTrue(action.fieldName == Some("myField"))
       },
 
-      test("AddField.fieldName throws on invalid path (root only)") {
+      test("AddField.fieldName returns None on invalid path (root only)") {
         val action = MigrationAction.AddField(
           DynamicOptic.root,
           dynamicLiteral(1)
         )
-        val result = scala.util.Try(action.fieldName)
-        assertTrue(result.isFailure)
+        assertTrue(action.fieldName == None)
       },
 
-      test("AddField.fieldName throws on non-Field path node") {
+      test("AddField.fieldName returns None on non-Field path node") {
         val action = MigrationAction.AddField(
           DynamicOptic(Vector(DynamicOptic.Node.Case("SomeCase"))),
           dynamicLiteral(1)
         )
-        val result = scala.util.Try(action.fieldName)
-        assertTrue(result.isFailure)
+        assertTrue(action.fieldName == None)
       },
 
       test("DropField.fieldName extracts field name from path") {
@@ -1052,45 +1051,41 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           DynamicOptic.root.field("myField"),
           dynamicLiteral(1)
         )
-        assertTrue(action.fieldName == "myField")
+        assertTrue(action.fieldName == Some("myField"))
       },
 
-      test("DropField.fieldName throws on invalid path (root only)") {
+      test("DropField.fieldName returns None on invalid path (root only)") {
         val action = MigrationAction.DropField(
           DynamicOptic.root,
           dynamicLiteral(1)
         )
-        val result = scala.util.Try(action.fieldName)
-        assertTrue(result.isFailure)
+        assertTrue(action.fieldName == None)
       },
 
-      test("DropField.fieldName throws on non-Field path node") {
+      test("DropField.fieldName returns None on non-Field path node") {
         val action = MigrationAction.DropField(
           DynamicOptic(Vector(DynamicOptic.Node.Elements)),
           dynamicLiteral(1)
         )
-        val result = scala.util.Try(action.fieldName)
-        assertTrue(result.isFailure)
+        assertTrue(action.fieldName == None)
       },
 
       test("Rename.from extracts field name from path") {
         val action = MigrationAction.Rename(DynamicOptic.root.field("oldName"), "newName")
-        assertTrue(action.from == "oldName")
+        assertTrue(action.from == Some("oldName"))
       },
 
-      test("Rename.from throws on invalid path (root only)") {
+      test("Rename.from returns None on invalid path (root only)") {
         val action = MigrationAction.Rename(DynamicOptic.root, "newName")
-        val result = scala.util.Try(action.from)
-        assertTrue(result.isFailure)
+        assertTrue(action.from == None)
       },
 
-      test("Rename.from throws on non-Field path node") {
+      test("Rename.from returns None on non-Field path node") {
         val action = MigrationAction.Rename(
           DynamicOptic(Vector(DynamicOptic.Node.MapKeys)),
           "newName"
         )
-        val result = scala.util.Try(action.from)
-        assertTrue(result.isFailure)
+        assertTrue(action.from == None)
       },
 
       test("isEmpty on empty migration") {
@@ -1655,7 +1650,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("reverse of Rename swaps from and to") {
         val action   = MigrationAction.Rename(DynamicOptic.root.field("old"), "new")
         val reversed = action.reverse.asInstanceOf[MigrationAction.Rename]
-        assertTrue(reversed.to == "old" && reversed.from == "new")
+        assertTrue(reversed.to == "old" && reversed.from == Some("new"))
       },
 
       test("reverse of TransformValue is Irreversible") {
@@ -1674,9 +1669,9 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(action.reverse.isInstanceOf[MigrationAction.Optionalize])
       },
 
-      test("reverse of Optionalize is Mandate") {
+      test("reverse of Optionalize is Irreversible") {
         val action = MigrationAction.Optionalize(DynamicOptic.root)
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Mandate])
+        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
       test("reverse of RenameCase swaps from and to") {
@@ -1993,12 +1988,13 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
       },
 
-      test("optionalize then mandate round-trips") {
+      test("optionalize reverse is irreversible") {
         val input  = DynamicValue.Primitive(PrimitiveValue.String("test"))
         val opt    = DynamicMigration.single(MigrationAction.Optionalize(DynamicOptic.root))
         val mand   = opt.reverse
         val result = opt(input).flatMap(mand(_))
-        assertTrue(result == Right(input))
+        // Optionalize.reverse is now Irreversible, so it always fails
+        assertTrue(result.isLeft)
       }
     ),
 
