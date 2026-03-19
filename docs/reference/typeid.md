@@ -313,6 +313,7 @@ originId.defKind
 | `TypeAlias`                                          | Type aliases (`type Foo = Bar`) |
 | `OpaqueType(publicBounds)`                           | Opaque types                    |
 | `AbstractType`                                       | Abstract type members           |
+| `Unknown`                                            | Unclassified or unresolvable type definition |
 
 Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
 
