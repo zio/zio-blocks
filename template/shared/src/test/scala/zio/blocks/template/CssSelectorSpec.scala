@@ -147,20 +147,20 @@ object CssSelectorSpec extends ZIOSpecDefault {
     ),
     suite("CssSelectable on Dom.Element")(
       test("Element has selector") {
-        val el = div()
+        val el = div
         assertTrue(el.selector == CssSelector.Element("div"))
       },
       test("Element hover") {
-        val el = div()
+        val el = div
         assertTrue(el.hover.render == "div:hover")
       },
       test("Element child combinator") {
-        val result = div().child(span())
+        val result = div.child(span)
         assertTrue(result.render == "div > span")
       },
       test("combined or selector on elements") {
-        val d = div()
-        val p = zio.blocks.template.p()
+        val d = div
+        val p = zio.blocks.template.p
         assertTrue((d | p).render == "div, p")
       }
     ),
