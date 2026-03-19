@@ -1085,14 +1085,14 @@ lazy val `streams-benchmark` = project
     libraryDependencies ++= Seq(
       // fs2 — pull-based functional streams (Cats Effect)
       "co.fs2"        %% "fs2-core"    % "3.13.0",
-      "org.typelevel" %% "cats-effect" % "3.5.7",
+      "org.typelevel" %% "cats-effect" % "3.7.0",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
-      "org.apache.pekko" %% "pekko-stream" % "1.1.3",
+      "org.apache.pekko" %% "pekko-stream" % "1.1.5",
       // Kyo — algebraic effect streams (Scala 3 only)
       "io.getkyo" %% "kyo-prelude" % "0.19.0",
       "io.getkyo" %% "kyo-core"    % "0.19.0",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.2"
+      "com.softwaremill.ox" %% "core" % "1.0.4"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
