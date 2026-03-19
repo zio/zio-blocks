@@ -19,20 +19,27 @@ When to use `TypeId` vs alternatives:
 The `TypeId` trait exposes the type's structure through a rich set of properties and predicates:
 
 ```scala
+// Simplified — some members shown here are derived from abstract members
 sealed trait TypeId[A <: AnyKind] {
+  // Abstract members
   def name: String
-  def fullName: String
   def owner: Owner
-  def arity: Int
   def typeParams: List[TypeParam]
   def typeArgs: List[TypeRepr]
+  def defKind: TypeDefKind
+  def annotations: List[Annotation]
 
-  def isCaseClass: Boolean
-  def isSealed: Boolean
-  def isAlias: Boolean
-  // ... many more properties
+  // Derived properties
+  final def fullName: String     // owner.asString + "." + name
+  final def arity: Int           // typeParams.size
+  final def isCaseClass: Boolean
+  final def isSealed: Boolean
+  final def isAlias: Boolean
+  // ... many more derived predicates
 }
 ```
+
+> In Scala 3, `A` is bounded by `AnyKind` to support higher-kinded types. In Scala 2, the bound is omitted (`sealed trait TypeId[A]`).
 
 Derive a `TypeId` for any type using the `TypeId.of` macro and then inspect the type's structure at runtime:
 
