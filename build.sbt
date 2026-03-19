@@ -102,14 +102,6 @@ addCommandAlias(
   "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; zioGolemModelJS/test; zioGolemCoreJS/test"
 )
 addCommandAlias(
-  "testJS1",
-  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
-)
-addCommandAlias(
-  "testJS2",
-  "schema-xmlJS/test; schema-yamlJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
-)
-addCommandAlias(
   "testJS",
   "testJS1; testJS2"
 )
@@ -126,14 +118,6 @@ addCommandAlias(
 addCommandAlias(
   "docJS2",
   "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc; zioGolemModelJS/doc; zioGolemCoreJS/doc"
-)
-addCommandAlias(
-  "docJS1",
-  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
-)
-addCommandAlias(
-  "docJS2",
-  "schema-xmlJS/doc; schema-yamlJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; openapiJS/doc"
 )
 addCommandAlias(
   "docJS",
