@@ -59,11 +59,11 @@ id.isCaseClass
 
 ## Motivation
 
-### Why TypeId Exists
+### How TypeId Differs from Existing Solutions
 
-In Scala, type information is erased at runtime — the JVM and JavaScript runtimes do not preserve generic type parameters or compile-time type structure. This erasure makes it difficult to implement universal serialization (JSON, binary formats, XML, YAML), code generation, and schema-based transformations that rely on full type knowledge.
+Standard approaches to preserving type information at runtime — `ClassTag`, `TypeTag` (Scala 2), `TypeTest` (Scala 3) — each have limitations. `ClassTag` loses generic type arguments. `TypeTag` depends on `scala-reflect` and is unavailable on Scala.js. `TypeTest` only answers "is this value an instance of T?" without exposing type structure. None of them distinguish opaque types from their underlying representation.
 
-`TypeId[A]` solves this problem by capturing and preserving complete type metadata at compile time, making it available as a pure data structure at runtime. This metadata includes the type's name, package location, type parameters, variance, parent types, annotations, and classification (case class, sealed trait, enum, etc.).
+TypeId takes a different approach: the `TypeId.of` macro captures type metadata at compile time and stores it as a plain, immutable data structure — no runtime reflection, no platform-specific APIs. This makes it suitable as a foundation for cross-platform schema systems, code generators, and type-indexed registries.
 
 ### Real-World Use Cases
 
