@@ -1084,7 +1084,7 @@ lazy val `streams-benchmark` = project
     },
     libraryDependencies ++= Seq(
       // fs2 — pull-based functional streams (Cats Effect)
-      "co.fs2"        %% "fs2-core"    % "3.11.0",
+      "co.fs2"        %% "fs2-core"    % "3.13.0",
       "org.typelevel" %% "cats-effect" % "3.5.7",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.1.3",
