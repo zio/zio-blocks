@@ -806,23 +806,9 @@ object Email {
 
 ### Schema Derivation
 
-The `Deriver` trait receives TypeId for each node in the schema:
+The `Deriver` trait receives a `TypeId` for each node in the schema. Methods like `deriveRecord` and `deriveVariant` include a `typeId: TypeId[A]` parameter alongside fields/cases, bindings, documentation, modifiers, and more. This lets you inspect the type's structure, annotations, and relationships when generating code.
 
-```scala
-trait Deriver[TC[_]] {
-  def deriveRecord[A](
-    typeId: TypeId[A],
-    fields: => Chunk[Deriver.Field[TC, A, _]]
-  ): TC[A]
-
-  def deriveVariant[A](
-    typeId: TypeId[A],
-    cases: => Chunk[Deriver.Case[TC, A, _]]
-  ): TC[A]
-}
-```
-
-Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code. Note: The actual `Deriver` API includes additional parameters like `binding`, `doc`, and `modifiers` — see the source for the complete signature.
+For details on the full `Deriver` API and how to implement custom derivers, see the [Type Class Derivation](type-class-derivation.md) reference.
 
 ## Predefined TypeIds
 
