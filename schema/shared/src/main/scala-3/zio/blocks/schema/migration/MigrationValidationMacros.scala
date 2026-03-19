@@ -4,15 +4,15 @@ import scala.quoted.*
 
 object MigrationValidationMacros {
 
-  def validateMigration[A: Type, B: Type, SH: Type, TP: Type](using
+  def validateMigration[A: Type, B: Type, CS: Type](using
     Quotes
-  ): Expr[MigrationComplete[A, B, SH, TP]] = {
+  ): Expr[MigrationComplete[A, B, CS]] = {
     import quotes.reflect.*
 
-    val sourceFields   = extractFieldNamesWithNested[A]("")
-    val targetFields   = extractFieldNamesWithNested[B]("")
-    val handledFields  = extractIntersectionElements[SH]
-    val providedFields = extractIntersectionElements[TP]
+    val sourceFields = extractFieldNamesWithNested[A]("")
+    val targetFields = extractFieldNamesWithNested[B]("")
+
+    val (handledFields, providedFields) = extractHandledAndProvided[CS]
 
     val autoMapped = computeAutoMappedWithNested[A, B]("")
 
@@ -46,7 +46,69 @@ object MigrationValidationMacros {
       report.errorAndAbort(errors.toString)
     }
 
-    '{ MigrationComplete.unsafeCreate[A, B, SH, TP] }
+    '{ MigrationComplete.unsafeCreate[A, B, CS] }
+  }
+
+  private def extractHandledAndProvided[CS: Type](using Quotes): (Set[String], Set[String]) = {
+    import quotes.reflect.*
+
+    var handled  = Set.empty[String]
+    var provided = Set.empty[String]
+
+    def extract(tpe: TypeRepr): Unit = {
+      val dealiased = tpe.dealias
+      dealiased match {
+        case AndType(left, right) =>
+          extract(left)
+          extract(right)
+        case t if t =:= TypeRepr.of[Any] => ()
+        case AppliedType(tycon, args)    =>
+          tycon.typeSymbol.name match {
+            case "Added" =>
+              extractStringFromType(args.head).foreach(n => provided += n)
+            case "Dropped" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+            case "Renamed" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "Transformed" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "Mandated" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "Optionalized" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "TypeChanged" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "Migrated" =>
+              extractStringFromType(args.head).foreach { n =>
+                handled += n
+                provided += n
+              }
+            case "FieldName" =>
+              extractStringFromType(args.head).foreach { n =>
+                handled += n
+                provided += n
+              }
+            case _ => ()
+          }
+        case _ => ()
+      }
+    }
+
+    extract(TypeRepr.of[CS])
+    (handled, provided)
+  }
+
+  private def extractStringFromType(using q: Quotes)(tpe: q.reflect.TypeRepr): Option[String] = {
+    import q.reflect.*
+    tpe.dealias match {
+      case ConstantType(StringConstant(s)) => Some(s)
+      case _                               => None
+    }
   }
 
   private def extractFieldNamesWithNested[T: Type](prefix: String)(using Quotes): Set[String] = {
@@ -87,24 +149,6 @@ object MigrationValidationMacros {
     } else {
       Set.empty
     }
-  }
-
-  private def extractIntersectionElements[T: Type](using Quotes): Set[String] = {
-    import quotes.reflect.*
-
-    def extract(tpe: TypeRepr): Set[String] = {
-      val dealiased = tpe.dealias
-      dealiased match {
-        case AndType(left, right)                                                    => extract(left) ++ extract(right)
-        case ConstantType(StringConstant(s))                                         => Set(s)
-        case t if t =:= TypeRepr.of[Any]                                             => Set.empty
-        case AppliedType(tycon, List(field)) if tycon.typeSymbol.name == "FieldName" =>
-          extract(field)
-        case _ => Set.empty
-      }
-    }
-
-    extract(TypeRepr.of[T])
   }
 
   private def computeAutoMappedWithNested[A: Type, B: Type](prefix: String)(using Quotes): Set[String] = {

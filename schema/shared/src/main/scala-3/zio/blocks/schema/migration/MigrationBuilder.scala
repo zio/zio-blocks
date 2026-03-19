@@ -7,7 +7,16 @@ import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 // By wrapping in FieldName[N], the type argument is preserved when using appliedTo.
 sealed trait FieldName[N <: String & Singleton]
 
-final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
+sealed trait Added[N <: String & Singleton]
+sealed trait Dropped[N <: String & Singleton]
+sealed trait Renamed[From <: String & Singleton, To <: String & Singleton]
+sealed trait Transformed[From <: String & Singleton, To <: String & Singleton]
+sealed trait Mandated[Source <: String & Singleton, Target <: String & Singleton]
+sealed trait Optionalized[Source <: String & Singleton, Target <: String & Singleton]
+sealed trait TypeChanged[Source <: String & Singleton, Target <: String & Singleton]
+sealed trait Migrated[Name <: String & Singleton]
+
+final class MigrationBuilder[A, B, Changeset](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
   private[migration] val actions: Vector[MigrationAction]
@@ -16,60 +25,60 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   transparent inline def addField(
     inline target: B => Any,
     default: SchemaExpr[_, _]
-  ) = ${ MigrationBuilderMacros.addFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'target, 'default) }
+  ) = ${ MigrationBuilderMacros.addFieldImpl[A, B, Changeset]('this, 'target, 'default) }
 
   transparent inline def dropField(
     inline source: A => Any,
     defaultForReverse: SchemaExpr[_, _]
-  ) = ${ MigrationBuilderMacros.dropFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'source, 'defaultForReverse) }
+  ) = ${ MigrationBuilderMacros.dropFieldImpl[A, B, Changeset]('this, 'source, 'defaultForReverse) }
 
   transparent inline def renameField(
     inline from: A => Any,
     inline to: B => Any
-  ) = ${ MigrationBuilderMacros.renameFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'from, 'to) }
+  ) = ${ MigrationBuilderMacros.renameFieldImpl[A, B, Changeset]('this, 'from, 'to) }
 
   transparent inline def transformField(
     inline from: A => Any,
     inline to: B => Any,
     transform: SchemaExpr[_, _]
-  ) = ${ MigrationBuilderMacros.transformFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'from, 'to, 'transform) }
+  ) = ${ MigrationBuilderMacros.transformFieldImpl[A, B, Changeset]('this, 'from, 'to, 'transform) }
 
   transparent inline def mandateField(
     inline source: A => Option[?],
     inline target: B => Any,
     default: SchemaExpr[_, _]
   ) = ${
-    MigrationBuilderMacros.mandateFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'source, 'target, 'default)
+    MigrationBuilderMacros.mandateFieldImpl[A, B, Changeset]('this, 'source, 'target, 'default)
   }
 
   transparent inline def optionalizeField(
     inline source: A => Any,
     inline target: B => Option[?]
-  ) = ${ MigrationBuilderMacros.optionalizeFieldImpl[A, B, SourceHandled, TargetProvided]('this, 'source, 'target) }
+  ) = ${ MigrationBuilderMacros.optionalizeFieldImpl[A, B, Changeset]('this, 'source, 'target) }
 
   transparent inline def changeFieldType(
     inline source: A => Any,
     inline target: B => Any,
     converter: SchemaExpr[_, _]
   ) = ${
-    MigrationBuilderMacros.changeFieldTypeImpl[A, B, SourceHandled, TargetProvided]('this, 'source, 'target, 'converter)
+    MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]('this, 'source, 'target, 'converter)
   }
 
   def renameCase(
     from: String,
     to: String
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
+  ): MigrationBuilder[A, B, Changeset] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))
 
   def transformCase[CaseA, CaseB](
     caseName: String
   )(
-    caseMigration: MigrationBuilder[CaseA, CaseB, Any, Any] => MigrationBuilder[CaseA, CaseB, ?, ?]
+    caseMigration: MigrationBuilder[CaseA, CaseB, Any] => MigrationBuilder[CaseA, CaseB, ?]
   )(using
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any, Any](
+  ): MigrationBuilder[A, B, Changeset] = {
+    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any](
       caseSourceSchema,
       caseTargetSchema,
       Vector.empty
@@ -85,7 +94,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   inline def transformElements(
     inline at: A => Iterable[?],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+  ): MigrationBuilder[A, B, Changeset] = {
     val path = SelectorMacros.toPath[A, Iterable[?]](at)
     new MigrationBuilder(
       sourceSchema,
@@ -97,7 +106,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   inline def transformKeys(
     inline at: A => Map[?, ?],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+  ): MigrationBuilder[A, B, Changeset] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
     new MigrationBuilder(
       sourceSchema,
@@ -109,7 +118,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   inline def transformValues(
     inline at: A => Map[?, ?],
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
+  ): MigrationBuilder[A, B, Changeset] = {
     val path = SelectorMacros.toPath[A, Map[?, ?]](at)
     new MigrationBuilder(
       sourceSchema,
@@ -122,7 +131,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     inline selector: A => F1,
     migration: Migration[F1, F2]
   ) = ${
-    MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
+    MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, Changeset](
       'this,
       'selector,
       'migration
@@ -133,7 +142,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   transparent inline def migrateField[F1, F2](
     inline selector: A => F1
   )(using migration: Migration[F1, F2]) = ${
-    MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided](
+    MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, Changeset](
       'this,
       'selector,
       'migration
@@ -141,7 +150,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   }
 
   inline def build(using
-    ev: MigrationComplete[A, B, SourceHandled, TargetProvided]
+    ev: MigrationComplete[A, B, Changeset]
   ): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
@@ -153,19 +162,19 @@ object MigrationBuilder {
   def apply[A, B](using
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
-  ): MigrationBuilder[A, B, Any, Any] =
+  ): MigrationBuilder[A, B, Any] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 }
 
-trait MigrationComplete[-A, -B, -SourceHandled, -TargetProvided]
+trait MigrationComplete[-A, -B, -Changeset]
 
 object MigrationComplete {
-  private[migration] def unsafeCreate[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
-    instance.asInstanceOf[MigrationComplete[A, B, SH, TP]]
+  private[migration] def unsafeCreate[A, B, CS]: MigrationComplete[A, B, CS] =
+    instance.asInstanceOf[MigrationComplete[A, B, CS]]
 
-  private val instance: MigrationComplete[Any, Any, Any, Any] =
-    new MigrationComplete[Any, Any, Any, Any] {}
+  private val instance: MigrationComplete[Any, Any, Any] =
+    new MigrationComplete[Any, Any, Any] {}
 
-  inline given derive[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
-    ${ MigrationValidationMacros.validateMigration[A, B, SH, TP] }
+  inline given derive[A, B, CS]: MigrationComplete[A, B, CS] =
+    ${ MigrationValidationMacros.validateMigration[A, B, CS] }
 }

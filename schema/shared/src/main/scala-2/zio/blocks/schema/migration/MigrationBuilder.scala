@@ -11,6 +11,15 @@ import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
  */
 sealed trait FieldName[N]
 
+sealed trait Added[N]
+sealed trait Dropped[N]
+sealed trait Renamed[From, To]
+sealed trait Transformed[From, To]
+sealed trait Mandated[Source, Target]
+sealed trait Optionalized[Source, Target]
+sealed trait TypeChanged[Source, Target]
+sealed trait Migrated[Name]
+
 /**
  * A builder for constructing migrations from type `A` to type `B`.
  *
@@ -26,12 +35,10 @@ sealed trait FieldName[N]
  *   The source type
  * @tparam B
  *   The target type
- * @tparam SourceHandled
- *   Intersection type tracking which source fields have been handled
- * @tparam TargetProvided
- *   Intersection type tracking which target fields have been provided
+ * @tparam Changeset
+ *   Intersection type tracking which operations have been performed
  */
-final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
+final class MigrationBuilder[A, B, Changeset](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
   private[migration] val actions: Vector[MigrationAction]
@@ -48,8 +55,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   Expression providing the default value
    */
   // format: off
-  def addField(target: B => Any, default: SchemaExpr[_, _]): MigrationBuilder[A, B, SourceHandled, _] =
-    macro MigrationBuilderMacros.addFieldImpl[A, B, SourceHandled, TargetProvided]
+  def addField(target: B => Any, default: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.addFieldImpl[A, B, Changeset]
   // format: on
 
   /**
@@ -62,8 +69,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   field)
    */
   // format: off
-  def dropField(source: A => Any, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B, _, TargetProvided] =
-    macro MigrationBuilderMacros.dropFieldImpl[A, B, SourceHandled, TargetProvided]
+  def dropField(source: A => Any, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.dropFieldImpl[A, B, Changeset]
   // format: on
 
   /**
@@ -72,7 +79,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def renameField(
     from: A => Any,
     to: B => Any
-  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.renameFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.renameFieldImpl[A, B, Changeset]
 
   /**
    * Transform a field value.
@@ -88,7 +95,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     from: A => Any,
     to: B => Any,
     transform: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.transformFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.transformFieldImpl[A, B, Changeset]
 
   /**
    * Convert an optional field in source to a required field in target.
@@ -104,14 +111,14 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     source: A => Option[_],
     target: B => Any,
     default: SchemaExpr[_, _]
-  ): MigrationBuilder[A, B, _, _] = macro MigrationBuilderMacros.mandateFieldImpl[A, B, SourceHandled, TargetProvided]
+  ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.mandateFieldImpl[A, B, Changeset]
 
   /**
    * Convert a required field in source to an optional field in target.
    */
   // format: off
-  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.optionalizeFieldImpl[A, B, SourceHandled, TargetProvided]
+  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.optionalizeFieldImpl[A, B, Changeset]
   // format: on
 
   /**
@@ -125,19 +132,19 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   Expression that converts between types
    */
   // format: off
-  def changeFieldType(source: A => Any, target: B => Any, converter: SchemaExpr[_, _]): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, SourceHandled, TargetProvided]
+  def changeFieldType(source: A => Any, target: B => Any, converter: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]
   // format: on
 
 
   // format: off
-  def migrateField[F1, F2](selector: A => F1, migration: Migration[F1, F2]): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  def migrateField[F1, F2](selector: A => F1, migration: Migration[F1, F2]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, Changeset]
   // format: on
 
   // format: off
-  def migrateField[F1, F2](selector: A => F1)(implicit migration: Migration[F1, F2]): MigrationBuilder[A, B, _, _] =
-    macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, SourceHandled, TargetProvided]
+  def migrateField[F1, F2](selector: A => F1)(implicit migration: Migration[F1, F2]): MigrationBuilder[A, B, _] =
+    macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, Changeset]
   // format: on
 
   // ----- Enum operations -----
@@ -148,7 +155,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def renameCase(
     from: String,
     to: String
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
+  ): MigrationBuilder[A, B, Changeset] =
     appendAction(MigrationAction.RenameCase(DynamicOptic.root, from, to))
 
   /**
@@ -157,12 +164,12 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   def transformCase[CaseA, CaseB](
     caseName: String
   )(
-    caseMigration: MigrationBuilder[CaseA, CaseB, Any, Any] => MigrationBuilder[CaseA, CaseB, _, _]
+    caseMigration: MigrationBuilder[CaseA, CaseB, Any] => MigrationBuilder[CaseA, CaseB, _]
   )(implicit
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
-  ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any, Any](caseSourceSchema, caseTargetSchema, Vector.empty)
+  ): MigrationBuilder[A, B, Changeset] = {
+    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any](caseSourceSchema, caseTargetSchema, Vector.empty)
     val builtInner   = caseMigration(innerBuilder)
     appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions))
   }
@@ -178,8 +185,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   Expression that transforms each element
    */
   // format: off
-  def transformElements(at: A => Iterable[_], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
-    macro MigrationBuilderMacros.transformElementsImpl[A, B, SourceHandled, TargetProvided]
+  def transformElements(at: A => Iterable[_], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
+    macro MigrationBuilderMacros.transformElementsImpl[A, B, Changeset]
   // format: on
 
   // ----- Maps -----
@@ -193,8 +200,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   Expression that transforms each key
    */
   // format: off
-  def transformKeys(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
-    macro MigrationBuilderMacros.transformKeysImpl[A, B, SourceHandled, TargetProvided]
+  def transformKeys(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
+    macro MigrationBuilderMacros.transformKeysImpl[A, B, Changeset]
   // format: on
 
   /**
@@ -206,8 +213,8 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    *   Expression that transforms each value
    */
   // format: off
-  def transformValues(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
-    macro MigrationBuilderMacros.transformValuesImpl[A, B, SourceHandled, TargetProvided]
+  def transformValues(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
+    macro MigrationBuilderMacros.transformValuesImpl[A, B, Changeset]
   // format: on
 
   // ----- Build -----
@@ -216,7 +223,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
    * Build migration with full macro validation. Requires implicit evidence that
    * all source fields are handled and all target fields are provided.
    */
-  def build(implicit ev: MigrationComplete[A, B, SourceHandled, TargetProvided]): Migration[A, B] =
+  def build(implicit ev: MigrationComplete[A, B, Changeset]): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
   /**
@@ -227,7 +234,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
 
   // ----- Internal -----
 
-  private[migration] def appendAction(action: MigrationAction): MigrationBuilder[A, B, SourceHandled, TargetProvided] =
+  private[migration] def appendAction(action: MigrationAction): MigrationBuilder[A, B, Changeset] =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 }
 
@@ -235,7 +242,7 @@ object MigrationBuilder {
   def apply[A, B](implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
-  ): MigrationBuilder[A, B, Any, Any] =
+  ): MigrationBuilder[A, B, Any] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 }
 
@@ -243,17 +250,17 @@ object MigrationBuilder {
  * Evidence that a migration is complete. All source fields must be handled and
  * all target fields must be provided.
  */
-trait MigrationComplete[-A, -B, -SourceHandled, -TargetProvided]
+trait MigrationComplete[-A, -B, -Changeset]
 
 object MigrationComplete {
-  private[migration] def unsafeCreate[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
-    instance.asInstanceOf[MigrationComplete[A, B, SH, TP]]
+  private[migration] def unsafeCreate[A, B, CS]: MigrationComplete[A, B, CS] =
+    instance.asInstanceOf[MigrationComplete[A, B, CS]]
 
-  private val instance: MigrationComplete[Any, Any, Any, Any] =
-    new MigrationComplete[Any, Any, Any, Any] {}
+  private val instance: MigrationComplete[Any, Any, Any] =
+    new MigrationComplete[Any, Any, Any] {}
 
   // format: off
-  implicit def derive[A, B, SH, TP]: MigrationComplete[A, B, SH, TP] =
-    macro MigrationValidationMacros.validateMigrationImpl[A, B, SH, TP]
+  implicit def derive[A, B, CS]: MigrationComplete[A, B, CS] =
+    macro MigrationValidationMacros.validateMigrationImpl[A, B, CS]
   // format: on
 }
