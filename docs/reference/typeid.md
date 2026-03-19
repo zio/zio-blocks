@@ -317,6 +317,10 @@ originId.defKind
 
 Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
 
+> **Note on `isProduct`:** `isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, `scala.Product2`, etc. — not for user-defined case classes. Use `isCaseClass` for user-defined case classes.
+>
+> **Note on `isSum`:** `isSum` returns `true` only for `scala.Either` and `scala.Option`, not for user-defined sealed traits. Use `isSealed` or combine `isTrait` with `isSealed` for general sum type detection.
+
 ## Self Types
 
 The `selfType` property captures a trait's self-type annotation, if present. It is `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` for traits without a self-type annotation or for non-trait types like classes and objects.
