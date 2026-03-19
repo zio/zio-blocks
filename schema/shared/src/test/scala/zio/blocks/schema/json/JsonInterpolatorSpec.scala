@@ -50,7 +50,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.boolean)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Boolean] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -58,7 +58,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.byte)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Int].map(_.toByte) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -66,7 +66,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.short)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Int].map(_.toShort) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -74,7 +74,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.int)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Int] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -82,7 +82,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.long)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Long] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -90,7 +90,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.float)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Float] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toJsonString).as[String] == Right("v")
         )
       )
     },
@@ -98,7 +98,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.double)(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[Double] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toJsonString).as[String] == Right("v")
         )
       )
     },
@@ -116,7 +116,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal] == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -124,7 +124,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x =>
         assertTrue(
           json"""{"x": $x}""".get("x").as[BigDecimal].map(_.toBigInt) == Right(x),
-          json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -502,8 +502,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated keys and values of other types with overridden toString") {
       case class Person(name: String, age: Int) {
-        override def toString: String =
-          Json.jsonCodec.encodeToString(Person.schema.getInstance(JsonFormat).encodeValue(this))
+        override def toString: String = Person.schema.jsonCodec.encodeToString(this)
       }
 
       object Person {
@@ -515,7 +514,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         json"""{"x": $x}""".get("x").one == Right(
           Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(20))
         ),
-        json"""{${x.toString}: "v"}""".get(x.toString).as[String] == Right("v")
+        json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
       )
     },
     test("doesn't compile for invalid json") {
@@ -536,9 +535,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Int key works") {
         val n: Int = 42
-        assertTrue(
-          json"""{$n: 1}""".get(n.toString).as[Int] == Right(1)
-        )
+        assertTrue(json"""{$n: 1}""".get(n.toString).as[Int] == Right(1))
       },
       test("all numeric types work as keys") {
         val byte: Byte         = 1
@@ -562,27 +559,19 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Boolean key works") {
         val b: Boolean = true
-        assertTrue(
-          json"""{$b: 1}""".get("true").as[Int] == Right(1)
-        )
+        assertTrue(json"""{$b: 1}""".get("true").as[Int] == Right(1))
       },
       test("Char key works") {
         val c: Char = 'k'
-        assertTrue(
-          json"""{$c: 1}""".get("k").as[Int] == Right(1)
-        )
+        assertTrue(json"""{$c: 1}""".get("k").as[Int] == Right(1))
       },
       test("UUID key works") {
         val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        assertTrue(
-          json"""{$uuid: 1}""".get(uuid.toString).as[Int] == Right(1)
-        )
+        assertTrue(json"""{$uuid: 1}""".get(uuid.toString).as[Int] == Right(1))
       },
       test("Currency key works") {
         val currency = java.util.Currency.getInstance("USD")
-        assertTrue(
-          json"""{$currency: 1}""".get("USD").as[Int] == Right(1)
-        )
+        assertTrue(json"""{$currency: 1}""".get("USD").as[Int] == Right(1))
       },
       test("all java.time types work as keys") {
         val dayOfWeek: DayOfWeek         = DayOfWeek.MONDAY
@@ -601,7 +590,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val zoneId                       = java.time.ZoneId.of("UTC")
         val zoneOffset                   = java.time.ZoneOffset.UTC
         val zonedDateTime                = ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, zoneId)
-
         assertTrue(
           json"""{$dayOfWeek: 1}""".get(dayOfWeek.toString).as[Int] == Right(1),
           json"""{$duration: 1}""".get(duration.toString).as[Int] == Right(1),
@@ -730,6 +718,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("case class with Schema works in value position") {
         case class Address(street: String, city: String)
+
         object Address {
           implicit val schema: Schema[Address] = Schema.derived
         }
@@ -743,11 +732,13 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("nested case classes work in value position") {
         case class Inner(value: Int)
+
         object Inner {
           implicit val schema: Schema[Inner] = Schema.derived
         }
 
         case class Outer(name: String, inner: Inner)
+
         object Outer {
           implicit val schema: Schema[Outer] = Schema.derived
         }
@@ -761,6 +752,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("sealed trait with Schema works in value position") {
         sealed trait Status
+
         object Status {
           case object Active                   extends Status
           case class Suspended(reason: String) extends Status
@@ -769,7 +761,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
 
         val active: Status    = Status.Active
         val suspended: Status = Status.Suspended("Payment overdue")
-
         assertTrue(
           json"""{"status": $active}""".get("status").one.isRight,
           json"""{"status": $suspended}""".get("status").get("Suspended").get("reason").as[String] == Right(
@@ -779,13 +770,13 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Option[A] with encoder works in value position") {
         case class Item(name: String)
+
         object Item {
           implicit val schema: Schema[Item] = Schema.derived
         }
 
         val some: Option[Item] = Some(Item("thing"))
         val none: Option[Item] = None
-
         assertTrue(
           json"""{"item": $some}""".get("item").get("name").as[String] == Right("thing"),
           json"""{"item": $none}""".get("item").one == Right(Json.Null)
@@ -793,6 +784,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("List[A] with encoder works in value position") {
         case class Point(x: Int, y: Int)
+
         object Point {
           implicit val schema: Schema[Point] = Schema.derived
         }
@@ -1569,16 +1561,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
           negInfStr == "-Infinity"
         )
       },
-      test("handles Double special values") {
-        val posInf    = Double.PositiveInfinity
-        val negInf    = Double.NegativeInfinity
-        val posInfStr = posInf.toString
-        val negInfStr = negInf.toString
-        assertTrue(
-          posInfStr == "Infinity",
-          negInfStr == "-Infinity"
-        )
-      },
       test("handles empty string interpolation") {
         val empty  = ""
         val result = json"""{"msg": "[$empty]"}"""
@@ -1780,43 +1762,37 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("handles empty Map in value position") {
         val emptyMap: Map[String, Int] = Map.empty
-        val result                     = json"""{"data": $emptyMap}"""
-        assertTrue(result.get("data").one == Right(Json.Object()))
+        assertTrue(json"""{"data": $emptyMap}""".get("data").one == Right(Json.Object()))
       },
       test("handles empty Iterable in value position") {
         val emptyList: List[Int] = List.empty
-        val result               = json"""{"data": $emptyList}"""
-        assertTrue(result.get("data").one == Right(Json.Array()))
+        assertTrue(json"""{"data": $emptyList}""".get("data").one == Right(Json.Array()))
       },
       test("handles empty Array in value position") {
         implicit val schema: Schema[Array[Int]] = Schema.derived
         val emptyArr: Array[Int]                = Array.empty
-        val result                              = json"""{"data": $emptyArr}"""
-        assertTrue(result.get("data").one == Right(Json.Array()))
+        assertTrue(json"""{"data": $emptyArr}""".get("data").one == Right(Json.Array()))
       },
       test("handles nested Option with Some value") {
         val opt: Option[Option[Int]] = Some(Some(42))
-        val result                   = json"""{"data": $opt}"""
-        assertTrue(result.get("data").as[Int] == Right(42))
+        assertTrue(json"""{"data": $opt}""".get("data").as[Int] == Right(42))
       },
       test("handles nested Option with inner None") {
         val opt: Option[Option[Int]] = Some(None)
-        val result                   = json"""{"data": $opt}"""
-        assertTrue(result.get("data").one == Right(Json.Null))
+        assertTrue(json"""{"data": $opt}""".get("data").one == Right(Json.Null))
       },
       test("handles Map with multiple entries") {
         val map: Map[String, Int] = Map("z" -> 1, "a" -> 2, "m" -> 3)
-        val result                = json"""{"data": $map}"""
+        val result                = json"""{"data": $map}""".get("data")
         assertTrue(
-          result.get("data").get("z").as[Int] == Right(1),
-          result.get("data").get("a").as[Int] == Right(2),
-          result.get("data").get("m").as[Int] == Right(3)
+          result.get("z").as[Int] == Right(1),
+          result.get("a").as[Int] == Right(2),
+          result.get("m").as[Int] == Right(3)
         )
       },
       test("handles String with only special characters") {
         val special = "\"\\\b\f\n\r\t"
-        val result  = json"""{"msg": "$special"}"""
-        assertTrue(result.get("msg").as[String] == Right(special))
+        assertTrue(json"""{"msg": "$special"}""".get("msg").as[String] == Right(special))
       },
       test("handles boundary values for numeric types in strings") {
         val byteMin: Byte   = Byte.MinValue
@@ -1883,29 +1859,21 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("supports only interpolation in top-level string") {
         val value = "test"
-        assertTrue(
-          json""""$value"""" == Json.String("test")
-        )
+        assertTrue(json""""$value"""" == Json.String("test"))
       },
       test("supports adjacent interpolations in top-level string") {
         val a = "A"
         val b = "B"
         val c = "C"
-        assertTrue(
-          json""""$a$b$c"""" == Json.String("ABC")
-        )
+        assertTrue(json""""$a$b$c"""" == Json.String("ABC"))
       },
       test("supports expression syntax in top-level string") {
         val x = 10
-        assertTrue(
-          json""""Result: ${x * 2}"""" == Json.String("Result: 20")
-        )
+        assertTrue(json""""Result: ${x * 2}"""" == Json.String("Result: 20"))
       },
       test("supports UUID in top-level string") {
         val id = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        assertTrue(
-          json""""id-$id"""" == Json.String("id-550e8400-e29b-41d4-a716-446655440000")
-        )
+        assertTrue(json""""id-$id"""" == Json.String("id-550e8400-e29b-41d4-a716-446655440000"))
       },
       test("supports java.time types in top-level string") {
         val date    = LocalDate.of(2024, 1, 15)
@@ -1917,67 +1885,52 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("handles special characters in top-level string interpolation") {
         val text = "with \"quotes\" and \\backslash"
-        assertTrue(
-          json""""Text: $text"""" == Json.String("Text: with \"quotes\" and \\backslash")
-        )
+        assertTrue(json""""Text: $text"""" == Json.String("Text: with \"quotes\" and \\backslash"))
       }
     ),
     suite("writeValue runtime dispatch")(
       test("String") {
-        val result = jsonValue("hello")
-        assertTrue(result.get("v").as[String] == Right("hello"))
+        assertTrue(jsonValue("hello").get("v").as[String] == Right("hello"))
       },
       test("Boolean true") {
-        val result = jsonValue(true)
-        assertTrue(result.get("v").as[Boolean] == Right(true))
+        assertTrue(jsonValue(true).get("v").as[Boolean] == Right(true))
       },
       test("Boolean false") {
-        val result = jsonValue(false)
-        assertTrue(result.get("v").as[Boolean] == Right(false))
+        assertTrue(jsonValue(false).get("v").as[Boolean] == Right(false))
       },
       test("Byte") {
-        val result = jsonValue(42.toByte)
-        assertTrue(result.get("v").as[Int] == Right(42))
+        assertTrue(jsonValue(42.toByte).get("v").as[Int] == Right(42))
       },
       test("Short") {
-        val result = jsonValue(42.toShort)
-        assertTrue(result.get("v").as[Int] == Right(42))
+        assertTrue(jsonValue(42.toShort).get("v").as[Int] == Right(42))
       },
       test("Int") {
-        val result = jsonValue(42)
-        assertTrue(result.get("v").as[Int] == Right(42))
+        assertTrue(jsonValue(42).get("v").as[Int] == Right(42))
       },
       test("Long") {
-        val result = jsonValue(42L)
-        assertTrue(result.get("v").as[Long] == Right(42L))
+        assertTrue(jsonValue(42L).get("v").as[Long] == Right(42L))
       },
       test("Float") {
-        val result = jsonValue(3.14f)
-        assertTrue(result.get("v").as[Float] == Right(3.14f))
+        assertTrue(jsonValue(3.14f).get("v").as[Float] == Right(3.14f))
       },
       test("Double") {
-        val result = jsonValue(3.14)
-        assertTrue(result.get("v").as[Double] == Right(3.14))
+        assertTrue(jsonValue(3.14).get("v").as[Double] == Right(3.14))
       },
       test("Char") {
-        val result = jsonValue('A')
-        assertTrue(result.get("v").as[String] == Right("A"))
+        assertTrue(jsonValue('A').get("v").as[String] == Right("A"))
       },
       test("BigDecimal") {
-        val result = jsonValue(BigDecimal("123.456"))
-        assertTrue(result.get("v").as[BigDecimal] == Right(BigDecimal("123.456")))
+        assertTrue(jsonValue(BigDecimal("123.456")).get("v").as[BigDecimal] == Right(BigDecimal("123.456")))
       },
       test("BigInt") {
         val result = jsonValue(BigInt("12345678901234567890"))
         assertTrue(result.get("v").as[BigDecimal].map(_.toBigInt) == Right(BigInt("12345678901234567890")))
       },
       test("DayOfWeek") {
-        val result = jsonValue(DayOfWeek.MONDAY)
-        assertTrue(result.get("v").as[String] == Right("MONDAY"))
+        assertTrue(jsonValue(DayOfWeek.MONDAY).get("v").as[String] == Right("MONDAY"))
       },
       test("Duration") {
-        val result = jsonValue(Duration.ofHours(1))
-        assertTrue(result.get("v").as[String] == Right("PT1H"))
+        assertTrue(jsonValue(Duration.ofHours(1)).get("v").as[String] == Right("PT1H"))
       },
       test("Instant") {
         val result = jsonValue(Instant.parse("2024-01-15T10:30:00Z"))
@@ -2012,52 +1965,42 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         assertTrue(result.get("v").as[String] == Right("10:30Z"))
       },
       test("Period") {
-        val result = jsonValue(Period.ofDays(30))
-        assertTrue(result.get("v").as[String] == Right("P30D"))
+        assertTrue(jsonValue(Period.ofDays(30)).get("v").as[String] == Right("P30D"))
       },
       test("Year") {
-        val result = jsonValue(Year.of(2024))
-        assertTrue(result.get("v").as[String] == Right("2024"))
+        assertTrue(jsonValue(Year.of(2024)).get("v").as[String] == Right("2024"))
       },
       test("YearMonth") {
-        val result = jsonValue(YearMonth.of(2024, 1))
-        assertTrue(result.get("v").as[String] == Right("2024-01"))
+        assertTrue(jsonValue(YearMonth.of(2024, 1)).get("v").as[String] == Right("2024-01"))
       },
       test("ZoneOffset") {
-        val result = jsonValue(ZoneOffset.ofHours(5))
-        assertTrue(result.get("v").as[String] == Right("+05:00"))
+        assertTrue(jsonValue(ZoneOffset.ofHours(5)).get("v").as[String] == Right("+05:00"))
       },
       test("ZoneId") {
-        val result = jsonValue(ZoneId.of("UTC"))
-        assertTrue(result.get("v").as[String] == Right("UTC"))
+        assertTrue(jsonValue(ZoneId.of("UTC")).get("v").as[String] == Right("UTC"))
       },
       test("ZonedDateTime") {
         val result = jsonValue(ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneId.of("UTC")))
         assertTrue(result.get("v").as[String].exists(_.contains("2024-01-15")))
       },
       test("Currency") {
-        val result = jsonValue(Currency.getInstance("USD"))
-        assertTrue(result.get("v").as[String] == Right("USD"))
+        assertTrue(jsonValue(Currency.getInstance("USD")).get("v").as[String] == Right("USD"))
       },
       test("UUID") {
         val result = jsonValue(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
         assertTrue(result.get("v").as[String] == Right("550e8400-e29b-41d4-a716-446655440000"))
       },
       test("Option Some") {
-        val result = jsonValue(Some(42))
-        assertTrue(result.get("v").as[Int] == Right(42))
+        assertTrue(jsonValue(Some(42)).get("v").as[Int] == Right(42))
       },
       test("Option None") {
-        val result = jsonValue(None)
-        assertTrue(result.get("v").one == Right(Json.Null))
+        assertTrue(jsonValue(None).get("v").one == Right(Json.Null))
       },
       test("null") {
-        val result = jsonValue(null)
-        assertTrue(result.get("v").one == Right(Json.Null))
+        assertTrue(jsonValue(null).get("v").one == Right(Json.Null))
       },
       test("Unit") {
-        val result = jsonValue(())
-        assertTrue(result.get("v").one == Right(Json.Object()))
+        assertTrue(jsonValue(()).get("v").one == Right(Json.Object()))
       },
       test("Map with multiple entries") {
         val result = jsonValue(Map("a" -> 1, "b" -> 2))
@@ -2082,101 +2025,80 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("Vector") {
-        val result = jsonValue(Vector(1, 2))
-        assertTrue(result.get("v")(0).as[Int] == Right(1))
+        assertTrue(jsonValue(Vector(1, 2)).get("v")(0).as[Int] == Right(1))
       },
       test("Set") {
-        val result = jsonValue(Set(42))
-        assertTrue(result.get("v")(0).as[Int] == Right(42))
+        assertTrue(jsonValue(Set(42)).get("v")(0).as[Int] == Right(42))
       },
       test("fallback toString") {
         case class Custom(value: Int) {
           override def toString: String = s"""{"custom":$value}"""
         }
-        val result = jsonValue(Custom(42))
-        assertTrue(result.get("v").get("custom").as[Int] == Right(42))
+
+        assertTrue(jsonValue(Custom(42)).get("v").get("custom").as[Int] == Right(42))
       }
     ),
     suite("writeKeyOnly runtime dispatch")(
       test("String key") {
-        val result = jsonKey("mykey")
-        assertTrue(result.get("mykey").as[String] == Right("value"))
+        assertTrue(jsonKey("mykey").get("mykey").as[String] == Right("value"))
       },
       test("Char key") {
-        val result = jsonKey('K')
-        assertTrue(result.get("K").as[String] == Right("value"))
+        assertTrue(jsonKey('K').get("K").as[String] == Right("value"))
       },
       test("Boolean key") {
-        val result = jsonKey(true)
-        assertTrue(result.get("true").as[String] == Right("value"))
+        assertTrue(jsonKey(true).get("true").as[String] == Right("value"))
       },
       test("Byte key") {
-        val result = jsonKey(1.toByte)
-        assertTrue(result.get("1").as[String] == Right("value"))
+        assertTrue(jsonKey(1.toByte).get("1").as[String] == Right("value"))
       },
       test("Short key") {
-        val result = jsonKey(2.toShort)
-        assertTrue(result.get("2").as[String] == Right("value"))
+        assertTrue(jsonKey(2.toShort).get("2").as[String] == Right("value"))
       },
       test("Int key") {
-        val result = jsonKey(42)
-        assertTrue(result.get("42").as[String] == Right("value"))
+        assertTrue(jsonKey(42).get("42").as[String] == Right("value"))
       },
       test("Long key") {
-        val result = jsonKey(100L)
-        assertTrue(result.get("100").as[String] == Right("value"))
+        assertTrue(jsonKey(100L).get("100").as[String] == Right("value"))
       },
       test("Float key") {
-        val result = jsonKey(1.5f)
-        assertTrue(result.get("1.5").as[String] == Right("value"))
+        assertTrue(jsonKey(1.5f).get("1.5").as[String] == Right("value"))
       },
       test("Double key") {
-        val result = jsonKey(2.5)
-        assertTrue(result.get("2.5").as[String] == Right("value"))
+        assertTrue(jsonKey(2.5).get("2.5").as[String] == Right("value"))
       },
       test("BigDecimal key") {
-        val result = jsonKey(BigDecimal("123.456"))
-        assertTrue(result.get("123.456").as[String] == Right("value"))
+        assertTrue(jsonKey(BigDecimal("123.456")).get("123.456").as[String] == Right("value"))
       },
       test("BigInt key") {
-        val result = jsonKey(BigInt("12345"))
-        assertTrue(result.get("12345").as[String] == Right("value"))
+        assertTrue(jsonKey(BigInt("12345")).get("12345").as[String] == Right("value"))
       },
       test("Unit key") {
-        val result = jsonKey(())
-        assertTrue(result.get("{}").as[String] == Right("value"))
+        assertTrue(jsonKey(()).get("{}").as[String] == Right("value"))
       },
       test("Duration key") {
-        val result = jsonKey(Duration.ofHours(1))
-        assertTrue(result.get("PT1H").as[String] == Right("value"))
+        assertTrue(jsonKey(Duration.ofHours(1)).get("PT1H").as[String] == Right("value"))
       },
       test("DayOfWeek key") {
-        val result = jsonKey(DayOfWeek.MONDAY)
-        assertTrue(result.get("MONDAY").as[String] == Right("value"))
+        assertTrue(jsonKey(DayOfWeek.MONDAY).get("MONDAY").as[String] == Right("value"))
       },
       test("Instant key") {
         val result = jsonKey(Instant.parse("2024-01-15T10:30:00Z"))
         assertTrue(result.get("2024-01-15T10:30:00Z").as[String] == Right("value"))
       },
       test("LocalDate key") {
-        val result = jsonKey(LocalDate.of(2024, 1, 15))
-        assertTrue(result.get("2024-01-15").as[String] == Right("value"))
+        assertTrue(jsonKey(LocalDate.of(2024, 1, 15)).get("2024-01-15").as[String] == Right("value"))
       },
       test("LocalDateTime key") {
-        val result = jsonKey(LocalDateTime.of(2024, 1, 15, 10, 30))
-        assertTrue(result.get("2024-01-15T10:30").as[String] == Right("value"))
+        assertTrue(jsonKey(LocalDateTime.of(2024, 1, 15, 10, 30)).get("2024-01-15T10:30").as[String] == Right("value"))
       },
       test("LocalTime key") {
-        val result = jsonKey(LocalTime.of(10, 30))
-        assertTrue(result.get("10:30").as[String] == Right("value"))
+        assertTrue(jsonKey(LocalTime.of(10, 30)).get("10:30").as[String] == Right("value"))
       },
       test("Month key") {
-        val result = jsonKey(Month.JANUARY)
-        assertTrue(result.get("JANUARY").as[String] == Right("value"))
+        assertTrue(jsonKey(Month.JANUARY).get("JANUARY").as[String] == Right("value"))
       },
       test("MonthDay key") {
-        val result = jsonKey(MonthDay.of(1, 15))
-        assertTrue(result.get("--01-15").as[String] == Right("value"))
+        assertTrue(jsonKey(MonthDay.of(1, 15)).get("--01-15").as[String] == Right("value"))
       },
       test("OffsetDateTime key") {
         val result = jsonKey(OffsetDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneOffset.UTC))
@@ -2187,28 +2109,22 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         assertTrue(result.get("10:30Z").as[String] == Right("value"))
       },
       test("Period key") {
-        val result = jsonKey(Period.ofDays(30))
-        assertTrue(result.get("P30D").as[String] == Right("value"))
+        assertTrue(jsonKey(Period.ofDays(30)).get("P30D").as[String] == Right("value"))
       },
       test("Year key") {
-        val result = jsonKey(Year.of(2024))
-        assertTrue(result.get("2024").as[String] == Right("value"))
+        assertTrue(jsonKey(Year.of(2024)).get("2024").as[String] == Right("value"))
       },
       test("YearMonth key") {
-        val result = jsonKey(YearMonth.of(2024, 1))
-        assertTrue(result.get("2024-01").as[String] == Right("value"))
+        assertTrue(jsonKey(YearMonth.of(2024, 1)).get("2024-01").as[String] == Right("value"))
       },
       test("ZoneOffset key") {
-        val result = jsonKey(ZoneOffset.ofHours(5))
-        assertTrue(result.get("+05:00").as[String] == Right("value"))
+        assertTrue(jsonKey(ZoneOffset.ofHours(5)).get("+05:00").as[String] == Right("value"))
       },
       test("ZoneId key") {
-        val result = jsonKey(ZoneId.of("UTC"))
-        assertTrue(result.get("UTC").as[String] == Right("value"))
+        assertTrue(jsonKey(ZoneId.of("UTC")).get("UTC").as[String] == Right("value"))
       },
       test("Currency key") {
-        val result = jsonKey(Currency.getInstance("USD"))
-        assertTrue(result.get("USD").as[String] == Right("value"))
+        assertTrue(jsonKey(Currency.getInstance("USD")).get("USD").as[String] == Right("value"))
       },
       test("UUID key") {
         val result = jsonKey(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
@@ -2217,80 +2133,63 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     ),
     suite("writeInString runtime dispatch")(
       test("String in string") {
-        val result = jsonInString("hello")
-        assertTrue(result.get("msg").as[String] == Right("prefix-hello-suffix"))
+        assertTrue(jsonInString("hello").get("msg").as[String] == Right("prefix-hello-suffix"))
       },
       test("Char in string") {
-        val result = jsonInString('X')
-        assertTrue(result.get("msg").as[String] == Right("prefix-X-suffix"))
+        assertTrue(jsonInString('X').get("msg").as[String] == Right("prefix-X-suffix"))
       },
       test("Boolean in string") {
-        val result = jsonInString(true)
-        assertTrue(result.get("msg").as[String] == Right("prefix-true-suffix"))
+        assertTrue(jsonInString(true).get("msg").as[String] == Right("prefix-true-suffix"))
       },
       test("Byte in string") {
-        val result = jsonInString(42.toByte)
-        assertTrue(result.get("msg").as[String] == Right("prefix-42-suffix"))
+        assertTrue(jsonInString(42.toByte).get("msg").as[String] == Right("prefix-42-suffix"))
       },
       test("Short in string") {
-        val result = jsonInString(42.toShort)
-        assertTrue(result.get("msg").as[String] == Right("prefix-42-suffix"))
+        assertTrue(jsonInString(42.toShort).get("msg").as[String] == Right("prefix-42-suffix"))
       },
       test("Int in string") {
-        val result = jsonInString(42)
-        assertTrue(result.get("msg").as[String] == Right("prefix-42-suffix"))
+        assertTrue(jsonInString(42).get("msg").as[String] == Right("prefix-42-suffix"))
       },
       test("Long in string") {
-        val result = jsonInString(100L)
-        assertTrue(result.get("msg").as[String] == Right("prefix-100-suffix"))
+        assertTrue(jsonInString(100L).get("msg").as[String] == Right("prefix-100-suffix"))
       },
       test("Double in string") {
-        val result = jsonInString(3.14)
-        assertTrue(result.get("msg").as[String] == Right("prefix-3.14-suffix"))
+        assertTrue(jsonInString(3.14).get("msg").as[String] == Right("prefix-3.14-suffix"))
       },
       test("BigDecimal in string") {
-        val result = jsonInString(BigDecimal("123.456"))
-        assertTrue(result.get("msg").as[String] == Right("prefix-123.456-suffix"))
+        assertTrue(jsonInString(BigDecimal("123.456")).get("msg").as[String] == Right("prefix-123.456-suffix"))
       },
       test("BigInt in string") {
-        val result = jsonInString(BigInt("12345"))
-        assertTrue(result.get("msg").as[String] == Right("prefix-12345-suffix"))
+        assertTrue(jsonInString(BigInt("12345")).get("msg").as[String] == Right("prefix-12345-suffix"))
       },
       test("Unit in string") {
-        val result = jsonInString(())
-        assertTrue(result.get("msg").as[String] == Right("prefix-()-suffix"))
+        assertTrue(jsonInString(()).get("msg").as[String] == Right("prefix-()-suffix"))
       },
       test("Duration in string") {
-        val result = jsonInString(Duration.ofHours(1))
-        assertTrue(result.get("msg").as[String] == Right("prefix-PT1H-suffix"))
+        assertTrue(jsonInString(Duration.ofHours(1)).get("msg").as[String] == Right("prefix-PT1H-suffix"))
       },
       test("DayOfWeek in string") {
-        val result = jsonInString(DayOfWeek.MONDAY)
-        assertTrue(result.get("msg").as[String] == Right("prefix-MONDAY-suffix"))
+        assertTrue(jsonInString(DayOfWeek.MONDAY).get("msg").as[String] == Right("prefix-MONDAY-suffix"))
       },
       test("Instant in string") {
         val result = jsonInString(Instant.parse("2024-01-15T10:30:00Z"))
         assertTrue(result.get("msg").as[String] == Right("prefix-2024-01-15T10:30:00Z-suffix"))
       },
       test("LocalDate in string") {
-        val result = jsonInString(LocalDate.of(2024, 1, 15))
-        assertTrue(result.get("msg").as[String] == Right("prefix-2024-01-15-suffix"))
+        assertTrue(jsonInString(LocalDate.of(2024, 1, 15)).get("msg").as[String] == Right("prefix-2024-01-15-suffix"))
       },
       test("LocalDateTime in string") {
         val result = jsonInString(LocalDateTime.of(2024, 1, 15, 10, 30))
         assertTrue(result.get("msg").as[String] == Right("prefix-2024-01-15T10:30-suffix"))
       },
       test("LocalTime in string") {
-        val result = jsonInString(LocalTime.of(10, 30))
-        assertTrue(result.get("msg").as[String] == Right("prefix-10:30-suffix"))
+        assertTrue(jsonInString(LocalTime.of(10, 30)).get("msg").as[String] == Right("prefix-10:30-suffix"))
       },
       test("Month in string") {
-        val result = jsonInString(Month.JANUARY)
-        assertTrue(result.get("msg").as[String] == Right("prefix-JANUARY-suffix"))
+        assertTrue(jsonInString(Month.JANUARY).get("msg").as[String] == Right("prefix-JANUARY-suffix"))
       },
       test("MonthDay in string") {
-        val result = jsonInString(MonthDay.of(1, 15))
-        assertTrue(result.get("msg").as[String] == Right("prefix---01-15-suffix"))
+        assertTrue(jsonInString(MonthDay.of(1, 15)).get("msg").as[String] == Right("prefix---01-15-suffix"))
       },
       test("OffsetDateTime in string") {
         val result = jsonInString(OffsetDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneOffset.UTC))
@@ -2301,32 +2200,26 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         assertTrue(result.get("msg").as[String] == Right("prefix-10:30Z-suffix"))
       },
       test("Period in string") {
-        val result = jsonInString(Period.ofDays(30))
-        assertTrue(result.get("msg").as[String] == Right("prefix-P30D-suffix"))
+        assertTrue(jsonInString(Period.ofDays(30)).get("msg").as[String] == Right("prefix-P30D-suffix"))
       },
       test("Year in string") {
-        val result = jsonInString(Year.of(2024))
-        assertTrue(result.get("msg").as[String] == Right("prefix-2024-suffix"))
+        assertTrue(jsonInString(Year.of(2024)).get("msg").as[String] == Right("prefix-2024-suffix"))
       },
       test("YearMonth in string") {
-        val result = jsonInString(YearMonth.of(2024, 1))
-        assertTrue(result.get("msg").as[String] == Right("prefix-2024-01-suffix"))
+        assertTrue(jsonInString(YearMonth.of(2024, 1)).get("msg").as[String] == Right("prefix-2024-01-suffix"))
       },
       test("ZoneOffset in string") {
-        val result = jsonInString(ZoneOffset.ofHours(5))
-        assertTrue(result.get("msg").as[String] == Right("prefix-+05:00-suffix"))
+        assertTrue(jsonInString(ZoneOffset.ofHours(5)).get("msg").as[String] == Right("prefix-+05:00-suffix"))
       },
       test("ZoneId in string") {
-        val result = jsonInString(ZoneId.of("UTC"))
-        assertTrue(result.get("msg").as[String] == Right("prefix-UTC-suffix"))
+        assertTrue(jsonInString(ZoneId.of("UTC")).get("msg").as[String] == Right("prefix-UTC-suffix"))
       },
       test("ZonedDateTime in string") {
         val result = jsonInString(ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneId.of("UTC")))
         assertTrue(result.get("msg").as[String].exists(_.contains("2024-01-15")))
       },
       test("Currency in string") {
-        val result = jsonInString(Currency.getInstance("USD"))
-        assertTrue(result.get("msg").as[String] == Right("prefix-USD-suffix"))
+        assertTrue(jsonInString(Currency.getInstance("USD")).get("msg").as[String] == Right("prefix-USD-suffix"))
       },
       test("UUID in string") {
         val result = jsonInString(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))
@@ -2356,63 +2249,48 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("Map with Long keys") {
-        val result = jsonValue(Map(100L -> "hundred"))
-        assertTrue(result.get("v").get("100").as[String] == Right("hundred"))
+        assertTrue(jsonValue(Map(100L -> "hundred")).get("v").get("100").as[String] == Right("hundred"))
       },
       test("Map with Float keys") {
-        val result = jsonValue(Map(1.5f -> "value"))
-        assertTrue(result.get("v").get("1.5").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(1.5f -> "value")).get("v").get("1.5").as[String] == Right("value"))
       },
       test("Map with Double keys") {
-        val result = jsonValue(Map(2.5 -> "value"))
-        assertTrue(result.get("v").get("2.5").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(2.5 -> "value")).get("v").get("2.5").as[String] == Right("value"))
       },
       test("Map with BigDecimal keys") {
-        val result = jsonValue(Map(BigDecimal("123.456") -> "value"))
-        assertTrue(result.get("v").get("123.456").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(BigDecimal("123.45") -> "value")).get("v").get("123.45").as[String] == Right("value"))
       },
       test("Map with BigInt keys") {
-        val result = jsonValue(Map(BigInt("12345") -> "value"))
-        assertTrue(result.get("v").get("12345").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(BigInt("12345") -> "value")).get("v").get("12345").as[String] == Right("value"))
       },
       test("Map with Byte keys") {
-        val result = jsonValue(Map(1.toByte -> "value"))
-        assertTrue(result.get("v").get("1").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(1.toByte -> "value")).get("v").get("1").as[String] == Right("value"))
       },
       test("Map with Short keys") {
-        val result = jsonValue(Map(2.toShort -> "value"))
-        assertTrue(result.get("v").get("2").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(2.toShort -> "value")).get("v").get("2").as[String] == Right("value"))
       },
       test("Map with UUID keys") {
-        val uuid   = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val result = jsonValue(Map(uuid -> "value"))
-        assertTrue(result.get("v").get(uuid.toString).as[String] == Right("value"))
+        val uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        assertTrue(jsonValue(Map(uuid -> "value")).get("v").get(uuid.toString).as[String] == Right("value"))
       },
       test("Map with LocalDate keys") {
-        val date   = LocalDate.of(2024, 1, 15)
-        val result = jsonValue(Map(date -> "value"))
-        assertTrue(result.get("v").get("2024-01-15").as[String] == Right("value"))
+        val date = LocalDate.of(2024, 1, 15)
+        assertTrue(jsonValue(Map(date -> "value")).get("v").get("2024-01-15").as[String] == Right("value"))
       },
       test("Map with Duration keys") {
-        val dur    = Duration.ofHours(1)
-        val result = jsonValue(Map(dur -> "value"))
-        assertTrue(result.get("v").get("PT1H").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(Duration.ofHours(1) -> "value")).get("v").get("PT1H").as[String] == Right("value"))
       },
       test("Map with Month keys") {
-        val result = jsonValue(Map(Month.JANUARY -> "value"))
-        assertTrue(result.get("v").get("JANUARY").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(Month.JANUARY -> "value")).get("v").get("JANUARY").as[String] == Right("value"))
       },
       test("Map with DayOfWeek keys") {
-        val result = jsonValue(Map(DayOfWeek.MONDAY -> "value"))
-        assertTrue(result.get("v").get("MONDAY").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(DayOfWeek.MONDAY -> "value")).get("v").get("MONDAY").as[String] == Right("value"))
       },
       test("Map with ZoneId keys") {
-        val result = jsonValue(Map(ZoneId.of("UTC") -> "value"))
-        assertTrue(result.get("v").get("UTC").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(ZoneId.of("UTC") -> "value")).get("v").get("UTC").as[String] == Right("value"))
       },
       test("Map with ZoneOffset keys") {
-        val result = jsonValue(Map(ZoneOffset.ofHours(5) -> "value"))
-        assertTrue(result.get("v").get("+05:00").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(ZoneOffset.ofHours(5) -> "value")).get("v").get("+05:00").as[String] == Right("value"))
       },
       test("Map with Currency keys") {
         val result = jsonValue(Map(Currency.getInstance("USD") -> "value"))
@@ -2420,20 +2298,17 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Map with Instant keys") {
         val instant = Instant.parse("2024-01-15T10:30:00Z")
-        val result  = jsonValue(Map(instant -> "value"))
-        assertTrue(result.get("v").get("2024-01-15T10:30:00Z").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(instant -> "value")).get("v").get("2024-01-15T10:30:00Z").as[String] == Right("value"))
       },
       test("Map with LocalTime keys") {
-        val result = jsonValue(Map(LocalTime.of(10, 30) -> "value"))
-        assertTrue(result.get("v").get("10:30").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(LocalTime.of(10, 30) -> "value")).get("v").get("10:30").as[String] == Right("value"))
       },
       test("Map with LocalDateTime keys") {
         val result = jsonValue(Map(LocalDateTime.of(2024, 1, 15, 10, 30) -> "value"))
         assertTrue(result.get("v").get("2024-01-15T10:30").as[String] == Right("value"))
       },
       test("Map with MonthDay keys") {
-        val result = jsonValue(Map(MonthDay.of(1, 15) -> "value"))
-        assertTrue(result.get("v").get("--01-15").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(MonthDay.of(1, 15) -> "value")).get("v").get("--01-15").as[String] == Right("value"))
       },
       test("Map with OffsetTime keys") {
         val result = jsonValue(Map(OffsetTime.of(10, 30, 0, 0, ZoneOffset.UTC) -> "value"))
@@ -2444,46 +2319,39 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         assertTrue(result.get("v").get("2024-01-15T10:30Z").as[String] == Right("value"))
       },
       test("Map with Period keys") {
-        val result = jsonValue(Map(Period.ofDays(30) -> "value"))
-        assertTrue(result.get("v").get("P30D").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(Period.ofDays(30) -> "value")).get("v").get("P30D").as[String] == Right("value"))
       },
       test("Map with Year keys") {
-        val result = jsonValue(Map(Year.of(2024) -> "value"))
-        assertTrue(result.get("v").get("2024").as[String] == Right("value"))
+        assertTrue(jsonValue(Map(Year.of(2024) -> "value")).get("v").get("2024").as[String] == Right("value"))
       },
       test("Map with YearMonth keys") {
         val result = jsonValue(Map(YearMonth.of(2024, 1) -> "value"))
         assertTrue(result.get("v").get("2024-01").as[String] == Right("value"))
       },
       test("Map with ZonedDateTime keys") {
-        val zdt    = ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneId.of("UTC"))
-        val result = jsonValue(Map(zdt -> "value"))
-        assertTrue(result.get("v").one.isRight)
+        val zdt = ZonedDateTime.of(2024, 1, 15, 10, 30, 0, 0, ZoneId.of("UTC"))
+        assertTrue(jsonValue(Map(zdt -> "value")).get("v").one.isRight)
       },
       test("Map with fallback toString keys") {
         case class Custom(value: Int)
-        val result = jsonValue(Map(Custom(42) -> "value"))
-        assertTrue(result.get("v").one.isRight)
+
+        assertTrue(jsonValue(Map(Custom(42) -> "value")).get("v").one.isRight)
       }
     ),
     suite("writeRawString UTF-8 encoding")(
       test("2-byte UTF-8 characters (Latin Extended)") {
-        val result = jsonInString("café")
-        assertTrue(result.get("msg").as[String] == Right("prefix-café-suffix"))
+        assertTrue(jsonInString("café").get("msg").as[String] == Right("prefix-café-suffix"))
       },
       test("3-byte UTF-8 characters (CJK)") {
-        val result = jsonInString("日本語")
-        assertTrue(result.get("msg").as[String] == Right("prefix-日本語-suffix"))
+        assertTrue(jsonInString("日本語").get("msg").as[String] == Right("prefix-日本語-suffix"))
       },
       test("mixed UTF-8 byte lengths") {
-        val result = jsonInString("Hello café 日本")
-        assertTrue(result.get("msg").as[String] == Right("prefix-Hello café 日本-suffix"))
+        assertTrue(jsonInString("Hello café 日本").get("msg").as[String] == Right("prefix-Hello café 日本-suffix"))
       }
     ),
     suite("nested structures")(
       test("Option containing Map") {
-        val result = jsonValue(Some(Map("x" -> 1)))
-        assertTrue(result.get("v").get("x").as[Int] == Right(1))
+        assertTrue(jsonValue(Some(Map("x" -> 1))).get("v").get("x").as[Int] == Right(1))
       },
       test("List containing Maps") {
         val result = jsonValue(List(Map("a" -> 1), Map("b" -> 2)))

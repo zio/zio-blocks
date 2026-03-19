@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.json.Keyable
 import zio.blocks.schema.yaml._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox

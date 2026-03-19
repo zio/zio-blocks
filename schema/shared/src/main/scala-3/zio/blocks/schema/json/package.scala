@@ -74,7 +74,7 @@ package object json {
                       '{
                         val v = $typedArgExpr
                         if (v == null) Json.Null
-                        else $schemaExpr.getInstance(JsonFormat).encodeValue(v)
+                        else $schemaExpr.jsonCodec.encodeValue(v)
                       }
                   }
                 case _: ImplicitSearchFailure =>
@@ -88,7 +88,7 @@ package object json {
                     case '[t] =>
                       val schemaExpr   = success.tree.asExprOf[Schema[t]]
                       val typedArgExpr = argExpr.asExprOf[t]
-                      '{ $schemaExpr.getInstance(JsonFormat).encodeKey($typedArgExpr) }
+                      '{ $schemaExpr.jsonCodec.encodeKey($typedArgExpr) }
                   }
                 case _: ImplicitSearchFailure =>
                   report.errorAndAbort(s"No Schema found for type ${argType.show}.")

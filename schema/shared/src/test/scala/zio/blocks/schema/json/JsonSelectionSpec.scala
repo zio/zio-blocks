@@ -145,7 +145,6 @@ object JsonSelectionSpec extends SchemaBaseSpec {
               case _                            => false
             } && value.unwrap(JsonType.Number).exists(_ > 50)
           }
-          implicit val codec: JsonBinaryCodec[Chunk[Int]] = Schema[Chunk[Int]].getInstance(JsonFormat)
           assertTrue(result.one.map(_.get("nums").as[Chunk[Int]]) == Right(Right(Chunk(1))))
         }
       ),
@@ -185,7 +184,6 @@ object JsonSelectionSpec extends SchemaBaseSpec {
               case _                          => false
             } && !value.unwrap(JsonType.Number).exists(_ > 50)
           }
-          implicit val codec: JsonBinaryCodec[Chunk[Int]] = Schema[Chunk[Int]].getInstance(JsonFormat)
           assertTrue(result.one.map(_.get("nums").as[Chunk[Int]]) == Right(Right(Chunk(1))))
         }
       ),

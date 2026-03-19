@@ -194,7 +194,7 @@ object JsonSpec extends SchemaBaseSpec {
             inNums && isLarge
           }
           assertTrue(
-            result.get("nums").as[Chunk[Int]](Schema[Chunk[Int]].getInstance(JsonFormat)) == Right(Chunk(1, 5)),
+            result.get("nums").as[Chunk[Int]] == Right(Chunk(1, 5)),
             result.get("strs").isSuccess
           )
         },
@@ -966,7 +966,7 @@ object JsonSpec extends SchemaBaseSpec {
             Json.from("hello") == Json.String("hello"),
             Json.from(42) == Json.Number(42),
             Json.from(true) == Json.Boolean(true),
-            Json.from(Chunk(1, 2, 3))(Schema[Chunk[Int]].getInstance(JsonFormat)) == Json.Array(
+            Json.from(Chunk(1, 2, 3)) == Json.Array(
               Json.Number(1),
               Json.Number(2),
               Json.Number(3)
@@ -1094,20 +1094,17 @@ object JsonSpec extends SchemaBaseSpec {
         )
       },
       test("decode Option") {
-        implicit val codec: JsonBinaryCodec[Option[String]] = Schema[Option[String]].getInstance(JsonFormat)
         assertTrue(
           Json.String("hello").as[Option[String]] == Right(Some("hello")),
           Json.Null.as[Option[String]] == Right(None)
         )
       },
       test("decode Chunk") {
-        implicit val codec: JsonBinaryCodec[Chunk[Int]] = Schema[Chunk[Int]].getInstance(JsonFormat)
-        val json                                        = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+        val json = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
         assertTrue(json.as[Chunk[Int]] == Right(Chunk(1, 2, 3)))
       },
       test("decode Map") {
-        implicit val codec: JsonBinaryCodec[Map[String, Int]] = Schema[Map[String, Int]].getInstance(JsonFormat)
-        val json                                              = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
+        val json = Json.Object("a" -> Json.Number(1), "b" -> Json.Number(2))
         assertTrue(json.as[Map[String, Int]] == Right(Map("a" -> 1, "b" -> 2)))
       }
     ),

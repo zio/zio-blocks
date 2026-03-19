@@ -57,7 +57,7 @@ private object JsonInterpolatorMacros {
               q"""{
                 val $v = ${argExpr.tree}
                 if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
-                else $schemaInstance.getInstance(_root_.zio.blocks.schema.json.JsonFormat).encodeValue($v)
+                else $schemaInstance.jsonCodec.encodeValue($v)
               }"""
             case _ =>
               val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
@@ -65,7 +65,7 @@ private object JsonInterpolatorMacros {
               if (schemaInstance == EmptyTree) {
                 c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
               }
-              q"$schemaInstance.getInstance(_root_.zio.blocks.schema.json.JsonFormat).encodeKey(${argExpr.tree})"
+              q"$schemaInstance.jsonCodec.encodeKey(${argExpr.tree})"
           }
         }
       }

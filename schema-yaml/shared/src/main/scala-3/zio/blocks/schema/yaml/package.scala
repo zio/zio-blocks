@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.json.Keyable
 import zio.blocks.schema.yaml._
 import scala.quoted._
 import scala.util.control.NonFatal

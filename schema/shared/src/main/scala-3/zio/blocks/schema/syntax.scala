@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.schema.json.{Json, JsonFormat}
+import zio.blocks.schema.json.Json
 import zio.blocks.schema.patch.{Patch, PatchMode}
 
 trait SyntaxVersionSpecific {
@@ -29,18 +29,18 @@ trait SyntaxVersionSpecific {
 
     def show(using schema: Schema[A]): String = schema.toDynamicValue(self).toString
 
-    def toJson(using schema: Schema[A]): Json = schema.getInstance(JsonFormat).encodeValue(self)
+    def toJson(using schema: Schema[A]): Json = schema.jsonCodec.encodeValue(self)
 
-    def toJsonString(using schema: Schema[A]): String = schema.getInstance(JsonFormat).encodeToString(self)
+    def toJsonString(using schema: Schema[A]): String = schema.jsonCodec.encodeToString(self)
 
-    def toJsonBytes(using schema: Schema[A]): Array[Byte] = schema.getInstance(JsonFormat).encode(self)
+    def toJsonBytes(using schema: Schema[A]): Array[Byte] = schema.jsonCodec.encode(self)
   }
 
   extension (self: String) {
-    def fromJson[A](using schema: Schema[A]): Either[SchemaError, A] = schema.getInstance(JsonFormat).decode(self)
+    def fromJson[A](using schema: Schema[A]): Either[SchemaError, A] = schema.jsonCodec.decode(self)
   }
 
   extension (self: Array[Byte]) {
-    def fromJson[A](using schema: Schema[A]): Either[SchemaError, A] = schema.getInstance(JsonFormat).decode(self)
+    def fromJson[A](using schema: Schema[A]): Either[SchemaError, A] = schema.jsonCodec.decode(self)
   }
 }
