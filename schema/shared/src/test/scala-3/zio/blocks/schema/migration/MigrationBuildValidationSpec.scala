@@ -378,6 +378,115 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft)
         }
       }
+    ),
+    suite("Changeset type inference")(
+      test("addField accumulates Added in Changeset") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration._
+
+          case class V1(name: String)
+          case class V2(name: String, age: Int)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          val x: Int = Migration.newBuilder[V1, V2].addField(_.age, SchemaExpr.literal(0))
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.toOption.get.contains("Added[(\"age\" : String)]")
+          )
+        }
+      },
+      test("dropField accumulates Dropped in Changeset") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration._
+
+          case class V1(name: String, age: Int)
+          case class V2(name: String)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          val x: Int = Migration.newBuilder[V1, V2].dropField(_.age, SchemaExpr.literal(0))
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.toOption.get.contains("Dropped[(\"age\" : String)]")
+          )
+        }
+      },
+      test("renameField accumulates Renamed in Changeset") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration._
+
+          case class V1(name: String)
+          case class V2(fullName: String)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          val x: Int = Migration.newBuilder[V1, V2].renameField(_.name, _.fullName)
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.toOption.get.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]")
+          )
+        }
+      },
+      test("transformField accumulates Transformed in Changeset") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration._
+
+          case class V1(age: Int)
+          case class V2(age: Long)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          val x: Int = Migration.newBuilder[V1, V2].transformField(_.age, _.age, SchemaExpr.literal(0L))
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.toOption.get.contains("Transformed[(\"age\" : String), (\"age\" : String)]")
+          )
+        }
+      },
+      test("chained operations accumulate all operations in Changeset") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration._
+
+          case class V1(name: String, age: Int)
+          case class V2(fullName: String, age: Int, email: String)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          val x: Int = Migration.newBuilder[V1, V2]
+            .renameField(_.name, _.fullName)
+            .addField(_.email, SchemaExpr.literal(""))
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.swap.toOption.get.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]"),
+            result.swap.toOption.get.contains("Added[(\"email\" : String)]")
+          )
+        }
+      }
     )
   )
 }
