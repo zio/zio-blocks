@@ -864,7 +864,7 @@ import zio.blocks.typeid._
 val myTypeId = TypeId.nominal[Any](
   name = "MyType",
   owner = Owner.fromPackagePath("com.example"),
-  defKind = TypeDefKind.Class(isCase = true)
+  kind = TypeDefKind.Class(isCase = true)
 )
 ```
 
