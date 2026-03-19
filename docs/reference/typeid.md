@@ -794,7 +794,7 @@ typeId.isCaseClass // true
 
 ### Schema Transformations
 
-TypeId is preserved when transforming schemas:
+TypeId is automatically attached when transforming schemas. The `transform` method takes an implicit `TypeId[B]` parameter, so the TypeId for the target type is resolved at compile time:
 
 ```scala
 case class Email(value: String)
@@ -802,7 +802,7 @@ case class Email(value: String)
 object Email {
   implicit val schema: Schema[Email] = Schema[String]
     .transform(Email(_), _.value)
-    .withTypeName[Email]  // Sets TypeId to Email
+    // TypeId[Email] is resolved implicitly — no extra call needed
 }
 ```
 
@@ -978,18 +978,77 @@ TypeRepr.Structural(
 
 ## Running the Examples
 
-The following example applications demonstrate TypeId usage:
+All code from this guide is available as runnable examples in the `schema-examples` module.
 
-- `schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala` — Deriving TypeIds and accessing properties
-- `schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala` — Subtype relationships and variance
-- `schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala` — Type aliases and normalization
-- `schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala` — Opaque types and type-safe registries
+**1. Clone the repository and navigate to the project:**
 
-Run them with:
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+### Basic Usage
+
+Demonstrates deriving TypeIds for case classes, accessing their properties (name, fullName, owner, arity), using predefined TypeIds for built-in types, and implicit derivation.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala))
 
 ```bash
 sbt "schema-examples/runMain typeid.TypeIdBasicExample"
+```
+
+### Subtype Relationships
+
+Demonstrates subtype checking with `isSubtypeOf`, `isSupertypeOf`, and `isEquivalentTo`, including direct inheritance, transitive inheritance, sealed trait cases, and variance-aware subtyping for applied types like `List[Dog] <: List[Animal]`.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala))
+
+```bash
 sbt "schema-examples/runMain typeid.TypeIdSubtypingExample"
+```
+
+### Normalization and Registries
+
+Demonstrates type alias handling, normalization to underlying types, structural equality, and building type-indexed registries using erased TypeIds.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala))
+
+```bash
 sbt "schema-examples/runMain typeid.TypeIdNormalizationExample"
+```
+
+### Opaque Types
+
+Demonstrates how TypeId preserves the semantic distinction of opaque types, enabling runtime type safety that pure Scala reflection cannot provide. Shows building type-indexed validator registries keyed by opaque type identity.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala))
+
+```bash
 sbt "schema-examples/runMain typeid.OpaqueTypesExample"
 ```
