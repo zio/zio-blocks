@@ -331,7 +331,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rSup        = sup("x").render
         val rTextarea   = textarea("x").render
         val rU          = u("x").render
-        val rMainEl     = element("main", "x").render
+        val rMainEl     = element("main")("x").render
         assertTrue(
           rArticle == "<article>x</article>",
           rAside == "<aside>x</aside>",
@@ -404,11 +404,11 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("custom element helper")(
       test("element creates custom-named elements") {
-        val result = element("custom-tag", "content").render
+        val result = element("custom-tag")("content").render
         assertTrue(result == "<custom-tag>content</custom-tag>")
       },
       test("element with attributes") {
-        val result = element("x-app", id := "root").render
+        val result = element("x-app")(id := "root").render
         assertTrue(result == "<x-app id=\"root\"></x-app>")
       }
     ),
@@ -663,7 +663,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(el.render == "<x-widget></x-widget>")
       },
       test("element helper is a generic element") {
-        val el = element("section", "content")
+        val el = element("section")("content")
         assertTrue(el.render == "<section>content</section>")
       }
     ),
