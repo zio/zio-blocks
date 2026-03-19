@@ -49,12 +49,12 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("void element matches DSL") {
         val fromHtml = html"<br/>"
-        val fromDsl  = br()
+        val fromDsl  = br
         assertTrue(fromHtml == fromDsl)
       },
       test("void element without slash matches DSL") {
         val fromHtml = html"<br>"
-        val fromDsl  = br()
+        val fromDsl  = br
         assertTrue(fromHtml == fromDsl)
       },
       test("input with attributes matches DSL") {

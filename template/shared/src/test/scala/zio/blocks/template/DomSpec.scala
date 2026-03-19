@@ -24,17 +24,6 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(Dom.Empty.render == "")
       }
     ),
-    suite("PreRendered")(
-      test("renders raw HTML without escaping") {
-        assertTrue(Dom.PreRendered("<b>bold</b>").render == "<b>bold</b>")
-      },
-      test("renders empty PreRendered") {
-        assertTrue(Dom.PreRendered("").render == "")
-      },
-      test("renderMinified for PreRendered") {
-        assertTrue(Dom.PreRendered("<i>italic</i>").renderMinified == "<i>italic</i>")
-      }
-    ),
     suite("Element")(
       test("renders empty element") {
         assertTrue(Dom.Element.Generic("div", Chunk.empty, Chunk.empty).render == "<div></div>")
@@ -313,9 +302,6 @@ object DomSpec extends ZIOSpecDefault {
         val s      = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("a > b {}"), Dom.Text("c > d {}")))
         val result = s.render(indent = 2)
         assertTrue(result == "<style>\n  a > b {}\n  c > d {}\n</style>")
-      },
-      test("indented rendering of PreRendered") {
-        assertTrue(Dom.PreRendered("<b>raw</b>").render(indent = 2) == "<b>raw</b>")
       }
     ),
     suite("boolAttr")(
@@ -450,12 +436,6 @@ object DomSpec extends ZIOSpecDefault {
           !Dom.Text("hi").isEmpty,
           !Dom.Element.Generic("div", Chunk.empty, Chunk.empty).isEmpty
         )
-      },
-      test("isEmpty for PreRendered") {
-        assertTrue(
-          Dom.PreRendered("").isEmpty,
-          !Dom.PreRendered("<b>hi</b>").isEmpty
-        )
       }
     ),
     suite("Dom.text and Dom.empty factories")(
@@ -579,24 +559,6 @@ object DomSpec extends ZIOSpecDefault {
         val attr = pa.withSeparator(Chunk("a", "b", "c"), Dom.AttributeSeparator.Comma)
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == "<div class=\"a,b,c\"></div>")
-      }
-    ),
-    suite("PreRendered")(
-      test("PreRendered renders raw HTML") {
-        val pr = Dom.preRendered("<b>raw</b>")
-        assertTrue(pr.render == "<b>raw</b>")
-      },
-      test("PreRendered isEmpty when empty string") {
-        assertTrue(Dom.preRendered("").isEmpty)
-      },
-      test("PreRendered is not empty when non-empty") {
-        assertTrue(!Dom.preRendered("x").isEmpty)
-      },
-      test("PreRendered in renderMinified") {
-        assertTrue(Dom.preRendered("<i>italic</i>").renderMinified == "<i>italic</i>")
-      },
-      test("PreRendered in indented render") {
-        assertTrue(Dom.preRendered("<i>x</i>").render(indent = 2) == "<i>x</i>")
       }
     ),
     suite("Element withAttributes and withChildren")(
@@ -759,17 +721,6 @@ object DomSpec extends ZIOSpecDefault {
         val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
         val updated = ba.applyTo(el)
         assertTrue(updated.render == "<input/>")
-      }
-    ),
-    suite("indented rendering with PreRendered")(
-      test("PreRendered inside element with indentation") {
-        val el = Dom.Element.Generic(
-          "div",
-          Chunk.empty,
-          Chunk(Dom.preRendered("<b>raw</b>"), Dom.Text("text"))
-        )
-        val result = el.render(indent = 2)
-        assertTrue(result == "<div>\n  <b>raw</b>\n  text\n</div>")
       }
     ),
     suite("traversal on Empty and Text")(

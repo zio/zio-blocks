@@ -7,7 +7,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
   def spec = suite("HtmlElements")(
     suite("element constructors")(
       test("div renders empty div") {
-        assertTrue(div().render == "<div></div>")
+        assertTrue(div.render == "<div></div>")
       },
       test("div with string modifier") {
         val result = div("hello").render
@@ -29,12 +29,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("void elements self-close") {
         assertTrue(
-          br().render == "<br/>",
-          hr().render == "<hr/>"
+          br.render == "<br/>",
+          hr.render == "<hr/>"
         )
       },
       test("input as void element") {
-        assertTrue(input().render == "<input/>")
+        assertTrue(input.render == "<input/>")
       },
       test("img as void element with attributes") {
         val result = img(src := "pic.png", alt := "photo").render
@@ -259,25 +259,25 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           rAddress == "<address>addr</address>",
           rBdi == "<bdi>x</bdi>",
           rBdo == "<bdo>x</bdo>",
-          datalist().render == "<datalist></datalist>",
+          datalist.render == "<datalist></datalist>",
           rDfn == "<dfn>x</dfn>",
           rDialog == "<dialog>x</dialog>",
           rFigcaption == "<figcaption>x</figcaption>",
           rKbd == "<kbd>x</kbd>",
           rMeter == "<meter>x</meter>",
-          optgroup().render == "<optgroup></optgroup>",
+          optgroup.render == "<optgroup></optgroup>",
           rOutput == "<output>x</output>",
           rProgress == "<progress>x</progress>",
           rRuby == "<ruby>x</ruby>",
           rSamp == "<samp>x</samp>",
           rSearch == "<search>x</search>",
           rSlot == "<slot>x</slot>",
-          svg().render == "<svg></svg>",
+          svg.render == "<svg></svg>",
           rTime == "<time>x</time>",
           rNoscript == "<noscript>x</noscript>",
           rMap == "<map>x</map>",
           rMath == "<math>x</math>",
-          picture().render == "<picture></picture>",
+          picture.render == "<picture></picture>",
           rData == "<data>x</data>",
           rDetails == "<details>x</details>",
           rDl == "<dl><dt>term</dt><dd>def</dd></dl>",
@@ -291,14 +291,14 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("renders void element tags") {
         assertTrue(
-          base().render == "<base/>",
-          embed().render == "<embed/>",
-          track().render == "<track/>",
-          area().render == "<area/>",
-          col().render == "<col/>",
-          wbr().render == "<wbr/>",
-          param().render == "<param/>",
-          source().render == "<source/>"
+          base.render == "<base/>",
+          embed.render == "<embed/>",
+          track.render == "<track/>",
+          area.render == "<area/>",
+          col.render == "<col/>",
+          wbr.render == "<wbr/>",
+          param.render == "<param/>",
+          source.render == "<source/>"
         )
       },
       test("renders remaining common tags") {
@@ -335,25 +335,25 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(
           rArticle == "<article>x</article>",
           rAside == "<aside>x</aside>",
-          audio().render == "<audio></audio>",
+          audio.render == "<audio></audio>",
           rB == "<b>x</b>",
           rBlockquote == "<blockquote>x</blockquote>",
-          canvas().render == "<canvas></canvas>",
+          canvas.render == "<canvas></canvas>",
           rCaption == "<caption>x</caption>",
           rCite == "<cite>x</cite>",
           rCode == "<code>x</code>",
-          colgroup().render == "<colgroup></colgroup>",
+          colgroup.render == "<colgroup></colgroup>",
           rEm == "<em>x</em>",
           rFieldset == "<fieldset>x</fieldset>",
           rFooter == "<footer>x</footer>",
           rHeader == "<header>x</header>",
           rI == "<i>x</i>",
-          iframe().render == "<iframe></iframe>",
+          iframe.render == "<iframe></iframe>",
           rLabel == "<label>x</label>",
           rLegend == "<legend>x</legend>",
-          link().render == "<link/>",
+          link.render == "<link/>",
           rMainEl == "<main>x</main>",
-          meta().render == "<meta/>",
+          meta.render == "<meta/>",
           rNav == "<nav>x</nav>",
           rOlLi == "<ol><li>x</li></ol>",
           rOption == "<option>x</option>",
@@ -367,12 +367,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           rSub == "<sub>x</sub>",
           rSummary == "<summary>x</summary>",
           rSup == "<sup>x</sup>",
-          tbody().render == "<tbody></tbody>",
-          tfoot().render == "<tfoot></tfoot>",
-          thead().render == "<thead></thead>",
+          tbody.render == "<tbody></tbody>",
+          tfoot.render == "<tfoot></tfoot>",
+          thead.render == "<thead></thead>",
           rTextarea == "<textarea>x</textarea>",
           rU == "<u>x</u>",
-          video().render == "<video></video>"
+          video.render == "<video></video>"
         )
       }
     ),
@@ -576,27 +576,27 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("when and whenSome on elements")(
       test("when true with multiple modifiers applies all") {
-        val el = div().when(true)(
+        val el = div.when(true)(
           Modifier.attributeToModifier(id := "x"),
           Modifier.stringToModifier("text")
         )
         assertTrue(el.render == """<div id="x">text</div>""")
       },
       test("when false with multiple modifiers returns unchanged") {
-        val el = div().when(false)(
+        val el = div.when(false)(
           Modifier.attributeToModifier(id := "x"),
           Modifier.stringToModifier("text")
         )
         assertTrue(el.render == "<div></div>")
       },
       test("whenSome with Some applies all modifiers from function") {
-        val el = div().whenSome(Some(42)) { n =>
+        val el = div.whenSome(Some(42)) { n =>
           Seq(Modifier.stringToModifier(n.toString))
         }
         assertTrue(el.render == "<div>42</div>")
       },
       test("whenSome with None returns unchanged element") {
-        val el = div().whenSome(Option.empty[Int]) { n =>
+        val el = div.whenSome(Option.empty[Int]) { n =>
           Seq(Modifier.stringToModifier(n.toString))
         }
         assertTrue(el.render == "<div></div>")
@@ -607,7 +607,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(r.render == "<div>content</div>")
       },
       test("whenSome with Some and multiple modifiers") {
-        val el = span().whenSome(Some("cls")) { cls =>
+        val el = span.whenSome(Some("cls")) { cls =>
           Seq(
             Modifier.attributeToModifier(className := cls),
             Modifier.stringToModifier("inner")

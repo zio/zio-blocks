@@ -10,8 +10,6 @@ import zio.blocks.chunk.Chunk
  *   - Text content (automatically HTML-escaped during rendering)
  *   - An empty node (renders to nothing)
  *   - An Element with a tag, attributes, and child nodes
- *   - PreRendered HTML (internal use; bypasses escaping for macro-optimized
- *     output)
  *
  * ===Rendering===
  * Text content is HTML-escaped by default to prevent injection attacks.
@@ -145,17 +143,15 @@ sealed trait Dom extends Product with Serializable {
   /**
    * Checks whether this node renders to empty HTML.
    *
-   * Returns true if the node is `Empty`, a `Text` with empty content, or a
-   * `PreRendered` with empty HTML.
+   * Returns true if the node is `Empty` or a `Text` with empty content.
    *
    * @return
    *   true if this node produces no output when rendered
    */
   def isEmpty: Boolean = this match {
-    case Dom.Empty          => true
-    case Dom.Text(c)        => c.isEmpty
-    case Dom.PreRendered(h) => h.isEmpty
-    case _: Dom.Element     => false
+    case Dom.Empty      => true
+    case Dom.Text(c)    => c.isEmpty
+    case _: Dom.Element => false
   }
 }
 
@@ -322,21 +318,6 @@ object Dom {
    */
   case object Empty extends Dom
 
-  /**
-   * A pre-rendered HTML node with raw, unescaped HTML content.
-   *
-   * '''This type is internal only''' (`private[template]`) and is intended for
-   * use by macros and code generation to inject optimized or pre-computed HTML.
-   * Users should not construct PreRendered values directly.
-   *
-   * PreRendered bypasses HTML escaping and is unsafe if constructed from
-   * untrusted input.
-   *
-   * @param html
-   *   raw HTML string (not escaped)
-   */
-  private[template] final case class PreRendered(html: String) extends Dom
-
   sealed trait Attribute extends Product with Serializable
 
   object Attribute {
@@ -373,8 +354,6 @@ object Dom {
   def text(content: String): Text = Text(content)
 
   val empty: Dom = Empty
-
-  private[template] def preRendered(html: String): Dom = PreRendered(html)
 
   def boolAttr(name: String, enabled: Boolean = true): Attribute.BooleanAttribute =
     Attribute.BooleanAttribute(name, enabled)
@@ -415,9 +394,6 @@ object Dom {
 
       case Text(content) =>
         sb.append(Escape.html(content))
-
-      case PreRendered(html) =>
-        sb.append(html)
 
       case Empty =>
         ()
@@ -569,9 +545,6 @@ object Dom {
 
       case Text(content) =>
         sb.append(Escape.html(content))
-
-      case PreRendered(html) =>
-        sb.append(html)
 
       case Empty =>
         ()

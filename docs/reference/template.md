@@ -3,7 +3,7 @@ id: template
 title: "Template"
 ---
 
-`zio-blocks-template` is a type-safe HTML templating library with compile-time optimizations. Build HTML, CSS, and JavaScript using a fluent Scala DSL with zero runtime overhead on Scala 3.
+`zio-blocks-template` is a type-safe HTML templating library with compile-time optimizations. Build HTML, CSS, and JavaScript using a fluent Scala DSL.
 
 ## Why Template?
 
@@ -24,7 +24,7 @@ Template libraries with runtime overhead compromise performance:
 val html = Template.parse("<div>{{content}}</div>")
 ```
 
-Template provides type-safe HTML construction with automatic XSS protection and Scala 3 compile-time optimizations that eliminate runtime overhead.
+Template provides type-safe HTML construction with automatic XSS protection and Scala 3 compile-time optimizations for string interpolators.
 
 ## Installation
 
@@ -138,8 +138,8 @@ Void elements (self-closing tags) automatically render with the correct syntax:
 import zio.blocks.template._
 
 val voidElements = div(
-  br(),
-  hr(),
+  br,
+  hr,
   img(src := "photo.jpg", alt := "A photo"),
   input(`type` := "text", name := "username")
 )
@@ -581,7 +581,7 @@ println(page.renderMinified)
 
 ## Performance and Optimizations
 
-Template is designed for zero-overhead HTML generation with Scala 3 compile-time optimizations.
+Template is designed for efficient HTML generation with Scala 3 compile-time optimizations for string interpolators.
 
 ### Compile-Time Constant Folding (Scala 3)
 
@@ -600,31 +600,6 @@ val sel = CssSelector.Raw(".container")
 ```
 
 No `StringBuilder`, no string concatenation, no runtime processing at all. The values are literal constants embedded in the bytecode.
-
-### Macro-Powered Element Construction (Scala 3)
-
-On Scala 3, the HTML DSL uses compile-time modifier analysis to eliminate intermediate allocations:
-
-```scala
-// What you write:
-val page = div(id := "main", className := "container", p("Hello"))
-
-// What Scala 3 generates (via macro):
-Dom.Element.Generic(
-  "div",
-  Chunk(
-    Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main")),
-    Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("container"))
-  ),
-  Chunk(
-    Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("Hello")))
-  )
-)
-```
-
-Instead of creating N intermediate element copies (the Scala 2 runtime approach), the macro classifies modifiers at compile time and generates a single direct construction call.
-
-On Scala 2, element construction uses runtime iteration over modifiers. This is still fast, but not zero-allocation like Scala 3.
 
 ### Position-Aware HTML Interpolation (Scala 3)
 
@@ -735,7 +710,7 @@ Template provides the same API surface on both Scala 2.13 and Scala 3. The diffe
 
 | Feature | Scala 2 | Scala 3 |
 |---------|---------|---------|
-| HTML DSL | Runtime modifier application | Compile-time modifier classification |
+| HTML DSL | Runtime modifier application | Runtime modifier application |
 | `html""` interpolator | Runtime position detection | Compile-time position analysis |
 | `css""` interpolator | Runtime string building | Constant folding for no-variable cases |
 | `js""` interpolator | Runtime string building | Constant folding for no-variable cases |
@@ -744,7 +719,7 @@ Template provides the same API surface on both Scala 2.13 and Scala 3. The diffe
 | Type safety | Full | Full |
 | XSS protection | Full | Full |
 
-Scala 2 code is still fast and allocation-efficient. Scala 3 adds additional compile-time optimizations for zero-allocation hot paths.
+Scala 2 code is still fast and allocation-efficient. Scala 3 adds compile-time constant folding for string interpolators.
 
 ## Example: A Complete HTML Page
 
