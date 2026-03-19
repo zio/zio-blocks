@@ -160,11 +160,17 @@ Spawn a NEW `docs-critic` agent (do NOT reuse the previous one — fresh eyes ea
 Agent(
   description: "Re-review documentation round N",
   subagent_type: "docs-critic",
-  prompt: <same prompt as Phase 3, identical>
+  prompt: <same prompt as Phase 3, but if there are unresolvable findings,
+           append to the prompt:
+           "The following findings have been declared unresolvable by the maker.
+            Do NOT re-flag these in your report:
+            <list of unresolvable findings>">
 )
 ```
 
 **Step C — Check verdict:**
+
+When parsing the verdict, filter out any findings that match unresolvable items before deciding whether to iterate.
 
 - `APPROVED` → Report success to user. Done.
 - `ITERATE` with only MEDIUM findings remaining (no HIGH) → Done. MEDIUM had its one iteration.
