@@ -1,6 +1,6 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr}
 
 /**
  * Represents a single migration action that operates at a specific path. All
@@ -42,9 +42,9 @@ object MigrationAction {
     override def reverse: MigrationAction = DropField(at, default)
 
     /** The field name, extracted from the path */
-    def fieldName: String = at.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _                                   => throw new IllegalStateException("AddField path must end with a Field node")
+    def fieldName: Option[String] = at.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => Some(name)
+      case _                                   => None
     }
   }
 
@@ -64,9 +64,9 @@ object MigrationAction {
     override def reverse: MigrationAction = AddField(at, defaultForReverse)
 
     /** The field name, extracted from the path */
-    def fieldName: String = at.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _                                   => throw new IllegalStateException("DropField path must end with a Field node")
+    def fieldName: Option[String] = at.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => Some(name)
+      case _                                   => None
     }
   }
 
@@ -85,13 +85,16 @@ object MigrationAction {
     override def reverse: MigrationAction = {
       // Extract the old field name from the path and create reverse
       val parentPath = DynamicOptic(at.nodes.dropRight(1))
-      Rename(parentPath.field(to), from)
+      from match {
+        case Some(oldName) => Rename(parentPath.field(to), oldName)
+        case None          => Irreversible(at, "Rename")
+      }
     }
 
     /** The original field name, extracted from the path */
-    def from: String = at.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _                                   => throw new IllegalStateException("Rename path must end with a Field node")
+    def from: Option[String] = at.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => Some(name)
+      case _                                   => None
     }
   }
 
@@ -134,10 +137,7 @@ object MigrationAction {
   final case class Optionalize(
     at: DynamicOptic
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Mandate(
-      at,
-      DynamicSchemaExpr.Literal(DynamicValue.Record.empty)
-    )
+    override def reverse: MigrationAction = Irreversible(at, "Optionalize")
   }
 
   /**

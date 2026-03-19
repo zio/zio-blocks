@@ -130,11 +130,17 @@ private[migration] object ActionExecutor {
     action match {
       case a @ AddField(at, default) =>
         evalExpr(default, value).flatMap { defaultValue =>
-          executeAddField(at, a.fieldName, defaultValue, value)
+          a.fieldName match {
+            case Some(fieldName) => executeAddField(at, fieldName, defaultValue, value)
+            case None            => Left(SchemaError.transformFailed(at, "AddField path must end with a Field node"))
+          }
         }
 
       case a @ DropField(at, _) =>
-        executeDropField(at, a.fieldName, value)
+        a.fieldName match {
+          case Some(fieldName) => executeDropField(at, fieldName, value)
+          case None            => Left(SchemaError.transformFailed(at, "DropField path must end with a Field node"))
+        }
 
       case Rename(at, to) =>
         executeRename(at, to, value)
