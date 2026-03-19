@@ -829,6 +829,29 @@ TypeId provides instances for common types:
 
 **java.util:** `TypeId.currency`, `uuid`
 
+## Comparison with Alternatives
+
+TypeId occupies a different niche from the reflection and type-tagging mechanisms in the Scala ecosystem:
+
+| Feature | `TypeId` | `ClassTag` | `TypeTag` (Scala 2) | `TypeTest` (Scala 3) | `Mirror` (Scala 3) |
+|---|---|---|---|---|---|
+| Preserves generic type args | Yes | No | Yes | No | No |
+| Distinguishes opaque types | Yes | No | No | No | No |
+| Available on Scala.js | Yes | Partial | No | Yes | Yes |
+| Cross-version (2 & 3) | Yes | Yes | Scala 2 only | Scala 3 only | Scala 3 only |
+| Pure data (no runtime reflection) | Yes | No | No | No | Yes |
+| Captures annotations | Yes | No | Yes | No | No |
+| Captures variance & kind | Yes | No | Yes | No | No |
+| Subtype relationship checks | Yes | No | Yes | Yes | No |
+
+**When to migrate from `ClassTag`:** If you only need `ClassTag` to create arrays of the correct runtime type, keep using it — TypeId does not replace that functionality. If you are using `ClassTag` to identify or dispatch on types, TypeId provides strictly more information (generics, opaque types, annotations) and works identically on JVM and Scala.js.
+
+**When to migrate from `TypeTag` / `WeakTypeTag`:** These are Scala 2-only, depend on `scala-reflect`, and are not available on Scala.js. TypeId captures comparable metadata (full name, type arguments, variance, annotations) as a pure data structure without runtime reflection, and works across Scala 2, Scala 3, JVM, and Scala.js.
+
+**When to migrate from `TypeTest`:** `TypeTest` is a Scala 3 mechanism for safe pattern matching on types. It answers "is this value an instance of T?" but does not expose type structure, annotations, or generic arguments. Use TypeId when you need to inspect or serialize type metadata, not just test membership.
+
+**When to migrate from `Mirror`:** `Mirror` provides structural information about products and sums for derivation in Scala 3. TypeId complements `Mirror` by adding namespace information (owner/package), annotations, opaque type support, and cross-version compatibility. In ZIO Blocks, the schema derivation system uses TypeId rather than `Mirror`.
+
 ## Advanced — Manual Construction
 
 For testing, code generation, or manual type registration, TypeId provides smart constructors that bypass macro derivation.
