@@ -840,6 +840,7 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .in(file("golem/model"))
   .settings(stdSettings("zio-golem-model"))
   .settings(
+    publish / skip := true,
     Compile / unmanagedSourceDirectories ++= {
       val base = baseDirectory.value / "src" / "main"
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -870,11 +871,10 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   .in(file("golem/core"))
   .settings(stdSettings("zio-golem-core"))
   .settings(
+    publish / skip := true,
     libraryDependencies ++= Seq(
       "org.scalatest" %%% "scalatest" % "3.2.19" % Test
-    )
-  )
-  .settings(
+    ),
     // Match zioGolemModel/macros: compile per-Scala-version sources from src/main/scala-2 and src/main/scala-3.
     Compile / unmanagedSourceDirectories ++= {
       val base = baseDirectory.value / "src" / "main"
@@ -903,6 +903,7 @@ lazy val zioGolemMacros = project
   .in(file("golem/macros"))
   .settings(stdSettings("zio-golem-macros"))
   .settings(
+    publish / skip        := true,
     coverageEnabled       := false,
     coverageFailOnMinimum := false,
     scalacOptions += "-language:experimental.macros",
@@ -925,7 +926,8 @@ lazy val zioGolemTools = project
   .in(file("golem/tools"))
   .settings(stdSettings("zio-golem-tools"))
   .settings(
-    fork := true,
+    publish / skip := true,
+    fork           := true,
     libraryDependencies ++= Seq(
       "com.lihaoyi"   %% "ujson"                 % "3.1.0",
       "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
@@ -940,8 +942,8 @@ lazy val zioGolemExamples = project
   .settings(stdSettings("zio-golem-examples-js"))
   .settings(jsSettings)
   .settings(
-    name                            := "zio-golem-examples",
     publish / skip                  := true,
+    name                            := "zio-golem-examples",
     scalaJSUseMainModuleInitializer := false,
     golemBasePackage                := Some("example"),
     golemComponentPathPrefix        := "../..",
@@ -1017,15 +1019,15 @@ lazy val zioGolemSbt = project
   .in(file("golem/sbt"))
   .enablePlugins(SbtPlugin)
   .settings(
-    name         := "zio-golem-sbt",
-    organization := "dev.zio",
-    sbtPlugin    := true,
+    publish / skip := true,
+    name           := "zio-golem-sbt",
+    organization   := "dev.zio",
+    sbtPlugin      := true,
     // sbt plugins compile against sbt's Scala (2.12)
     scalaVersion := "2.12.21",
     sbtVersion   := "1.12.0",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2"),
     libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7",
-    publish / skip                         := false,
     mimaPreviousArtifacts                  := Set()
   )
 lazy val ringbufferBenchmarks = project
