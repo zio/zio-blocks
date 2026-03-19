@@ -27,6 +27,9 @@ sealed trait TypeId[A <: AnyKind] {
   def typeParams: List[TypeParam]
   def typeArgs: List[TypeRepr]
   def defKind: TypeDefKind
+  def selfType: Option[TypeRepr]       // Self-type annotation, if any
+  def aliasedTo: Option[TypeRepr]      // Target type for type aliases
+  def representation: Option[TypeRepr] // Underlying type for opaque types
   def annotations: List[Annotation]
 
   // Derived properties
@@ -312,6 +315,34 @@ originId.defKind
 | `AbstractType`                                       | Abstract type members           |
 
 Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
+
+## Self Types
+
+The `selfType` property captures a trait's self-type annotation, if present. It is `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` for traits without a self-type annotation or for non-trait types like classes and objects.
+
+Self-type information is useful for code generators and schema systems that need to understand a trait's required dependencies (the cake pattern, dependency injection via self-types, etc.).
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+trait Logger {
+  def log(msg: String): Unit
+}
+
+trait Service { self: Logger =>
+  def doWork(): Unit = log("working")
+}
+
+case class PlainClass(x: Int)
+```
+
+```scala mdoc
+val serviceId = TypeId.of[Service]
+serviceId.selfType
+
+val plainId = TypeId.of[PlainClass]
+plainId.selfType
+```
 
 ## Type Parameters and Generics
 
