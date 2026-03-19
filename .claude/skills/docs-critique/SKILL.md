@@ -44,11 +44,13 @@ Parse the maker's response to extract the doc file path from the `DOC_PATH:` lin
 
 **Error handling:** If the maker does not return a `DOC_PATH:` line, ask the user which file was generated and use that path.
 
+If the Agent tool returns an error or the maker reports that the skill failed, report the error to the user and stop. Do not proceed to Phase 2.
+
 Save the maker's agent ID for later `SendMessage` calls. The `Agent` tool returns an `agentId` in its result — store this value. You will use it as the `to` field in `SendMessage` to route critique back to the maker.
 
 ## Phase 2: Gather Critic Context
 
-Using the doc file path from Phase 1, gather context for the critic. You MAY use `Glob` and `Grep` for this phase only — this is the one exception to the "never read files" rule, because you need file paths (not content) to pass to the critic.
+Using the doc file path from Phase 1, gather context for the critic. You MAY use `Glob`, `Grep`, and `Read` for this phase only — this is the one exception to the "never read files" rule, because you need file paths (not content) to pass to the critic. Use `Read` only for `sidebars.js` to extract sibling page IDs.
 
 1. **Source files** — Extract the type name from the doc path (e.g., `docs/reference/schema.md` → `Schema`). Find source files:
    ```
@@ -147,6 +149,8 @@ SendMessage(
 For rounds 2+, send only HIGH findings (MEDIUM issues have had their one iteration).
 
 Wait for the maker to respond confirming fixes are done.
+
+If the maker responds that it could not fix one or more findings, note those as unresolvable and exclude them from subsequent critic reviews. If SendMessage fails, report the error to the user and stop.
 
 **Step B — Spawn fresh critic:**
 
