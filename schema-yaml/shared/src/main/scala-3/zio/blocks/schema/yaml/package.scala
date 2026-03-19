@@ -33,13 +33,13 @@ package object yaml {
         val argType = argExpr.asTerm.tpe.widen
         ctx match {
           case YamlInterpolationContext.Key =>
-            val keyableTc   = TypeRepr.of[Keyable]
+            val keyableTc   = TypeRepr.of[YamlKeyable]
             val keyableType = keyableTc.appliedTo(argType)
             Implicits.search(keyableType) match {
               case success: ImplicitSearchSuccess =>
                 argType.asType match {
                   case '[t] =>
-                    val keyableExpr  = success.tree.asExprOf[Keyable[t]]
+                    val keyableExpr  = success.tree.asExprOf[YamlKeyable[t]]
                     val typedArgExpr = argExpr.asExprOf[t]
                     '{ $keyableExpr.asKey($typedArgExpr) }
                 }
@@ -70,13 +70,13 @@ package object yaml {
                 )
             }
           case YamlInterpolationContext.InString =>
-            val keyableTc   = TypeRepr.of[Keyable]
+            val keyableTc   = TypeRepr.of[YamlKeyable]
             val keyableType = keyableTc.appliedTo(argType)
             Implicits.search(keyableType) match {
               case success: ImplicitSearchSuccess =>
                 argType.asType match {
                   case '[t] =>
-                    val keyableExpr  = success.tree.asExprOf[Keyable[t]]
+                    val keyableExpr  = success.tree.asExprOf[YamlKeyable[t]]
                     val typedArgExpr = argExpr.asExprOf[t]
                     '{ $keyableExpr.asKey($typedArgExpr) }
                 }
