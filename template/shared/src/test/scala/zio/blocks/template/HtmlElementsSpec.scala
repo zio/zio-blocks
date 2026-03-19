@@ -616,6 +616,24 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(el.render == """<span class="cls">inner</span>""")
       }
     ),
+    suite("class attribute merging via DSL")(
+      test("div with duplicate className merges values") {
+        val result = div(className := "a", className := "b").render
+        assertTrue(result == "<div class=\"a b\"></div>")
+      },
+      test("div with className and when(true) merges class") {
+        val result = div(className := "a").when(true)(className := "b").render
+        assertTrue(result == "<div class=\"a b\"></div>")
+      },
+      test("div with className and when(false) keeps single class") {
+        val result = div(className := "a").when(false)(className := "b").render
+        assertTrue(result == "<div class=\"a\"></div>")
+      },
+      test("triple class merge") {
+        val result = div(className := "a", className := "b", className := "c").render
+        assertTrue(result == "<div class=\"a b c\"></div>")
+      }
+    ),
     suite("element constructor edge cases")(
       test("script with Js inlineJs") {
         val s = script().inlineJs(Js("var x = 1 < 2;"))

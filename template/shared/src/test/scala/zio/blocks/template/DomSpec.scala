@@ -92,6 +92,50 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(el.render == "<div>1 &lt; 2</div>")
       }
     ),
+    suite("class attribute merging")(
+      test("merges duplicate class attributes") {
+        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
+        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == "<div class=\"a b\"></div>")
+      },
+      test("single class attribute is unchanged") {
+        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("only"))
+        val el = Dom.Element.Generic("div", Chunk(a1), Chunk.empty)
+        assertTrue(el.render == "<div class=\"only\"></div>")
+      },
+      test("no class attribute is unchanged") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
+        val el = Dom.Element.Generic("div", Chunk(a1), Chunk.empty)
+        assertTrue(el.render == "<div id=\"x\"></div>")
+      },
+      test("merges class with other attributes preserved") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
+        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
+        val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2, a3), Chunk.empty)
+        assertTrue(el.render == "<div id=\"x\" class=\"a b\"></div>")
+      },
+      test("merges MultiValue class attributes") {
+        val a1 =
+          Dom.Attribute.KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space))
+        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("c"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == "<div class=\"a b c\"></div>")
+      },
+      test("class merging works with indented rendering") {
+        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
+        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk(Dom.Text("text")))
+        assertTrue(el.render(indent = 2) == "<div class=\"a b\">text</div>")
+      },
+      test("class merging works with renderMinified") {
+        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
+        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.renderMinified == "<div class=\"a b\"></div>")
+      }
+    ),
     suite("Script element")(
       test("renders JS content without escaping") {
         val s = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("var x = 1 < 2;")))

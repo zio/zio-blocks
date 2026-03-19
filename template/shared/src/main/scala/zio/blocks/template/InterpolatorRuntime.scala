@@ -65,13 +65,10 @@ private[template] object InterpolatorRuntime {
     if (substituted.isEmpty) Dom.Empty
     else if (substituted.length == 1) substituted(0)
     else {
-      val builder = Chunk.newBuilder[Dom]
-      var j       = 0
-      while (j < substituted.length) {
-        builder += substituted(j)
-        j += 1
-      }
-      Dom.Element.Generic("span", Chunk.empty, builder.result())
+      throw new IllegalArgumentException(
+        "html interpolator requires a single root element. " +
+          s"Found ${substituted.length} top-level nodes. Wrap them in a parent element: html\"<div>...</div>\""
+      )
     }
   }
 
