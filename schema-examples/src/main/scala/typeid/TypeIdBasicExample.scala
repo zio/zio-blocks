@@ -1,0 +1,96 @@
+package typeid
+
+import zio.blocks.typeid._
+import util.ShowExpr.show
+
+/**
+ * TypeId Basic Example
+ *
+ * Demonstrates deriving TypeIds for case classes, accessing their properties,
+ * and using predefined TypeIds for built-in types.
+ *
+ * Run with: sbt "schema-examples/runMain typeid.TypeIdBasicExample"
+ */
+
+object TypeIdBasicExample extends App {
+
+  println("═══════════════════════════════════════════════════════════════")
+  println("TypeId Basic Example")
+  println("═══════════════════════════════════════════════════════════════\n")
+
+  // Derive TypeId for a case class
+  case class Person(name: String, age: Int)
+
+  // Simple derivation
+  val personId = TypeId.of[Person]
+
+  println("--- Deriving TypeId for Person ---\n")
+
+  // Accessing name and fullName
+  println("TypeId.of[Person].name")
+  show(personId.name)
+
+  // Accessing fully qualified name
+  println("TypeId.of[Person].fullName")
+  show(personId.fullName)
+
+  // Checking if it's a case class
+  println("TypeId.of[Person].isCaseClass")
+  show(personId.isCaseClass)
+
+  // Accessing the owner (package/enclosing type)
+  println("TypeId.of[Person].owner")
+  show(personId.owner)
+
+  println("\n--- Type Classification ---\n")
+
+  // Check the kind (arity)
+  println("TypeId.of[Person].arity")
+  show(personId.arity)
+
+  // Check it's a proper type
+  println("TypeId.of[Person].isProperType")
+  show(personId.isProperType)
+
+  // Check it's not a type constructor
+  println("TypeId.of[Person].isTypeConstructor")
+  show(personId.isTypeConstructor)
+
+  println("\n--- Predefined TypeIds ---\n")
+
+  // Use predefined TypeIds for built-in types
+  println("TypeId.int.fullName")
+  show(TypeId.int.fullName)
+
+  println("TypeId.string.fullName")
+  show(TypeId.string.fullName)
+
+  println("TypeId.list.name")
+  show(TypeId.list.name)
+
+  // List is a type constructor (arity = 1)
+  println("TypeId.list.arity")
+  show(TypeId.list.arity)
+
+  println("TypeId.map.arity")
+  show(TypeId.map.arity)
+
+  println("\n--- Classification Predicates ---\n")
+
+  // Check various classification predicates
+  println("TypeId.option.isTypeConstructor")
+  show(TypeId.option.isTypeConstructor)
+
+  println("TypeId.either.arity")
+  show(TypeId.either.arity)
+
+  println("\n--- Implicit Derivation ---\n")
+
+  // Implicit derivation
+  val personIdImplicit: TypeId[Person] = implicitly[TypeId[Person]]
+
+  println("implicitly[TypeId[Person]].name")
+  show(personIdImplicit.name)
+
+  println("\n═══════════════════════════════════════════════════════════════")
+}
