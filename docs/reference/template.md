@@ -42,6 +42,10 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-template" % "<version>"
 
 Supported Scala versions: 2.13.x and 3.x
 
+:::note
+The template module depends on `zio-blocks-schema`. This dependency is pulled in transitively — you don't need to add it separately. The `ToJs` typeclass auto-derives from `Schema`, so any type with a `Schema` instance can be interpolated into `js"..."` expressions.
+:::
+
 ## Overview
 
 Template provides four core features:
@@ -160,7 +164,7 @@ val box = div(
 )
 
 println(box.render)
-// <div class="highlighted" title="This is highlighted"></div>
+// <div class="box highlighted" title="This is highlighted"></div>
 ```
 
 Use `whenSome` to apply modifiers based on an `Option`:
@@ -178,7 +182,7 @@ val card = div(
 ))
 
 println(card.render)
-// <div class="has-title" title="Important"><p>Content</p></div>
+// <div class="card has-title" title="Important"><p>Content</p></div>
 ```
 
 ### Special Elements: `script` and `style`
@@ -239,6 +243,18 @@ val content = html"""<p>Hello, $name!</p>"""
 println(withAttrs.render)
 // <div id="user-30" class="profile">User: Alice</div>
 ```
+
+:::caution
+The `html""` interpolator requires a **single root element**. Templates with multiple top-level nodes will throw an `IllegalArgumentException` at runtime. Wrap sibling elements in a parent:
+
+```scala
+// ❌ This will fail:
+// html"<p>First</p><p>Second</p>"
+
+// ✅ Wrap in a parent element:
+html"<div><p>First</p><p>Second</p></div>"
+```
+:::
 
 The interpolator automatically escapes values to prevent XSS:
 

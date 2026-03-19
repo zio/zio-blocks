@@ -112,9 +112,13 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val fromDsl  = script("if (a < b) { alert('<b>hi</b>') }")
         assertTrue(fromHtml == fromDsl)
       },
-      test("multiple top-level elements get wrapped in span") {
-        val fromHtml = html"<p>one</p><p>two</p>"
-        assertTrue(fromHtml.render == "<span><p>one</p><p>two</p></span>")
+      test("multiple top-level elements throw error") {
+        val result = scala.util.Try(html"<p>one</p><p>two</p>")
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("single root element")
+        )
       },
       test("interpolated value inside element") {
         val name     = "World"
@@ -417,10 +421,14 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val result = InterpolatorRuntime.buildHtml(sc, Seq.empty)
         assertTrue(result == Dom.Empty)
       },
-      test("buildHtml with multiple top-level elements") {
+      test("buildHtml with multiple top-level elements throws error") {
         val sc     = new StringContext("<p>a</p><p>b</p>")
-        val result = InterpolatorRuntime.buildHtml(sc, Seq.empty)
-        assertTrue(result.render == "<span><p>a</p><p>b</p></span>")
+        val result = scala.util.Try(InterpolatorRuntime.buildHtml(sc, Seq.empty))
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("single root element")
+        )
       },
       test("buildHtml with Right(chunk) content substitution") {
         val sc     = new StringContext("<div>", "</div>")

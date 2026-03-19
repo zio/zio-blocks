@@ -434,7 +434,7 @@ object Dom {
     if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
-    renderAttributes(attributes, sb)
+    renderAttributes(mergeClassAttributes(attributes), sb)
     if (isVoidElement(tag)) {
       sb.append("/>")
     } else {
@@ -469,6 +469,48 @@ object Dom {
         case Attribute.BooleanAttribute(_, _) => ()
       }
       i += 1
+    }
+  }
+
+  private def mergeClassAttributes(attrs: Chunk[Attribute]): Chunk[Attribute] = {
+    var classCount = 0
+    var i          = 0
+    while (i < attrs.length) {
+      attrs(i) match {
+        case Attribute.KeyValue("class", _) => classCount += 1
+        case _                              => ()
+      }
+      i += 1
+    }
+    if (classCount <= 1) attrs
+    else {
+      val sb      = new java.lang.StringBuilder
+      val builder = Chunk.newBuilder[Attribute]
+      var j       = 0
+      while (j < attrs.length) {
+        attrs(j) match {
+          case Attribute.KeyValue("class", value) =>
+            value match {
+              case AttributeValue.StringValue(v) =>
+                if (sb.length() > 0) sb.append(' ')
+                sb.append(v)
+              case AttributeValue.MultiValue(values, separator) =>
+                var k = 0
+                while (k < values.length) {
+                  if (sb.length() > 0) sb.append(' ')
+                  sb.append(values(k))
+                  k += 1
+                }
+              case _ =>
+                if (sb.length() > 0) sb.append(' ')
+                sb.append(value.toString)
+            }
+          case other => builder += other
+        }
+        j += 1
+      }
+      builder += Attribute.KeyValue("class", AttributeValue.StringValue(sb.toString))
+      builder.result()
     }
   }
 
@@ -547,7 +589,7 @@ object Dom {
     if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
-    renderAttributes(attributes, sb)
+    renderAttributes(mergeClassAttributes(attributes), sb)
     if (isVoidElement(tag)) {
       sb.append("/>")
     } else if (children.isEmpty) {
