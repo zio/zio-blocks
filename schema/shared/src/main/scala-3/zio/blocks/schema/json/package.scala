@@ -33,85 +33,60 @@ package object json {
         rawParts.map { case '{ $rawPart: String } => rawPart.valueOrAbort }
       case _ => report.errorAndAbort("Expected a StringContext with string literal parts")
     }
-
-    // Detect interpolation contexts for type checking
     val contexts = ContextDetector.detectContexts(parts) match {
-      case Left(error)     => report.errorAndAbort(s"Invalid JSON structure: $error")
       case Right(contexts) => contexts
+      case Left(error)     => report.errorAndAbort(s"Invalid JSON structure: $error")
     }
-
-    // Extract individual arg expressions for type checking and processing
-    val argExprs: Seq[Expr[Any]] = args match {
+    val argExprs = args match {
       case Varargs(exprs) => exprs
       case _              => Seq.empty
     }
-
-    // Validate and pre-encode args based on their context
-    val processedArgs: Seq[Expr[Any]] = if (argExprs.size == contexts.size) {
-      contexts.zip(argExprs).map { case (ctx, argExpr) =>
-        val argType = argExpr.asTerm.tpe.widen
-        if (argType <:< TypeRepr.of[Json]) {
-          val typedArgExpr = argExpr.asExprOf[Json]
-          ctx match {
-            case InterpolationContext.Value =>
-              '{
-                val v = $typedArgExpr
-                if (v eq null) Json.Null
-                else Json.jsonCodec.encodeValue(v)
-              }
-            case _ => '{ Json.jsonCodec.encodeKey($typedArgExpr) }
-          }
-        } else {
-          ctx match {
-            case InterpolationContext.Value =>
-              val schemaType = TypeRepr.of[Schema].appliedTo(argType)
-              Implicits.search(schemaType) match {
-                case success: ImplicitSearchSuccess =>
-                  argType.asType match {
-                    case '[t] =>
-                      val schemaExpr   = success.tree.asExprOf[Schema[t]]
-                      val typedArgExpr = argExpr.asExprOf[t]
-                      '{
-                        val v = $typedArgExpr
-                        if (v == null) Json.Null
-                        else $schemaExpr.jsonCodec.encodeValue(v)
-                      }
-                  }
-                case _: ImplicitSearchFailure =>
-                  report.errorAndAbort(s"No Schema found for type ${argType.show}.")
-              }
-            case _ =>
-              val schemaType = TypeRepr.of[Schema].appliedTo(argType)
-              Implicits.search(schemaType) match {
-                case success: ImplicitSearchSuccess =>
-                  argType.asType match {
-                    case '[t] =>
-                      val schemaExpr   = success.tree.asExprOf[Schema[t]]
-                      val typedArgExpr = argExpr.asExprOf[t]
-                      '{ $schemaExpr.jsonCodec.encodeKey($typedArgExpr) }
-                  }
-                case _: ImplicitSearchFailure =>
-                  report.errorAndAbort(s"No Schema found for type ${argType.show}.")
-              }
-          }
-        }
-      }
-    } else {
+    if (argExprs.size != contexts.size) {
       report.errorAndAbort(
         s"Internal error: context count mismatch (${contexts.size} contexts for ${argExprs.size} args)"
       )
     }
-
-    // Convert contexts to runtime expression
+    val processedArgs = contexts.zip(argExprs).map { case (ctx, argExpr) =>
+      val argType = argExpr.asTerm.tpe.widen
+      if (argType <:< TypeRepr.of[Json]) {
+        val typedArgExpr = argExpr.asExprOf[Json]
+        ctx match {
+          case InterpolationContext.Value =>
+            '{
+              val v = $typedArgExpr
+              if (v eq null) Json.Null
+              else v
+            }
+          case _ => '{ Json.jsonCodec.encodeKey($typedArgExpr) }
+        }
+      } else {
+        val schemaType = TypeRepr.of[Schema].appliedTo(argType)
+        Implicits.search(schemaType) match {
+          case success: ImplicitSearchSuccess =>
+            argType.asType match {
+              case '[t] =>
+                val schemaExpr   = success.tree.asExprOf[Schema[t]]
+                val typedArgExpr = argExpr.asExprOf[t]
+                ctx match {
+                  case InterpolationContext.Value =>
+                    '{
+                      val v = $typedArgExpr
+                      if (v == null) Json.Null
+                      else $schemaExpr.jsonCodec.encodeValue(v)
+                    }
+                  case _ => '{ $schemaExpr.jsonCodec.encodeKey($typedArgExpr) }
+                }
+            }
+          case _ => report.errorAndAbort(s"No Schema found for type ${argType.show}.")
+        }
+      }
+    }
     val contextsExpr: Expr[Seq[InterpolationContext]] = Expr.ofSeq(contexts.map {
       case InterpolationContext.Key      => '{ InterpolationContext.Key }
       case InterpolationContext.Value    => '{ InterpolationContext.Value }
       case InterpolationContext.InString => '{ InterpolationContext.InString }
     })
-
-    // Convert processed args to Seq expression
     val processedArgsExpr: Expr[Seq[Any]] = Expr.ofSeq(processedArgs)
-
     try {
       JsonInterpolatorRuntime.validateJsonLiteral(new StringContext(parts: _*), contexts)
       '{ JsonInterpolatorRuntime.jsonWithContexts($sc, $processedArgsExpr, $contextsExpr) }

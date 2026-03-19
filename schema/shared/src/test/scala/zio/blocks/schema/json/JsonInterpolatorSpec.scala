@@ -844,10 +844,31 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("Json identity works in value position") {
-        val j: Json = Json.Object("nested" -> Json.Number(42))
-        val result  = json"""{"data": $j}"""
+        val obj  = Json.Object("nested" -> Json.Number(42))
+        val arr  = Json.Array(Json.Number(42))
+        val str  = Json.String("WWW")
+        val num  = Json.Number(42)
+        val bool = Json.Boolean(true)
         assertTrue(
-          result.get("data").get("nested").as[Int] == Right(42)
+          json"""{"data": $obj}""".get("data").get("nested").as[Int] == Right(42),
+          json"""{"data": $arr}""".get("data").as[List[Int]] == Right(List(42)),
+          json"""{"data": $str}""".get("data").as[String] == Right("WWW"),
+          json"""{"data": $num}""".get("data").as[Int] == Right(42),
+          json"""{"data": $bool}""".get("data").as[Boolean] == Right(true)
+        )
+      },
+      test("Json identity works in key position") {
+        val obj  = Json.Object("nested" -> Json.Number(42))
+        val arr  = Json.Array(Json.Number(42))
+        val str  = Json.String("WWW")
+        val num  = Json.Number(42)
+        val bool = Json.Boolean(true)
+        assertTrue(
+          json"""{$obj: 1}""" == Json.Object("""{"nested":42}""" -> Json.Number(1)),
+          json"""{$arr: 1}""" == Json.Object("[42]" -> Json.Number(1)),
+          json"""{$str: 1}""" == Json.Object(""""WWW"""" -> Json.Number(1)),
+          json"""{$num: 1}""" == Json.Object("42" -> Json.Number(1)),
+          json"""{$bool: 1}""" == Json.Object("true" -> Json.Number(1))
         )
       },
       test("Tuple2 works in value position") {

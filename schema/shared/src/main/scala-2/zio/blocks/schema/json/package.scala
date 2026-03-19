@@ -23,66 +23,51 @@ private object JsonInterpolatorMacros {
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
-
-    // Detect interpolation contexts for type checking
     val contexts = ContextDetector.detectContexts(parts) match {
-      case Left(error)     => c.abort(c.enclosingPosition, s"Invalid JSON structure: $error")
       case Right(contexts) => contexts
+      case Left(error)     => c.abort(c.enclosingPosition, s"Invalid JSON structure: $error")
     }
-
-    // Validate and pre-encode args based on their context
-    val processedArgs: Seq[Tree] = if (args.size == contexts.size) {
-      contexts.zip(args).map { case (ctx, argExpr) =>
-        val argType = argExpr.actualType.widen
-        if (argType <:< typeOf[Json]) {
-          ctx match {
-            case InterpolationContext.Value =>
-              val v = c.freshName(TermName("v"))
-              q"""{
-                val $v = ${argExpr.tree}
-                if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
-                else Json.jsonCodec.encodeValue($v)
-              }"""
-            case _ => q"Json.jsonCodec.encodeKey(${argExpr.tree})"
-          }
-        } else {
-          ctx match {
-            case InterpolationContext.Value =>
-              val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
-              val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
-              if (schemaInstance == EmptyTree) {
-                c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
-              }
-              val v = c.freshName(TermName("v"))
-              q"""{
-                val $v = ${argExpr.tree}
-                if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
-                else $schemaInstance.jsonCodec.encodeValue($v)
-              }"""
-            case _ =>
-              val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
-              val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
-              if (schemaInstance == EmptyTree) {
-                c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
-              }
-              q"$schemaInstance.jsonCodec.encodeKey(${argExpr.tree})"
-          }
-        }
-      }
-    } else {
+    if (args.size != contexts.size) {
       c.abort(
         c.enclosingPosition,
         s"Internal error: context count mismatch (${contexts.size} contexts for ${args.size} args)"
       )
     }
-
-    // Convert contexts to runtime expression
+    val processedArgs = contexts.zip(args).map { case (ctx, argExpr) =>
+      val argType = argExpr.actualType.widen
+      if (argType <:< typeOf[Json]) {
+        ctx match {
+          case InterpolationContext.Value =>
+            val v = c.freshName(TermName("v"))
+            q"""{
+              val $v = ${argExpr.tree}
+              if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
+              else $v
+            }"""
+          case _ => q"Json.jsonCodec.encodeKey(${argExpr.tree})"
+        }
+      } else {
+        val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
+        val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
+        if (schemaInstance == EmptyTree) c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
+        ctx match {
+          case InterpolationContext.Value =>
+            val v = c.freshName(TermName("v"))
+            q"""{
+              val $v = ${argExpr.tree}
+              if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.json.Json.Null
+              else $schemaInstance.jsonCodec.encodeValue($v)
+            }"""
+          case _ =>
+            q"$schemaInstance.jsonCodec.encodeKey(${argExpr.tree})"
+        }
+      }
+    }
     val contextsExpr = contexts.map {
       case InterpolationContext.Key      => q"_root_.zio.blocks.schema.json.InterpolationContext.Key"
       case InterpolationContext.Value    => q"_root_.zio.blocks.schema.json.InterpolationContext.Value"
       case InterpolationContext.InString => q"_root_.zio.blocks.schema.json.InterpolationContext.InString"
     }
-
     try {
       JsonInterpolatorRuntime.validateJsonLiteral(new StringContext(parts: _*), contexts)
       val scExpr     = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
