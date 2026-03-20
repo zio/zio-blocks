@@ -308,7 +308,11 @@ The minimal three-parameter form constructs a simple nominal TypeId when you nee
 
 ### `TypeId.alias` — Type Aliases
 
-Creates a TypeId representing a type alias that points to another type.
+**Type aliases** are alternative names for existing types. For example, `type Age = Int` creates an alias for `Int` so code can read `Age` instead of `Int`. TypeIds for type aliases preserve the distinction from their underlying type through the `aliasedTo` property, enabling alias-aware serialization and schema generation.
+
+For normal use, you don't need `TypeId.alias` directly. When you write a type alias in your code (e.g., `type UserId = String`), the `TypeId.of` macro automatically derives the correct TypeId. The `alias` smart constructor is for **advanced use cases**: unit testing with synthetic alias metadata, code generators that create type aliases dynamically at runtime, or frameworks that normalize or transform type aliases during schema processing. Unless you're building one of these, `TypeId.of` is the right tool.
+
+For testing or code generation, construct an alias TypeId:
 
 ```scala
 object TypeId {
@@ -322,7 +326,9 @@ object TypeId {
 }
 ```
 
-Create an alias TypeId:
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
 
 ```scala mdoc
 val ageId = TypeId.alias[Any]("Age", Owner.fromPackagePath("com.example"), aliased = TypeRepr.Ref(TypeId.int))
@@ -332,7 +338,11 @@ ageId.aliasedTo
 
 ### `TypeId.opaque` — Opaque Types
 
-Creates a TypeId representing an opaque type with its underlying representation.
+**Opaque types** (a Scala 3 feature) are types that have a distinct compile-time identity but a hidden runtime representation. For example, `opaque type UserId = String` creates a type that is distinct from `String` at compile time, but represents `String` at runtime. TypeId preserves this distinction, unlike standard reflection which erases opaque types to their underlying type — a critical capability for type-safe serialization and validation.
+
+For normal use, you don't need `TypeId.opaque` directly. When you define an opaque type in your code, the `TypeId.of` macro automatically derives the correct TypeId with its representation. The `opaque` smart constructor is for **advanced use cases**: unit testing with synthetic opaque type metadata, code generators that create opaque types dynamically, or frameworks that need to construct type metadata for dynamically-discovered opaque types. Unless you're building one of these, `TypeId.of` is the right tool.
+
+For testing or code generation, construct an opaque TypeId:
 
 ```scala
 object TypeId {
@@ -347,7 +357,9 @@ object TypeId {
 }
 ```
 
-Create an opaque TypeId:
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
 
 ```scala mdoc
 val emailId = TypeId.opaque[Any]("Email", Owner.fromPackagePath("com.example"), representation = TypeRepr.Ref(TypeId.string))
@@ -357,7 +369,11 @@ emailId.representation
 
 ### `TypeId.applied` — Applied Types
 
-Creates an applied type from a type constructor and type arguments. For example, `TypeId.applied(TypeId.list, TypeRepr.Ref(TypeId.int))` creates a TypeId representing `List[Int]`.
+**Applied types** are generic types instantiated with type arguments. For example, `List[Int]` is `List` (the type constructor) applied to `Int` (the type argument), and `Map[String, Int]` is `Map` applied to two type arguments. TypeIds for applied types preserve the type arguments so serializers can generate specialized codecs, validators can type-check values, and code generators can emit correct code.
+
+For normal use, you don't need `TypeId.applied` directly. When you write an applied type in your code (e.g., `List[Int]` or `Map[String, User]`), the `TypeId.of` macro automatically derives the correct TypeId with its type arguments preserved. The `applied` smart constructor is for **advanced use cases**: unit testing with synthetic applied type metadata, code generators that construct type expressions dynamically, or frameworks that need to build type metadata at runtime for dynamically-discovered generic types. Unless you're building one of these, `TypeId.of` is the right tool.
+
+For testing or code generation, construct applied TypeIds by combining a type constructor with type argument expressions:
 
 ```scala
 object TypeId {
@@ -365,7 +381,11 @@ object TypeId {
 }
 ```
 
-Create applied TypeIds with single type argument:
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+Applied type with single type argument — `List[Int]`:
 
 ```scala mdoc
 val listIntId = TypeId.applied[Any](TypeId.list, TypeRepr.Ref(TypeId.int))
@@ -373,7 +393,7 @@ listIntId.isApplied
 listIntId.typeArgs
 ```
 
-Create applied TypeIds with multiple type arguments:
+Applied type with multiple type arguments — `Map[String, Int]`:
 
 ```scala mdoc
 val mapStringIntId = TypeId.applied[Any](
