@@ -88,14 +88,14 @@ addCommandAlias(
 )
 addCommandAlias(
   "testJVM",
-  "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; rpcJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test; codegen/test"
 )
 
 addCommandAlias(
   "testJS1",
-  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; rpcJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
 )
 addCommandAlias(
   "testJS2",
@@ -107,13 +107,13 @@ addCommandAlias(
 )
 addCommandAlias(
   "docJVM",
-  "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
+  "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; rpcJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; zioGolemTools/doc; codegen/doc"
 )
 addCommandAlias(
   "docJS1",
-  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; rpcJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
 )
 addCommandAlias(
   "docJS2",
@@ -141,6 +141,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
+    rpc.jvm,
+    rpc.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -383,6 +385,28 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val rpc = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema)
+  .settings(stdSettings("zio-blocks-rpc"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.rpc"))
+  .enablePlugins(BuildInfoPlugin)
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio"          % "2.1.24",
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70,
+    coverageExcludedFiles      := Seq(
+      ".*scala-3/zio/blocks/rpc/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
