@@ -1468,7 +1468,7 @@ For details on the full `Deriver` API and how to implement custom derivers, see 
 
 TypeId provides instances for common types:
 
-**Core Interfaces:** `TypeId.charSequence`, `comparable`, `serializable`
+**Core Interfaces:** `TypeId.charSequence` (`java.lang`), `comparable` (`java.lang`), `serializable` (`java.io`)
 
 **Primitives:** `TypeId.unit`, `boolean`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`, `string`, `bigInt`, `bigDecimal`
 
