@@ -578,7 +578,7 @@ These predicates check specific semantic properties of the type after normalizat
 |-------------|-----------------------------------------------------------------------|
 | `isTuple`   | Normalized type is `scala.TupleN`                                     |
 | `isProduct` | Normalized type is `scala.Product` or `scala.ProductN`                |
-| `isSum`     | Normalized type is `scala.Either` or `scala.Option` (in `scala` pkg)  |
+| `isSum`     | Normalized type is named `Either` or `Option` in the `scala` package (not `scala.util.Either`) |
 | `isEither`  | Normalized type is `scala.util.Either`                                |
 | `isOption`  | Normalized type is `scala.Option`                                     |
 
