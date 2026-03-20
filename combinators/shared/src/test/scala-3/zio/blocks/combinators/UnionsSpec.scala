@@ -2,6 +2,7 @@ package zio.blocks.combinators
 
 import zio.test._
 import scala.compiletime.testing.typeCheckErrors
+
 object UnionsSpec extends ZIOSpecDefault {
 
   def spec = suite("Unions")(

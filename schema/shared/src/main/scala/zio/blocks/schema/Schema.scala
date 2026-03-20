@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Derivable, Deriver, DerivationBuilder}
@@ -290,6 +290,9 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  implicit def chunkMap[A, B](implicit key: Schema[A], value: Schema[B]): Schema[ChunkMap[A, B]] =
+    new Schema(Reflect.chunkMap(key.reflect, value.reflect))
 
   implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
     new Schema(Reflect.either(l.reflect, r.reflect))

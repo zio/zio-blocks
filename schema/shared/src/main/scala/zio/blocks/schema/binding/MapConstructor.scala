@@ -16,6 +16,8 @@
 
 package zio.blocks.schema.binding
 
+import zio.blocks.chunk.ChunkMap
+
 trait MapConstructor[M[_, _]] {
   type ObjectBuilder[_, _]
 
@@ -32,6 +34,20 @@ trait MapConstructor[M[_, _]] {
 
 object MapConstructor {
   def apply[M[_, _]](implicit mc: MapConstructor[M]): MapConstructor[M] = mc
+
+  implicit val chunkMap: MapConstructor[ChunkMap] = new MapConstructor[ChunkMap] {
+    type ObjectBuilder[K, V] = ChunkMap.ChunkMapBuilder[K, V]
+
+    def newObjectBuilder[K, V](sizeHint: Int): ObjectBuilder[K, V] = new ChunkMap.ChunkMapBuilder
+
+    def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder.add(k, v)
+
+    def resultObject[K, V](builder: ObjectBuilder[K, V]): ChunkMap[K, V] = builder.result()
+
+    def emptyObject[K, V]: ChunkMap[K, V] = ChunkMap.empty
+
+    def updated[K, V](map: ChunkMap[K, V], key: K, value: V): ChunkMap[K, V] = map.updated(key, value)
+  }
 
   implicit val map: MapConstructor[Map] = new MapConstructor[Map] {
     type ObjectBuilder[K, V] = scala.collection.mutable.Builder[(K, V), Map[K, V]]

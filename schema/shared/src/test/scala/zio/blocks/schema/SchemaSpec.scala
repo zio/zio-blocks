@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
@@ -666,16 +666,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Record24.s24.get(value))(equalTo("24")) &&
         assert(Record24.schema.fromDynamicValue(Record24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
-      test("derives schema for record with fields that have 3rd party collection type") {
-        implicit def chunkSchema[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
-          new Schema(
-            new Reflect.Wrapper[Binding, Chunk[V], List[V]](
-              Schema.list[V].reflect,
-              zio.blocks.typeid.TypeId.of[Chunk[V]],
-              new Binding.Wrapper(x => Chunk.fromIterable(x), x => x.toList)
-            )
-          )
-
+      test("derives schema for record with fields that have chunk collection type") {
         case class Test(chunk: Chunk[Int])
 
         val schema = Schema.derived[Test]
@@ -1344,7 +1335,9 @@ object SchemaSpec extends SchemaBaseSpec {
     suite("Reflect.Map")(
       test("has consistent equals and hashCode") {
         assert(Schema[Map[Short, Float]])(equalTo(Schema[Map[Short, Float]])) &&
+        assert(Schema[ChunkMap[Short, Float]])(equalTo(Schema[ChunkMap[Short, Float]])) &&
         assert(Schema[Map[Short, Float]].hashCode)(equalTo(Schema[Map[Short, Float]].hashCode)) &&
+        assert(Schema[ChunkMap[Short, Float]].hashCode)(equalTo(Schema[ChunkMap[Short, Float]].hashCode)) &&
         assert(Schema[Map[Short, Float]].defaultValue(Map.empty))(equalTo(Schema[Map[Short, Float]])) &&
         assert(Schema[Map[Short, Float]].defaultValue(Map.empty).hashCode)(
           equalTo(Schema[Map[Short, Float]].hashCode)
@@ -1354,6 +1347,7 @@ object SchemaSpec extends SchemaBaseSpec {
           equalTo(Schema[Map[Short, Float]].hashCode)
         ) &&
         assert(Schema[Map[Short, Float]].doc("Map[Short, Float] (updated)"))(not(equalTo(Schema[Map[Short, Float]]))) &&
+        assert(Schema[Map[Short, Boolean]]: Any)(not(equalTo(Schema[ChunkMap[Short, Boolean]]))) &&
         assert(Schema[Map[Short, Boolean]]: Any)(not(equalTo(Schema[Map[Short, Float]]))) &&
         assert(Schema[Map[String, Float]]: Any)(not(equalTo(Schema[Map[Short, Float]])))
       },
@@ -1419,6 +1413,10 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
         )(isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
+        assert(
+          Schema[ChunkMap[Int, Long]]
+            .fromDynamicValue(Schema[ChunkMap[Int, Long]].toDynamicValue(ChunkMap(1 -> 1L, 2 -> 2L, 3 -> 3L)))
+        )(isRight(equalTo(ChunkMap(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
         assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(hasError("Expected a map at: ."))
         ) &&
@@ -1471,7 +1469,10 @@ object SchemaSpec extends SchemaBaseSpec {
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[Map[Int, Char]].encode(ToStringFormat)(out)(Map(1 -> 'a', 2 -> 'b', 3 -> 'c'))
-        })(equalTo("Map(1 -> a, 2 -> b, 3 -> c)"))
+        })(equalTo("Map(1 -> a, 2 -> b, 3 -> c)")) &&
+        assert(encodeToString { out =>
+          Schema[ChunkMap[Int, Char]].encode(ToStringFormat)(out)(ChunkMap(1 -> 'a', 2 -> 'b', 3 -> 'c'))
+        })(equalTo("ChunkMap(1 -> a, 2 -> b, 3 -> c)"))
       }
     ),
     suite("Reflect.Dynamic")(

@@ -308,23 +308,26 @@ object ChunkMap extends MapFactory[ChunkMap] {
     private[this] var valsBuffer: Array[AnyRef]       = new Array[AnyRef](4)
     private[this] var size                            = 0
 
-    override def addOne(elem: (K, V)): this.type = {
-      val (k, v) = elem
-      val idx    = seen.getOrDefault(k, -1)
-      if (idx >= 0) valsBuffer(idx) = v.asInstanceOf[AnyRef]
+    def add(key: K, value: V): Unit = {
+      val idx = seen.getOrDefault(key, -1)
+      if (idx >= 0) valsBuffer(idx) = value.asInstanceOf[AnyRef]
       else {
         val idx = size
-        seen.put(k, idx)
+        seen.put(key, idx)
         val len = keysBuffer.length
         if (idx == len) {
           val newLen = Math.max(len << 1, 4)
           keysBuffer = java.util.Arrays.copyOf(keysBuffer, newLen)
           valsBuffer = java.util.Arrays.copyOf(valsBuffer, newLen)
         }
-        keysBuffer(idx) = k.asInstanceOf[AnyRef]
-        valsBuffer(idx) = v.asInstanceOf[AnyRef]
+        keysBuffer(idx) = key.asInstanceOf[AnyRef]
+        valsBuffer(idx) = value.asInstanceOf[AnyRef]
         size += 1
       }
+    }
+
+    override def addOne(elem: (K, V)): this.type = {
+      add(elem._1, elem._2)
       this
     }
 
@@ -332,6 +335,8 @@ object ChunkMap extends MapFactory[ChunkMap] {
       seen.clear()
       size = 0
     }
+
+    override def knownSize: Int = size
 
     override def result(): ChunkMap[K, V] = new ChunkMap(
       Chunk.fromArray(java.util.Arrays.copyOf(keysBuffer, size).asInstanceOf[Array[K]]),

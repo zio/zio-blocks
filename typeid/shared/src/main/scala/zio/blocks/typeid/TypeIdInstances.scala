@@ -21,7 +21,6 @@ package zio.blocks.typeid
  * available implicitly when importing TypeId.
  */
 trait TypeIdInstances {
-
   import TypeIdOps.Owners._
 
   implicit val charSequence: TypeId[CharSequence] =
@@ -80,6 +79,8 @@ trait TypeIdInstances {
     TypeId
       .nominal[_root_.scala.collection.immutable.ArraySeq[_]]("ArraySeq", scalaCollectionImmutable, List(TypeParam.A))
 
+  implicit val chunkMap: TypeId[zio.blocks.chunk.ChunkMap[_, _]] =
+    TypeId.nominal[zio.blocks.chunk.ChunkMap[_, _]]("ChunkMap", zioBlocksChunk, List(TypeParam.K, TypeParam.V))
   implicit val chunk: TypeId[zio.blocks.chunk.Chunk[_]] =
     TypeId.nominal[zio.blocks.chunk.Chunk[_]]("Chunk", zioBlocksChunk, List(TypeParam.A))
 

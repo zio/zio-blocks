@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
@@ -1732,6 +1732,13 @@ object Reflect {
   def chunk[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Chunk] = {
     val typeId = TypeId.applied[Chunk[A]](TypeId.chunk, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.chunk))
+  }
+
+  def chunkMap[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
+    F: FromBinding[F]
+  ): Map[F, K, V, ChunkMap] = {
+    val typeId = TypeId.applied[ChunkMap[K, V]](TypeId.chunkMap, TypeRepr.Ref(key.typeId), TypeRepr.Ref(value.typeId))
+    new Map(key, value, typeId, F.fromBinding(Binding.Map.chunkMap))
   }
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit

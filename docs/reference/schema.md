@@ -173,8 +173,6 @@ ZIO Blocks provides specialized `Option` schemas optimized for primitive types. 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 
-import zio.blocks.schema.Schema
-
 // Specialized primitive options (no boxing overhead)
 Schema[Option[Boolean]]  // Also: Byte, Short, Int, Long, Float, Double, Char, Unit
 ```
@@ -193,12 +191,19 @@ Schema[Option[A]]  // Generic option for reference types
 ZIO Blocks also provides polymorphic schemas for standard Scala collections. You can summon schemas for collections of any element type `A` (and key/value types `K`/`V` for maps):
 
 ```scala
+import zio.blocks.schema.Schema
+
+// Built-in Scala collections
 Schema[List[A]]        // Immutable singly-linked list
 Schema[Vector[A]]      // Immutable indexed sequence (efficient random access)
 Schema[Set[A]]         // Immutable set (unique elements)
 Schema[Seq[A]]         // General immutable sequence
 Schema[IndexedSeq[A]]  // Indexed sequence
 Schema[Map[K, V]]      // Immutable key-value mapping
+
+// ZIO Blocks collections (the chunk module)
+Schema[zio.blocks.chunk.Chunk[A]]       // Chunk sequence
+Schema[zio.blocks.chunk.ChunkMap[K, V]] // ChunkMap key-value mapping
 ```
 
 To learn how to create custom collection schemas, check out the [`Sequence`](./reflect.md#3-sequence) and [`Map`](./reflect.md#4-map) nodes on the documentation of [`Reflect`](./reflect.md) data type.
