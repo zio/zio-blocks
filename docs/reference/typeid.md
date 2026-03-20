@@ -893,13 +893,31 @@ For testing, code generation, or manual type registration, TypeId provides smart
 
 ### Nominal Types
 
+The `TypeId.of` macro expands into `TypeId.nominal(...)` calls for classes, traits, and objects. When the type has no type parameters, type arguments, self-type, or annotations, the macro uses the three-parameter overload (`name`, `owner`, `kind`). For example, `TypeId.of[Int]` generates the equivalent of:
+
 ```scala mdoc:compile-only
 import zio.blocks.typeid._
 
-val myTypeId = TypeId.nominal[Any](
-  name = "MyType",
+TypeId.nominal[Int](
+  name = "Int",
+  owner = Owner.fromPackagePath("scala"),
+  kind = TypeDefKind.Unknown
+)
+```
+
+When the type has type parameters, self-types, or annotations, the macro uses the full overload. Note that this overload names the parameter `defKind` (not `kind`). For example, for a sealed trait with a covariant type parameter like `sealed trait Container[+A]`, the macro generates the equivalent of:
+
+```scala mdoc:compile-only
+import zio.blocks.typeid._
+
+TypeId.nominal[Any](
+  name = "Container",
   owner = Owner.fromPackagePath("com.example"),
-  kind = TypeDefKind.Class(isCase = true)
+  typeParams = List(TypeParam.covariant("A", 0)),
+  typeArgs = Nil,
+  defKind = TypeDefKind.Trait(isSealed = true),
+  selfType = None,
+  annotations = Nil
 )
 ```
 
