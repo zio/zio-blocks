@@ -202,16 +202,14 @@ object SchemaToOpenAPISpec extends SchemaBaseSpec {
       test("converts Schema[Option[A]] to OpenAPI schema") {
         val schema        = Schema[Option[String]]
         val openAPISchema = schema.toOpenAPISchema
-
         assertTrue(
           openAPISchema.toJsonSchema.isRight,
           openAPISchema.discriminator.isEmpty
         )
       },
       test("converts Schema[Either[A, B]] to OpenAPI oneOf schema") {
-        val schema        = Schema[Either[String, Int]]
+        val schema        = Schema.derived[Either[String, Int]]
         val openAPISchema = schema.toOpenAPISchema
-
         assertTrue(
           openAPISchema.toJsonSchema.isRight,
           openAPISchema.toJsonSchema.exists(_.isInstanceOf[JsonSchema.Object])

@@ -483,7 +483,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("License round-trips") {
       val original =
-        License(name = "MIT", identifierOrUrl = Some(Left("MIT")), extensions = ChunkMap("x-y" -> Json.Number(1)))
+        License(name = "MIT", identifier = Some("MIT"), extensions = ChunkMap("x-y" -> Json.Number(1)))
       val json    = licenseCodec.encodeValue(original)
       val decoded = licenseCodec.decodeValue(json)
       assertTrue(decoded == original)

@@ -97,44 +97,34 @@ object Contact {
 }
 
 /**
- * License information for the exposed API.
+ * License information for the exposed API. Optional SPDX license expression
+ * (identifier) and a URL to the license are mutually exclusive per the OpenAPI
+ * spec.
  *
  * @param name
  *   REQUIRED. The license name used for the API.
- * @param identifierOrUrl
- *   An optional Either where Left is an SPDX license expression (identifier)
- *   and Right is a URL to the license. These are mutually exclusive per the
- *   OpenAPI spec.
+ * @param identifier
+ *   An optional SPDX license expression (identifier)
+ * @param url
+ *   An optional URL to the license.
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
  */
 final case class License(
   name: String,
-  identifierOrUrl: Option[Either[String, String]] = None,
+  identifier: Option[String] = None,
+  url: Option[String] = None,
   extensions: ChunkMap[String, Json] = ChunkMap.empty
-)
+) {
+  require(
+    identifier.isEmpty || url.isEmpty,
+    "License identifier and url fields are mutually exclusive - only one may be specified"
+  )
+}
 
 object License {
   implicit val schema: Schema[License] = Schema.derived
-
-  def apply(
-    name: String,
-    identifier: Option[String],
-    url: Option[String],
-    extensions: ChunkMap[String, Json]
-  ): License = {
-    val identifierOrUrl = (identifier, url) match {
-      case (Some(id), None)   => Some(Left(id))
-      case (None, Some(u))    => Some(Right(u))
-      case (None, None)       => None
-      case (Some(_), Some(_)) =>
-        throw new IllegalArgumentException(
-          "License identifier and url fields are mutually exclusive - only one may be specified"
-        )
-    }
-    new License(name, identifierOrUrl, extensions)
-  }
 }
 
 /**

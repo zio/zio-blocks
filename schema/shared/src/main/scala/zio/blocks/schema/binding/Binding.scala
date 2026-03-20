@@ -518,26 +518,6 @@ object Binding extends BindingCompanionVersionSpecific {
         }
       )
     )
-
-    def either[A, B]: Variant[Either[A, B]] = new Variant(
-      discriminator = new Discriminator[Either[A, B]] {
-        def discriminate(a: Either[A, B]): Int = if (a.isLeft) 0 else 1
-      },
-      matchers = Matchers(
-        new Matcher[Left[A, B]] {
-          override def downcastOrNull(any: Any): Left[A, B] = any match {
-            case x: Left[A, B] @scala.unchecked => x
-            case _                              => null.asInstanceOf[Left[A, B]]
-          }
-        },
-        new Matcher[Right[A, B]] {
-          override def downcastOrNull(any: Any): Right[A, B] = any match {
-            case x: Right[A, B] @scala.unchecked => x
-            case _                               => null.asInstanceOf[Right[A, B]]
-          }
-        }
-      )
-    )
   }
 
   final case class Seq[C[_], +A](

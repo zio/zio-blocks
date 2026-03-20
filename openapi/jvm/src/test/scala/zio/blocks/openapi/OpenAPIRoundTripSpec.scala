@@ -46,7 +46,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
           license = Some(
             License(
               name = "MIT",
-              identifierOrUrl = Some(Left("MIT")),
+              identifier = Some("MIT"),
               extensions = ChunkMap("x-license-year" -> Json.Number(2024))
             )
           ),
@@ -82,7 +82,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("License round-trips with identifier") {
         val original = License(
           name = "Apache 2.0",
-          identifierOrUrl = Some(Left("Apache-2.0")),
+          identifier = Some("Apache-2.0"),
           extensions = ChunkMap("x-year" -> Json.Number(2024))
         )
 
@@ -94,7 +94,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
       test("License round-trips with url") {
         val original = License(
           name = "Custom License",
-          identifierOrUrl = Some(Right("https://example.com/license")),
+          url = Some("https://example.com/license"),
           extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
 
@@ -840,7 +840,7 @@ object OpenAPIRoundTripSpec extends SchemaBaseSpec {
                 email = Some("support@example.com")
               )
             ),
-            license = Some(License(name = "Apache 2.0", identifierOrUrl = Some(Left("Apache-2.0"))))
+            license = Some(License(name = "Apache 2.0", identifier = Some("Apache-2.0")))
           ),
           jsonSchemaDialect = Some("https://spec.openapis.org/oas/3.1/dialect/base"),
           servers = Chunk(

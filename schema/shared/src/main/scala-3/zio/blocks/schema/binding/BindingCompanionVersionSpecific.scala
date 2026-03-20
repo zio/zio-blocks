@@ -254,7 +254,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else if (tpe <:< TypeRepr.of[Option[?]]) deriveOptionBinding(tpe)
     else if (tpe <:< TypeRepr.of[Left[?, ?]]) deriveLeftBinding(tpe)
     else if (tpe <:< TypeRepr.of[Right[?, ?]]) deriveRightBinding(tpe)
-    else if (tpe <:< TypeRepr.of[Either[?, ?]]) deriveEitherBinding(tpe)
     else if (tpe <:< TypeRepr.of[Map[?, ?]])
       fail(s"Use Binding.of[Map] for map types, not Binding.of[${tpe.show}]")
     else if (tpe <:< TypeRepr.of[Chunk[?]])
@@ -356,13 +355,6 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         else if (dealiasedB <:< charTpe) '{ Binding.Record.rightChar[a] }
         else if (dealiasedB <:< unitTpe) '{ Binding.Record.rightUnit[a] }
         else '{ Binding.Record.right[a, b] }
-    }
-  }
-
-  private def deriveEitherBinding(tpe: TypeRepr)(using Quotes): Expr[Any] = {
-    val args = typeArgs(tpe)
-    (args(0).asType, args(1).asType) match {
-      case ('[a], '[b]) => '{ Binding.Variant.either[a, b] }
     }
   }
 

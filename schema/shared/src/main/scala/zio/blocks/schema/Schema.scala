@@ -297,9 +297,6 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
   implicit def chunkMap[A, B](implicit key: Schema[A], value: Schema[B]): Schema[ChunkMap[A, B]] =
     new Schema(Reflect.chunkMap(key.reflect, value.reflect))
 
-  implicit def either[A, B](implicit l: Schema[A], r: Schema[B]): Schema[Either[A, B]] =
-    new Schema(Reflect.either(l.reflect, r.reflect))
-
   /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
    * the JsonSchema during construction.
