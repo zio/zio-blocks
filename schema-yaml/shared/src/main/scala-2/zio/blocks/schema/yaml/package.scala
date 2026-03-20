@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.json.Keyable
 import zio.blocks.schema.yaml._
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -35,7 +34,7 @@ private object YamlInterpolatorMacros {
         val argType = argExpr.actualType.widen
         ctx match {
           case YamlInterpolationContext.Key =>
-            val keyableTc       = typeOf[Keyable[_]].typeConstructor
+            val keyableTc       = typeOf[YamlKeyable[_]].typeConstructor
             val keyableType     = appliedType(keyableTc, argType)
             val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
             if (keyableInstance == EmptyTree) {
@@ -66,7 +65,7 @@ private object YamlInterpolatorMacros {
             }"""
 
           case YamlInterpolationContext.InString =>
-            val keyableTc       = typeOf[Keyable[_]].typeConstructor
+            val keyableTc       = typeOf[YamlKeyable[_]].typeConstructor
             val keyableType     = appliedType(keyableTc, argType)
             val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
             if (keyableInstance == EmptyTree) {

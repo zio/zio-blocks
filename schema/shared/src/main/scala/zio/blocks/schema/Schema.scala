@@ -19,10 +19,11 @@ package zio.blocks.schema
 import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.derive.{Derivable, Deriver, DerivationBuilder}
+import zio.blocks.schema.derive.{Derivable, DerivationBuilder, Deriver}
 import zio.blocks.typeid.TypeId
-import zio.blocks.schema.json.{Json, JsonFormat, JsonSchema, JsonSchemaToReflect}
+import zio.blocks.schema.json.{Json, JsonBinaryCodec, JsonFormat, JsonSchema, JsonSchemaToReflect}
 import zio.blocks.schema.patch.{Patch, PatchMode}
+
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -33,7 +34,9 @@ import java.util.concurrent.ConcurrentHashMap
 final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
-  private[schema] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
+  lazy val jsonCodec: JsonBinaryCodec[A] = getInstance(JsonFormat)
+
+  def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
       .computeIfAbsent(format, _ => deriving(format.deriver).derive)

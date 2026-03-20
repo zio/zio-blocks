@@ -531,69 +531,62 @@ val normalized = json.normalize
 
 ## Encoding and Decoding
 
-### Type Classes
-
-ZIO Blocks provides `JsonEncoder` and `JsonDecoder` type classes for converting between Scala types and `Json`:
+### Built-in Codecs
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{Json, JsonEncoder, JsonDecoder}
-
-// Encode Scala values to Json
-val intJson = JsonEncoder[Int].encode(42)  // Json.Number(42)
-val strJson = JsonEncoder[String].encode("hello")  // Json.String("hello")
-
-// Decode Json to Scala values
-val intResult = JsonDecoder[Int].decode(Json.Number(42))  // Right(42)
-val strResult = JsonDecoder[String].decode(Json.String("hello"))  // Right("hello")
-```
-
-### Built-in Encoders/Decoders
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonEncoder, JsonDecoder}
+import zio.blocks.schema.Schema
 
 // Primitives
-JsonEncoder[String]
-JsonEncoder[Int]
-JsonEncoder[Long]
-JsonEncoder[Double]
-JsonEncoder[Boolean]
-JsonEncoder[BigDecimal]
+Schema[String].jsonCodec
+Schema[Int].jsonCodec
+Schema[Long].jsonCodec
+Schema[Double].jsonCodec
+Schema[Boolean].jsonCodec
+Schema[BigDecimal].jsonCodec
 
 // Collections
-JsonEncoder[List[Int]]
-JsonEncoder[Vector[String]]
-JsonEncoder[Map[String, Int]]
-JsonEncoder[Option[String]]
+Schema[List[Int]].jsonCodec
+Schema[Vector[String]].jsonCodec
+Schema[Map[String, Int]].jsonCodec
+Schema[Option[String]].jsonCodec
 
-// Java time types
-JsonEncoder[java.time.Instant]
-JsonEncoder[java.time.LocalDate]
-JsonEncoder[java.time.ZonedDateTime]
-JsonEncoder[java.util.UUID]
+// Java time/util types
+Schema[java.time.Instant].jsonCodec
+Schema[java.time.LocalDate].jsonCodec
+Schema[java.time.ZonedDateTime].jsonCodec
+Schema[java.util.UUID].jsonCodec
 ```
 
-### Schema-Based Derivation
+### Encoding/Decoding of Primitives
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+// Encode Scala values to Json
+val intJson = 42.toJson  // Json.Number(42)
+val strJson = "hello".toJson  // Json.String("hello")
+
+// Decode Json to Scala values
+val intResult = intJson.as[Int]  // Right(42)
+val strResult = strJson.as[String]  // Right("hello")
+```
+
+### Encoding/Decoding of Case Classes
 
 For complex types, use Schema-based derivation:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{Json, JsonEncoder, JsonDecoder}
+import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
 
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
-  
-  // Derived from schema (lower priority)
-  implicit val encoder: JsonEncoder[Person] = JsonEncoder.fromSchema
-  implicit val decoder: JsonDecoder[Person] = JsonDecoder.fromSchema
 }
 
 val person = Person("Alice", 30)
-val json = JsonEncoder[Person].encode(person)
-val decoded = JsonDecoder[Person].decode(json)
+val json = person.toJson
+val decoded = json.as[Person]
 ```
 
 ### Extension Syntax
@@ -631,14 +624,12 @@ These extension methods provide a more ergonomic API compared to explicitly crea
 ### Using the `as` Method
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
-import zio.blocks.schema.json.JsonDecoder
-import zio.blocks.schema.{Schema, SchemaError}
+import zio.blocks.schema._
+import zio.blocks.schema.json._
 
 case class Person(name: String, age: Int)
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
-  implicit val decoder: JsonDecoder[Person] = JsonDecoder.fromSchema
 }
 
 val json = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")

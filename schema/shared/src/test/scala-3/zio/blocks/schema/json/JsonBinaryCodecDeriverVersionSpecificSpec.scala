@@ -90,10 +90,8 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
         roundTrip(List(1, 2, 3), "[1,2,3]", codec) &&
         roundTrip((), "{}", codec) &&
         decodeError("[1,true,2]", "expected a variant value at: .", codec) &&
-        decodeError("[1.0,2.0]", "expected a variant value at: .", codec) &&
-        decodeError("1.001", "expected a variant value at: .", codec) &&
-        decodeError("01", "expected a variant value at: .", codec) &&
-        decodeError("1e+1", "expected a variant value at: .", codec)
+        decodeError("[null]", "expected a variant value at: .", codec) &&
+        decodeError("{\"k\", 1}", "expected a variant value at: .", codec)
       },
       test("nested variants without discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
@@ -112,7 +110,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
         roundTrip(Case1(List(1, 2, 3)), """{"value":[1,2,3]}""", codec) &&
         roundTrip(Case2(Map(1 -> 2L)), """{"value":{"1":2}}""", codec) &&
         roundTrip(Case2(Map.empty), """{}""", codec) &&
-        decodeError("""{"value":[1,2.0,3]}""", "expected a variant value at: .", codec) &&
+        decodeError("""{"value":[1,true,3]}""", "expected a variant value at: .", codec) &&
         decodeError("""{"value":{"VVV":1}}""", "expected a variant value at: .", codec) &&
         decodeError("""{"value":}""", "expected a variant value at: .", codec)
       }

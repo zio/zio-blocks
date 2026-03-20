@@ -20,7 +20,7 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.docs.Doc
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
-import zio.blocks.schema.binding.{Binding, HasBinding, RegisterOffset}
+import zio.blocks.schema.binding.{Binding, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Constructor, Discriminator}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -420,8 +420,7 @@ class JsonBinaryCodecDeriver private[json] (
                       case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(in)
                     }
                   } catch {
-                    case error if NonFatal(error) =>
-                      in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
+                    case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), err)
                   }
                   offset += registerOffsets(idx)
                   idx += 1
@@ -485,6 +484,75 @@ class JsonBinaryCodecDeriver private[json] (
               }
             } finally out.pop(usedRegisters)
             out.writeArrayEnd()
+          }
+
+          override def decodeValue(json: Json): A = {
+            json match {
+              case a: Json.Array =>
+                val len    = fieldCodecs.length
+                val values = a.value
+                if (values.length == len) {
+                  val regs   = Registers(usedRegisters)
+                  var offset = 0L
+                  var idx    = 0
+                  while ({
+                    val codec = fieldCodecs(idx)
+                    val value = values(idx)
+                    try {
+                      (typeTags(idx): @switch) match {
+                        case 0 => regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(value))
+                        case 1 => regs.setInt(offset, codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(value))
+                        case 2 => regs.setLong(offset, codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(value))
+                        case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(value))
+                        case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(value))
+                        case 5 =>
+                          regs.setBoolean(offset, codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(value))
+                        case 6 => regs.setByte(offset, codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(value))
+                        case 7 => regs.setChar(offset, codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(value))
+                        case 8 => regs.setShort(offset, codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(value))
+                        case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(value)
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.Field(fields(idx).name), err)
+                    }
+                    offset += registerOffsets(idx)
+                    idx += 1
+                    idx < len
+                  }) ()
+                  return constructor.construct(regs, 0L)
+                }
+              case _ =>
+            }
+            throw new JsonBinaryCodecError(Nil, "expected Json.Array")
+          }
+
+          override def encodeValue(x: A): Json = {
+            val len     = fieldCodecs.length
+            val builder = ChunkBuilder.make[Json](len)
+            val regs    = Registers(usedRegisters)
+            var offset  = 0L
+            deconstructor.deconstruct(regs, offset, x)
+            var idx = 0
+            while (idx < len) {
+              val codec = fieldCodecs(idx)
+              builder.addOne(
+                (typeTags(idx): @switch) match {
+                  case 0 => codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset))
+                  case 1 => codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(regs.getInt(offset))
+                  case 2 => codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(regs.getLong(offset))
+                  case 3 => codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(regs.getFloat(offset))
+                  case 4 => codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(regs.getDouble(offset))
+                  case 5 => codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+                  case 6 => codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(regs.getByte(offset))
+                  case 7 => codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(regs.getChar(offset))
+                  case 8 => codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(regs.getShort(offset))
+                  case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue(())
+                }
+              )
+              offset += registerOffsets(idx)
+              idx += 1
+            }
+            new Json.Array(builder.result())
           }
 
           override lazy val toJsonSchema: JsonSchema =
@@ -619,7 +687,7 @@ class JsonBinaryCodecDeriver private[json] (
                       if (mask == 0L) in.duplicatedKeyError(keyLen)
                       try fieldInfo.readValue(in, baseOffset)
                       catch {
-                        case error if NonFatal(error) => in.decodeError(fieldInfo.span, error)
+                        case err if NonFatal(err) => in.decodeError(fieldInfo.span, err)
                       }
                     } else skipOrReject(in, keyLen)
                   }
@@ -668,10 +736,103 @@ class JsonBinaryCodecDeriver private[json] (
               out.writeObjectEnd()
             }
 
+            override def decodeValue(json: Json): A = json match {
+              case o: Json.Object =>
+                val it                   = o.value.iterator
+                val regs                 = Registers(usedRegisters)
+                val len                  = fieldInfos.length
+                var fieldInfo: FieldInfo = null
+                var missing1, missing2   = -1L
+                var idx                  = -1
+                while (it.hasNext) {
+                  val kv  = it.next()
+                  val key = kv._1
+                  if (
+                    len != 0 && {
+                      idx += 1
+                      if (idx == len) idx = 0
+                      fieldInfo = fieldInfos(idx)
+                      (fieldInfo.getName == key || {
+                        fieldInfo = fieldIndexMap.get(key)
+                        (fieldInfo ne null) && {
+                          idx = fieldInfo.idx
+                          true
+                        }
+                      }) && fieldInfo.nonTransient
+                    }
+                  ) {
+                    var mask = 1L << idx
+                    if (idx < 64) {
+                      mask &= missing1
+                      missing1 ^= mask
+                    } else {
+                      mask &= missing2
+                      missing2 ^= mask
+                    }
+                    if (mask == 0L) duplicatedKeyError(key)
+                    try fieldInfo.readValue(regs, kv._2)
+                    catch {
+                      case err if NonFatal(err) => error(fieldInfo.span, err)
+                    }
+                  } else skipOrReject(key)
+                }
+                val len64 = Math.min(len, 64)
+                while ({
+                  idx = java.lang.Long.numberOfTrailingZeros(missing1)
+                  idx < len64
+                }) {
+                  fieldInfos(idx).setMissingValueOrError(regs)
+                  missing1 &= missing1 - 1L
+                }
+                if (len > 64) {
+                  while ({
+                    idx = java.lang.Long.numberOfTrailingZeros(missing2) + 64
+                    idx < len
+                  }) {
+                    fieldInfos(idx).setMissingValueOrError(regs)
+                    missing2 &= missing2 - 1L
+                  }
+                }
+                constructor.construct(regs, 0)
+              case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+            }
+
+            override def encodeValue(x: A): Json = {
+              val len     = fieldInfos.length
+              val builder =
+                if (discriminatorField ne null) {
+                  val b = ChunkBuilder.make[(String, Json)](len + 1)
+                  discriminatorField.writeKeyAndValue(b)
+                  b
+                } else ChunkBuilder.make[(String, Json)](len)
+              val regs = Registers(usedRegisters)
+              deconstructor.deconstruct(regs, 0, x)
+              var idx = 0
+              while (idx < len) {
+                val fieldInfo = fieldInfos(idx)
+                if (fieldInfo.nonTransient) {
+                  if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(regs, builder)
+                  else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(regs, builder)
+                  else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(regs, builder)
+                  else fieldInfo.writeRequired(regs, builder)
+                }
+                idx += 1
+              }
+              new Json.Object(builder.result())
+            }
+
             private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
               if (doReject && ((discriminatorField eq null) || !discriminatorField.nameMatch(in, keyLen))) {
                 in.unexpectedKeyError(keyLen)
               } else in.skip()
+
+            private[this] def skipOrReject(key: String): Unit =
+              if (doReject && ((discriminatorField eq null) || discriminatorField.getName != key)) {
+                throw new JsonBinaryCodecError(Nil, s"unexpected field \"$key\"")
+              }
+
+            private[this] def duplicatedKeyError(key: String): Nothing =
+              throw new JsonBinaryCodecError(Nil, s"duplicated field \"$key\"")
 
             override lazy val toJsonSchema: JsonSchema = {
               val reqs    = Set.newBuilder[String]
@@ -725,13 +886,21 @@ class JsonBinaryCodecDeriver private[json] (
                 if (isNull) in.readNullOrError(None, "expected null")
                 else new Some(valueCodec.decodeValue(in))
               } catch {
-                case error if NonFatal(error) => decodeError(in, error, isNull)
+                case err if NonFatal(err) => decodeError(in, err, isNull)
               }
             }
 
             override def encodeValue(x: Option[Any], out: JsonWriter): Unit =
               if (x eq None) out.writeNull()
               else valueCodec.encodeValue(x.get, out)
+
+            override def decodeValue(json: Json): Option[Any] =
+              if (json eq Json.Null) None
+              else new Some(valueCodec.decodeValue(json))
+
+            override def encodeValue(x: Option[Any]): Json =
+              if (x eq None) Json.Null
+              else valueCodec.encodeValue(x.get)
 
             private[this] def decodeError(in: JsonReader, error: Throwable, isNull: Boolean): Nothing =
               if (isNull) in.decodeError(new DynamicOptic.Node.Case("None"), error)
@@ -793,6 +962,17 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
             def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
+
+            override def decodeValue(json: Json): A = json match {
+              case s: Json.String =>
+                val enumName    = s.value
+                val constructor = constructorMap.get(enumName)
+                if (constructor ne null) constructor.construct(null, 0).asInstanceOf[A]
+                else throw new JsonBinaryCodecError(Nil, s"illegal enum value \"$enumName\"")
+              case _ => throw new JsonBinaryCodecError(Nil, "expected Json.String")
+            }
+
+            override def encodeValue(x: A): Json = new Json.String(root.discriminate(x).enumName)
 
             override lazy val toJsonSchema: JsonSchema =
               NonEmptyChunk.fromChunk(collectEnumNames(enumInfos, ChunkBuilder.make()).result()) match {
@@ -872,7 +1052,7 @@ class JsonBinaryCodecDeriver private[json] (
                         in.rollbackToMark()
                         try caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(in)
                         catch {
-                          case error if NonFatal(error) => in.decodeError(caseInfo.spans, error)
+                          case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
                         }
                       } else in.discriminatorValueError(discriminatorFieldName)
                     } else in.requiredFieldError(discriminatorFieldName)
@@ -880,6 +1060,37 @@ class JsonBinaryCodecDeriver private[json] (
 
                   def encodeValue(x: A, out: JsonWriter): Unit =
                     root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                  override def decodeValue(json: Json): A = json match {
+                    case o: Json.Object =>
+                      val kvs = o.value
+                      val len = kvs.length
+                      var idx = 0
+                      while (idx < len) {
+                        val kv = kvs(idx)
+                        if (kv._1 == discriminatorFieldName) {
+                          kv._2 match {
+                            case s: Json.String =>
+                              val caseInfo = caseMap.get(s.value)
+                              if (caseInfo ne null) {
+                                try return caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(json)
+                                catch {
+                                  case err if NonFatal(err) => error(caseInfo.spans, err)
+                                }
+                              }
+                            case _ =>
+                          }
+                          val msg = s"illegal value of discriminator field \"$discriminatorFieldName\""
+                          throw new JsonBinaryCodecError(Nil, msg)
+                        }
+                        idx += 1
+                      }
+                      throw new JsonBinaryCodecError(Nil, s"missing required field \"$discriminatorFieldName\"")
+                    case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+                  }
+
+                  override def encodeValue(x: A): Json =
+                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)
 
                   override lazy val toJsonSchema: JsonSchema = {
                     val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
@@ -943,7 +1154,7 @@ class JsonBinaryCodecDeriver private[json] (
                         in.resetMark()
                         return x
                       } catch {
-                        case error if NonFatal(error) => in.rollbackToMark()
+                        case err if NonFatal(err) => in.rollbackToMark()
                       }
                       idx += 1
                     }
@@ -952,6 +1163,21 @@ class JsonBinaryCodecDeriver private[json] (
 
                   def encodeValue(x: A, out: JsonWriter): Unit =
                     root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+
+                  override def decodeValue(json: Json): A = {
+                    var idx = 0
+                    while (idx < caseLeafCodecs.length) {
+                      try return caseLeafCodecs(idx).asInstanceOf[JsonBinaryCodec[A]].decodeValue(json)
+                      catch {
+                        case err if NonFatal(err) =>
+                      }
+                      idx += 1
+                    }
+                    throw new JsonBinaryCodecError(Nil, "expected a variant value")
+                  }
+
+                  override def encodeValue(x: A): Json =
+                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)
 
                   override lazy val toJsonSchema: JsonSchema =
                     NonEmptyChunk.fromChunk(Chunk.fromArray(caseLeafCodecs.map(_.toJsonSchema))) match {
@@ -1010,7 +1236,7 @@ class JsonBinaryCodecDeriver private[json] (
                         val x =
                           try caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(in)
                           catch {
-                            case error if NonFatal(error) => in.decodeError(caseInfo.spans, error)
+                            case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
                           }
                         if (!in.isNextToken('}')) in.objectEndOrCommaError()
                         return x
@@ -1025,6 +1251,30 @@ class JsonBinaryCodecDeriver private[json] (
                     caseInfo.writeKey(out)
                     caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                     out.writeObjectEnd()
+                  }
+
+                  override def decodeValue(json: Json): A = json match {
+                    case o: Json.Object =>
+                      val kvs = o.value
+                      if (kvs.nonEmpty) {
+                        val kv       = kvs(0)
+                        val caseInfo = caseMap.get(kv._1)
+                        if (caseInfo ne null) {
+                          try return caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(kv._2)
+                          catch {
+                            case err if NonFatal(err) => error(caseInfo.spans, err)
+                          }
+                        }
+                      }
+                      throw new JsonBinaryCodecError(Nil, "illegal discriminator")
+                    case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+                  }
+
+                  override def encodeValue(x: A): Json = {
+                    val caseInfo = root.discriminate(x)
+                    new Json.Object(
+                      Chunk.single((caseInfo.getName, caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)))
+                    )
                   }
 
                   override lazy val toJsonSchema: JsonSchema = {
@@ -1102,7 +1352,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1121,6 +1371,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Int] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Int](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, intCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Int](builder)
+                  case _: Json.Null.type => constructor.empty[Int]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Int]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.intAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1143,7 +1421,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1162,6 +1440,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Int] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Int](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Int](builder)
+                  case _: Json.Null.type => constructor.empty[Int]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Int]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.intAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1185,7 +1491,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1204,6 +1510,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Long] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Long](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, longCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Long](builder)
+                  case _: Json.Null.type => constructor.empty[Long]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Long]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.longAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1226,7 +1560,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1245,6 +1579,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Long] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Long](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Long](builder)
+                  case _: Json.Null.type => constructor.empty[Long]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Long]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.longAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1268,7 +1630,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1287,6 +1649,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Float] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Float](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, floatCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Float](builder)
+                  case _: Json.Null.type => constructor.empty[Float]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Float]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.floatAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1309,7 +1699,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1328,6 +1718,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Float] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Float](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Float](builder)
+                  case _: Json.Null.type => constructor.empty[Float]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Float]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.floatAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1351,7 +1769,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1370,6 +1788,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Double] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Double](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, doubleCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Double](builder)
+                  case _: Json.Null.type => constructor.empty[Double]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Double]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.doubleAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1392,7 +1838,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1411,6 +1857,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Double] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Double](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Double](builder)
+                  case _: Json.Null.type => constructor.empty[Double]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Double]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.doubleAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1434,7 +1908,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1453,6 +1927,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Boolean] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, booleanCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Boolean](builder)
+                  case _: Json.Null.type => constructor.empty[Boolean]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Boolean]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Boolean(deconstructor.booleanAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1475,7 +1977,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1494,6 +1996,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Boolean] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Boolean](builder)
+                  case _: Json.Null.type => constructor.empty[Boolean]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Boolean]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.booleanAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1517,7 +2047,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1536,6 +2066,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Byte] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, byteCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Byte](builder)
+                  case _: Json.Null.type => constructor.empty[Byte]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Byte]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.byteAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1558,7 +2116,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1577,6 +2135,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Byte] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Byte](builder)
+                  case _: Json.Null.type => constructor.empty[Byte]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Byte]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.byteAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1600,7 +2186,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1619,6 +2205,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Char] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Char](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, charCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Char](builder)
+                  case _: Json.Null.type => constructor.empty[Char]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Char]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(new Json.String(deconstructor.charAt(x, idx).toString))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1641,7 +2255,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1660,6 +2274,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Char] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Char](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Char](builder)
+                  case _: Json.Null.type => constructor.empty[Char]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Char]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.charAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1683,7 +2325,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1702,6 +2344,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Short] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Short](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, shortCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Short](builder)
+                  case _: Json.Null.type => constructor.empty[Short]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Short]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(Json.Number(deconstructor.shortAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             } else {
@@ -1724,7 +2394,7 @@ class JsonBinaryCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1743,6 +2413,34 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   out.writeArrayEnd()
+                }
+
+                override def decodeValue(json: Json): Col[Short] = json match {
+                  case a: Json.Array =>
+                    val builder = constructor.newBuilder[Short](a.value.length)
+                    var idx     = 0
+                    try {
+                      a.value.foreach { e =>
+                        constructor.add(builder, elementCodec.decodeValue(e))
+                        idx += 1
+                      }
+                    } catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                    constructor.result[Short](builder)
+                  case _: Json.Null.type => constructor.empty[Short]
+                  case _                 => error("expected Json.Array")
+                }
+
+                override def encodeValue(x: Col[Short]): Json = {
+                  val len     = deconstructor.size(x)
+                  val builder = ChunkBuilder.make[Json](len)
+                  var idx     = 0
+                  while (idx < len) {
+                    builder.addOne(elementCodec.encodeValue(deconstructor.shortAt(x, idx)))
+                    idx += 1
+                  }
+                  new Json.Array(builder.result())
                 }
               }
             }
@@ -1767,7 +2465,7 @@ class JsonBinaryCodecDeriver private[json] (
                         in.isNextToken(',')
                       }) ()
                     } catch {
-                      case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                      case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     if (in.isCurrentToken(']')) constructor.result[Elem](builder)
                     else in.arrayEndOrCommaError()
@@ -1782,6 +2480,30 @@ class JsonBinaryCodecDeriver private[json] (
                 val it = deconstructor.deconstruct(x)
                 while (it.hasNext) elementCodec.encodeValue(it.next(), out)
                 out.writeArrayEnd()
+              }
+
+              override def decodeValue(json: Json): Col[Elem] = json match {
+                case a: Json.Array =>
+                  val builder = constructor.newBuilder[Elem](a.value.length)(elemClassTag)
+                  var idx     = 0
+                  try {
+                    a.value.foreach { e =>
+                      constructor.add(builder, elementCodec.decodeValue(e))
+                      idx += 1
+                    }
+                  } catch {
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                  }
+                  constructor.result[Elem](builder)
+                case _: Json.Null.type => constructor.empty[Elem](elemClassTag)
+                case _                 => error("expected Json.Array")
+              }
+
+              override def encodeValue(x: Col[Elem]): Json = {
+                val builder = ChunkBuilder.make[Json](deconstructor.size(x))
+                val it      = deconstructor.deconstruct(x)
+                while (it.hasNext) builder.addOne(elementCodec.encodeValue(it.next()))
+                new Json.Array(builder.result())
               }
 
               override lazy val toJsonSchema: JsonSchema = JsonSchema.array(items = new Some(elementCodec.toJsonSchema))
@@ -1823,13 +2545,13 @@ class JsonBinaryCodecDeriver private[json] (
                   val k =
                     try keyCodec.decodeKey(in)
                     catch {
-                      case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                      case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                   val v =
                     try valueCodec.decodeValue(in)
                     catch {
-                      case error if NonFatal(error) =>
-                        in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
+                      case err if NonFatal(err) =>
+                        in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
                     }
                   constructor.addObject(builder, k, v)
                   in.isNextToken(',')
@@ -1851,6 +2573,43 @@ class JsonBinaryCodecDeriver private[json] (
               valueCodec.encodeValue(deconstructor.getValue(kv), out)
             }
             out.writeObjectEnd()
+          }
+
+          override def decodeValue(json: Json): Map[Key, Value] = json match {
+            case o: Json.Object =>
+              val builder = constructor.newObjectBuilder[Key, Value](o.value.length)
+              o.value.foreach {
+                var idx = 0
+                kv =>
+                  val k =
+                    try keyCodec.decodeKey(kv._1)
+                    catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                    }
+                  val v =
+                    try valueCodec.decodeValue(kv._2)
+                    catch {
+                      case err if NonFatal(err) =>
+                        error(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
+                    }
+                  constructor.addObject(builder, k, v)
+                  idx += 1
+              }
+              constructor.resultObject[Key, Value](builder)
+            case _: Json.Null.type => constructor.emptyObject[Key, Value]
+            case _                 => error("expected Json.Object")
+          }
+
+          override def encodeValue(x: Map[Key, Value]): Json = {
+            val builder = ChunkBuilder.make[(String, Json)](deconstructor.size(x))
+            val it      = deconstructor.deconstruct(x)
+            while (it.hasNext) {
+              val kv = it.next()
+              val k  = keyCodec.encodeKey(deconstructor.getKey(kv))
+              val v  = valueCodec.encodeValue(deconstructor.getValue(kv))
+              builder.addOne((k, v))
+            }
+            new Json.Object(builder.result())
           }
 
           override lazy val toJsonSchema: JsonSchema =
@@ -1891,25 +2650,49 @@ class JsonBinaryCodecDeriver private[json] (
           override def decodeValue(in: JsonReader): A =
             try wrap(wrappedCodec.decodeValue(in))
             catch {
-              case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
+              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
             }
 
           override def encodeValue(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeValue(unwrap(x), out)
             catch {
-              case error if NonFatal(error) => out.encodeError(error.getMessage)
+              case err if NonFatal(err) => out.encodeError(err.getMessage)
+            }
+
+          override def decodeValue(json: Json): A =
+            try wrap(wrappedCodec.decodeValue(json))
+            catch {
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+            }
+
+          override def encodeValue(x: A): Json =
+            try wrappedCodec.encodeValue(unwrap(x))
+            catch {
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
             }
 
           override def decodeKey(in: JsonReader): A =
             try wrap(wrappedCodec.decodeKey(in))
             catch {
-              case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
+              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeKey(unwrap(x), out)
             catch {
-              case error if NonFatal(error) => out.encodeError(error.getMessage)
+              case err if NonFatal(err) => out.encodeError(err.getMessage)
+            }
+
+          override def decodeKey(s: String): A =
+            try wrap(wrappedCodec.decodeKey(s))
+            catch {
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+            }
+
+          override def encodeKey(x: A): String =
+            try wrappedCodec.encodeKey(unwrap(x))
+            catch {
+              case err if NonFatal(err) => throw new JsonBinaryCodecError(Nil, err.getMessage)
             }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
@@ -2102,6 +2885,20 @@ private class FieldInfo(
     }
   }
 
+  def readValue(regs: Registers, json: Json): Unit =
+    (typeTag: @switch) match {
+      case 0 => regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(json))
+      case 1 => regs.setInt(offset, codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(json))
+      case 2 => regs.setLong(offset, codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(json))
+      case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(json))
+      case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(json))
+      case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(json))
+      case 6 => regs.setByte(offset, codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(json))
+      case 7 => regs.setChar(offset, codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(json))
+      case 8 => regs.setShort(offset, codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(json))
+      case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(json)
+    }
+
   def setMissingValueOrError(in: JsonReader, baseOffset: RegisterOffset): Unit = {
     val offset = this.offset + baseOffset
     val regs   = in.registers
@@ -2123,6 +2920,25 @@ private class FieldInfo(
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
+
+  def setMissingValueOrError(regs: Registers): Unit =
+    if (defaultValue ne None) {
+      val dv = defaultValue.get
+      (typeTag: @switch) match {
+        case 0 => regs.setObject(offset, dv.asInstanceOf[AnyRef])
+        case 1 => regs.setInt(offset, dv.asInstanceOf[Int])
+        case 2 => regs.setLong(offset, dv.asInstanceOf[Long])
+        case 3 => regs.setFloat(offset, dv.asInstanceOf[Float])
+        case 4 => regs.setDouble(offset, dv.asInstanceOf[Double])
+        case 5 => regs.setBoolean(offset, dv.asInstanceOf[Boolean])
+        case 6 => regs.setByte(offset, dv.asInstanceOf[Byte])
+        case 7 => regs.setChar(offset, dv.asInstanceOf[Char])
+        case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
+        case _ =>
+      }
+    } else if (isOptional) regs.setObject(offset, None)
+    else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
+    else throw new JsonBinaryCodecError(Nil, s"missing required field \"$name\"")
 
   def writeDefaultValue(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
     val offset = this.offset + baseOffset
@@ -2195,11 +3011,70 @@ private class FieldInfo(
     }
   }
 
+  def writeDefaultValue(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
+    val dv = defaultValue.get
+    (typeTag: @switch) match {
+      case 0 =>
+        val value = regs.getObject(offset)
+        if (dv != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value)))
+        }
+      case 1 =>
+        val value = regs.getInt(offset)
+        if (dv.asInstanceOf[Int] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value)))
+        }
+      case 2 =>
+        val value = regs.getLong(offset)
+        if (dv.asInstanceOf[Long] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value)))
+        }
+      case 3 =>
+        val value = regs.getFloat(offset)
+        if (dv.asInstanceOf[Float] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value)))
+        }
+      case 4 =>
+        val value = regs.getDouble(offset)
+        if (dv.asInstanceOf[Double] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value)))
+        }
+      case 5 =>
+        val value = regs.getBoolean(offset)
+        if (dv.asInstanceOf[Boolean] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value)))
+        }
+      case 6 =>
+        val value = regs.getByte(offset)
+        if (dv.asInstanceOf[Byte] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value)))
+        }
+      case 7 =>
+        val value = regs.getChar(offset)
+        if (dv.asInstanceOf[Char] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value)))
+        }
+      case 8 =>
+        val value = regs.getShort(offset)
+        if (dv.asInstanceOf[Short] != value) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value)))
+        }
+      case _ =>
+    }
+  }
+
   def writeOptional(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
     val value = out.registers.getObject(offset + baseOffset)
     if (value ne None) {
       writeKey(out)
       codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+    }
+  }
+
+  def writeOptional(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
+    val value = regs.getObject(offset)
+    if (value ne None) {
+      builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value)))
     }
   }
 
@@ -2214,6 +3089,18 @@ private class FieldInfo(
         if (value.length > 0) {
           writeKey(out)
           codec.asInstanceOf[JsonBinaryCodec[Array[?]]].encodeValue(value, out)
+        }
+    }
+
+  def writeCollection(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit =
+    regs.getObject(offset) match {
+      case value: Iterable[?] =>
+        if (value.nonEmpty) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Iterable[?]]].encodeValue(value)))
+        }
+      case value: Array[?] =>
+        if (value.length > 0) {
+          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Array[?]]].encodeValue(value)))
         }
     }
 
@@ -2260,6 +3147,25 @@ private class FieldInfo(
     }
   }
 
+  def writeRequired(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne(
+    (
+      name, {
+        (typeTag: @switch) match {
+          case 0 => codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset))
+          case 1 => codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(regs.getInt(offset))
+          case 2 => codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(regs.getLong(offset))
+          case 3 => codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(regs.getFloat(offset))
+          case 4 => codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(regs.getDouble(offset))
+          case 5 => codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+          case 6 => codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(regs.getByte(offset))
+          case 7 => codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(regs.getChar(offset))
+          case 8 => codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(regs.getShort(offset))
+          case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue(())
+        }
+      }
+    )
+  )
+
   @inline
   private[this] def writeKey(out: JsonWriter): Unit =
     if (isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
@@ -2274,12 +3180,18 @@ private class DiscriminatorFieldInfo(name: String, value: String) {
   def nameMatch(in: JsonReader, keyLen: Int): Boolean = in.isCharBufEqualsTo(keyLen, name)
 
   @inline
+  def getName: String = name
+
+  @inline
   def writeKeyAndValue(out: JsonWriter): Unit = {
     if (isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
     else out.writeKey(name)
     if (isNonEscapedAsciiValue) out.writeNonEscapedAsciiVal(value)
     else out.writeVal(value)
   }
+
+  @inline
+  def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne((name, new Json.String(value)))
 }
 
 trait CaseInfo
@@ -2378,6 +3290,17 @@ private class StringMap[A <: AnyRef](initCapacity: Int) {
       val currKey = kvs(idx)
       if (currKey eq null) return null.asInstanceOf[A]
       if (in.isCharBufEqualsTo(keyLen, currKey.asInstanceOf[String])) return kvs(idx + 1).asInstanceOf[A]
+      idx = (idx + 2) & mask
+    }
+    null.asInstanceOf[A] // unreachable
+  }
+
+  def get(key: String): A = {
+    var idx = key.hashCode & mask
+    while (true) {
+      val currKey = kvs(idx)
+      if (currKey eq null) return null.asInstanceOf[A]
+      if (key == currKey) return kvs(idx + 1).asInstanceOf[A]
       idx = (idx + 2) & mask
     }
     null.asInstanceOf[A] // unreachable

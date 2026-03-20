@@ -16,8 +16,7 @@
 
 package zio.blocks.schema.json
 
-import zio.blocks.schema.DynamicOptic
-import zio.blocks.schema.SchemaError
+import zio.blocks.schema.{DynamicOptic, Schema, SchemaError}
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
@@ -293,16 +292,16 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Decodes the single selected value to type A. */
-  def as[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, A] = either match {
+  def as[A](implicit schema: Schema[A]): Either[SchemaError, A] = either match {
     case Right(v) =>
       val len = v.length
-      if (len == 1) decoder.decode(v.head)
+      if (len == 1) schema.jsonCodec.decode(v.head)
       else new Left(SchemaError(s"Expected single value but got $len"))
     case l => l.asInstanceOf[Either[SchemaError, A]]
   }
 
   /** Decodes all selected values to type A. */
-  def asAll[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, Chunk[A]] = either match {
+  def asAll[A](implicit schema: Schema[A]): Either[SchemaError, Chunk[A]] = either match {
     case Right(v1) =>
       new Right({
         val len = v1.length
@@ -311,7 +310,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
           val builder = ChunkBuilder.make[A](len)
           var idx     = 0
           while (idx < len) {
-            decoder.decode(v1(idx)) match {
+            schema.jsonCodec.decode(v1(idx)) match {
               case Right(v2) => builder.addOne(v2)
               case l         => return l.asInstanceOf[Either[SchemaError, Chunk[A]]]
             }

@@ -539,7 +539,6 @@ Path annotation (`atField`, `atIndex`, `atKey`, `atCase`) builds a [`DynamicOpti
 ```scala mdoc:compile-only
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema, SchemaError}
 
-implicit val intSchema: Schema[Int] = Schema[Int]
 val data   = DynamicValue.Sequence(DynamicValue.int(1), DynamicValue.int(2))
 val optic  = DynamicOptic.root.at(10)
 

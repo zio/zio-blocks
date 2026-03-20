@@ -258,13 +258,13 @@ sealed trait Json {
    * Decodes this JSON value to a value of type A using the implicit
    * JsonDecoder.
    */
-  def as[A](implicit decoder: JsonDecoder[A]): Either[SchemaError, A] = decoder.decode(this)
+  def as[A](implicit schema: Schema[A]): Either[SchemaError, A] = schema.jsonCodec.decode(this)
 
   /**
    * Decodes this JSON value to a value of type A, throwing SchemaError on
    * failure.
    */
-  def asUnsafe[A](implicit decoder: JsonDecoder[A]): A = decoder.decode(this) match {
+  def asUnsafe[A](implicit schema: Schema[A]): A = schema.jsonCodec.decode(this) match {
     case Right(value) => value
     case Left(err)    => throw err
   }
@@ -1446,7 +1446,7 @@ object Json {
   /**
    * Creates a Json value from an encoder.
    */
-  def from[A](value: A)(implicit encoder: JsonEncoder[A]): Json = encoder.encode(value)
+  def from[A](value: A)(implicit schema: Schema[A]): Json = schema.jsonCodec.encodeValue(value)
 
   /**
    * Reconstructs a JSON value from path-value pairs. Returns Left if the paths
@@ -2339,7 +2339,8 @@ object Json {
         new String(in.readString())
       } else if (x == 'f' || x == 't') {
         in.rollbackToken()
-        Boolean.apply(in.readBoolean())
+        if (in.readBoolean()) Json.True
+        else Json.False
       } else if (x >= '0' && x <= '9' || x == '-') {
         in.rollbackToken()
         new Number(in.readBigDecimal())
@@ -2416,6 +2417,10 @@ object Json {
         out.writeObjectEnd()
       case _ => out.writeNull()
     }
+
+    override def decodeValue(json: Json): Json = json
+
+    override def encodeValue(x: Json): Json = x
   }
 
   private[schema] val durationRawCodec = new JsonBinaryCodec[Duration] {
