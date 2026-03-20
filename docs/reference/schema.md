@@ -588,7 +588,7 @@ ZIO Blocks provides the `transform` method for creating schemas for wrapper type
 
 ```scala
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  def transform[B](to: A => B, from: B => A): Schema[B] = ???
+  def transform[B](to: A => B, from: B => A)(implicit typeId: TypeId[B]): Schema[B] = ???
 }
 ```
 
