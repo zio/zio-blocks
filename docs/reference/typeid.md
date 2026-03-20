@@ -854,6 +854,11 @@ personId.construct(Chunk("Alice", 30: Integer))  // Right(Person(Alice,30)) on J
 :::note
 Special calling conventions apply to certain types:
 
+**Collection types** accept variadic arguments representing elements:
+- **Sequence-like types** (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`): Pass a variadic sequence of elements. For example, `construct(Chunk("a", "b", "c"))` returns `Right(List("a", "b", "c"))`.
+- **Map:** Pass interleaved key-value pairs and fails on odd argument counts. For example, `construct(Chunk("a", 1: Integer, "b", 2: Integer))` returns `Right(Map("a" -> 1, "b" -> 2))`.
+
+**Sum types** have special calling conventions:
 - **Option:** Pass 1 element to construct `Some(value)`, or 0 elements to construct `None`.
 - **Either:** First argument is a Boolean flag (`true` = `Right`, `false` = `Left`), followed by the value. For example, `construct(Chunk(true: java.lang.Boolean, value))` for `Right(value)`, or `construct(Chunk(false: java.lang.Boolean, value))` for `Left(value)`.
 :::
