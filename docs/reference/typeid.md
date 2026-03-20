@@ -306,28 +306,6 @@ object TypeId {
 
 The minimal three-parameter form constructs a simple nominal TypeId when you need only name, owner, and classification. The full form allows complete control over type parameters, applied type arguments, definition kind, self-type, and annotations.
 
-:::note
-In Scala 3, both overloads use the `[A <: AnyKind]` bound to support higher-kinded types. In Scala 2, the bound is omitted (`[A]`) as Scala 2 does not support higher-kinded type syntax in this position.
-:::
-
-For testing or code generation, construct a nominal TypeId for a hypothetical `Person` case class:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-```
-
-```scala mdoc
-val personId = TypeId.nominal[Any](
-  "Person",
-  Owner.fromPackagePath("com.example"),
-  typeParams = Nil,
-  typeArgs = Nil,
-  defKind = TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = true, isValue = false, bases = Nil)
-)
-personId.fullName
-personId.isCaseClass
-```
-
 ### `TypeId.alias` — Type Aliases
 
 Creates a TypeId representing a type alias that points to another type.
