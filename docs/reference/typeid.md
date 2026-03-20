@@ -284,7 +284,11 @@ Prefer `TypeId.of[A]` when you need the TypeId in a single expression. Use impli
 
 ### `TypeId.nominal` — Nominal Types
 
-Creates a TypeId for a nominal type (class, trait, object). Two overloads exist: a minimal three-parameter form and a full form with type parameters, annotations, and self-type.
+**Nominal types** are concrete type definitions: classes, traits, and objects. In contrast to [type aliases](#typeidalias--type-aliases) (which are alternative names for existing types) and [opaque types](#typeidopaque--opaque-types) (which have a hidden representation), nominal types stand as distinct, named types in the type system.
+
+For most end users, you don't need to use `TypeId.nominal` directly. The `TypeId.of` macro automatically derives nominal TypeIds from your actual type definitions at compile time. The `nominal` smart constructor exists for **advanced use cases**: unit testing with synthetic type metadata, code generators that create types dynamically at runtime, or frameworks that assemble TypeIds programmatically. Unless you're in one of these scenarios, `TypeId.of` is the right tool.
+
+If you do need to construct nominal TypeIds manually, the API provides two overloads:
 
 ```scala
 object TypeId {
@@ -300,9 +304,13 @@ object TypeId {
 }
 ```
 
-Note: In Scala 3, both overloads use the `[A <: AnyKind]` bound to support higher-kinded types. In Scala 2, the bound is omitted (`[A]`) as Scala 2 does not support higher-kinded type syntax in this position.
+The minimal three-parameter form constructs a simple nominal TypeId when you need only name, owner, and classification. The full form allows complete control over type parameters, applied type arguments, definition kind, self-type, and annotations.
 
-Create nominal TypeIds manually for testing or code generation:
+:::note
+In Scala 3, both overloads use the `[A <: AnyKind]` bound to support higher-kinded types. In Scala 2, the bound is omitted (`[A]`) as Scala 2 does not support higher-kinded type syntax in this position.
+:::
+
+For testing or code generation, construct a nominal TypeId for a hypothetical `Person` case class:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
