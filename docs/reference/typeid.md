@@ -783,9 +783,9 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-#### `clazz` — Runtime Class (JVM Only)
+#### `clazz` — Runtime Class
 
-Returns the `Class[_]` corresponding to this type on the JVM. Returns `None` on Scala.js, and for alias/opaque types.
+Returns the `Class[_]` corresponding to this type on the JVM, or `None` on Scala.js and for alias/opaque types.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -793,9 +793,9 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-#### `construct` — Reflective Construction (JVM Only)
+#### `construct` — Reflective Construction
 
-Constructs an instance using the primary constructor on the JVM. Returns `Left` with an error message on Scala.js or when construction fails.
+Constructs an instance using the primary constructor on the JVM, or returns `Left` with an error message on Scala.js or when construction fails.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
