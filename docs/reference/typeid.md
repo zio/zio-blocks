@@ -628,6 +628,10 @@ Covariant type constructors preserve subtyping:
 TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
 ```
 
+:::note
+In Scala 2, `isSubtypeOf` does not handle `EnumCase`, union aliases, or intersection aliases — only the Scala 3 implementation supports those cases.
+:::
+
 #### `isSupertypeOf` — Check Supertyping
 
 Returns `other.isSubtypeOf(this)`.
