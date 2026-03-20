@@ -847,6 +847,13 @@ personId.clazz            // Some(class Person) on JVM, None on Scala.js
 personId.construct(Chunk("Alice", 30: Integer))  // Right(Person(Alice,30)) on JVM
 ```
 
+:::note
+Special calling conventions apply to certain types:
+
+- **Option:** Pass 1 element to construct `Some(value)`, or 0 elements to construct `None`.
+- **Either:** First argument is a Boolean flag (`true` = `Right`, `false` = `Left`), followed by the value. For example, `construct(Chunk(true: java.lang.Boolean, value))` for `Right(value)`, or `construct(Chunk(false: java.lang.Boolean, value))` for `Left(value)`.
+:::
+
 ### Normalization and Equality
 
 Companion object methods for normalization, equality checking, and type constructor stripping.
