@@ -273,9 +273,9 @@ Creates a TypeId for a nominal type (class, trait, object). Two overloads exist:
 
 ```scala
 object TypeId {
-  def nominal[A](name: String, owner: Owner, kind: TypeDefKind): TypeId[A]
+  def nominal[A <: AnyKind](name: String, owner: Owner, kind: TypeDefKind): TypeId[A]
 
-  def nominal[A](
+  def nominal[A <: AnyKind](
     name: String, owner: Owner,
     typeParams: List[TypeParam] = Nil, typeArgs: List[TypeRepr] = Nil,
     defKind: TypeDefKind = TypeDefKind.Unknown,
@@ -284,6 +284,8 @@ object TypeId {
   ): TypeId[A]
 }
 ```
+
+Note: In Scala 3, both overloads use the `[A <: AnyKind]` bound to support higher-kinded types. In Scala 2, the bound is omitted (`[A]`) as Scala 2 does not support higher-kinded type syntax in this position.
 
 Create nominal TypeIds manually for testing or code generation:
 
@@ -309,7 +311,7 @@ Creates a TypeId representing a type alias that points to another type.
 
 ```scala
 object TypeId {
-  def alias[A](
+  def alias[A <: AnyKind](
     name: String, owner: Owner,
     typeParams: List[TypeParam] = Nil,
     aliased: TypeRepr,
@@ -333,7 +335,7 @@ Creates a TypeId representing an opaque type with its underlying representation.
 
 ```scala
 object TypeId {
-  def opaque[A](
+  def opaque[A <: AnyKind](
     name: String, owner: Owner,
     typeParams: List[TypeParam] = Nil,
     representation: TypeRepr,
@@ -358,7 +360,7 @@ Creates an applied type from a type constructor and type arguments. For example,
 
 ```scala
 object TypeId {
-  def applied[A](typeConstructor: TypeId[?], args: TypeRepr*): TypeId[A]
+  def applied[A <: AnyKind](typeConstructor: TypeId[?], args: TypeRepr*): TypeId[A]
 }
 ```
 
