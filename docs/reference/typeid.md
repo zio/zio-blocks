@@ -804,13 +804,17 @@ sealed trait TypeId[A <: AnyKind] {
 
 #### `clazz` — Runtime Class
 
-Returns the `Class[_]` corresponding to this type on the JVM, or `None` on Scala.js and for alias/opaque types.
+Returns the runtime `Class[_]` for this type (on the JVM only). On Scala.js, `clazz` returns `None` for all types since JVM reflection is unavailable. On the JVM, it returns `None` for alias and opaque TypeIds, and `Some(Class[_])` for nominal and applied types.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
   def clazz: Option[Class[?]]
 }
 ```
+
+:::note
+The JVM behavior (returning the correct `Class[_]` for nominal and applied types) is verified by test annotations like `@jvmOnly`. On Scala.js, the method always returns `None`.
+:::
 
 #### `construct` — Reflective Construction
 
