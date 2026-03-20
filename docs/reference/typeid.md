@@ -942,6 +942,10 @@ The `defKind` property (documented in [Core Operations](#type-classification)) r
 
 When you derive a TypeId for a generic type, the macro captures its type parameters (variance, bounds, kind) and any applied type arguments.
 
+:::warning
+Passing a raw type constructor (e.g. `TypeId.of[Container]`) requires Scala 3. In Scala 2, the `TypeId.of[A]` signature has bound `A` rather than `A <: AnyKind`, so raw type constructors like `Container` (a `* -> *` kind) are not valid Scala 2 syntax. On Scala 2, use `TypeId.of[Container[_]]` or retrieve the TypeId through implicit derivation instead.
+:::
+
 ### Inspecting Type Parameters
 
 Define your own generic types and derive their TypeIds to see how type parameters are captured:
