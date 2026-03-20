@@ -800,14 +800,13 @@ registry.get(TypeId.double.erased)
 
 ### Runtime Reflection
 
-On JVM, TypeId can retrieve the corresponding `Class` and construct instances:
+The `clazz` and `construct` methods are available on all platforms. On the JVM, `clazz` returns the corresponding `Class[_]` and `construct` uses reflection to create instances. On Scala.js, both methods are no-ops — `clazz` returns `None` and `construct` returns `Left` with an error message.
 
 ```scala
 val typeId = TypeId.of[Person]
-val clazz: Option[Class[_]] = typeId.clazz
+val clazz: Option[Class[_]] = typeId.clazz            // Some(...) on JVM, None on Scala.js
 
-// Construct instances (JVM only)
-val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30))
+val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30))  // Right(...) on JVM, Left(...) on Scala.js
 ```
 
 ## Integration with Schema
