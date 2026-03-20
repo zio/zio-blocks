@@ -195,16 +195,33 @@ Every record and variant derivation receives the TypeId so you can inspect the t
 TypeId is included in the `zio-blocks-typeid` module. Add it to your build:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "@VERSION"
 ```
 
-Cross-platform support: TypeId works on JVM and Scala.js.
+For cross-platform (Scala.js):
 
-## Deriving and Inspecting TypeIds
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-typeid" % "@VERSION"
+```
 
-The primary way to use TypeId is to **derive** it for your types, then **inspect** the result. The `TypeId.of` macro extracts complete type information at compile time.
+Supported Scala versions: 2.13.x and 3.x.
 
-### Basic Derivation
+## Creating Instances
+
+There are several ways to create `TypeId` values, from automatic macro derivation to manual smart constructors.
+
+### `TypeId.of` — Macro Derivation
+
+The primary way to obtain a `TypeId` is through the `TypeId.of[A]` macro, which extracts complete type metadata at compile time.
+
+```scala
+object TypeId {
+  inline def of[A <: AnyKind]: TypeId[A]  // Scala 3
+  def of[A]: TypeId[A]                     // Scala 2 (macro)
+}
+```
+
+Derive a TypeId using the macro:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -212,35 +229,665 @@ import zio.blocks.typeid._
 case class User(id: Long, email: String)
 ```
 
-Derive a TypeId using the `TypeId.of` macro:
-
 ```scala mdoc
 val userId = TypeId.of[User]
+userId.name
+userId.fullName
+userId.isCaseClass
 ```
 
-Or use implicit derivation:
+### `TypeId.derived` — Implicit Derivation
+
+TypeId instances are also available implicitly through the `derived` given/implicit. This enables automatic derivation anywhere a `TypeId[A]` is required in implicit scope.
+
+```scala
+trait TypeIdLowPriority {
+  inline given derived[A <: AnyKind]: TypeId[A]  // Scala 3
+  implicit def derived[A]: TypeId[A]              // Scala 2 (macro)
+}
+```
+
+Use implicit derivation when you need a TypeId without calling `of` explicitly:
 
 ```scala mdoc
 val userIdImplicit = implicitly[TypeId[User]]
+userIdImplicit.name
 ```
 
-### Inspecting Properties
+### `TypeId.nominal` — Nominal Types
 
-Once derived, inspect the type's structure through its properties:
+Creates a TypeId for a nominal type (class, trait, object). Two overloads exist: a minimal three-parameter form and a full form with type parameters, annotations, and self-type.
+
+```scala
+object TypeId {
+  def nominal[A](name: String, owner: Owner, kind: TypeDefKind): TypeId[A]
+
+  def nominal[A](
+    name: String, owner: Owner,
+    typeParams: List[TypeParam] = Nil, typeArgs: List[TypeRepr] = Nil,
+    defKind: TypeDefKind = TypeDefKind.Unknown,
+    selfType: Option[TypeRepr] = None,
+    annotations: List[Annotation] = Nil
+  ): TypeId[A]
+}
+```
+
+Create nominal TypeIds manually for testing or code generation:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
 
 ```scala mdoc
-userId.name
-userId.fullName
-userId.owner.asString
-userId.arity
-userId.isCaseClass
-userId.isProperType
-userId.isTypeConstructor
+val personId = TypeId.nominal[Any](
+  "Person",
+  Owner.fromPackagePath("com.example"),
+  typeParams = Nil,
+  typeArgs = Nil,
+  defKind = TypeDefKind.Class(isFinal = false, isAbstract = false, isCase = true, isValue = false, bases = Nil)
+)
+personId.fullName
+personId.isCaseClass
 ```
 
-### Pattern Matching
+### `TypeId.alias` — Type Aliases
 
-TypeId provides extractors for pattern matching on derived types:
+Creates a TypeId representing a type alias that points to another type.
+
+```scala
+object TypeId {
+  def alias[A](
+    name: String, owner: Owner,
+    typeParams: List[TypeParam] = Nil,
+    aliased: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
+    annotations: List[Annotation] = Nil
+  ): TypeId[A]
+}
+```
+
+Create an alias TypeId:
+
+```scala mdoc
+val ageId = TypeId.alias[Any]("Age", Owner.fromPackagePath("com.example"), aliased = TypeRepr.Ref(TypeId.int))
+ageId.isAlias
+ageId.aliasedTo
+```
+
+### `TypeId.opaque` — Opaque Types
+
+Creates a TypeId representing an opaque type with its underlying representation.
+
+```scala
+object TypeId {
+  def opaque[A](
+    name: String, owner: Owner,
+    typeParams: List[TypeParam] = Nil,
+    representation: TypeRepr,
+    typeArgs: List[TypeRepr] = Nil,
+    publicBounds: TypeBounds = TypeBounds.Unbounded,
+    annotations: List[Annotation] = Nil
+  ): TypeId[A]
+}
+```
+
+Create an opaque TypeId:
+
+```scala mdoc
+val emailId = TypeId.opaque[Any]("Email", Owner.fromPackagePath("com.example"), representation = TypeRepr.Ref(TypeId.string))
+emailId.isOpaque
+emailId.representation
+```
+
+### `TypeId.applied` — Applied Types
+
+Creates an applied type from a type constructor and type arguments. For example, `TypeId.applied(TypeId.list, TypeRepr.Ref(TypeId.int))` creates a TypeId representing `List[Int]`.
+
+```scala
+object TypeId {
+  def applied[A](typeConstructor: TypeId[?], args: TypeRepr*): TypeId[A]
+}
+```
+
+Create applied TypeIds:
+
+```scala mdoc
+val listIntId = TypeId.applied[Any](TypeId.list, TypeRepr.Ref(TypeId.int))
+listIntId.isApplied
+listIntId.typeArgs
+```
+
+## Core Operations
+
+This section documents all public methods on `TypeId` and its companion object, organized by category.
+
+### Identity and Naming
+
+These methods provide the type's name and fully qualified path.
+
+#### `name` — Simple Type Name
+
+Returns the unqualified name of the type.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def name: String
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Order(id: String, total: Double)
+val orderId = TypeId.of[Order]
+```
+
+```scala mdoc
+orderId.name
+TypeId.int.name
+TypeId.list.name
+```
+
+#### `fullName` — Fully Qualified Name
+
+Returns `owner.asString + "." + name`, or just `name` if the owner is root.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def fullName: String
+}
+```
+
+```scala mdoc
+orderId.fullName
+TypeId.int.fullName
+TypeId.string.fullName
+```
+
+#### `owner` — Enclosing Namespace
+
+Returns the `Owner` representing the package, object, or type that contains this type definition.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def owner: Owner
+}
+```
+
+```scala mdoc
+orderId.owner.asString
+TypeId.int.owner.asString
+TypeId.uuid.owner.asString
+```
+
+#### `toString` — Idiomatic Scala Rendering
+
+Renders the TypeId as idiomatic Scala syntax using `TypeIdPrinter`.
+
+```scala mdoc
+TypeId.of[List[Int]].toString
+TypeId.of[Map[String, Int]].toString
+```
+
+### Type Parameters and Arguments
+
+Methods for inspecting generic type information.
+
+#### `typeParams` — Formal Type Parameters
+
+Returns the list of formal type parameters declared by this type.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def typeParams: List[TypeParam]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+```scala mdoc
+TypeId.list.typeParams
+TypeId.map.typeParams
+TypeId.int.typeParams
+```
+
+#### `typeArgs` — Applied Type Arguments
+
+Returns the concrete type arguments when this is an applied type.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def typeArgs: List[TypeRepr]
+}
+```
+
+```scala mdoc
+TypeId.of[List[Int]].typeArgs
+TypeId.of[Map[String, Int]].typeArgs
+TypeId.list.typeArgs
+```
+
+#### `arity` — Number of Type Parameters
+
+Returns `typeParams.size`.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def arity: Int
+}
+```
+
+```scala mdoc
+TypeId.list.arity
+TypeId.map.arity
+TypeId.int.arity
+```
+
+#### `isProperType` — Has No Type Parameters
+
+Returns `true` when `arity == 0`, meaning this is a fully applied or ground type.
+
+```scala mdoc
+TypeId.int.isProperType
+TypeId.of[List[Int]].isProperType
+TypeId.list.isProperType
+```
+
+#### `isTypeConstructor` — Has Type Parameters
+
+Returns `true` when `arity > 0`, meaning this type takes type parameters.
+
+```scala mdoc
+TypeId.list.isTypeConstructor
+TypeId.map.isTypeConstructor
+TypeId.int.isTypeConstructor
+```
+
+#### `isApplied` — Has Type Arguments
+
+Returns `true` when `typeArgs.nonEmpty`.
+
+```scala mdoc
+TypeId.of[List[Int]].isApplied
+TypeId.list.isApplied
+```
+
+### Type Classification
+
+Predicates that inspect the `defKind` to determine what kind of type definition this is.
+
+#### `defKind` — Type Definition Kind
+
+Returns the `TypeDefKind` classifying this type (class, trait, object, enum, alias, opaque, etc.).
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def defKind: TypeDefKind
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Shape
+case class Circle(radius: Double) extends Shape
+case object Origin
+```
+
+```scala mdoc
+TypeId.of[Circle].defKind
+TypeId.of[Shape].defKind
+TypeId.of[Origin.type].defKind
+```
+
+#### Classification Predicates
+
+Each predicate inspects `defKind` for a specific type definition kind:
+
+| Predicate        | Returns `true` when                                         |
+|------------------|-------------------------------------------------------------|
+| `isClass`        | `defKind` is `TypeDefKind.Class`                            |
+| `isTrait`        | `defKind` is `TypeDefKind.Trait`                            |
+| `isObject`       | `defKind` is `TypeDefKind.Object`                           |
+| `isEnum`         | `defKind` is `TypeDefKind.Enum`                             |
+| `isAlias`        | `defKind` is `TypeDefKind.TypeAlias`                        |
+| `isOpaque`       | `defKind` is `TypeDefKind.OpaqueType`                       |
+| `isAbstract`     | `defKind` is `TypeDefKind.AbstractType`                     |
+| `isSealed`       | `defKind` is `TypeDefKind.Trait(isSealed = true, _)`        |
+| `isCaseClass`    | `defKind` is `TypeDefKind.Class(_, _, isCase = true, _, _)` |
+| `isValueClass`   | `defKind` is `TypeDefKind.Class(_, _, _, isValue = true, _)`|
+
+```scala mdoc
+val shapeId  = TypeId.of[Shape]
+val circleId = TypeId.of[Circle]
+val originId = TypeId.of[Origin.type]
+
+shapeId.isTrait
+shapeId.isSealed
+circleId.isCaseClass
+originId.isObject
+```
+
+#### Semantic Predicates
+
+These predicates check specific semantic properties of the type after normalization:
+
+| Predicate   | Checks                                                                |
+|-------------|-----------------------------------------------------------------------|
+| `isTuple`   | Normalized type is `scala.TupleN`                                     |
+| `isProduct` | Normalized type is `scala.Product` or `scala.ProductN`                |
+| `isSum`     | Normalized type is `scala.Either` or `scala.Option` (in `scala` pkg)  |
+| `isEither`  | Normalized type is `scala.util.Either`                                |
+| `isOption`  | Normalized type is `scala.Option`                                     |
+
+:::note
+`isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, etc. -- not for user-defined case classes. Use `isCaseClass` for that.
+:::
+
+:::note
+`isSum` checks whether the normalized type's owner is the `scala` package root and its name is `"Either"` or `"Option"`. Because `scala.util.Either` lives in `scala.util`, `TypeId.of[Either[String, Int]].isSum` returns `false`. Use `isEither` for `scala.util.Either` specifically, and `isOption` for `scala.Option`.
+:::
+
+### Subtype Relationships
+
+Methods for checking type hierarchy relationships at runtime.
+
+#### `isSubtypeOf` — Check Subtyping
+
+Checks if this type is a subtype of another type. Handles direct inheritance, sealed trait subtypes, enum cases, transitive inheritance, and variance-aware subtyping for applied types.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def isSubtypeOf(other: TypeId[?]): Boolean
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case class Cat(name: String) extends Animal
+```
+
+```scala mdoc
+val dogId    = TypeId.of[Dog]
+val animalId = TypeId.of[Animal]
+
+dogId.isSubtypeOf(animalId)
+animalId.isSubtypeOf(dogId)
+```
+
+Covariant type constructors preserve subtyping:
+
+```scala mdoc
+TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
+```
+
+#### `isSupertypeOf` — Check Supertyping
+
+Returns `other.isSubtypeOf(this)`.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def isSupertypeOf(other: TypeId[?]): Boolean
+}
+```
+
+```scala mdoc
+animalId.isSupertypeOf(dogId)
+```
+
+#### `isEquivalentTo` — Check Type Equivalence
+
+Returns `true` when both types are mutual subtypes: `this.isSubtypeOf(other) && other.isSubtypeOf(this)`.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def isEquivalentTo(other: TypeId[?]): Boolean
+}
+```
+
+```scala mdoc
+dogId.isEquivalentTo(dogId)
+dogId.isEquivalentTo(animalId)
+```
+
+#### `parents` — Direct Parent Types
+
+Returns the list of direct parent type representations from `defKind.baseTypes`.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def parents: List[TypeRepr]
+}
+```
+
+```scala mdoc
+dogId.parents
+```
+
+### Metadata
+
+Methods for accessing annotations, self-type, alias target, and opaque representation.
+
+#### `annotations` — Type Annotations
+
+Returns the list of annotations attached to this type at compile time.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def annotations: List[Annotation]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+@transient
+case class ImportantData(id: Int, payload: String)
+case class Plain(x: Int)
+```
+
+```scala mdoc
+TypeId.of[ImportantData].annotations.map(_.name)
+TypeId.of[Plain].annotations
+```
+
+#### `selfType` — Self-Type Annotation
+
+Returns `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` otherwise.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def selfType: Option[TypeRepr]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+trait Logger { def log(msg: String): Unit }
+trait Service { self: Logger => def doWork(): Unit = log("working") }
+```
+
+```scala mdoc
+TypeId.of[Service].selfType
+TypeId.of[Logger].selfType
+```
+
+#### `aliasedTo` — Alias Target
+
+Returns `Some(typeRepr)` for type aliases, `None` for nominal and opaque types.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def aliasedTo: Option[TypeRepr]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+```scala mdoc
+val ageAlias = TypeId.alias[Any]("Age", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
+ageAlias.aliasedTo
+TypeId.int.aliasedTo
+```
+
+#### `representation` — Opaque Type Representation
+
+Returns `Some(typeRepr)` for opaque types (the underlying representation type), `None` otherwise.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def representation: Option[TypeRepr]
+}
+```
+
+```scala mdoc
+val opaqueEmail = TypeId.opaque[Any]("Email", Owner.Root, representation = TypeRepr.Ref(TypeId.string))
+opaqueEmail.representation
+TypeId.int.representation
+```
+
+### Erasure and Runtime
+
+Methods for type erasure, runtime class lookup, and reflective construction.
+
+#### `erased` — Erase Type Parameter
+
+Erases the phantom type parameter, returning a `TypeId.Erased` (alias for `TypeId[TypeId.Unknown]`). Use this when storing TypeIds in type-indexed maps.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def erased: TypeId.Erased
+}
+```
+
+```scala mdoc
+val erased: TypeId.Erased = TypeId.int.erased
+erased
+```
+
+#### `classTag` — Runtime ClassTag
+
+Returns a `ClassTag` for this type. Returns the correct primitive `ClassTag` for Scala primitive types and `ClassTag.AnyRef` for all reference types. Useful for creating properly-typed arrays at runtime.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  lazy val classTag: scala.reflect.ClassTag[?]
+}
+```
+
+#### `clazz` — Runtime Class (JVM Only)
+
+Returns the `Class[_]` corresponding to this type on the JVM. Returns `None` on Scala.js, and for alias/opaque types.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def clazz: Option[Class[?]]
+}
+```
+
+#### `construct` — Reflective Construction (JVM Only)
+
+Constructs an instance using the primary constructor on the JVM. Returns `Left` with an error message on Scala.js or when construction fails.
+
+```scala
+sealed trait TypeId[A <: AnyKind] {
+  def construct(args: Chunk[AnyRef]): Either[String, Any]
+}
+```
+
+```scala
+// JVM example (not runnable in mdoc due to platform specificity)
+val personId = TypeId.of[Person]
+personId.clazz            // Some(class Person) on JVM, None on Scala.js
+personId.construct(Chunk("Alice", 30: Integer))  // Right(Person(Alice,30)) on JVM
+```
+
+### Normalization and Equality
+
+Companion object methods for normalization, equality checking, and type constructor stripping.
+
+#### `TypeId.normalize` — Resolve Aliases
+
+Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`.
+
+```scala
+object TypeId {
+  def normalize(id: TypeId[?]): TypeId[?]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+```
+
+```scala mdoc
+val alias = TypeId.alias[Any]("Age", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
+val norm = TypeId.normalize(alias)
+norm.fullName
+```
+
+#### `TypeId.structurallyEqual` — Structural Equality
+
+Checks if two TypeIds are structurally equal after normalization. This is the same as `==` on TypeId instances.
+
+```scala
+object TypeId {
+  def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean
+}
+```
+
+```scala mdoc
+val a = TypeId.alias[Any]("X", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
+val b = TypeId.alias[Any]("X", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
+TypeId.structurallyEqual(a, b)
+a == b
+```
+
+#### `TypeId.structuralHash` — Structural Hash Code
+
+Computes a hash code based on the normalized structural representation.
+
+```scala
+object TypeId {
+  def structuralHash(id: TypeId[?]): Int
+}
+```
+
+#### `TypeId.unapplied` — Strip Type Arguments
+
+Returns the type constructor by stripping all type arguments. For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`.
+
+```scala
+object TypeId {
+  def unapplied(id: TypeId[?]): TypeId[?]
+}
+```
+
+```scala mdoc
+val listInt = TypeId.of[List[Int]]
+val unapplied = TypeId.unapplied(listInt)
+unapplied.isApplied
+unapplied.name
+```
+
+### Pattern Matching Extractors
+
+The companion object provides extractors for pattern matching on TypeId classification.
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class User(id: Long, email: String)
+val userId = TypeId.of[User]
+```
 
 ```scala mdoc
 userId match {
@@ -254,52 +901,20 @@ userId match {
 ```
 
 The extractors are:
-- `TypeId.Nominal(name, owner, params, defKind, parents)` — classes, traits, objects
-- `TypeId.Alias(name, owner, params, aliased)` — type aliases
-- `TypeId.Opaque(name, owner, params, repr, bounds)` — opaque types
-- `TypeId.Sealed(name)` — sealed traits
-- `TypeId.Enum(name, owner)` — Scala 3 enums
 
-## Type Classification
+| Extractor                                          | Matches                  |
+|----------------------------------------------------|--------------------------|
+| `TypeId.Nominal(name, owner, params, defKind, parents)` | Classes, traits, objects |
+| `TypeId.Alias(name, owner, params, aliased)`       | Type aliases             |
+| `TypeId.Opaque(name, owner, params, repr, bounds)` | Opaque types             |
+| `TypeId.Sealed(name)`                              | Sealed traits            |
+| `TypeId.Enum(name, owner)`                         | Scala 3 enums            |
 
-TypeId captures what *kind* of type definition each type is — class, trait, object, enum, etc. Derive a TypeId and use classification predicates or inspect `defKind` directly.
+## TypeDefKind Reference
 
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
+`TypeDefKind` classifies every type definition. Access it via the `defKind` property documented in [Core Operations](#type-classification).
 
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-case class Square(side: Double) extends Shape
-case object Origin
-```
-
-```scala mdoc
-val shapeId  = TypeId.of[Shape]
-val circleId = TypeId.of[Circle]
-val originId = TypeId.of[Origin.type]
-```
-
-### Classification Predicates
-
-```scala mdoc
-shapeId.isTrait
-shapeId.isSealed
-
-circleId.isClass
-circleId.isCaseClass
-
-originId.isObject
-```
-
-### The `defKind` Property
-
-For more detail, inspect `defKind` directly:
-
-```scala mdoc
-circleId.defKind
-shapeId.defKind
-originId.defKind
-```
+The `defKind` property (documented in [Core Operations](#type-classification)) returns one of these variants. Use classification predicates like `isCaseClass`, `isSealed`, `isObject` for simple checks.
 
 `TypeDefKind` has these variants:
 
@@ -314,40 +929,6 @@ originId.defKind
 | `OpaqueType(publicBounds)`                           | Opaque types                    |
 | `AbstractType`                                       | Abstract type members           |
 | `Unknown`                                            | Unclassified or unresolvable type definition |
-
-Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnum`, `isAlias`, `isOpaque`, `isAbstract`, `isSealed`, `isCaseClass`, `isValueClass`, `isTuple`, `isProduct`, `isSum`, `isOption`, `isEither`, `isProperType`, `isTypeConstructor`, `isApplied`.
-
-> **Note on `isProduct`:** `isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, `scala.Product2`, etc. — not for user-defined case classes. Use `isCaseClass` for user-defined case classes.
->
-> **Note on `isSum`:** `isSum` checks whether the normalized type's owner is the `scala` package root and its name is `"Either"` or `"Option"`. Because `scala.Option` lives in the `scala` package, `TypeId.of[Option[Int]].isSum` returns `true`. However, `scala.util.Either` lives in `scala.util`, so `TypeId.of[Either[String, Int]].isSum` returns `false`. Use `isEither` to detect `scala.util.Either` specifically, and `isOption` for `scala.Option`. For user-defined sealed traits, use `isSealed` or combine `isTrait` with `isSealed`.
-
-## Self Types
-
-The `selfType` property captures a trait's self-type annotation, if present. It is `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` for traits without a self-type annotation or for non-trait types like classes and objects.
-
-Self-type information is useful for code generators and schema systems that need to understand a trait's required dependencies (the cake pattern, dependency injection via self-types, etc.).
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-trait Logger {
-  def log(msg: String): Unit
-}
-
-trait Service { self: Logger =>
-  def doWork(): Unit = log("working")
-}
-
-case class PlainClass(x: Int)
-```
-
-```scala mdoc
-val serviceId = TypeId.of[Service]
-serviceId.selfType
-
-val plainId = TypeId.of[PlainClass]
-plainId.selfType
-```
 
 ## Type Parameters and Generics
 
