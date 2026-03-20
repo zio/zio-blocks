@@ -3,7 +3,7 @@ package zio.blocks.openapi
 import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
-import zio.blocks.schema.json.{Json, JsonDecoder, JsonEncoder}
+import zio.blocks.schema.json.{Json, JsonBinaryCodec}
 import zio.test._
 
 object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
@@ -15,7 +15,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     json.fields.exists(_._1 == key)
 
   private def fieldValue(json: Json, key: String): Option[Json] =
-    json.fields.find(_._1 == key).map(_._2)
+    json.fields.collectFirst { case kv if kv._1 == key => kv._2 }
 
   def spec: Spec[TestEnvironment, Any] = suite("OpenAPI JSON Serialization")(
     schemaObjectToJsonSuite,
@@ -132,31 +132,31 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
 
   private lazy val enumEncodingSuite = suite("Enum types encode as spec-compliant strings")(
     test("ParameterLocation.Query encodes as 'query'") {
-      val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Query)
+      val json = parameterLocationCodec.encodeValue(ParameterLocation.Query)
       assertTrue(json == Json.String("query"))
     },
     test("ParameterLocation.Header encodes as 'header'") {
-      val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Header)
+      val json = parameterLocationCodec.encodeValue(ParameterLocation.Header)
       assertTrue(json == Json.String("header"))
     },
     test("ParameterLocation.Path encodes as 'path'") {
-      val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Path)
+      val json = parameterLocationCodec.encodeValue(ParameterLocation.Path)
       assertTrue(json == Json.String("path"))
     },
     test("ParameterLocation.Cookie encodes as 'cookie'") {
-      val json = JsonEncoder[ParameterLocation].encode(ParameterLocation.Cookie)
+      val json = parameterLocationCodec.encodeValue(ParameterLocation.Cookie)
       assertTrue(json == Json.String("cookie"))
     },
     test("APIKeyLocation.Query encodes as 'query'") {
-      val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Query)
+      val json = apiKeyLocationCodec.encodeValue(APIKeyLocation.Query)
       assertTrue(json == Json.String("query"))
     },
     test("APIKeyLocation.Header encodes as 'header'") {
-      val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Header)
+      val json = apiKeyLocationCodec.encodeValue(APIKeyLocation.Header)
       assertTrue(json == Json.String("header"))
     },
     test("APIKeyLocation.Cookie encodes as 'cookie'") {
-      val json = JsonEncoder[APIKeyLocation].encode(APIKeyLocation.Cookie)
+      val json = apiKeyLocationCodec.encodeValue(APIKeyLocation.Cookie)
       assertTrue(json == Json.String("cookie"))
     }
   )
@@ -166,7 +166,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val ref: ReferenceOr[SchemaObject] = ReferenceOr.Ref(
         Reference(`$ref` = "#/components/schemas/Pet")
       )
-      val json = JsonEncoder[ReferenceOr[SchemaObject]].encode(ref)
+      val json = referenceOrCodec(schemaObjectCodec).encodeValue(ref)
       assertTrue(
         fieldValue(json, "$ref").contains(Json.String("#/components/schemas/Pet")),
         !hasField(json, "Ref"),
@@ -176,7 +176,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("ReferenceOr.Value encodes as the value directly") {
       val value: ReferenceOr[SchemaObject] =
         ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))
-      val json = JsonEncoder[ReferenceOr[SchemaObject]].encode(value)
+      val json = referenceOrCodec(schemaObjectCodec).encodeValue(value)
       assertTrue(
         hasField(json, "type"),
         !hasField(json, "Value")
@@ -190,7 +190,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
           description = Some(doc("Reference to User schema"))
         )
       )
-      val json = JsonEncoder[ReferenceOr[SchemaObject]].encode(ref)
+      val json = referenceOrCodec(schemaObjectCodec).encodeValue(ref)
       assertTrue(
         fieldValue(json, "$ref").contains(Json.String("#/components/schemas/User")),
         hasField(json, "summary"),
@@ -203,7 +203,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val securitySchemeEncodingSuite = suite("SecurityScheme encodes with type discriminator")(
     test("SecurityScheme.APIKey encodes with type discriminator") {
       val ss: SecurityScheme = SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header)
-      val json               = JsonEncoder[SecurityScheme].encode(ss)
+      val json               = securitySchemeCodec.encodeValue(ss)
       assertTrue(
         fieldValue(json, "type").contains(Json.String("apiKey")),
         fieldValue(json, "name").contains(Json.String("api_key")),
@@ -213,7 +213,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("SecurityScheme.HTTP encodes with type discriminator") {
       val ss: SecurityScheme = SecurityScheme.HTTP(scheme = "bearer", bearerFormat = Some("JWT"))
-      val json               = JsonEncoder[SecurityScheme].encode(ss)
+      val json               = securitySchemeCodec.encodeValue(ss)
       assertTrue(
         fieldValue(json, "type").contains(Json.String("http")),
         fieldValue(json, "scheme").contains(Json.String("bearer")),
@@ -232,7 +232,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
           )
         )
       )
-      val json = JsonEncoder[SecurityScheme].encode(ss)
+      val json = securitySchemeCodec.encodeValue(ss)
       assertTrue(
         fieldValue(json, "type").contains(Json.String("oauth2")),
         hasField(json, "flows"),
@@ -243,7 +243,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       val ss: SecurityScheme = SecurityScheme.OpenIdConnect(
         openIdConnectUrl = "https://example.com/.well-known/openid-configuration"
       )
-      val json = JsonEncoder[SecurityScheme].encode(ss)
+      val json = securitySchemeCodec.encodeValue(ss)
       assertTrue(
         fieldValue(json, "type").contains(Json.String("openIdConnect")),
         fieldValue(json, "openIdConnectUrl").contains(
@@ -254,7 +254,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("SecurityScheme.MutualTLS encodes with type discriminator") {
       val ss: SecurityScheme = SecurityScheme.MutualTLS(description = Some(doc("Mutual TLS")))
-      val json               = JsonEncoder[SecurityScheme].encode(ss)
+      val json               = securitySchemeCodec.encodeValue(ss)
       assertTrue(
         fieldValue(json, "type").contains(Json.String("mutualTLS")),
         !hasField(json, "MutualTLS")
@@ -265,7 +265,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val extensionsFlatteningSuite = suite("Extensions are flattened at top level")(
     test("Info extensions are flattened at top level") {
       val info = Info(title = "API", version = "1.0", extensions = ChunkMap("x-custom" -> Json.String("val")))
-      val json = JsonEncoder[Info].encode(info)
+      val json = infoCodec.encodeValue(info)
       assertTrue(
         hasField(json, "x-custom"),
         !hasField(json, "extensions")
@@ -273,7 +273,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Contact extensions are flattened at top level") {
       val contact = Contact(name = Some("Support"), extensions = ChunkMap("x-id" -> Json.Number(1)))
-      val json    = JsonEncoder[Contact].encode(contact)
+      val json    = contactCodec.encodeValue(contact)
       assertTrue(
         hasField(json, "x-id"),
         !hasField(json, "extensions")
@@ -281,7 +281,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("License extensions are flattened at top level") {
       val license = License(name = "MIT", extensions = ChunkMap("x-year" -> Json.Number(2024)))
-      val json    = JsonEncoder[License].encode(license)
+      val json    = licenseCodec.encodeValue(license)
       assertTrue(
         hasField(json, "x-year"),
         !hasField(json, "extensions")
@@ -289,7 +289,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Server extensions are flattened at top level") {
       val server = Server(url = "https://api.example.com", extensions = ChunkMap("x-region" -> Json.String("us")))
-      val json   = JsonEncoder[Server].encode(server)
+      val json   = serverCodec.encodeValue(server)
       assertTrue(
         hasField(json, "x-region"),
         !hasField(json, "extensions")
@@ -297,7 +297,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Tag extensions are flattened at top level") {
       val tag  = Tag(name = "users", extensions = ChunkMap("x-order" -> Json.Number(1)))
-      val json = JsonEncoder[Tag].encode(tag)
+      val json = tagCodec.encodeValue(tag)
       assertTrue(
         hasField(json, "x-order"),
         !hasField(json, "extensions")
@@ -306,7 +306,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("ExternalDocumentation extensions are flattened") {
       val ed =
         ExternalDocumentation(url = "https://docs.example.com", extensions = ChunkMap("x-lang" -> Json.String("en")))
-      val json = JsonEncoder[ExternalDocumentation].encode(ed)
+      val json = externalDocumentationCodec.encodeValue(ed)
       assertTrue(
         hasField(json, "x-lang"),
         !hasField(json, "extensions")
@@ -317,7 +317,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         responses = Responses(responses = ChunkMap("200" -> ReferenceOr.Value(Response(description = doc("OK"))))),
         extensions = ChunkMap("x-rate-limit" -> Json.Number(100))
       )
-      val json = JsonEncoder[Operation].encode(op)
+      val json = operationCodec.encodeValue(op)
       assertTrue(
         hasField(json, "x-rate-limit"),
         !hasField(json, "extensions")
@@ -329,7 +329,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         in = ParameterLocation.Query,
         extensions = ChunkMap("x-internal" -> Json.Boolean(true))
       )
-      val json = JsonEncoder[Parameter].encode(param)
+      val json = parameterCodec.encodeValue(param)
       assertTrue(
         hasField(json, "x-internal"),
         !hasField(json, "extensions")
@@ -337,7 +337,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Response extensions are flattened at top level") {
       val resp = Response(description = doc("OK"), extensions = ChunkMap("x-response-id" -> Json.String("r1")))
-      val json = JsonEncoder[Response].encode(resp)
+      val json = responseCodec.encodeValue(resp)
       assertTrue(
         hasField(json, "x-response-id"),
         !hasField(json, "extensions")
@@ -349,7 +349,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         info = Info(title = "API", version = "1.0"),
         extensions = ChunkMap("x-api-id" -> Json.String("api-123"))
       )
-      val json = JsonEncoder[OpenAPI].encode(api)
+      val json = openAPICodec.encodeValue(api)
       assertTrue(
         hasField(json, "x-api-id"),
         !hasField(json, "extensions")
@@ -360,7 +360,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val wrapperTypesSuite = suite("Wrapper types encode as flat maps")(
     test("SecurityRequirement encodes as flat map") {
       val sr   = SecurityRequirement(ChunkMap("oauth2" -> Chunk("read", "write")))
-      val json = JsonEncoder[SecurityRequirement].encode(sr)
+      val json = securityRequirementCodec.encodeValue(sr)
       assertTrue(
         hasField(json, "oauth2"),
         !hasField(json, "requirements")
@@ -369,7 +369,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("Paths encodes with path keys at top level") {
       val paths =
         Paths(paths = ChunkMap("/pets" -> PathItem()), extensions = ChunkMap("x-id" -> Json.String("v1")))
-      val json = JsonEncoder[Paths].encode(paths)
+      val json = pathsCodec.encodeValue(paths)
       assertTrue(
         hasField(json, "/pets"),
         hasField(json, "x-id"),
@@ -383,7 +383,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         extensions = ChunkMap("x-cb" -> Json.String("v1"))
       )
-      val json = JsonEncoder[Callback].encode(cb)
+      val json = callbackCodec.encodeValue(cb)
       assertTrue(
         hasField(json, "{$request.body#/callbackUrl}"),
         hasField(json, "x-cb"),
@@ -399,7 +399,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
         extensions = ChunkMap("x-resps" -> Json.String("v1"))
       )
-      val json = JsonEncoder[Responses].encode(resps)
+      val json = responsesCodec.encodeValue(resps)
       assertTrue(
         hasField(json, "200"),
         hasField(json, "404"),
@@ -413,7 +413,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val defaultOmissionSuite = suite("Default values are omitted")(
     test("Parameter with default boolean values omits them") {
       val param = Parameter(name = "q", in = ParameterLocation.Query)
-      val json  = JsonEncoder[Parameter].encode(param)
+      val json  = parameterCodec.encodeValue(param)
       assertTrue(
         hasField(json, "name"),
         hasField(json, "in"),
@@ -424,7 +424,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Header with default boolean values omits them") {
       val header = Header()
-      val json   = JsonEncoder[Header].encode(header)
+      val json   = headerCodec.encodeValue(header)
       assertTrue(
         !hasField(json, "required"),
         !hasField(json, "deprecated"),
@@ -433,28 +433,28 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Operation with deprecated=false omits it") {
       val op   = Operation()
-      val json = JsonEncoder[Operation].encode(op)
+      val json = operationCodec.encodeValue(op)
       assertTrue(
         !hasField(json, "deprecated")
       )
     },
     test("RequestBody with required=false omits it") {
       val rb   = RequestBody(content = ChunkMap.empty)
-      val json = JsonEncoder[RequestBody].encode(rb)
+      val json = requestBodyCodec.encodeValue(rb)
       assertTrue(
         !hasField(json, "required")
       )
     },
     test("Encoding with allowReserved=false omits it") {
       val enc  = Encoding()
-      val json = JsonEncoder[Encoding].encode(enc)
+      val json = encodingCodec.encodeValue(enc)
       assertTrue(
         !hasField(json, "allowReserved")
       )
     },
     test("XML with attribute=false and wrapped=false omits them") {
       val xml  = XML()
-      val json = JsonEncoder[XML].encode(xml)
+      val json = xmlCodec.encodeValue(xml)
       assertTrue(
         !hasField(json, "attribute"),
         !hasField(json, "wrapped")
@@ -462,7 +462,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     },
     test("Empty maps and lists are omitted") {
       val op   = Operation()
-      val json = JsonEncoder[Operation].encode(op)
+      val json = operationCodec.encodeValue(op)
       assertTrue(
         !hasField(json, "tags"),
         !hasField(json, "parameters"),
@@ -477,16 +477,16 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
   private lazy val roundTripSuite = suite("Encode/decode round-trip")(
     test("Contact round-trips") {
       val original = Contact(name = Some("Support"), url = Some("https://example.com"), email = Some("a@b.com"))
-      val json     = JsonEncoder[Contact].encode(original)
-      val decoded  = JsonDecoder[Contact].decode(json)
-      assertTrue(decoded == Right(original))
+      val json     = contactCodec.encodeValue(original)
+      val decoded  = contactCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("License round-trips") {
       val original =
         License(name = "MIT", identifierOrUrl = Some(Left("MIT")), extensions = ChunkMap("x-y" -> Json.Number(1)))
-      val json    = JsonEncoder[License].encode(original)
-      val decoded = JsonDecoder[License].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = licenseCodec.encodeValue(original)
+      val decoded = licenseCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Info round-trips") {
       val original = Info(
@@ -499,9 +499,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         license = Some(License(name = "MIT")),
         extensions = ChunkMap("x-api" -> Json.String("v1"))
       )
-      val json    = JsonEncoder[Info].encode(original)
-      val decoded = JsonDecoder[Info].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = infoCodec.encodeValue(original)
+      val decoded = infoCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Server round-trips") {
       val original = Server(
@@ -510,9 +510,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         variables = ChunkMap("env" -> ServerVariable(default = "prod")),
         extensions = ChunkMap("x-r" -> Json.String("us"))
       )
-      val json    = JsonEncoder[Server].encode(original)
-      val decoded = JsonDecoder[Server].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = serverCodec.encodeValue(original)
+      val decoded = serverCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("ServerVariable round-trips") {
       val original = ServerVariable(
@@ -521,9 +521,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("Version")),
         extensions = ChunkMap("x-d" -> Json.Boolean(false))
       )
-      val json    = JsonEncoder[ServerVariable].encode(original)
-      val decoded = JsonDecoder[ServerVariable].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = serverVariableCodec.encodeValue(original)
+      val decoded = serverVariableCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Tag round-trips") {
       val original = Tag(
@@ -532,9 +532,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
         extensions = ChunkMap("x-o" -> Json.Number(1))
       )
-      val json    = JsonEncoder[Tag].encode(original)
-      val decoded = JsonDecoder[Tag].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = tagCodec.encodeValue(original)
+      val decoded = tagCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("ExternalDocumentation round-trips") {
       val original = ExternalDocumentation(
@@ -542,9 +542,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("Full docs")),
         extensions = ChunkMap("x-l" -> Json.String("en"))
       )
-      val json    = JsonEncoder[ExternalDocumentation].encode(original)
-      val decoded = JsonDecoder[ExternalDocumentation].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = externalDocumentationCodec.encodeValue(original)
+      val decoded = externalDocumentationCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("XML round-trips") {
       val original = XML(
@@ -554,18 +554,18 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         attribute = true,
         wrapped = true
       )
-      val json    = JsonEncoder[XML].encode(original)
-      val decoded = JsonDecoder[XML].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = xmlCodec.encodeValue(original)
+      val decoded = xmlCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Discriminator round-trips") {
       val original = Discriminator(
         propertyName = "petType",
         mapping = ChunkMap("dog" -> "#/components/schemas/Dog")
       )
-      val json    = JsonEncoder[Discriminator].encode(original)
-      val decoded = JsonDecoder[Discriminator].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = discriminatorCodec.encodeValue(original)
+      val decoded = discriminatorCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Parameter round-trips") {
       val original = Parameter(
@@ -576,9 +576,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
         extensions = ChunkMap("x-p" -> Json.String("val"))
       )
-      val json    = JsonEncoder[Parameter].encode(original)
-      val decoded = JsonDecoder[Parameter].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = parameterCodec.encodeValue(original)
+      val decoded = parameterCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Operation round-trips") {
       val original = Operation(
@@ -589,9 +589,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         deprecated = true,
         extensions = ChunkMap("x-rl" -> Json.Number(100))
       )
-      val json    = JsonEncoder[Operation].encode(original)
-      val decoded = JsonDecoder[Operation].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = operationCodec.encodeValue(original)
+      val decoded = operationCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Response round-trips") {
       val original = Response(
@@ -612,9 +612,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         extensions = ChunkMap("x-rid" -> Json.String("r1"))
       )
-      val json    = JsonEncoder[Response].encode(original)
-      val decoded = JsonDecoder[Response].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = responseCodec.encodeValue(original)
+      val decoded = responseCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("SecurityScheme.APIKey round-trips") {
       val original: SecurityScheme = SecurityScheme.APIKey(
@@ -623,9 +623,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("API key auth")),
         extensions = ChunkMap("x-f" -> Json.String("uuid"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("SecurityScheme.HTTP round-trips") {
       val original: SecurityScheme = SecurityScheme.HTTP(
@@ -634,9 +634,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("Bearer auth")),
         extensions = ChunkMap("x-t" -> Json.String("jwt"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("SecurityScheme.OAuth2 round-trips") {
       val original: SecurityScheme = SecurityScheme.OAuth2(
@@ -652,9 +652,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("OAuth2")),
         extensions = ChunkMap("x-p" -> Json.String("custom"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("SecurityScheme.OpenIdConnect round-trips") {
       val original: SecurityScheme = SecurityScheme.OpenIdConnect(
@@ -662,33 +662,33 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("OIDC")),
         extensions = ChunkMap("x-oidc" -> Json.String("custom"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("SecurityScheme.MutualTLS round-trips") {
       val original: SecurityScheme = SecurityScheme.MutualTLS(
         description = Some(doc("mTLS")),
         extensions = ChunkMap("x-cert" -> Json.Boolean(true))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("ReferenceOr.Ref round-trips") {
       val original: ReferenceOr[SchemaObject] = ReferenceOr.Ref(
         Reference(`$ref` = "#/components/schemas/Pet")
       )
-      val json    = JsonEncoder[ReferenceOr[SchemaObject]].encode(original)
-      val decoded = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = referenceOrCodec(schemaObjectCodec).encodeValue(original)
+      val decoded = referenceOrCodec(schemaObjectCodec).decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("ReferenceOr.Value round-trips") {
       val original: ReferenceOr[SchemaObject] =
         ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))
-      val json    = JsonEncoder[ReferenceOr[SchemaObject]].encode(original)
-      val decoded = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = referenceOrCodec(schemaObjectCodec).encodeValue(original)
+      val decoded = referenceOrCodec(schemaObjectCodec).decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("PathItem round-trips") {
       val original = PathItem(
@@ -705,9 +705,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         extensions = ChunkMap("x-path" -> Json.Number(1))
       )
-      val json    = JsonEncoder[PathItem].encode(original)
-      val decoded = JsonDecoder[PathItem].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = pathItemCodec.encodeValue(original)
+      val decoded = pathItemCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("OpenAPI round-trips") {
       val original = OpenAPI(
@@ -731,9 +731,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         externalDocs = Some(ExternalDocumentation(url = "https://docs.example.com")),
         extensions = ChunkMap("x-api-id" -> Json.String("api-123"))
       )
-      val json    = JsonEncoder[OpenAPI].encode(original)
-      val decoded = JsonDecoder[OpenAPI].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = openAPICodec.encodeValue(original)
+      val decoded = openAPICodec.decodeValue(json)
+      assertTrue(decoded == original)
     }
   )
 
@@ -744,29 +744,23 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       assertTrue(parsed.isRight) &&
       (parsed match {
         case Right(json) =>
-          val decoded = JsonDecoder[OpenAPI].decode(json)
-          assertTrue(decoded.isRight) &&
-          (decoded match {
-            case Right(api) =>
-              val reEncoded = JsonEncoder[OpenAPI].encode(api)
-              assertTrue(
-                fieldValue(reEncoded, "openapi").contains(Json.String("3.1.0")),
-                hasField(reEncoded, "info"),
-                hasField(reEncoded, "paths"),
-                hasField(reEncoded, "components")
-              ) && {
-                val infoJson = fieldValue(reEncoded, "info").get
-                assertTrue(
-                  fieldValue(infoJson, "title").contains(Json.String("Swagger Petstore")),
-                  fieldValue(infoJson, "version").contains(Json.String("1.0.0"))
-                )
-              } && {
-                val reDecoded = JsonDecoder[OpenAPI].decode(reEncoded)
-                assertTrue(reDecoded == Right(api))
-              }
-            case Left(_) =>
-              assertTrue(false)
-          })
+          val api       = openAPICodec.decodeValue(json)
+          val reEncoded = openAPICodec.encodeValue(api)
+          assertTrue(
+            fieldValue(reEncoded, "openapi").contains(Json.String("3.1.0")),
+            hasField(reEncoded, "info"),
+            hasField(reEncoded, "paths"),
+            hasField(reEncoded, "components")
+          ) && {
+            val infoJson = fieldValue(reEncoded, "info").get
+            assertTrue(
+              fieldValue(infoJson, "title").contains(Json.String("Swagger Petstore")),
+              fieldValue(infoJson, "version").contains(Json.String("1.0.0"))
+            )
+          } && {
+            val reDecoded = openAPICodec.decodeValue(reEncoded)
+            assertTrue(reDecoded == api)
+          }
         case Left(_) =>
           assertTrue(false)
       })
@@ -777,16 +771,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       assertTrue(parsed.isRight) &&
       (parsed match {
         case Right(json) =>
-          val decoded = JsonDecoder[OpenAPI].decode(json)
-          assertTrue(decoded.isRight) &&
-          (decoded match {
-            case Right(api) =>
-              val reEncoded = JsonEncoder[OpenAPI].encode(api)
-              val reDecoded = JsonDecoder[OpenAPI].decode(reEncoded)
-              assertTrue(reDecoded == Right(api))
-            case Left(_) =>
-              assertTrue(false)
-          })
+          val api       = openAPICodec.decodeValue(json)
+          val reEncoded = openAPICodec.encodeValue(api)
+          val reDecoded = openAPICodec.decodeValue(reEncoded)
+          assertTrue(reDecoded == api)
         case Left(_) =>
           assertTrue(false)
       })
@@ -797,16 +785,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
       assertTrue(parsed.isRight) &&
       (parsed match {
         case Right(json) =>
-          val decoded = JsonDecoder[OpenAPI].decode(json)
-          assertTrue(decoded.isRight) &&
-          (decoded match {
-            case Right(api) =>
-              val reEncoded = JsonEncoder[OpenAPI].encode(api)
-              val reDecoded = JsonDecoder[OpenAPI].decode(reEncoded)
-              assertTrue(reDecoded == Right(api))
-            case Left(_) =>
-              assertTrue(false)
-          })
+          val api       = openAPICodec.decodeValue(json)
+          val reEncoded = openAPICodec.encodeValue(api)
+          val reDecoded = openAPICodec.decodeValue(reEncoded)
+          assertTrue(reDecoded == api)
         case Left(_) =>
           assertTrue(false)
       })
@@ -936,7 +918,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         )
       )
 
-      val json = JsonEncoder[OpenAPI].encode(api)
+      val json = openAPICodec.encodeValue(api)
       assertTrue(
         hasField(json, "openapi"),
         hasField(json, "info"),
@@ -955,14 +937,13 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "termsOfService" -> Json.String("https://example.com/terms"),
         "x-custom"       -> Json.String("value")
       )
-      val result = JsonDecoder[Info].decode(json)
+      val result = infoCodec.decodeValue(json)
       assertTrue(
-        result.isRight,
-        result.toOption.get.title == "My API",
-        result.toOption.get.version == "2.0.0",
-        result.toOption.get.description.isDefined,
-        result.toOption.get.termsOfService.contains("https://example.com/terms"),
-        result.toOption.get.extensions.contains("x-custom")
+        result.title == "My API",
+        result.version == "2.0.0",
+        result.description.isDefined,
+        result.termsOfService.contains("https://example.com/terms"),
+        result.extensions.contains("x-custom")
       )
     },
     test("decode Parameter from raw JSON with 'in' as string") {
@@ -972,12 +953,11 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "required" -> Json.Boolean(false),
         "schema"   -> Json.Object("type" -> Json.String("integer"))
       )
-      val result = JsonDecoder[Parameter].decode(json)
+      val result = parameterCodec.decodeValue(json)
       assertTrue(
-        result.isRight,
-        result.toOption.get.name == "limit",
-        result.toOption.get.in == ParameterLocation.Query,
-        result.toOption.get.required == false
+        result.name == "limit",
+        result.in == ParameterLocation.Query,
+        result.required == false
       )
     },
     test("decode SecurityScheme.APIKey from raw JSON") {
@@ -986,20 +966,17 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "name" -> Json.String("X-API-Key"),
         "in"   -> Json.String("header")
       )
-      val result = JsonDecoder[SecurityScheme].decode(json)
-      assertTrue(
-        result.isRight,
-        result.toOption.get.isInstanceOf[SecurityScheme.APIKey]
-      )
+      val result = securitySchemeCodec.decodeValue(json)
+      assertTrue(result.isInstanceOf[SecurityScheme.APIKey])
     },
     test("decode ReferenceOr with $ref key produces Ref") {
       val json = Json.Object(
         "$ref"    -> Json.String("#/components/schemas/Pet"),
         "summary" -> Json.String("A pet")
       )
-      val result = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
+      val result = referenceOrCodec(schemaObjectCodec).decodeValue(json)
       result match {
-        case Right(ReferenceOr.Ref(ref)) =>
+        case ReferenceOr.Ref(ref) =>
           assertTrue(ref.`$ref` == "#/components/schemas/Pet", ref.summary.isDefined)
         case _ => assertTrue(false)
       }
@@ -1009,10 +986,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "type"   -> Json.String("string"),
         "format" -> Json.String("email")
       )
-      val result = JsonDecoder[ReferenceOr[SchemaObject]].decode(json)
+      val result = referenceOrCodec(schemaObjectCodec).decodeValue(json)
       result match {
-        case Right(ReferenceOr.Value(_)) => assertTrue(true)
-        case _                           => assertTrue(false)
+        case ReferenceOr.Value(_) => assertTrue(true)
+        case _                    => assertTrue(false)
       }
     },
     test("decoder ignores unknown fields gracefully") {
@@ -1022,60 +999,60 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "unknownField"   -> Json.String("should be ignored"),
         "anotherUnknown" -> Json.Number(42)
       )
-      val result = JsonDecoder[Contact].decode(json)
-      assertTrue(result.isRight)
+      val result = contactCodec.decodeValue(json)
+      assertTrue(result != null)
     }
   )
 
   private lazy val errorCasesSuite = suite("Decoder error handling")(
     test("Info decoder fails on missing required 'title' field") {
       val json   = Json.Object("version" -> Json.String("1.0"))
-      val result = JsonDecoder[Info].decode(json)
+      val result = infoCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("Info decoder fails on missing required 'version' field") {
       val json   = Json.Object("title" -> Json.String("My API"))
-      val result = JsonDecoder[Info].decode(json)
+      val result = infoCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("ParameterLocation decoder fails on invalid location string") {
       val json   = Json.String("invalid_location")
-      val result = JsonDecoder[ParameterLocation].decode(json)
+      val result = parameterLocationCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("APIKeyLocation decoder fails on invalid location string") {
       val json   = Json.String("body")
-      val result = JsonDecoder[APIKeyLocation].decode(json)
+      val result = apiKeyLocationCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("SecurityScheme decoder fails on unknown type") {
       val json   = Json.Object("type" -> Json.String("unknownType"))
-      val result = JsonDecoder[SecurityScheme].decode(json)
+      val result = securitySchemeCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("SecurityScheme decoder fails on missing type field") {
       val json   = Json.Object("name" -> Json.String("api_key"))
-      val result = JsonDecoder[SecurityScheme].decode(json)
+      val result = securitySchemeCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("Parameter decoder fails on missing 'name' field") {
       val json   = Json.Object("in" -> Json.String("query"))
-      val result = JsonDecoder[Parameter].decode(json)
+      val result = parameterCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("Parameter decoder fails on missing 'in' field") {
       val json   = Json.Object("name" -> Json.String("limit"))
-      val result = JsonDecoder[Parameter].decode(json)
+      val result = parameterCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("Response decoder fails on missing required 'description'") {
       val json   = Json.Object("content" -> Json.Object())
-      val result = JsonDecoder[Response].decode(json)
+      val result = responseCodec.decode(json)
       assertTrue(result.isLeft)
     },
     test("Info decoder fails when given non-object JSON") {
       val json   = Json.String("not an object")
-      val result = JsonDecoder[Info].decode(json)
+      val result = infoCodec.decode(json)
       assertTrue(result.isLeft)
     }
   )
@@ -1088,10 +1065,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         description = Some(doc("API key")),
         extensions = ChunkMap("x-id" -> Json.String("1"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
       assertTrue(
-        decoded == Right(original),
+        decoded == original,
         fieldValue(json, "type").contains(Json.String("apiKey")),
         fieldValue(json, "in").contains(Json.String("header"))
       )
@@ -1099,10 +1076,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
     test("SecurityScheme.HTTP round-trips correctly") {
       val original: SecurityScheme =
         SecurityScheme.HTTP(scheme = "bearer", bearerFormat = Some("JWT"), description = Some(doc("Bearer")))
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
       assertTrue(
-        decoded == Right(original),
+        decoded == original,
         fieldValue(json, "type").contains(Json.String("http")),
         fieldValue(json, "scheme").contains(Json.String("bearer"))
       )
@@ -1120,10 +1097,10 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         ),
         description = Some(doc("OAuth2"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
       assertTrue(
-        decoded == Right(original),
+        decoded == original,
         fieldValue(json, "type").contains(Json.String("oauth2"))
       )
     },
@@ -1132,19 +1109,19 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         openIdConnectUrl = "https://example.com/.well-known",
         description = Some(doc("OIDC"))
       )
-      val json    = JsonEncoder[SecurityScheme].encode(original)
-      val decoded = JsonDecoder[SecurityScheme].decode(json)
+      val json    = securitySchemeCodec.encodeValue(original)
+      val decoded = securitySchemeCodec.decodeValue(json)
       assertTrue(
-        decoded == Right(original),
+        decoded == original,
         fieldValue(json, "type").contains(Json.String("openIdConnect"))
       )
     },
     test("SecurityScheme.MutualTLS round-trips correctly") {
       val original: SecurityScheme = SecurityScheme.MutualTLS(description = Some(doc("mTLS")))
-      val json                     = JsonEncoder[SecurityScheme].encode(original)
-      val decoded                  = JsonDecoder[SecurityScheme].decode(json)
+      val json                     = securitySchemeCodec.encodeValue(original)
+      val decoded                  = securitySchemeCodec.decodeValue(json)
       assertTrue(
-        decoded == Right(original),
+        decoded == original,
         fieldValue(json, "type").contains(Json.String("mutualTLS"))
       )
     }
@@ -1157,7 +1134,7 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
         extensions = ChunkMap("x-id" -> Json.String("1"))
       )
-      val json = JsonEncoder[Responses].encode(responses)
+      val json = responsesCodec.encodeValue(responses)
       assertTrue(
         hasField(json, "200"),
         hasField(json, "default"),
@@ -1174,9 +1151,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         default = Some(ReferenceOr.Value(Response(description = doc("Error")))),
         extensions = ChunkMap("x-resp" -> Json.Boolean(true))
       )
-      val json    = JsonEncoder[Responses].encode(original)
-      val decoded = JsonDecoder[Responses].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = responsesCodec.encodeValue(original)
+      val decoded = responsesCodec.decodeValue(json)
+      assertTrue(decoded == original)
     },
     test("Responses decodes 'default' from raw JSON") {
       val json = Json.Object(
@@ -1184,25 +1161,24 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         "default"  -> Json.Object("description" -> Json.String("Error")),
         "x-custom" -> Json.String("val")
       )
-      val result = JsonDecoder[Responses].decode(json)
+      val result = responsesCodec.decodeValue(json)
       assertTrue(
-        result.isRight,
-        result.toOption.get.default.isDefined,
-        result.toOption.get.responses.contains("200"),
-        result.toOption.get.extensions.contains("x-custom")
+        result.default.isDefined,
+        result.responses.contains("200"),
+        result.extensions.contains("x-custom")
       )
     },
     test("SchemaObject boolean schema (true) round-trips") {
       val original = SchemaObject(jsonSchema = Json.Boolean(true))
-      val json     = JsonEncoder[SchemaObject].encode(original)
-      val decoded  = JsonDecoder[SchemaObject].decode(json)
-      assertTrue(json == Json.Boolean(true), decoded == Right(original))
+      val json     = schemaObjectCodec.encodeValue(original)
+      val decoded  = schemaObjectCodec.decodeValue(json)
+      assertTrue(json == Json.Boolean(true), decoded == original)
     },
     test("SchemaObject boolean schema (false) round-trips") {
       val original = SchemaObject(jsonSchema = Json.Boolean(false))
-      val json     = JsonEncoder[SchemaObject].encode(original)
-      val decoded  = JsonDecoder[SchemaObject].decode(json)
-      assertTrue(json == Json.Boolean(false), decoded == Right(original))
+      val json     = schemaObjectCodec.encodeValue(original)
+      val decoded  = schemaObjectCodec.decodeValue(json)
+      assertTrue(json == Json.Boolean(false), decoded == original)
     },
     test("SchemaObject.toJson renders discriminator correctly with OpenAPICodec") {
       val so = SchemaObject(
@@ -1243,9 +1219,9 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
         example = Some(Json.String("example")),
         extensions = ChunkMap("x-ext" -> Json.Number(42))
       )
-      val json    = JsonEncoder[SchemaObject].encode(original)
-      val decoded = JsonDecoder[SchemaObject].decode(json)
-      assertTrue(decoded == Right(original))
+      val json    = schemaObjectCodec.encodeValue(original)
+      val decoded = schemaObjectCodec.decodeValue(json)
+      assertTrue(decoded == original)
     }
   )
 
@@ -1266,16 +1242,16 @@ object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {
           )
         )
       )
-      val json = JsonEncoder[OpenAPI].encode(original)
+      val json = openAPICodec.encodeValue(original)
       assertTrue(hasField(json, "webhooks")) &&
-      assertTrue(JsonDecoder[OpenAPI].decode(json) == Right(original))
+      assertTrue(openAPICodec.decodeValue(json) == original)
     },
     test("OpenAPI without webhooks omits field") {
       val original = OpenAPI(
         openapi = "3.1.0",
         info = Info(title = "API", version = "1.0")
       )
-      val json = JsonEncoder[OpenAPI].encode(original)
+      val json = openAPICodec.encodeValue(original)
       assertTrue(!hasField(json, "webhooks"))
     }
   )

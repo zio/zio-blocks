@@ -479,13 +479,13 @@ final case class SchemaObject(
     case obj: Json.Object =>
       val extra = Chunk.newBuilder[(String, Json)]
       discriminator.foreach { d =>
-        extra += ("discriminator" -> OpenAPICodec.discriminatorJsonEncoder.encode(d))
+        extra += ("discriminator" -> OpenAPICodec.discriminatorCodec.encodeValue(d))
       }
       xml.foreach { x =>
-        extra += ("xml" -> OpenAPICodec.xmlJsonEncoder.encode(x))
+        extra += ("xml" -> OpenAPICodec.xmlCodec.encodeValue(x))
       }
       externalDocs.foreach { ed =>
-        extra += ("externalDocs" -> OpenAPICodec.externalDocumentationJsonEncoder.encode(ed))
+        extra += ("externalDocs" -> OpenAPICodec.externalDocumentationCodec.encodeValue(ed))
       }
       example.foreach { ex =>
         extra += ("example" -> ex)
