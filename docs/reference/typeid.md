@@ -247,6 +247,8 @@ trait TypeIdLowPriority {
 }
 ```
 
+Note: Simplified — shown together for brevity; in the actual source these are separate Scala 2 / Scala 3 source trees.
+
 Use implicit derivation when you need a TypeId without calling `of` explicitly:
 
 ```scala mdoc
