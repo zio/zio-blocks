@@ -642,7 +642,7 @@ TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
 ```
 
 :::note
-In Scala 2, `isSubtypeOf` does not handle `EnumCase`, union aliases, or intersection aliases — only the Scala 3 implementation supports those cases.
+In Scala 2, `isSubtypeOf` does not handle `EnumCase` subtypes, types aliased to union types, or types aliased to intersection types — only the Scala 3 implementation checks those cases.
 :::
 
 #### `isSupertypeOf` — Check Supertyping
