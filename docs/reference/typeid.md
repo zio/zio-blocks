@@ -238,34 +238,49 @@ userId.isCaseClass
 
 ### `TypeId.derived` — Implicit Derivation
 
-TypeId instances are also available implicitly through the `derived` given/implicit. This enables automatic derivation anywhere a `TypeId[A]` is required in implicit scope.
+TypeId instances are available implicitly through the `derived` macro. Any function that requires a `TypeId[A]` in implicit scope will have it derived automatically — you never need to pass it manually.
 
-**Scala 3:**
+From the user's perspective, the API is:
 
 ```scala
-trait TypeIdLowPriority {
-  inline given derived[A <: AnyKind]: TypeId[A]
+object TypeId {
+  inline given derived[A <: AnyKind]: TypeId[A]  // Scala 3
+  implicit def derived[A]: TypeId[A]              // Scala 2 (macro)
 }
 ```
 
-In Scala 3, `TypeIdLowPriority` is a separate source file that `object TypeId` extends via `with TypeIdLowPriority`.
+:::note
+In Scala 3, the `[A <: AnyKind]` bound allows derivation for type constructors (e.g., `TypeId[List]`). In Scala 2, the bound is `[A]` and type constructor derivation uses `TypeId[List[_]]` syntax instead.
+:::
 
-**Scala 2:**
+The most common use case is accepting `TypeId[A]` as an implicit parameter:
 
-```scala
-trait TypeIdLowPriority {
-  implicit def derived[A]: TypeId[A]  // macro
-}
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class User(id: Long, email: String)
+
+def describe[A](implicit typeId: TypeId[A]): String =
+  s"${typeId.fullName} is a case class: ${typeId.isCaseClass}"
 ```
 
-In Scala 2, `TypeIdLowPriority` is defined in the same file as `TypeId`, immediately before the companion object.
-
-Use implicit derivation when you need a TypeId without calling `of` explicitly:
+Call the function with the type argument — the TypeId is derived automatically:
 
 ```scala mdoc
-val userIdImplicit = implicitly[TypeId[User]]
-userIdImplicit.name
+describe[User]
+describe[Int]
 ```
+
+You can also summon a TypeId explicitly with `implicitly` (Scala 2) or `summon` (Scala 3):
+
+```scala mdoc
+val userTypeId = implicitly[TypeId[User]]
+userTypeId.name
+```
+
+:::tip
+Prefer `TypeId.of[A]` when you need the TypeId in a single expression. Use implicit derivation when you are writing generic functions that accept any `A` and need its TypeId alongside other implicit evidence.
+:::
 
 ### `TypeId.nominal` — Nominal Types
 
