@@ -240,14 +240,25 @@ userId.isCaseClass
 
 TypeId instances are also available implicitly through the `derived` given/implicit. This enables automatic derivation anywhere a `TypeId[A]` is required in implicit scope.
 
+**Scala 3:**
+
 ```scala
 trait TypeIdLowPriority {
-  inline given derived[A <: AnyKind]: TypeId[A]  // Scala 3
-  implicit def derived[A]: TypeId[A]              // Scala 2 (macro)
+  inline given derived[A <: AnyKind]: TypeId[A]
 }
 ```
 
-Note: Simplified — shown together for brevity; in the actual source these are separate Scala 2 / Scala 3 source trees.
+In Scala 3, `TypeIdLowPriority` is a separate source file that `object TypeId` extends via `with TypeIdLowPriority`.
+
+**Scala 2:**
+
+```scala
+trait TypeIdLowPriority {
+  implicit def derived[A]: TypeId[A]  // macro
+}
+```
+
+In Scala 2, `TypeIdLowPriority` is also a separate source file in the same source tree. It is extended by the `object TypeId` companion.
 
 Use implicit derivation when you need a TypeId without calling `of` explicitly:
 
