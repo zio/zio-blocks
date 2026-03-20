@@ -587,7 +587,7 @@ These predicates check specific semantic properties of the type after normalizat
 :::
 
 :::note
-`isSum` checks whether the normalized type's owner is the `scala` package root and its name is `"Either"` or `"Option"`. Because `scala.util.Either` lives in `scala.util`, `TypeId.of[Either[String, Int]].isSum` returns `false`. Use `isEither` for `scala.util.Either` specifically, and `isOption` for `scala.Option`.
+`isSum` checks whether the normalized type is named `"Option"` or `"Either"` and resides directly in the `scala` package (not in a subpackage like `scala.util`). For any TypeId derived from the standard `scala.util.Either`, `isSum` returns `false` — use `isEither` instead. The `"Either"` branch of `isSum` would only match a hypothetical type named `Either` placed directly in the `scala` package. Similarly, use `isOption` for the standard `scala.Option`.
 :::
 
 ### Subtype Relationships
