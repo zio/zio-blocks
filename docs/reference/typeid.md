@@ -319,7 +319,7 @@ Full list of classification predicates: `isClass`, `isTrait`, `isObject`, `isEnu
 
 > **Note on `isProduct`:** `isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, `scala.Product2`, etc. — not for user-defined case classes. Use `isCaseClass` for user-defined case classes.
 >
-> **Note on `isSum`:** `isSum` returns `true` only for `scala.Either` and `scala.Option`, not for user-defined sealed traits. Use `isSealed` or combine `isTrait` with `isSealed` for general sum type detection.
+> **Note on `isSum`:** `isSum` checks whether the normalized type's owner is the `scala` package root and its name is `"Either"` or `"Option"`. Because `scala.Option` lives in the `scala` package, `TypeId.of[Option[Int]].isSum` returns `true`. However, `scala.util.Either` lives in `scala.util`, so `TypeId.of[Either[String, Int]].isSum` returns `false`. Use `isEither` to detect `scala.util.Either` specifically, and `isOption` for `scala.Option`. For user-defined sealed traits, use `isSealed` or combine `isTrait` with `isSealed`.
 
 ## Self Types
 
