@@ -1437,6 +1437,8 @@ For details on the full `Deriver` API and how to implement custom derivers, see 
 
 TypeId provides instances for common types:
 
+**Core Interfaces:** `TypeId.charSequence`, `comparable`, `serializable`
+
 **Primitives:** `TypeId.unit`, `boolean`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`, `string`, `bigInt`, `bigDecimal`
 
 **Collections:** `TypeId.option`, `some`, `none`, `list`, `vector`, `set`, `seq`, `indexedSeq`, `map`, `either`, `array`, `arraySeq`, `chunk`
@@ -1444,6 +1446,8 @@ TypeId provides instances for common types:
 **java.time:** `TypeId.dayOfWeek`, `duration`, `instant`, `localDate`, `localDateTime`, `localTime`, `month`, `monthDay`, `offsetDateTime`, `offsetTime`, `period`, `year`, `yearMonth`, `zoneId`, `zoneOffset`, `zonedDateTime`
 
 **java.util:** `TypeId.currency`, `uuid`
+
+**Scala 3 only:** `TypeId.iarray` — `IArray[T]`, the immutable array type.
 
 ## Comparison with Alternatives
 
