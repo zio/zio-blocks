@@ -26,7 +26,51 @@ You are a **pure coordinator**. You NEVER read, write, or edit documentation fil
 3. Parse critic reports to decide next action
 4. Report final status to the user
 
+## Phase 0: Pre-flight Check
+
+Before spawning the maker, ask the user whether to generate the documentation from scratch or improve an existing doc.
+
+**Skip Phase 0 entirely** for skills where the doc path cannot be predicted (`docs-document-pr`) — go directly to Phase 1.
+
+**For all other skills**, ask the user:
+
+> How would you like to proceed?
+> - **Generate** — create the doc from scratch using the skill, then critique it
+> - **Improve** — skip creation, critique an existing doc and fix issues
+
+- If the user chooses **"Generate"** → Proceed to Phase 1.
+- If the user chooses **"Improve"** →  Skip Phase 1. Instead:
+  1. Derive the expected doc path from the skill and its arguments:
+
+     | Skill | Path pattern |
+     |-------|-------------|
+     | `docs-data-type-ref` | `docs/reference/<kebab-case-arg>.md` |
+     | `docs-how-to-guide` | `docs/guides/<kebab-case-arg>.md` |
+     | `docs-tutorial` | `docs/tutorials/<kebab-case-arg>.md` |
+     | `docs-enrich-section` | User provides path directly — use as-is |
+     | `docs-add-missing-section` | User provides path directly — use as-is |
+
+     To convert an argument to kebab-case: `TypeId` → `typeid`, `Schema` → `schema`, `DynamicValue` → `dynamicvalue`. Use lowercase of the argument as-is (these are single-word type names in practice).
+
+  2. Verify the file exists using `Glob`. If it does not exist, inform the user and fall back to Phase 1.
+  3. Set the doc path to the existing file path.
+  4. Spawn a general-purpose agent as the maker (for the fix loop later):
+     ```
+     Agent(
+       description: "Doc fixer agent",
+       prompt: "You are a documentation fixer for ZIO Blocks. Your doc file is <doc-path>.
+                Wait for instructions on what to fix. For each fix:
+                - Make a separate git commit
+                - Commit format: docs(<file-stem>): fix <SEVERITY>/<dimension> — <description>
+                - If multiple findings target the same paragraph, combine into one commit
+                  using the highest severity level"
+     )
+     ```
+  5. Save the maker's agent ID, then jump directly to Phase 2.
+
 ## Phase 1: Spawn Maker Agent
+
+> **Note:** Phase 1 is skipped when the user chose "Improve" in Phase 0.
 
 Spawn a general-purpose agent via the `Agent` tool:
 
