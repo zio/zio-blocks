@@ -75,9 +75,13 @@ Supported Scala versions: 2.13.x and 3.x.
 
 ## Creating Instances
 
-There are several ways to create `TypeId` values, from automatic macro derivation to manual smart constructors.
+There are two approaches to creating `TypeId` values: **automatic derivation** (recommended for normal use) and **manual construction** (for advanced metaprogramming scenarios).
 
-### `TypeId.of` — Macro Derivation
+### Automatic Derivation
+
+For most users and most types, automatic derivation via `TypeId.of` or implicit `derived` is the right choice. These macros extract complete type metadata at compile time, handling all type variants correctly.
+
+#### `TypeId.of` — Macro Derivation
 
 The primary way to obtain a `TypeId` is through the `TypeId.of[A]` macro, which extracts complete type metadata at compile time.
 
@@ -103,7 +107,7 @@ userId.fullName
 userId.isCaseClass
 ```
 
-### `TypeId.derived` — Implicit Derivation
+#### `TypeId.derived` — Implicit Derivation
 
 TypeId instances are available implicitly through the `derived` macro. Any function that requires a `TypeId[A]` in implicit scope will have it derived automatically — you never need to pass it manually.
 
@@ -149,7 +153,11 @@ userTypeId.name
 Prefer `TypeId.of[A]` when you need the TypeId in a single expression. Use implicit derivation when you are writing generic functions that accept any `A` and need its TypeId alongside other implicit evidence.
 :::
 
-### `TypeId.nominal` — Nominal Types
+### Manual Derivation (Smart Constructors)
+
+For advanced use cases — unit testing with synthetic metadata, code generators that create types dynamically, or frameworks that construct TypeIds at runtime — the smart constructor functions allow you to manually assemble TypeIds by specifying their components. These are never needed in normal user code, since `TypeId.of` handles all these cases automatically.
+
+#### `TypeId.nominal` — Nominal Types
 
 **Nominal types** are concrete type definitions: classes, traits, and objects. In contrast to [type aliases](#typeidalias--type-aliases) (which are alternative names for existing types) and [opaque types](#typeidopaque--opaque-types) (which have a hidden representation), nominal types stand as distinct, named types in the type system.
 
@@ -173,7 +181,7 @@ object TypeId {
 
 The minimal three-parameter form constructs a simple nominal TypeId when you need only name, owner, and classification. The full form allows complete control over type parameters, applied type arguments, definition kind, self-type, and annotations.
 
-### `TypeId.alias` — Type Aliases
+#### `TypeId.alias` — Type Aliases
 
 **Type aliases** are alternative names for existing types. For example, `type Age = Int` creates an alias for `Int` so code can read `Age` instead of `Int`. TypeIds for type aliases preserve the distinction from their underlying type through the `aliasedTo` property, enabling alias-aware serialization and schema generation.
 
@@ -203,7 +211,7 @@ ageId.isAlias
 ageId.aliasedTo
 ```
 
-### `TypeId.opaque` — Opaque Types
+#### `TypeId.opaque` — Opaque Types
 
 **Opaque types** (a Scala 3 feature) are types that have a distinct compile-time identity but a hidden runtime representation. For example, `opaque type UserId = String` creates a type that is distinct from `String` at compile time, but represents `String` at runtime. TypeId preserves this distinction, unlike standard reflection which erases opaque types to their underlying type — a critical capability for type-safe serialization and validation.
 
@@ -234,7 +242,7 @@ emailId.isOpaque
 emailId.representation
 ```
 
-### `TypeId.applied` — Applied Types
+#### `TypeId.applied` — Applied Types
 
 **Applied types** are generic types instantiated with type arguments. For example, `List[Int]` is `List` (the type constructor) applied to `Int` (the type argument), and `Map[String, Int]` is `Map` applied to two type arguments. TypeIds for applied types preserve the type arguments so serializers can generate specialized codecs, validators can type-check values, and code generators can emit correct code.
 
