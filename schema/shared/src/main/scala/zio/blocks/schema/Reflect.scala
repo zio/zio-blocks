@@ -1678,32 +1678,6 @@ object Reflect {
       F.fromBinding(Binding.Variant.option)
     )
 
-  private[this] def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] = {
-    val typeId = TypeId.applied[Left[A, B]](
-      TypeId.nominal[Left[?, ?]]("Left", Owner.fromPackagePath("scala.util")),
-      TypeRepr.Ref(element.typeId)
-    )
-    new Record(Chunk.single(new Term("value", element)), typeId, F.fromBinding(Binding.Record.left))
-  }
-
-  private[this] def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] = {
-    val typeId = TypeId.applied[Right[A, B]](
-      TypeId.nominal[Right[?, ?]]("Right", Owner.fromPackagePath("scala.util")),
-      TypeRepr.Ref(element.typeId)
-    )
-    new Record(Chunk.single(new Term("value", element)), typeId, F.fromBinding(Binding.Record.right))
-  }
-
-  def either[F[_, _], A, B](
-    l: Reflect[F, A],
-    r: Reflect[F, B]
-  )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
-    new Variant(
-      Chunk(new Term("Left", left[F, A, B](l)), new Term("Right", right[F, A, B](r))),
-      TypeId.applied[Either[A, B]](TypeId.either, TypeRepr.Ref(l.typeId), TypeRepr.Ref(r.typeId)),
-      F.fromBinding(Binding.Variant.either)
-    )
-
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] = {
     val typeId = TypeId.applied[Set[A]](TypeId.set, TypeRepr.Ref(element.typeId))
     new Sequence(element, typeId, F.fromBinding(Binding.Seq.set))

@@ -13,7 +13,7 @@ trait BindingCompanionVersionSpecific {
    *   - Primitive types (Int, String, Boolean, etc.)
    *   - Case classes (derives [[Binding.Record]])
    *   - Sealed traits/enums (derives [[Binding.Variant]])
-   *   - Option, Either, and their subtypes
+   *   - Option, and their subtypes
    *   - [[zio.blocks.schema.DynamicValue]]
    *
    * For sequence types (List, Vector, etc.) and map types, use the overloads
@@ -241,7 +241,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     val companion      = cls.companion
     if (companion == NoSymbol) return None
     val applyMethods = companion.typeSignature.decls.filter(_.name.decodedName.toString == "apply")
-    val eitherTpe    = typeOf[Either[_, _]].typeConstructor
     applyMethods.find { method =>
       if (!method.isMethod) false
       else {
@@ -337,7 +336,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else if (tpe.typeConstructor =:= optionTpe) deriveOptionBinding(tpe)
     else if (tpe.typeConstructor =:= leftTpe) deriveLeftBinding(tpe)
     else if (tpe.typeConstructor =:= rightTpe) deriveRightBinding(tpe)
-    else if (tpe.typeConstructor =:= eitherTpe) deriveEitherBinding(tpe)
     else if (tpe.typeConstructor =:= mapTpe)
       fail(s"Use Binding.of[Map] for map types, not Binding.of[$tpe]")
     else if (tpe.typeConstructor =:= chunkTpe)
@@ -425,11 +423,6 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else if (dealiasedB <:< charTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightChar[$aTpe]")
     else if (dealiasedB <:< unitTpe) c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.rightUnit[$aTpe]")
     else c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Record.right[$aTpe, $bTpe]")
-  }
-
-  private def deriveEitherBinding(tpe: Type): c.Expr[Any] = {
-    val args = typeArgs(tpe)
-    c.Expr[Any](q"_root_.zio.blocks.schema.binding.Binding.Variant.either[${args(0)}, ${args(1)}]")
   }
 
   private def deriveEnumOrModuleValueBinding(tpe: Type): c.Expr[Any] = {

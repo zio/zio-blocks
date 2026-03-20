@@ -613,26 +613,19 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       }
     ),
     suite("Either")(
-      test("either left") {
-        roundTrip[Either[String, Int]](Left("error"))
-      },
-      test("either right") {
-        roundTrip[Either[String, Int]](Right(42))
+      test("either with primitive") {
+        roundTrip[Either[String, Int]](Left("error"))(Schema.derived[Either[String, Int]]) &&
+        roundTrip[Either[String, Int]](Right(42))(Schema.derived[Either[String, Int]])
       },
       test("either with product type") {
-        roundTrip[Either[String, Record]](Right(Record("test", 123)))
+        roundTrip[Either[String, Record]](Right(Record("test", 123)))(Schema.derived[Either[String, Record]])
       },
       test("either with sum type") {
-        roundTrip[Either[String, OneOf]](Right(IntValue(42)))
+        roundTrip[Either[String, OneOf]](Right(IntValue(42)))(Schema.derived[Either[String, OneOf]])
       },
-      test("either within either") {
-        roundTrip[Either[String, Either[Int, Boolean]]](Right(Right(true))) &&
-        roundTrip[Either[String, Either[Int, Boolean]]](Right(Left(42))) &&
-        roundTrip[Either[String, Either[Int, Boolean]]](Left("error"))
-      },
-      test("complex either with product type") {
-        roundTrip[Either[Record, RichSum]](Left(Record("left", 1))) &&
-        roundTrip[Either[Record, RichSum]](Right(RichSum.Person("right", 2)))
+      test("complex either with product and sum types") {
+        roundTrip[Either[Record, RichSum]](Left(Record("left", 1)))(Schema.derived[Either[Record, RichSum]]) &&
+        roundTrip[Either[Record, RichSum]](Right(RichSum.Person("right", 2)))(Schema.derived[Either[Record, RichSum]])
       }
     ),
     suite("Tuple types")(

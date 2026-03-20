@@ -656,8 +656,9 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val arr: Array[Boolean]                     = Array(true, false)
         assertTrue(json"{$arr: 1}".fields.head._1 == "[true,false]")
       },
-      test("Either[String, BigInt] as key") {
-        val e: Either[String, BigInt] = Right(BigInt(42))
+      test("Either[String, Int] as key") {
+        implicit val schema: Schema[Either[String, Int]] = Schema.derived
+        val e: Either[String, Int]                       = Right(42)
         assertTrue(json"{$e: 1}".fields.head._1 == "{\"Right\":{\"value\":42}}")
       },
       test("Tuple2[Int, String] as key") {
@@ -891,11 +892,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("Either works in value position") {
-        val left: Either[String, BigInt]  = Left("error")
-        val right: Either[String, BigInt] = Right(42)
+        implicit val schema: Schema[Either[String, Int]] = Schema.derived
+        val left: Either[String, Int]                    = Left("error")
+        val right: Either[String, Int]                   = Right(42)
         assertTrue(
           json"""{"result": $left}""".get("result").get("Left").get("value").as[String] == Right("error"),
-          json"""{"result": $right}""".get("result").get("Right").get("value").as[BigInt] == Right(BigInt(42))
+          json"""{"result": $right}""".get("result").get("Right").get("value").as[Int] == Right(42)
         )
       },
       test("java.time types work in value position") {

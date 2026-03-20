@@ -243,18 +243,15 @@ object OpenAPICodec {
       case _ => error("Expected Json.Object for License")
     }
 
-    override def encodeValue(x: License): Json = {
-      val identifierOpt = x.identifierOrUrl.flatMap(_.left.toOption)
-      val urlOpt        = x.identifierOrUrl.flatMap(_.toOption)
+    override def encodeValue(x: License): Json =
       withExtensions(
         obj(
           "name"       -> field(x.name),
-          "identifier" -> optField(identifierOpt),
-          "url"        -> optField(urlOpt)
+          "identifier" -> optField(x.identifier),
+          "url"        -> optField(x.url)
         ),
         x.extensions
       )
-    }
   }
   implicit val externalDocumentationCodec: JsonBinaryCodec[ExternalDocumentation] =
     new JsonASTCodec[ExternalDocumentation] {

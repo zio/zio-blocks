@@ -87,7 +87,7 @@ object Step1SchemaDerivedAndPrimitives extends App {
   // ─────────────────────────────────────────────────────────────────────────
 
   val optSchema: Schema[Option[String]]         = Schema[Option[String]]
-  val eitherSchema: Schema[Either[String, Int]] = Schema[Either[String, Int]]
+  val eitherSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
   val listSchema: Schema[List[Person]]          = Schema[List[Person]]
   val mapSchema: Schema[Map[String, Int]]       = Schema[Map[String, Int]]
   println(s"Option[String] schema: $optSchema")
