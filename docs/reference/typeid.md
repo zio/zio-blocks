@@ -364,12 +364,24 @@ object TypeId {
 }
 ```
 
-Create applied TypeIds:
+Create applied TypeIds with single type argument:
 
 ```scala mdoc
 val listIntId = TypeId.applied[Any](TypeId.list, TypeRepr.Ref(TypeId.int))
 listIntId.isApplied
 listIntId.typeArgs
+```
+
+Create applied TypeIds with multiple type arguments:
+
+```scala mdoc
+val mapStringIntId = TypeId.applied[Any](
+  TypeId.map,
+  TypeRepr.Ref(TypeId.string),
+  TypeRepr.Ref(TypeId.int)
+)
+mapStringIntId.isApplied
+mapStringIntId.typeArgs
 ```
 
 ## Core Operations
