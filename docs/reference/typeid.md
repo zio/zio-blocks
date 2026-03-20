@@ -181,15 +181,13 @@ object TypeId {
 
 **Parameters:**
 
-| Parameter | Type | Purpose |
-|-----------|------|---------|
-| `name` | String | The unqualified name of the type (e.g., `"Person"`, `"List"`) |
-| `owner` | Owner | The package and enclosing object path where the type is defined (e.g., `Owner.fromPackagePath("com.example")`) |
-| `kind` (3-param) / `defKind` (full) | TypeDefKind | Classifies the type definition: `Class`, `Trait`, `Object`, `Enum`, etc. Use `TypeDefKind.Unknown` if unsure |
-| `typeParams` | List[TypeParam] | Formal type parameters declared by this type (e.g., `[A]` for `class Box[A]`); defaults to empty |
-| `typeArgs` | List[TypeRepr] | Applied type arguments when this is an instantiated generic (e.g., `[Int]` for `List[Int]`); defaults to empty |
-| `selfType` | Option[TypeRepr] | Self-type annotation if the type declares one (e.g., `self: Logger =>`); defaults to `None` |
-| `annotations` | List[Annotation] | Compile-time annotations attached to the type; defaults to empty |
+1. `name` (String) — The unqualified name of the type (e.g., `"Person"`, `"List"`)
+2. `owner` (Owner) — The package and enclosing object path where the type is defined (e.g., `Owner.fromPackagePath("com.example")`)
+3. `kind` (3-param) / `defKind` (full) (TypeDefKind) — Classifies the type definition: `Class`, `Trait`, `Object`, `Enum`, etc. Use `TypeDefKind.Unknown` if unsure
+4. `typeParams` (List[TypeParam]) — Formal type parameters declared by this type (e.g., `[A]` for `class Box[A]`); defaults to empty
+5. `typeArgs` (List[TypeRepr]) — Applied type arguments when this is an instantiated generic (e.g., `[Int]` for `List[Int]`); defaults to empty
+6. `selfType` (Option[TypeRepr]) — Self-type annotation if the type declares one (e.g., `self: Logger =>`); defaults to `None`
+7. `annotations` (List[Annotation]) — Compile-time annotations attached to the type; defaults to empty
 
 The minimal three-parameter form constructs a simple nominal TypeId when you need only name, owner, and classification. The full form allows complete control over type parameters, applied type arguments, definition kind, self-type, and annotations.
 
@@ -215,9 +213,7 @@ object TypeId {
 
 **New Parameter:**
 
-| Parameter | Type | Purpose |
-|-----------|------|---------|
-| `aliased` | TypeRepr | The type expression that this alias points to (e.g., `TypeRepr.Ref(TypeId.int)` for `type Age = Int`) |
+1. `aliased` (TypeRepr) — The type expression that this alias points to (e.g., `TypeRepr.Ref(TypeId.int)` for `type Age = Int`)
 
 (For `name`, `owner`, `typeParams`, `typeArgs`, and `annotations`, see [TypeId.nominal parameters](#typeidnominal--nominal-types).)
 
@@ -254,10 +250,8 @@ object TypeId {
 
 **New Parameters:**
 
-| Parameter | Type | Purpose |
-|-----------|------|---------|
-| `representation` | TypeRepr | The underlying runtime type that the opaque type wraps (e.g., `TypeRepr.Ref(TypeId.string)` for `opaque type Email = String`) |
-| `publicBounds` | TypeBounds | Public type bounds exposed by the opaque type; defaults to unbounded |
+1. `representation` (TypeRepr) — The underlying runtime type that the opaque type wraps (e.g., `TypeRepr.Ref(TypeId.string)` for `opaque type Email = String`)
+2. `publicBounds` (TypeBounds) — Public type bounds exposed by the opaque type; defaults to unbounded
 
 (For `name`, `owner`, `typeParams`, `typeArgs`, and `annotations`, see [TypeId.nominal parameters](#typeidnominal--nominal-types).)
 
@@ -287,10 +281,8 @@ object TypeId {
 
 **Parameters:**
 
-| Parameter | Type | Purpose |
-|-----------|------|---------|
-| `typeConstructor` | TypeId[?] | The type constructor to instantiate (e.g., `TypeId.list` for `List`, `TypeId.map` for `Map`) |
-| `args` | TypeRepr* | Variadic type arguments to apply (e.g., `TypeRepr.Ref(TypeId.int)` for one argument, `TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.int)` for two) |
+1. `typeConstructor` (TypeId[?]) — The type constructor to instantiate (e.g., `TypeId.list` for `List`, `TypeId.map` for `Map`)
+2. `args` (TypeRepr*) — Variadic type arguments to apply (e.g., `TypeRepr.Ref(TypeId.int)` for one argument, `TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.int)` for two)
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
