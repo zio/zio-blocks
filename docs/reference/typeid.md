@@ -7,15 +7,6 @@ title: "TypeId"
 
 In Scala and the JVM, compile-time type information is erased at runtime. This means generic type parameters, sealed trait variants, and even opaque types become indistinguishable at runtime — `List[Int]` and `List[String]` both look like `List` to the JVM. This erasure makes it nearly impossible to implement universal serializers that work across formats (JSON, YAML, XML, MessagePack), code generators, or schema-driven transformations without losing semantic information. `TypeId` solves this by capturing complete type structure at compile time and making it available as a hashable, inspectable value at runtime.
 
-When to use `TypeId` vs alternatives:
-
-| Use Case                                                                 | Best Choice                   |
-|--------------------------------------------------------------------------|-------------------------------|
-| Encode type info as data for serialization, code generation, or dispatch | `TypeId`                      |
-| Create arrays of the correct runtime type                                | `ClassTag`                    |
-| Check if a single value matches a known type                             | Pattern match with `TypeTest` |
-| Manually handle a handful of hardcoded types                             | Hard-coded `if/else`          |
-
 The `TypeId` trait exposes the type's structure through a rich set of properties and predicates:
 
 ```scala
@@ -62,133 +53,9 @@ id.isCaseClass
 
 ## Motivation
 
-### How TypeId Differs from Existing Solutions
-
 Standard approaches to preserving type information at runtime — `ClassTag`, `TypeTag` (Scala 2), `TypeTest` (Scala 3) — each have limitations. `ClassTag` loses generic type arguments. `TypeTag` depends on `scala-reflect` and is unavailable on Scala.js. `TypeTest` only answers "is this value an instance of T?" without exposing type structure. None of them distinguish opaque types from their underlying representation.
 
 TypeId takes a different approach: the `TypeId.of` macro captures type metadata at compile time and stores it as a plain, immutable data structure — no runtime reflection, no platform-specific APIs. This makes it suitable as a foundation for cross-platform schema systems, code generators, and type-indexed registries.
-
-### Real-World Use Cases
-
-#### Schema-Driven Serialization
-
-TypeId is central to ZIO Blocks' universal schema system. Every schema derivation receives a TypeId so that codec generators (for JSON, YAML, MessagePack, binary formats, XML) can decide how to serialize and deserialize data:
-
-```
-                    TypeId[Person]
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-    JsonBinary      YamlBinary      XmlBinary
-    Codec[Person]  Codec[Person]   Codec[Person]
-```
-
-Code generators use TypeId metadata to emit specialized, efficient codecs. For example, a JSON codec generator inspects whether a type is a case class (preserving field names), a sealed trait (handling variants), or an opaque type (wrapping the underlying type).
-
-#### Type-Indexed Registries and Lookup
-
-Applications often maintain registries of schemas or validators keyed by type. TypeId provides a pure, hashable data structure for this:
-
-```scala
-import zio.blocks.typeid._
-
-case class Person(name: String, age: Int)
-case class Order(id: String, total: Double)
-
-// Build a registry of type IDs
-val typeRegistry: Map[TypeId.Erased, String] = Map(
-  TypeId.of[Person].erased -> "Person schema",
-  TypeId.of[Order].erased -> "Order schema",
-  TypeId.of[String].erased -> "String schema"
-)
-
-// Later, look up metadata by type at runtime
-def getMetadata(typeId: TypeId[?]): Option[String] =
-  typeRegistry.get(typeId.erased)
-```
-
-#### Type-Safe Polymorphic Operations
-
-When working with sealed type hierarchies, TypeId allows you to dispatch to the correct handler based on type relationships:
-
-```scala
-import zio.blocks.typeid._
-
-sealed trait Animal
-case class Dog(name: String) extends Animal
-case class Cat(name: String) extends Animal
-
-val dogId = TypeId.of[Dog]
-val catId = TypeId.of[Cat]
-val animalId = TypeId.of[Animal]
-
-// Check inheritance at runtime
-if (dogId.isSubtypeOf(animalId)) {
-  println("Dog is a subtype of Animal")
-}
-
-// Or match on type relationships
-def handleAnimal(typeId: TypeId[? <: Animal]): String = typeId match {
-  case t if t.isEquivalentTo(dogId) => "Handling dog"
-  case t if t.isEquivalentTo(catId) => "Handling cat"
-  case _ => "Handling unknown animal"
-}
-```
-
-#### Opaque Types
-
-TypeId preserves the distinction of opaque types, treating them as distinct from their representation type. This enables runtime type checking that respects the semantic boundaries that opaque types provide.
-
-Opaque types are a Scala 3 feature that allow you to create distinct types that have a different representation at runtime. TypeId captures this distinction, unlike pure Scala reflection which cannot distinguish opaque types from their underlying types. Here's the concrete difference:
-
-```scala
-// Define opaque types wrapping String
-opaque type UserId = String
-opaque type Email = String
-
-// Pure Scala reflection (cannot distinguish)
-classOf[UserId] == classOf[String]  // true — erased to String
-classOf[Email] == classOf[String]   // true — erased to String
-// Problem: cannot distinguish UserId from Email or String at runtime
-
-// TypeId (preserves distinction)
-TypeId.of[UserId] != TypeId.of[String]  // true — preserved
-TypeId.of[Email] != TypeId.of[String]   // true — preserved
-TypeId.of[UserId] != TypeId.of[Email]   // true — opaque types are distinct
-
-// Real-world use case: type-safe validator registry
-val validators: Map[TypeId.Erased, String => Boolean] = Map(
-  TypeId.of[UserId].erased -> { id => id.nonEmpty && id.forall(_.isDigit) },
-  TypeId.of[Email].erased -> { email => email.contains("@") && email.contains(".") }
-)
-
-// Dispatch to correct validator based on opaque type
-def validate(value: String, typeId: TypeId[_]): Boolean =
-  validators.get(typeId.erased).map(_(value)).getOrElse(false)
-
-validate("12345", TypeId.of[UserId])              // Checks digits only
-validate("user@example.com", TypeId.of[Email])    // Checks email format
-```
-
-### TypeId and the Schema Stack
-
-TypeId is fundamental to ZIO Blocks' schema system. Here's where it fits in the stack:
-
-```
-         ┌─────────────────────────────────────┐
-         │             Schema[A]               │
-         │          (Reflect[F, A])            │
-         └──────────────┬──────────────────────┘
-                        │ carries
-                        ▼
-         ┌─────────────────────────────────────┐
-         │            TypeId[A]                │
-         │  name · owner · kind · typeParams   │
-         │  subtypes · annotations · aliases   │
-         └──────────────────────────────────────┘
-```
-
-Every record and variant derivation receives the TypeId so you can inspect the type's structure, annotations, and relationships when generating code.
 
 ## Installation
 
