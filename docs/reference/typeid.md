@@ -582,7 +582,7 @@ Each predicate inspects `defKind` for a specific type definition kind:
 | `isAlias`        | `defKind` is `TypeDefKind.TypeAlias`                        |
 | `isOpaque`       | `defKind` is `TypeDefKind.OpaqueType`                       |
 | `isAbstract`     | `defKind` is `TypeDefKind.AbstractType`                     |
-| `isSealed`       | `defKind` is `TypeDefKind.Trait(isSealed = true, _)`        |
+| `isSealed`       | `defKind` is `TypeDefKind.Trait(isSealed = true, _)` (sealed traits only) |
 | `isCaseClass`    | `defKind` is `TypeDefKind.Class(_, _, isCase = true, _, _)` |
 | `isValueClass`   | `defKind` is `TypeDefKind.Class(_, _, _, isValue = true, _)`|
 
@@ -596,6 +596,10 @@ shapeId.isSealed
 circleId.isCaseClass
 originId.isObject
 ```
+
+:::note
+`isSealed` only checks sealed traits. A sealed abstract class or sealed enum will return `false`; use `defKind` directly to inspect those cases by pattern matching on `TypeDefKind.Class(_, isAbstract = true, ...)` or `TypeDefKind.Enum(...)`.
+:::
 
 #### Semantic Predicates
 
