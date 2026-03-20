@@ -1,20 +1,10 @@
 package zio.blocks
 
-import zio.blocks.chunk.ChunkMap
 import zio.blocks.schema.Schema
-import zio.blocks.typeid.TypeId
 
 package object openapi {
-
-  implicit def chunkMapSchema[K: Schema, V: Schema](implicit tid: TypeId[ChunkMap[K, V]]): Schema[ChunkMap[K, V]] =
-    Schema
-      .map[K, V]
-      .transform[ChunkMap[K, V]](
-        map => ChunkMap.from(map),
-        chunkMap => chunkMap
-      )
-
   type Discriminator = discriminator.Discriminator
+
   val Discriminator: discriminator.Discriminator.type = discriminator.Discriminator
 
   /**

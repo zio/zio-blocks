@@ -5,7 +5,6 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, Constructor, Deconstructor, Registers}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
-import zio.blocks.openapi.chunkMapSchema
 
 final case class Discriminator(
   propertyName: String,

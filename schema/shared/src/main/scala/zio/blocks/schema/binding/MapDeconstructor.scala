@@ -16,6 +16,8 @@
 
 package zio.blocks.schema.binding
 
+import zio.blocks.chunk.ChunkMap
+
 trait MapDeconstructor[M[_, _]] {
   type KeyValue[_, _]
 
@@ -33,6 +35,22 @@ trait MapDeconstructor[M[_, _]] {
 }
 
 object MapDeconstructor {
+  implicit val chunkMap: MapDeconstructor[ChunkMap] = new MapDeconstructor[ChunkMap] {
+    type KeyValue[K, V] = (K, V)
+
+    def deconstruct[K, V](m: ChunkMap[K, V]): Iterator[(K, V)] = m.iterator
+
+    def size[K, V](m: ChunkMap[K, V]): Int = m.size
+
+    def get[K, V](m: ChunkMap[K, V], k: K): Option[V] = m.get(k)
+
+    def getKey[K, V](kv: (K, V)): K = kv._1
+
+    def getValue[K, V](kv: (K, V)): V = kv._2
+
+    def getKeyValue[K, V](kv: (K, V)): (K, V) = kv
+  }
+
   implicit val map: MapDeconstructor[Map] = new MapDeconstructor[Map] {
     type KeyValue[K, V] = (K, V)
 

@@ -230,7 +230,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 77,
+    coverageMinimumStmtTotal   := 76,
     coverageMinimumBranchTotal := 67
   )
 

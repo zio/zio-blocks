@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.binding
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import scala.annotation.unchecked.uncheckedVariance
@@ -567,6 +567,8 @@ object Binding extends BindingCompanionVersionSpecific {
   ) extends Binding[BindingType.Map[M], M[K @uncheckedVariance, V @uncheckedVariance]]
 
   object Map {
+    def chunkMap[K, V]: Map[ChunkMap, K, V] = new Map(MapConstructor.chunkMap, MapDeconstructor.chunkMap)
+
     def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
   }
 

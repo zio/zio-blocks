@@ -1684,7 +1684,7 @@ object JsonSchema {
         o.value.foreach { kv =>
           fromJson(kv._2) match {
             case Right(s) =>
-              if (error eq null) schemaMap.addOne((kv._1, s))
+              if (error eq null) schemaMap.add(kv._1, s)
             case Left(e) =>
               if (error eq null) error = e
               else error = error ++ e
@@ -1740,39 +1740,39 @@ object JsonSchema {
     } yield {
       val patternPropsOpt = fieldMap.get("patternProperties") match {
         case o: Json.Object =>
-          val schemas       = ChunkBuilder.make[JsonSchema]()
-          val regexPatterns = ChunkBuilder.make[RegexPattern]()
+          val patternProperties = new ChunkMap.ChunkMapBuilder[RegexPattern, JsonSchema]
           o.value.foreach { kv =>
             fromJson(kv._2) match {
-              case Right(schema) =>
-                schemas.addOne(schema)
-                regexPatterns.addOne(new RegexPattern(kv._1))
-              case _ =>
+              case Right(schema) => patternProperties.add(new RegexPattern(kv._1), schema)
+              case _             =>
             }
           }
-          if (regexPatterns.knownSize == 0) None
-          else new Some(ChunkMap.fromChunks(regexPatterns.result(), schemas.result()))
+          if (patternProperties.knownSize == 0) None
+          else new Some(patternProperties.result())
         case _ => None
       }
       val dependentRequiredOpt = fieldMap.get("dependentRequired") match {
         case o: Json.Object =>
-          val keys = o.value.map(_._1)
-          val sets = o.value.map { kv =>
-            kv._2 match {
-              case arr: Json.Array =>
-                arr.value
-                  .foldLeft(Set.newBuilder[String]) { (acc, json) =>
-                    json match {
-                      case s: Json.String => acc.addOne(s.value)
-                      case _              => acc
+          val dependentRequired = new ChunkMap.ChunkMapBuilder[String, Set[String]]
+          o.value.foreach { kv =>
+            dependentRequired.add(
+              kv._1,
+              kv._2 match {
+                case arr: Json.Array =>
+                  arr.value
+                    .foldLeft(Set.newBuilder[String]) { (acc, json) =>
+                      json match {
+                        case s: Json.String => acc.addOne(s.value)
+                        case _              => acc
+                      }
                     }
-                  }
-                  .result()
-              case _ => Set.empty[String]
-            }
+                    .result()
+                case _ => Set.empty[String]
+              }
+            )
           }
-          if (keys.nonEmpty) new Some(ChunkMap.fromChunks(keys, sets))
-          else None
+          if (dependentRequired.knownSize == 0) None
+          else new Some(dependentRequired.result())
         case _ => None
       }
       val typeOpt = {
@@ -1784,7 +1784,12 @@ object JsonSchema {
           }
         } else None
       }
-      val extensions = ChunkMap.from(obj.value).filterNot(kv => knownKeys.contains(kv._1))
+      val extensions = obj.value
+        .foldLeft(new ChunkMap.ChunkMapBuilder[String, Json]) { (acc, kv) =>
+          if (!knownKeys.contains(kv._1)) acc.addOne(kv)
+          else acc
+        }
+        .result()
       new Object(
         $id = getUriReference("$id"),
         $schema = getString("$schema") match {

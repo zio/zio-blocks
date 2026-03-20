@@ -134,21 +134,22 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[this] def analyzeKeyDiscriminatedVariant(cases: NonEmptyChunk[JsonSchema]): Option[Shape.KeyVariant] = {
-    val extracted = cases.toChunk.flatMap {
+    val extracted = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+    cases.toChunk.foreach {
       case caseObj: JsonSchema.Object =>
         caseObj.properties match {
           case Some(props) if props.size == 1 =>
             val kv = props.head
             caseObj.required match {
-              case Some(req) if req.size == 1 && req.contains(kv._1) => new Some(kv)
-              case _                                                 => None
+              case Some(req) if req.size == 1 && req.contains(kv._1) => extracted.addOne(kv)
+              case _                                                 =>
             }
-          case _ => None
+          case _ =>
         }
-      case _ => None
+      case _ =>
     }
-    if (extracted.length == cases.length) new Some(new Shape.KeyVariant(ChunkMap.fromChunk(extracted)))
-    else None
+    if (extracted.knownSize != cases.length) None
+    else new Some(new Shape.KeyVariant(extracted.result()))
   }
 
   private[this] def analyzeFieldDiscriminatedVariant(cases: NonEmptyChunk[JsonSchema]): Option[Shape.FieldVariant] = {
@@ -166,25 +167,28 @@ private[schema] object JsonSchemaToReflect {
     }
     val commonConstFields = allConstFields.reduceOption(_ intersect _).getOrElse(Set.empty)
     commonConstFields.headOption.flatMap { discField =>
-      val extracted = caseObjects.flatMap { obj =>
+      val extracted = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+      caseObjects.foreach { obj =>
         val props = obj.properties.getOrElse(ChunkMap.empty)
         props.get(discField) match {
           case Some(propSchema: JsonSchema.Object) =>
-            propSchema.const.collect { case Json.String(caseName) =>
-              val bodyProps    = props.removed(discField)
-              val bodyRequired = obj.required.map(_ - discField).filter(_.nonEmpty)
-              val bodySchema   = JsonSchema.obj(
-                properties = if (bodyProps.nonEmpty) new Some(bodyProps) else None,
-                required = bodyRequired,
-                additionalProperties = obj.additionalProperties
-              )
-              (caseName, bodySchema)
+            propSchema.const.foreach {
+              case Json.String(caseName) =>
+                val bodyProps    = props.removed(discField)
+                val bodyRequired = obj.required.map(_ - discField).filter(_.nonEmpty)
+                val bodySchema   = JsonSchema.obj(
+                  properties = if (bodyProps.nonEmpty) new Some(bodyProps) else None,
+                  required = bodyRequired,
+                  additionalProperties = obj.additionalProperties
+                )
+                extracted.add(caseName, bodySchema)
+              case _ =>
             }
-          case _ => None
+          case _ =>
         }
       }
-      if (extracted.length == cases.length) new Some(new Shape.FieldVariant(discField, ChunkMap.fromChunk(extracted)))
-      else None
+      if (extracted.knownSize != cases.length) None
+      else new Some(new Shape.FieldVariant(discField, extracted.result()))
     }
   }
 
