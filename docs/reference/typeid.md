@@ -861,7 +861,7 @@ norm.fullName
 
 #### `TypeId.structurallyEqual` — Structural Equality
 
-Checks if two TypeIds are structurally equal after normalization. This is the same as `==` on TypeId instances.
+Checks if two TypeIds are structurally equal after normalization. Semantically equivalent to `==` on TypeId instances; `==` additionally short-circuits on hash mismatch for performance.
 
 ```scala
 object TypeId {
