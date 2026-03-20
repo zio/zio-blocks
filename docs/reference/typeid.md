@@ -809,6 +809,8 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Primitive values must be explicitly boxed when passed to `construct`. In Scala 2, unboxed primitives like `30` do not auto-box to `AnyRef`:
+
 ```scala
 // JVM example (not runnable in mdoc due to platform specificity)
 val personId = TypeId.of[Person]
@@ -1389,11 +1391,13 @@ registry.get(TypeId.double.erased)
 
 The `clazz` and `construct` methods are available on all platforms. On the JVM, `clazz` returns the corresponding `Class[_]` and `construct` uses reflection to create instances. On Scala.js, both methods are no-ops — `clazz` returns `None` and `construct` returns `Left` with an error message.
 
+Note: Primitive values must be explicitly boxed when passed to `construct` (e.g., `30: Integer` instead of `30`).
+
 ```scala
 val typeId = TypeId.of[Person]
 val clazz: Option[Class[_]] = typeId.clazz            // Some(...) on JVM, None on Scala.js
 
-val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30))  // Right(...) on JVM, Left(...) on Scala.js
+val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30: Integer))  // Right(...) on JVM, Left(...) on Scala.js
 ```
 
 ## Integration with Schema
