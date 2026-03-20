@@ -258,7 +258,7 @@ trait TypeIdLowPriority {
 }
 ```
 
-In Scala 2, `TypeIdLowPriority` is also a separate source file in the same source tree. It is extended by the `object TypeId` companion.
+In Scala 2, `TypeIdLowPriority` is defined in the same file as `TypeId`, immediately before the companion object.
 
 Use implicit derivation when you need a TypeId without calling `of` explicitly:
 
