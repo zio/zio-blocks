@@ -293,7 +293,7 @@ TypeId.string.fullName
 
 #### `owner` — Enclosing Namespace
 
-Returns the `Owner` representing the package, object, or type that contains this type definition.
+Returns the `Owner` — the hierarchical path showing where the type is defined. Owner captures the complete package chain and any enclosing objects or types, uniquely identifying each type by its definition location.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -301,11 +301,36 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-```scala mdoc
-orderId.owner.asString
-TypeId.int.owner.asString
-TypeId.uuid.owner.asString
+Two types with the same name defined in different locations have different owners. This distinction is critical for schema systems and registries:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+package com.api {
+  case class User(id: Long, name: String)
+}
+
+package com.admin {
+  case class User(userId: Long, role: String, email: String)
+}
 ```
+
+```scala mdoc
+val apiUser = TypeId.of[com.api.User]
+val adminUser = TypeId.of[com.admin.User]
+
+apiUser.name
+apiUser.owner.asString
+apiUser.fullName
+
+adminUser.name
+adminUser.owner.asString
+adminUser.fullName
+
+apiUser == adminUser
+```
+
+Both types are named `User`, but their owners distinguish them. 
 
 #### `toString` — Idiomatic Scala Rendering
 
