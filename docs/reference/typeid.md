@@ -394,9 +394,9 @@ cacheId.typeParams
 cacheId.typeParams.map(p => (p.name, p.variance.symbol))
 ```
 
-##### TypeParam — Type Parameter Details
+#### `TypeParam` — Type Parameter Details
 
-Each element in `typeParams` is a `TypeParam` value. `TypeParam` captures four pieces of information about a type parameter:
+Each element in `TypeId#typeParams` is a `TypeParam` value. `TypeParam` captures four pieces of information about a type parameter:
 
 ```scala
 final case class TypeParam(
@@ -408,7 +408,7 @@ final case class TypeParam(
 )
 ```
 
-**Inspect a single type parameter:**
+To inspect individual fields of a type parameter, we can extract and examine each one:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -428,7 +428,7 @@ paramF.kind
 paramF.isTypeConstructor
 ```
 
-**Predicates for common scenarios:**
+`TypeParam` provides convenience predicates for checking variance without inspecting the raw `variance` field:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
