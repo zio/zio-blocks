@@ -293,7 +293,7 @@ TypeId.string.fullName
 
 #### `owner` — Enclosing Namespace
 
-Returns the `Owner` — the hierarchical path showing where the type is defined. Owner captures the complete package chain and any enclosing objects or types, uniquely identifying each type by its definition location.
+The `TypeId#owner` method returns the `Owner` — the hierarchical path showing exactly where a type is defined. This includes the complete package chain and any enclosing objects or types. `Owner` solves a critical problem: multiple types can have the same name (e.g., `User` in `com.api` and `User` in `com.admin`), and the owner uniquely distinguishes them by their definition location.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -301,7 +301,7 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Two types with the same name defined in different locations have different owners. This distinction is critical for schema systems and registries:
+When we derive a `TypeId` for a custom type, the owner captures its full hierarchical location. We can then use `TypeId#fullName` to see how the owner combines with the type name:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -312,23 +312,31 @@ case class User(id: Long, name: String)
 ```scala mdoc
 val userId = TypeId.of[User]
 userId.name
+// The owner shows where this User is defined
 userId.owner.asString
+// fullName combines owner and name into a qualified path
 userId.fullName
 ```
 
-Consider a type with the same name from another source (e.g., API vs Admin):
+When we construct types from different packages, their owners differ even though the names are identical. This is essential for registries and serializers that need to distinguish between types with conflicting names:
 
-```scala mdoc:compile-only
-// Imagined structure from a different package:
-// package com.admin.User(userId: Long, role: String, email: String)
-
+```scala mdoc
+// A User from the admin domain
 val adminUser = TypeId.nominal[Any]("User", Owner.fromPackagePath("com.admin"), TypeDefKind.Unknown)
 adminUser.name
+// Notice the owner is different
 adminUser.owner.asString
+// So the full names are distinct
 adminUser.fullName
+
+// Compare: both have name "User" but different owners
+userId.name == adminUser.name
+// res25: Boolean = true
+userId.owner.asString == adminUser.owner.asString
+// res26: Boolean = false
 ```
 
-Both `User` types share the same name, but their owners (which package they come from) distinguish them. This matters when building registries or serializers that need to differentiate between types across packages. 
+This distinction enables type-indexed registries where you can safely store types with identical names from different sources without collision. 
 
 #### `toString` — Idiomatic Scala Rendering
 
@@ -345,7 +353,7 @@ Methods for inspecting generic type information.
 
 #### `typeParams` — Formal Type Parameters
 
-Returns the list of formal type parameters declared by this type. Each `TypeParam` captures the parameter's name, position, variance (+/−/invariant), and any bounds.
+The `TypeId#typeParams` method returns the list of formal type parameters declared by a type. This is what makes a type generic. For a type like `Box[+A]`, `typeParams` captures the declaration of `A` — including its name, position in the parameter list, variance (whether it's covariant `+`, contravariant `−`, or invariant), and any bounds:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -353,7 +361,7 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Type parameters describe how a type is generic. Different types have different parameter structures:
+To see how `TypeId` preserves type parameter information, we define several generic types with different variance patterns. Each demonstrates a different type parameter characteristic:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -368,26 +376,24 @@ sealed trait Cache[K, +V]
 case class LRUCache[K, +V](maxSize: Int) extends Cache[K, V]
 ```
 
+When we derive `TypeId` for these types, we can inspect their type parameters and see the variance that was declared:
+
 ```scala mdoc
 val boxId = TypeId.of[Box]
+// Box declares [+A], so we see one covariant parameter
 boxId.typeParams
 boxId.typeParams.head.variance
 boxId.typeParams.head.name
 
 val sinkId = TypeId.of[Sink]
+// Sink declares [-T], so we see one contravariant parameter
 sinkId.typeParams
 sinkId.typeParams.head.variance
 
 val cacheId = TypeId.of[Cache]
+// Cache declares [K, +V], so we see two parameters with different variances
 cacheId.typeParams
 cacheId.typeParams.map(p => (p.name, p.variance.symbol))
-```
-
-Type parameters are empty for monomorphic types:
-
-```scala mdoc
-TypeId.int.typeParams
-TypeId.string.typeParams
 ```
 
 ##### TypeParam — Type Parameter Details
