@@ -2331,7 +2331,7 @@ object Json {
     )
   )
 
-  implicit val jsonCodec: JsonCodec[Json] = new JsonCodec[Json] {
+  val jsonCodec: JsonCodec[Json] = new JsonCodec[Json] {
     override def decodeValue(in: JsonReader): Json = {
       var x = in.nextToken().toInt
       if (x == '"') {
@@ -2483,45 +2483,27 @@ object Json {
     override def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // SchemaSearch Helper Functions
-  // ─────────────────────────────────────────────────────────────────────────
-
   /**
    * Iterative stack-based depth-first traversal to collect all JSON values
-   * matching a SchemaRepr pattern. Order is depth-first, left-to-right
-   * (children are pushed in reverse order). The root values themselves are
-   * included if they match the pattern.
+   * matching a SchemaRepr pattern without recursion that could lead to stack
+   * overflow. Order is depth-first, left-to-right (children are pushed in
+   * reverse order). The root values themselves are included if they match the
+   * pattern.
    */
-  private def schemaSearchCollectJson(roots: Chunk[Json], pattern: SchemaRepr): Chunk[Json] = {
-    // Use a mutable list stack for iteration (avoids recursion stack overflow)
-    var stack: List[Json]                                   = roots.iterator.toList
-    val results: scala.collection.mutable.ArrayBuffer[Json] = scala.collection.mutable.ArrayBuffer.empty
-
+  private[this] def schemaSearchCollectJson(roots: Chunk[Json], pattern: SchemaRepr): Chunk[Json] = {
+    var stack = roots.toList
+    val jsons = ChunkBuilder.make[Json]()
     while (stack.nonEmpty) {
       val current = stack.head
       stack = stack.tail
-
-      // Check if current matches the pattern
-      if (JsonMatch.matches(pattern, current)) {
-        results += current
-      }
-
-      // Push children onto stack - first child should be at top for left-to-right DFS
+      if (JsonMatch.matches(pattern, current)) jsons.addOne(current)
       current match {
-        case obj: Object =>
-          // First field's value goes to top of stack, processed first
-          stack = obj.value.iterator.map(_._2).toList ++ stack
-        case arr: Array =>
-          // First element goes to top of stack, processed first
-          stack = arr.value.iterator.toList ++ stack
-        case _ =>
-          // Primitives (String, Number, Boolean, Null) have no children
-          ()
+        case obj: Object => stack = obj.value.foldRight(stack)(_._2 :: _)
+        case arr: Array  => stack = arr.value.foldRight(stack)(_ :: _)
+        case _           =>
       }
     }
-
-    Chunk.from(results)
+    jsons.result()
   }
 
   /**
@@ -2529,16 +2511,18 @@ object Json {
    * node, then reconstructs the tree bottom-up using an explicit stack to avoid
    * stack overflow on deeply nested structures.
    */
-  private[schema] def iterativeTransform(root: Json)(visit: Json => Json): Json = {
+  private[json] def iterativeTransform(root: Json)(visit: Json => Json): Json = {
     sealed trait Frame
-    final case class Visit(value: Json)                               extends Frame
+
+    final case class Visit(value: Json) extends Frame
+
     final case class RebuildObject(original: Object, childCount: Int) extends Frame
-    final case class RebuildArray(original: Array, childCount: Int)   extends Frame
+
+    final case class RebuildArray(original: Array, childCount: Int) extends Frame
 
     val work    = new java.util.ArrayDeque[Frame]()
     val results = new java.util.ArrayDeque[Json]()
     work.push(Visit(root))
-
     while (!work.isEmpty) {
       work.pop() match {
         case Visit(value) =>
@@ -2546,52 +2530,57 @@ object Json {
           visited match {
             case obj: Object =>
               val n = obj.value.length
-              if (n == 0) {
-                results.push(visited)
-              } else {
-                work.push(RebuildObject(obj, n))
-                var i = n - 1
-                while (i >= 0) { work.push(Visit(obj.value(i)._2)); i -= 1 }
+              if (n == 0) results.push(visited)
+              else {
+                work.push(new RebuildObject(obj, n))
+                var i = n
+                while ({
+                  i -= 1
+                  i >= 0
+                }) work.push(new Visit(obj.value(i)._2))
               }
             case arr: Array =>
               val n = arr.value.length
-              if (n == 0) {
-                results.push(visited)
-              } else {
-                work.push(RebuildArray(arr, n))
-                var i = n - 1
-                while (i >= 0) { work.push(Visit(arr.value(i))); i -= 1 }
+              if (n == 0) results.push(visited)
+              else {
+                work.push(new RebuildArray(arr, n))
+                var i = n
+                while ({
+                  i -= 1
+                  i >= 0
+                }) work.push(new Visit(arr.value(i)))
               }
-            case _ =>
-              results.push(visited)
+            case _ => results.push(visited)
           }
-
         case RebuildObject(original, childCount) =>
           var changed = false
           val fields  = new scala.Array[(java.lang.String, Json)](childCount)
-          var i       = childCount - 1
-          while (i >= 0) {
-            val child = results.pop()
-            if (!(child eq original.value(i)._2)) changed = true
-            fields(i) = (original.value(i)._1, child)
+          var i       = childCount
+          while ({
             i -= 1
+            i >= 0
+          }) {
+            val child = results.pop()
+            val value = original.value(i)
+            if (!(child eq value._2)) changed = true
+            fields(i) = (value._1, child)
           }
           results.push(if (changed) new Object(Chunk.fromArray(fields)) else original)
-
         case RebuildArray(original, childCount) =>
           var changed = false
           val elems   = new scala.Array[Json](childCount)
-          var i       = childCount - 1
-          while (i >= 0) {
+          var i       = childCount
+          while ({
+            i -= 1
+            i >= 0
+          }) {
             val child = results.pop()
             if (!(child eq original.value(i))) changed = true
             elems(i) = child
-            i -= 1
           }
           results.push(if (changed) new Array(Chunk.fromArray(elems)) else original)
       }
     }
-
     results.pop()
   }
 
@@ -2600,7 +2589,7 @@ object Json {
    * remaining path nodes. Uses iterative stack-based traversal to avoid stack
    * overflow on deeply nested structures.
    */
-  private def schemaSearchModifyJson(
+  private[this] def schemaSearchModifyJson(
     json: Json,
     pattern: SchemaRepr,
     nodes: IndexedSeq[DynamicOptic.Node],
@@ -2614,13 +2603,12 @@ object Json {
           case Some(modified) =>
             found = true
             modified
-          case None => value
+          case _ => value
         }
-      } else {
-        value
-      }
+      } else value
     }
-    if (found) Some(result) else None
+    if (found) new Some(result)
+    else None
   }
 
   /**
@@ -2636,29 +2624,33 @@ object Json {
   ): Option[Json] = {
     val isLast = nodeIdx == nodes.length - 1
     var found  = false
-
     if (isLast) {
       // SchemaSearch is the last node - delete matching values from containers.
       // The visit function filters out matching direct children at each container level;
       // iterativeTransform handles recursion into remaining children.
-      val result = iterativeTransform(json) { value =>
-        value match {
-          case obj: Object =>
-            val newFields = obj.value.flatMap { case (name, v) =>
-              if (JsonMatch.matches(pattern, v)) { found = true; Chunk.empty }
-              else Chunk((name, v))
-            }
-            if (newFields.length != obj.value.length) new Object(newFields) else obj
-          case arr: Array =>
-            val newElems = arr.value.flatMap { e =>
-              if (JsonMatch.matches(pattern, e)) { found = true; Chunk.empty }
-              else Chunk(e)
-            }
-            if (newElems.length != arr.value.length) new Array(newElems) else arr
-          case other => other
-        }
+      val result = iterativeTransform(json) {
+        case obj: Object =>
+          val newFields = obj.value.flatMap { kv =>
+            if (JsonMatch.matches(pattern, kv._2)) {
+              found = true
+              Chunk.empty
+            } else Chunk.single(kv)
+          }
+          if (newFields.length != obj.value.length) new Object(newFields)
+          else obj
+        case arr: Array =>
+          val newElems = arr.value.flatMap { e =>
+            if (JsonMatch.matches(pattern, e)) {
+              found = true
+              Chunk.empty
+            } else Chunk.single(e)
+          }
+          if (newElems.length != arr.value.length) new Array(newElems)
+          else arr
+        case other => other
       }
-      if (found) Some(result) else None
+      if (found) new Some(result)
+      else None
     } else {
       // SchemaSearch is not the last node - find matches and continue with remaining path.
       // iterativeTransform visits every node; matching ones get the remaining path applied.
@@ -2668,11 +2660,12 @@ object Json {
             case Some(modified) =>
               found = true
               modified
-            case None => value
+            case _ => value
           }
         } else value
       }
-      if (found) Some(result) else None
+      if (found) new Some(result)
+      else None
     }
   }
 }
