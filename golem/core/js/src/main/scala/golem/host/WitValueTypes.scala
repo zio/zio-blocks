@@ -1,9 +1,11 @@
 package golem.host
 
+import golem.host.js._
+
 import scala.scalajs.js
 
 /**
- * Scala types for `golem:rpc/types@0.2.2` value serialization types.
+ * Scala types for `golem:core/types@1.5.0` value serialization types.
  *
  * These model the WIT `wit-value`, `wit-node`, `wit-type`, `wit-type-node`, and
  * `value-and-type` types used by the durability and oplog APIs.
@@ -39,105 +41,107 @@ object WitValueTypes {
     final case class PrimString(value: String)                                  extends WitNode
     final case class Handle(uri: String, resourceId: BigInt)                    extends WitNode
 
-    def fromDynamic(raw: js.Dynamic): WitNode = {
-      val tag = raw.tag.asInstanceOf[String]
-      tag match {
+    def fromJs(raw: JsWitNode): WitNode = {
+      raw.tag match {
         case "record-value" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val arr = raw.asInstanceOf[JsWitNodeRecordValue].value
           RecordValue(arr.toList)
         case "variant-value" =>
-          val tup      = raw.selectDynamic("val").asInstanceOf[js.Tuple2[js.Any, js.Any]]
-          val caseIdx  = tup._1.asInstanceOf[Int]
-          val valueOpt = if (js.isUndefined(tup._2) || tup._2 == null) None else Some(tup._2.asInstanceOf[Int])
+          val tup      = raw.asInstanceOf[JsWitNodeVariantValue].value
+          val caseIdx  = tup._1
+          val valueOpt = tup._2.toOption
           VariantValue(caseIdx, valueOpt)
-        case "enum-value"  => EnumValue(raw.selectDynamic("val").asInstanceOf[Int])
+        case "enum-value" =>
+          EnumValue(raw.asInstanceOf[JsWitNodeEnumValue].value)
         case "flags-value" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[Boolean]]
-          FlagsValue(arr.toList)
+          FlagsValue(raw.asInstanceOf[JsWitNodeFlagsValue].value.toList)
         case "tuple-value" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val arr = raw.asInstanceOf[JsWitNodeTupleValue].value
           TupleValue(arr.toList)
         case "list-value" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val arr = raw.asInstanceOf[JsWitNodeListValue].value
           ListValue(arr.toList)
         case "option-value" =>
-          val v = raw.selectDynamic("val")
-          if (js.isUndefined(v) || v == null) OptionValue(None)
-          else OptionValue(Some(v.asInstanceOf[Int]))
+          val v = raw.asInstanceOf[JsWitNodeOptionValue].value
+          OptionValue(v.toOption)
         case "result-value" =>
-          val v     = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
-          val okTag = v.tag.asInstanceOf[String]
-          if (okTag == "ok") {
-            val okVal = v.selectDynamic("val")
-            ResultValue(
-              ok = if (js.isUndefined(okVal) || okVal == null) None else Some(okVal.asInstanceOf[Int]),
-              err = None
-            )
+          val result = raw.asInstanceOf[JsWitNodeResultValue].value
+          if (result.tag == "ok") {
+            val okVal = result.asInstanceOf[JsOk[js.UndefOr[JsNodeIndex]]].value
+            ResultValue(ok = okVal.toOption, err = None)
           } else {
-            val errVal = v.selectDynamic("val")
-            ResultValue(
-              ok = None,
-              err = if (js.isUndefined(errVal) || errVal == null) None else Some(errVal.asInstanceOf[Int])
-            )
+            val errVal = result.asInstanceOf[JsErr[js.UndefOr[JsNodeIndex]]].value
+            ResultValue(ok = None, err = errVal.toOption)
           }
-        case "prim-u8"      => PrimU8(raw.selectDynamic("val").asInstanceOf[Short])
-        case "prim-u16"     => PrimU16(raw.selectDynamic("val").asInstanceOf[Int])
-        case "prim-u32"     => PrimU32(raw.selectDynamic("val").asInstanceOf[Double].toLong)
-        case "prim-u64"     => PrimU64(BigInt(raw.selectDynamic("val").toString))
-        case "prim-s8"      => PrimS8(raw.selectDynamic("val").asInstanceOf[Byte])
-        case "prim-s16"     => PrimS16(raw.selectDynamic("val").asInstanceOf[Short])
-        case "prim-s32"     => PrimS32(raw.selectDynamic("val").asInstanceOf[Int])
-        case "prim-s64"     => PrimS64(raw.selectDynamic("val").asInstanceOf[Double].toLong)
-        case "prim-float32" => PrimFloat32(raw.selectDynamic("val").asInstanceOf[Float])
-        case "prim-float64" => PrimFloat64(raw.selectDynamic("val").asInstanceOf[Double])
-        case "prim-char"    =>
-          val v = raw.selectDynamic("val")
-          PrimChar(v.toString.charAt(0))
-        case "prim-bool"   => PrimBool(raw.selectDynamic("val").asInstanceOf[Boolean])
-        case "prim-string" => PrimString(raw.selectDynamic("val").asInstanceOf[String])
-        case "handle"      =>
-          val tup = raw.selectDynamic("val").asInstanceOf[js.Tuple2[js.Dynamic, js.Any]]
-          Handle(tup._1.value.asInstanceOf[String], BigInt(tup._2.toString))
+        case "prim-u8" =>
+          PrimU8(raw.asInstanceOf[JsWitNodePrimU8].value)
+        case "prim-u16" =>
+          PrimU16(raw.asInstanceOf[JsWitNodePrimU16].value)
+        case "prim-u32" =>
+          PrimU32(raw.asInstanceOf[JsWitNodePrimU32].value.toLong)
+        case "prim-u64" =>
+          PrimU64(BigInt(raw.asInstanceOf[JsWitNodePrimU64].value.toString))
+        case "prim-s8" =>
+          PrimS8(raw.asInstanceOf[JsWitNodePrimS8].value)
+        case "prim-s16" =>
+          PrimS16(raw.asInstanceOf[JsWitNodePrimS16].value)
+        case "prim-s32" =>
+          PrimS32(raw.asInstanceOf[JsWitNodePrimS32].value)
+        case "prim-s64" =>
+          PrimS64(BigInt(raw.asInstanceOf[JsWitNodePrimS64].value.toString).toLong)
+        case "prim-float32" =>
+          PrimFloat32(raw.asInstanceOf[JsWitNodePrimFloat32].value)
+        case "prim-float64" =>
+          PrimFloat64(raw.asInstanceOf[JsWitNodePrimFloat64].value)
+        case "prim-char" =>
+          PrimChar(raw.asInstanceOf[JsWitNodePrimChar].value.charAt(0))
+        case "prim-bool" =>
+          PrimBool(raw.asInstanceOf[JsWitNodePrimBool].value)
+        case "prim-string" =>
+          PrimString(raw.asInstanceOf[JsWitNodePrimString].value)
+        case "handle" =>
+          val tup = raw.asInstanceOf[JsWitNodeHandle].value
+          Handle(tup._1.value, BigInt(tup._2.toString))
         case other => throw new IllegalArgumentException(s"Unknown WitNode tag: $other")
       }
     }
 
-    def toDynamic(node: WitNode): js.Dynamic = node match {
-      case RecordValue(fields) => js.Dynamic.literal(tag = "record-value", `val` = js.Array(fields: _*))
+    def toJs(node: WitNode): JsWitNode = node match {
+      case RecordValue(fields) =>
+        JsWitNode.recordValue(js.Array(fields: _*))
       case VariantValue(ci, v) =>
-        val optIdx: js.Any = v.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-        js.Dynamic.literal(tag = "variant-value", `val` = js.Tuple2(ci, optIdx))
-      case EnumValue(ci)     => js.Dynamic.literal(tag = "enum-value", `val` = ci)
-      case FlagsValue(flags) => js.Dynamic.literal(tag = "flags-value", `val` = js.Array(flags: _*))
-      case TupleValue(elems) => js.Dynamic.literal(tag = "tuple-value", `val` = js.Array(elems: _*))
-      case ListValue(elems)  => js.Dynamic.literal(tag = "list-value", `val` = js.Array(elems: _*))
-      case OptionValue(v)    =>
-        val optIdx: js.Any = v.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-        js.Dynamic.literal(tag = "option-value", `val` = optIdx)
+        val optIdx: js.UndefOr[JsNodeIndex] = v.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+        JsWitNode.variantValue(ci, optIdx)
+      case EnumValue(ci)     => JsWitNode.enumValue(ci)
+      case FlagsValue(flags) => JsWitNode.flagsValue(js.Array(flags: _*))
+      case TupleValue(elems) => JsWitNode.tupleValue(js.Array(elems: _*))
+      case ListValue(elems)  => JsWitNode.listValue(js.Array(elems: _*))
+      case OptionValue(v) =>
+        val optIdx: js.UndefOr[JsNodeIndex] = v.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+        JsWitNode.optionValue(optIdx)
       case ResultValue(ok, err) =>
         val inner = if (ok.isDefined || err.isEmpty) {
-          val okVal: js.Any = ok.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-          js.Dynamic.literal(tag = "ok", `val` = okVal)
+          val okVal: js.UndefOr[JsNodeIndex] = ok.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          JsResult.okOptional(okVal)
         } else {
-          val errVal: js.Any = err.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-          js.Dynamic.literal(tag = "err", `val` = errVal)
+          val errVal: js.UndefOr[JsNodeIndex] = err.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          JsResult.errOptional(errVal)
         }
-        js.Dynamic.literal(tag = "result-value", `val` = inner)
-      case PrimU8(v)        => js.Dynamic.literal(tag = "prim-u8", `val` = v)
-      case PrimU16(v)       => js.Dynamic.literal(tag = "prim-u16", `val` = v)
-      case PrimU32(v)       => js.Dynamic.literal(tag = "prim-u32", `val` = v.toDouble)
-      case PrimU64(v)       => js.Dynamic.literal(tag = "prim-u64", `val` = js.BigInt(v.toString))
-      case PrimS8(v)        => js.Dynamic.literal(tag = "prim-s8", `val` = v)
-      case PrimS16(v)       => js.Dynamic.literal(tag = "prim-s16", `val` = v)
-      case PrimS32(v)       => js.Dynamic.literal(tag = "prim-s32", `val` = v)
-      case PrimS64(v)       => js.Dynamic.literal(tag = "prim-s64", `val` = v.toDouble)
-      case PrimFloat32(v)   => js.Dynamic.literal(tag = "prim-float32", `val` = v)
-      case PrimFloat64(v)   => js.Dynamic.literal(tag = "prim-float64", `val` = v)
-      case PrimChar(v)      => js.Dynamic.literal(tag = "prim-char", `val` = v.toString)
-      case PrimBool(v)      => js.Dynamic.literal(tag = "prim-bool", `val` = v)
-      case PrimString(v)    => js.Dynamic.literal(tag = "prim-string", `val` = v)
-      case Handle(uri, rid) =>
-        js.Dynamic.literal(tag = "handle", `val` = js.Tuple2(js.Dynamic.literal(value = uri), js.BigInt(rid.toString)))
+        JsWitNode.resultValue(inner)
+      case PrimU8(v)        => JsWitNode.primU8(v)
+      case PrimU16(v)       => JsWitNode.primU16(v)
+      case PrimU32(v)       => JsWitNode.primU32(v.toDouble)
+      case PrimU64(v)       => JsWitNode.primU64(js.BigInt(v.toString))
+      case PrimS8(v)        => JsWitNode.primS8(v)
+      case PrimS16(v)       => JsWitNode.primS16(v)
+      case PrimS32(v)       => JsWitNode.primS32(v)
+      case PrimS64(v)       => JsWitNode.primS64(js.BigInt(v.toString))
+      case PrimFloat32(v)   => JsWitNode.primFloat32(v)
+      case PrimFloat64(v)   => JsWitNode.primFloat64(v)
+      case PrimChar(v)      => JsWitNode.primChar(v.toString)
+      case PrimBool(v)      => JsWitNode.primBool(v)
+      case PrimString(v)    => JsWitNode.primString(v)
+      case Handle(uri, rid) => JsWitNode.handle(JsUri(uri), js.BigInt(rid.toString))
     }
   }
 
@@ -146,16 +150,16 @@ object WitValueTypes {
   final case class WitValue(nodes: List[WitNode])
 
   object WitValue {
-    def fromDynamic(raw: js.Dynamic): WitValue = {
-      val arr = raw.nodes.asInstanceOf[js.Array[js.Dynamic]]
-      WitValue(arr.toList.map(WitNode.fromDynamic))
+    def fromJs(raw: JsWitValue): WitValue = {
+      WitValue(raw.nodes.toList.map(WitNode.fromJs))
     }
 
-    def toDynamic(wv: WitValue): js.Dynamic = {
-      val arr = js.Array[js.Dynamic]()
-      wv.nodes.foreach(n => arr.push(WitNode.toDynamic(n)))
-      js.Dynamic.literal(nodes = arr)
+    def toJs(wv: WitValue): JsWitValue = {
+      val arr = js.Array[JsWitNode]()
+      wv.nodes.foreach(n => arr.push(WitNode.toJs(n)))
+      JsWitValue(arr)
     }
+
   }
 
   // --- WIT: resource-mode enum ---
@@ -199,34 +203,32 @@ object WitValueTypes {
     case object PrimStringType                                                 extends WitTypeNode
     final case class HandleType(resourceId: BigInt, mode: ResourceMode)        extends WitTypeNode
 
-    def fromDynamic(raw: js.Dynamic): WitTypeNode = {
-      val tag = raw.tag.asInstanceOf[String]
-      tag match {
+    def fromJs(raw: JsWitTypeNode): WitTypeNode = {
+      raw.tag match {
         case "record-type" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[js.Tuple2[String, Int]]]
+          val arr = raw.asInstanceOf[JsWitTypeNodeRecordType].value
           RecordType(arr.toList.map(t => (t._1, t._2)))
         case "variant-type" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[js.Tuple2[String, js.Any]]]
+          val arr = raw.asInstanceOf[JsWitTypeNodeVariantType].value
           VariantType(arr.toList.map { t =>
-            val opt = if (js.isUndefined(t._2) || t._2 == null) None else Some(t._2.asInstanceOf[Int])
-            (t._1, opt)
+            (t._1, t._2.toOption)
           })
         case "enum-type" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[String]]
+          val arr = raw.asInstanceOf[JsWitTypeNodeEnumType].value
           EnumType(arr.toList)
         case "flags-type" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[String]]
+          val arr = raw.asInstanceOf[JsWitTypeNodeFlagsType].value
           FlagsType(arr.toList)
         case "tuple-type" =>
-          val arr = raw.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val arr = raw.asInstanceOf[JsWitTypeNodeTupleType].value
           TupleType(arr.toList)
-        case "list-type"   => ListType(raw.selectDynamic("val").asInstanceOf[Int])
-        case "option-type" => OptionType(raw.selectDynamic("val").asInstanceOf[Int])
+        case "list-type" =>
+          ListType(raw.asInstanceOf[JsWitTypeNodeListType].value)
+        case "option-type" =>
+          OptionType(raw.asInstanceOf[JsWitTypeNodeOptionType].value)
         case "result-type" =>
-          val tup = raw.selectDynamic("val").asInstanceOf[js.Tuple2[js.Any, js.Any]]
-          val ok  = if (js.isUndefined(tup._1) || tup._1 == null) None else Some(tup._1.asInstanceOf[Int])
-          val err = if (js.isUndefined(tup._2) || tup._2 == null) None else Some(tup._2.asInstanceOf[Int])
-          ResultType(ok, err)
+          val tup = raw.asInstanceOf[JsWitTypeNodeResultType].value
+          ResultType(tup._1.toOption, tup._2.toOption)
         case "prim-u8-type"     => PrimU8Type
         case "prim-u16-type"    => PrimU16Type
         case "prim-u32-type"    => PrimU32Type
@@ -240,59 +242,57 @@ object WitValueTypes {
         case "prim-char-type"   => PrimCharType
         case "prim-bool-type"   => PrimBoolType
         case "prim-string-type" => PrimStringType
-        case "handle-type"      =>
-          val tup  = raw.selectDynamic("val").asInstanceOf[js.Tuple2[js.Any, js.Dynamic]]
+        case "handle-type" =>
+          val tup  = raw.asInstanceOf[JsWitTypeNodeHandleType].value
           val rid  = BigInt(tup._1.toString)
-          val mode = ResourceMode.fromString(tup._2.tag.asInstanceOf[String])
+          val mode = ResourceMode.fromString(tup._2)
           HandleType(rid, mode)
         case other => throw new IllegalArgumentException(s"Unknown WitTypeNode tag: $other")
       }
     }
 
-    def toDynamic(node: WitTypeNode): js.Dynamic = node match {
+    def toJs(node: WitTypeNode): JsWitTypeNode = node match {
       case RecordType(fields) =>
-        val arr = js.Array[js.Any]()
+        val arr = js.Array[js.Tuple2[String, JsNodeIndex]]()
         fields.foreach { case (name, idx) => arr.push(js.Tuple2(name, idx)) }
-        js.Dynamic.literal(tag = "record-type", `val` = arr)
+        JsWitTypeNode.recordType(arr)
       case VariantType(cases) =>
-        val arr = js.Array[js.Any]()
+        val arr = js.Array[js.Tuple2[String, js.UndefOr[JsNodeIndex]]]()
         cases.foreach { case (name, opt) =>
-          val v: js.Any = opt.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
+          val v: js.UndefOr[JsNodeIndex] = opt.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
           arr.push(js.Tuple2(name, v))
         }
-        js.Dynamic.literal(tag = "variant-type", `val` = arr)
-      case EnumType(cases)     => js.Dynamic.literal(tag = "enum-type", `val` = js.Array(cases: _*))
-      case FlagsType(flags)    => js.Dynamic.literal(tag = "flags-type", `val` = js.Array(flags: _*))
-      case TupleType(elems)    => js.Dynamic.literal(tag = "tuple-type", `val` = js.Array(elems: _*))
-      case ListType(elem)      => js.Dynamic.literal(tag = "list-type", `val` = elem)
-      case OptionType(elem)    => js.Dynamic.literal(tag = "option-type", `val` = elem)
+        JsWitTypeNode.variantType(arr)
+      case EnumType(cases)     => JsWitTypeNode.enumType(js.Array(cases: _*))
+      case FlagsType(flags)    => JsWitTypeNode.flagsType(js.Array(flags: _*))
+      case TupleType(elems)    => JsWitTypeNode.tupleType(js.Array(elems: _*))
+      case ListType(elem)      => JsWitTypeNode.listType(elem)
+      case OptionType(elem)    => JsWitTypeNode.optionType(elem)
       case ResultType(ok, err) =>
-        val okVal: js.Any  = ok.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-        val errVal: js.Any = err.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-        js.Dynamic.literal(tag = "result-type", `val` = js.Tuple2(okVal, errVal))
-      case PrimU8Type            => js.Dynamic.literal(tag = "prim-u8-type")
-      case PrimU16Type           => js.Dynamic.literal(tag = "prim-u16-type")
-      case PrimU32Type           => js.Dynamic.literal(tag = "prim-u32-type")
-      case PrimU64Type           => js.Dynamic.literal(tag = "prim-u64-type")
-      case PrimS8Type            => js.Dynamic.literal(tag = "prim-s8-type")
-      case PrimS16Type           => js.Dynamic.literal(tag = "prim-s16-type")
-      case PrimS32Type           => js.Dynamic.literal(tag = "prim-s32-type")
-      case PrimS64Type           => js.Dynamic.literal(tag = "prim-s64-type")
-      case PrimF32Type           => js.Dynamic.literal(tag = "prim-f32-type")
-      case PrimF64Type           => js.Dynamic.literal(tag = "prim-f64-type")
-      case PrimCharType          => js.Dynamic.literal(tag = "prim-char-type")
-      case PrimBoolType          => js.Dynamic.literal(tag = "prim-bool-type")
-      case PrimStringType        => js.Dynamic.literal(tag = "prim-string-type")
+        val okVal: js.UndefOr[JsNodeIndex]  = ok.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+        val errVal: js.UndefOr[JsNodeIndex] = err.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+        JsWitTypeNode.resultType(okVal, errVal)
+      case PrimU8Type            => JsWitTypeNode.primU8Type
+      case PrimU16Type           => JsWitTypeNode.primU16Type
+      case PrimU32Type           => JsWitTypeNode.primU32Type
+      case PrimU64Type           => JsWitTypeNode.primU64Type
+      case PrimS8Type            => JsWitTypeNode.primS8Type
+      case PrimS16Type           => JsWitTypeNode.primS16Type
+      case PrimS32Type           => JsWitTypeNode.primS32Type
+      case PrimS64Type           => JsWitTypeNode.primS64Type
+      case PrimF32Type           => JsWitTypeNode.primF32Type
+      case PrimF64Type           => JsWitTypeNode.primF64Type
+      case PrimCharType          => JsWitTypeNode.primCharType
+      case PrimBoolType          => JsWitTypeNode.primBoolType
+      case PrimStringType        => JsWitTypeNode.primStringType
       case HandleType(rid, mode) =>
-        val modeTag = mode match {
+        val modeStr: String = mode match {
           case ResourceMode.Owned    => "owned"
           case ResourceMode.Borrowed => "borrowed"
         }
-        js.Dynamic.literal(
-          tag = "handle-type",
-          `val` = js.Tuple2(js.BigInt(rid.toString), js.Dynamic.literal(tag = modeTag))
-        )
+        JsWitTypeNode.handleType(js.BigInt(rid.toString), modeStr)
     }
+
   }
 
   // --- WIT: named-wit-type-node record ---
@@ -304,18 +304,19 @@ object WitValueTypes {
   )
 
   object NamedWitTypeNode {
-    def fromDynamic(raw: js.Dynamic): NamedWitTypeNode = {
-      val name  = { val n = raw.name; if (js.isUndefined(n) || n == null) None else Some(n.asInstanceOf[String]) }
-      val owner = { val o = raw.owner; if (js.isUndefined(o) || o == null) None else Some(o.asInstanceOf[String]) }
-      val tn    = WitTypeNode.fromDynamic(raw.selectDynamic("type").asInstanceOf[js.Dynamic])
+    def fromJs(raw: JsNamedWitTypeNode): NamedWitTypeNode = {
+      val name  = raw.name.toOption
+      val owner = raw.owner.toOption
+      val tn    = WitTypeNode.fromJs(raw.typ)
       NamedWitTypeNode(name, owner, tn)
     }
 
-    def toDynamic(n: NamedWitTypeNode): js.Dynamic = {
-      val nameVal: js.Any  = n.name.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-      val ownerVal: js.Any = n.owner.map(_.asInstanceOf[js.Any]).getOrElse(js.undefined)
-      js.Dynamic.literal(name = nameVal, owner = ownerVal, `type` = WitTypeNode.toDynamic(n.typeNode))
+    def toJs(n: NamedWitTypeNode): JsNamedWitTypeNode = {
+      val nameVal: js.UndefOr[String]  = n.name.fold[js.UndefOr[String]](js.undefined)(identity)
+      val ownerVal: js.UndefOr[String] = n.owner.fold[js.UndefOr[String]](js.undefined)(identity)
+      JsNamedWitTypeNode(WitTypeNode.toJs(n.typeNode), nameVal, ownerVal)
     }
+
   }
 
   // --- WIT: wit-type record ---
@@ -323,16 +324,16 @@ object WitValueTypes {
   final case class WitType(nodes: List[NamedWitTypeNode])
 
   object WitType {
-    def fromDynamic(raw: js.Dynamic): WitType = {
-      val arr = raw.nodes.asInstanceOf[js.Array[js.Dynamic]]
-      WitType(arr.toList.map(NamedWitTypeNode.fromDynamic))
+    def fromJs(raw: JsWitType): WitType = {
+      WitType(raw.nodes.toList.map(NamedWitTypeNode.fromJs))
     }
 
-    def toDynamic(wt: WitType): js.Dynamic = {
-      val arr = js.Array[js.Dynamic]()
-      wt.nodes.foreach(n => arr.push(NamedWitTypeNode.toDynamic(n)))
-      js.Dynamic.literal(nodes = arr)
+    def toJs(wt: WitType): JsWitType = {
+      val arr = js.Array[JsNamedWitTypeNode]()
+      wt.nodes.foreach(n => arr.push(NamedWitTypeNode.toJs(n)))
+      JsWitType(arr)
     }
+
   }
 
   // --- WIT: value-and-type record ---
@@ -340,16 +341,17 @@ object WitValueTypes {
   final case class ValueAndType(value: WitValue, typ: WitType)
 
   object ValueAndType {
-    def fromDynamic(raw: js.Dynamic): ValueAndType = {
-      val v = WitValue.fromDynamic(raw.value.asInstanceOf[js.Dynamic])
-      val t = WitType.fromDynamic(raw.typ.asInstanceOf[js.Dynamic])
+    def fromJs(raw: JsValueAndType): ValueAndType = {
+      val v = WitValue.fromJs(raw.value)
+      val t = WitType.fromJs(raw.typ)
       ValueAndType(v, t)
     }
 
-    def toDynamic(vat: ValueAndType): js.Dynamic = {
-      val v = WitValue.toDynamic(vat.value)
-      val t = WitType.toDynamic(vat.typ)
-      js.Dynamic.literal(value = v, typ = t)
+    def toJs(vat: ValueAndType): JsValueAndType = {
+      val v = WitValue.toJs(vat.value)
+      val t = WitType.toJs(vat.typ)
+      JsValueAndType(v, t)
     }
+
   }
 }

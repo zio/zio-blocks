@@ -1,6 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.{DataType, DataValue}
+import golem.host.js._
 import golem.BaseAgent
 import golem.runtime.agenttype.AgentMethod
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
@@ -15,7 +16,7 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
   override implicit def executionContext: ExecutionContext =
     scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
-  @agentDefinition("e2e-client-async", mode = DurabilityMode.Durable)
+  @agentDefinition("E2eClientAsync", mode = DurabilityMode.Durable)
   trait AsyncEchoAgent extends BaseAgent[Unit] {
     def echo(in: String): Future[String]
   }
@@ -31,23 +32,23 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
     val agentType = golem.runtime.macros.AgentClientMacro.agentType[AsyncEchoAgent]
 
     val rpc = new RpcInvoker {
-      override def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): Either[String, js.Dynamic] =
+      override def invokeAndAwait(functionName: String, input: JsDataValue): Either[String, JsDataValue] =
         if (functionName != "e2e-client-async.{echo}") Left(s"unexpected method: $functionName")
         else {
           val res = "hello world"
           WitValueBuilder.build(
             DataType.TupleType(List(DataType.StringType)),
             DataValue.TupleValue(List(DataValue.StringValue(res)))
-          )
+          ).map(_.asInstanceOf[JsDataValue])
         }
 
-      override def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit] =
+      override def invoke(functionName: String, input: JsDataValue): Either[String, Unit] =
         Left("not used")
 
       override def scheduleInvocation(
         @unused datetime: golem.Datetime,
         @unused functionName: String,
-        @unused params: js.Array[js.Dynamic]
+        @unused input: JsDataValue
       ): Either[String, Unit] =
         Left("not used")
     }

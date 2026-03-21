@@ -29,7 +29,7 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
   // Agent with many method signatures for roundtrip testing
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("e2e-broad", mode = DurabilityMode.Durable)
+  @agentDefinition("E2eBroad", mode = DurabilityMode.Durable)
   trait BroadAgent extends BaseAgent[Unit] {
     def echo(in: String): Future[String]
     def add(in: Sum): Future[Int]

@@ -1,6 +1,7 @@
 package golem.host
 
 import golem.HostApi
+import golem.host.js._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -12,62 +13,62 @@ class DurabilityApiRoundtripSpec extends AnyFunSuite with Matchers {
   // --- DurableFunctionType round-trips ---
 
   test("ReadLocal round-trip") {
-    val dyn = DurableFunctionType.toDynamic(DurableFunctionType.ReadLocal)
-    dyn.tag.asInstanceOf[String] shouldBe "read-local"
-    DurableFunctionType.fromDynamic(dyn) shouldBe DurableFunctionType.ReadLocal
+    val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadLocal)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "read-local"
+    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.ReadLocal
   }
 
   test("WriteLocal round-trip") {
-    val dyn = DurableFunctionType.toDynamic(DurableFunctionType.WriteLocal)
-    dyn.tag.asInstanceOf[String] shouldBe "write-local"
-    DurableFunctionType.fromDynamic(dyn) shouldBe DurableFunctionType.WriteLocal
+    val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteLocal)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-local"
+    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.WriteLocal
   }
 
   test("ReadRemote round-trip") {
-    val dyn = DurableFunctionType.toDynamic(DurableFunctionType.ReadRemote)
-    dyn.tag.asInstanceOf[String] shouldBe "read-remote"
-    DurableFunctionType.fromDynamic(dyn) shouldBe DurableFunctionType.ReadRemote
+    val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadRemote)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "read-remote"
+    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.ReadRemote
   }
 
   test("WriteRemote round-trip") {
-    val dyn = DurableFunctionType.toDynamic(DurableFunctionType.WriteRemote)
-    dyn.tag.asInstanceOf[String] shouldBe "write-remote"
-    DurableFunctionType.fromDynamic(dyn) shouldBe DurableFunctionType.WriteRemote
+    val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteRemote)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote"
+    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.WriteRemote
   }
 
   test("WriteRemoteBatched with None round-trip") {
-    val ft  = DurableFunctionType.WriteRemoteBatched(None)
-    val dyn = DurableFunctionType.toDynamic(ft)
-    dyn.tag.asInstanceOf[String] shouldBe "write-remote-batched"
-    DurableFunctionType.fromDynamic(dyn) shouldBe ft
+    val ft    = DurableFunctionType.WriteRemoteBatched(None)
+    val jsVal = DurableFunctionType.toJs(ft)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote-batched"
+    DurableFunctionType.fromJs(jsVal) shouldBe ft
   }
 
   test("WriteRemoteBatched with Some round-trip") {
     val ft     = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
-    val dyn    = DurableFunctionType.toDynamic(ft)
-    val parsed = DurableFunctionType.fromDynamic(dyn)
+    val jsVal  = DurableFunctionType.toJs(ft)
+    val parsed = DurableFunctionType.fromJs(jsVal)
     parsed shouldBe a[DurableFunctionType.WriteRemoteBatched]
     parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin shouldBe Some(BigInt(42))
   }
 
   test("WriteRemoteTransaction with None round-trip") {
-    val ft  = DurableFunctionType.WriteRemoteTransaction(None)
-    val dyn = DurableFunctionType.toDynamic(ft)
-    dyn.tag.asInstanceOf[String] shouldBe "write-remote-transaction"
-    DurableFunctionType.fromDynamic(dyn) shouldBe ft
+    val ft    = DurableFunctionType.WriteRemoteTransaction(None)
+    val jsVal = DurableFunctionType.toJs(ft)
+    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote-transaction"
+    DurableFunctionType.fromJs(jsVal) shouldBe ft
   }
 
   test("WriteRemoteTransaction with Some round-trip") {
     val ft     = DurableFunctionType.WriteRemoteTransaction(Some(BigInt(100)))
-    val dyn    = DurableFunctionType.toDynamic(ft)
-    val parsed = DurableFunctionType.fromDynamic(dyn)
+    val jsVal  = DurableFunctionType.toJs(ft)
+    val parsed = DurableFunctionType.fromJs(jsVal)
     parsed shouldBe a[DurableFunctionType.WriteRemoteTransaction]
     parsed.asInstanceOf[DurableFunctionType.WriteRemoteTransaction].begin shouldBe Some(BigInt(100))
   }
 
   test("unknown DurableFunctionType tag throws") {
     val raw = js.Dynamic.literal(tag = "unknown")
-    an[IllegalArgumentException] should be thrownBy DurableFunctionType.fromDynamic(raw)
+    an[IllegalArgumentException] should be thrownBy DurableFunctionType.fromJs(raw.asInstanceOf[JsWrappedFunctionType])
   }
 
   // --- OplogEntryVersion ---
@@ -111,15 +112,14 @@ class DurabilityApiRoundtripSpec extends AnyFunSuite with Matchers {
       WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
     )
     val inv = PersistedDurableFunctionInvocation(
-      timestampSeconds = BigInt(1700000000L),
-      timestampNanos = 500000000L,
+      timestamp = Datetime(BigInt(1700000000L), 500000000),
       functionName = "golem:api/test.{invoke}",
       response = vat,
       functionType = DurableFunctionType.ReadRemote,
       entryVersion = OplogEntryVersion.V2
     )
-    inv.timestampSeconds shouldBe BigInt(1700000000L)
-    inv.timestampNanos shouldBe 500000000L
+    inv.timestamp.seconds shouldBe BigInt(1700000000L)
+    inv.timestamp.nanoseconds shouldBe 500000000
     inv.functionName shouldBe "golem:api/test.{invoke}"
     inv.response.value.nodes.head shouldBe WitValueTypes.WitNode.PrimString("test")
     inv.functionType shouldBe DurableFunctionType.ReadRemote

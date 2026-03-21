@@ -44,7 +44,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
   // Agent with many parameter/return type combinations
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("schema-verify-agent")
+  @agentDefinition()
   trait SchemaVerifyAgent extends BaseAgent[Unit] {
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]
@@ -88,8 +88,8 @@ final class SchemaVerificationSpec extends AnyFunSuite {
   private def findMethod(name: String): MethodBinding[SchemaVerifyAgent] =
     defn.methodMetadata.find(_.metadata.name == name).getOrElse(sys.error(s"method not found: $name"))
 
-  private def schemaTag(schema: js.Dynamic): String =
-    schema.selectDynamic("tag").asInstanceOf[String]
+  private def schemaTag(schema: golem.host.js.JsDataSchema): String =
+    schema.tag
 
   // ---------------------------------------------------------------------------
   // Tests: all schemas have correct top-level tags
@@ -119,7 +119,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
 
   private def inputElementCount(methodName: String): Int = {
     val m   = findMethod(methodName)
-    val arr = m.inputSchema.selectDynamic("val").asInstanceOf[js.Array[js.Any]]
+    val arr = m.inputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Any]]
     arr.length
   }
 
@@ -142,7 +142,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
 
   private def outputElementCount(methodName: String): Int = {
     val m   = findMethod(methodName)
-    val arr = m.outputSchema.selectDynamic("val").asInstanceOf[js.Array[js.Any]]
+    val arr = m.outputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Any]]
     arr.length
   }
 
@@ -160,7 +160,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
 
   private def inputElementNames(methodName: String): List[String] = {
     val m   = findMethod(methodName)
-    val arr = m.inputSchema.selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
+    val arr = m.inputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
     (0 until arr.length).map(i => arr(i)(0).asInstanceOf[String]).toList
   }
 
@@ -180,7 +180,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
 
   private def firstInputElementTag(methodName: String): String = {
     val m    = findMethod(methodName)
-    val arr  = m.inputSchema.selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
+    val arr  = m.inputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
     val elem = arr(0)(1).asInstanceOf[js.Dynamic]
     elem.selectDynamic("tag").asInstanceOf[String]
   }

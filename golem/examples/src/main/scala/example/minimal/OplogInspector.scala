@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "oplog-inspector")
+@agentDefinition()
 @description("Reads and inspects oplog entries with full type-safe pattern matching.")
 trait OplogInspector extends BaseAgent[String] {
 

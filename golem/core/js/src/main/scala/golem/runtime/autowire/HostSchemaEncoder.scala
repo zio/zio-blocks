@@ -1,78 +1,54 @@
 package golem.runtime.autowire
 
 import golem.data._
+import golem.host.js._
 
 import scala.scalajs.js
 
 private[autowire] object HostSchemaEncoder {
-  def encode(schema: StructuredSchema): js.Dynamic =
+  def encode(schema: StructuredSchema): JsDataSchema =
     schema match {
       case StructuredSchema.Tuple(elements) =>
-        js.Dynamic.literal(
-          "tag" -> "tuple",
-          "val" -> encodeNamedElements(elements)
-        )
+        JsDataSchema.tuple(encodeNamedElements(elements))
       case StructuredSchema.Multimodal(elements) =>
-        js.Dynamic.literal(
-          "tag" -> "multimodal",
-          "val" -> encodeNamedElements(elements)
-        )
+        JsDataSchema.multimodal(encodeNamedElements(elements))
     }
 
-  private def encodeNamedElements(elements: List[NamedElementSchema]): js.Array[js.Any] = {
-    val array = new js.Array[js.Any]()
+  private def encodeNamedElements(elements: List[NamedElementSchema]): js.Array[js.Tuple2[String, JsElementSchema]] = {
+    val array = new js.Array[js.Tuple2[String, JsElementSchema]]()
     elements.foreach { elem =>
-      array.push(js.Array(elem.name, encodeElement(elem.schema)))
+      array.push(js.Tuple2(elem.name, encodeElement(elem.schema)))
     }
     array
   }
 
-  private def encodeElement(element: ElementSchema): js.Dynamic =
+  private def encodeElement(element: ElementSchema): JsElementSchema =
     element match {
       case ElementSchema.Component(dataType) =>
-        js.Dynamic.literal(
-          "tag" -> "component-model",
-          "val" -> WitTypeBuilder.build(dataType)
-        )
+        JsElementSchema.componentModel(WitTypeBuilder.build(dataType))
       case ElementSchema.UnstructuredText(restrictions) =>
-        js.Dynamic.literal(
-          "tag" -> "unstructured-text",
-          "val" -> encodeTextRestrictions(restrictions)
-        )
+        JsElementSchema.unstructuredText(encodeTextRestrictions(restrictions))
       case ElementSchema.UnstructuredBinary(restrictions) =>
-        js.Dynamic.literal(
-          "tag" -> "unstructured-binary",
-          "val" -> encodeBinaryRestrictions(restrictions)
-        )
+        JsElementSchema.unstructuredBinary(encodeBinaryRestrictions(restrictions))
     }
 
-  private def encodeTextRestrictions(restrictions: Option[List[String]]): js.Dynamic =
+  private def encodeTextRestrictions(restrictions: Option[List[String]]): JsTextDescriptor =
     restrictions match {
       case Some(values) =>
-        val arr = new js.Array[js.Any]()
-        values.foreach { code =>
-          arr.push(js.Dynamic.literal("language-code" -> code))
-        }
-        js.Dynamic.literal(
-          "tag" -> "some",
-          "val" -> arr
-        )
+        val arr = new js.Array[JsTextType]()
+        values.foreach(code => arr.push(JsTextType(code)))
+        JsTextDescriptor(arr)
       case None =>
-        js.Dynamic.literal("tag" -> "none")
+        JsTextDescriptor()
     }
 
-  private def encodeBinaryRestrictions(restrictions: Option[List[String]]): js.Dynamic =
+  private def encodeBinaryRestrictions(restrictions: Option[List[String]]): JsBinaryDescriptor =
     restrictions match {
       case Some(values) =>
-        val arr = new js.Array[js.Any]()
-        values.foreach { mime =>
-          arr.push(js.Dynamic.literal("mime-type" -> mime))
-        }
-        js.Dynamic.literal(
-          "tag" -> "some",
-          "val" -> arr
-        )
+        val arr = new js.Array[JsBinaryType]()
+        values.foreach(mime => arr.push(JsBinaryType(mime)))
+        JsBinaryDescriptor(arr)
       case None =>
-        js.Dynamic.literal("tag" -> "none")
+        JsBinaryDescriptor()
     }
 }

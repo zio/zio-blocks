@@ -1,5 +1,6 @@
 package golem.host
 
+import golem.host.js._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -9,9 +10,9 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
   import WitValueTypes._
 
   private def roundtripNode(node: WitNode, expectedTag: String): Unit = {
-    val dyn = WitNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe expectedTag
-    val parsed = WitNode.fromDynamic(dyn)
+    val jsNode = WitNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe expectedTag
+    val parsed = WitNode.fromJs(jsNode)
     (node, parsed) match {
       case (WitNode.Handle(u1, r1), WitNode.Handle(u2, r2)) =>
         u1 shouldBe u2; r1 shouldBe r2
@@ -76,19 +77,19 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
   }
 
   test("PrimU32 round-trip") {
-    val node = WitNode.PrimU32(100000L)
-    val dyn  = WitNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe "prim-u32"
-    val parsed = WitNode.fromDynamic(dyn)
+    val node   = WitNode.PrimU32(100000L)
+    val jsNode = WitNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "prim-u32"
+    val parsed = WitNode.fromJs(jsNode)
     parsed shouldBe a[WitNode.PrimU32]
     parsed.asInstanceOf[WitNode.PrimU32].value shouldBe 100000L
   }
 
   test("PrimU64 round-trip") {
-    val node = WitNode.PrimU64(BigInt("18446744073709551615"))
-    val dyn  = WitNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe "prim-u64"
-    val parsed = WitNode.fromDynamic(dyn)
+    val node   = WitNode.PrimU64(BigInt("18446744073709551615"))
+    val jsNode = WitNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "prim-u64"
+    val parsed = WitNode.fromJs(jsNode)
     parsed shouldBe a[WitNode.PrimU64]
     parsed.asInstanceOf[WitNode.PrimU64].value shouldBe BigInt("18446744073709551615")
   }
@@ -106,18 +107,18 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
   }
 
   test("PrimS64 round-trip") {
-    val node = WitNode.PrimS64(-100000L)
-    val dyn  = WitNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe "prim-s64"
-    val parsed = WitNode.fromDynamic(dyn)
+    val node   = WitNode.PrimS64(-100000L)
+    val jsNode = WitNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "prim-s64"
+    val parsed = WitNode.fromJs(jsNode)
     parsed shouldBe a[WitNode.PrimS64]
     parsed.asInstanceOf[WitNode.PrimS64].value shouldBe -100000L
   }
 
   test("PrimFloat32 round-trip") {
     val node   = WitNode.PrimFloat32(3.14f)
-    val dyn    = WitNode.toDynamic(node)
-    val parsed = WitNode.fromDynamic(dyn)
+    val jsNode = WitNode.toJs(node)
+    val parsed = WitNode.fromJs(jsNode)
     parsed shouldBe a[WitNode.PrimFloat32]
     parsed.asInstanceOf[WitNode.PrimFloat32].value shouldBe 3.14f +- 0.001f
   }
@@ -140,10 +141,10 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
   }
 
   test("Handle round-trip") {
-    val node = WitNode.Handle("urn:example:resource", BigInt(42))
-    val dyn  = WitNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe "handle"
-    val parsed = WitNode.fromDynamic(dyn)
+    val node   = WitNode.Handle("urn:example:resource", BigInt(42))
+    val jsNode = WitNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "handle"
+    val parsed = WitNode.fromJs(jsNode)
     parsed shouldBe a[WitNode.Handle]
     val h = parsed.asInstanceOf[WitNode.Handle]
     h.uri shouldBe "urn:example:resource"
@@ -152,15 +153,15 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("unknown WitNode tag throws") {
     val raw = js.Dynamic.literal(tag = "unknown-tag", `val` = 0)
-    an[IllegalArgumentException] should be thrownBy WitNode.fromDynamic(raw)
+    an[IllegalArgumentException] should be thrownBy WitNode.fromJs(raw.asInstanceOf[JsWitNode])
   }
 
   // --- WitTypeNode round-trips ---
 
   private def roundtripTypeNode(node: WitTypeNode, expectedTag: String): Unit = {
-    val dyn = WitTypeNode.toDynamic(node)
-    dyn.tag.asInstanceOf[String] shouldBe expectedTag
-    val parsed = WitTypeNode.fromDynamic(dyn)
+    val jsNode = WitTypeNode.toJs(node)
+    jsNode.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe expectedTag
+    val parsed = WitTypeNode.fromJs(jsNode)
     (node, parsed) match {
       case (WitTypeNode.HandleType(r1, m1), WitTypeNode.HandleType(r2, m2)) =>
         r1 shouldBe r2; m1 shouldBe m2
@@ -227,7 +228,7 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("unknown WitTypeNode tag throws") {
     val raw = js.Dynamic.literal(tag = "unknown-type-tag", `val` = 0)
-    an[IllegalArgumentException] should be thrownBy WitTypeNode.fromDynamic(raw)
+    an[IllegalArgumentException] should be thrownBy WitTypeNode.fromJs(raw.asInstanceOf[JsWitTypeNode])
   }
 
   // --- ResourceMode ---
@@ -242,8 +243,8 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("NamedWitTypeNode with name and owner round-trip") {
     val node   = NamedWitTypeNode(Some("field"), Some("owner"), WitTypeNode.PrimStringType)
-    val dyn    = NamedWitTypeNode.toDynamic(node)
-    val parsed = NamedWitTypeNode.fromDynamic(dyn)
+    val jsNode = NamedWitTypeNode.toJs(node)
+    val parsed = NamedWitTypeNode.fromJs(jsNode)
     parsed.name shouldBe Some("field")
     parsed.owner shouldBe Some("owner")
     parsed.typeNode shouldBe WitTypeNode.PrimStringType
@@ -251,8 +252,8 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("NamedWitTypeNode with None name and owner round-trip") {
     val node   = NamedWitTypeNode(None, None, WitTypeNode.PrimS32Type)
-    val dyn    = NamedWitTypeNode.toDynamic(node)
-    val parsed = NamedWitTypeNode.fromDynamic(dyn)
+    val jsNode = NamedWitTypeNode.toJs(node)
+    val parsed = NamedWitTypeNode.fromJs(jsNode)
     parsed.name shouldBe None
     parsed.owner shouldBe None
     parsed.typeNode shouldBe WitTypeNode.PrimS32Type
@@ -268,8 +269,8 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
         WitNode.PrimBool(true)
       )
     )
-    val dyn    = WitValue.toDynamic(value)
-    val parsed = WitValue.fromDynamic(dyn)
+    val jsVal  = WitValue.toJs(value)
+    val parsed = WitValue.fromJs(jsVal)
     parsed.nodes.size shouldBe 3
     parsed.nodes(0) shouldBe WitNode.PrimString("hello")
     parsed.nodes(1) shouldBe WitNode.PrimS32(42)
@@ -285,8 +286,8 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
         NamedWitTypeNode(None, None, WitTypeNode.PrimS32Type)
       )
     )
-    val dyn    = WitType.toDynamic(wt)
-    val parsed = WitType.fromDynamic(dyn)
+    val jsWt   = WitType.toJs(wt)
+    val parsed = WitType.fromJs(jsWt)
     parsed.nodes.size shouldBe 2
     parsed.nodes(0).name shouldBe Some("name")
     parsed.nodes(0).typeNode shouldBe WitTypeNode.PrimStringType
@@ -306,8 +307,8 @@ class WitValueTypesRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val dyn    = ValueAndType.toDynamic(vat)
-    val parsed = ValueAndType.fromDynamic(dyn)
+    val jsVat  = ValueAndType.toJs(vat)
+    val parsed = ValueAndType.fromJs(jsVat)
     parsed.value.nodes.size shouldBe 2
     parsed.typ.nodes.size shouldBe 2
     parsed.value.nodes(0) shouldBe WitNode.PrimString("test")

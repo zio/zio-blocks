@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "rpc-client")
+@agentDefinition()
 @description("Demonstrates agent-to-agent RPC by calling Counter remotely.")
 trait RpcClient extends BaseAgent[String] {
   @description("Invoke Counter.increment remotely and return the result.")

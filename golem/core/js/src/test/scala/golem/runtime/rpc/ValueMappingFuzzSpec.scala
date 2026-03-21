@@ -1,6 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.GolemSchema
+import golem.host.js._
 import org.scalatest.funsuite.AnyFunSuite
 import zio.blocks.schema.Schema
 
@@ -57,8 +58,9 @@ final class ValueMappingFuzzSpec extends AnyFunSuite {
       var i = 0
       while (i < iterations) {
         val in     = gen
-        val params = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
-        val out    = RpcValueCodec.decodeValue[A](params(0)).fold(err => fail(err), identity)
+        val dataValue = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
+        val witValue  = dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
+        val out       = RpcValueCodec.decodeValue[A](witValue).fold(err => fail(err), identity)
         assert(out == in)
         i += 1
       }

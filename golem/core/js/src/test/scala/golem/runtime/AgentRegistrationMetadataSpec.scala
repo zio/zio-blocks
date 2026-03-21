@@ -10,7 +10,7 @@ import scala.concurrent.Future
 
 final class AgentRegistrationMetadataSpec extends AnyFunSuite {
 
-  @agentDefinition("meta-agent")
+  @agentDefinition()
   @description("An agent used for metadata tests.")
   trait MetaAgent extends BaseAgent[Unit] {
     @description("Echoes input.")
@@ -76,7 +76,7 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   // Ephemeral mode
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
+  @agentDefinition(mode = DurabilityMode.Ephemeral)
   trait EphemeralMetaAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
@@ -100,7 +100,7 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   final case class MetaConfig(host: String, port: Int)
   object MetaConfig { implicit val schema: Schema[MetaConfig] = Schema.derived }
 
-  @agentDefinition("ctor-meta-agent")
+  @agentDefinition()
   @description("Agent with case class constructor.")
   trait CtorMetaAgent extends BaseAgent[MetaConfig] {
     def info(): Future[String]
@@ -127,7 +127,7 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   // Explicit Durable mode
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
+  @agentDefinition(mode = DurabilityMode.Durable)
   trait ExplicitDurableAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
@@ -151,19 +151,19 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   test("echo method inputSchema has tuple tag") {
     val echo  = defn.methodMetadata.find(_.metadata.name == "echo").get
     val input = echo.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(input.tag == "tuple")
   }
 
   test("echo method outputSchema has tuple tag") {
     val echo   = defn.methodMetadata.find(_.metadata.name == "echo").get
     val output = echo.outputSchema
-    assert(output.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(output.tag == "tuple")
   }
 
   test("add method inputSchema has tuple tag with elements") {
     val add   = defn.methodMetadata.find(_.metadata.name == "add").get
     val input = add.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(input.tag == "tuple")
   }
 
   // ---------------------------------------------------------------------------

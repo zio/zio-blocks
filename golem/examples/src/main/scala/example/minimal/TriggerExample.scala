@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "trigger-target")
+@agentDefinition()
 @description("Target agent whose methods are called via trigger (fire-and-forget).")
 trait TriggerTarget extends BaseAgent[String] {
 
@@ -18,7 +18,7 @@ trait TriggerTarget extends BaseAgent[String] {
 
 object TriggerTarget extends AgentCompanion[TriggerTarget, String]
 
-@agentDefinition(typeName = "trigger-caller")
+@agentDefinition()
 @description("Calls TriggerTarget methods via trigger (fire-and-forget) and schedule.")
 trait TriggerCaller extends BaseAgent[String] {
 

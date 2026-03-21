@@ -8,9 +8,8 @@ set -euo pipefail
 # - When upgrading Golem, regenerating the guest runtime avoids mysterious linker/discovery failures.
 #
 # This script:
-# 1) uses a local `golem` WIT directory for a chosen tag (default: v1.4.1)
-#    (set GOLEM_WIT_DIR to override)
-# 2) stages a WIT package for `golem:agent` (using a static agent.wit + deps)
+# 1) resolves WIT dependencies using `wit-deps` (from wit/deps.toml)
+# 2) stages a WIT package for `golem:agent-guest` (using wit/main.wit + wit/deps/)
 # 3) runs `wasm-rquickjs generate-wrapper-crate` (injecting `@composition` for golem-cli)
 #    Note: unlike the TS SDK, we do NOT embed a separate SDK JS module here.
 #    Scala.js bundles the SDK into the user's `scala.js`, which golem-cli injects later.
@@ -18,78 +17,80 @@ set -euo pipefail
 # 5) updates embedded plugin resources (used by sbt/mill plugins).
 #
 # Requirements:
-# - `curl`, `tar`
+# - `wit-deps` (cargo install wit-deps-cli)
 # - `wasm-rquickjs` (from crate `wasm-rquickjs-cli`)
 # - Rust toolchain + `cargo-component` (installed by `cargo install cargo-component`)
 #
 # Usage:
-#   ./golem/tools/generate-agent-guest-wasm.sh              # defaults to v1.4.1
-#   ./golem/tools/generate-agent-guest-wasm.sh v1.4.1
+#   ./golem/tools/generate-agent-guest-wasm.sh
 #
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 
-tag="${1:-v1.4.1}"
+REQUIRED_WASM_RQUICKJS_VERSION="0.1.0"
 
+actual_version="$(wasm-rquickjs --version 2>/dev/null || true)"
+if [[ -z "$actual_version" ]]; then
+  echo "[agent-guest] ERROR: wasm-rquickjs not found. Install it with: cargo install wasm-rquickjs-cli@${REQUIRED_WASM_RQUICKJS_VERSION}" >&2
+  exit 1
+fi
+if [[ "$actual_version" != *"$REQUIRED_WASM_RQUICKJS_VERSION"* ]]; then
+  echo "[agent-guest] ERROR: wasm-rquickjs version mismatch." >&2
+  echo "[agent-guest]   Required: $REQUIRED_WASM_RQUICKJS_VERSION" >&2
+  echo "[agent-guest]   Found:    $actual_version" >&2
+  echo "[agent-guest]   Fix with: cargo install wasm-rquickjs-cli@${REQUIRED_WASM_RQUICKJS_VERSION}" >&2
+  exit 1
+fi
+
+wit_dir="$repo_root/golem/wit"
 gen_dir="$repo_root/.generated"
-wit_dir="${GOLEM_WIT_DIR:-$repo_root/golem/tools/wit-${tag}/wit}"
-agent_wit_root="$gen_dir/agent-wit-root-${tag}"
-agent_wit_template="$repo_root/golem/tools/agent-wit/agent.wit"
-wrapper_dir="$gen_dir/agent-guest-wrapper-${tag}"
+agent_wit_root="$gen_dir/agent-wit-root"
+wrapper_dir="$gen_dir/agent-guest-wrapper"
 out_wasm="$wrapper_dir/target/wasm32-wasip1/release/agent_guest.wasm"
 
 echo "[agent-guest] repo_root=$repo_root" >&2
-echo "[agent-guest] tag=$tag" >&2
 
 mkdir -p "$gen_dir"
 
-if [[ ! -d "$wit_dir" ]]; then
-  echo "[agent-guest] ERROR: golem WIT dir not found: $wit_dir" >&2
-  echo "[agent-guest] Provide a local WIT checkout via GOLEM_WIT_DIR or vendor it at $repo_root/golem/tools/wit-${tag}/wit" >&2
+if [[ ! -f "$wit_dir/main.wit" ]]; then
+  echo "[agent-guest] ERROR: missing WIT definition at $wit_dir/main.wit" >&2
   exit 1
 fi
-echo "[agent-guest] Using local WIT dir: $wit_dir" >&2
 
-echo "[agent-guest] Staging WIT package for golem:agent..." >&2
+echo "[agent-guest] Resolving WIT dependencies..." >&2
+( cd "$repo_root/golem" && wit-deps update )
+
+echo "[agent-guest] Staging WIT package for golem:agent-guest..." >&2
 rm -rf "$agent_wit_root"
+mkdir -p "$agent_wit_root"
+
+cp "$wit_dir/main.wit" "$agent_wit_root/main.wit"
 mkdir -p "$agent_wit_root/deps"
+for dep in "$wit_dir"/deps/*/; do
+  dep_name="$(basename "$dep")"
+  # Skip the 'all' directory — it contains the golem repo's root host.wit which
+  # declares an older golem:api version and conflicts with the actual deps.
+  [[ "$dep_name" == "all" ]] && continue
+  cp -r "$dep" "$agent_wit_root/deps/$dep_name"
+done
 
-if [[ ! -f "$agent_wit_template" ]]; then
-  echo "[agent-guest] ERROR: missing WIT template at $agent_wit_template" >&2
-  exit 1
-fi
-
-cp "$agent_wit_template" "$agent_wit_root/agent.wit"
-
-cp -r "$wit_dir/deps/golem-rpc" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/golem-1.x" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/golem-rdbms" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/golem-durability" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/clocks" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/io" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/logging" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/cli" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/filesystem" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/random" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/sockets" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/blobstore" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/keyvalue" "$agent_wit_root/deps/"
-cp -r "$wit_dir/deps/config" "$agent_wit_root/deps/"
-
-# AI WIT packages are not part of the golem v1.4.1 WIT tarball; we vendor the stable definitions we need.
-cp -r "$repo_root/golem/tools/wit-ai/golem-llm" "$agent_wit_root/deps/"
-cp -r "$repo_root/golem/tools/wit-ai/golem-web-search" "$agent_wit_root/deps/"
-cp -r "$repo_root/golem/tools/wit-ai/golem-embed" "$agent_wit_root/deps/"
-cp -r "$repo_root/golem/tools/wit-ai/golem-graph" "$agent_wit_root/deps/"
-cp -r "$repo_root/golem/tools/wit-ai/golem-video-generation" "$agent_wit_root/deps/"
+dts_dir="$gen_dir/agent-guest-dts"
+echo "[agent-guest] Generating TypeScript d.ts definitions..." >&2
+rm -rf "$dts_dir"
+wasm-rquickjs generate-dts \
+  --wit "$agent_wit_root" \
+  --world golem:agent-guest/agent-guest \
+  --output "$dts_dir"
+echo "[agent-guest] TypeScript definitions written to $dts_dir" >&2
+ls -1 "$dts_dir"/*.d.ts 2>/dev/null | while read -r f; do echo "  $(basename "$f")"; done >&2
 
 echo "[agent-guest] Generating wrapper crate with wasm-rquickjs..." >&2
 rm -rf "$wrapper_dir"
 wasm-rquickjs generate-wrapper-crate \
   --wit "$agent_wit_root" \
-  --world golem:agent/agent-guest \
+  --world golem:agent-guest/agent-guest \
+  --js-modules "golem-scala-sdk=$gen_dir/golem-scala-sdk.mjs" \
   --js-modules "user=@composition" \
-  --js-modules "@composition=@composition" \
   --output "$wrapper_dir"
 
 echo "[agent-guest] Building guest runtime (cargo component build --release)..." >&2
@@ -112,5 +113,8 @@ echo "[agent-guest] Installing into plugin embedded resources..." >&2
 install -m 0644 "$out_wasm" "$repo_root/golem/sbt/src/main/resources/golem/wasm/agent_guest.wasm"
 install -m 0644 "$out_wasm" "$repo_root/golem/mill/resources/golem/wasm/agent_guest.wasm"
 
-echo "[agent-guest] Done." >&2
+echo "[agent-guest] Copying TypeScript d.ts definitions to golem/wit/dts/..." >&2
+rm -rf "$repo_root/golem/wit/dts"
+cp -r "$dts_dir" "$repo_root/golem/wit/dts"
 
+echo "[agent-guest] Done." >&2

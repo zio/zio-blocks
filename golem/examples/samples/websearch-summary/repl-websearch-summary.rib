@@ -1,4 +1,0 @@
-let r = research();
-let out = r.research("Are cucumbers healthy?");
-out
-

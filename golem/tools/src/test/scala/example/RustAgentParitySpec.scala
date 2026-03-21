@@ -114,7 +114,7 @@ final class RustAgentParitySpec extends AnyFunSuite {
     override def rpcCallTrigger(payload: String): Unit    = ()
   })
 
-  @agentDefinition("echo-agent")
+  @agentDefinition()
   @description("Rust-style Echo agent for metadata parity")
   trait EchoAgent {
     @prompt("Echo the provided message")
@@ -125,7 +125,7 @@ final class RustAgentParitySpec extends AnyFunSuite {
     def echoResult(value: EchoResult): Future[EchoResult]
   }
 
-  @agentDefinition(typeName = "ephemeral-agent", mode = DurabilityMode.Ephemeral)
+  @agentDefinition(mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent {
     def ping(): Future[String]
   }
@@ -184,19 +184,19 @@ final class RustAgentParitySpec extends AnyFunSuite {
     assert(durableExplicitImplType.metadata.mode.forall(_ == "durable"))
   }
 
-  @agentDefinition("durable-default-agent")
+  @agentDefinition()
   trait DurableDefaultAgent { def ping(): Future[String] }
 
-  @agentDefinition(typeName = "durable-explicit-agent", mode = DurabilityMode.Durable)
+  @agentDefinition(mode = DurabilityMode.Durable)
   trait DurableExplicitAgent { def ping(): Future[String] }
 
-  @agentDefinition("snapshot-agent")
+  @agentDefinition()
   trait SnapshotAgent {
     def saveSnapshot(): Future[BinarySegment[VisionOnly]]
     def loadSnapshot(snapshot: BinarySegment[VisionOnly]): Unit
   }
 
-  @agentDefinition("rpc-parity-agent")
+  @agentDefinition()
   trait RpcParityAgent {
     def rpcCall(payload: String): Future[String]
     def rpcCallTrigger(payload: String): Unit

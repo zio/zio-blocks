@@ -1,3 +1,0 @@
-let explorer = host-api-explorer("explore-all");
-let result = explorer.explore-all();
-result

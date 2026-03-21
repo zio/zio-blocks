@@ -9,13 +9,8 @@ import scala.reflect.macros.blackbox
  * their companions are defined in the same compilation run.
  */
 object AgentCompanionMacro {
-  private def defaultTypeNameFromTrait(sym: scala.reflect.api.Universe#Symbol): String = {
-    val raw = sym.name.decodedName.toString
-    raw
-      .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-      .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-      .toLowerCase
-  }
+  private def defaultTypeNameFromTrait(sym: scala.reflect.api.Universe#Symbol): String =
+    sym.name.decodedName.toString
 
   private def prefixTraitAndInput(c: blackbox.Context): (c.universe.Type, c.universe.Type) = {
     import c.universe._

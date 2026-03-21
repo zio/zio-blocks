@@ -16,7 +16,7 @@ object CreateTaskRequest {
   implicit val schema: Schema[CreateTaskRequest] = Schema.derived
 }
 
-@agentDefinition(typeName = "tasks")
+@agentDefinition()
 @description("A simple agent demonstrating JSON API support (Scala equivalent of the Rust/TS JSON template).")
 trait Tasks extends BaseAgent[String] {
 

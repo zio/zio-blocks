@@ -286,7 +286,7 @@ components:
 
 The Scala SDK exposes host APIs in two layers:
 
-1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.3.0`).
+1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.5.0`).
 2) **Raw host modules** (forward-compatible, mirrors JS/WIT surface):
    - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`, `golem.host.Rdbms`
 

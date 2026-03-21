@@ -1,6 +1,7 @@
 package golem.runtime.autowire
 
 import golem.data.GolemSchema
+import golem.host.js._
 import golem.runtime.MethodMetadata
 import golem.runtime.util.FutureInterop
 
@@ -11,11 +12,11 @@ import scala.scalajs.js
 trait MethodBinding[Instance] {
   def metadata: MethodMetadata
 
-  def inputSchema: js.Dynamic
+  def inputSchema: JsDataSchema
 
-  def outputSchema: js.Dynamic
+  def outputSchema: JsDataSchema
 
-  def invoke(instance: Instance, payload: js.Dynamic): js.Promise[js.Dynamic]
+  def invoke(instance: Instance, payload: JsDataValue): js.Promise[JsDataValue]
 }
 
 object MethodBinding {
@@ -28,11 +29,11 @@ object MethodBinding {
     handler: (Instance, In) => Future[Out]
   )(implicit inSchema: GolemSchema[In], outSchema: GolemSchema[Out]): MethodBinding[Instance] =
     new MethodBinding[Instance] {
-      override val metadata: MethodMetadata = methodMetadata
-      override val inputSchema: js.Dynamic  = HostPayload.schema[In]
-      override val outputSchema: js.Dynamic = HostPayload.schema[Out]
+      override val metadata: MethodMetadata  = methodMetadata
+      override val inputSchema: JsDataSchema  = HostPayload.schema[In]
+      override val outputSchema: JsDataSchema = HostPayload.schema[Out]
 
-      override def invoke(instance: Instance, payload: js.Dynamic): js.Promise[js.Dynamic] = {
+      override def invoke(instance: Instance, payload: JsDataValue): js.Promise[JsDataValue] = {
         val future =
           HostPayload
             .decode[In](payload)

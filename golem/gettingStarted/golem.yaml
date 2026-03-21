@@ -5,7 +5,7 @@ environments:
     server: local
 
 includes:
-- .generated/scala-js-template.yaml
+- ../scala-js-template.yaml
 
 components:
   scala:demo:

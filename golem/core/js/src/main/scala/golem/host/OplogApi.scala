@@ -1,13 +1,14 @@
 package golem.host
 
 import golem.HostApi
+import golem.host.js._
 import golem.runtime.rpc.host.AgentHostApi
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 
 /**
- * Scala.js facade for `golem:api/oplog@1.3.0`.
+ * Scala.js facade for `golem:api/oplog@1.5.0`.
  *
  * Provides typed access to the oplog via `GetOplog` and `SearchOplog`
  * resources. Each `OplogEntry` variant is a full Scala sealed trait case,
@@ -262,8 +263,17 @@ object OplogApi {
     beginIndex: OplogIndex
   )
 
+  final case class OplogProcessorCheckpointParameters(
+    timestamp: ContextApi.DateTime,
+    plugin: PluginInstallationDescription,
+    targetAgentId: AgentHostApi.AgentIdLiteral,
+    confirmedUpTo: OplogIndex,
+    sendingUpTo: OplogIndex,
+    lastBatchStart: OplogIndex
+  )
+
   // ---------------------------------------------------------------------------
-  // OplogEntry sealed trait — 37 variants
+  // OplogEntry sealed trait — 37+ variants
   // ---------------------------------------------------------------------------
 
   sealed trait OplogEntry extends Product with Serializable {
@@ -382,51 +392,75 @@ object OplogApi {
     final case class RolledBackRemoteTransaction(params: RemoteTransactionParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
+    final case class SnapshotEntry(ts: ContextApi.DateTime, data: Array[Byte], mimeType: String) extends OplogEntry {
+      def timestamp: ContextApi.DateTime = ts
+    }
+    final case class OplogProcessorCheckpoint(params: OplogProcessorCheckpointParameters) extends OplogEntry {
+      def timestamp: ContextApi.DateTime = params.timestamp
+    }
 
     // --- Parsing ---
 
-    def fromDynamic(raw: js.Dynamic): OplogEntry = {
-      val tag = raw.tag.asInstanceOf[String]
-      val v   = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
+    def fromJs(raw: js.Any): OplogEntry = {
+      val entry = raw.asInstanceOf[JsPublicOplogEntry]
+      val tag   = entry.tag
+      def v     = entry.asInstanceOf[JsPublicOplogEntryWithValue].value
       tag match {
-        case "create"                          => Create(parseCreateParameters(v))
-        case "imported-function-invoked"       => ImportedFunctionInvoked(parseImportedFunctionInvokedParameters(v))
-        case "exported-function-invoked"       => ExportedFunctionInvoked(parseExportedFunctionInvokedParameters(v))
-        case "exported-function-completed"     => ExportedFunctionCompleted(parseExportedFunctionCompletedParameters(v))
-        case "suspend"                         => Suspend(parseTimestamp(v))
-        case "error"                           => Error(parseErrorParameters(v))
-        case "no-op"                           => NoOp(parseTimestamp(v))
-        case "jump"                            => Jump(parseJumpParameters(v))
-        case "interrupted"                     => Interrupted(parseTimestamp(v))
-        case "exited"                          => Exited(parseTimestamp(v))
-        case "change-retry-policy"             => ChangeRetryPolicy(parseChangeRetryPolicyParameters(v))
-        case "begin-atomic-region"             => BeginAtomicRegion(parseTimestamp(v))
-        case "end-atomic-region"               => EndAtomicRegion(parseEndAtomicRegionParameters(v))
-        case "begin-remote-write"              => BeginRemoteWrite(parseTimestamp(v))
-        case "end-remote-write"                => EndRemoteWrite(parseEndRemoteWriteParameters(v))
-        case "pending-agent-invocation"        => PendingAgentInvocation(parsePendingAgentInvocationParameters(v))
-        case "pending-update"                  => PendingUpdate(parsePendingUpdateParameters(v))
-        case "successful-update"               => SuccessfulUpdate(parseSuccessfulUpdateParameters(v))
-        case "failed-update"                   => FailedUpdate(parseFailedUpdateParameters(v))
-        case "grow-memory"                     => GrowMemory(parseGrowMemoryParameters(v))
-        case "create-resource"                 => CreateResource(parseCreateResourceParameters(v))
-        case "drop-resource"                   => DropResource(parseDropResourceParameters(v))
-        case "log"                             => Log(parseLogParameters(v))
-        case "restart"                         => Restart(parseTimestamp(v))
-        case "activate-plugin"                 => ActivatePlugin(parseActivatePluginParameters(v))
-        case "deactivate-plugin"               => DeactivatePlugin(parseDeactivatePluginParameters(v))
-        case "revert"                          => Revert(parseRevertParameters(v))
-        case "cancel-invocation"               => CancelInvocation(parseCancelInvocationParameters(v))
-        case "start-span"                      => StartSpan(parseStartSpanParameters(v))
-        case "finish-span"                     => FinishSpan(parseFinishSpanParameters(v))
-        case "set-span-attribute"              => SetSpanAttribute(parseSetSpanAttributeParameters(v))
-        case "change-persistence-level"        => ChangePersistenceLevel(parseChangePersistenceLevelParameters(v))
-        case "begin-remote-transaction"        => BeginRemoteTransaction(parseBeginRemoteTransactionParameters(v))
-        case "pre-commit-remote-transaction"   => PreCommitRemoteTransaction(parseRemoteTransactionParameters(v))
-        case "pre-rollback-remote-transaction" => PreRollbackRemoteTransaction(parseRemoteTransactionParameters(v))
-        case "committed-remote-transaction"    => CommittedRemoteTransaction(parseRemoteTransactionParameters(v))
-        case "rolled-back-remote-transaction"  => RolledBackRemoteTransaction(parseRemoteTransactionParameters(v))
-        case other                             =>
+        case "create"                                                  => Create(parseCreateParameters(v.asInstanceOf[JsCreateParameters]))
+        case "host-call" | "imported-function-invoked"                 => ImportedFunctionInvoked(parseHostCallParameters(v.asInstanceOf[JsHostCallParameters]))
+        case "agent-invocation-started" | "exported-function-invoked"  => ExportedFunctionInvoked(parseAgentInvocationStartedParameters(v.asInstanceOf[JsAgentInvocationStartedParameters]))
+        case "agent-invocation-finished" | "exported-function-completed" => ExportedFunctionCompleted(parseAgentInvocationFinishedParameters(v.asInstanceOf[JsAgentInvocationFinishedParameters]))
+        case "suspend"                                                 => Suspend(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "error"                                                   => Error(parseErrorParameters(v.asInstanceOf[JsErrorParameters]))
+        case "no-op"                                                   => NoOp(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "jump"                                                    => Jump(parseJumpParameters(v.asInstanceOf[JsJumpParameters]))
+        case "interrupted"                                             => Interrupted(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "exited"                                                  => Exited(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "change-retry-policy"                                     => ChangeRetryPolicy(parseChangeRetryPolicyParameters(v.asInstanceOf[JsChangeRetryPolicyParameters]))
+        case "begin-atomic-region"                                     => BeginAtomicRegion(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "end-atomic-region"                                       => EndAtomicRegion(parseEndAtomicRegionParameters(v.asInstanceOf[JsEndAtomicRegionParameters]))
+        case "begin-remote-write"                                      => BeginRemoteWrite(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "end-remote-write"                                        => EndRemoteWrite(parseEndRemoteWriteParameters(v.asInstanceOf[JsEndRemoteWriteParameters]))
+        case "pending-agent-invocation"                                => PendingAgentInvocation(parsePendingAgentInvocationParameters(v.asInstanceOf[JsPendingAgentInvocationParameters]))
+        case "pending-update"                                          => PendingUpdate(parsePendingUpdateParameters(v.asInstanceOf[JsPendingUpdateParameters]))
+        case "successful-update"                                       => SuccessfulUpdate(parseSuccessfulUpdateParameters(v.asInstanceOf[JsSuccessfulUpdateParameters]))
+        case "failed-update"                                           => FailedUpdate(parseFailedUpdateParameters(v.asInstanceOf[JsFailedUpdateParameters]))
+        case "grow-memory"                                             => GrowMemory(parseGrowMemoryParameters(v.asInstanceOf[JsGrowMemoryParameters]))
+        case "create-resource"                                         => CreateResource(parseCreateResourceParameters(v.asInstanceOf[JsCreateResourceParameters]))
+        case "drop-resource"                                           => DropResource(parseDropResourceParameters(v.asInstanceOf[JsDropResourceParameters]))
+        case "log"                                                     => Log(parseLogParameters(v.asInstanceOf[JsLogParameters]))
+        case "restart"                                                 => Restart(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "activate-plugin"                                         => ActivatePlugin(parseActivatePluginParameters(v.asInstanceOf[JsActivatePluginParameters]))
+        case "deactivate-plugin"                                       => DeactivatePlugin(parseDeactivatePluginParameters(v.asInstanceOf[JsDeactivatePluginParameters]))
+        case "revert"                                                  => Revert(parseRevertParameters(v.asInstanceOf[JsRevertParameters]))
+        case "cancel-pending-invocation" | "cancel-invocation"         => CancelInvocation(parseCancelInvocationParameters(v.asInstanceOf[JsCancelPendingInvocationParameters]))
+        case "start-span"                                              => StartSpan(parseStartSpanParameters(v.asInstanceOf[JsStartSpanParameters]))
+        case "finish-span"                                             => FinishSpan(parseFinishSpanParameters(v.asInstanceOf[JsFinishSpanParameters]))
+        case "set-span-attribute"                                      => SetSpanAttribute(parseSetSpanAttributeParameters(v.asInstanceOf[JsSetSpanAttributeParameters]))
+        case "change-persistence-level"                                => ChangePersistenceLevel(parseChangePersistenceLevelParameters(v.asInstanceOf[JsChangePersistenceLevelParameters]))
+        case "begin-remote-transaction"                                => BeginRemoteTransaction(parseBeginRemoteTransactionParameters(v.asInstanceOf[JsBeginRemoteTransactionParameters]))
+        case "pre-commit-remote-transaction"                           => PreCommitRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "pre-rollback-remote-transaction"                         => PreRollbackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "committed-remote-transaction"                            => CommittedRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "rolled-back-remote-transaction"                          => RolledBackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "snapshot"                                                =>
+          val sp = v.asInstanceOf[JsSnapshotParameters]
+          SnapshotEntry(
+            ts = parseDateTime(sp.timestamp),
+            data = new scala.scalajs.js.typedarray.Int8Array(sp.data.buffer).toArray,
+            mimeType = sp.mimeType
+          )
+        case "oplog-processor-checkpoint"                              =>
+          val cp = v.asInstanceOf[JsOplogProcessorCheckpointParameters]
+          OplogProcessorCheckpoint(OplogProcessorCheckpointParameters(
+            timestamp = parseDateTime(cp.timestamp),
+            plugin = parsePluginInstallationDescription(cp.plugin),
+            targetAgentId = parseAgentId(cp.targetAgentId),
+            confirmedUpTo = BigInt(cp.confirmedUpTo.toString),
+            sendingUpTo = BigInt(cp.sendingUpTo.toString),
+            lastBatchStart = BigInt(cp.lastBatchStart.toString)
+          ))
+        case other                                                     =>
           throw new IllegalArgumentException(s"Unknown oplog entry tag: $other")
       }
     }
@@ -436,342 +470,326 @@ object OplogApi {
   // Parsing helpers
   // ---------------------------------------------------------------------------
 
-  private def parseDateTime(raw: js.Dynamic): ContextApi.DateTime = {
+  private def parseDateTime(raw: JsDatetime): ContextApi.DateTime = {
     val secs  = BigInt(raw.seconds.toString)
-    val nanos = BigInt(raw.nanoseconds.toString).toLong
+    val nanos = raw.nanoseconds.toLong
     ContextApi.DateTime(secs, nanos)
   }
 
-  private def parseTimestamp(raw: js.Dynamic): ContextApi.DateTime =
-    parseDateTime(raw.timestamp.asInstanceOf[js.Dynamic])
+  private def parseTimestamp(raw: JsOplogTimestamp): ContextApi.DateTime =
+    parseDateTime(raw.timestamp)
 
-  private def optString(raw: js.Dynamic, field: String): Option[String] = {
-    val v = raw.selectDynamic(field)
-    if (js.isUndefined(v) || v == null) None else Some(v.asInstanceOf[String])
-  }
-
-  private def optBigInt(raw: js.Dynamic, field: String): Option[BigInt] = {
-    val v = raw.selectDynamic(field)
-    if (js.isUndefined(v) || v == null) None else Some(BigInt(v.toString))
-  }
-
-  private def parseTupleListToMap(raw: js.Dynamic): Map[String, String] =
-    if (js.isUndefined(raw) || raw == null) Map.empty
-    else {
-      val arr = raw.asInstanceOf[js.Array[js.Tuple2[String, String]]]
-      arr.toSeq.map(t => t._1 -> t._2).toMap
-    }
-
-  private def parsePluginInstallationDescription(raw: js.Dynamic): PluginInstallationDescription =
+  private def parsePluginInstallationDescription(raw: JsPluginInstallationDescription): PluginInstallationDescription =
     PluginInstallationDescription(
-      name = raw.name.asInstanceOf[String],
-      version = raw.version.asInstanceOf[String],
-      parameters = parseTupleListToMap(raw.parameters)
+      name = raw.name,
+      version = raw.version,
+      parameters = raw.parameters.toSeq.map(t => t._1 -> t._2).toMap
     )
 
-  private def parseAgentId(raw: js.Dynamic): AgentHostApi.AgentIdLiteral =
+  private def parseAgentId(raw: JsAgentId): AgentHostApi.AgentIdLiteral =
     raw.asInstanceOf[AgentHostApi.AgentIdLiteral]
 
-  private def parseCreateParameters(raw: js.Dynamic): CreateParameters = {
-    val plugins = raw.initialActivePlugins.asInstanceOf[js.Array[js.Dynamic]]
-    val parent  = raw.parent
+  private def parseCreateParameters(raw: JsCreateParameters): CreateParameters =
     CreateParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       agentId = parseAgentId(raw.agentId),
       componentRevision = BigInt(raw.componentRevision.toString),
-      args = raw.args.asInstanceOf[js.Array[String]].toList,
-      env = parseTupleListToMap(raw.env),
+      args = raw.args.toList,
+      env = raw.env.toSeq.map(t => t._1 -> t._2).toMap,
       createdBy = raw.createdBy.toString,
       environmentId = raw.environmentId.toString,
-      parent =
-        if (js.isUndefined(parent) || parent == null) None else Some(parseAgentId(parent.asInstanceOf[js.Dynamic])),
+      parent = raw.parent.toOption.map(parseAgentId),
       componentSize = BigInt(raw.componentSize.toString),
       initialTotalLinearMemorySize = BigInt(raw.initialTotalLinearMemorySize.toString),
-      initialActivePlugins = plugins.toList.map(parsePluginInstallationDescription),
-      configVars = parseTupleListToMap(raw.configVars)
+      initialActivePlugins = raw.initialActivePlugins.toList.map(parsePluginInstallationDescription),
+      configVars = raw.configVars.toSeq.map(t => t._1 -> t._2).toMap
     )
-  }
 
-  private def parseImportedFunctionInvokedParameters(raw: js.Dynamic): ImportedFunctionInvokedParameters =
+  private def parseHostCallParameters(raw: JsHostCallParameters): ImportedFunctionInvokedParameters =
     ImportedFunctionInvokedParameters(
-      timestamp = parseTimestamp(raw),
-      functionName = raw.functionName.asInstanceOf[String],
-      request = WitValueTypes.ValueAndType.fromDynamic(raw.request.asInstanceOf[js.Dynamic]),
-      response = WitValueTypes.ValueAndType.fromDynamic(raw.response.asInstanceOf[js.Dynamic]),
-      wrappedFunctionType =
-        DurabilityApi.DurableFunctionType.fromDynamic(raw.wrappedFunctionType.asInstanceOf[js.Dynamic])
+      timestamp = parseDateTime(raw.timestamp),
+      functionName = raw.functionName,
+      request = WitValueTypes.ValueAndType.fromJs(raw.request),
+      response = WitValueTypes.ValueAndType.fromJs(raw.response),
+      wrappedFunctionType = DurabilityApi.DurableFunctionType.fromJs(raw.wrappedFunctionType)
     )
 
-  private def parseSpanData(raw: js.Dynamic): SpanData = {
-    val tag = raw.tag.asInstanceOf[String]
-    val v   = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
-    tag match {
+  private def parseSpanData(raw: JsSpanData): SpanData =
+    raw.tag match {
       case "local-span" =>
-        val attrs =
-          if (js.isUndefined(v.attributes) || v.attributes == null) Nil
-          else
-            v.attributes.asInstanceOf[js.Array[js.Dynamic]].toList.map { a =>
-              ContextApi.Attribute(
-                a.key.asInstanceOf[String],
-                ContextApi.AttributeValue.fromDynamic(a.value.asInstanceOf[js.Dynamic])
-              )
-            }
+        val v = raw.asInstanceOf[JsSpanDataLocalSpan].value
         SpanData.LocalSpan(
           LocalSpanData(
-            spanId = v.spanId.asInstanceOf[String],
-            start = parseDateTime(v.start.asInstanceOf[js.Dynamic]),
-            parent = optString(v, "parent"),
-            linkedContext = optBigInt(v, "linkedContext"),
-            attributes = attrs,
-            inherited = v.inherited.asInstanceOf[Boolean]
+            spanId = v.spanId,
+            start = parseDateTime(v.start),
+            parent = v.parent.toOption,
+            linkedContext = v.linkedContext.toOption.map(bi => BigInt(bi.toString)),
+            attributes = v.attributes.toList.map { a =>
+              ContextApi.Attribute(a.key, ContextApi.AttributeValue.fromJs(a.value))
+            },
+            inherited = v.inherited
           )
         )
       case "external-span" =>
-        SpanData.ExternalSpan(ExternalSpanData(v.spanId.asInstanceOf[String]))
+        val v = raw.asInstanceOf[JsSpanDataExternalSpan].value
+        SpanData.ExternalSpan(ExternalSpanData(v.spanId))
       case other =>
         throw new IllegalArgumentException(s"Unknown SpanData tag: $other")
     }
+
+  private def parseSpanDataLists(raw: js.Array[js.Array[JsSpanData]]): List[List[SpanData]] =
+    raw.toList.map(_.toList.map(parseSpanData))
+
+  private def parseAgentInvocationStartedParameters(raw: JsAgentInvocationStartedParameters): ExportedFunctionInvokedParameters = {
+    val inv    = raw.invocation
+    val invVal = inv.asInstanceOf[JsAgentInvocationWithValue].value
+    inv.tag match {
+      case "agent-method-invocation" | "exported-function" =>
+        val p = invVal.asInstanceOf[JsAgentMethodInvocationParameters]
+        ExportedFunctionInvokedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = p.methodName,
+          request = {
+            val fi = p.functionInput.asInstanceOf[js.Any]
+            if (js.isUndefined(fi) || fi == null) Nil
+            else List(WitValueTypes.ValueAndType.fromJs(fi.asInstanceOf[JsValueAndType]))
+          },
+          idempotencyKey = p.idempotencyKey,
+          traceId = p.traceId,
+          traceStates = p.traceStates.toList,
+          invocationContext = parseSpanDataLists(p.invocationContext)
+        )
+      case "agent-initialization" =>
+        val p = invVal.asInstanceOf[JsAgentInitializationParameters]
+        ExportedFunctionInvokedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = "<agent-initialization>",
+          request = Nil,
+          idempotencyKey = p.idempotencyKey,
+          traceId = p.traceId,
+          traceStates = p.traceStates.toList,
+          invocationContext = parseSpanDataLists(p.invocationContext)
+        )
+      case other =>
+        ExportedFunctionInvokedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = s"<$other>",
+          request = Nil,
+          idempotencyKey = "",
+          traceId = "",
+          traceStates = Nil,
+          invocationContext = Nil
+        )
+    }
   }
 
-  private def parseSpanDataLists(raw: js.Dynamic): List[List[SpanData]] =
-    if (js.isUndefined(raw) || raw == null) Nil
-    else {
-      raw.asInstanceOf[js.Array[js.Dynamic]].toList.map { inner =>
-        inner.asInstanceOf[js.Array[js.Dynamic]].toList.map(parseSpanData)
-      }
+  private def parseAgentInvocationFinishedParameters(raw: JsAgentInvocationFinishedParameters): ExportedFunctionCompletedParameters = {
+    val result    = raw.invocationResult
+    val resultVal = result.asInstanceOf[JsAgentInvocationResultWithValue].value
+    val response  = result.tag match {
+      case "agent-invocation-output" =>
+        val p = resultVal.asInstanceOf[JsAgentInvocationOutputParameters]
+        Some(WitValueTypes.ValueAndType.fromJs(p.output.asInstanceOf[JsValueAndType]))
+      case _ => None
     }
-
-  private def parseExportedFunctionInvokedParameters(raw: js.Dynamic): ExportedFunctionInvokedParameters =
-    ExportedFunctionInvokedParameters(
-      timestamp = parseTimestamp(raw),
-      functionName = raw.functionName.asInstanceOf[String],
-      request =
-        raw.request.asInstanceOf[js.Array[js.Dynamic]].toList.map(v => WitValueTypes.ValueAndType.fromDynamic(v)),
-      idempotencyKey = raw.idempotencyKey.asInstanceOf[String],
-      traceId = raw.traceId.asInstanceOf[String],
-      traceStates = raw.traceStates.asInstanceOf[js.Array[String]].toList,
-      invocationContext = parseSpanDataLists(raw.invocationContext)
-    )
-
-  private def parseExportedFunctionCompletedParameters(raw: js.Dynamic): ExportedFunctionCompletedParameters = {
-    val resp = raw.response
     ExportedFunctionCompletedParameters(
-      timestamp = parseTimestamp(raw),
-      response =
-        if (js.isUndefined(resp) || resp == null) None
-        else Some(WitValueTypes.ValueAndType.fromDynamic(resp.asInstanceOf[js.Dynamic])),
+      timestamp = parseDateTime(raw.timestamp),
+      response = response,
       consumedFuel = BigInt(raw.consumedFuel.toString).toLong
     )
   }
 
-  private def parseErrorParameters(raw: js.Dynamic): ErrorParameters =
+  private def parseErrorParameters(raw: JsErrorParameters): ErrorParameters =
     ErrorParameters(
-      timestamp = parseTimestamp(raw),
-      error = raw.error.asInstanceOf[String],
+      timestamp = parseDateTime(raw.timestamp),
+      error = raw.error,
       retryFrom = BigInt(raw.retryFrom.toString)
     )
 
-  private def parseJumpParameters(raw: js.Dynamic): JumpParameters =
+  private def parseJumpParameters(raw: JsJumpParameters): JumpParameters =
     JumpParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       jump = OplogRegion(BigInt(raw.jump.start.toString), BigInt(raw.jump.end.toString))
     )
 
-  private def parseChangeRetryPolicyParameters(raw: js.Dynamic): ChangeRetryPolicyParameters = {
-    val p         = raw.newPolicy.asInstanceOf[js.Dynamic]
-    val maxJitter = {
-      val mj = p.maxJitterFactor
-      if (js.isUndefined(mj) || mj == null) None else Some(mj.asInstanceOf[Double])
-    }
+  private def parseChangeRetryPolicyParameters(raw: JsChangeRetryPolicyParameters): ChangeRetryPolicyParameters = {
+    val p = raw.newPolicy
     ChangeRetryPolicyParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       newPolicy = HostApi.RetryPolicy(
-        maxAttempts = p.maxAttempts.asInstanceOf[Int],
+        maxAttempts = p.maxAttempts,
         minDelayNanos = BigInt(p.minDelay.toString),
         maxDelayNanos = BigInt(p.maxDelay.toString),
-        multiplier = p.multiplier.asInstanceOf[Double],
-        maxJitterFactor = maxJitter
+        multiplier = p.multiplier,
+        maxJitterFactor = p.maxJitterFactor.toOption
       )
     )
   }
 
-  private def parseEndAtomicRegionParameters(raw: js.Dynamic): EndAtomicRegionParameters =
+  private def parseEndAtomicRegionParameters(raw: JsEndAtomicRegionParameters): EndAtomicRegionParameters =
     EndAtomicRegionParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       beginIndex = BigInt(raw.beginIndex.toString)
     )
 
-  private def parseEndRemoteWriteParameters(raw: js.Dynamic): EndRemoteWriteParameters =
+  private def parseEndRemoteWriteParameters(raw: JsEndRemoteWriteParameters): EndRemoteWriteParameters =
     EndRemoteWriteParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       beginIndex = BigInt(raw.beginIndex.toString)
     )
 
-  private def parsePendingAgentInvocationParameters(raw: js.Dynamic): PendingAgentInvocationParameters = {
-    val inv      = raw.invocation.asInstanceOf[js.Dynamic]
-    val invTag   = inv.tag.asInstanceOf[String]
-    val invVal   = inv.selectDynamic("val").asInstanceOf[js.Dynamic]
-    val agentInv = invTag match {
-      case "exported-function" =>
-        val efInput  = invVal.input
-        val inputOpt =
-          if (js.isUndefined(efInput) || efInput == null) None
-          else Some(efInput.asInstanceOf[js.Array[js.Dynamic]].toList.map(WitValueTypes.ValueAndType.fromDynamic))
+  private def parsePendingAgentInvocationParameters(raw: JsPendingAgentInvocationParameters): PendingAgentInvocationParameters = {
+    val inv    = raw.invocation
+    val invVal = inv.asInstanceOf[JsAgentInvocationWithValue].value
+    val agentInv = inv.tag match {
+      case "agent-method-invocation" | "exported-function" =>
+        val p = invVal.asInstanceOf[JsAgentMethodInvocationParameters]
         AgentInvocation.ExportedFunction(
           ExportedFunctionInvocationParameters(
-            idempotencyKey = invVal.idempotencyKey.asInstanceOf[String],
-            functionName = invVal.functionName.asInstanceOf[String],
-            input = inputOpt,
-            traceId = invVal.traceId.asInstanceOf[String],
-            traceStates = invVal.traceStates.asInstanceOf[js.Array[String]].toList,
-            invocationContext = parseSpanDataLists(invVal.invocationContext)
+            idempotencyKey = p.idempotencyKey,
+            functionName = p.methodName,
+            input = Some(List(WitValueTypes.ValueAndType.fromJs(p.functionInput.asInstanceOf[JsValueAndType]))),
+            traceId = p.traceId,
+            traceStates = p.traceStates.toList,
+            invocationContext = parseSpanDataLists(p.invocationContext)
           )
         )
       case "manual-update" =>
-        AgentInvocation.ManualUpdate(BigInt(invVal.toString))
+        val p = invVal.asInstanceOf[JsManualUpdateParameters]
+        AgentInvocation.ManualUpdate(BigInt(p.targetRevision.toString))
       case other =>
         throw new IllegalArgumentException(s"Unknown AgentInvocation tag: $other")
     }
-    PendingAgentInvocationParameters(timestamp = parseTimestamp(raw), invocation = agentInv)
+    PendingAgentInvocationParameters(timestamp = parseDateTime(raw.timestamp), invocation = agentInv)
   }
 
-  private def parsePendingUpdateParameters(raw: js.Dynamic): PendingUpdateParameters = {
-    val desc    = raw.updateDescription.asInstanceOf[js.Dynamic]
-    val descTag = desc.tag.asInstanceOf[String]
-    val ud      = descTag match {
+  private def parsePendingUpdateParameters(raw: JsPendingUpdateParameters): PendingUpdateParameters = {
+    val desc = raw.updateDescription
+    val ud = desc.tag match {
       case "auto-update"    => UpdateDescription.AutoUpdate
       case "snapshot-based" =>
-        val arr = desc.selectDynamic("val").asInstanceOf[js.Array[Int]]
-        UpdateDescription.SnapshotBased(arr.toArray.map(_.toByte))
+        val snapshot = desc.asInstanceOf[JsUpdateDescriptionSnapshotBased].value
+        UpdateDescription.SnapshotBased(new scala.scalajs.js.typedarray.Int8Array(snapshot.data.buffer).toArray)
       case other =>
         throw new IllegalArgumentException(s"Unknown UpdateDescription tag: $other")
     }
     PendingUpdateParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       targetRevision = BigInt(raw.targetRevision.toString),
       updateDescription = ud
     )
   }
 
-  private def parseSuccessfulUpdateParameters(raw: js.Dynamic): SuccessfulUpdateParameters =
+  private def parseSuccessfulUpdateParameters(raw: JsSuccessfulUpdateParameters): SuccessfulUpdateParameters =
     SuccessfulUpdateParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       targetRevision = BigInt(raw.targetRevision.toString),
       newComponentSize = BigInt(raw.newComponentSize.toString),
-      newActivePlugins =
-        raw.newActivePlugins.asInstanceOf[js.Array[js.Dynamic]].toList.map(parsePluginInstallationDescription)
+      newActivePlugins = raw.newActivePlugins.toList.map(parsePluginInstallationDescription)
     )
 
-  private def parseFailedUpdateParameters(raw: js.Dynamic): FailedUpdateParameters =
+  private def parseFailedUpdateParameters(raw: JsFailedUpdateParameters): FailedUpdateParameters =
     FailedUpdateParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       targetRevision = BigInt(raw.targetRevision.toString),
-      details = optString(raw, "details")
+      details = raw.details.toOption
     )
 
-  private def parseGrowMemoryParameters(raw: js.Dynamic): GrowMemoryParameters =
+  private def parseGrowMemoryParameters(raw: JsGrowMemoryParameters): GrowMemoryParameters =
     GrowMemoryParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       delta = BigInt(raw.delta.toString)
     )
 
-  private def parseCreateResourceParameters(raw: js.Dynamic): CreateResourceParameters =
+  private def parseCreateResourceParameters(raw: JsCreateResourceParameters): CreateResourceParameters =
     CreateResourceParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       resourceId = BigInt(raw.resourceId.toString),
-      name = raw.name.asInstanceOf[String],
-      owner = raw.owner.asInstanceOf[String]
+      name = raw.name,
+      owner = raw.owner
     )
 
-  private def parseDropResourceParameters(raw: js.Dynamic): DropResourceParameters =
+  private def parseDropResourceParameters(raw: JsDropResourceParameters): DropResourceParameters =
     DropResourceParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       resourceId = BigInt(raw.resourceId.toString),
-      name = raw.name.asInstanceOf[String],
-      owner = raw.owner.asInstanceOf[String]
+      name = raw.name,
+      owner = raw.owner
     )
 
-  private def parseLogParameters(raw: js.Dynamic): LogParameters =
+  private def parseLogParameters(raw: JsLogParameters): LogParameters =
     LogParameters(
-      timestamp = parseTimestamp(raw),
-      level = LogLevel.fromString(raw.level.tag.asInstanceOf[String]),
-      context = raw.context.asInstanceOf[String],
-      message = raw.message.asInstanceOf[String]
+      timestamp = parseDateTime(raw.timestamp),
+      level = LogLevel.fromString(raw.level),
+      context = raw.context,
+      message = raw.message
     )
 
-  private def parseActivatePluginParameters(raw: js.Dynamic): ActivatePluginParameters =
+  private def parseActivatePluginParameters(raw: JsActivatePluginParameters): ActivatePluginParameters =
     ActivatePluginParameters(
-      timestamp = parseTimestamp(raw),
-      plugin = parsePluginInstallationDescription(raw.plugin.asInstanceOf[js.Dynamic])
+      timestamp = parseDateTime(raw.timestamp),
+      plugin = parsePluginInstallationDescription(raw.plugin)
     )
 
-  private def parseDeactivatePluginParameters(raw: js.Dynamic): DeactivatePluginParameters =
+  private def parseDeactivatePluginParameters(raw: JsDeactivatePluginParameters): DeactivatePluginParameters =
     DeactivatePluginParameters(
-      timestamp = parseTimestamp(raw),
-      plugin = parsePluginInstallationDescription(raw.plugin.asInstanceOf[js.Dynamic])
+      timestamp = parseDateTime(raw.timestamp),
+      plugin = parsePluginInstallationDescription(raw.plugin)
     )
 
-  private def parseRevertParameters(raw: js.Dynamic): RevertParameters =
+  private def parseRevertParameters(raw: JsRevertParameters): RevertParameters =
     RevertParameters(
-      timestamp = parseTimestamp(raw),
-      start = BigInt(raw.start.toString),
-      end = BigInt(raw.end.toString)
+      timestamp = parseDateTime(raw.timestamp),
+      start = BigInt(raw.droppedRegion.start.toString),
+      end = BigInt(raw.droppedRegion.end.toString)
     )
 
-  private def parseCancelInvocationParameters(raw: js.Dynamic): CancelInvocationParameters =
+  private def parseCancelInvocationParameters(raw: JsCancelPendingInvocationParameters): CancelInvocationParameters =
     CancelInvocationParameters(
-      timestamp = parseTimestamp(raw),
-      idempotencyKey = raw.idempotencyKey.asInstanceOf[String]
+      timestamp = parseDateTime(raw.timestamp),
+      idempotencyKey = raw.idempotencyKey
     )
 
-  private def parseStartSpanParameters(raw: js.Dynamic): StartSpanParameters = {
-    val attrs =
-      if (js.isUndefined(raw.attributes) || raw.attributes == null) Nil
-      else
-        raw.attributes.asInstanceOf[js.Array[js.Dynamic]].toList.map { a =>
-          ContextApi.Attribute(
-            a.key.asInstanceOf[String],
-            ContextApi.AttributeValue.fromDynamic(a.value.asInstanceOf[js.Dynamic])
-          )
-        }
+  private def parseStartSpanParameters(raw: JsStartSpanParameters): StartSpanParameters =
     StartSpanParameters(
-      timestamp = parseTimestamp(raw),
-      spanId = raw.spanId.asInstanceOf[String],
-      parent = optString(raw, "parent"),
-      linkedContext = optString(raw, "linkedContext"),
-      attributes = attrs
+      timestamp = parseDateTime(raw.timestamp),
+      spanId = raw.spanId,
+      parent = raw.parent.toOption,
+      linkedContext = raw.linkedContextId.toOption,
+      attributes = raw.attributes.toList.map { a =>
+        ContextApi.Attribute(a.key, ContextApi.AttributeValue.fromJs(a.value))
+      }
     )
-  }
 
-  private def parseFinishSpanParameters(raw: js.Dynamic): FinishSpanParameters =
+  private def parseFinishSpanParameters(raw: JsFinishSpanParameters): FinishSpanParameters =
     FinishSpanParameters(
-      timestamp = parseTimestamp(raw),
-      spanId = raw.spanId.asInstanceOf[String]
+      timestamp = parseDateTime(raw.timestamp),
+      spanId = raw.spanId
     )
 
-  private def parseSetSpanAttributeParameters(raw: js.Dynamic): SetSpanAttributeParameters =
+  private def parseSetSpanAttributeParameters(raw: JsSetSpanAttributeParameters): SetSpanAttributeParameters =
     SetSpanAttributeParameters(
-      timestamp = parseTimestamp(raw),
-      spanId = raw.spanId.asInstanceOf[String],
-      key = raw.key.asInstanceOf[String],
-      value = ContextApi.AttributeValue.fromDynamic(raw.value.asInstanceOf[js.Dynamic])
+      timestamp = parseDateTime(raw.timestamp),
+      spanId = raw.spanId,
+      key = raw.key,
+      value = ContextApi.AttributeValue.fromJs(raw.value)
     )
 
-  private def parseChangePersistenceLevelParameters(raw: js.Dynamic): ChangePersistenceLevelParameters =
+  private def parseChangePersistenceLevelParameters(raw: JsChangePersistenceLevelParameters): ChangePersistenceLevelParameters =
     ChangePersistenceLevelParameters(
-      timestamp = parseTimestamp(raw),
-      persistenceLevel = HostApi.PersistenceLevel.fromTag(raw.persistenceLevel.tag.asInstanceOf[String])
+      timestamp = parseDateTime(raw.timestamp),
+      persistenceLevel = HostApi.PersistenceLevel.fromTag(raw.persistenceLevel.tag)
     )
 
-  private def parseBeginRemoteTransactionParameters(raw: js.Dynamic): BeginRemoteTransactionParameters =
+  private def parseBeginRemoteTransactionParameters(raw: JsBeginRemoteTransactionParameters): BeginRemoteTransactionParameters =
     BeginRemoteTransactionParameters(
-      timestamp = parseTimestamp(raw),
-      transactionId = raw.transactionId.asInstanceOf[String]
+      timestamp = parseDateTime(raw.timestamp),
+      transactionId = raw.transactionId
     )
 
-  private def parseRemoteTransactionParameters(raw: js.Dynamic): RemoteTransactionParameters =
+  private def parseRemoteTransactionParameters(raw: JsRemoteTransactionParameters): RemoteTransactionParameters =
     RemoteTransactionParameters(
-      timestamp = parseTimestamp(raw),
+      timestamp = parseDateTime(raw.timestamp),
       beginIndex = BigInt(raw.beginIndex.toString)
     )
 
@@ -779,14 +797,14 @@ object OplogApi {
   // GetOplog resource
   // ---------------------------------------------------------------------------
 
-  final class GetOplog private (private val handle: js.Dynamic) {
+  final class GetOplog private (private val handle: JsGetOplog) {
 
     def getNext(): Option[List[OplogEntry]] = {
       val batch = handle.getNext()
       if (js.isUndefined(batch) || batch == null) None
       else {
-        val arr = batch.asInstanceOf[js.Array[js.Dynamic]]
-        Some(arr.toList.map(OplogEntry.fromDynamic))
+        val arr = batch.asInstanceOf[js.Array[js.Any]]
+        Some(arr.toList.map(OplogEntry.fromJs))
       }
     }
   }
@@ -795,7 +813,7 @@ object OplogApi {
     def apply(agentId: AgentHostApi.AgentIdLiteral, start: OplogIndex): GetOplog = {
       val ctor   = OplogModule.asInstanceOf[js.Dynamic].selectDynamic("GetOplog")
       val handle = js.Dynamic.newInstance(ctor)(agentId, js.BigInt(start.toString))
-      new GetOplog(handle)
+      new GetOplog(handle.asInstanceOf[JsGetOplog])
     }
   }
 
@@ -803,16 +821,16 @@ object OplogApi {
   // SearchOplog resource
   // ---------------------------------------------------------------------------
 
-  final class SearchOplog private (private val handle: js.Dynamic) {
+  final class SearchOplog private (private val handle: JsSearchOplog) {
 
     def getNext(): Option[List[(OplogIndex, OplogEntry)]] = {
       val batch = handle.getNext()
       if (js.isUndefined(batch) || batch == null) None
       else {
-        val arr = batch.asInstanceOf[js.Array[js.Tuple2[js.Any, js.Dynamic]]]
+        val arr = batch.asInstanceOf[js.Array[js.Tuple2[js.Any, js.Any]]]
         Some(arr.toList.map { t =>
           val idx   = BigInt(t._1.toString)
-          val entry = OplogEntry.fromDynamic(t._2)
+          val entry = OplogEntry.fromJs(t._2)
           (idx, entry)
         })
       }
@@ -823,7 +841,7 @@ object OplogApi {
     def apply(agentId: AgentHostApi.AgentIdLiteral, text: String): SearchOplog = {
       val ctor   = OplogModule.asInstanceOf[js.Dynamic].selectDynamic("SearchOplog")
       val handle = js.Dynamic.newInstance(ctor)(agentId, text)
-      new SearchOplog(handle)
+      new SearchOplog(handle.asInstanceOf[JsSearchOplog])
     }
   }
 
@@ -832,7 +850,17 @@ object OplogApi {
   // ---------------------------------------------------------------------------
 
   @js.native
-  @JSImport("golem:api/oplog@1.3.0", JSImport.Namespace)
+  private sealed trait JsGetOplog extends js.Object {
+    def getNext(): js.Any = js.native
+  }
+
+  @js.native
+  private sealed trait JsSearchOplog extends js.Object {
+    def getNext(): js.Any = js.native
+  }
+
+  @js.native
+  @JSImport("golem:api/oplog@1.5.0", JSImport.Namespace)
   private object OplogModule extends js.Object
 
   def raw: Any = OplogModule

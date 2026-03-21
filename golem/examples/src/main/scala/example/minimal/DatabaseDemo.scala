@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "database-demo")
+@agentDefinition()
 @description("Demonstrates typed Postgres and MySQL queries with fully typed parameters and results.")
 trait DatabaseDemo extends BaseAgent[String] {
 

@@ -16,17 +16,17 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   // Constructor patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("unit-ctor-agent", mode = DurabilityMode.Durable)
+  @agentDefinition(mode = DurabilityMode.Durable)
   trait UnitCtorAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
 
-  @agentDefinition("string-ctor-agent")
+  @agentDefinition()
   trait StringCtorAgent extends BaseAgent[String] {
     def echo(): Future[String]
   }
 
-  @agentDefinition("int-ctor-agent")
+  @agentDefinition()
   trait IntCtorAgent extends BaseAgent[Int] {
     def value(): Future[Int]
   }
@@ -34,27 +34,27 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   final case class MyConfig(host: String, port: Int)
   object MyConfig { implicit val schema: Schema[MyConfig] = Schema.derived }
 
-  @agentDefinition("case-class-ctor-agent")
+  @agentDefinition()
   trait CaseClassCtorAgent extends BaseAgent[MyConfig] {
     def info(): Future[String]
   }
 
-  @agentDefinition("tuple2-ctor-agent")
+  @agentDefinition()
   trait Tuple2CtorAgent extends BaseAgent[(String, Int)] {
     def combined(): Future[String]
   }
 
-  @agentDefinition("tuple3-ctor-agent")
+  @agentDefinition()
   trait Tuple3CtorAgent extends BaseAgent[(String, Int, Boolean)] {
     def all(): Future[String]
   }
 
-  @agentDefinition("tuple4-ctor-agent")
+  @agentDefinition()
   trait Tuple4CtorAgent extends BaseAgent[(String, Int, Boolean, Double)] {
     def data(): Future[String]
   }
 
-  @agentDefinition("tuple5-ctor-agent")
+  @agentDefinition()
   trait Tuple5CtorAgent extends BaseAgent[(String, Int, Boolean, Double, Long)] {
     def data(): Future[String]
   }
@@ -63,7 +63,7 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   // Method return type patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("return-types-agent")
+  @agentDefinition()
   trait ReturnTypesAgent extends BaseAgent[Unit] {
     def asyncString(): Future[String]
     def asyncInt(): Future[Int]
@@ -82,7 +82,7 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   final case class Nested(inner: String, count: Int)
   object Nested { implicit val schema: Schema[Nested] = Schema.derived }
 
-  @agentDefinition("param-types-agent")
+  @agentDefinition()
   trait ParamTypesAgent extends BaseAgent[Unit] {
     def singlePrimitive(s: String): Future[String]
     def multipleParams(a: String, b: Int, c: Boolean): Future[String]
@@ -155,7 +155,7 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   // Annotation patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition(typeName = "explicit-name-agent")
+  @agentDefinition()
   @description("An agent with explicit type name.")
   trait ExplicitNameAgent extends BaseAgent[Unit] {
     @description("Says hello.")

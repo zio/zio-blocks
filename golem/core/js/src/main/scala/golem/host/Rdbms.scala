@@ -1,18 +1,21 @@
 package golem.host
 
+import golem.host.js._
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.typedarray.Uint8Array
 
 /**
  * Scala.js facades for the Golem RDBMS host packages.
  *
- * Provides fully typed wrappers for `golem:rdbms/postgres@0.0.1`,
- * `golem:rdbms/mysql@0.0.1`, and shared types from `golem:rdbms/types@0.0.1`.
+ * Provides fully typed wrappers for `golem:rdbms/postgres@1.5.0`,
+ * `golem:rdbms/mysql@1.5.0`, and shared types from `golem:rdbms/types@1.5.0`.
  */
 object Rdbms {
 
   // ===========================================================================
-  // Shared types (golem:rdbms/types@0.0.1)
+  // Shared types (golem:rdbms/types@1.5.0)
   // ===========================================================================
 
   final case class DbDate(year: Int, month: Short, day: Short)
@@ -37,77 +40,74 @@ object Rdbms {
 
   // Parsing helpers for shared types
 
-  private def parseDbDate(raw: js.Dynamic): DbDate =
-    DbDate(raw.year.asInstanceOf[Int], raw.month.asInstanceOf[Short], raw.day.asInstanceOf[Short])
+  private def parseDbDate(raw: JsDbDate): DbDate =
+    DbDate(raw.year, raw.month.toShort, raw.day.toShort)
 
-  private def parseDbTime(raw: js.Dynamic): DbTime =
+  private def parseDbTime(raw: JsDbTime): DbTime =
     DbTime(
-      raw.hour.asInstanceOf[Short],
-      raw.minute.asInstanceOf[Short],
-      raw.second.asInstanceOf[Short],
-      raw.nanosecond.asInstanceOf[Double].toLong
+      raw.hour.toShort,
+      raw.minute.toShort,
+      raw.second.toShort,
+      raw.nanosecond.toLong
     )
 
-  private def parseDbTimestamp(raw: js.Dynamic): DbTimestamp =
-    DbTimestamp(parseDbDate(raw.date.asInstanceOf[js.Dynamic]), parseDbTime(raw.time.asInstanceOf[js.Dynamic]))
+  private def parseDbTimestamp(raw: JsDbTimestamp): DbTimestamp =
+    DbTimestamp(parseDbDate(raw.date), parseDbTime(raw.time))
 
-  private def parseDbTimestampTz(raw: js.Dynamic): DbTimestampTz =
-    DbTimestampTz(parseDbTimestamp(raw.timestamp.asInstanceOf[js.Dynamic]), raw.offset.asInstanceOf[Int])
+  private def parseDbTimestampTz(raw: JsDbTimestampTz): DbTimestampTz =
+    DbTimestampTz(parseDbTimestamp(raw.timestamp), raw.offset)
 
-  private def parseDbTimeTz(raw: js.Dynamic): DbTimeTz =
-    DbTimeTz(parseDbTime(raw.time.asInstanceOf[js.Dynamic]), raw.offset.asInstanceOf[Int])
+  private def parseDbTimeTz(raw: JsDbTimeTz): DbTimeTz =
+    DbTimeTz(parseDbTime(raw.time), raw.offset)
 
-  private def parseDbUuid(raw: js.Dynamic): DbUuid =
+  private def parseDbUuid(raw: JsDbUuid): DbUuid =
     DbUuid(BigInt(raw.highBits.toString), BigInt(raw.lowBits.toString))
 
-  private def parseIpAddress(raw: js.Dynamic): IpAddress = {
-    val tag = raw.tag.asInstanceOf[String]
-    val v   = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
-    tag match {
+  private def parseIpAddress(raw: JsIpAddress): IpAddress =
+    raw.tag match {
       case "ipv4" =>
-        val t = v.asInstanceOf[js.Tuple4[Short, Short, Short, Short]]
-        IpAddress.Ipv4(t._1, t._2, t._3, t._4)
+        val t = raw.asInstanceOf[JsIpAddressIpv4].value
+        IpAddress.Ipv4(t._1.toShort, t._2.toShort, t._3.toShort, t._4.toShort)
       case "ipv6" =>
-        val arr = v.asInstanceOf[js.Array[Int]]
+        val arr = raw.asInstanceOf[JsIpAddressIpv6].value
         IpAddress.Ipv6(arr(0), arr(1), arr(2), arr(3), arr(4), arr(5), arr(6), arr(7))
       case other =>
         throw new IllegalArgumentException(s"Unknown IpAddress tag: $other")
     }
+
+  private def parseMacAddress(raw: JsMacAddress): MacAddress = {
+    val o = raw.octets
+    MacAddress(o(0).toShort, o(1).toShort, o(2).toShort, o(3).toShort, o(4).toShort, o(5).toShort)
   }
 
-  private def parseMacAddress(raw: js.Dynamic): MacAddress = {
-    val o = raw.octets.asInstanceOf[js.Array[Short]]
-    MacAddress(o(0), o(1), o(2), o(3), o(4), o(5))
-  }
+  // toJs helpers for shared types
 
-  // toDynamic helpers for shared types
+  private def dbDateToJs(d: DbDate): JsDbDate =
+    JsDbDate(d.year, d.month.toInt, d.day.toInt)
 
-  private def dbDateToDynamic(d: DbDate): js.Dynamic =
-    js.Dynamic.literal(year = d.year, month = d.month, day = d.day)
+  private def dbTimeToJs(t: DbTime): JsDbTime =
+    JsDbTime(t.hour.toInt, t.minute.toInt, t.second.toInt, t.nanosecond.toInt)
 
-  private def dbTimeToDynamic(t: DbTime): js.Dynamic =
-    js.Dynamic.literal(hour = t.hour, minute = t.minute, second = t.second, nanosecond = t.nanosecond.toDouble)
+  private def dbTimestampToJs(ts: DbTimestamp): JsDbTimestamp =
+    JsDbTimestamp(dbDateToJs(ts.date), dbTimeToJs(ts.time))
 
-  private def dbTimestampToDynamic(ts: DbTimestamp): js.Dynamic =
-    js.Dynamic.literal(date = dbDateToDynamic(ts.date), time = dbTimeToDynamic(ts.time))
+  private def dbTimestampTzToJs(tstz: DbTimestampTz): JsDbTimestampTz =
+    JsDbTimestampTz(dbTimestampToJs(tstz.timestamp), tstz.offset)
 
-  private def dbTimestampTzToDynamic(tstz: DbTimestampTz): js.Dynamic =
-    js.Dynamic.literal(timestamp = dbTimestampToDynamic(tstz.timestamp), offset = tstz.offset)
+  private def dbTimeTzToJs(ttz: DbTimeTz): JsDbTimeTz =
+    JsDbTimeTz(dbTimeToJs(ttz.time), ttz.offset)
 
-  private def dbTimeTzToDynamic(ttz: DbTimeTz): js.Dynamic =
-    js.Dynamic.literal(time = dbTimeToDynamic(ttz.time), offset = ttz.offset)
+  private def dbUuidToJs(u: DbUuid): JsDbUuid =
+    JsDbUuid(js.BigInt(u.highBits.toString), js.BigInt(u.lowBits.toString))
 
-  private def dbUuidToDynamic(u: DbUuid): js.Dynamic =
-    js.Dynamic.literal(highBits = js.BigInt(u.highBits.toString), lowBits = js.BigInt(u.lowBits.toString))
-
-  private def ipAddressToDynamic(ip: IpAddress): js.Dynamic = ip match {
-    case IpAddress.Ipv4(a, b, c, d)             => js.Dynamic.literal(tag = "ipv4", `val` = js.Tuple4(a, b, c, d))
+  private def ipAddressToJs(ip: IpAddress): JsIpAddress = ip match {
+    case IpAddress.Ipv4(a, b, c, d)             => JsIpAddress.ipv4(a.toInt, b.toInt, c.toInt, d.toInt)
     case IpAddress.Ipv6(a, b, c, d, e, f, g, h) =>
-      js.Dynamic.literal(tag = "ipv6", `val` = js.Array(a, b, c, d, e, f, g, h))
+      JsIpAddress.ipv6(js.Array(a, b, c, d, e, f, g, h))
   }
 
-  private def macAddressToDynamic(m: MacAddress): js.Dynamic =
-    js.Dynamic.literal(octets = js.Array(m.a, m.b, m.c, m.d, m.e, m.f))
+  private def macAddressToJs(m: MacAddress): JsMacAddress =
+    JsMacAddress(js.Array(m.a.toInt, m.b.toInt, m.c.toInt, m.d.toInt, m.e.toInt, m.f.toInt))
 
   // ===========================================================================
   // MySQL db-value (36 variants)
@@ -152,44 +152,43 @@ object Rdbms {
     final case class Json(value: String)                 extends MysqlDbValue
     case object Null                                     extends MysqlDbValue
 
-    def fromDynamic(raw: js.Dynamic): MysqlDbValue = {
-      val tag = raw.tag.asInstanceOf[String]
-      tag match {
+    def fromJs(raw: JsMysqlDbValue): MysqlDbValue =
+      raw.tag match {
         case "null" => Null
         case _      =>
-          val v = raw.selectDynamic("val")
-          tag match {
+          val v = raw.asInstanceOf[JsMysqlDbValueWithValue].value
+          raw.tag match {
             case "boolean"            => BooleanVal(v.asInstanceOf[Boolean])
-            case "tinyint"            => TinyInt(v.asInstanceOf[Byte])
-            case "smallint"           => SmallInt(v.asInstanceOf[Short])
-            case "mediumint"          => MediumInt(v.asInstanceOf[Int])
-            case "int"                => IntVal(v.asInstanceOf[Int])
-            case "bigint"             => BigInt(v.asInstanceOf[Double].toLong)
-            case "tinyint-unsigned"   => TinyIntUnsigned(v.asInstanceOf[Short])
-            case "smallint-unsigned"  => SmallIntUnsigned(v.asInstanceOf[Int])
+            case "tinyint"            => TinyInt(v.asInstanceOf[Double].toByte)
+            case "smallint"           => SmallInt(v.asInstanceOf[Double].toShort)
+            case "mediumint"          => MediumInt(v.asInstanceOf[Double].toInt)
+            case "int"                => IntVal(v.asInstanceOf[Double].toInt)
+            case "bigint"             => BigInt(scala.BigInt(v.asInstanceOf[js.BigInt].toString).toLong)
+            case "tinyint-unsigned"   => TinyIntUnsigned(v.asInstanceOf[Double].toShort)
+            case "smallint-unsigned"  => SmallIntUnsigned(v.asInstanceOf[Double].toInt)
             case "mediumint-unsigned" => MediumIntUnsigned(v.asInstanceOf[Double].toLong)
             case "int-unsigned"       => IntUnsigned(v.asInstanceOf[Double].toLong)
-            case "bigint-unsigned"    => BigIntUnsigned(scala.BigInt(v.toString))
-            case "float"              => FloatVal(v.asInstanceOf[Float])
+            case "bigint-unsigned"    => BigIntUnsigned(scala.BigInt(v.asInstanceOf[js.BigInt].toString))
+            case "float"              => FloatVal(v.asInstanceOf[Double].toFloat)
             case "double"             => DoubleVal(v.asInstanceOf[Double])
             case "decimal"            => Decimal(v.asInstanceOf[String])
-            case "date"               => Date(parseDbDate(v.asInstanceOf[js.Dynamic]))
-            case "datetime"           => DateTime(parseDbTimestamp(v.asInstanceOf[js.Dynamic]))
-            case "timestamp"          => Timestamp(parseDbTimestamp(v.asInstanceOf[js.Dynamic]))
-            case "time"               => Time(parseDbTime(v.asInstanceOf[js.Dynamic]))
-            case "year"               => Year(v.asInstanceOf[Int])
+            case "date"               => Date(parseDbDate(v.asInstanceOf[JsDbDate]))
+            case "datetime"           => DateTime(parseDbTimestamp(v.asInstanceOf[JsDbTimestamp]))
+            case "timestamp"          => Timestamp(parseDbTimestamp(v.asInstanceOf[JsDbTimestamp]))
+            case "time"               => Time(parseDbTime(v.asInstanceOf[JsDbTime]))
+            case "year"               => Year(v.asInstanceOf[Double].toInt)
             case "fixchar"            => FixChar(v.asInstanceOf[String])
             case "varchar"            => VarChar(v.asInstanceOf[String])
             case "tinytext"           => TinyText(v.asInstanceOf[String])
             case "text"               => Text(v.asInstanceOf[String])
             case "mediumtext"         => MediumText(v.asInstanceOf[String])
             case "longtext"           => LongText(v.asInstanceOf[String])
-            case "binary"             => Binary(parseByteList(v))
-            case "varbinary"          => VarBinary(parseByteList(v))
-            case "tinyblob"           => TinyBlob(parseByteList(v))
-            case "blob"               => Blob(parseByteList(v))
-            case "mediumblob"         => MediumBlob(parseByteList(v))
-            case "longblob"           => LongBlob(parseByteList(v))
+            case "binary"             => Binary(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
+            case "varbinary"          => VarBinary(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
+            case "tinyblob"           => TinyBlob(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
+            case "blob"               => Blob(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
+            case "mediumblob"         => MediumBlob(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
+            case "longblob"           => LongBlob(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
             case "enumeration"        => Enumeration(v.asInstanceOf[String])
             case "set"                => SetVal(v.asInstanceOf[String])
             case "bit"                => Bit(v.asInstanceOf[js.Array[Boolean]].toList)
@@ -197,46 +196,49 @@ object Rdbms {
             case other                => throw new IllegalArgumentException(s"Unknown MySQL db-value tag: $other")
           }
       }
+
+    def fromDynamic(raw: js.Dynamic): MysqlDbValue = fromJs(raw.asInstanceOf[JsMysqlDbValue])
+
+    def toJs(v: MysqlDbValue): JsMysqlDbValue = v match {
+      case Null                 => JsMysqlDbValue.`null`
+      case BooleanVal(b)        => JsMysqlDbValue.boolean(b)
+      case TinyInt(n)           => JsMysqlDbValue.tinyint(n.toInt)
+      case SmallInt(n)          => JsMysqlDbValue.smallint(n.toInt)
+      case MediumInt(n)         => JsMysqlDbValue.mediumint(n)
+      case IntVal(n)            => JsMysqlDbValue.int(n)
+      case BigInt(n)            => JsMysqlDbValue.bigint(js.BigInt(n.toString))
+      case TinyIntUnsigned(n)   => JsMysqlDbValue.tinyintUnsigned(n.toInt)
+      case SmallIntUnsigned(n)  => JsMysqlDbValue.smallintUnsigned(n)
+      case MediumIntUnsigned(n) => JsMysqlDbValue.mediumintUnsigned(n.toInt)
+      case IntUnsigned(n)       => JsMysqlDbValue.intUnsigned(n.toInt)
+      case BigIntUnsigned(n)    => JsMysqlDbValue.bigintUnsigned(js.BigInt(n.toString))
+      case FloatVal(n)          => JsMysqlDbValue.float(n.toDouble)
+      case DoubleVal(n)         => JsMysqlDbValue.double(n)
+      case Decimal(s)           => JsMysqlDbValue.decimal(s)
+      case Date(d)              => JsMysqlDbValue.date(dbDateToJs(d))
+      case DateTime(ts)         => JsMysqlDbValue.datetime(dbTimestampToJs(ts))
+      case Timestamp(ts)        => JsMysqlDbValue.timestamp(dbTimestampToJs(ts))
+      case Time(t)              => JsMysqlDbValue.time(dbTimeToJs(t))
+      case Year(y)              => JsMysqlDbValue.year(y)
+      case FixChar(s)           => JsMysqlDbValue.fixchar(s)
+      case VarChar(s)           => JsMysqlDbValue.varchar(s)
+      case TinyText(s)          => JsMysqlDbValue.tinytext(s)
+      case Text(s)              => JsMysqlDbValue.text(s)
+      case MediumText(s)        => JsMysqlDbValue.mediumtext(s)
+      case LongText(s)          => JsMysqlDbValue.longtext(s)
+      case Binary(b)            => JsMysqlDbValue.binary(bytesToUint8Array(b))
+      case VarBinary(b)         => JsMysqlDbValue.varbinary(bytesToUint8Array(b))
+      case TinyBlob(b)          => JsMysqlDbValue.tinyblob(bytesToUint8Array(b))
+      case Blob(b)              => JsMysqlDbValue.blob(bytesToUint8Array(b))
+      case MediumBlob(b)        => JsMysqlDbValue.mediumblob(bytesToUint8Array(b))
+      case LongBlob(b)          => JsMysqlDbValue.longblob(bytesToUint8Array(b))
+      case Enumeration(s)       => JsMysqlDbValue.enumeration(s)
+      case SetVal(s)            => JsMysqlDbValue.set(s)
+      case Bit(bs)              => JsMysqlDbValue.bit(js.Array(bs: _*))
+      case Json(s)              => JsMysqlDbValue.json(s)
     }
 
-    def toDynamic(v: MysqlDbValue): js.Dynamic = v match {
-      case Null                 => js.Dynamic.literal(tag = "null")
-      case BooleanVal(b)        => js.Dynamic.literal(tag = "boolean", `val` = b)
-      case TinyInt(n)           => js.Dynamic.literal(tag = "tinyint", `val` = n)
-      case SmallInt(n)          => js.Dynamic.literal(tag = "smallint", `val` = n)
-      case MediumInt(n)         => js.Dynamic.literal(tag = "mediumint", `val` = n)
-      case IntVal(n)            => js.Dynamic.literal(tag = "int", `val` = n)
-      case BigInt(n)            => js.Dynamic.literal(tag = "bigint", `val` = n.toDouble)
-      case TinyIntUnsigned(n)   => js.Dynamic.literal(tag = "tinyint-unsigned", `val` = n)
-      case SmallIntUnsigned(n)  => js.Dynamic.literal(tag = "smallint-unsigned", `val` = n)
-      case MediumIntUnsigned(n) => js.Dynamic.literal(tag = "mediumint-unsigned", `val` = n.toDouble)
-      case IntUnsigned(n)       => js.Dynamic.literal(tag = "int-unsigned", `val` = n.toDouble)
-      case BigIntUnsigned(n)    => js.Dynamic.literal(tag = "bigint-unsigned", `val` = js.BigInt(n.toString))
-      case FloatVal(n)          => js.Dynamic.literal(tag = "float", `val` = n)
-      case DoubleVal(n)         => js.Dynamic.literal(tag = "double", `val` = n)
-      case Decimal(s)           => js.Dynamic.literal(tag = "decimal", `val` = s)
-      case Date(d)              => js.Dynamic.literal(tag = "date", `val` = dbDateToDynamic(d))
-      case DateTime(ts)         => js.Dynamic.literal(tag = "datetime", `val` = dbTimestampToDynamic(ts))
-      case Timestamp(ts)        => js.Dynamic.literal(tag = "timestamp", `val` = dbTimestampToDynamic(ts))
-      case Time(t)              => js.Dynamic.literal(tag = "time", `val` = dbTimeToDynamic(t))
-      case Year(y)              => js.Dynamic.literal(tag = "year", `val` = y)
-      case FixChar(s)           => js.Dynamic.literal(tag = "fixchar", `val` = s)
-      case VarChar(s)           => js.Dynamic.literal(tag = "varchar", `val` = s)
-      case TinyText(s)          => js.Dynamic.literal(tag = "tinytext", `val` = s)
-      case Text(s)              => js.Dynamic.literal(tag = "text", `val` = s)
-      case MediumText(s)        => js.Dynamic.literal(tag = "mediumtext", `val` = s)
-      case LongText(s)          => js.Dynamic.literal(tag = "longtext", `val` = s)
-      case Binary(b)            => js.Dynamic.literal(tag = "binary", `val` = byteListToDynamic(b))
-      case VarBinary(b)         => js.Dynamic.literal(tag = "varbinary", `val` = byteListToDynamic(b))
-      case TinyBlob(b)          => js.Dynamic.literal(tag = "tinyblob", `val` = byteListToDynamic(b))
-      case Blob(b)              => js.Dynamic.literal(tag = "blob", `val` = byteListToDynamic(b))
-      case MediumBlob(b)        => js.Dynamic.literal(tag = "mediumblob", `val` = byteListToDynamic(b))
-      case LongBlob(b)          => js.Dynamic.literal(tag = "longblob", `val` = byteListToDynamic(b))
-      case Enumeration(s)       => js.Dynamic.literal(tag = "enumeration", `val` = s)
-      case SetVal(s)            => js.Dynamic.literal(tag = "set", `val` = s)
-      case Bit(bs)              => js.Dynamic.literal(tag = "bit", `val` = js.Array(bs: _*))
-      case Json(s)              => js.Dynamic.literal(tag = "json", `val` = s)
-    }
+    def toDynamic(v: MysqlDbValue): js.Dynamic = toJs(v).asInstanceOf[js.Dynamic]
   }
 
   // ===========================================================================
@@ -318,97 +320,139 @@ object Rdbms {
 
   // Parsing helpers for Postgres supporting types
 
-  private def parseInt4Bound(raw: js.Dynamic): Int4Bound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => Int4Bound.Included(raw.selectDynamic("val").asInstanceOf[Int])
-      case "excluded"  => Int4Bound.Excluded(raw.selectDynamic("val").asInstanceOf[Int])
+  private def parseInt4Bound(raw: JsInt4Bound): Int4Bound =
+    raw.tag match {
+      case "included"  => Int4Bound.Included(raw.asInstanceOf[JsInt4BoundWithValue].value)
+      case "excluded"  => Int4Bound.Excluded(raw.asInstanceOf[JsInt4BoundWithValue].value)
       case "unbounded" => Int4Bound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown Int4Bound tag: $other")
     }
-  }
 
-  private def parseInt8Bound(raw: js.Dynamic): Int8Bound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => Int8Bound.Included(raw.selectDynamic("val").asInstanceOf[Double].toLong)
-      case "excluded"  => Int8Bound.Excluded(raw.selectDynamic("val").asInstanceOf[Double].toLong)
+  private def parseInt8Bound(raw: JsInt8Bound): Int8Bound =
+    raw.tag match {
+      case "included"  => Int8Bound.Included(scala.BigInt(raw.asInstanceOf[JsInt8BoundWithValue].value.toString).toLong)
+      case "excluded"  => Int8Bound.Excluded(scala.BigInt(raw.asInstanceOf[JsInt8BoundWithValue].value.toString).toLong)
       case "unbounded" => Int8Bound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown Int8Bound tag: $other")
     }
-  }
 
-  private def parseNumBound(raw: js.Dynamic): NumBound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => NumBound.Included(raw.selectDynamic("val").asInstanceOf[String])
-      case "excluded"  => NumBound.Excluded(raw.selectDynamic("val").asInstanceOf[String])
+  private def parseNumBound(raw: JsNumBound): NumBound =
+    raw.tag match {
+      case "included"  => NumBound.Included(raw.asInstanceOf[JsNumBoundWithValue].value)
+      case "excluded"  => NumBound.Excluded(raw.asInstanceOf[JsNumBoundWithValue].value)
       case "unbounded" => NumBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown NumBound tag: $other")
     }
-  }
 
-  private def parseTsBound(raw: js.Dynamic): TsBound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => TsBound.Included(parseDbTimestamp(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
-      case "excluded"  => TsBound.Excluded(parseDbTimestamp(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
+  private def parseTsBound(raw: JsTsBound): TsBound =
+    raw.tag match {
+      case "included"  => TsBound.Included(parseDbTimestamp(raw.asInstanceOf[JsTsBoundWithValue].value))
+      case "excluded"  => TsBound.Excluded(parseDbTimestamp(raw.asInstanceOf[JsTsBoundWithValue].value))
       case "unbounded" => TsBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown TsBound tag: $other")
     }
-  }
 
-  private def parseTsTzBound(raw: js.Dynamic): TsTzBound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => TsTzBound.Included(parseDbTimestampTz(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
-      case "excluded"  => TsTzBound.Excluded(parseDbTimestampTz(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
+  private def parseTsTzBound(raw: JsTsTzBound): TsTzBound =
+    raw.tag match {
+      case "included"  => TsTzBound.Included(parseDbTimestampTz(raw.asInstanceOf[JsTsTzBoundWithValue].value))
+      case "excluded"  => TsTzBound.Excluded(parseDbTimestampTz(raw.asInstanceOf[JsTsTzBoundWithValue].value))
       case "unbounded" => TsTzBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown TsTzBound tag: $other")
     }
-  }
 
-  private def parseDateBound(raw: js.Dynamic): DateBound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
-      case "included"  => DateBound.Included(parseDbDate(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
-      case "excluded"  => DateBound.Excluded(parseDbDate(raw.selectDynamic("val").asInstanceOf[js.Dynamic]))
+  private def parseDateBound(raw: JsDateBound): DateBound =
+    raw.tag match {
+      case "included"  => DateBound.Included(parseDbDate(raw.asInstanceOf[JsDateBoundWithValue].value))
+      case "excluded"  => DateBound.Excluded(parseDbDate(raw.asInstanceOf[JsDateBoundWithValue].value))
       case "unbounded" => DateBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown DateBound tag: $other")
     }
+
+  private def parsePgInterval(raw: JsPgInterval): PgInterval =
+    PgInterval(raw.months, raw.days, scala.BigInt(raw.microseconds.toString).toLong)
+
+  private def parsePgEnumeration(raw: JsPgEnumeration): PgEnumeration =
+    PgEnumeration(raw.name, raw.value)
+
+  private def parsePgComposite(raw: JsPgComposite): PgComposite = {
+    val vals = raw.values.toList.map(lazy_ => PostgresDbValue.fromJs(lazy_.get().asInstanceOf[JsPostgresDbValue]))
+    PgComposite(raw.name, vals)
   }
 
-  private def parsePgInterval(raw: js.Dynamic): PgInterval =
-    PgInterval(raw.months.asInstanceOf[Int], raw.days.asInstanceOf[Int], raw.microseconds.asInstanceOf[Double].toLong)
+  private def parsePgDomain(raw: JsPgDomain): PgDomain =
+    PgDomain(raw.name, PostgresDbValue.fromJs(raw.value.get().asInstanceOf[JsPostgresDbValue]))
 
-  private def parsePgEnumeration(raw: js.Dynamic): PgEnumeration =
-    PgEnumeration(raw.name.asInstanceOf[String], raw.value.asInstanceOf[String])
-
-  private def parsePgComposite(raw: js.Dynamic): PgComposite = {
-    val vals = raw.values.asInstanceOf[js.Array[js.Dynamic]].toList.map { lazy_ =>
-      PostgresDbValue.fromDynamic(lazy_.get().asInstanceOf[js.Dynamic])
-    }
-    PgComposite(raw.name.asInstanceOf[String], vals)
-  }
-
-  private def parsePgDomain(raw: js.Dynamic): PgDomain =
-    PgDomain(raw.name.asInstanceOf[String], PostgresDbValue.fromDynamic(raw.value.get().asInstanceOf[js.Dynamic]))
-
-  private def parsePgValueBound(raw: js.Dynamic): PgValueBound = {
-    val tag = raw.tag.asInstanceOf[String]
-    tag match {
+  private def parsePgValueBound(raw: JsValueBound): PgValueBound =
+    raw.tag match {
       case "included" =>
-        PgValueBound.Included(PostgresDbValue.fromDynamic(raw.selectDynamic("val").get().asInstanceOf[js.Dynamic]))
+        PgValueBound.Included(PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue]))
       case "excluded" =>
-        PgValueBound.Excluded(PostgresDbValue.fromDynamic(raw.selectDynamic("val").get().asInstanceOf[js.Dynamic]))
+        PgValueBound.Excluded(PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue]))
       case "unbounded" => PgValueBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown PgValueBound tag: $other")
     }
+
+  // toJs helpers for Postgres supporting types
+
+  private def int4BoundToJs(b: Int4Bound): JsInt4Bound = b match {
+    case Int4Bound.Included(v) => JsInt4Bound.included(v)
+    case Int4Bound.Excluded(v) => JsInt4Bound.excluded(v)
+    case Int4Bound.Unbounded   => JsInt4Bound.unbounded
   }
 
+  private def int4RangeToJs(r: Int4Range): JsInt4Range =
+    JsInt4Range(int4BoundToJs(r.start), int4BoundToJs(r.end))
+
+  private def int8BoundToJs(b: Int8Bound): JsInt8Bound = b match {
+    case Int8Bound.Included(v) => JsInt8Bound.included(js.BigInt(v.toString))
+    case Int8Bound.Excluded(v) => JsInt8Bound.excluded(js.BigInt(v.toString))
+    case Int8Bound.Unbounded   => JsInt8Bound.unbounded
+  }
+
+  private def int8RangeToJs(r: Int8Range): JsInt8Range =
+    JsInt8Range(int8BoundToJs(r.start), int8BoundToJs(r.end))
+
+  private def numBoundToJs(b: NumBound): JsNumBound = b match {
+    case NumBound.Included(v) => JsNumBound.included(v)
+    case NumBound.Excluded(v) => JsNumBound.excluded(v)
+    case NumBound.Unbounded   => JsNumBound.unbounded
+  }
+
+  private def numRangeToJs(r: NumRange): JsNumRange =
+    JsNumRange(numBoundToJs(r.start), numBoundToJs(r.end))
+
+  private def tsBoundToJs(b: TsBound): JsTsBound = b match {
+    case TsBound.Included(v) => JsTsBound.included(dbTimestampToJs(v))
+    case TsBound.Excluded(v) => JsTsBound.excluded(dbTimestampToJs(v))
+    case TsBound.Unbounded   => JsTsBound.unbounded
+  }
+
+  private def tsRangeToJs(r: TsRange): JsTsRange =
+    JsTsRange(tsBoundToJs(r.start), tsBoundToJs(r.end))
+
+  private def tsTzBoundToJs(b: TsTzBound): JsTsTzBound = b match {
+    case TsTzBound.Included(v) => JsTsTzBound.included(dbTimestampTzToJs(v))
+    case TsTzBound.Excluded(v) => JsTsTzBound.excluded(dbTimestampTzToJs(v))
+    case TsTzBound.Unbounded   => JsTsTzBound.unbounded
+  }
+
+  private def tsTzRangeToJs(r: TsTzRange): JsTsTzRange =
+    JsTsTzRange(tsTzBoundToJs(r.start), tsTzBoundToJs(r.end))
+
+  private def dateBoundToJs(b: DateBound): JsDateBound = b match {
+    case DateBound.Included(v) => JsDateBound.included(dbDateToJs(v))
+    case DateBound.Excluded(v) => JsDateBound.excluded(dbDateToJs(v))
+    case DateBound.Unbounded   => JsDateBound.unbounded
+  }
+
+  private def dateRangeToJs(r: DateRange): JsDateRange =
+    JsDateRange(dateBoundToJs(r.start), dateBoundToJs(r.end))
+
   // ===========================================================================
-  // Postgres db-value (43 variants)
+  // Postgres db-value (46 variants)
   // ===========================================================================
+
+  final case class PgSparseVec(dim: Int, indices: List[Int], values: List[Double])
 
   sealed trait PostgresDbValue extends Product with Serializable
   object PostgresDbValue {
@@ -453,166 +497,146 @@ object Rdbms {
     final case class Domain(value: PgDomain)               extends PostgresDbValue
     final case class PgArray(value: List[PostgresDbValue]) extends PostgresDbValue
     final case class Range(value: PgRange)                 extends PostgresDbValue
+    final case class Vector(value: List[Double])           extends PostgresDbValue
+    final case class HalfVec(value: List[Double])          extends PostgresDbValue
+    final case class SparseVec(value: PgSparseVec)         extends PostgresDbValue
     case object Null                                       extends PostgresDbValue
 
-    def fromDynamic(raw: js.Dynamic): PostgresDbValue = {
-      val tag = raw.tag.asInstanceOf[String]
-      tag match {
+    def fromJs(raw: JsPostgresDbValue): PostgresDbValue =
+      raw.tag match {
         case "null" => Null
         case _      =>
-          val v = raw.selectDynamic("val")
-          tag match {
-            case "character"   => Character(v.asInstanceOf[Byte])
-            case "int2"        => Int2(v.asInstanceOf[Short])
-            case "int4"        => Int4(v.asInstanceOf[Int])
-            case "int8"        => Int8(v.asInstanceOf[Double].toLong)
-            case "float4"      => Float4(v.asInstanceOf[Float])
+          val v = raw.asInstanceOf[JsPostgresDbValueWithValue].value
+          raw.tag match {
+            case "character"   => Character(v.asInstanceOf[Double].toByte)
+            case "int2"        => Int2(v.asInstanceOf[Double].toShort)
+            case "int4"        => Int4(v.asInstanceOf[Double].toInt)
+            case "int8"        => Int8(scala.BigInt(v.asInstanceOf[js.BigInt].toString).toLong)
+            case "float4"      => Float4(v.asInstanceOf[Double].toFloat)
             case "float8"      => Float8(v.asInstanceOf[Double])
             case "numeric"     => Numeric(v.asInstanceOf[String])
             case "boolean"     => BooleanVal(v.asInstanceOf[Boolean])
             case "text"        => Text(v.asInstanceOf[String])
             case "varchar"     => VarChar(v.asInstanceOf[String])
             case "bpchar"      => BpChar(v.asInstanceOf[String])
-            case "timestamp"   => Timestamp(parseDbTimestamp(v.asInstanceOf[js.Dynamic]))
-            case "timestamptz" => TimestampTz(parseDbTimestampTz(v.asInstanceOf[js.Dynamic]))
-            case "date"        => Date(parseDbDate(v.asInstanceOf[js.Dynamic]))
-            case "time"        => Time(parseDbTime(v.asInstanceOf[js.Dynamic]))
-            case "timetz"      => TimeTz(parseDbTimeTz(v.asInstanceOf[js.Dynamic]))
-            case "interval"    => Interval(parsePgInterval(v.asInstanceOf[js.Dynamic]))
-            case "bytea"       => Bytea(parseByteList(v))
+            case "timestamp"   => Timestamp(parseDbTimestamp(v.asInstanceOf[JsDbTimestamp]))
+            case "timestamptz" => TimestampTz(parseDbTimestampTz(v.asInstanceOf[JsDbTimestampTz]))
+            case "date"        => Date(parseDbDate(v.asInstanceOf[JsDbDate]))
+            case "time"        => Time(parseDbTime(v.asInstanceOf[JsDbTime]))
+            case "timetz"      => TimeTz(parseDbTimeTz(v.asInstanceOf[JsDbTimeTz]))
+            case "interval"    => Interval(parsePgInterval(v.asInstanceOf[JsPgInterval]))
+            case "bytea"       => Bytea(uint8ArrayToBytes(v.asInstanceOf[Uint8Array]))
             case "json"        => Json(v.asInstanceOf[String])
             case "jsonb"       => Jsonb(v.asInstanceOf[String])
             case "jsonpath"    => JsonPath(v.asInstanceOf[String])
             case "xml"         => Xml(v.asInstanceOf[String])
-            case "uuid"        => Uuid(parseDbUuid(v.asInstanceOf[js.Dynamic]))
-            case "inet"        => Inet(parseIpAddress(v.asInstanceOf[js.Dynamic]))
-            case "cidr"        => Cidr(parseIpAddress(v.asInstanceOf[js.Dynamic]))
-            case "macaddr"     => MacAddr(parseMacAddress(v.asInstanceOf[js.Dynamic]))
+            case "uuid"        => Uuid(parseDbUuid(v.asInstanceOf[JsDbUuid]))
+            case "inet"        => Inet(parseIpAddress(v.asInstanceOf[JsIpAddress]))
+            case "cidr"        => Cidr(parseIpAddress(v.asInstanceOf[JsIpAddress]))
+            case "macaddr"     => MacAddr(parseMacAddress(v.asInstanceOf[JsMacAddress]))
             case "bit"         => Bit(v.asInstanceOf[js.Array[Boolean]].toList)
             case "varbit"      => VarBit(v.asInstanceOf[js.Array[Boolean]].toList)
             case "int4range"   =>
-              val d = v.asInstanceOf[js.Dynamic]
-              Int4RangeVal(
-                Int4Range(
-                  parseInt4Bound(d.start.asInstanceOf[js.Dynamic]),
-                  parseInt4Bound(d.end.asInstanceOf[js.Dynamic])
-                )
-              )
+              val r = v.asInstanceOf[JsInt4Range]
+              Int4RangeVal(Int4Range(parseInt4Bound(r.start), parseInt4Bound(r.end)))
             case "int8range" =>
-              val d = v.asInstanceOf[js.Dynamic]
-              Int8RangeVal(
-                Int8Range(
-                  parseInt8Bound(d.start.asInstanceOf[js.Dynamic]),
-                  parseInt8Bound(d.end.asInstanceOf[js.Dynamic])
-                )
-              )
+              val r = v.asInstanceOf[JsInt8Range]
+              Int8RangeVal(Int8Range(parseInt8Bound(r.start), parseInt8Bound(r.end)))
             case "numrange" =>
-              val d = v.asInstanceOf[js.Dynamic]
-              NumRangeVal(
-                NumRange(parseNumBound(d.start.asInstanceOf[js.Dynamic]), parseNumBound(d.end.asInstanceOf[js.Dynamic]))
-              )
+              val r = v.asInstanceOf[JsNumRange]
+              NumRangeVal(NumRange(parseNumBound(r.start), parseNumBound(r.end)))
             case "tsrange" =>
-              val d = v.asInstanceOf[js.Dynamic]
-              TsRangeVal(
-                TsRange(parseTsBound(d.start.asInstanceOf[js.Dynamic]), parseTsBound(d.end.asInstanceOf[js.Dynamic]))
-              )
+              val r = v.asInstanceOf[JsTsRange]
+              TsRangeVal(TsRange(parseTsBound(r.start), parseTsBound(r.end)))
             case "tstzrange" =>
-              val d = v.asInstanceOf[js.Dynamic]
-              TsTzRangeVal(
-                TsTzRange(
-                  parseTsTzBound(d.start.asInstanceOf[js.Dynamic]),
-                  parseTsTzBound(d.end.asInstanceOf[js.Dynamic])
-                )
-              )
+              val r = v.asInstanceOf[JsTsTzRange]
+              TsTzRangeVal(TsTzRange(parseTsTzBound(r.start), parseTsTzBound(r.end)))
             case "daterange" =>
-              val d = v.asInstanceOf[js.Dynamic]
-              DateRangeVal(
-                DateRange(
-                  parseDateBound(d.start.asInstanceOf[js.Dynamic]),
-                  parseDateBound(d.end.asInstanceOf[js.Dynamic])
-                )
-              )
-            case "money"       => Money(v.asInstanceOf[Double].toLong)
+              val r = v.asInstanceOf[JsDateRange]
+              DateRangeVal(DateRange(parseDateBound(r.start), parseDateBound(r.end)))
+            case "money"       => Money(scala.BigInt(v.asInstanceOf[js.BigInt].toString).toLong)
             case "oid"         => Oid(v.asInstanceOf[Double].toLong)
-            case "enumeration" => Enumeration(parsePgEnumeration(v.asInstanceOf[js.Dynamic]))
-            case "composite"   => Composite(parsePgComposite(v.asInstanceOf[js.Dynamic]))
-            case "domain"      => Domain(parsePgDomain(v.asInstanceOf[js.Dynamic]))
+            case "enumeration" => Enumeration(parsePgEnumeration(v.asInstanceOf[JsPgEnumeration]))
+            case "composite"   => Composite(parsePgComposite(v.asInstanceOf[JsPgComposite]))
+            case "domain"      => Domain(parsePgDomain(v.asInstanceOf[JsPgDomain]))
             case "array"       =>
-              val arr = v.asInstanceOf[js.Array[js.Dynamic]].toList.map { lazy_ =>
-                fromDynamic(lazy_.get().asInstanceOf[js.Dynamic])
-              }
-              PgArray(arr)
+              PgArray(v.asInstanceOf[js.Array[JsLazyDbValue]].toList.map(lazy_ => fromJs(lazy_.get().asInstanceOf[JsPostgresDbValue])))
             case "range" =>
-              val d      = v.asInstanceOf[js.Dynamic]
-              val bounds = d.value.asInstanceOf[js.Dynamic]
-              Range(
-                PgRange(
-                  d.name.asInstanceOf[String],
-                  PgValuesRange(
-                    parsePgValueBound(bounds.start.asInstanceOf[js.Dynamic]),
-                    parsePgValueBound(bounds.end.asInstanceOf[js.Dynamic])
-                  )
-                )
-              )
+              val r = v.asInstanceOf[JsPgRange]
+              Range(PgRange(r.name, PgValuesRange(parsePgValueBound(r.value.start), parsePgValueBound(r.value.end))))
+            case "vector"    => Vector(v.asInstanceOf[js.Array[Double]].toList)
+            case "halfvec"   => HalfVec(v.asInstanceOf[js.Array[Double]].toList)
+            case "sparsevec" =>
+              val sv = v.asInstanceOf[JsPgSparseVec]
+              SparseVec(PgSparseVec(sv.dim, sv.indices.toList, sv.values.toList))
             case other => throw new IllegalArgumentException(s"Unknown Postgres db-value tag: $other")
           }
       }
+
+    def fromDynamic(raw: js.Dynamic): PostgresDbValue = fromJs(raw.asInstanceOf[JsPostgresDbValue])
+
+    def toJs(v: PostgresDbValue): JsPostgresDbValue = v match {
+      case Null              => JsPostgresDbValue.`null`
+      case Character(n)      => JsPostgresDbValue.character(n.toInt)
+      case Int2(n)           => JsPostgresDbValue.int2(n.toInt)
+      case Int4(n)           => JsPostgresDbValue.int4(n)
+      case Int8(n)           => JsPostgresDbValue.int8(js.BigInt(n.toString))
+      case Float4(n)         => JsPostgresDbValue.float4(n.toDouble)
+      case Float8(n)         => JsPostgresDbValue.float8(n)
+      case Numeric(s)        => JsPostgresDbValue.numeric(s)
+      case BooleanVal(b)     => JsPostgresDbValue.boolean(b)
+      case Text(s)           => JsPostgresDbValue.text(s)
+      case VarChar(s)        => JsPostgresDbValue.varchar(s)
+      case BpChar(s)         => JsPostgresDbValue.bpchar(s)
+      case Timestamp(ts)     => JsPostgresDbValue.timestamp(dbTimestampToJs(ts))
+      case TimestampTz(tstz) => JsPostgresDbValue.timestamptz(dbTimestampTzToJs(tstz))
+      case Date(d)           => JsPostgresDbValue.date(dbDateToJs(d))
+      case Time(t)           => JsPostgresDbValue.time(dbTimeToJs(t))
+      case TimeTz(ttz)       => JsPostgresDbValue.timetz(dbTimeTzToJs(ttz))
+      case Interval(i)       => JsPostgresDbValue.interval(JsPgInterval(i.months, i.days, js.BigInt(i.microseconds.toString)))
+      case Bytea(b)          => JsPostgresDbValue.bytea(bytesToUint8Array(b))
+      case Json(s)           => JsPostgresDbValue.json(s)
+      case Jsonb(s)          => JsPostgresDbValue.jsonb(s)
+      case JsonPath(s)       => JsPostgresDbValue.jsonpath(s)
+      case Xml(s)            => JsPostgresDbValue.xml(s)
+      case Uuid(u)           => JsPostgresDbValue.uuid(dbUuidToJs(u))
+      case Inet(ip)          => JsPostgresDbValue.inet(ipAddressToJs(ip))
+      case Cidr(ip)          => JsPostgresDbValue.cidr(ipAddressToJs(ip))
+      case MacAddr(m)        => JsPostgresDbValue.macaddr(macAddressToJs(m))
+      case Bit(bs)           => JsPostgresDbValue.bit(js.Array(bs: _*))
+      case VarBit(bs)        => JsPostgresDbValue.varbit(js.Array(bs: _*))
+      case Int4RangeVal(r)   => JsPostgresDbValue.int4range(int4RangeToJs(r))
+      case Int8RangeVal(r)   => JsPostgresDbValue.int8range(int8RangeToJs(r))
+      case NumRangeVal(r)    => JsPostgresDbValue.numrange(numRangeToJs(r))
+      case TsRangeVal(r)     => JsPostgresDbValue.tsrange(tsRangeToJs(r))
+      case TsTzRangeVal(r)   => JsPostgresDbValue.tstzrange(tsTzRangeToJs(r))
+      case DateRangeVal(r)   => JsPostgresDbValue.daterange(dateRangeToJs(r))
+      case Money(n)          => JsPostgresDbValue.money(js.BigInt(n.toString))
+      case Oid(n)            => JsPostgresDbValue.oid(n.toInt)
+      case Enumeration(e)    => JsPostgresDbValue.enumeration(JsPgEnumeration(e.name, e.value))
+      case Vector(v)         => JsPostgresDbValue.vector(js.Array(v: _*))
+      case HalfVec(v)        => JsPostgresDbValue.halfvec(js.Array(v: _*))
+      case SparseVec(sv)     => JsPostgresDbValue.sparsevec(JsPgSparseVec(sv.dim, js.Array(sv.indices: _*), js.Array(sv.values: _*)))
+      case _                 => throw new UnsupportedOperationException(s"toJs not yet implemented for: $v")
     }
 
-    def toDynamic(v: PostgresDbValue): js.Dynamic = v match {
-      case Null              => js.Dynamic.literal(tag = "null")
-      case Character(n)      => js.Dynamic.literal(tag = "character", `val` = n)
-      case Int2(n)           => js.Dynamic.literal(tag = "int2", `val` = n)
-      case Int4(n)           => js.Dynamic.literal(tag = "int4", `val` = n)
-      case Int8(n)           => js.Dynamic.literal(tag = "int8", `val` = n.toDouble)
-      case Float4(n)         => js.Dynamic.literal(tag = "float4", `val` = n)
-      case Float8(n)         => js.Dynamic.literal(tag = "float8", `val` = n)
-      case Numeric(s)        => js.Dynamic.literal(tag = "numeric", `val` = s)
-      case BooleanVal(b)     => js.Dynamic.literal(tag = "boolean", `val` = b)
-      case Text(s)           => js.Dynamic.literal(tag = "text", `val` = s)
-      case VarChar(s)        => js.Dynamic.literal(tag = "varchar", `val` = s)
-      case BpChar(s)         => js.Dynamic.literal(tag = "bpchar", `val` = s)
-      case Timestamp(ts)     => js.Dynamic.literal(tag = "timestamp", `val` = dbTimestampToDynamic(ts))
-      case TimestampTz(tstz) => js.Dynamic.literal(tag = "timestamptz", `val` = dbTimestampTzToDynamic(tstz))
-      case Date(d)           => js.Dynamic.literal(tag = "date", `val` = dbDateToDynamic(d))
-      case Time(t)           => js.Dynamic.literal(tag = "time", `val` = dbTimeToDynamic(t))
-      case TimeTz(ttz)       => js.Dynamic.literal(tag = "timetz", `val` = dbTimeTzToDynamic(ttz))
-      case Interval(i)       =>
-        js.Dynamic.literal(
-          tag = "interval",
-          `val` = js.Dynamic.literal(months = i.months, days = i.days, microseconds = i.microseconds.toDouble)
-        )
-      case Bytea(b)       => js.Dynamic.literal(tag = "bytea", `val` = byteListToDynamic(b))
-      case Json(s)        => js.Dynamic.literal(tag = "json", `val` = s)
-      case Jsonb(s)       => js.Dynamic.literal(tag = "jsonb", `val` = s)
-      case JsonPath(s)    => js.Dynamic.literal(tag = "jsonpath", `val` = s)
-      case Xml(s)         => js.Dynamic.literal(tag = "xml", `val` = s)
-      case Uuid(u)        => js.Dynamic.literal(tag = "uuid", `val` = dbUuidToDynamic(u))
-      case Inet(ip)       => js.Dynamic.literal(tag = "inet", `val` = ipAddressToDynamic(ip))
-      case Cidr(ip)       => js.Dynamic.literal(tag = "cidr", `val` = ipAddressToDynamic(ip))
-      case MacAddr(m)     => js.Dynamic.literal(tag = "macaddr", `val` = macAddressToDynamic(m))
-      case Bit(bs)        => js.Dynamic.literal(tag = "bit", `val` = js.Array(bs: _*))
-      case VarBit(bs)     => js.Dynamic.literal(tag = "varbit", `val` = js.Array(bs: _*))
-      case Money(n)       => js.Dynamic.literal(tag = "money", `val` = n.toDouble)
-      case Oid(n)         => js.Dynamic.literal(tag = "oid", `val` = n.toDouble)
-      case Enumeration(e) =>
-        js.Dynamic.literal(tag = "enumeration", `val` = js.Dynamic.literal(name = e.name, value = e.value))
-      case _ => throw new UnsupportedOperationException(s"toDynamic not yet implemented for: $v")
-    }
+    def toDynamic(v: PostgresDbValue): js.Dynamic = toJs(v).asInstanceOf[js.Dynamic]
   }
 
   // ===========================================================================
   // Shared byte-list helpers
   // ===========================================================================
 
-  private def parseByteList(raw: js.Any): Array[Byte] = {
-    val arr = raw.asInstanceOf[js.Array[Int]]
-    arr.toArray.map(_.toByte)
-  }
+  private def uint8ArrayToBytes(arr: Uint8Array): Array[Byte] =
+    new scala.scalajs.js.typedarray.Int8Array(arr.buffer, arr.byteOffset, arr.length).toArray
 
-  private def byteListToDynamic(bytes: Array[Byte]): js.Array[Int] = {
-    val arr = js.Array[Int]()
-    bytes.foreach(b => arr.push(b.toInt & 0xff))
+  private def bytesToUint8Array(bytes: Array[Byte]): Uint8Array = {
+    val arr = new Uint8Array(bytes.length)
+    var i   = 0
+    while (i < bytes.length) {
+      arr(i) = (bytes(i) & 0xff).toShort
+      i += 1
+    }
     arr
   }
 
@@ -689,60 +713,68 @@ object Rdbms {
   // ===========================================================================
 
   @js.native
-  @JSImport("golem:rdbms/postgres@0.0.1", JSImport.Namespace)
-  private object PostgresModule extends js.Object {
-    val DbConnection: js.Dynamic = js.native
+  @JSImport("golem:rdbms/postgres@1.5.0", "DbConnection")
+  private object PostgresDbConnectionClass extends js.Object {
+    def open(address: String): JsDbConnection = js.native
   }
 
   @js.native
-  @JSImport("golem:rdbms/mysql@0.0.1", JSImport.Namespace)
-  private object MysqlModule extends js.Object {
-    val DbConnection: js.Dynamic = js.native
+  @JSImport("golem:rdbms/postgres@1.5.0", JSImport.Namespace)
+  private object PostgresModule extends js.Object
+
+  @js.native
+  @JSImport("golem:rdbms/mysql@1.5.0", "DbConnection")
+  private object MysqlDbConnectionClass extends js.Object {
+    def open(address: String): JsDbConnection = js.native
   }
 
   @js.native
-  @JSImport("golem:rdbms/types@0.0.1", JSImport.Namespace)
+  @JSImport("golem:rdbms/mysql@1.5.0", JSImport.Namespace)
+  private object MysqlModule extends js.Object
+
+  @js.native
+  @JSImport("golem:rdbms/types@1.5.0", JSImport.Namespace)
   private object TypesModule extends js.Object
 
   // ===========================================================================
   // PostgresConnection resource
   // ===========================================================================
 
-  final class PostgresConnection private[Rdbms] (private val underlying: js.Dynamic) {
+  final class PostgresConnection private[Rdbms] (private val underlying: JsDbConnection) {
 
     def query(statement: String, params: List[PostgresDbValue] = Nil): Either[DbError, PostgresDbResult] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(PostgresDbValue.toDynamic(p)))
-        val raw = underlying.query(statement, jsParams).asInstanceOf[js.Dynamic]
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(PostgresDbValue.toJs(p).asInstanceOf[js.Any]))
+        val raw = underlying.query(statement, jsParams).asInstanceOf[JsDbResult]
         Right(parsePostgresResult(raw))
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def execute(statement: String, params: List[PostgresDbValue] = Nil): Either[DbError, Long] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(PostgresDbValue.toDynamic(p)))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(PostgresDbValue.toJs(p).asInstanceOf[js.Any]))
         Right(underlying.execute(statement, jsParams).asInstanceOf[Double].toLong)
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def beginTransaction(): Either[DbError, PostgresTransaction] =
-      try Right(new PostgresTransaction(underlying.beginTransaction().asInstanceOf[js.Dynamic]))
+      try Right(new PostgresTransaction(underlying.beginTransaction()))
       catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
   }
 
-  final class PostgresTransaction private[Rdbms] (private val underlying: js.Dynamic) {
+  final class PostgresTransaction private[Rdbms] (private val underlying: JsDbTransaction) {
 
     def query(statement: String, params: List[PostgresDbValue] = Nil): Either[DbError, PostgresDbResult] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(PostgresDbValue.toDynamic(p)))
-        Right(parsePostgresResult(underlying.query(statement, jsParams).asInstanceOf[js.Dynamic]))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(PostgresDbValue.toJs(p).asInstanceOf[js.Any]))
+        Right(parsePostgresResult(underlying.query(statement, jsParams).asInstanceOf[JsDbResult]))
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def execute(statement: String, params: List[PostgresDbValue] = Nil): Either[DbError, Long] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(PostgresDbValue.toDynamic(p)))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(PostgresDbValue.toJs(p).asInstanceOf[js.Any]))
         Right(underlying.execute(statement, jsParams).asInstanceOf[Double].toLong)
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
@@ -759,41 +791,41 @@ object Rdbms {
   // MysqlConnection resource
   // ===========================================================================
 
-  final class MysqlConnection private[Rdbms] (private val underlying: js.Dynamic) {
+  final class MysqlConnection private[Rdbms] (private val underlying: JsDbConnection) {
 
     def query(statement: String, params: List[MysqlDbValue] = Nil): Either[DbError, MysqlDbResult] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(MysqlDbValue.toDynamic(p)))
-        val raw = underlying.query(statement, jsParams).asInstanceOf[js.Dynamic]
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(MysqlDbValue.toJs(p).asInstanceOf[js.Any]))
+        val raw = underlying.query(statement, jsParams).asInstanceOf[JsDbResult]
         Right(parseMysqlResult(raw))
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def execute(statement: String, params: List[MysqlDbValue] = Nil): Either[DbError, Long] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(MysqlDbValue.toDynamic(p)))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(MysqlDbValue.toJs(p).asInstanceOf[js.Any]))
         Right(underlying.execute(statement, jsParams).asInstanceOf[Double].toLong)
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def beginTransaction(): Either[DbError, MysqlTransaction] =
-      try Right(new MysqlTransaction(underlying.beginTransaction().asInstanceOf[js.Dynamic]))
+      try Right(new MysqlTransaction(underlying.beginTransaction()))
       catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
   }
 
-  final class MysqlTransaction private[Rdbms] (private val underlying: js.Dynamic) {
+  final class MysqlTransaction private[Rdbms] (private val underlying: JsDbTransaction) {
 
     def query(statement: String, params: List[MysqlDbValue] = Nil): Either[DbError, MysqlDbResult] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(MysqlDbValue.toDynamic(p)))
-        Right(parseMysqlResult(underlying.query(statement, jsParams).asInstanceOf[js.Dynamic]))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(MysqlDbValue.toJs(p).asInstanceOf[js.Any]))
+        Right(parseMysqlResult(underlying.query(statement, jsParams).asInstanceOf[JsDbResult]))
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
     def execute(statement: String, params: List[MysqlDbValue] = Nil): Either[DbError, Long] =
       try {
-        val jsParams = js.Array[js.Dynamic]()
-        params.foreach(p => jsParams.push(MysqlDbValue.toDynamic(p)))
+        val jsParams = js.Array[js.Any]()
+        params.foreach(p => jsParams.push(MysqlDbValue.toJs(p).asInstanceOf[js.Any]))
         Right(underlying.execute(statement, jsParams).asInstanceOf[Double].toLong)
       } catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
 
@@ -810,27 +842,27 @@ object Rdbms {
   // Result parsing
   // ===========================================================================
 
-  private def parseColumns(raw: js.Dynamic): List[DbColumn] =
-    raw.columns.asInstanceOf[js.Array[js.Dynamic]].toList.map { c =>
+  private def parseColumns(raw: JsDbResult): List[DbColumn] =
+    raw.columns.toList.map { c =>
       DbColumn(
-        ordinal = c.ordinal.asInstanceOf[Double].toLong,
-        name = c.name.asInstanceOf[String],
-        dbTypeName = c.dbTypeName.asInstanceOf[String]
+        ordinal = c.ordinal.toLong,
+        name = c.name,
+        dbTypeName = c.dbTypeName
       )
     }
 
-  private def parsePostgresResult(raw: js.Dynamic): PostgresDbResult = {
+  private def parsePostgresResult(raw: JsDbResult): PostgresDbResult = {
     val cols = parseColumns(raw)
-    val rows = raw.rows.asInstanceOf[js.Array[js.Dynamic]].toList.map { r =>
-      PostgresDbRow(r.values.asInstanceOf[js.Array[js.Dynamic]].toList.map(PostgresDbValue.fromDynamic))
+    val rows = raw.rows.toList.map { r =>
+      PostgresDbRow(r.values.toList.map(v => PostgresDbValue.fromJs(v.asInstanceOf[JsPostgresDbValue])))
     }
     PostgresDbResult(cols, rows)
   }
 
-  private def parseMysqlResult(raw: js.Dynamic): MysqlDbResult = {
+  private def parseMysqlResult(raw: JsDbResult): MysqlDbResult = {
     val cols = parseColumns(raw)
-    val rows = raw.rows.asInstanceOf[js.Array[js.Dynamic]].toList.map { r =>
-      MysqlDbRow(r.values.asInstanceOf[js.Array[js.Dynamic]].toList.map(MysqlDbValue.fromDynamic))
+    val rows = raw.rows.toList.map { r =>
+      MysqlDbRow(r.values.toList.map(v => MysqlDbValue.fromJs(v.asInstanceOf[JsMysqlDbValue])))
     }
     MysqlDbResult(cols, rows)
   }
@@ -841,13 +873,13 @@ object Rdbms {
 
   object Postgres {
     def open(address: String): Either[DbError, PostgresConnection] =
-      try Right(new PostgresConnection(PostgresModule.DbConnection.open(address).asInstanceOf[js.Dynamic]))
+      try Right(new PostgresConnection(PostgresDbConnectionClass.open(address)))
       catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
   }
 
   object Mysql {
     def open(address: String): Either[DbError, MysqlConnection] =
-      try Right(new MysqlConnection(MysqlModule.DbConnection.open(address).asInstanceOf[js.Dynamic]))
+      try Right(new MysqlConnection(MysqlDbConnectionClass.open(address)))
       catch { case t: Throwable => Left(DbError.fromThrowable(t)) }
   }
 

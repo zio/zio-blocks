@@ -42,8 +42,7 @@ class DurabilityApiCompileSpec extends AnyFunSuite {
   )
 
   private val invocation: PersistedDurableFunctionInvocation = PersistedDurableFunctionInvocation(
-    timestampSeconds = BigInt(1700000000L),
-    timestampNanos = 500000000L,
+    timestamp = Datetime(BigInt(1700000000L), 500000000),
     functionName = "test-func",
     response = sampleVat,
     functionType = DurableFunctionType.ReadLocal,
@@ -71,8 +70,8 @@ class DurabilityApiCompileSpec extends AnyFunSuite {
   }
 
   test("PersistedDurableFunctionInvocation field access") {
-    assert(invocation.timestampSeconds == BigInt(1700000000L))
-    assert(invocation.timestampNanos == 500000000L)
+    assert(invocation.timestamp.seconds == BigInt(1700000000L))
+    assert(invocation.timestamp.nanoseconds == 500000000)
     assert(invocation.functionName == "test-func")
     assert(invocation.response.value.nodes.nonEmpty)
     assert(invocation.functionType == DurableFunctionType.ReadLocal)

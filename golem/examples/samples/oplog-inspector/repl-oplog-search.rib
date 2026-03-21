@@ -1,3 +1,0 @@
-let inspector = oplog-inspector("demo");
-let results = inspector.search-oplog("increment");
-results

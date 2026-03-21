@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "fork-demo")
+@agentDefinition()
 @description("Demonstrates fork() with the promise-based join pattern from the Golem docs.")
 trait ForkDemo extends BaseAgent[String] {
 

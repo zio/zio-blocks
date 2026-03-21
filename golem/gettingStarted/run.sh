@@ -20,4 +20,4 @@ golem-cli build --yes
 echo "Deploying..."
 golem-cli deploy --yes
 echo "Running..."
-golem-cli repl scala:demo --script-file repl-counter.rib
+golem-cli repl scala:demo --language typescript --script-file repl-counter.ts

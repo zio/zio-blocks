@@ -11,7 +11,7 @@ object CounterState {
   implicit val schema: zio.blocks.schema.Schema[CounterState] = zio.blocks.schema.Schema.derived
 }
 
-@agentDefinition(typeName = "stateful-counter")
+@agentDefinition()
 @description("Counter whose constructor takes a custom case class (CounterState) instead of String.")
 trait StatefulCounter extends BaseAgent[CounterState] {
 
@@ -24,7 +24,7 @@ trait StatefulCounter extends BaseAgent[CounterState] {
 
 object StatefulCounter extends AgentCompanion[StatefulCounter, CounterState]
 
-@agentDefinition(typeName = "stateful-caller")
+@agentDefinition()
 @description("Calls StatefulCounter remotely to exercise agent-to-agent RPC with a custom state type.")
 trait StatefulCaller extends BaseAgent[CounterState] {
 

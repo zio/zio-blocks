@@ -1,6 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.GolemSchema
+import golem.host.js._
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.util.FutureInterop
 import golem.Uuid
@@ -10,7 +11,7 @@ import scala.concurrent.Future
 import scala.scalajs.js
 
 object AgentClientRuntime {
-  @volatile private var remoteResolverOverride: Option[(String, js.Dynamic) => Either[String, RemoteAgentClient]] = None
+  @volatile private var remoteResolverOverride: Option[(String, JsDataValue) => Either[String, RemoteAgentClient]] = None
   @volatile private var clientBinderOverride: Option[Any => Any]                                                  = None
 
   def resolve[Trait, Constructor](
@@ -27,25 +28,12 @@ object AgentClientRuntime {
     implicit val ctorSchema: GolemSchema[Constructor] = agentType.constructor.schema
 
     for {
-      // For agent-id construction, golem:agent/host.makeAgentId expects a golem:agent/common.DataValue:
-      // { tag: 'tuple', val: ElementValue[] }, where ElementValue for component-model is:
-      // { tag: 'component-model', val: WitValue }.
-      //
-      // We encode constructor args using the *RPC* codec (WitValue) and wrap it into the DataValue envelope.
       payload <- {
         val any = constructorArgs.asInstanceOf[Any]
         if (any == ((): Unit)) {
-          Right(js.Dynamic.literal("tag" -> "tuple", "val" -> (new js.Array[js.Dynamic]())))
+          Right(JsDataValue.tuple(new js.Array[JsElementValue]()))
         } else {
-          RpcValueCodec.encodeArgs[Constructor](constructorArgs).map { witArgs =>
-            val elems = new js.Array[js.Dynamic]()
-            var i     = 0
-            while (i < witArgs.length) {
-              elems.push(js.Dynamic.literal("tag" -> "component-model", "val" -> witArgs(i)))
-              i += 1
-            }
-            js.Dynamic.literal("tag" -> "tuple", "val" -> elems)
-          }
+          RpcValueCodec.encodeArgs[Constructor](constructorArgs)
         }
       }
       remote <- resolveRemote(agentType.typeName, payload, phantom)
@@ -54,7 +42,7 @@ object AgentClientRuntime {
 
   private def resolveRemote(
     agentTypeName: String,
-    payload: js.Dynamic,
+    payload: JsDataValue,
     phantom: Option[Uuid]
   ): Either[String, RemoteAgentClient] =
     remoteResolverOverride match {
@@ -109,7 +97,7 @@ object AgentClientRuntime {
         raw    <- client.rpc.invokeAndAwait(functionName, params)
         value  <- {
           implicit val outSchema: GolemSchema[Out] = method.outputSchema
-          RpcValueCodec.decodeValue[Out](raw)
+          RpcValueCodec.decodeValue[Out](raw.asInstanceOf[JsWitValue])
         }
       } yield value
 
@@ -122,7 +110,7 @@ object AgentClientRuntime {
       val functionName                 = method.functionName
       val result: Either[String, Unit] = for {
         params <- RpcValueCodec.encodeArgs(input)
-        _      <- client.rpc.trigger(functionName, params)
+        _      <- client.rpc.invoke(functionName, params)
       } yield ()
 
       FutureInterop.fromEither(result)
@@ -146,7 +134,7 @@ object AgentClientRuntime {
   }
 
   private[rpc] object TestHooks {
-    def withRemoteResolver[T](resolver: (String, js.Dynamic) => Either[String, RemoteAgentClient])(thunk: => T): T = {
+    def withRemoteResolver[T](resolver: (String, JsDataValue) => Either[String, RemoteAgentClient])(thunk: => T): T = {
       val previous = remoteResolverOverride
       remoteResolverOverride = Some(resolver)
       try thunk
