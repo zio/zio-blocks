@@ -437,6 +437,9 @@ sealed trait Box[+A]
 sealed trait Sink[-T]
 sealed trait Cache[K, +V]
 ```
+
+Using these types, we can check the variance predicates to verify which parameters are covariant, contravariant, or invariant:
+
 ```scala mdoc
 val boxId = TypeId.of[Box]
 boxId.typeParams.head.isCovariant
