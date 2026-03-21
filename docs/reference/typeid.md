@@ -181,15 +181,47 @@ object TypeId {
 
 **Parameters:**
 
-1. `name` (String) — The unqualified name of the type (e.g., `"Person"`, `"List"`)
-2. `owner` (Owner) — The package and enclosing object path where the type is defined (e.g., `Owner.fromPackagePath("com.example")`)
-3. `kind` (3-param) / `defKind` (full) (TypeDefKind) — Classifies the type definition: `Class`, `Trait`, `Object`, `Enum`, etc. Use `TypeDefKind.Unknown` if unsure
-4. `typeParams` (List[TypeParam]) — Formal type parameters declared by this type (e.g., `[A]` for `class Box[A]`); defaults to empty
-5. `typeArgs` (List[TypeRepr]) — Applied type arguments when this is an instantiated generic (e.g., `[Int]` for `List[Int]`); defaults to empty
-6. `selfType` (Option[TypeRepr]) — Self-type annotation if the type declares one (e.g., `self: Logger =>`); defaults to `None`
-7. `annotations` (List[Annotation]) — Compile-time annotations attached to the type; defaults to empty
+1. `name` (String) — The unqualified name of the type, exactly as it appears in source code. This is the simple name, not the fully qualified path: `"Person"` not `"com.example.Person"`, `"List"` not `"scala.collection.immutable.List"`. For singleton objects, use the source name without the `$` suffix (e.g., `"Origin"` for `object Origin`, not `"Origin$"`).
 
-The minimal three-parameter form constructs a simple nominal TypeId when you need only name, owner, and classification. The full form allows complete control over type parameters, applied type arguments, definition kind, self-type, and annotations.
+2. `owner` (Owner) — The enclosing namespace: the chain of packages, objects, and types that contain this definition. Construct it with `Owner.fromPackagePath("a.b.c")` for a flat package path, and append object or type segments with `.term("ObjName")` or `.tpe("ClassName")`. For root-level definitions with no package, use `Owner.Root`. Examples:
+   - `Owner.fromPackagePath("com.example")` — type defined in package `com.example`
+   - `Owner.fromPackagePath("com.example").term("Models")` — type defined inside `object Models` in `com.example`
+   - `Owner.fromPackagePath("scala.collection.immutable")` — matches where `List` is defined
+
+3. `kind` / `defKind` (TypeDefKind) — Classifies what kind of definition this type is. Use the three-argument `nominal(name, owner, kind)` overload when you only need name and classification. Use `defKind` in the full overload for fine-grained control. Common values:
+   - `TypeDefKind.basicCaseClass` — `case class Foo(...)`
+   - `TypeDefKind.basicClass` — ordinary (non-case) class
+   - `TypeDefKind.basicFinalClass` — `final class`
+   - `TypeDefKind.basicFinalCaseClass` — `final case class`
+   - `TypeDefKind.sealedTrait` — `sealed trait`
+   - `TypeDefKind.unsealedTrait` — open trait
+   - `TypeDefKind.basicObject` — `object`
+   - `TypeDefKind.basicEnum` — Scala 3 `enum`
+   - `TypeDefKind.Unknown` — when classification doesn't matter (safe default)
+   - Full form for custom bases: `TypeDefKind.Class(isFinal = true, isCase = true, bases = List(TypeRepr.Ref(TypeId.string)))`
+
+4. `typeParams` (List[TypeParam]) — The formal type parameters declared by this type (the `[A]`, `[K, V]` part of the type definition). Each `TypeParam` records the parameter name, zero-based index, variance, bounds, and kind. Defaults to `Nil` for monomorphic types. Use the helpers for common cases:
+   - `TypeParam.covariant("A", 0)` — `+A` (e.g., `class Box[+A]`)
+   - `TypeParam.contravariant("T", 0)` — `-T` (e.g., `trait Sink[-T]`)
+   - `TypeParam("K", 0)` — invariant `K` (default variance)
+   - `TypeParam.higherKinded("F", 0, arity = 1)` — `F[_]` (e.g., `trait Functor[F[_]]`)
+   - `TypeParam.bounded("A", 0, upper = TypeRepr.Ref(TypeId.string))` — `A <: String`
+   - Two-parameter example: `List(TypeParam("K", 0), TypeParam.covariant("V", 1))` — for `trait Cache[K, +V]`
+
+5. `typeArgs` (List[TypeRepr]) — The applied type arguments when this TypeId represents an *instantiated* generic type rather than a type constructor. Leave as `Nil` (the default) for type constructors like `List` or `Map`. Set to a non-empty list when the TypeId represents a fully applied type like `List[Int]`: `List(TypeRepr.Ref(TypeId.int))`. In practice, `TypeId.applied` is more convenient for constructing applied types.
+
+6. `selfType` (Option[TypeRepr]) — The self-type annotation of a trait, if any. For `trait Service { self: Logger => ... }`, this would be `Some(TypeRepr.Ref(loggerTypeId))`. Defaults to `None`. Leave as `None` unless you are testing self-type-aware schema logic.
+
+7. `annotations` (List[Annotation]) — Compile-time annotations attached to the type. Each `Annotation` holds the TypeId of the annotation class plus its arguments as `AnnotationArg` values. Defaults to `Nil`. Example for `@deprecated("use newFoo", "2.0")`:
+   ```scala
+   List(Annotation(
+     TypeId.of[deprecated],
+     List(
+       AnnotationArg.Named("message", AnnotationArg.Const("use newFoo")),
+       AnnotationArg.Named("since",   AnnotationArg.Const("2.0"))
+     )
+   ))
+   ```
 
 #### `TypeId.alias` — Type Aliases
 
@@ -213,7 +245,10 @@ object TypeId {
 
 **New Parameter:**
 
-1. `aliased` (TypeRepr) — The type expression that this alias points to (e.g., `TypeRepr.Ref(TypeId.int)` for `type Age = Int`)
+1. `aliased` (TypeRepr) — The type expression that this alias points to — the right-hand side of the `type` definition. Use `TypeRepr.Ref(typeId)` for a direct reference to a named type, or `TypeRepr.Applied(...)` when the alias targets a generic type:
+   - `TypeRepr.Ref(TypeId.int)` — for `type Age = Int`
+   - `TypeRepr.Ref(TypeId.string)` — for `type Name = String`
+   - `TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.string)))` — for `type StringList = List[String]`
 
 (For `name`, `owner`, `typeParams`, `typeArgs`, and `annotations`, see [TypeId.nominal parameters](#typeidnominal--nominal-types).)
 
@@ -250,8 +285,12 @@ object TypeId {
 
 **New Parameters:**
 
-1. `representation` (TypeRepr) — The underlying runtime type that the opaque type wraps (e.g., `TypeRepr.Ref(TypeId.string)` for `opaque type Email = String`)
-2. `publicBounds` (TypeBounds) — Public type bounds exposed by the opaque type; defaults to unbounded
+1. `representation` (TypeRepr) — The underlying runtime type that the opaque type wraps — the right-hand side of the `opaque type` definition. This is the type that the JVM actually uses at runtime. Provide it as a `TypeRepr`:
+   - `TypeRepr.Ref(TypeId.string)` — for `opaque type Email = String`
+   - `TypeRepr.Ref(TypeId.long)` — for `opaque type UserId = Long`
+   - `TypeRepr.Applied(TypeRepr.Ref(TypeId.list), List(TypeRepr.Ref(TypeId.string)))` — for `opaque type Tags = List[String]`
+
+2. `publicBounds` (TypeBounds) — The type bounds exposed to callers outside the defining scope. When an opaque type has no visible bound (`opaque type Foo = String`), callers cannot use any `String` operations — use `TypeBounds.Unbounded` (the default). When an opaque type exposes an upper bound (`opaque type Foo <: Serializable = String`), callers know at least that `Foo` is a `Serializable` — use `TypeBounds.upper(TypeRepr.Ref(serializableId))`. Use `TypeBounds.lower(repr)` for lower bounds or `TypeBounds(lower, upper)` for both.
 
 (For `name`, `owner`, `typeParams`, `typeArgs`, and `annotations`, see [TypeId.nominal parameters](#typeidnominal--nominal-types).)
 
@@ -281,8 +320,12 @@ object TypeId {
 
 **Parameters:**
 
-1. `typeConstructor` (TypeId[?]) — The type constructor to instantiate (e.g., `TypeId.list` for `List`, `TypeId.map` for `Map`)
-2. `args` (TypeRepr*) — Variadic type arguments to apply (e.g., `TypeRepr.Ref(TypeId.int)` for one argument, `TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.int)` for two)
+1. `typeConstructor` (TypeId[?]) — The unapplied type constructor to instantiate. Pass the TypeId of the generic type itself, not an applied version of it. Use predefined TypeIds from the companion object for standard types: `TypeId.list` for `List`, `TypeId.map` for `Map`, `TypeId.option` for `Option`, `TypeId.either` for `Either`, `TypeId.vector` for `Vector`, `TypeId.set` for `Set`. For user-defined generics, derive the type constructor with `TypeId.of[MyBox]` (Scala 3) or `TypeId.of[MyBox[_]]` (Scala 2).
+
+2. `args` (TypeRepr*) — Variadic type arguments, one per type parameter of the constructor, in declaration order. Wrap each argument in `TypeRepr.Ref(typeId)` for simple types, or `TypeRepr.Applied(...)` for nested generics. The number of arguments must match the arity of the constructor:
+   - One argument: `TypeId.applied[Any](TypeId.list, TypeRepr.Ref(TypeId.int))` → `List[Int]`
+   - Two arguments: `TypeId.applied[Any](TypeId.map, TypeRepr.Ref(TypeId.string), TypeRepr.Ref(TypeId.int))` → `Map[String, Int]`
+   - Nested applied: `TypeId.applied[Any](TypeId.list, TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.string))))` → `List[Option[String]]`
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
