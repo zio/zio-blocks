@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "agent-registry-demo")
+@agentDefinition()
 @description("Demonstrates agent type registry, metadata queries, resolution, lifecycle, and phantom RPC.")
 trait AgentRegistryDemo extends BaseAgent[String] {
 

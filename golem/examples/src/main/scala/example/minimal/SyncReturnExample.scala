@@ -3,7 +3,7 @@ package example.minimal
 import golem.runtime.annotations.{agentDefinition, description}
 import golem.{AgentCompanion, BaseAgent}
 
-@agentDefinition(typeName = "sync-return")
+@agentDefinition()
 @description("Demonstrates agent methods with synchronous return types.")
 trait SyncReturnAgent extends BaseAgent[Unit] {
   @description("Returns a greeting synchronously.")

@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "host-api-explorer")
+@agentDefinition()
 @description("Explores raw host APIs to discover their JS shape for typing.")
 trait HostApiExplorer extends BaseAgent[String] {
 

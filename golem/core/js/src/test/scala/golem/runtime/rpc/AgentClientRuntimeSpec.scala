@@ -226,7 +226,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 }
 
 private object AgentClientRuntimeSpecFixtures {
-  @agentDefinition("rpc-parity-agent", mode = DurabilityMode.Durable)
+  @agentDefinition(mode = DurabilityMode.Durable)
   trait RpcParityAgent extends BaseAgent[RpcCtor] {
     def `new`(config: RpcCtor): RpcParityAgent
 

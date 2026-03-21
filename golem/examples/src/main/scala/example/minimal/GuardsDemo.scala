@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "guards-demo")
+@agentDefinition()
 @description("Demonstrates Guards API, HostApi config get/set, and oplog management.")
 trait GuardsDemo extends BaseAgent[String] {
 

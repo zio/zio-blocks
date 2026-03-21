@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "storage-demo")
+@agentDefinition()
 @description("Demonstrates KeyValue bucket CRUD, Blobstore container/object operations, and Config reading.")
 trait StorageDemo extends BaseAgent[String] {
 

@@ -20,5 +20,4 @@ golem-cli build --yes
 echo "Deploying..."
 golem-cli deploy --yes
 echo "Running..."
-GOLEM_TS_PACKAGES_PATH="${GOLEM_TS_PACKAGES_PATH:-$(cd "$(dirname "$0")/../../golem/sdks/ts/packages" 2>/dev/null && pwd)}" \
-  golem-cli repl scala:demo --language typescript --script-file repl-counter.ts
+golem-cli repl scala:demo --language typescript --script-file repl-counter.ts

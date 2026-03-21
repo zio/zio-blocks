@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "counter")
+@agentDefinition()
 @description("A simple counter agent (Scala equivalent of the Rust/TS default template).")
 trait Counter extends BaseAgent[String] {
 

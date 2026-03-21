@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "observability-demo")
+@agentDefinition()
 @description("Demonstrates the full span/context and durability APIs with typed responses.")
 trait ObservabilityDemo extends BaseAgent[String] {
 

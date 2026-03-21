@@ -11,7 +11,7 @@ object PromisePayload {
   implicit val schema: Schema[PromisePayload] = Schema.derived
 }
 
-@agentDefinition(typeName = "json-promise-demo")
+@agentDefinition()
 @description("Demonstrates JSON-typed promises and blocking promise await.")
 trait JsonPromiseDemo extends BaseAgent[String] {
 

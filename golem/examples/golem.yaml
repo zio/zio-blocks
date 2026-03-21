@@ -5,5 +5,19 @@ environments:
     server: local
 
 includes:
-- .generated/scala-js-template.yaml
-- components-js/scala-examples/golem.yaml
+- ../scala-js-template.yaml
+
+components:
+  scala:examples:
+    templates: scala.js
+    buildMergeMode: replace
+    build:
+    - command: bash -c 'COMP_DIR="$PWD" && cd ../.. && sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "project zioGolemExamples" "golemBuildComponent scala:examples $COMP_DIR/.golem/scala.js"'
+      sources:
+      - src
+      targets:
+      - .golem/scala.js
+    - injectToPrebuiltQuickjs: .generated/agent_guest.wasm
+      module: .golem/scala.js
+      moduleWasm: .golem/agents/scala_examples.module.wasm
+      into: .golem/agents/scala_examples.dynamic.wasm

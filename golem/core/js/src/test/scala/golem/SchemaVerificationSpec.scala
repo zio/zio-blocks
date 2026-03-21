@@ -44,7 +44,7 @@ final class SchemaVerificationSpec extends AnyFunSuite {
   // Agent with many parameter/return type combinations
   // ---------------------------------------------------------------------------
 
-  @agentDefinition("schema-verify-agent")
+  @agentDefinition()
   trait SchemaVerifyAgent extends BaseAgent[Unit] {
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]

@@ -5,7 +5,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
-@agentDefinition(typeName = "transactions-demo")
+@agentDefinition()
 @description("Demonstrates the Transactions API: infallible and fallible saga-style transactions.")
 trait TransactionsDemo extends BaseAgent[String] {
 

@@ -16,7 +16,7 @@ final class AgentClientTypeEndToEndSpec extends AsyncFunSuite {
   override implicit def executionContext: ExecutionContext =
     scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
-  @agentDefinition("e2e-client-async", mode = DurabilityMode.Durable)
+  @agentDefinition("E2eClientAsync", mode = DurabilityMode.Durable)
   trait AsyncEchoAgent extends BaseAgent[Unit] {
     def echo(in: String): Future[String]
   }

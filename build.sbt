@@ -30,8 +30,7 @@ inThisBuild(
 )
 
 Global / excludeLintKeys ++= Set(
-  zioGolemExamples / testFrameworks,
-  zioGolemQuickstartJS / testFrameworks
+  zioGolemExamples / testFrameworks
 )
 
 com.github.sbt.git.SbtGit.useReadableConsoleGit
@@ -176,8 +175,7 @@ lazy val root = project
     zioGolemMacros,
     zioGolemTools,
     zioGolemExamples,
-    zioGolemQuickstart.js,
-    zioGolemQuickstart.jvm,
+    zioGolemIntegrationTests,
     zioGolemSbt,
     scalaNextTests.jvm,
     scalaNextTests.js,
@@ -946,7 +944,7 @@ lazy val zioGolemExamples = project
     name                            := "zio-golem-examples",
     scalaJSUseMainModuleInitializer := false,
     golemBasePackage                := Some("example"),
-    golemComponentPathPrefix        := "../..",
+
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     libraryDependencies ++= Seq(
@@ -972,44 +970,20 @@ lazy val zioGolemExamples = project
   .dependsOn(schema.js, zioGolemCoreJS, zioGolemMacros)
   .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)
 
-// ---------------------------------------------------------------------------
-// Quickstart (in-repo) - crossProject: shared traits, JS impls, JVM typed client example
-// ---------------------------------------------------------------------------
-
-lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Full)
-  .in(file("golem/quickstart"))
-  .settings(stdSettings("zio-golem-quickstart"))
+lazy val zioGolemIntegrationTests = project
+  .in(file("golem/integration-tests"))
+  .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3)))
   .settings(
-    publish / skip := true
-    // stdSettings already controls compiler flags across the repo; avoid duplicating -experimental here.
-  )
-  .jsSettings(jsSettings)
-  .jsSettings(
-    // For golem-cli wrapper generation, ensure agent registration runs when the JS module is loaded.
-    // We do this via a tiny Scala.js `main` (see `golem/quickstart/js/.../Boot.scala`).
-    scalaJSUseMainModuleInitializer := true,
-    golemBasePackage                := Some("golem.quickstart"),
-    golemComponentPathPrefix        := "../..",
-    Compile / mainClass             := Some("golem.quickstart.Boot"),
-    Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    publish / skip            := true,
+    Test / fork               := true,
+    Test / parallelExecution  := false,
+    Test / testFrameworks     := Seq(new TestFramework("org.scalatest.tools.Framework")),
+    Test / javaOptions ++= sys.env.get("GOLEM_TS_PACKAGES_PATH")
+      .map(v => s"-Dgolem.tsPackagesPath=$v").toSeq,
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4",
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"
-    ),
-    Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
-    Test / testOnly       := (Test / test).value,
-    Test / testQuick      := (Test / test).value,
-    Test / testFrameworks := Nil
+      "org.scalatest" %% "scalatest" % "3.2.19" % Test
+    )
   )
-  .jsEnablePlugins(golem.sbt.GolemPlugin)
-  .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
-  .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros))
-
-lazy val zioGolemQuickstartJS  = zioGolemQuickstart.js
-lazy val zioGolemQuickstartJVM = zioGolemQuickstart.jvm
 
 // ---------------------------------------------------------------------------
 // Tooling plugins (publishable)
