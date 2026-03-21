@@ -1,5 +1,6 @@
 package golem
 
+import golem.host.js.JsEnvironmentId
 import org.scalatest.funsuite.AnyFunSuite
 
 import scala.scalajs.js
@@ -105,7 +106,8 @@ final class HostApiCompileSpec extends AnyFunSuite {
       retryCount = BigInt(0),
       agentType = "my-agent",
       agentName = "instance-1",
-      componentId = null.asInstanceOf[HostApi.ComponentIdLiteral]
+      componentId = null.asInstanceOf[HostApi.ComponentIdLiteral],
+      environmentId = null.asInstanceOf[JsEnvironmentId]
     )
     assert(meta.args == List("arg1", "arg2"))
     assert(meta.env == Map("KEY" -> "VALUE"))

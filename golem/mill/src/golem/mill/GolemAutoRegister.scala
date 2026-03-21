@@ -158,15 +158,8 @@ trait GolemAutoRegister extends ScalaJSModule {
         |      module: .golem/scala.js
         |      moduleWasm: ${p(s".golem/agents/$cn.module.wasm")}
         |      into: ${p(s".golem/agents/$cn.dynamic.wasm")}
-        |    - generateAgentWrapper: ${p(s".golem/agents/$cn.wrapper.wasm")}
-        |      basedOnCompiledWasm: ${p(s".golem/agents/$cn.dynamic.wasm")}
-        |    - composeAgentWrapper: ${p(s".golem/agents/$cn.wrapper.wasm")}
-        |      withAgent: ${p(s".golem/agents/$cn.dynamic.wasm")}
-        |      to: ${p(s".golem/agents/$cn.static.wasm")}
-        |    sourceWit: ${p(".generated/agent_guest.wasm")}
-        |    generatedWit: ${p(s".golem/agents/$cn/wit-generated")}
-        |    componentWasm: ${p(s".golem/agents/$cn.static.wasm")}
-        |    linkedWasm: ${p(s".golem/agents/$cn.wasm")}
+        |    componentWasm: ${p(s".golem/agents/$cn.dynamic.wasm")}
+        |    outputWasm: ${p(s".golem/agents/$cn.wasm")}
         |""".stripMargin
   }
 
@@ -416,6 +409,8 @@ trait GolemAutoRegister extends ScalaJSModule {
                 |$touches
                 |      ()
                 |    }
+                |
+                |  def main(): Unit = registerAll()
                 |
                 |  @JSExportTopLevel("__golemRegisterAgents")
                 |  val __golemRegisterAgents: Unit =

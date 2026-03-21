@@ -1,5 +1,7 @@
 package golem.wasi
 
+import golem.host.js._
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 import scala.scalajs.js.typedarray.Uint8Array
@@ -44,10 +46,14 @@ object Blobstore {
   private object ContainerModule extends js.Object
 
   @js.native
-  @JSImport("wasi:blobstore/types", JSImport.Namespace)
-  private object TypesModule extends js.Object {
-    val OutgoingValue: js.Dynamic = js.native
+  @JSImport("wasi:blobstore/types", "OutgoingValue")
+  private object BlobstoreOutgoingValueClass extends js.Object {
+    def newOutgoingValue(): JsBlobstoreOutgoingValue = js.native
   }
+
+  @js.native
+  @JSImport("wasi:blobstore/types", JSImport.Namespace)
+  private object TypesModule extends js.Object
 
   // --- Data types ---
 
@@ -57,35 +63,34 @@ object Blobstore {
 
   // --- Container resource ---
 
-  final class Container private[Blobstore] (private val underlying: js.Dynamic) {
+  final class Container private[Blobstore] (private val underlying: JsBlobstoreContainer) {
 
     def name(): String =
-      underlying.name().asInstanceOf[String]
+      underlying.name()
 
     def info(): ContainerMetadata = {
-      val raw = underlying.info().asInstanceOf[js.Dynamic]
-      ContainerMetadata(raw.name.asInstanceOf[String], BigInt(raw.createdAt.toString))
+      val raw = underlying.info()
+      ContainerMetadata(raw.name, BigInt(raw.createdAt.toString))
     }
 
     def getData(objectName: String, start: Long, end: Long): Array[Byte] = {
-      val iv  = underlying.getData(objectName, start.toDouble, end.toDouble)
-      val raw = iv.asInstanceOf[js.Dynamic].incomingValueConsumeSync()
-      uint8ArrayToBytes(raw.asInstanceOf[Uint8Array])
+      val iv  = underlying.getData(objectName, js.BigInt(start.toString), js.BigInt(end.toString))
+      val raw = iv.incomingValueConsumeSync()
+      uint8ArrayToBytes(raw)
     }
 
     def writeData(objectName: String, data: Array[Byte]): Unit = {
-      val ov     = TypesModule.OutgoingValue.newOutgoingValue()
-      val stream = ov.asInstanceOf[js.Dynamic].outgoingValueWriteBody()
+      val ov     = BlobstoreOutgoingValueClass.newOutgoingValue()
+      val stream = ov.outgoingValueWriteBody()
       val bytes  = bytesToUint8Array(data)
-      stream.asInstanceOf[js.Dynamic].blockingWriteAndFlush(bytes)
+      stream.blockingWriteAndFlush(bytes)
       underlying.writeData(objectName, ov)
     }
 
     def listObjects(): List[String] = {
       val stream = underlying.listObjects()
-      val result = stream.asInstanceOf[js.Dynamic].readStreamObjectNames(js.BigInt("1000"))
-      val arr    = result.asInstanceOf[js.Tuple2[js.Array[String], Boolean]]
-      arr._1.toList
+      val result = stream.readStreamObjectNames(js.BigInt("1000"))
+      result._1.toList
     }
 
     def deleteObject(name: String): Unit =
@@ -98,15 +103,15 @@ object Blobstore {
     }
 
     def hasObject(name: String): Boolean =
-      underlying.hasObject(name).asInstanceOf[Boolean]
+      underlying.hasObject(name)
 
     def objectInfo(name: String): ObjectMetadata = {
-      val raw = underlying.objectInfo(name).asInstanceOf[js.Dynamic]
+      val raw = underlying.objectInfo(name)
       ObjectMetadata(
-        name = raw.name.asInstanceOf[String],
-        container = raw.container.asInstanceOf[String],
+        name = raw.name,
+        container = raw.container,
         createdAt = BigInt(raw.createdAt.toString),
-        size = raw.size.asInstanceOf[Double].toLong
+        size = BigInt(raw.size.toString).toLong
       )
     }
 
@@ -117,10 +122,10 @@ object Blobstore {
   // --- Top-level functions ---
 
   def createContainer(name: String): Container =
-    new Container(BlobstoreModule.createContainer(name).asInstanceOf[js.Dynamic])
+    new Container(BlobstoreModule.createContainer(name).asInstanceOf[JsBlobstoreContainer])
 
   def getContainer(name: String): Container =
-    new Container(BlobstoreModule.getContainer(name).asInstanceOf[js.Dynamic])
+    new Container(BlobstoreModule.getContainer(name).asInstanceOf[JsBlobstoreContainer])
 
   def deleteContainer(name: String): Unit =
     BlobstoreModule.deleteContainer(name)
@@ -129,15 +134,15 @@ object Blobstore {
     BlobstoreModule.containerExists(name)
 
   def copyObject(src: ObjectId, dest: ObjectId): Unit =
-    BlobstoreModule.copyObject(objectIdToDynamic(src), objectIdToDynamic(dest))
+    BlobstoreModule.copyObject(objectIdToJs(src).asInstanceOf[js.Any], objectIdToJs(dest).asInstanceOf[js.Any])
 
   def moveObject(src: ObjectId, dest: ObjectId): Unit =
-    BlobstoreModule.moveObject(objectIdToDynamic(src), objectIdToDynamic(dest))
+    BlobstoreModule.moveObject(objectIdToJs(src).asInstanceOf[js.Any], objectIdToJs(dest).asInstanceOf[js.Any])
 
   // --- Helpers ---
 
-  private def objectIdToDynamic(oid: ObjectId): js.Dynamic =
-    js.Dynamic.literal(container = oid.container, `object` = oid.name)
+  private def objectIdToJs(oid: ObjectId): JsObjectId =
+    JsObjectId(oid.container, oid.name)
 
   private def uint8ArrayToBytes(arr: Uint8Array): Array[Byte] = {
     val bytes = new Array[Byte](arr.length)

@@ -1,5 +1,6 @@
 package golem
 
+import golem.host.js.{JsAgentMetadataRuntime, JsComponentId, JsDataValue, JsEnvironmentId}
 import golem.runtime.rpc.host.AgentHostApi
 import golem.Uuid
 
@@ -14,7 +15,7 @@ import scala.scalajs.js.typedarray.Uint8Array
 /**
  * Public Scala.js SDK access to Golem's runtime host API.
  *
- * Scala.js-only API (delegates to `golem:api/host@1.3.0`).
+ * Scala.js-only API (delegates to `golem:api/host@1.5.0`).
  */
 object HostApi {
 
@@ -40,7 +41,7 @@ object HostApi {
   // ----- Retry policy ----------------------------------------------------------------------
 
   /**
-   * Retry policy as defined by `golem:api/host@1.3.0`.
+   * Retry policy as defined by `golem:api/host@1.5.0`.
    *
    *   - `maxAttempts`: u32
    *   - `minDelayNanos`: duration (u64, in nanoseconds)
@@ -118,7 +119,8 @@ object HostApi {
     retryCount: BigInt,
     agentType: String,
     agentName: String,
-    componentId: ComponentIdLiteral
+    componentId: ComponentIdLiteral,
+    environmentId: JsEnvironmentId
   )
   type UpdateMode        = AgentHostApi.UpdateMode
   type RevertAgentTarget = AgentHostApi.RevertAgentTarget
@@ -178,7 +180,7 @@ object HostApi {
 
   private[golem] def makeAgentId(
     agentTypeName: String,
-    payload: js.Dynamic,
+    payload: JsDataValue,
     phantom: Option[Uuid]
   ): Either[String, String] =
     AgentHostApi.makeAgentId(agentTypeName, payload, phantom)
@@ -380,10 +382,10 @@ object HostApi {
     golem.runtime.util.FutureInterop
       .fromPromise(pollable.promise())
       .map { _ =>
-        val result = handle.get()
-        if (result == null || js.isUndefined(result))
-          throw new IllegalStateException("Promise completed but result is empty")
-        result
+        handle.get().toOption match {
+          case Some(bytes) => bytes
+          case None        => throw new IllegalStateException("Promise completed but result is empty")
+        }
       }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
   }
 
@@ -399,10 +401,10 @@ object HostApi {
     val handle   = AgentHostApi.getPromise(promiseId)
     val pollable = handle.subscribe()
     pollable.block()
-    val result = handle.get()
-    if (result == null || js.isUndefined(result))
-      throw new IllegalStateException("Promise completed but result is empty")
-    result
+    handle.get().toOption match {
+      case Some(bytes) => bytes
+      case None        => throw new IllegalStateException("Promise completed but result is empty")
+    }
   }
 
   /**
@@ -511,20 +513,17 @@ object HostApi {
     )
 
   private def fromHostMetadata(m: AgentHostApi.AgentMetadata): AgentMetadata = {
-    val dyn        = m.asInstanceOf[js.Dynamic]
+    val rt         = m.asInstanceOf[JsAgentMetadataRuntime]
     val args       = if (m.args == null || js.isUndefined(m.args)) Nil else m.args.toList
     val env        = tuplesToMap(m.env)
     val configVars = tuplesToMap(m.configVars)
     val compRev    =
       if (js.isUndefined(m.componentRevision.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.componentRevision)
     val retry     = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
-    val agentType =
-      if (js.isUndefined(dyn.agentType) || dyn.agentType == null) "" else dyn.agentType.asInstanceOf[String]
-    val agentName =
-      if (js.isUndefined(dyn.agentName) || dyn.agentName == null) "" else dyn.agentName.asInstanceOf[String]
-    val componentId =
-      if (js.isUndefined(dyn.componentId) || dyn.componentId == null) m.agentId.componentId
-      else m.componentId
+    val agentType = rt.agentType.getOrElse("")
+    val agentName = rt.agentName.getOrElse("")
+    val componentId: JsComponentId = rt.componentId.getOrElse(m.agentId.componentId)
+    val envId = m.environmentId
     AgentMetadata(
       agentId = m.agentId,
       args = args,
@@ -535,7 +534,8 @@ object HostApi {
       retryCount = retry,
       agentType = agentType,
       agentName = agentName,
-      componentId = componentId
+      componentId = componentId,
+      environmentId = envId
     )
   }
 

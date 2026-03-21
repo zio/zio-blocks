@@ -1,6 +1,7 @@
 package golem.runtime.autowire
 
 import golem.data.GolemSchema
+import golem.host.js._
 import golem.runtime.util.FutureInterop
 
 import scala.concurrent.Future
@@ -9,9 +10,9 @@ import scala.scalajs.js
 trait AgentConstructor[Instance] {
   def info: ConstructorMetadata
 
-  def schema: js.Dynamic
+  def schema: JsDataSchema
 
-  def initialize(payload: js.Dynamic): js.Promise[Instance]
+  def initialize(payload: JsDataValue): js.Promise[Instance]
 }
 
 object AgentConstructor {
@@ -35,9 +36,9 @@ object AgentConstructor {
   )(build: A => Future[Instance])(implicit codec: GolemSchema[A]): AgentConstructor[Instance] =
     new AgentConstructor[Instance] {
       override val info: ConstructorMetadata = ctorInfo
-      override val schema: js.Dynamic        = HostPayload.schema[A]
+      override val schema: JsDataSchema      = HostPayload.schema[A]
 
-      override def initialize(payload: js.Dynamic): js.Promise[Instance] =
+      override def initialize(payload: JsDataValue): js.Promise[Instance] =
         HostPayload
           .decode[A](payload)
           .fold(

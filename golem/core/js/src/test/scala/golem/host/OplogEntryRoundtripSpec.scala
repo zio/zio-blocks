@@ -25,44 +25,44 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("Suspend from dynamic") {
     val raw    = wrapEntry("suspend", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Suspend]
     parsed.timestamp.seconds shouldBe BigInt(1700000000)
   }
 
   test("NoOp from dynamic") {
     val raw    = wrapEntry("no-op", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.NoOp]
   }
 
   test("Interrupted from dynamic") {
     val raw    = wrapEntry("interrupted", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Interrupted]
   }
 
   test("Exited from dynamic") {
     val raw    = wrapEntry("exited", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Exited]
   }
 
   test("BeginAtomicRegion from dynamic") {
     val raw    = wrapEntry("begin-atomic-region", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.BeginAtomicRegion]
   }
 
   test("BeginRemoteWrite from dynamic") {
     val raw    = wrapEntry("begin-remote-write", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.BeginRemoteWrite]
   }
 
   test("Restart from dynamic") {
     val raw    = wrapEntry("restart", js.Dynamic.literal(timestamp = ts()))
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Restart]
   }
 
@@ -77,7 +77,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         retryFrom = js.BigInt("5")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Error]
     val e = parsed.asInstanceOf[OplogEntry.Error]
     e.params.error shouldBe "something failed"
@@ -92,7 +92,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("10")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.EndAtomicRegion]
     parsed.asInstanceOf[OplogEntry.EndAtomicRegion].params.beginIndex shouldBe BigInt(10)
   }
@@ -105,7 +105,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("20")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.EndRemoteWrite]
     parsed.asInstanceOf[OplogEntry.EndRemoteWrite].params.beginIndex shouldBe BigInt(20)
   }
@@ -118,7 +118,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         delta = js.BigInt("65536")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.GrowMemory]
     parsed.asInstanceOf[OplogEntry.GrowMemory].params.delta shouldBe BigInt(65536)
   }
@@ -131,7 +131,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         idempotencyKey = "idem-123"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.CancelInvocation]
     parsed.asInstanceOf[OplogEntry.CancelInvocation].params.idempotencyKey shouldBe "idem-123"
   }
@@ -144,7 +144,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         spanId = "span-42"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.FinishSpan]
     parsed.asInstanceOf[OplogEntry.FinishSpan].params.spanId shouldBe "span-42"
   }
@@ -157,7 +157,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         persistenceLevel = js.Dynamic.literal(tag = "smart")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ChangePersistenceLevel]
     parsed
       .asInstanceOf[OplogEntry.ChangePersistenceLevel]
@@ -173,7 +173,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         transactionId = "tx-1"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.BeginRemoteTransaction]
     parsed.asInstanceOf[OplogEntry.BeginRemoteTransaction].params.transactionId shouldBe "tx-1"
   }
@@ -186,7 +186,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("30")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.PreCommitRemoteTransaction]
     parsed.asInstanceOf[OplogEntry.PreCommitRemoteTransaction].params.beginIndex shouldBe BigInt(30)
   }
@@ -199,7 +199,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("31")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.PreRollbackRemoteTransaction]
   }
 
@@ -211,7 +211,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("32")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.CommittedRemoteTransaction]
   }
 
@@ -223,7 +223,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         beginIndex = js.BigInt("33")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.RolledBackRemoteTransaction]
   }
 
@@ -237,7 +237,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         jump = js.Dynamic.literal(start = js.BigInt("0"), end = js.BigInt("10"))
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Jump]
     val j = parsed.asInstanceOf[OplogEntry.Jump]
     j.params.jump.start shouldBe BigInt(0)
@@ -258,7 +258,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ChangeRetryPolicy]
     val p = parsed.asInstanceOf[OplogEntry.ChangeRetryPolicy].params.newPolicy
     p.maxAttempts shouldBe 5
@@ -276,7 +276,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         message = "Agent started"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Log]
     val l = parsed.asInstanceOf[OplogEntry.Log]
     l.params.level shouldBe LogLevel.Info
@@ -309,7 +309,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         consumedFuel = 1000.0
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ExportedFunctionCompleted]
     val c = parsed.asInstanceOf[OplogEntry.ExportedFunctionCompleted]
     c.params.response.isDefined shouldBe true
@@ -326,7 +326,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         consumedFuel = 0.0
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ExportedFunctionCompleted]
     parsed.asInstanceOf[OplogEntry.ExportedFunctionCompleted].params.response shouldBe None
   }
@@ -351,7 +351,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         wrappedFunctionType = js.Dynamic.literal(tag = "read-remote")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ImportedFunctionInvoked]
     val i = parsed.asInstanceOf[OplogEntry.ImportedFunctionInvoked]
     i.params.functionName shouldBe "wasi:io/read"
@@ -368,7 +368,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         owner = "golem:api"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.CreateResource]
     val cr = parsed.asInstanceOf[OplogEntry.CreateResource]
     cr.params.resourceId shouldBe BigInt(1)
@@ -386,7 +386,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         owner = "golem:api"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.DropResource]
   }
 
@@ -402,7 +402,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.ActivatePlugin]
     val p = parsed.asInstanceOf[OplogEntry.ActivatePlugin].params.plugin
     p.name shouldBe "my-plugin"
@@ -421,7 +421,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.DeactivatePlugin]
   }
 
@@ -434,7 +434,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         end = js.BigInt("10")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.Revert]
     val r = parsed.asInstanceOf[OplogEntry.Revert]
     r.params.start shouldBe BigInt(0)
@@ -457,7 +457,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.StartSpan]
     val s = parsed.asInstanceOf[OplogEntry.StartSpan]
     s.params.spanId shouldBe "span-1"
@@ -478,7 +478,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         attributes = js.undefined
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     val s      = parsed.asInstanceOf[OplogEntry.StartSpan]
     s.params.parent shouldBe None
     s.params.linkedContext shouldBe None
@@ -495,7 +495,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         value = js.Dynamic.literal(tag = "string", `val` = "high")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.SetSpanAttribute]
     val sa = parsed.asInstanceOf[OplogEntry.SetSpanAttribute]
     sa.params.key shouldBe "priority"
@@ -511,7 +511,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         details = "compile error"
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.FailedUpdate]
     parsed.asInstanceOf[OplogEntry.FailedUpdate].params.details shouldBe Some("compile error")
   }
@@ -525,7 +525,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         details = js.undefined
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed.asInstanceOf[OplogEntry.FailedUpdate].params.details shouldBe None
   }
 
@@ -538,7 +538,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         updateDescription = js.Dynamic.literal(tag = "auto-update")
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.PendingUpdate]
     parsed.asInstanceOf[OplogEntry.PendingUpdate].params.updateDescription shouldBe UpdateDescription.AutoUpdate
   }
@@ -552,7 +552,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         updateDescription = js.Dynamic.literal(tag = "snapshot-based", `val` = js.Array(1, 2, 3))
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.PendingUpdate]
     val ud = parsed.asInstanceOf[OplogEntry.PendingUpdate].params.updateDescription
     ud shouldBe a[UpdateDescription.SnapshotBased]
@@ -571,7 +571,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.SuccessfulUpdate]
     val su = parsed.asInstanceOf[OplogEntry.SuccessfulUpdate]
     su.params.newComponentSize shouldBe BigInt(2048)
@@ -597,7 +597,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     parsed shouldBe a[OplogEntry.PendingAgentInvocation]
     val inv = parsed.asInstanceOf[OplogEntry.PendingAgentInvocation].params.invocation
     inv shouldBe a[AgentInvocation.ExportedFunction]
@@ -615,7 +615,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
         )
       )
     )
-    val parsed = OplogEntry.fromDynamic(raw)
+    val parsed = OplogEntry.fromJs(raw)
     val inv    = parsed.asInstanceOf[OplogEntry.PendingAgentInvocation].params.invocation
     inv shouldBe a[AgentInvocation.ManualUpdate]
     inv.asInstanceOf[AgentInvocation.ManualUpdate].componentRevision shouldBe BigInt(7)
@@ -625,7 +625,7 @@ class OplogEntryRoundtripSpec extends AnyFunSuite with Matchers {
 
   test("unknown oplog entry tag throws") {
     val raw = js.Dynamic.literal(tag = "unknown-entry", `val` = js.Dynamic.literal())
-    an[IllegalArgumentException] should be thrownBy OplogEntry.fromDynamic(raw)
+    an[IllegalArgumentException] should be thrownBy OplogEntry.fromJs(raw)
   }
 
   test("LogLevel.fromString covers all variants") {

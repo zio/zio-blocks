@@ -1,5 +1,6 @@
 package golem.runtime.snapshot
 
+import golem.host.js.JsSnapshot
 import golem.runtime.util.FutureInterop
 
 import scala.concurrent.Future
@@ -97,8 +98,10 @@ object SnapshotExports {
   @JSExportTopLevel("saveSnapshot")
   object SaveSnapshot {
     @JSExport
-    def save(): js.Promise[Uint8Array] =
-      FutureInterop.toPromise(saveHook())
+    def save(): js.Promise[JsSnapshot] =
+      FutureInterop.toPromise(saveHook().map { bytes =>
+        JsSnapshot(bytes, "application/octet-stream")
+      })
   }
 
   /**
@@ -108,8 +111,10 @@ object SnapshotExports {
   @JSExportTopLevel("loadSnapshot")
   object LoadSnapshot {
     @JSExport
-    def load(bytes: Uint8Array): js.Promise[Unit] =
+    def load(snapshot: JsSnapshot): js.Promise[Unit] = {
+      val bytes = snapshot.data
       FutureInterop.toPromise(loadHook(bytes))
+    }
   }
 
   private def toUint8Array(bytes: Array[Byte]): Uint8Array = {

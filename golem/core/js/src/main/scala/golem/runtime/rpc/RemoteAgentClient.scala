@@ -2,6 +2,7 @@ package golem.runtime.rpc
 
 import golem.Datetime
 import golem.Uuid
+import golem.host.js._
 import golem.runtime.rpc.host.AgentHostApi.RegisteredAgentType
 import golem.runtime.rpc.host.WasmRpcApi.WasmRpcClient
 import golem.runtime.rpc.host.{AgentHostApi, WasmRpcApi}
@@ -17,12 +18,12 @@ final case class RemoteAgentClient(
 )
 
 object RemoteAgentClient {
-  def resolve(agentTypeName: String, constructorPayload: js.Dynamic): Either[String, RemoteAgentClient] =
+  def resolve(agentTypeName: String, constructorPayload: JsDataValue): Either[String, RemoteAgentClient] =
     resolve(agentTypeName, constructorPayload, phantom = None)
 
   def resolve(
     agentTypeName: String,
-    constructorPayload: js.Dynamic,
+    constructorPayload: JsDataValue,
     phantom: Option[Uuid]
   ): Either[String, RemoteAgentClient] =
     AgentHostApi
@@ -31,24 +32,30 @@ object RemoteAgentClient {
       .flatMap { agentType =>
         val displayTypeName = agentType.agentType.typeName
         AgentHostApi.makeAgentId(displayTypeName, constructorPayload, phantom).map { id =>
-          val rpcClient = WasmRpcApi.newClient(agentType.implementedBy.asInstanceOf[js.Dynamic], id)
+          val phantomArg: js.UndefOr[JsUuid] = phantom.fold[js.UndefOr[JsUuid]](js.undefined) { uuid =>
+            JsUuid(
+              js.BigInt(uuid.highBits.toString),
+              js.BigInt(uuid.lowBits.toString)
+            )
+          }
+          val rpcClient = WasmRpcApi.newClient(displayTypeName, constructorPayload, phantomArg, js.Array())
           RemoteAgentClient(displayTypeName, id, agentType, new WasmRpcInvoker(rpcClient))
         }
       }
 
   private final class WasmRpcInvoker(client: WasmRpcClient) extends RpcInvoker {
-    override def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): Either[String, js.Dynamic] =
-      invokeWithFallback(functionName)(fn => client.invokeAndAwait(fn, params).left.map(_.toString))
+    override def invokeAndAwait(functionName: String, input: JsDataValue): Either[String, JsDataValue] =
+      invokeWithFallback(functionName)(fn => client.invokeAndAwait(fn, input).left.map(_.toString))
 
-    override def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit] =
-      invokeWithFallback(functionName)(fn => client.trigger(fn, params).left.map(_.toString))
+    override def invoke(functionName: String, input: JsDataValue): Either[String, Unit] =
+      invokeWithFallback(functionName)(fn => client.invoke(fn, input).left.map(_.toString))
 
     override def scheduleInvocation(
       datetime: Datetime,
       functionName: String,
-      params: js.Array[js.Dynamic]
+      input: JsDataValue
     ): Either[String, Unit] =
-      invokeWithFallback(functionName)(fn => client.scheduleInvocation(datetime, fn, params).left.map(_.toString))
+      invokeWithFallback(functionName)(fn => client.scheduleInvocation(datetime, fn, input).left.map(_.toString))
   }
 
   private def invokeWithFallback[A](functionName: String)(call: String => Either[String, A]): Either[String, A] =

@@ -1,11 +1,13 @@
 package golem.runtime.guest
 
-import golem.runtime.autowire.AgentRegistry
+import golem.host.js._
+import golem.runtime.autowire.{AgentRegistry, WitValueBuilder}
 import golem.runtime.util.FutureInterop
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
+import scala.annotation.unused
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 /**
@@ -20,42 +22,29 @@ object Guest {
   private var resolved: js.UndefOr[Resolved] = js.undefined
   private final case class Resolved(defn: golem.runtime.autowire.AgentDefinition[Any], instance: Any)
 
-  private def agentError(tag: String, message: String): js.Dynamic =
-    js.Dynamic.literal("tag" -> tag, "val" -> message)
+  private def invalidType(message: String): JsAgentError =
+    JsAgentError.invalidType(message)
 
-  private def invalidType(message: String): js.Dynamic =
-    agentError("invalid-type", message)
+  private def invalidAgentId(message: String): JsAgentError =
+    JsAgentError.invalidAgentId(message)
 
-  private def invalidAgentId(message: String): js.Dynamic =
-    agentError("invalid-agent-id", message)
-
-  private def customError(message: String): js.Dynamic = {
-    val witValue = golem.runtime.autowire.WitValueBuilder.build(
+  private def customError(message: String): JsAgentError = {
+    val witValue: JsWitValue = WitValueBuilder.build(
       golem.data.DataType.StringType,
       golem.data.DataValue.StringValue(message)
     ) match {
-      case Left(_)    => js.Dynamic.literal("tag" -> "string", "val" -> message)
-      case Right(vit) => vit
+      case Left(_)  => JsWitValue(js.Array(JsWitNode.primString(message)))
+      case Right(v) => v
     }
 
-    val node =
-      js.Dynamic.literal(
-        "name"  -> (js.undefined: js.UndefOr[String]),
-        "owner" -> (js.undefined: js.UndefOr[String]),
-        "type"  -> js.Dynamic.literal("tag" -> "prim-string-type")
-      )
-    val witType = js.Dynamic.literal("nodes" -> js.Array(node))
+    val witType: JsWitType = JsWitType(js.Array(
+      JsNamedWitTypeNode(JsWitTypeNode.primStringType)
+    ))
 
-    js.Dynamic.literal(
-      "tag" -> "custom-error",
-      "val" -> js.Dynamic.literal(
-        "value" -> witValue,
-        "typ"   -> witType
-      )
-    )
+    JsAgentError.customError(JsValueAndType(witValue, witType))
   }
 
-  private def asAgentError(err: Any, fallbackTag: String): js.Dynamic =
+  private def asAgentError(err: Any, fallbackTag: String): JsAgentError =
     if (err == null) customError("null")
     else {
       val dyn       = err.asInstanceOf[js.Dynamic]
@@ -63,11 +52,18 @@ object Guest {
         try !js.isUndefined(dyn.selectDynamic("tag")) && !js.isUndefined(dyn.selectDynamic("val"))
         catch { case _: Throwable => false }
 
-      if (hasTagVal) dyn
+      if (hasTagVal) dyn.asInstanceOf[JsAgentError]
       else
         err match {
-          case s: String => agentError(fallbackTag, s)
-          case other     => customError(String.valueOf(other))
+          case s: String =>
+            fallbackTag match {
+              case "invalid-input"    => JsAgentError.invalidInput(s)
+              case "invalid-method"   => JsAgentError.invalidMethod(s)
+              case "invalid-type"     => JsAgentError.invalidType(s)
+              case "invalid-agent-id" => JsAgentError.invalidAgentId(s)
+              case _                  => customError(s)
+            }
+          case other => customError(String.valueOf(other))
         }
     }
 
@@ -77,7 +73,7 @@ object Guest {
       methodName.substring(start, methodName.length - 1)
     } else methodName
 
-  private def initialize(agentTypeName: String, input: js.Dynamic): js.Promise[Unit] =
+  private def initialize(agentTypeName: String, input: js.Dynamic, @unused principal: js.Dynamic): js.Promise[Unit] =
     if (!js.isUndefined(resolved)) {
       js.Promise.reject(customError("Agent is already initialized in this container")).asInstanceOf[js.Promise[Unit]]
     } else {
@@ -86,7 +82,7 @@ object Guest {
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
           // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
-          val initPromise              = defnAny.initializeAny(input)
+          val initPromise              = defnAny.initializeAny(input.asInstanceOf[JsDataValue])
           val initFuture: Future[Unit] =
             FutureInterop
               .fromPromise(initPromise)
@@ -101,7 +97,7 @@ object Guest {
       }
     }
 
-  private def invoke(methodName: String, input: js.Dynamic): js.Promise[js.Dynamic] =
+  private def invoke(methodName: String, input: js.Dynamic, @unused principal: js.Dynamic): js.Promise[js.Dynamic] =
     if (js.isUndefined(resolved)) {
       js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
     } else {
@@ -112,32 +108,33 @@ object Guest {
           js.Promise.reject(asAgentError(err, "invalid-method")).asInstanceOf[js.Thenable[js.Dynamic]]
         )
       r.defn
-        .invokeAny(r.instance, mn, input)
+        .invokeAny(r.instance, mn, input.asInstanceOf[JsDataValue])
+        .asInstanceOf[js.Promise[js.Dynamic]]
         .`catch`[js.Dynamic](onRejected)
     }
 
-  private def getDefinition(): js.Promise[js.Dynamic] =
+  private def getDefinition(): js.Promise[js.Any] =
     if (js.isUndefined(resolved)) {
-      js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
+      js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Any]]
     } else {
-      js.Promise.resolve[js.Dynamic](resolved.asInstanceOf[Resolved].defn.agentType)
+      js.Promise.resolve[js.Any](resolved.asInstanceOf[Resolved].defn.agentType.asInstanceOf[js.Any])
     }
 
-  private def discoverAgentTypes(): js.Promise[js.Array[js.Dynamic]] =
+  private def discoverAgentTypes(): js.Promise[js.Array[js.Any]] =
     try {
-      val arr = new js.Array[js.Dynamic]()
-      AgentRegistry.all.foreach(d => arr.push(d.agentType))
-      js.Promise.resolve[js.Array[js.Dynamic]](arr)
+      val arr = new js.Array[js.Any]()
+      AgentRegistry.all.foreach(d => arr.push(d.agentType.asInstanceOf[js.Any]))
+      js.Promise.resolve[js.Array[js.Any]](arr)
     } catch {
       case t: Throwable =>
-        js.Promise.reject(asAgentError(t.toString, "custom-error")).asInstanceOf[js.Promise[js.Array[js.Dynamic]]]
+        js.Promise.reject(asAgentError(t.toString, "custom-error")).asInstanceOf[js.Promise[js.Array[js.Any]]]
     }
 
   @JSExportTopLevel("guest")
   val guest: js.Dynamic =
     js.Dynamic.literal(
-      "initialize"         -> ((agentTypeName: String, input: js.Dynamic) => initialize(agentTypeName, input)),
-      "invoke"             -> ((methodName: String, input: js.Dynamic) => invoke(methodName, input)),
+      "initialize"         -> ((agentTypeName: String, input: js.Dynamic, principal: js.Dynamic) => initialize(agentTypeName, input, principal)),
+      "invoke"             -> ((methodName: String, input: js.Dynamic, principal: js.Dynamic) => invoke(methodName, input, principal)),
       "getDefinition"      -> (() => getDefinition()),
       "discoverAgentTypes" -> (() => discoverAgentTypes())
     )

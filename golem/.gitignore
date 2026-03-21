@@ -9,3 +9,5 @@ metals.sbt
 package-lock.json
 .golem-local/
 .golem-apps/
+wit/deps/
+wit/deps.lock

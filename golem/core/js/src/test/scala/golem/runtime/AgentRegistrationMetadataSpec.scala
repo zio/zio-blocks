@@ -151,19 +151,19 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   test("echo method inputSchema has tuple tag") {
     val echo  = defn.methodMetadata.find(_.metadata.name == "echo").get
     val input = echo.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(input.tag == "tuple")
   }
 
   test("echo method outputSchema has tuple tag") {
     val echo   = defn.methodMetadata.find(_.metadata.name == "echo").get
     val output = echo.outputSchema
-    assert(output.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(output.tag == "tuple")
   }
 
   test("add method inputSchema has tuple tag with elements") {
     val add   = defn.methodMetadata.find(_.metadata.name == "add").get
     val input = add.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
+    assert(input.tag == "tuple")
   }
 
   // ---------------------------------------------------------------------------

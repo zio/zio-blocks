@@ -1,6 +1,7 @@
 package golem.runtime.rpc
 
 import golem.data.GolemSchema
+import golem.host.js._
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.BaseAgent
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
@@ -30,7 +31,6 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     resolved.call(method, SampleInput("hello", 2)).map { result =>
       assert(result == expected)
       assert(invoker.invokeCalls.headOption.exists(_._1 == method.functionName))
-      assert(invoker.invokeCalls.headOption.exists(_._2.length == 1))
     }
   }
 
@@ -154,8 +154,8 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     RemoteAgentClient(agentType.typeName, "agent-1", metadata, invoker)
   }
 
-  private def encodeValue[A](value: A)(implicit codec: GolemSchema[A]): Either[String, js.Dynamic] =
-    RpcValueCodec.encodeValue(value)
+  private def encodeValue[A](value: A)(implicit codec: GolemSchema[A]): Either[String, JsDataValue] =
+    RpcValueCodec.encodeValue(value).map(wv => JsDataValue.tuple(js.Array(JsElementValue.componentModel(wv))))
 
   private def manualBinder(
     rpcAgentType: AgentType[RpcParityAgent, RpcCtor]
@@ -194,32 +194,32 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
     }.getOrElse(throw new IllegalArgumentException(s"Method definition for $name not found"))
 
   private final class RecordingRpcInvoker extends RpcInvoker {
-    val invokeCalls   = mutable.ListBuffer.empty[(String, js.Array[js.Dynamic])]
-    val triggerCalls  = mutable.ListBuffer.empty[(String, js.Array[js.Dynamic])]
-    val scheduleCalls = mutable.ListBuffer.empty[(golem.Datetime, String, js.Array[js.Dynamic])]
+    val invokeCalls   = mutable.ListBuffer.empty[(String, JsDataValue)]
+    val triggerCalls  = mutable.ListBuffer.empty[(String, JsDataValue)]
+    val scheduleCalls = mutable.ListBuffer.empty[(golem.Datetime, String, JsDataValue)]
 
-    private val invokeResults = mutable.Queue.empty[Either[String, js.Dynamic]]
+    private val invokeResults = mutable.Queue.empty[Either[String, JsDataValue]]
 
-    def enqueueInvokeResult(result: Either[String, js.Dynamic]): Unit =
+    def enqueueInvokeResult(result: Either[String, JsDataValue]): Unit =
       invokeResults.enqueue(result)
 
-    override def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): Either[String, js.Dynamic] = {
-      invokeCalls += ((functionName, params))
+    override def invokeAndAwait(functionName: String, input: JsDataValue): Either[String, JsDataValue] = {
+      invokeCalls += ((functionName, input))
       if (invokeResults.nonEmpty) invokeResults.dequeue()
-      else Right(js.Dynamic.literal())
+      else Right(js.Dynamic.literal().asInstanceOf[JsDataValue])
     }
 
-    override def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[String, Unit] = {
-      triggerCalls += ((functionName, params))
+    override def invoke(functionName: String, input: JsDataValue): Either[String, Unit] = {
+      triggerCalls += ((functionName, input))
       Right(())
     }
 
     override def scheduleInvocation(
       datetime: golem.Datetime,
       functionName: String,
-      params: js.Array[js.Dynamic]
+      input: JsDataValue
     ): Either[String, Unit] = {
-      scheduleCalls += ((datetime, functionName, params))
+      scheduleCalls += ((datetime, functionName, input))
       Right(())
     }
   }

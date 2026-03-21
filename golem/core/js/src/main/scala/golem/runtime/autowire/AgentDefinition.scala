@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.host.js._
 import golem.runtime.AgentMetadata
 
 import scala.scalajs.js
@@ -53,7 +54,7 @@ final class AgentDefinition[Instance](
    * This is lazily computed and cached. It encodes the agent's schema in a
    * format suitable for the Golem runtime's type system.
    */
-  lazy val agentType: js.Dynamic =
+  lazy val agentType: JsAgentType =
     AgentTypeEncoder.from(this)
   private val methodsByName: Map[String, MethodBinding[Instance]] =
     bindings.map(binding => binding.metadata.name -> binding).toMap
@@ -62,24 +63,24 @@ final class AgentDefinition[Instance](
    * Initializes a new agent instance, returning as Any for type-erased
    * contexts.
    */
-  def initializeAny(payload: js.Dynamic): js.Promise[Any] =
+  def initializeAny(payload: JsDataValue): js.Promise[Any] =
     initialize(payload).asInstanceOf[js.Promise[Any]]
 
   /**
    * Initializes a new agent instance from a constructor payload.
    *
    * @param payload
-   *   The constructor arguments as a dynamic JS object
+   *   The constructor arguments as a JsDataValue
    * @return
    *   A Promise resolving to the initialized instance
    */
-  def initialize(payload: js.Dynamic): js.Promise[Instance] =
+  def initialize(payload: JsDataValue): js.Promise[Instance] =
     constructor.initialize(payload)
 
   /**
    * Invokes a method with type-erased instance for dynamic dispatch.
    */
-  def invokeAny(instance: Any, methodName: String, payload: js.Dynamic): js.Promise[js.Dynamic] =
+  def invokeAny(instance: Any, methodName: String, payload: JsDataValue): js.Promise[JsDataValue] =
     invoke(instance.asInstanceOf[Instance], methodName, payload)
 
   /**
@@ -90,11 +91,11 @@ final class AgentDefinition[Instance](
    * @param methodName
    *   The method to invoke
    * @param payload
-   *   The method arguments as a dynamic JS object
+   *   The method arguments as a JsDataValue
    * @return
    *   A Promise resolving to the method result
    */
-  def invoke(instance: Instance, methodName: String, payload: js.Dynamic): js.Promise[js.Dynamic] = {
+  def invoke(instance: Instance, methodName: String, payload: JsDataValue): js.Promise[JsDataValue] = {
     if (!methodsByName.contains(methodName)) {
       scala.scalajs.js.Dynamic.global.console.log(
         s"[AgentDefinition] Unknown method: $methodName, available: ${methodsByName.keySet.mkString(",")}"
