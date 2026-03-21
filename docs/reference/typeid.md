@@ -1341,12 +1341,14 @@ You encounter `TypeRepr` values when inspecting `typeArgs`, parent types in `def
 import zio.blocks.typeid._
 ```
 
+When you derive a TypeId for an applied type, the `typeArgs` are `TypeRepr` values representing the type arguments:
+
 ```scala mdoc
-TypeId.of[List[Int]].typeArgs
+TypeId.of[Int & String].typeArgs
 TypeId.of[Map[String, Int]].typeArgs
 ```
 
-### TypeRepr Variants
+Here is a reference of the different `TypeRepr` variants you may encounter when inspecting TypeIds:
 
 | Category     | Variant                                          | Example                                     |
 |--------------|--------------------------------------------------|---------------------------------------------|
