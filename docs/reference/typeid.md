@@ -497,7 +497,7 @@ val resultId = TypeId.of[Result[String, List[Int]]]
 resultId.typeArgs
 
 // Type constructor with no arguments has empty typeArgs
-TypeId.list.typeArgs
+TypeId.of[List].typeArgs
 ```
 
 When you access `typeArgs`, each element is a `TypeRepr` describing that argument. You can inspect them further to understand the structure:
@@ -606,12 +606,12 @@ Check which types are proper types:
 TypeId.of[Value].isProperType
 TypeId.of[List[Int]].isProperType
 TypeId.of[Pair[String, Int]].isProperType
-TypeId.int.isProperType
+TypeId.of[Int].isProperType
 
 // Type constructors: need type arguments, arity > 0
 TypeId.of[Single].isProperType
 TypeId.of[Pair].isProperType
-TypeId.list.isProperType
+TypeId.of[List].isProperType
 ```
 
 #### `isTypeConstructor` — Has Type Parameters
@@ -632,13 +632,13 @@ Identify which types are type constructors:
 // Type constructors: need type arguments, arity > 0
 TypeId.of[Single].isTypeConstructor
 TypeId.of[Pair].isTypeConstructor
-TypeId.list.isTypeConstructor
-TypeId.map.isTypeConstructor
+TypeId.of[List].isTypeConstructor
+TypeId.of[Map].isTypeConstructor
 
 // Proper types: fully instantiated, no type parameters
 TypeId.of[Value].isTypeConstructor
 TypeId.of[List[Int]].isTypeConstructor
-TypeId.int.isTypeConstructor
+TypeId.of[Int].isTypeConstructor
 ```
 
 #### `isApplied` — Has Type Arguments
@@ -647,7 +647,7 @@ Returns `true` when `typeArgs.nonEmpty`.
 
 ```scala mdoc
 TypeId.of[List[Int]].isApplied
-TypeId.list.isApplied
+TypeId.of[List].isApplied
 ```
 
 ### Type Classification
