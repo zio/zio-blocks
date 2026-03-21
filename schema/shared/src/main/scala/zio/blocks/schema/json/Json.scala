@@ -2428,55 +2428,46 @@ object Json {
 
     override def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val instantRawCodec = new JsonCodec[Instant] {
     override def decodeValue(in: JsonReader): Instant = in.readRawValAsInstant()
 
     override def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val localDateRawCodec = new JsonCodec[LocalDate] {
     override def decodeValue(in: JsonReader): LocalDate = in.readRawValAsLocalDate()
 
     override def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val localDateTimeRawCodec = new JsonCodec[LocalDateTime] {
     override def decodeValue(in: JsonReader): LocalDateTime = in.readRawValAsLocalDateTime()
 
     override def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val localTimeRawCodec = new JsonCodec[LocalTime] {
     override def decodeValue(in: JsonReader): LocalTime = in.readRawValAsLocalTime()
 
     override def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val monthDayRawCodec = new JsonCodec[MonthDay] {
     override def decodeValue(in: JsonReader): MonthDay = in.readRawValAsMonthDay()
 
     override def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val offsetDateTimeRawCodec = new JsonCodec[OffsetDateTime] {
     override def decodeValue(in: JsonReader): OffsetDateTime = in.readRawValAsOffsetDateTime()
 
     override def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val offsetTimeRawCodec = new JsonCodec[OffsetTime] {
     override def decodeValue(in: JsonReader): OffsetTime = in.readRawValAsOffsetTime()
 
     override def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val periodRawCodec = new JsonCodec[Period] {
     override def decodeValue(in: JsonReader): Period = in.readRawValAsPeriod()
 
     override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
   }
-
   private[schema] val zonedDateTimeRawCodec = new JsonCodec[ZonedDateTime] {
     override def decodeValue(in: JsonReader): ZonedDateTime = in.readRawValAsZonedDateTime()
 
