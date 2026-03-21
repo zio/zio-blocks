@@ -17,7 +17,7 @@ object ToAttrValueSpec extends ZIOSpecDefault {
       assertTrue(ToAttrValue[Js].toAttrValue(Js("fn()")) == "fn()")
     },
     test("Js with HTML special chars is escaped") {
-      assertTrue(ToAttrValue[Js].toAttrValue(Js("alert(\"xss\")")) == "alert(&quot;xss&quot;)")
+      assertTrue(ToAttrValue[Js].toAttrValue(Js("""alert("xss")""")) == "alert(&quot;xss&quot;)")
     },
     test("Css is HTML-escaped") {
       assertTrue(ToAttrValue[Css].toAttrValue(Css("color: red")) == "color: red")

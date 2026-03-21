@@ -14,7 +14,7 @@ object JsInterpolatorSpec extends ZIOSpecDefault {
     },
     test("JS with interpolated String is quoted and escaped") {
       val result = js"var s = ${"hello"}"
-      assertTrue(result == Js("var s = \"hello\""))
+      assertTrue(result == Js("""var s = "hello""""))
     },
     test("JS with interpolated Boolean") {
       val result = js"var b = ${true}"

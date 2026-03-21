@@ -234,7 +234,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         )
       },
       test("attribute with whitespace around equals") {
-        val result = InterpolatorRuntime.parseHtml("<div id = \"main\">text</div>")
+        val result = InterpolatorRuntime.parseHtml("""<div id = "main">text</div>""")
         assertTrue(
           result == Chunk(
             Dom.Element.Generic(
@@ -262,7 +262,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         )
       },
       test("tag with attr value at end of input") {
-        val result = InterpolatorRuntime.parseHtml("<div class=\"x\"")
+        val result = InterpolatorRuntime.parseHtml("""<div class="x"""")
         assertTrue(
           result == Chunk(
             Dom.Element.Generic(
@@ -286,7 +286,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         )
       },
       test("second attribute at end of input without >") {
-        val result = InterpolatorRuntime.parseHtml("<div id=\"x\" class")
+        val result = InterpolatorRuntime.parseHtml("""<div id="x" class""")
         assertTrue(
           result == Chunk(
             Dom.Element.Generic(
@@ -411,10 +411,10 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
     ),
     suite("buildHtml edge cases")(
       test("buildHtml with Left(attrValue) argument") {
-        val sc     = new StringContext("<div id=\"", "\">text</div>")
+        val sc     = new StringContext("""<div id="""", """">text</div>""")
         val args   = Seq(Left("main"): Either[String, Chunk[Dom]])
         val result = InterpolatorRuntime.buildHtml(sc, args)
-        assertTrue(result.render == "<div id=\"main\">text</div>")
+        assertTrue(result.render == """<div id="main">text</div>""")
       },
       test("buildHtml returning Empty when input is empty") {
         val sc     = new StringContext("")
@@ -454,7 +454,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         assertTrue(result.nonEmpty)
       },
       test("multiple attributes including unquoted") {
-        val result = InterpolatorRuntime.parseHtml("<div id=main class=\"box\" hidden>x</div>")
+        val result = InterpolatorRuntime.parseHtml("""<div id=main class="box" hidden>x</div>""")
         val el     = result.head.asInstanceOf[Dom.Element]
         assertTrue(el.attributes.length == 3)
       },
@@ -464,7 +464,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         assertTrue(el.attributes.length == 1)
       },
       test("second attr name runs to end of input") {
-        val result = InterpolatorRuntime.parseHtml("<div id=\"x\" data")
+        val result = InterpolatorRuntime.parseHtml("""<div id="x" data""")
         val el     = result.head.asInstanceOf[Dom.Element]
         assertTrue(el.attributes.length == 2)
       }
