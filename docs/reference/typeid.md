@@ -306,31 +306,29 @@ Two types with the same name defined in different locations have different owner
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-package com.api {
-  case class User(id: Long, name: String)
-}
-
-package com.admin {
-  case class User(userId: Long, role: String, email: String)
-}
+case class User(id: Long, name: String)
 ```
 
 ```scala mdoc
-val apiUser = TypeId.of[com.api.User]
-val adminUser = TypeId.of[com.admin.User]
+val userId = TypeId.of[User]
+userId.name
+userId.owner.asString
+userId.fullName
+```
 
-apiUser.name
-apiUser.owner.asString
-apiUser.fullName
+Consider a type with the same name from another source (e.g., API vs Admin):
 
+```scala mdoc:compile-only
+// Imagined structure from a different package:
+// package com.admin.User(userId: Long, role: String, email: String)
+
+val adminUser = TypeId.nominal[Any]("User", Owner.fromPackagePath("com.admin"), TypeDefKind.Unknown)
 adminUser.name
 adminUser.owner.asString
 adminUser.fullName
-
-apiUser == adminUser
 ```
 
-Both types are named `User`, but their owners distinguish them. 
+Both `User` types share the same name, but their owners (which package they come from) distinguish them. This matters when building registries or serializers that need to differentiate between types across packages. 
 
 #### `toString` — Idiomatic Scala Rendering
 
@@ -390,6 +388,63 @@ Type parameters are empty for monomorphic types:
 ```scala mdoc
 TypeId.int.typeParams
 TypeId.string.typeParams
+```
+
+##### TypeParam — Type Parameter Details
+
+Each element in `typeParams` is a `TypeParam` value. `TypeParam` captures four pieces of information about a type parameter:
+
+```scala
+final case class TypeParam(
+  name: String,                           // "A", "T", "K", "F"
+  index: Int,                             // Position: 0, 1, 2, ...
+  variance: Variance = Variance.Invariant, // +, -, or none
+  bounds: TypeBounds = TypeBounds.Unbounded, // >: Lower <: Upper
+  kind: Kind = Kind.Type                  // *, * -> *, etc.
+)
+```
+
+**Inspect a single type parameter:**
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Functor[F[_]]
+```
+
+```scala mdoc
+val functorId = TypeId.of[Functor]
+val paramF = functorId.typeParams.head
+
+paramF.name
+paramF.index
+paramF.variance
+paramF.isInvariant
+paramF.kind
+paramF.isTypeConstructor
+```
+
+**Predicates for common scenarios:**
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Box[+A]
+sealed trait Sink[-T]
+sealed trait Cache[K, +V]
+```
+
+```scala mdoc
+val boxId = TypeId.of[Box]
+boxId.typeParams.head.isCovariant
+
+val sinkId = TypeId.of[Sink]
+sinkId.typeParams.head.isContravariant
+
+val cacheId = TypeId.of[Cache]
+val (k, v) = (cacheId.typeParams(0), cacheId.typeParams(1))
+k.isInvariant
+v.isCovariant
 ```
 
 #### `typeArgs` — Applied Type Arguments
