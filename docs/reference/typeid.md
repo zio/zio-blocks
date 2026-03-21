@@ -589,11 +589,28 @@ TypeId.of[Pair[String, Int]].arity
 
 #### `isProperType` — Has No Type Parameters
 
-Returns `true` when `arity == 0`, meaning this is a fully applied or ground type.
+A **proper type** (also called a ground type or monomorphic type) is a fully instantiated type with no unresolved type parameters. It's the opposite of a type constructor — you can directly instantiate values of a proper type, whereas a type constructor needs type arguments before it's usable. The `isProperType` predicate returns `true` when `arity == 0`, helping distinguish concrete types from abstract type constructors.
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Single[A](value: A)
+case class Pair[A, B](a: A, b: B)
+case class Value(x: Int)
+```
+
+Check which types are proper types:
 
 ```scala mdoc
-TypeId.int.isProperType
+// Proper types: fully instantiated, arity == 0
+TypeId.of[Value].isProperType
 TypeId.of[List[Int]].isProperType
+TypeId.of[Pair[String, Int]].isProperType
+TypeId.int.isProperType
+
+// Type constructors: need type arguments, arity > 0
+TypeId.of[Single].isProperType
+TypeId.of[Pair].isProperType
 TypeId.list.isProperType
 ```
 
