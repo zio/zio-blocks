@@ -5,10 +5,10 @@ import zio.test._
 object ToJsSpec extends ZIOSpecDefault {
   def spec = suite("ToJs")(
     test("String is quoted and escaped") {
-      assertTrue(ToJs[String].toJs("hello") == "\"hello\"")
+      assertTrue(ToJs[String].toJs("hello") == """"hello"""")
     },
     test("String with special chars") {
-      assertTrue(ToJs[String].toJs("a\"b") == "\"a\\\"b\"")
+      assertTrue(ToJs[String].toJs("""a"b""") == """"a\"b"""")
     },
     test("Int renders as number") {
       assertTrue(ToJs[Int].toJs(42) == "42")
@@ -54,7 +54,7 @@ object ToJsSpec extends ZIOSpecDefault {
     },
     test("Map[String, Int]") {
       val result = ToJs[Map[String, Int]].toJs(Map("a" -> 1))
-      assertTrue(result == "{\"a\":1}")
+      assertTrue(result == """{"a":1}""")
     },
     test("Float normal") {
       assertTrue(ToJs[Float].toJs(1.5f) == "1.5")
@@ -69,18 +69,18 @@ object ToJsSpec extends ZIOSpecDefault {
       assertTrue(ToJs[Float].toJs(Float.NegativeInfinity) == "-Infinity")
     },
     test("List[String] with escaping") {
-      assertTrue(ToJs[List[String]].toJs(List("a\"b", "c")) == "[\"a\\\"b\",\"c\"]")
+      assertTrue(ToJs[List[String]].toJs(List("""a"b""", "c")) == """["a\"b","c"]""")
     },
     test("Map[String, String] with key escaping") {
       val result = ToJs[Map[String, String]].toJs(Map("k" -> "v"))
-      assertTrue(result == "{\"k\":\"v\"}")
+      assertTrue(result == """{"k":"v"}""")
     },
     test("Map empty") {
       assertTrue(ToJs[Map[String, Int]].toJs(Map.empty) == "{}")
     },
     test("Map[String, Int] with multiple entries uses comma separator") {
       val result = ToJs[Map[String, Int]].toJs(scala.collection.immutable.ListMap("a" -> 1, "b" -> 2))
-      assertTrue(result == "{\"a\":1,\"b\":2}")
+      assertTrue(result == """{"a":1,"b":2}""")
     },
     test("ToJs.fromSchema derives from Schema for case class") {
       import zio.blocks.schema.Schema
@@ -90,7 +90,7 @@ object ToJsSpec extends ZIOSpecDefault {
       }
       val point  = Point(1, 2)
       val result = ToJs[Point].toJs(point)
-      assertTrue(result == "{\"x\":1,\"y\":2}")
+      assertTrue(result == """{"x":1,"y":2}""")
     }
   )
 }

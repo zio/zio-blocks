@@ -16,7 +16,7 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(Dom.Text("a&b").render == "a&amp;b")
       },
       test("escapes quotes") {
-        assertTrue(Dom.Text("\"quoted\"").render == "&quot;quoted&quot;")
+        assertTrue(Dom.Text("\"" + "quoted" + "\"").render == "&quot;quoted&quot;")
       }
     ),
     suite("Empty")(
@@ -31,7 +31,7 @@ object DomSpec extends ZIOSpecDefault {
       test("renders element with string attribute") {
         val attr = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div id=\"main\"></div>")
+        assertTrue(el.render == """<div id="main"></div>""")
       },
       test("renders element with text child") {
         val el = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("hello")))
@@ -51,7 +51,7 @@ object DomSpec extends ZIOSpecDefault {
         val attr =
           Dom.Attribute.KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space))
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b\"></div>")
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("omits empty multi-value attribute") {
         val attr = Dom.Attribute.KeyValue(
@@ -64,7 +64,7 @@ object DomSpec extends ZIOSpecDefault {
       test("renders JsValue attribute HTML-escaped") {
         val attr = Dom.Attribute.KeyValue("onclick", Dom.AttributeValue.JsValue(Js("alert('hi')")))
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<button onclick=\"alert(&#x27;hi&#x27;)\"></button>")
+        assertTrue(el.render == """<button onclick="alert(&#x27;hi&#x27;)"></button>""")
       },
       test("BooleanValue(false) omits attribute") {
         val attr = Dom.Attribute.KeyValue("disabled", Dom.AttributeValue.BooleanValue(false))
@@ -86,43 +86,43 @@ object DomSpec extends ZIOSpecDefault {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b\"></div>")
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("single class attribute is unchanged") {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("only"))
         val el = Dom.Element.Generic("div", Chunk(a1), Chunk.empty)
-        assertTrue(el.render == "<div class=\"only\"></div>")
+        assertTrue(el.render == """<div class="only"></div>""")
       },
       test("no class attribute is unchanged") {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
         val el = Dom.Element.Generic("div", Chunk(a1), Chunk.empty)
-        assertTrue(el.render == "<div id=\"x\"></div>")
+        assertTrue(el.render == """<div id="x"></div>""")
       },
       test("merges class with other attributes preserved") {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
         val el = Dom.Element.Generic("div", Chunk(a1, a2, a3), Chunk.empty)
-        assertTrue(el.render == "<div id=\"x\" class=\"a b\"></div>")
+        assertTrue(el.render == """<div id="x" class="a b"></div>""")
       },
       test("merges MultiValue class attributes") {
         val a1 =
           Dom.Attribute.KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("c"))
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b c\"></div>")
+        assertTrue(el.render == """<div class="a b c"></div>""")
       },
       test("class merging works with indented rendering") {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk(Dom.Text("text")))
-        assertTrue(el.render(indent = 2) == "<div class=\"a b\">text</div>")
+        assertTrue(el.render(indent = 2) == """<div class="a b">text</div>""")
       },
       test("class merging works with renderMinified") {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
-        assertTrue(el.renderMinified == "<div class=\"a b\"></div>")
+        assertTrue(el.renderMinified == """<div class="a b"></div>""")
       }
     ),
     suite("Script element")(
@@ -174,7 +174,7 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("img self-closes with attributes") {
         val attr = Dom.Attribute.KeyValue("src", Dom.AttributeValue.StringValue("a.png"))
-        assertTrue(Dom.Element.Generic("img", Chunk(attr), Chunk.empty).render == "<img src=\"a.png\"/>")
+        assertTrue(Dom.Element.Generic("img", Chunk(attr), Chunk.empty).render == """<img src="a.png"/>""")
       },
       test("hr self-closes") {
         assertTrue(Dom.Element.Generic("hr", Chunk.empty, Chunk.empty).render == "<hr/>")
@@ -264,7 +264,10 @@ object DomSpec extends ZIOSpecDefault {
         )
         val result = el.render(indent = 2)
         assertTrue(
-          result == "<div id=\"main\">\n  <p>hi</p>\n  <p>there</p>\n</div>"
+          result == """<div id="main">
+  <p>hi</p>
+  <p>there</p>
+</div>"""
         )
       },
       test("indented rendering of void elements") {
@@ -322,7 +325,7 @@ object DomSpec extends ZIOSpecDefault {
         val result = el.when(true)(
           Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main")))
         )
-        assertTrue(result.render == "<div id=\"main\"></div>")
+        assertTrue(result.render == """<div id="main"></div>""")
       },
       test("when false returns unchanged") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
@@ -338,7 +341,7 @@ object DomSpec extends ZIOSpecDefault {
             Modifier.attributeToModifier(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(cls)))
           )
         }
-        assertTrue(result.render == "<div class=\"highlight\"></div>")
+        assertTrue(result.render == """<div class="highlight"></div>""")
       },
       test("whenSome with None returns unchanged") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
@@ -460,7 +463,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space)
         )
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b\"></div>")
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("Comma separator") {
         val attr = Dom.Attribute.KeyValue(
@@ -468,7 +471,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("text/html", "application/json"), Dom.AttributeSeparator.Comma)
         )
         val el = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<input accept=\"text/html,application/json\"/>")
+        assertTrue(el.render == """<input accept="text/html,application/json"/>""")
       },
       test("Semicolon separator") {
         val attr = Dom.Attribute.KeyValue(
@@ -476,7 +479,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("color: red", "font-size: 14px"), Dom.AttributeSeparator.Semicolon)
         )
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div style=\"color: red;font-size: 14px\"></div>")
+        assertTrue(el.render == """<div style="color: red;font-size: 14px"></div>""")
       },
       test("Custom separator") {
         val attr = Dom.Attribute.KeyValue(
@@ -484,55 +487,55 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Custom(" | "))
         )
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div data-tags=\"a | b\"></div>")
+        assertTrue(el.render == """<div data-tags="a | b"></div>""")
       }
     ),
     suite("multiAttr")(
       test("multiAttr factory creates attribute") {
         val attr = Dom.multiAttr("class", Dom.AttributeSeparator.Space, "foo", "bar")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"foo bar\"></div>")
+        assertTrue(el.render == """<div class="foo bar"></div>""")
       },
       test("multiAttr with Iterable") {
         val attr = Dom.multiAttr("class", List("a", "b", "c"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b c\"></div>")
+        assertTrue(el.render == """<div class="a b c"></div>""")
       },
       test("PartialMultiAttribute := varargs") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls.:=("foo", "bar", "baz")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"foo bar baz\"></div>")
+        assertTrue(el.render == """<div class="foo bar baz"></div>""")
       },
       test("PartialMultiAttribute apply") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls("foo", "bar")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"foo bar\"></div>")
+        assertTrue(el.render == """<div class="foo bar"></div>""")
       },
       test("PartialMultiAttribute := single string") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls := "single"
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"single\"></div>")
+        assertTrue(el.render == """<div class="single"></div>""")
       },
       test("PartialMultiAttribute := Chunk[String]") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls := Chunk("a", "b")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b\"></div>")
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("PartialMultiAttribute apply with Iterable") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls(List("x", "y"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"x y\"></div>")
+        assertTrue(el.render == """<div class="x y"></div>""")
       },
       test("PartialMultiAttribute apply with single value") {
         val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
         val attr = cls("single")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"single\"></div>")
+        assertTrue(el.render == """<div class="single"></div>""")
       }
     ),
     suite("PartialAttribute")(
@@ -540,25 +543,25 @@ object DomSpec extends ZIOSpecDefault {
         val pa   = new PartialAttribute("tabindex")
         val attr = pa := 100L
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div tabindex=\"100\"></div>")
+        assertTrue(el.render == """<div tabindex="100"></div>""")
       },
       test(":= with Double") {
         val pa   = new PartialAttribute("data-ratio")
         val attr = pa := 3.14
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div data-ratio=\"3.14\"></div>")
+        assertTrue(el.render == """<div data-ratio="3.14"></div>""")
       },
       test(":= with Js") {
         val pa   = new PartialAttribute("onclick")
         val attr = pa := Js("alert('hi')")
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<button onclick=\"alert(&#x27;hi&#x27;)\"></button>")
+        assertTrue(el.render == """<button onclick="alert(&#x27;hi&#x27;)"></button>""")
       },
       test("withSeparator") {
         val pa   = new PartialAttribute("class")
         val attr = pa.withSeparator(Chunk("a", "b", "c"), Dom.AttributeSeparator.Comma)
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a,b,c\"></div>")
+        assertTrue(el.render == """<div class="a,b,c"></div>""")
       }
     ),
     suite("Element withAttributes and withChildren")(
@@ -566,7 +569,7 @@ object DomSpec extends ZIOSpecDefault {
         val el      = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val attr    = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
         val updated = el.withAttributes(Chunk(attr))
-        assertTrue(updated.render == "<div id=\"x\"></div>")
+        assertTrue(updated.render == """<div id="x"></div>""")
       },
       test("Generic withChildren replaces children") {
         val el      = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
@@ -618,7 +621,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("text/html", "text/css"), Dom.AttributeSeparator.Comma)
         )
         val el = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<input accept=\"text/html,text/css\"/>")
+        assertTrue(el.render == """<input accept="text/html,text/css"/>""")
       },
       test("MultiValue with Semicolon separator") {
         val attr = Dom.Attribute.KeyValue(
@@ -626,7 +629,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("color: red", "font-size: 12px"), Dom.AttributeSeparator.Semicolon)
         )
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div style=\"color: red;font-size: 12px\"></div>")
+        assertTrue(el.render == """<div style="color: red;font-size: 12px"></div>""")
       },
       test("MultiValue with Custom separator") {
         val attr = Dom.Attribute.KeyValue(
@@ -634,7 +637,7 @@ object DomSpec extends ZIOSpecDefault {
           Dom.AttributeValue.MultiValue(Chunk("x", "y", "z"), Dom.AttributeSeparator.Custom(" | "))
         )
         val el = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div data-list=\"x | y | z\"></div>")
+        assertTrue(el.render == """<div data-list="x | y | z"></div>""")
       },
       test("MultiValue empty omits attribute entirely") {
         val attr = Dom.Attribute.KeyValue(
@@ -647,7 +650,7 @@ object DomSpec extends ZIOSpecDefault {
       test("JsValue with HTML special chars is properly escaped") {
         val attr = Dom.Attribute.KeyValue(
           "onclick",
-          Dom.AttributeValue.JsValue(Js("if (a < b) alert(\"xss\")"))
+          Dom.AttributeValue.JsValue(Js("""if (a < b) alert("xss")"""))
         )
         val el = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(
@@ -667,7 +670,7 @@ object DomSpec extends ZIOSpecDefault {
       test("StringValue with special chars is escaped") {
         val attr = Dom.Attribute.KeyValue("title", Dom.AttributeValue.StringValue("a<b&c"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div title=\"a&lt;b&amp;c\"></div>")
+        assertTrue(el.render == """<div title="a&lt;b&amp;c"></div>""")
       },
       test("Multiple attributes render in order") {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
@@ -684,7 +687,7 @@ object DomSpec extends ZIOSpecDefault {
         val pa   = new PartialAttribute("tabindex")
         val attr = pa := 5
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div tabindex=\"5\"></div>")
+        assertTrue(el.render == """<div tabindex="5"></div>""")
       },
       test(":= with Boolean true creates BooleanValue") {
         val pa   = new PartialAttribute("disabled")
@@ -702,13 +705,13 @@ object DomSpec extends ZIOSpecDefault {
         val pa   = new PartialAttribute("class")
         val attr = pa := Chunk("x", "y")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"x y\"></div>")
+        assertTrue(el.render == """<div class="x y"></div>""")
       },
       test(":= with varargs creates MultiValue") {
         val pa   = new PartialAttribute("class")
         val attr = pa.:=("a", "b", "c")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b c\"></div>")
+        assertTrue(el.render == """<div class="a b c"></div>""")
       },
       test("BooleanAttribute as modifier (applyTo)") {
         val ba      = Dom.Attribute.BooleanAttribute("required")

@@ -21,13 +21,13 @@ object EscapeSpec extends ZIOSpecDefault {
         assertTrue(Escape.html("a>b") == "a&gt;b")
       },
       test("escapes double quotes") {
-        assertTrue(Escape.html("\"quoted\"") == "&quot;quoted&quot;")
+        assertTrue(Escape.html(""""quoted"""") == "&quot;quoted&quot;")
       },
       test("escapes single quotes") {
         assertTrue(Escape.html("'single'") == "&#x27;single&#x27;")
       },
       test("escapes all special chars together") {
-        assertTrue(Escape.html("<b>&\"'") == "&lt;b&gt;&amp;&quot;&#x27;")
+        assertTrue(Escape.html("""<b>&"'""") == "&lt;b&gt;&amp;&quot;&#x27;")
       }
     ),
     suite("jsString")(
@@ -39,7 +39,7 @@ object EscapeSpec extends ZIOSpecDefault {
         assertTrue(result == "hello")
       },
       test("escapes double quotes") {
-        assertTrue(Escape.jsString("a\"b") == "a\\\"b")
+        assertTrue(Escape.jsString("""a"b""") == """a\"b""")
       },
       test("escapes backslash") {
         assertTrue(Escape.jsString("a\\b") == "a\\\\b")
@@ -87,7 +87,7 @@ object EscapeSpec extends ZIOSpecDefault {
         assertTrue(Escape.cssString("a\\b") == "a\\\\b")
       },
       test("escapes double quotes") {
-        assertTrue(Escape.cssString("a\"b") == "a\\\"b")
+        assertTrue(Escape.cssString("""a"b""") == """a\"b""")
       },
       test("escapes single quotes") {
         assertTrue(Escape.cssString("a'b") == "a\\'b")
@@ -100,8 +100,8 @@ object EscapeSpec extends ZIOSpecDefault {
         assertTrue(Escape.cssString("a&b") == "a\\26 b")
       },
       test("cssString with all escape types at once") {
-        val result = Escape.cssString("\\\"'<>&")
-        assertTrue(result == "\\\\\\\"\\\'\\3c \\3e \\26 ")
+        val result = Escape.cssString("""\"'<>&""")
+        assertTrue(result == """\\\"\'\3c \3e \26 """)
       }
     )
   )

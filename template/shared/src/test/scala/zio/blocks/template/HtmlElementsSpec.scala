@@ -15,7 +15,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("div with attribute") {
         val result = div(id := "main").render
-        assertTrue(result == "<div id=\"main\"></div>")
+        assertTrue(result == """<div id="main"></div>""")
       },
       test("div with multiple attributes and content") {
         val result = div(id := "main", className := "box", "content").render
@@ -64,19 +64,19 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("attribute helpers")(
       test("class attribute via className") {
         val result = div(className := "container").render
-        assertTrue(result == "<div class=\"container\"></div>")
+        assertTrue(result == """<div class="container"></div>""")
       },
       test("href attribute") {
         val result = a(href := "https://example.com", "link").render
-        assertTrue(result == "<a href=\"https://example.com\">link</a>")
+        assertTrue(result == """<a href="https://example.com">link</a>""")
       },
       test("multi-value attribute via Chunk") {
         val result = div(className := Chunk("a", "b", "c")).render
-        assertTrue(result == "<div class=\"a b c\"></div>")
+        assertTrue(result == """<div class="a b c"></div>""")
       },
       test("multi-value attribute via varargs tuple") {
         val result = div(className.:=("a", "b", "c")).render
-        assertTrue(result == "<div class=\"a b c\"></div>")
+        assertTrue(result == """<div class="a b c"></div>""")
       }
     ),
     suite("modifiers")(
@@ -191,27 +191,27 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("ARIA multi-value attributes")(
       test("ariaDescribedby with multiple values") {
         val result = div(ariaDescribedby.:=("desc1", "desc2")).render
-        assertTrue(result == "<div aria-describedby=\"desc1 desc2\"></div>")
+        assertTrue(result == """<div aria-describedby="desc1 desc2"></div>""")
       },
       test("ariaLabelledby with multiple values") {
         val result = div(ariaLabelledby.:=("label1", "label2")).render
-        assertTrue(result == "<div aria-labelledby=\"label1 label2\"></div>")
+        assertTrue(result == """<div aria-labelledby="label1 label2"></div>""")
       },
       test("ariaDescribedby with single value") {
         val result = div(ariaDescribedby := "desc1").render
-        assertTrue(result == "<div aria-describedby=\"desc1\"></div>")
+        assertTrue(result == """<div aria-describedby="desc1"></div>""")
       }
     ),
     suite("multiAttr helpers")(
       test("multiAttr creates multi-value attribute") {
         val cls    = multiAttr("class")
         val result = div(cls("container", "fluid")).render
-        assertTrue(result == "<div class=\"container fluid\"></div>")
+        assertTrue(result == """<div class="container fluid"></div>""")
       },
       test("multiAttr with custom separator") {
         val styles = multiAttr("style", Dom.AttributeSeparator.Semicolon)
         val result = div(styles("color: red", "font-size: 14px")).render
-        assertTrue(result == "<div style=\"color: red;font-size: 14px\"></div>")
+        assertTrue(result == """<div style="color: red;font-size: 14px"></div>""")
       }
     ),
     suite("Element apply for curried modifiers")(
@@ -409,7 +409,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("element with attributes") {
         val result = element("x-app")(id := "root").render
-        assertTrue(result == "<x-app id=\"root\"></x-app>")
+        assertTrue(result == """<x-app id="root"></x-app>""")
       }
     ),
     suite("additional attribute vals")(
@@ -417,45 +417,45 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val r1 = th(scopeAttr := "col").render
         val r2 = th(`scope` := "row").render
         assertTrue(
-          r1 == "<th scope=\"col\"></th>",
-          r2 == "<th scope=\"row\"></th>"
+          r1 == """<th scope="col"></th>""",
+          r2 == """<th scope="row"></th>"""
         )
       },
       test("for-related attributes") {
         val r1 = label(forAttr := "input1").render
         val r2 = label(`for` := "input1").render
         assertTrue(
-          r1 == "<label for=\"input1\"></label>",
-          r2 == "<label for=\"input1\"></label>"
+          r1 == """<label for="input1"></label>""",
+          r2 == """<label for="input1"></label>"""
         )
       },
       test("cite and span attributes") {
         val r1 = blockquote(citeAttr := "url").render
         val r2 = col(spanAttr := "2").render
         assertTrue(
-          r1 == "<blockquote cite=\"url\"></blockquote>",
-          r2 == "<col span=\"2\"/>"
+          r1 == """<blockquote cite="url"></blockquote>""",
+          r2 == """<col span="2"/>"""
         )
       },
       test("slot and summary attributes") {
         val r1 = div(slotAttr := "main").render
         val r2 = table(summaryAttr := "desc").render
         assertTrue(
-          r1 == "<div slot=\"main\"></div>",
-          r2 == "<table summary=\"desc\"></table>"
+          r1 == """<div slot="main"></div>""",
+          r2 == """<table summary="desc"></table>"""
         )
       },
       test("form and label attribute aliases") {
         val r1 = input(formAttr := "myform").render
         val r2 = option(labelAttr := "opt").render
         assertTrue(
-          r1 == "<input form=\"myform\"/>",
-          r2 == "<option label=\"opt\"></option>"
+          r1 == """<input form="myform"/>""",
+          r2 == """<option label="opt"></option>"""
         )
       },
       test("httpEquiv attribute") {
         val result = meta(httpEquiv := "refresh").render
-        assertTrue(result == "<meta http-equiv=\"refresh\"/>")
+        assertTrue(result == """<meta http-equiv="refresh"/>""")
       },
       test("xmlns attribute") {
         val result = html(xmlns := "http://www.w3.org/1999/xhtml").render
@@ -551,27 +551,27 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("aria, dataAttr, attr helpers")(
       test("aria helper") {
         val result = div(aria("label") := "hi").render
-        assertTrue(result == "<div aria-label=\"hi\"></div>")
+        assertTrue(result == """<div aria-label="hi"></div>""")
       },
       test("dataAttr helper") {
         val result = div(dataAttr("id") := "42").render
-        assertTrue(result == "<div data-id=\"42\"></div>")
+        assertTrue(result == """<div data-id="42"></div>""")
       },
       test("attr helper") {
         val result = div(attr("custom") := "val").render
-        assertTrue(result == "<div custom=\"val\"></div>")
+        assertTrue(result == """<div custom="val"></div>""")
       }
     ),
     suite("multiAttr with Iterable overload")(
       test("multiAttr with Iterable[String] creates attribute") {
         val a  = multiAttr("class", List("a", "b"))
         val el = Dom.Element.Generic("div", Chunk(a), Chunk.empty)
-        assertTrue(el.render == "<div class=\"a b\"></div>")
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("multiAttr with separator and varargs") {
         val a  = multiAttr("style", Dom.AttributeSeparator.Semicolon, "color: red", "font-size: 14px")
         val el = Dom.Element.Generic("div", Chunk(a), Chunk.empty)
-        assertTrue(el.render == "<div style=\"color: red;font-size: 14px\"></div>")
+        assertTrue(el.render == """<div style="color: red;font-size: 14px"></div>""")
       }
     ),
     suite("when and whenSome on elements")(
@@ -619,19 +619,19 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("class attribute merging via DSL")(
       test("div with duplicate className merges values") {
         val result = div(className := "a", className := "b").render
-        assertTrue(result == "<div class=\"a b\"></div>")
+        assertTrue(result == """<div class="a b"></div>""")
       },
       test("div with className and when(true) merges class") {
         val result = div(className := "a").when(true)(className := "b").render
-        assertTrue(result == "<div class=\"a b\"></div>")
+        assertTrue(result == """<div class="a b"></div>""")
       },
       test("div with className and when(false) keeps single class") {
         val result = div(className := "a").when(false)(className := "b").render
-        assertTrue(result == "<div class=\"a\"></div>")
+        assertTrue(result == """<div class="a"></div>""")
       },
       test("triple class merge") {
         val result = div(className := "a", className := "b", className := "c").render
-        assertTrue(result == "<div class=\"a b c\"></div>")
+        assertTrue(result == """<div class="a b c"></div>""")
       }
     ),
     suite("element constructor edge cases")(
@@ -650,7 +650,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("meta charset renders correctly") {
         val m = meta(charset := "utf-8")
-        assertTrue(m.render == "<meta charset=\"utf-8\"/>")
+        assertTrue(m.render == """<meta charset="utf-8"/>""")
       },
       test("link with rel and href") {
         val l = link(rel := "stylesheet", href := "/style.css")
@@ -704,7 +704,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("script().externalJs with path") {
         val result = script().externalJs("/app.js").render
-        assertTrue(result == "<script src=\"/app.js\"></script>")
+        assertTrue(result == """<script src="/app.js"></script>""")
       },
       test("script with type attribute and inlineJs") {
         val result = script(`type` := "module").inlineJs(Js("import { x } from './mod.js'")).render
@@ -767,8 +767,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("interpolator + inline integration")(
       test("js interpolator with script().inlineJs") {
         val name   = "World"
-        val result = script().inlineJs(js"console.log(\"$name\")").render
-        assertTrue(result == "<script>console.log(\\\"\"World\"\\\")</script>")
+        val result = script().inlineJs(js"console.log($name)").render
+        assertTrue(result == """<script>console.log("World")</script>""")
       },
       test("css interpolator with style().inlineCss") {
         val color  = "red"
