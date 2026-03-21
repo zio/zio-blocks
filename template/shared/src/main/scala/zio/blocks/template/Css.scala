@@ -63,7 +63,12 @@ object Css {
     }
   }
 
-  final case class Declaration(property: String, value: String)
+  final case class Declaration private (property: String, value: String)
+
+  object Declaration {
+    def apply[A](property: String, value: A)(implicit ev: ToCss[A]): Declaration =
+      new Declaration(property, ev.toCss(value))
+  }
 
   final case class Sheet(rules: Chunk[Css]) extends Css {
     def render: String = {
