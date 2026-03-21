@@ -17,7 +17,7 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.json.{Json, JsonBinaryCodec}
+import zio.blocks.schema.json.{Json, JsonCodec}
 import zio.blocks.schema.patch.{Differ, DynamicPatch}
 
 import java.util
@@ -2578,33 +2578,33 @@ object DynamicValue {
     case v: PrimitiveValue.Short      => sb.append(v.value)
     case v: PrimitiveValue.Int        => sb.append(v.value)
     case v: PrimitiveValue.Long       => sb.append(v.value)
-    case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
-    case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Float      => sb.append(JsonCodec.floatCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Double     => sb.append(JsonCodec.doubleCodec.encodeToString(v.value))
     case v: PrimitiveValue.Char       => escapeString(sb, v.value.toString)
     case v: PrimitiveValue.String     => escapeString(sb, v.value)
-    case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
-    case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
-    case v: PrimitiveValue.DayOfWeek  => sb.append(JsonBinaryCodec.dayOfWeekCodec.encodeToString(v.value))
-    case v: PrimitiveValue.Month      => sb.append(JsonBinaryCodec.monthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.BigInt     => sb.append(JsonCodec.bigIntCodec.encodeToString(v.value))
+    case v: PrimitiveValue.BigDecimal => sb.append(JsonCodec.bigDecimalCodec.encodeToString(v.value))
+    case v: PrimitiveValue.DayOfWeek  => sb.append(JsonCodec.dayOfWeekCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Month      => sb.append(JsonCodec.monthCodec.encodeToString(v.value))
     case v: PrimitiveValue.Instant    => sb.append(v.value.toEpochMilli).append(" @ {type: \"instant\"}")
     case v: PrimitiveValue.LocalDate  =>
-      sb.append(JsonBinaryCodec.localDateCodec.encodeToString(v.value)).append(" @ {type: \"localDate\"}")
-    case v: PrimitiveValue.LocalDateTime  => sb.append(JsonBinaryCodec.localDateTimeCodec.encodeToString(v.value))
-    case v: PrimitiveValue.LocalTime      => sb.append(JsonBinaryCodec.localTimeCodec.encodeToString(v.value))
-    case v: PrimitiveValue.OffsetDateTime => sb.append(JsonBinaryCodec.offsetDateTimeCodec.encodeToString(v.value))
-    case v: PrimitiveValue.OffsetTime     => sb.append(JsonBinaryCodec.offsetTimeCodec.encodeToString(v.value))
+      sb.append(JsonCodec.localDateCodec.encodeToString(v.value)).append(" @ {type: \"localDate\"}")
+    case v: PrimitiveValue.LocalDateTime  => sb.append(JsonCodec.localDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.LocalTime      => sb.append(JsonCodec.localTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetDateTime => sb.append(JsonCodec.offsetDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.OffsetTime     => sb.append(JsonCodec.offsetTimeCodec.encodeToString(v.value))
     case v: PrimitiveValue.Year           => sb.append(v.value.getValue)
-    case v: PrimitiveValue.YearMonth      => sb.append(JsonBinaryCodec.yearMonthCodec.encodeToString(v.value))
-    case v: PrimitiveValue.ZoneOffset     => sb.append(JsonBinaryCodec.zoneOffsetCodec.encodeToString(v.value))
-    case v: PrimitiveValue.ZonedDateTime  => sb.append(JsonBinaryCodec.zonedDateTimeCodec.encodeToString(v.value))
-    case v: PrimitiveValue.MonthDay       => sb.append(JsonBinaryCodec.monthDayCodec.encodeToString(v.value))
+    case v: PrimitiveValue.YearMonth      => sb.append(JsonCodec.yearMonthCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZoneOffset     => sb.append(JsonCodec.zoneOffsetCodec.encodeToString(v.value))
+    case v: PrimitiveValue.ZonedDateTime  => sb.append(JsonCodec.zonedDateTimeCodec.encodeToString(v.value))
+    case v: PrimitiveValue.MonthDay       => sb.append(JsonCodec.monthDayCodec.encodeToString(v.value))
     case v: PrimitiveValue.Period         =>
-      sb.append(JsonBinaryCodec.periodCodec.encodeToString(v.value)).append(" @ {type: \"period\"}")
+      sb.append(JsonCodec.periodCodec.encodeToString(v.value)).append(" @ {type: \"period\"}")
     case v: PrimitiveValue.Duration =>
-      sb.append(JsonBinaryCodec.durationCodec.encodeToString(v.value)).append(" @ {type: \"duration\"}")
-    case v: PrimitiveValue.ZoneId    => sb.append(JsonBinaryCodec.zoneIdCodec.encodeToString(v.value))
-    case v: PrimitiveValue.Currency  => sb.append(JsonBinaryCodec.currencyCodec.encodeToString(v.value))
-    case v: PrimitiveValue.UUID      => sb.append(JsonBinaryCodec.uuidCodec.encodeToString(v.value))
+      sb.append(JsonCodec.durationCodec.encodeToString(v.value)).append(" @ {type: \"duration\"}")
+    case v: PrimitiveValue.ZoneId    => sb.append(JsonCodec.zoneIdCodec.encodeToString(v.value))
+    case v: PrimitiveValue.Currency  => sb.append(JsonCodec.currencyCodec.encodeToString(v.value))
+    case v: PrimitiveValue.UUID      => sb.append(JsonCodec.uuidCodec.encodeToString(v.value))
     case _: PrimitiveValue.Unit.type => sb.append("null")
   }
 

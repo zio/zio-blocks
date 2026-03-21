@@ -54,12 +54,12 @@ final case class OpenAPI(
 )
 
 object OpenAPI {
-  import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
+  import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
 
   implicit lazy val schema: Schema[OpenAPI] = Schema.derived
 
-  implicit lazy val jsonCodec: JsonBinaryCodec[OpenAPI] =
-    schema.derive(JsonBinaryCodecDeriver)
+  implicit lazy val jsonCodec: JsonCodec[OpenAPI] =
+    schema.derive(JsonCodecDeriver)
 }
 
 /**

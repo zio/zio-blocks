@@ -5,7 +5,7 @@ import zio.test._
 import java.time._
 import java.util.UUID
 
-object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
+object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   object Person {
@@ -92,7 +92,7 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
     implicit val schema: Schema[WithUUID] = Schema.derived
   }
 
-  def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecToJsonSchemaSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("JsonCodecToJsonSchemaSpec")(
     suite("Primitive types")(
       test("String produces string JSON Schema") {
         val jsonSchema = Schema[String].toJsonSchema

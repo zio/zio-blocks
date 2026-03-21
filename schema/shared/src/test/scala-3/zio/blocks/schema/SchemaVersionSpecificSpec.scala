@@ -803,12 +803,12 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         typeCheck {
           """
           import zio.blocks.schema._
-          import zio.blocks.schema.json.{JsonBinaryCodec, JsonFormat}
+          import zio.blocks.schema.json.{JsonCodec, JsonFormat}
 
           case class Person(name: String, age: Int) derives Schema
 
           val schema = Schema[Person]
-          val jsonCodec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+          val jsonCodec: JsonCodec[Person] = schema.derive(JsonFormat)
           """
         }.map(result => assertTrue(result.isRight))
       }

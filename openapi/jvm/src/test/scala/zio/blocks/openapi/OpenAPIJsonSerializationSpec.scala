@@ -3,7 +3,7 @@ package zio.blocks.openapi
 import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Inline, Paragraph}
 import zio.blocks.schema._
-import zio.blocks.schema.json.{Json, JsonBinaryCodec}
+import zio.blocks.schema.json.{Json, JsonCodec}
 import zio.test._
 
 object OpenAPIJsonSerializationSpec extends SchemaBaseSpec {

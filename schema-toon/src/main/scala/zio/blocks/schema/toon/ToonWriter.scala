@@ -17,7 +17,7 @@
 package zio.blocks.schema.toon
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.json.JsonBinaryCodec
+import zio.blocks.schema.json.JsonCodec
 
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets.UTF_8
@@ -110,23 +110,23 @@ final class ToonWriter private (
     else ToonWriter.falseBytes
   }
 
-  def writeInt(x: Int): Unit = writeRaw(JsonBinaryCodec.intCodec.encode(x))
+  def writeInt(x: Int): Unit = writeRaw(JsonCodec.intCodec.encode(x))
 
-  def writeLong(x: Long): Unit = writeRaw(JsonBinaryCodec.longCodec.encode(x))
+  def writeLong(x: Long): Unit = writeRaw(JsonCodec.longCodec.encode(x))
 
   def writeFloat(x: Float): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else if (x == 0.0f) writeByte('0')
-    else writeDecimalString(JsonBinaryCodec.floatCodec.encodeToString(x))
+    else writeDecimalString(JsonCodec.floatCodec.encodeToString(x))
 
   def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
     else if (x == 0.0 || x == -0.0) writeByte('0')
-    else writeDecimalString(JsonBinaryCodec.doubleCodec.encodeToString(x))
+    else writeDecimalString(JsonCodec.doubleCodec.encodeToString(x))
 
-  def writeBigDecimal(x: BigDecimal): Unit = writeDecimalString(JsonBinaryCodec.bigDecimalCodec.encodeToString(x))
+  def writeBigDecimal(x: BigDecimal): Unit = writeDecimalString(JsonCodec.bigDecimalCodec.encodeToString(x))
 
-  def writeBigInt(x: BigInt): Unit = writeRaw(JsonBinaryCodec.bigIntCodec.encode(x))
+  def writeBigInt(x: BigInt): Unit = writeRaw(JsonCodec.bigIntCodec.encode(x))
 
   def writeChar(c: Char): Unit = writeString(c.toString)
 

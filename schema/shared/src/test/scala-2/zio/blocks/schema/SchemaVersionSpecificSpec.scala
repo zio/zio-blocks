@@ -9,13 +9,13 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       typeCheck {
         """
         import zio.blocks.schema._
-        import zio.blocks.schema.json.{JsonBinaryCodec, JsonFormat}
+        import zio.blocks.schema.json.{JsonCodec, JsonFormat}
 
         case class Person(name: String, age: Int)
 
         object Person {
           implicit val schema: Schema[Person] = Schema.derived[Person]
-          implicit val jsonCodec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+          implicit val jsonCodec: JsonCodec[Person] = schema.derive(JsonFormat)
         }
         """
       }.map(result => assert(result)(isRight))
@@ -24,13 +24,13 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
       typeCheck {
         """
         import zio.blocks.schema._
-        import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
+        import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
 
         case class Person(name: String, age: Int)
 
         object Person {
           implicit val schema: Schema[Person] = Schema.derived[Person]
-          implicit val jsonCodec: JsonBinaryCodec[Person] = schema.derive(JsonBinaryCodecDeriver)
+          implicit val jsonCodec: JsonCodec[Person] = schema.derive(JsonCodecDeriver)
         }
         """
       }.map(result => assert(result)(isRight))

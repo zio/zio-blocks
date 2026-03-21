@@ -69,9 +69,9 @@ object YamlKeyable {
 
   implicit val longKeyable: YamlKeyable[Long] = instance(_.toString)
 
-  implicit val floatKeyable: YamlKeyable[Float] = instance(JsonBinaryCodec.floatCodec.encodeToString)
+  implicit val floatKeyable: YamlKeyable[Float] = instance(JsonCodec.floatCodec.encodeToString)
 
-  implicit val doubleKeyable: YamlKeyable[Double] = instance(JsonBinaryCodec.doubleCodec.encodeToString)
+  implicit val doubleKeyable: YamlKeyable[Double] = instance(JsonCodec.doubleCodec.encodeToString)
 
   implicit val charKeyable: YamlKeyable[Char] = instance(_.toString)
 
@@ -79,9 +79,9 @@ object YamlKeyable {
 
   // Arbitrary Precision Numbers
 
-  implicit val bigIntKeyable: YamlKeyable[BigInt] = instance(JsonBinaryCodec.bigIntCodec.encodeToString)
+  implicit val bigIntKeyable: YamlKeyable[BigInt] = instance(JsonCodec.bigIntCodec.encodeToString)
 
-  implicit val bigDecimalKeyable: YamlKeyable[BigDecimal] = instance(JsonBinaryCodec.bigDecimalCodec.encodeToString)
+  implicit val bigDecimalKeyable: YamlKeyable[BigDecimal] = instance(JsonCodec.bigDecimalCodec.encodeToString)
 
   // Java Time Types
 

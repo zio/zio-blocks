@@ -2,7 +2,7 @@ package example.minimal
 
 import golem.HostApi
 import golem.runtime.annotations.agentImplementation
-import zio.blocks.schema.json.JsonBinaryCodecDeriver
+import zio.blocks.schema.json.JsonCodecDeriver
 import zio.blocks.schema.Schema
 
 import scala.annotation.unused
@@ -14,7 +14,7 @@ final class JsonPromiseDemoImpl(@unused private val name: String) extends JsonPr
 
   override def jsonRoundtrip(): Future[String] = Future.successful {
     val sb    = new StringBuilder
-    val codec = implicitly[Schema[PromisePayload]].derive(JsonBinaryCodecDeriver)
+    val codec = implicitly[Schema[PromisePayload]].derive(JsonCodecDeriver)
     sb.append("=== JSON Promise Roundtrip Demo ===\n")
 
     val payload = PromisePayload("hello from json promise", 42)

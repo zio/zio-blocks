@@ -47,11 +47,11 @@ object OpenAPICodec {
     if (extensions.isEmpty) base
     else new Json.Object(base.value ++ Chunk.from(extensions))
 
-  private def field[A](a: A)(implicit enc: JsonBinaryCodec[A]): Option[Json] = Some(enc.encodeValue(a))
+  private def field[A](a: A)(implicit enc: JsonCodec[A]): Option[Json] = Some(enc.encodeValue(a))
 
-  private def optField[A](a: Option[A])(implicit enc: JsonBinaryCodec[A]): Option[Json] = a.map(enc.encodeValue)
+  private def optField[A](a: Option[A])(implicit enc: JsonCodec[A]): Option[Json] = a.map(enc.encodeValue)
 
-  private def chunkField[A](a: Chunk[A])(implicit enc: JsonBinaryCodec[A]): Option[Json] =
+  private def chunkField[A](a: Chunk[A])(implicit enc: JsonCodec[A]): Option[Json] =
     if (a.isEmpty) None
     else {
       val builder = ChunkBuilder.make[Json](a.length)
@@ -59,7 +59,7 @@ object OpenAPICodec {
       Some(new Json.Array(builder.result()))
     }
 
-  private def chunkMapField[V](a: ChunkMap[String, V])(implicit enc: JsonBinaryCodec[V]): Option[Json] =
+  private def chunkMapField[V](a: ChunkMap[String, V])(implicit enc: JsonCodec[V]): Option[Json] =
     if (a.isEmpty) None
     else Some(new Json.Object(a.toChunk.map(kv => (kv._1, enc.encodeValue(kv._2)))))
 
@@ -74,14 +74,14 @@ object OpenAPICodec {
   private def getField(jObj: Json.Object, name: String): Option[Json] =
     jObj.value.collectFirst { case kv if kv._1 == name => kv._2 }
 
-  private def reqField[A](jObj: Json.Object, name: String)(implicit dec: JsonBinaryCodec[A]): A =
+  private def reqField[A](jObj: Json.Object, name: String)(implicit dec: JsonCodec[A]): A =
     getField(jObj, name) match {
       case Some(json) => dec.decodeValue(json)
-      case _          => throw new JsonBinaryCodecError(Nil, s"Missing required field: $name")
+      case _          => throw new JsonCodecError(Nil, s"Missing required field: $name")
     }
 
   private def optFieldDec[A](jObj: Json.Object, name: String)(implicit
-    dec: JsonBinaryCodec[A]
+    dec: JsonCodec[A]
   ): Option[A] =
     getField(jObj, name) match {
       case Some(Json.Null) | None => None
@@ -89,7 +89,7 @@ object OpenAPICodec {
     }
 
   private def chunkFieldDec[A](jObj: Json.Object, name: String)(implicit
-    dec: JsonBinaryCodec[A]
+    dec: JsonCodec[A]
   ): Chunk[A] =
     getField(jObj, name) match {
       case None                  => Chunk.empty
@@ -99,11 +99,11 @@ object OpenAPICodec {
           builder.addOne(dec.decodeValue(v))
         }
         builder.result()
-      case Some(_) => throw new JsonBinaryCodecError(Nil, s"Expected Json.Array for field: $name")
+      case Some(_) => throw new JsonCodecError(Nil, s"Expected Json.Array for field: $name")
     }
 
   private def chunkMapFieldDec[V](jObj: Json.Object, name: String)(implicit
-    dec: JsonBinaryCodec[V]
+    dec: JsonCodec[V]
   ): ChunkMap[String, V] =
     getField(jObj, name) match {
       case None                   => ChunkMap.empty
@@ -113,12 +113,12 @@ object OpenAPICodec {
           builder.addOne((kv._1, dec.decodeValue(kv._2)))
         }
         builder.result()
-      case Some(_) => throw new JsonBinaryCodecError(Nil, s"Expected Json.Object for field: $name")
+      case Some(_) => throw new JsonCodecError(Nil, s"Expected Json.Object for field: $name")
     }
 
   private def boolFieldDec(jObj: Json.Object, name: String, default: Boolean = false): Boolean =
     getField(jObj, name) match {
-      case Some(json) => JsonBinaryCodec.booleanCodec.decodeValue(json)
+      case Some(json) => JsonCodec.booleanCodec.decodeValue(json)
       case _          => default
     }
 
@@ -132,7 +132,7 @@ object OpenAPICodec {
 
   private def optBoolFieldDec(jObj: Json.Object, name: String): Option[Boolean] =
     getField(jObj, name) match {
-      case Some(json) => Some(JsonBinaryCodec.booleanCodec.decodeValue(json))
+      case Some(json) => Some(JsonCodec.booleanCodec.decodeValue(json))
       case _          => None
     }
 
@@ -193,15 +193,15 @@ object OpenAPICodec {
     case ia: Inline.Autolink       => ia
   }
 
-  private abstract class JsonASTCodec[A] extends JsonBinaryCodec[A] {
+  private abstract class JsonASTCodec[A] extends JsonCodec[A] {
     def decodeValue(in: JsonReader): A = ???
 
     def encodeValue(x: A, out: JsonWriter): Unit = ???
   }
 
-  implicit val stringCodec: JsonBinaryCodec[String]            = Schema[String].jsonCodec
-  implicit val optStringCodec: JsonBinaryCodec[Option[String]] = Schema[Option[String]].jsonCodec
-  implicit val docCodec: JsonBinaryCodec[Doc]                  = new JsonASTCodec[Doc] {
+  implicit val stringCodec: JsonCodec[String]            = Schema[String].jsonCodec
+  implicit val optStringCodec: JsonCodec[Option[String]] = Schema[Option[String]].jsonCodec
+  implicit val docCodec: JsonCodec[Doc]                  = new JsonASTCodec[Doc] {
     override def decodeValue(json: Json): Doc = json match {
       case str: Json.String =>
         Parser.parse(str.value) match {
@@ -213,7 +213,7 @@ object OpenAPICodec {
 
     override def encodeValue(x: Doc): Json = Json.String(Renderer.render(x))
   }
-  implicit val contactCodec: JsonBinaryCodec[Contact] = new JsonASTCodec[Contact] {
+  implicit val contactCodec: JsonCodec[Contact] = new JsonASTCodec[Contact] {
     override def decodeValue(json: Json): Contact = json match {
       case jObj: Json.Object =>
         val name  = optFieldDec[String](jObj, "name")
@@ -233,7 +233,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val licenseCodec: JsonBinaryCodec[License] = new JsonASTCodec[License] {
+  implicit val licenseCodec: JsonCodec[License] = new JsonASTCodec[License] {
     override def decodeValue(json: Json): License = json match {
       case jObj: Json.Object =>
         val name       = reqField[String](jObj, "name")
@@ -253,7 +253,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val externalDocumentationCodec: JsonBinaryCodec[ExternalDocumentation] =
+  implicit val externalDocumentationCodec: JsonCodec[ExternalDocumentation] =
     new JsonASTCodec[ExternalDocumentation] {
       override def decodeValue(json: Json): ExternalDocumentation = json match {
         case jObj: Json.Object =>
@@ -272,7 +272,7 @@ object OpenAPICodec {
           x.extensions
         )
     }
-  implicit val serverVariableCodec: JsonBinaryCodec[ServerVariable] = new JsonASTCodec[ServerVariable] {
+  implicit val serverVariableCodec: JsonCodec[ServerVariable] = new JsonASTCodec[ServerVariable] {
     override def decodeValue(json: Json): ServerVariable = json match {
       case jObj: Json.Object =>
         val default     = reqField[String](jObj, "default")
@@ -292,7 +292,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val serverCodec: JsonBinaryCodec[Server] = new JsonASTCodec[Server] {
+  implicit val serverCodec: JsonCodec[Server] = new JsonASTCodec[Server] {
     override def decodeValue(json: Json): Server = json match {
       case jObj: Json.Object =>
         val url         = reqField[String](jObj, "url")
@@ -312,7 +312,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val tagCodec: JsonBinaryCodec[Tag] = new JsonASTCodec[Tag] {
+  implicit val tagCodec: JsonCodec[Tag] = new JsonASTCodec[Tag] {
     override def decodeValue(json: Json): Tag = json match {
       case jObj: Json.Object =>
         val name         = reqField[String](jObj, "name")
@@ -332,7 +332,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val infoCodec: JsonBinaryCodec[Info] = new JsonASTCodec[Info] { info =>
+  implicit val infoCodec: JsonCodec[Info] = new JsonASTCodec[Info] { info =>
     override def decodeValue(json: Json): Info = json match {
       case jObj: Json.Object =>
         val title          = reqField[String](jObj, "title")
@@ -360,7 +360,7 @@ object OpenAPICodec {
         info.extensions
       )
   }
-  implicit val xmlCodec: JsonBinaryCodec[XML] = new JsonASTCodec[XML] {
+  implicit val xmlCodec: JsonCodec[XML] = new JsonASTCodec[XML] {
     override def decodeValue(json: Json): XML = json match {
       case jObj: Json.Object =>
         val name      = optFieldDec[String](jObj, "name")
@@ -381,7 +381,7 @@ object OpenAPICodec {
         "wrapped"   -> boolField(x.wrapped)
       )
   }
-  implicit val discriminatorCodec: JsonBinaryCodec[Discriminator] = new JsonASTCodec[Discriminator] {
+  implicit val discriminatorCodec: JsonCodec[Discriminator] = new JsonASTCodec[Discriminator] {
     override def decodeValue(json: Json): Discriminator = json match {
       case jObj: Json.Object =>
         val propertyName = reqField[String](jObj, "propertyName")
@@ -396,7 +396,7 @@ object OpenAPICodec {
         "mapping"      -> chunkMapField(x.mapping)
       )
   }
-  implicit val parameterLocationCodec: JsonBinaryCodec[ParameterLocation] = new JsonASTCodec[ParameterLocation] {
+  implicit val parameterLocationCodec: JsonCodec[ParameterLocation] = new JsonASTCodec[ParameterLocation] {
     override def decodeValue(json: Json): ParameterLocation = json match {
       case str: Json.String =>
         str.value match {
@@ -416,7 +416,7 @@ object OpenAPICodec {
       case ParameterLocation.Cookie => Json.String("cookie")
     }
   }
-  implicit val apiKeyLocationCodec: JsonBinaryCodec[APIKeyLocation] = new JsonASTCodec[APIKeyLocation] {
+  implicit val apiKeyLocationCodec: JsonCodec[APIKeyLocation] = new JsonASTCodec[APIKeyLocation] {
     override def decodeValue(json: Json): APIKeyLocation = json match {
       case str: Json.String =>
         str.value match {
@@ -434,7 +434,7 @@ object OpenAPICodec {
       case APIKeyLocation.Cookie => Json.String("cookie")
     }
   }
-  implicit val referenceCodec: JsonBinaryCodec[Reference] = new JsonASTCodec[Reference] {
+  implicit val referenceCodec: JsonCodec[Reference] = new JsonASTCodec[Reference] {
     override def decodeValue(json: Json): Reference = json match {
       case jObj: Json.Object =>
         val ref         = reqField[String](jObj, "$ref")
@@ -451,7 +451,7 @@ object OpenAPICodec {
         "description" -> optField(ref.description)
       )
   }
-  implicit def referenceOrCodec[A](implicit codec: JsonBinaryCodec[A]): JsonBinaryCodec[ReferenceOr[A]] =
+  implicit def referenceOrCodec[A](implicit codec: JsonCodec[A]): JsonCodec[ReferenceOr[A]] =
     new JsonASTCodec[ReferenceOr[A]] {
       override def decodeValue(json: Json): ReferenceOr[A] = json match {
         case jObj: Json.Object if getField(jObj, "$ref").isDefined =>
@@ -464,7 +464,7 @@ object OpenAPICodec {
         case ReferenceOr.Value(value)   => codec.encodeValue(value)
       }
     }
-  implicit val oauthFlowCodec: JsonBinaryCodec[OAuthFlow] = new JsonASTCodec[OAuthFlow] {
+  implicit val oauthFlowCodec: JsonCodec[OAuthFlow] = new JsonASTCodec[OAuthFlow] {
     override def decodeValue(json: Json): OAuthFlow = json match {
       case jObj: Json.Object =>
         val authorizationUrl = optFieldDec[String](jObj, "authorizationUrl")
@@ -486,7 +486,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val oauthFlowsCodec: JsonBinaryCodec[OAuthFlows] = new JsonASTCodec[OAuthFlows] {
+  implicit val oauthFlowsCodec: JsonCodec[OAuthFlows] = new JsonASTCodec[OAuthFlows] {
     override def decodeValue(json: Json): OAuthFlows = json match {
       case jObj: Json.Object =>
         val impl      = optFieldDec[OAuthFlow](jObj, "implicit")
@@ -508,7 +508,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit val securitySchemeCodec: JsonBinaryCodec[SecurityScheme] = new JsonASTCodec[SecurityScheme] {
+  implicit val securitySchemeCodec: JsonCodec[SecurityScheme] = new JsonASTCodec[SecurityScheme] {
     override def decodeValue(json: Json): SecurityScheme = json match {
       case jObj: Json.Object =>
         reqField[String](jObj, "type") match {
@@ -587,7 +587,7 @@ object OpenAPICodec {
         )
     }
   }
-  implicit val securityRequirementCodec: JsonBinaryCodec[SecurityRequirement] = new JsonASTCodec[SecurityRequirement] {
+  implicit val securityRequirementCodec: JsonCodec[SecurityRequirement] = new JsonASTCodec[SecurityRequirement] {
     override def decodeValue(json: Json): SecurityRequirement = json match {
       case jObj: Json.Object =>
         val builder = ChunkMap.newBuilder[String, Chunk[String]]
@@ -616,7 +616,7 @@ object OpenAPICodec {
       new Json.Object(builder.result())
     }
   }
-  implicit val schemaObjectCodec: JsonBinaryCodec[SchemaObject] = new JsonASTCodec[SchemaObject] {
+  implicit val schemaObjectCodec: JsonCodec[SchemaObject] = new JsonASTCodec[SchemaObject] {
     override def decodeValue(json: Json): SchemaObject = json match {
       case jObj: Json.Object =>
         val disc         = optFieldDec[Discriminator](jObj, "discriminator")
@@ -635,7 +635,7 @@ object OpenAPICodec {
 
     override def encodeValue(x: SchemaObject): Json = x.toJson
   }
-  implicit val exampleCodec: JsonBinaryCodec[Example] = new JsonASTCodec[Example] {
+  implicit val exampleCodec: JsonCodec[Example] = new JsonASTCodec[Example] {
     override def decodeValue(json: Json): Example = json match {
       case jObj: Json.Object =>
         val summary       = optFieldDec[Doc](jObj, "summary")
@@ -657,7 +657,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val linkCodec: JsonBinaryCodec[Link] = new JsonASTCodec[Link] {
+  implicit lazy val linkCodec: JsonCodec[Link] = new JsonASTCodec[Link] {
     override def decodeValue(json: Json): Link = json match {
       case jObj: Json.Object =>
         val operationRef = optFieldDec[String](jObj, "operationRef")
@@ -686,7 +686,7 @@ object OpenAPICodec {
       )
     }
   }
-  implicit lazy val encodingCodec: JsonBinaryCodec[Encoding] = new JsonASTCodec[Encoding] {
+  implicit lazy val encodingCodec: JsonCodec[Encoding] = new JsonASTCodec[Encoding] {
     override def decodeValue(json: Json): Encoding = json match {
       case jObj: Json.Object =>
         val contentType = optFieldDec[String](jObj, "contentType")
@@ -711,7 +711,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val mediaTypeCodec: JsonBinaryCodec[MediaType] = new JsonASTCodec[MediaType] {
+  implicit lazy val mediaTypeCodec: JsonCodec[MediaType] = new JsonASTCodec[MediaType] {
     override def decodeValue(json: Json): MediaType = json match {
       case jObj: Json.Object =>
         val schema   = optFieldDec[ReferenceOr[SchemaObject]](jObj, "schema")
@@ -733,7 +733,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val headerCodec: JsonBinaryCodec[Header] = new JsonASTCodec[Header] {
+  implicit lazy val headerCodec: JsonCodec[Header] = new JsonASTCodec[Header] {
     override def decodeValue(json: Json): Header = json match {
       case jObj: Json.Object =>
         val description     = optFieldDec[Doc](jObj, "description")
@@ -782,7 +782,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val parameterCodec: JsonBinaryCodec[Parameter] = new JsonASTCodec[Parameter] {
+  implicit lazy val parameterCodec: JsonCodec[Parameter] = new JsonASTCodec[Parameter] {
     override def decodeValue(json: Json): Parameter = json match {
       case jObj: Json.Object =>
         val name            = reqField[String](jObj, "name")
@@ -837,7 +837,7 @@ object OpenAPICodec {
         p.extensions
       )
   }
-  implicit lazy val requestBodyCodec: JsonBinaryCodec[RequestBody] = new JsonASTCodec[RequestBody] {
+  implicit lazy val requestBodyCodec: JsonCodec[RequestBody] = new JsonASTCodec[RequestBody] {
     override def decodeValue(json: Json): RequestBody = json match {
       case jObj: Json.Object =>
         val content     = chunkMapFieldDec[MediaType](jObj, "content")
@@ -857,7 +857,7 @@ object OpenAPICodec {
         rb.extensions
       )
   }
-  implicit lazy val responseCodec: JsonBinaryCodec[Response] = new JsonASTCodec[Response] {
+  implicit lazy val responseCodec: JsonCodec[Response] = new JsonASTCodec[Response] {
     override def decodeValue(json: Json): Response = json match {
       case jObj: Json.Object =>
         val description = reqField[Doc](jObj, "description")
@@ -880,7 +880,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val responsesCodec: JsonBinaryCodec[Responses] = new JsonASTCodec[Responses] {
+  implicit lazy val responsesCodec: JsonCodec[Responses] = new JsonASTCodec[Responses] {
     override def decodeValue(json: Json): Responses = json match {
       case jObj: Json.Object =>
         val refOrRespDec   = referenceOrCodec[Response](responseCodec)
@@ -917,7 +917,7 @@ object OpenAPICodec {
       new Json.Object(builder.result())
     }
   }
-  implicit lazy val callbackCodec: JsonBinaryCodec[Callback] = new JsonASTCodec[Callback] {
+  implicit lazy val callbackCodec: JsonCodec[Callback] = new JsonASTCodec[Callback] {
     override def decodeValue(json: Json): Callback = json match {
       case jObj: Json.Object =>
         val refOrPathDec   = referenceOrCodec[PathItem](pathItemCodec)
@@ -938,7 +938,7 @@ object OpenAPICodec {
       new Json.Object(Chunk.from(pathFields) ++ Chunk.from(x.extensions))
     }
   }
-  implicit lazy val operationCodec: JsonBinaryCodec[Operation] = new JsonASTCodec[Operation] {
+  implicit lazy val operationCodec: JsonCodec[Operation] = new JsonASTCodec[Operation] {
     override def decodeValue(json: Json): Operation = json match {
       case jObj: Json.Object =>
         val responses =
@@ -1001,7 +1001,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val pathItemCodec: JsonBinaryCodec[PathItem] = new JsonASTCodec[PathItem] {
+  implicit lazy val pathItemCodec: JsonCodec[PathItem] = new JsonASTCodec[PathItem] {
     override def decodeValue(json: Json): PathItem = json match {
       case jObj: Json.Object =>
         val summary     = optFieldDec[Doc](jObj, "summary")
@@ -1055,7 +1055,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val pathsCodec: JsonBinaryCodec[Paths] = new JsonASTCodec[Paths] {
+  implicit lazy val pathsCodec: JsonCodec[Paths] = new JsonASTCodec[Paths] {
     override def decodeValue(json: Json): Paths = json match {
       case jObj: Json.Object =>
         val ext        = extractExtensions(jObj)
@@ -1073,7 +1073,7 @@ object OpenAPICodec {
       new Json.Object(Chunk.from(pathFields) ++ Chunk.from(x.extensions))
     }
   }
-  implicit lazy val componentsCodec: JsonBinaryCodec[Components] = new JsonASTCodec[Components] {
+  implicit lazy val componentsCodec: JsonCodec[Components] = new JsonASTCodec[Components] {
     override def decodeValue(json: Json): Components = json match {
       case jObj: Json.Object =>
         val schemas         = chunkMapFieldDec[ReferenceOr[SchemaObject]](jObj, "schemas")
@@ -1119,7 +1119,7 @@ object OpenAPICodec {
         x.extensions
       )
   }
-  implicit lazy val openAPICodec: JsonBinaryCodec[OpenAPI] = new JsonASTCodec[OpenAPI] {
+  implicit lazy val openAPICodec: JsonCodec[OpenAPI] = new JsonASTCodec[OpenAPI] {
     override def decodeValue(json: Json): OpenAPI = json match {
       case jObj: Json.Object =>
         val openapi           = reqField[String](jObj, "openapi")
