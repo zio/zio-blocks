@@ -521,6 +521,46 @@ TypeId.of[Map[String, Int]].typeArgs
 TypeId.of[Option[String]].typeArgs
 ```
 
+For more sophisticated Scala 3 types, `typeArgs` captures complex type expressions as `TypeRepr` values:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// Union types (Scala 3)
+case class Handler[T](process: T | String)
+
+// Intersection types (Scala 3)
+trait Readable { def read(): String }
+trait Writable { def write(data: String): Unit }
+case class Stream[T](data: T & Readable & Writable)
+
+// Function type arguments
+case class Transformer[A, B](f: A => B)
+
+// Tuple type arguments
+case class MultiValue[A, B, C](values: (A, B, C))
+```
+
+Now inspect the type arguments in these complex types:
+
+```scala mdoc
+// Union type argument
+val handlerStrId = TypeId.of[Handler[Int]]
+handlerStrId.typeArgs
+
+// Intersection type argument
+val streamId = TypeId.of[Stream[List[String]]]
+streamId.typeArgs
+
+// Function type as argument
+val transformerId = TypeId.of[Transformer[String, Int]]
+transformerId.typeArgs
+
+// Tuple type as argument
+val multiValueId = TypeId.of[MultiValue[String, Int, Boolean]]
+multiValueId.typeArgs
+```
+
 #### `arity` — Number of Type Parameters
 
 Returns `typeParams.size`.
