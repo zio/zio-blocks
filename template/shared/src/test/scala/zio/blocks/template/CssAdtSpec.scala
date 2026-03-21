@@ -2,6 +2,7 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 import zio.test._
+import CssLength.CssLengthIntOps
 
 object CssAdtSpec extends ZIOSpecDefault {
   def spec = suite("Css ADT")(
@@ -39,6 +40,19 @@ object CssAdtSpec extends ZIOSpecDefault {
       test("has property and value") {
         val decl = Css.Declaration("color", "red")
         assertTrue(decl.property == "color", decl.value == "red")
+      },
+      test("Declaration with CssLength") {
+        val decl = Css.Declaration("margin", 10.px)
+        assertTrue(decl.property == "margin" && decl.value == "10px")
+      },
+      test("Declaration with CssColor") {
+        val color: CssColor = CssColor.Rgb(255, 0, 0)
+        val decl            = Css.Declaration("color", color)
+        assertTrue(decl.property == "color" && decl.value == "rgb(255,0,0)")
+      },
+      test("Declaration with String still works") {
+        val decl = Css.Declaration("opacity", "0.5")
+        assertTrue(decl.property == "opacity" && decl.value == "0.5")
       }
     ),
     suite("Css.Rule")(
