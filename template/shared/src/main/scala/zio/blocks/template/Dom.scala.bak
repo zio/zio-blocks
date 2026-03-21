@@ -321,13 +321,7 @@ object Dom {
   sealed trait Attribute extends Product with Serializable
 
   object Attribute {
-    final case class KeyValue(name: String, value: AttributeValue) extends Attribute
-    final case class AppendValue(name: String, value: AttributeValue, separator: AttributeSeparator)
-        extends Attribute
-        with Modifier {
-      def applyTo(element: Element): Element =
-        element.withAttributes(element.attributes :+ this)
-    }
+    final case class KeyValue(name: String, value: AttributeValue)           extends Attribute
     final case class BooleanAttribute(name: String, enabled: Boolean = true) extends Attribute with Modifier {
       def applyTo(element: Element): Element =
         if (enabled) element.withAttributes(element.attributes :+ this)
@@ -416,7 +410,7 @@ object Dom {
     if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
-    renderAttributes(resolveAttributes(attributes), sb)
+    renderAttributes(mergeClassAttributes(attributes), sb)
     if (isVoidElement(tag)) {
       sb.append("/>")
     } else {
@@ -444,9 +438,6 @@ object Dom {
 
         case Attribute.KeyValue(_, _) => ()
 
-        case Attribute.AppendValue(_, _, _) =>
-          throw new IllegalStateException("AppendValue should be resolved before rendering")
-
         case Attribute.BooleanAttribute(name, enabled) if enabled && isValidAttrName(name) =>
           sb.append(' ')
           sb.append(name)
@@ -457,121 +448,47 @@ object Dom {
     }
   }
 
-  private def resolveAttributes(attrs: Chunk[Attribute]): Chunk[Attribute] = {
-    val needsResolve = {
-      var hasAppend   = false
-      var hasDupNames = false
-      val seen        = new java.util.HashSet[String]()
-      var c           = 0
-      while (c < attrs.length && !hasAppend) {
-        attrs(c) match {
-          case _: Attribute.AppendValue    => hasAppend = true
-          case Attribute.KeyValue(name, _) => if (!seen.add(name)) hasDupNames = true
-          case _                           => ()
-        }
-        c += 1
-      }
-      hasAppend || hasDupNames
-    }
-    if (!needsResolve) return attrs
-
-    val keyValues = new java.util.LinkedHashMap[String, AttributeValue]()
-    val appends   = new java.util.LinkedHashMap[String, java.util.ArrayList[(AttributeValue, AttributeSeparator)]]()
-
-    var i = 0
+  private def mergeClassAttributes(attrs: Chunk[Attribute]): Chunk[Attribute] = {
+    var classCount = 0
+    var i          = 0
     while (i < attrs.length) {
       attrs(i) match {
-        case Attribute.KeyValue(name, value) =>
-          keyValues.put(name, value)
-        case Attribute.AppendValue(name, value, sep) =>
-          var list = appends.get(name)
-          if (list == null) { list = new java.util.ArrayList(); appends.put(name, list) }
-          list.add((value, sep))
-        case _: Attribute.BooleanAttribute => ()
+        case Attribute.KeyValue("class", _) => classCount += 1
+        case _                              => ()
       }
       i += 1
     }
-
-    // Pre-compute resolved values for names that have appends
-    val resolved = new java.util.HashMap[String, AttributeValue]()
-    val nameIter = appends.entrySet().iterator()
-    while (nameIter.hasNext) {
-      val entry   = nameIter.next()
-      val name    = entry.getKey
-      val appList = entry.getValue
-      val base    = Option(keyValues.get(name))
+    if (classCount <= 1) attrs
+    else {
       val sb      = new java.lang.StringBuilder
-      base.foreach(bv => appendBaseValue(bv, sb))
-      var k = 0
-      while (k < appList.size()) {
-        val (av, sep) = appList.get(k)
-        if (sb.length() > 0) sb.append(sep.render)
-        appendBaseValue(av, sb)
-        k += 1
-      }
-      resolved.put(name, AttributeValue.StringValue(sb.toString))
-    }
-
-    // Second pass: emit in original order, dedup same-name KeyValue (last wins),
-    // and replace AppendValue names with their resolved value at first occurrence
-    val result  = Chunk.newBuilder[Attribute]
-    val emitted = new java.util.HashSet[String]()
-    // Walk backwards to find which KeyValue is the last for each name
-    val lastKV = new java.util.HashMap[String, Int]()
-    var m      = 0
-    while (m < attrs.length) {
-      attrs(m) match {
-        case Attribute.KeyValue(name, _)       => lastKV.put(name, m)
-        case Attribute.AppendValue(name, _, _) =>
-          if (!lastKV.containsKey(name) && !appends.containsKey(name))
-            lastKV.put(name, m)
-        case _ => ()
-      }
-      m += 1
-    }
-
-    // Forward pass: emit each attr in order
-    var n = 0
-    while (n < attrs.length) {
-      attrs(n) match {
-        case Attribute.KeyValue(name, _) if resolved.containsKey(name) =>
-          // This name has appends; emit resolved value at last KeyValue position
-          if (!emitted.contains(name) && lastKV.get(name) == n) {
-            result += Attribute.KeyValue(name, resolved.get(name))
-            emitted.add(name)
-          }
-        case Attribute.KeyValue(name, value) =>
-          // No appends for this name; last KeyValue wins
-          if (lastKV.get(name) == n) {
-            result += Attribute.KeyValue(name, value)
-          }
-        case Attribute.AppendValue(name, _, _) =>
-          // Emit resolved value at first AppendValue if no KeyValue exists for this name
-          if (!emitted.contains(name) && !keyValues.containsKey(name)) {
-            result += Attribute.KeyValue(name, resolved.get(name))
-            emitted.add(name)
-          }
-        case ba: Attribute.BooleanAttribute =>
-          result += ba
-      }
-      n += 1
-    }
-
-    result.result()
-  }
-
-  private def appendBaseValue(value: AttributeValue, sb: java.lang.StringBuilder): Unit =
-    value match {
-      case AttributeValue.StringValue(v)          => sb.append(v)
-      case AttributeValue.MultiValue(values, sep) =>
-        var i = 0
-        while (i < values.length) {
-          if (i > 0) sb.append(sep.render)
-          sb.append(values(i))
-          i += 1
+      val builder = Chunk.newBuilder[Attribute]
+      var j       = 0
+      while (j < attrs.length) {
+        attrs(j) match {
+          case Attribute.KeyValue("class", value) =>
+            value match {
+              case AttributeValue.StringValue(v) =>
+                if (sb.length() > 0) sb.append(' ')
+                sb.append(v)
+              case AttributeValue.MultiValue(values, separator) =>
+                var k = 0
+                while (k < values.length) {
+                  if (sb.length() > 0) sb.append(' ')
+                  sb.append(values(k))
+                  k += 1
+                }
+              case _ =>
+                if (sb.length() > 0) sb.append(' ')
+                sb.append(value.toString)
+            }
+          case other => builder += other
         }
-      case other => sb.append(other.toString)
+        j += 1
+      }
+      builder += Attribute.KeyValue("class", AttributeValue.StringValue(sb.toString))
+      builder.result()
     }
+  }
 
   private def renderAttributeValue(
     name: String,
@@ -645,7 +562,7 @@ object Dom {
     if (!isValidTagName(tag)) return
     sb.append('<')
     sb.append(tag)
-    renderAttributes(resolveAttributes(attributes), sb)
+    renderAttributes(mergeClassAttributes(attributes), sb)
     if (isVoidElement(tag)) {
       sb.append("/>")
     } else if (children.isEmpty) {

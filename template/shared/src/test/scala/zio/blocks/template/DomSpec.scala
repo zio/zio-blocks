@@ -81,10 +81,16 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(el.render == "<div>1 &lt; 2</div>")
       }
     ),
-    suite("class attribute merging")(
-      test("merges duplicate class attributes") {
+    suite("attribute resolution")(
+      test("duplicate KeyValue class uses last wins") {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == """<div class="b"></div>""")
+      },
+      test("AppendValue accumulates class values") {
+        val a1 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val a2 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
         assertTrue(el.render == """<div class="a b"></div>""")
       },
@@ -98,29 +104,29 @@ object DomSpec extends ZIOSpecDefault {
         val el = Dom.Element.Generic("div", Chunk(a1), Chunk.empty)
         assertTrue(el.render == """<div id="x"></div>""")
       },
-      test("merges class with other attributes preserved") {
+      test("KeyValue then AppendValue merges") {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
         val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
-        val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+        val a3 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(a1, a2, a3), Chunk.empty)
         assertTrue(el.render == """<div id="x" class="a b"></div>""")
       },
-      test("merges MultiValue class attributes") {
+      test("AppendValue with MultiValue base") {
         val a1 =
           Dom.Attribute.KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space))
-        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("c"))
+        val a2 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("c"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
         assertTrue(el.render == """<div class="a b c"></div>""")
       },
-      test("class merging works with indented rendering") {
-        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
-        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+      test("AppendValue works with indented rendering") {
+        val a1 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val a2 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk(Dom.Text("text")))
         assertTrue(el.render(indent = 2) == """<div class="a b">text</div>""")
       },
-      test("class merging works with renderMinified") {
-        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
-        val a2 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("b"))
+      test("AppendValue works with renderMinified") {
+        val a1 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val a2 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
         assertTrue(el.renderMinified == """<div class="a b"></div>""")
       }

@@ -157,8 +157,8 @@ trait HtmlElements {
   // --- Attribute helpers ---
 
   val id: PartialAttribute                           = new PartialAttribute("id")
-  val `class`: PartialAttribute                      = new PartialAttribute("class")
-  val className: PartialAttribute                    = new PartialAttribute("class")
+  val `class`: PartialMultiAttribute                 = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+  val className: PartialMultiAttribute               = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
   val styleAttr: PartialAttribute                    = new PartialAttribute("style")
   val titleAttr: PartialAttribute                    = new PartialAttribute("title")
   val href: PartialAttribute                         = new PartialAttribute("href")
