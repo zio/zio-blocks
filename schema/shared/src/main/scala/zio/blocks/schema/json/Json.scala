@@ -2129,7 +2129,7 @@ object Json {
   implicit val ordering: Ordering[Json] = (x: Json, y: Json) => x.compare(y)
 
   // ─────────────────────────────────────────────────────────────────────────
-  // JsonBinaryCodec for Json
+  // JsonCodec for Json
   // ─────────────────────────────────────────────────────────────────────────
 
   implicit lazy val nullSchema: Schema[Null.type] = new Schema(
@@ -2331,7 +2331,7 @@ object Json {
     )
   )
 
-  implicit val jsonCodec: JsonBinaryCodec[Json] = new JsonBinaryCodec[Json] {
+  implicit val jsonCodec: JsonCodec[Json] = new JsonCodec[Json] {
     override def decodeValue(in: JsonReader): Json = {
       var x = in.nextToken().toInt
       if (x == '"') {
@@ -2423,61 +2423,61 @@ object Json {
     override def encodeValue(x: Json): Json = x
   }
 
-  private[schema] val durationRawCodec = new JsonBinaryCodec[Duration] {
+  private[schema] val durationRawCodec = new JsonCodec[Duration] {
     override def decodeValue(in: JsonReader): Duration = in.readRawValAsDuration()
 
     override def encodeValue(x: Duration, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val instantRawCodec = new JsonBinaryCodec[Instant] {
+  private[schema] val instantRawCodec = new JsonCodec[Instant] {
     override def decodeValue(in: JsonReader): Instant = in.readRawValAsInstant()
 
     override def encodeValue(x: Instant, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val localDateRawCodec = new JsonBinaryCodec[LocalDate] {
+  private[schema] val localDateRawCodec = new JsonCodec[LocalDate] {
     override def decodeValue(in: JsonReader): LocalDate = in.readRawValAsLocalDate()
 
     override def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val localDateTimeRawCodec = new JsonBinaryCodec[LocalDateTime] {
+  private[schema] val localDateTimeRawCodec = new JsonCodec[LocalDateTime] {
     override def decodeValue(in: JsonReader): LocalDateTime = in.readRawValAsLocalDateTime()
 
     override def encodeValue(x: LocalDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val localTimeRawCodec = new JsonBinaryCodec[LocalTime] {
+  private[schema] val localTimeRawCodec = new JsonCodec[LocalTime] {
     override def decodeValue(in: JsonReader): LocalTime = in.readRawValAsLocalTime()
 
     override def encodeValue(x: LocalTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val monthDayRawCodec = new JsonBinaryCodec[MonthDay] {
+  private[schema] val monthDayRawCodec = new JsonCodec[MonthDay] {
     override def decodeValue(in: JsonReader): MonthDay = in.readRawValAsMonthDay()
 
     override def encodeValue(x: MonthDay, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val offsetDateTimeRawCodec = new JsonBinaryCodec[OffsetDateTime] {
+  private[schema] val offsetDateTimeRawCodec = new JsonCodec[OffsetDateTime] {
     override def decodeValue(in: JsonReader): OffsetDateTime = in.readRawValAsOffsetDateTime()
 
     override def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val offsetTimeRawCodec = new JsonBinaryCodec[OffsetTime] {
+  private[schema] val offsetTimeRawCodec = new JsonCodec[OffsetTime] {
     override def decodeValue(in: JsonReader): OffsetTime = in.readRawValAsOffsetTime()
 
     override def encodeValue(x: OffsetTime, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val periodRawCodec = new JsonBinaryCodec[Period] {
+  private[schema] val periodRawCodec = new JsonCodec[Period] {
     override def decodeValue(in: JsonReader): Period = in.readRawValAsPeriod()
 
     override def encodeValue(x: Period, out: JsonWriter): Unit = out.writeRawVal(x)
   }
 
-  private[schema] val zonedDateTimeRawCodec = new JsonBinaryCodec[ZonedDateTime] {
+  private[schema] val zonedDateTimeRawCodec = new JsonCodec[ZonedDateTime] {
     override def decodeValue(in: JsonReader): ZonedDateTime = in.readRawValAsZonedDateTime()
 
     override def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit = out.writeRawVal(x)

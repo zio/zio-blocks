@@ -19,7 +19,7 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.json.JsonBinaryCodec
+import zio.blocks.schema.json.JsonCodec
 import zio.blocks.typeid.TypeId
 
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
@@ -218,10 +218,10 @@ object DynamicOptic {
           case v: PrimitiveValue.Short      => sb.append(v.value)
           case v: PrimitiveValue.Int        => sb.append(v.value)
           case v: PrimitiveValue.Long       => sb.append(v.value)
-          case v: PrimitiveValue.Float      => sb.append(JsonBinaryCodec.floatCodec.encodeToString(v.value))
-          case v: PrimitiveValue.Double     => sb.append(JsonBinaryCodec.doubleCodec.encodeToString(v.value))
-          case v: PrimitiveValue.BigInt     => sb.append(JsonBinaryCodec.bigIntCodec.encodeToString(v.value))
-          case v: PrimitiveValue.BigDecimal => sb.append(JsonBinaryCodec.bigDecimalCodec.encodeToString(v.value))
+          case v: PrimitiveValue.Float      => sb.append(JsonCodec.floatCodec.encodeToString(v.value))
+          case v: PrimitiveValue.Double     => sb.append(JsonCodec.doubleCodec.encodeToString(v.value))
+          case v: PrimitiveValue.BigInt     => sb.append(JsonCodec.bigIntCodec.encodeToString(v.value))
+          case v: PrimitiveValue.BigDecimal => sb.append(JsonCodec.bigDecimalCodec.encodeToString(v.value))
           case _                            => sb.append(pv.toString)
         }
       case _ => sb.append(value.toString)

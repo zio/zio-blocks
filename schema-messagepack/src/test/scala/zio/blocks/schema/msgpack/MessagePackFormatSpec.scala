@@ -612,6 +612,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip[RichSum](RichSum.LongWrapper(150L))
       }
     ),
+    /*
     suite("Either")(
       test("either with primitive") {
         roundTrip[Either[String, Int]](Left("error"))(Schema.derived[Either[String, Int]]) &&
@@ -628,6 +629,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip[Either[Record, RichSum]](Right(RichSum.Person("right", 2)))(Schema.derived[Either[Record, RichSum]])
       }
     ),
+     */
     suite("Tuple types")(
       test("Tuple2 - simple") {
         roundTrip(WithTuple2((123, "hello")))

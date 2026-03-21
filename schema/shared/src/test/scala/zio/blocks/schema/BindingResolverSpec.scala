@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
-import zio.blocks.schema.json.JsonBinaryCodecDeriver
+import zio.blocks.schema.json.JsonCodecDeriver
 import zio.blocks.typeid.TypeId
 import zio.test._
 
@@ -249,7 +249,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val dynamicSchema = Schema[Person].toDynamicSchema
         val reboundSchema = dynamicSchema.rebind[Person](resolver)
 
-        val codec   = reboundSchema.derive(JsonBinaryCodecDeriver)
+        val codec   = reboundSchema.derive(JsonCodecDeriver)
         val person  = Person("Bob", 25)
         val encoded = codec.encodeToString(person)
         val decoded = codec.decode(encoded)
@@ -262,7 +262,7 @@ object BindingResolverSpec extends SchemaBaseSpec {
         val dynamicSchema                                       = allPrimitivesSchema.toDynamicSchema
         val reboundSchema                                       = dynamicSchema.rebind[AllPrimitives](resolver)
 
-        val codec = reboundSchema.derive(JsonBinaryCodecDeriver)
+        val codec = reboundSchema.derive(JsonCodecDeriver)
         val value = AllPrimitives(
           b = false,
           by = -100.toByte,

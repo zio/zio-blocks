@@ -34,10 +34,10 @@ abstract class BinaryFormat[...](...) extends Format { ... }
 abstract class TextFormat[...](...) extends Format { ... }
 ```
 
-For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary format, where the input for decoding is `ByteBuffer` and the output for encoding is also `ByteBuffer`, the MIME type is `application/json`, and the deriver for generating codecs from schemas is `JsonBinaryCodecDeriver`:
+For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary format, where the input for decoding is `ByteBuffer` and the output for encoding is also `ByteBuffer`, the MIME type is `application/json`, and the deriver for generating codecs from schemas is `JsonCodecDeriver`:
 
 ```scala
-object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDeriver)
+object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
 ```
 
 ## Built-in Formats
@@ -46,7 +46,7 @@ Here's a summary of the formats currently supported by ZIO Blocks. Each format p
 
 | Format Object       | Codec Type                  | MIME Type             | Module                          |
 |---------------------|-----------------------------|-----------------------|---------------------------------|
-| `JsonFormat`        | `JsonBinaryCodec[A]`        | `application/json`    | `zio-blocks-schema`             |
+| `JsonFormat`        | `JsonCodec[A]`              | `application/json`    | `zio-blocks-schema`             |
 | `ToonFormat`        | `ToonBinaryCodec[A]`        | `text/toon`           | `zio-blocks-schema-toon`        |
 | `MessagePackFormat` | `MessagePackBinaryCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` |
 | `AvroFormat`        | `AvroBinaryCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        |

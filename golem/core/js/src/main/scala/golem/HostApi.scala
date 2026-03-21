@@ -2,10 +2,8 @@ package golem
 
 import golem.runtime.rpc.host.AgentHostApi
 import golem.Uuid
-
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
-
+import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
 import scala.concurrent.Future
 import scala.scalajs.js
 import scala.scalajs.js.Dictionary
@@ -477,10 +475,10 @@ object HostApi {
       lowBits = BigInt(uuid.lowBits.toString)
     )
 
-  private def jsonCodec[A](rejectExtraFields: Boolean)(implicit schema: Schema[A]): JsonBinaryCodec[A] = {
+  private def jsonCodec[A](rejectExtraFields: Boolean)(implicit schema: Schema[A]): JsonCodec[A] = {
     val deriver =
-      if (rejectExtraFields) JsonBinaryCodecDeriver.withRejectExtraFields(true)
-      else JsonBinaryCodecDeriver
+      if (rejectExtraFields) JsonCodecDeriver.withRejectExtraFields(true)
+      else JsonCodecDeriver
     schema.derive(deriver)
   }
 

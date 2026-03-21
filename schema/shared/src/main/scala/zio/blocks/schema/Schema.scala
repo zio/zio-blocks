@@ -21,7 +21,7 @@ import zio.blocks.docs.Doc
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Derivable, DerivationBuilder, Deriver}
 import zio.blocks.typeid.TypeId
-import zio.blocks.schema.json.{Json, JsonBinaryCodec, JsonFormat, JsonSchema, JsonSchemaToReflect}
+import zio.blocks.schema.json.{Json, JsonCodec, JsonFormat, JsonSchema, JsonSchemaToReflect}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 
 import java.util.concurrent.ConcurrentHashMap
@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap
 final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
-  lazy val jsonCodec: JsonBinaryCodec[A] = getInstance(JsonFormat)
+  lazy val jsonCodec: JsonCodec[A] = getInstance(JsonFormat)
 
   def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache

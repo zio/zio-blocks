@@ -29,12 +29,12 @@ object YamlKeyableSpec extends YamlBaseSpec {
       },
       test("Float has Keyable instance") {
         check(Gen.float.filter(_.isFinite)) { f =>
-          assertTrue(YamlKeyable[Float].asKey(f) == JsonBinaryCodec.floatCodec.encodeToString(f))
+          assertTrue(YamlKeyable[Float].asKey(f) == JsonCodec.floatCodec.encodeToString(f))
         }
       },
       test("Double has Keyable instance") {
         check(Gen.double.filter(_.isFinite)) { d =>
-          assertTrue(YamlKeyable[Double].asKey(d) == JsonBinaryCodec.doubleCodec.encodeToString(d))
+          assertTrue(YamlKeyable[Double].asKey(d) == JsonCodec.doubleCodec.encodeToString(d))
         }
       },
       test("Char has Keyable instance") {

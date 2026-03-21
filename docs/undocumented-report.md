@@ -59,7 +59,7 @@ These are core public API types that users interact with directly. Each needs a 
 **schema module — JSON subsystem:**
 - [ ] **`Keyable`** — Type class for JSON key support. Referenced in 5 files. **Scope: new section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/Keyable.scala`
 - [ ] **`NameMapper`** (`CamelCase`, `KebabCase`, `PascalCase`) — Public field name transformations. **Scope: new section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/NameMapper.scala`
-- [ ] **`JsonBinaryCodecError`** — Custom exception for JSON codec errors. Referenced in 7 files. **Scope: brief section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/JsonBinaryCodecError.scala`
+- [ ] **`JsonCodecError`** — Custom exception for JSON codec errors. Referenced in 7 files. **Scope: brief section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecError.scala`
 
 **typeid module:**
 - [ ] **`TypeRepr`** — Central type representation (24 subtypes: ThisType, TypeLambda, Singleton, Repeated, etc.). Referenced across 4-8 files each. **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/TypeRepr.scala`

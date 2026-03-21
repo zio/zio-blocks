@@ -19,7 +19,7 @@ package zio.blocks.schema.json
 import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.docs.Doc
 import zio.blocks.schema.json._
-import zio.blocks.schema.json.JsonBinaryCodec._
+import zio.blocks.schema.json.JsonCodec._
 import zio.blocks.schema.binding.{Binding, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Constructor, Discriminator}
@@ -38,16 +38,16 @@ import scala.util.control.NonFatal
  * deserialization.
  *
  * It extends the `BinaryFormat` class, specifying "application/json" as the
- * MIME type and utilizing the `JsonBinaryCodecDeriver` for deriving the
- * necessary codecs.
+ * MIME type and utilizing the `JsonCodecDeriver` for deriving the necessary
+ * codecs.
  */
-object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDeriver)
+object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
 
 /**
- * Provides a default implementation of `JsonBinaryCodecDeriver` with
- * customizable settings for JSON and binary codec derivation. This object
- * allows the derivation of codecs for various data types, including primitives,
- * records, variants, sequences, maps, and dynamic values.
+ * Provides a default implementation of `JsonCodecDeriver` with customizable
+ * settings for JSON and binary codec derivation. This object allows the
+ * derivation of codecs for various data types, including primitives, records,
+ * variants, sequences, maps, and dynamic values.
  *
  * The derivation process can be customized through pre-configured parameters,
  * including:
@@ -77,8 +77,8 @@ object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDerive
  * no transformation to field or case names, and `DiscriminatorKind.Key`, which
  * embeds type information as a key in serialized data.
  */
-object JsonBinaryCodecDeriver
-    extends JsonBinaryCodecDeriver(
+object JsonCodecDeriver
+    extends JsonCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
       caseNameMapper = NameMapper.Identity,
       discriminatorKind = DiscriminatorKind.Key,
@@ -92,7 +92,7 @@ object JsonBinaryCodecDeriver
       requireDefaultValueFields = false
     )
 
-class JsonBinaryCodecDeriver private[json] (
+class JsonCodecDeriver private[json] (
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
   discriminatorKind: DiscriminatorKind,
@@ -104,51 +104,48 @@ class JsonBinaryCodecDeriver private[json] (
   requireCollectionFields: Boolean,
   transientDefaultValue: Boolean,
   requireDefaultValueFields: Boolean
-) extends Deriver[JsonBinaryCodec] {
+) extends Deriver[JsonCodec] {
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance with the specified field name
+   * Updates the `JsonCodecDeriver` instance with the specified field name
    * mapper. The field name mapper defines how field names should be transformed
    * during encoding and decoding.
    *
    * @param fieldNameMapper
    *   The `NameMapper` to apply for transforming field names.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated field name
-   *   mapper.
+   *   A new instance of `JsonCodecDeriver` with the updated field name mapper.
    */
-  def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
+  def withFieldNameMapper(fieldNameMapper: NameMapper): JsonCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance with the specified case name
+   * Updates the `JsonCodecDeriver` instance with the specified case name
    * mapper. The case name mapper defines how case names should be transformed
    * during encoding and decoding.
    *
    * @param caseNameMapper
    *   The `NameMapper` to apply for transforming case names.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated case name
-   *   mapper.
+   *   A new instance of `JsonCodecDeriver` with the updated case name mapper.
    */
-  def withCaseNameMapper(caseNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(caseNameMapper = caseNameMapper)
+  def withCaseNameMapper(caseNameMapper: NameMapper): JsonCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance with the specified
-   * discriminator kind. The discriminator kind defines how the subtype
-   * discriminator is represented in the serialized JSON.
+   * Updates the `JsonCodecDeriver` instance with the specified discriminator
+   * kind. The discriminator kind defines how the subtype discriminator is
+   * represented in the serialized JSON.
    *
    * @param discriminatorKind
    *   The `DiscriminatorKind` to apply for specifying how the discriminator is
    *   handled in the JSON schema for sealed hierarchies.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated discriminator
-   *   kind.
+   *   A new instance of `JsonCodecDeriver` with the updated discriminator kind.
    */
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonBinaryCodecDeriver =
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonCodecDeriver =
     copy(discriminatorKind = discriminatorKind)
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance to specify whether additional
+   * Updates the `JsonCodecDeriver` instance to specify whether additional
    * fields in the JSON input that are not part of the schema should be rejected
    * during decoding.
    *
@@ -157,15 +154,14 @@ class JsonBinaryCodecDeriver private[json] (
    *   defined in the schema. If `true`, decoding will fail when extra fields
    *   are encountered; if `false`, extra fields will be ignored.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated
-   *   `rejectExtraFields` setting.
+   *   A new instance of `JsonCodecDeriver` with the updated `rejectExtraFields`
+   *   setting.
    */
-  def withRejectExtraFields(rejectExtraFields: Boolean): JsonBinaryCodecDeriver =
-    copy(rejectExtraFields = rejectExtraFields)
+  def withRejectExtraFields(rejectExtraFields: Boolean): JsonCodecDeriver = copy(rejectExtraFields = rejectExtraFields)
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance to specify whether
-   * enumeration values should be serialized and deserialized as strings.
+   * Updates the `JsonCodecDeriver` instance to specify whether enumeration
+   * values should be serialized and deserialized as strings.
    *
    * @param enumValuesAsStrings
    *   A boolean flag indicating whether to treat enumeration values as strings.
@@ -173,25 +169,25 @@ class JsonBinaryCodecDeriver private[json] (
    *   string representations; if `false`, they are encoded with default
    *   `DiscriminatorKind.Key` encoding.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated
+   *   A new instance of `JsonCodecDeriver` with the updated
    *   `enumValuesAsStrings` setting.
    */
-  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonBinaryCodecDeriver =
+  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
   /**
-   * Updates the `JsonBinaryCodecDeriver` instance to specify whether fields of
-   * type `Option` with a value of `None` should be excluded during encoding.
+   * Updates the `JsonCodecDeriver` instance to specify whether fields of type
+   * `Option` with a value of `None` should be excluded during encoding.
    *
    * @param transientNone
    *   A boolean flag indicating whether to exclude fields of type `Option` with
    *   a value of `None` during encoding. If `true`, such fields are omitted; if
    *   `false`, they are included.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated
-   *   `transientNone` setting.
+   *   A new instance of `JsonCodecDeriver` with the updated `transientNone`
+   *   setting.
    */
-  def withTransientNone(transientNone: Boolean): JsonBinaryCodecDeriver = copy(transientNone = transientNone)
+  def withTransientNone(transientNone: Boolean): JsonCodecDeriver = copy(transientNone = transientNone)
 
   /**
    * Sets the requirement for optional fields.
@@ -201,10 +197,10 @@ class JsonBinaryCodecDeriver private[json] (
    *   optional fields must be present and will not be treated as optional
    *   during codec derivation.
    * @return
-   *   A new instance of JsonBinaryCodecDeriver with the updated setting for
-   *   requiring optional fields.
+   *   A new instance of JsonCodecDeriver with the updated setting for requiring
+   *   optional fields.
    */
-  def withRequireOptionFields(requireOptionFields: Boolean): JsonBinaryCodecDeriver =
+  def withRequireOptionFields(requireOptionFields: Boolean): JsonCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
   /**
@@ -214,10 +210,10 @@ class JsonBinaryCodecDeriver private[json] (
    * @param transientEmptyCollection
    *   Indicates if empty collections should be treated as transient.
    * @return
-   *   A new instance of JsonBinaryCodecDeriver with the updated
+   *   A new instance of JsonCodecDeriver with the updated
    *   transientEmptyCollection setting.
    */
-  def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonBinaryCodecDeriver =
+  def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
 
   /**
@@ -226,9 +222,9 @@ class JsonBinaryCodecDeriver private[json] (
    * @param requireCollectionFields
    *   A boolean value specifying if collection fields should be required.
    * @return
-   *   A new instance of JsonBinaryCodecDeriver with the updated configuration.
+   *   A new instance of JsonCodecDeriver with the updated configuration.
    */
-  def withRequireCollectionFields(requireCollectionFields: Boolean): JsonBinaryCodecDeriver =
+  def withRequireCollectionFields(requireCollectionFields: Boolean): JsonCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
   /**
@@ -238,10 +234,10 @@ class JsonBinaryCodecDeriver private[json] (
    *   A boolean indicating whether the transient behavior for fields with
    *   defined default values should be applied or not.
    * @return
-   *   A new instance of JsonBinaryCodecDeriver with the specified transient
-   *   default value setting.
+   *   A new instance of JsonCodecDeriver with the specified transient default
+   *   value setting.
    */
-  def withTransientDefaultValue(transientDefaultValue: Boolean): JsonBinaryCodecDeriver =
+  def withTransientDefaultValue(transientDefaultValue: Boolean): JsonCodecDeriver =
     copy(transientDefaultValue = transientDefaultValue)
 
   /**
@@ -251,10 +247,9 @@ class JsonBinaryCodecDeriver private[json] (
    *   A boolean flag indicating whether fields with default values should be
    *   required.
    * @return
-   *   A new instance of `JsonBinaryCodecDeriver` with the updated
-   *   configuration.
+   *   A new instance of `JsonCodecDeriver` with the updated configuration.
    */
-  def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonBinaryCodecDeriver =
+  def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
   private[this] def copy(
@@ -270,7 +265,7 @@ class JsonBinaryCodecDeriver private[json] (
     transientDefaultValue: Boolean = transientDefaultValue,
     requireDefaultValueFields: Boolean = requireDefaultValueFields
   ) =
-    new JsonBinaryCodecDeriver(
+    new JsonCodecDeriver(
       fieldNameMapper,
       caseNameMapper,
       discriminatorKind,
@@ -292,7 +287,7 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[JsonBinaryCodec[A]] = {
+  ): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       Lazy(primitiveType match {
         case _: PrimitiveType.Unit.type      => unitCodec
@@ -327,7 +322,7 @@ class JsonBinaryCodecDeriver private[json] (
         case _: PrimitiveType.UUID           => uuidCodec
       })
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[JsonCodec[A]]]
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -337,14 +332,14 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val len           = fields.length
       if (typeId.isTuple) Lazy {
         val fieldRegisterOffsets = new Array[RegisterOffset](len)
         val fieldTypeTags        = new Array[Int](len)
-        val codecs               = new Array[JsonBinaryCodec[?]](len)
+        val codecs               = new Array[JsonCodec[?]](len)
         var idx                  = 0
         while (idx < len) {
           val fieldReflect = fields(idx).value
@@ -353,7 +348,7 @@ class JsonBinaryCodecDeriver private[json] (
           codecs(idx) = D.instance(fieldReflect.metadata).force
           idx += 1
         }
-        new JsonBinaryCodec[A]() {
+        new JsonCodec[A]() {
           private[this] val deconstructor   = recordBinding.deconstructor
           private[this] val constructor     = recordBinding.constructor
           private[this] val fieldCodecs     = codecs
@@ -376,48 +371,48 @@ class JsonBinaryCodecDeriver private[json] (
                   try {
                     (typeTags(idx): @switch) match {
                       case 0 =>
-                        regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(in))
+                        regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(in))
                       case 1 =>
                         val value =
                           if (codec eq intCodec) in.readInt()
-                          else codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Int]].decodeValue(in)
                         regs.setInt(offset, value)
                       case 2 =>
                         val value =
                           if (codec eq longCodec) in.readLong()
-                          else codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Long]].decodeValue(in)
                         regs.setLong(offset, value)
                       case 3 =>
                         val value =
                           if (codec eq floatCodec) in.readFloat()
-                          else codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Float]].decodeValue(in)
                         regs.setFloat(offset, value)
                       case 4 =>
                         val value =
                           if (codec eq doubleCodec) in.readDouble()
-                          else codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Double]].decodeValue(in)
                         regs.setDouble(offset, value)
                       case 5 =>
                         val value =
                           if (codec eq booleanCodec) in.readBoolean()
-                          else codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(in)
                         regs.setBoolean(offset, value)
                       case 6 =>
                         val value =
                           if (codec eq byteCodec) in.readByte()
-                          else codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Byte]].decodeValue(in)
                         regs.setByte(offset, value)
                       case 7 =>
                         val value =
                           if (codec eq charCodec) in.readChar()
-                          else codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Char]].decodeValue(in)
                         regs.setChar(offset, value)
                       case 8 =>
                         val value =
                           if (codec eq shortCodec) in.readShort()
-                          else codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(in)
+                          else codec.asInstanceOf[JsonCodec[Short]].decodeValue(in)
                         regs.setShort(offset, value)
-                      case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(in)
+                      case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(in)
                     }
                   } catch {
                     case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), err)
@@ -444,40 +439,40 @@ class JsonBinaryCodecDeriver private[json] (
                 val codec = fieldCodecs(idx)
                 (typeTags(idx): @switch) match {
                   case 0 =>
-                    codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
+                    codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
                   case 1 =>
                     val value = regs.getInt(offset)
                     if (codec eq intCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Int]].encodeValue(value, out)
                   case 2 =>
                     val value = regs.getLong(offset)
                     if (codec eq longCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Long]].encodeValue(value, out)
                   case 3 =>
                     val value = regs.getFloat(offset)
                     if (codec eq floatCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Float]].encodeValue(value, out)
                   case 4 =>
                     val value = regs.getDouble(offset)
                     if (codec eq doubleCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Double]].encodeValue(value, out)
                   case 5 =>
                     val value = regs.getBoolean(offset)
                     if (codec eq booleanCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(value, out)
                   case 6 =>
                     val value = regs.getByte(offset)
                     if (codec eq byteCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Byte]].encodeValue(value, out)
                   case 7 =>
                     val value = regs.getChar(offset)
                     if (codec eq charCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
+                    else codec.asInstanceOf[JsonCodec[Char]].encodeValue(value, out)
                   case 8 =>
                     val value = regs.getShort(offset)
                     if (codec eq shortCodec) out.writeVal(value)
-                    else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
-                  case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
+                    else codec.asInstanceOf[JsonCodec[Short]].encodeValue(value, out)
+                  case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue((), out)
                 }
                 offset += registerOffsets(idx)
                 idx += 1
@@ -500,17 +495,16 @@ class JsonBinaryCodecDeriver private[json] (
                     val value = values(idx)
                     try {
                       (typeTags(idx): @switch) match {
-                        case 0 => regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(value))
-                        case 1 => regs.setInt(offset, codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(value))
-                        case 2 => regs.setLong(offset, codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(value))
-                        case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(value))
-                        case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(value))
-                        case 5 =>
-                          regs.setBoolean(offset, codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(value))
-                        case 6 => regs.setByte(offset, codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(value))
-                        case 7 => regs.setChar(offset, codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(value))
-                        case 8 => regs.setShort(offset, codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(value))
-                        case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(value)
+                        case 0 => regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(value))
+                        case 1 => regs.setInt(offset, codec.asInstanceOf[JsonCodec[Int]].decodeValue(value))
+                        case 2 => regs.setLong(offset, codec.asInstanceOf[JsonCodec[Long]].decodeValue(value))
+                        case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonCodec[Float]].decodeValue(value))
+                        case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonCodec[Double]].decodeValue(value))
+                        case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(value))
+                        case 6 => regs.setByte(offset, codec.asInstanceOf[JsonCodec[Byte]].decodeValue(value))
+                        case 7 => regs.setChar(offset, codec.asInstanceOf[JsonCodec[Char]].decodeValue(value))
+                        case 8 => regs.setShort(offset, codec.asInstanceOf[JsonCodec[Short]].decodeValue(value))
+                        case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(value)
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.Field(fields(idx).name), err)
@@ -523,7 +517,7 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               case _ =>
             }
-            throw new JsonBinaryCodecError(Nil, "expected Json.Array")
+            throw new JsonCodecError(Nil, "expected Json.Array")
           }
 
           override def encodeValue(x: A): Json = {
@@ -537,16 +531,16 @@ class JsonBinaryCodecDeriver private[json] (
               val codec = fieldCodecs(idx)
               builder.addOne(
                 (typeTags(idx): @switch) match {
-                  case 0 => codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset))
-                  case 1 => codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(regs.getInt(offset))
-                  case 2 => codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(regs.getLong(offset))
-                  case 3 => codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(regs.getFloat(offset))
-                  case 4 => codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(regs.getDouble(offset))
-                  case 5 => codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset))
-                  case 6 => codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(regs.getByte(offset))
-                  case 7 => codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(regs.getChar(offset))
-                  case 8 => codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(regs.getShort(offset))
-                  case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue(())
+                  case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
+                  case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
+                  case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
+                  case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
+                  case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
+                  case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+                  case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
+                  case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
+                  case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
+                  case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
                 }
               )
               offset += registerOffsets(idx)
@@ -636,7 +630,7 @@ class JsonBinaryCodecDeriver private[json] (
           }
           if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
           val typeName = typeId.name
-          new JsonBinaryCodec[A]() {
+          new JsonCodec[A]() {
             private[this] val deconstructor       = recordBinding.deconstructor
             private[this] val constructor         = recordBinding.constructor
             private[this] val fieldInfos          = infos
@@ -794,7 +788,7 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                 }
                 constructor.construct(regs, 0)
-              case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+              case _ => throw new JsonCodecError(Nil, "expected Json.Object")
             }
 
             override def encodeValue(x: A): Json = {
@@ -828,11 +822,11 @@ class JsonBinaryCodecDeriver private[json] (
 
             private[this] def skipOrReject(key: String): Unit =
               if (doReject && ((discriminatorField eq null) || discriminatorField.getName != key)) {
-                throw new JsonBinaryCodecError(Nil, s"unexpected field \"$key\"")
+                throw new JsonCodecError(Nil, s"unexpected field \"$key\"")
               }
 
             private[this] def duplicatedKeyError(key: String): Nothing =
-              throw new JsonBinaryCodecError(Nil, s"duplicated field \"$key\"")
+              throw new JsonCodecError(Nil, s"duplicated field \"$key\"")
 
             override lazy val toJsonSchema: JsonSchema = {
               val reqs    = Set.newBuilder[String]
@@ -862,7 +856,7 @@ class JsonBinaryCodecDeriver private[json] (
           }
         }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[JsonCodec[A]]]
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
@@ -872,12 +866,12 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       if (typeId.isOption) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new JsonBinaryCodec[Option[Any]]() {
-            private[this] val valueCodec = codec.asInstanceOf[JsonBinaryCodec[Any]]
+          new JsonCodec[Option[Any]]() {
+            private[this] val valueCodec = codec.asInstanceOf[JsonCodec[Any]]
 
             override def decodeValue(in: JsonReader): Option[Any] = {
               val isNull = in.isNextToken('n')
@@ -950,7 +944,7 @@ class JsonBinaryCodecDeriver private[json] (
 
           val enumInfos = getInfos(cases)
 
-          new JsonBinaryCodec[A]() {
+          new JsonCodec[A]() {
             private[this] val root           = new EnumNodeInfo(discr, enumInfos)
             private[this] val constructorMap = map
 
@@ -968,8 +962,8 @@ class JsonBinaryCodecDeriver private[json] (
                 val enumName    = s.value
                 val constructor = constructorMap.get(enumName)
                 if (constructor ne null) constructor.construct(null, 0).asInstanceOf[A]
-                else throw new JsonBinaryCodecError(Nil, s"illegal enum value \"$enumName\"")
-              case _ => throw new JsonBinaryCodecError(Nil, "expected Json.String")
+                else throw new JsonCodecError(Nil, s"illegal enum value \"$enumName\"")
+              case _ => throw new JsonCodecError(Nil, "expected Json.String")
             }
 
             override def encodeValue(x: A): Json = new Json.String(root.discriminate(x).enumName)
@@ -1038,7 +1032,7 @@ class JsonBinaryCodecDeriver private[json] (
                   infos
                 }
 
-                new JsonBinaryCodec[A]() {
+                new JsonCodec[A]() {
                   private[this] val root                   = new CaseNodeInfo(discr, getInfos(cases, Nil))
                   private[this] val caseMap                = map
                   private[this] val discriminatorFieldName = fieldName
@@ -1050,7 +1044,7 @@ class JsonBinaryCodecDeriver private[json] (
                       val caseInfo = caseMap.get(in, in.readStringAsCharBuf())
                       if (caseInfo ne null) {
                         in.rollbackToMark()
-                        try caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(in)
+                        try caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(in)
                         catch {
                           case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
                         }
@@ -1059,7 +1053,7 @@ class JsonBinaryCodecDeriver private[json] (
                   }
 
                   def encodeValue(x: A, out: JsonWriter): Unit =
-                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                    root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x, out)
 
                   override def decodeValue(json: Json): A = json match {
                     case o: Json.Object =>
@@ -1073,7 +1067,7 @@ class JsonBinaryCodecDeriver private[json] (
                             case s: Json.String =>
                               val caseInfo = caseMap.get(s.value)
                               if (caseInfo ne null) {
-                                try return caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(json)
+                                try return caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(json)
                                 catch {
                                   case err if NonFatal(err) => error(caseInfo.spans, err)
                                 }
@@ -1081,16 +1075,16 @@ class JsonBinaryCodecDeriver private[json] (
                             case _ =>
                           }
                           val msg = s"illegal value of discriminator field \"$discriminatorFieldName\""
-                          throw new JsonBinaryCodecError(Nil, msg)
+                          throw new JsonCodecError(Nil, msg)
                         }
                         idx += 1
                       }
-                      throw new JsonBinaryCodecError(Nil, s"missing required field \"$discriminatorFieldName\"")
-                    case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+                      throw new JsonCodecError(Nil, s"missing required field \"$discriminatorFieldName\"")
+                    case _ => throw new JsonCodecError(Nil, "expected Json.Object")
                   }
 
                   override def encodeValue(x: A): Json =
-                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)
+                    root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x)
 
                   override lazy val toJsonSchema: JsonSchema = {
                     val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
@@ -1120,7 +1114,7 @@ class JsonBinaryCodecDeriver private[json] (
               }
             case DiscriminatorKind.None =>
               Lazy {
-                val codecs = mutable.ArrayBuilder.make[JsonBinaryCodec[?]]
+                val codecs = mutable.ArrayBuilder.make[JsonCodec[?]]
 
                 def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[CaseInfo] = {
                   val len   = cases.length
@@ -1141,7 +1135,7 @@ class JsonBinaryCodecDeriver private[json] (
                   infos
                 }
 
-                new JsonBinaryCodec[A]() {
+                new JsonCodec[A]() {
                   private[this] val root           = new CaseNodeInfo(discr, getInfos(cases))
                   private[this] val caseLeafCodecs = codecs.result()
 
@@ -1150,7 +1144,7 @@ class JsonBinaryCodecDeriver private[json] (
                     while (idx < caseLeafCodecs.length) {
                       in.setMark()
                       try {
-                        val x = caseLeafCodecs(idx).asInstanceOf[JsonBinaryCodec[A]].decodeValue(in)
+                        val x = caseLeafCodecs(idx).asInstanceOf[JsonCodec[A]].decodeValue(in)
                         in.resetMark()
                         return x
                       } catch {
@@ -1162,22 +1156,22 @@ class JsonBinaryCodecDeriver private[json] (
                   }
 
                   def encodeValue(x: A, out: JsonWriter): Unit =
-                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                    root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x, out)
 
                   override def decodeValue(json: Json): A = {
                     var idx = 0
                     while (idx < caseLeafCodecs.length) {
-                      try return caseLeafCodecs(idx).asInstanceOf[JsonBinaryCodec[A]].decodeValue(json)
+                      try return caseLeafCodecs(idx).asInstanceOf[JsonCodec[A]].decodeValue(json)
                       catch {
                         case err if NonFatal(err) =>
                       }
                       idx += 1
                     }
-                    throw new JsonBinaryCodecError(Nil, "expected a variant value")
+                    throw new JsonCodecError(Nil, "expected a variant value")
                   }
 
                   override def encodeValue(x: A): Json =
-                    root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)
+                    root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x)
 
                   override lazy val toJsonSchema: JsonSchema =
                     NonEmptyChunk.fromChunk(Chunk.fromArray(caseLeafCodecs.map(_.toJsonSchema))) match {
@@ -1223,7 +1217,7 @@ class JsonBinaryCodecDeriver private[json] (
                   infos
                 }
 
-                new JsonBinaryCodec[A]() {
+                new JsonCodec[A]() {
                   private[this] val root    = new CaseNodeInfo(discr, getInfos(cases, Nil))
                   private[this] val caseMap = map
 
@@ -1234,7 +1228,7 @@ class JsonBinaryCodecDeriver private[json] (
                       val caseInfo = caseMap.get(in, in.readKeyAsCharBuf())
                       if (caseInfo ne null) {
                         val x =
-                          try caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(in)
+                          try caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(in)
                           catch {
                             case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
                           }
@@ -1249,7 +1243,7 @@ class JsonBinaryCodecDeriver private[json] (
                     out.writeObjectStart()
                     val caseInfo = root.discriminate(x)
                     caseInfo.writeKey(out)
-                    caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                    caseInfo.codec.asInstanceOf[JsonCodec[A]].encodeValue(x, out)
                     out.writeObjectEnd()
                   }
 
@@ -1260,20 +1254,20 @@ class JsonBinaryCodecDeriver private[json] (
                         val kv       = kvs(0)
                         val caseInfo = caseMap.get(kv._1)
                         if (caseInfo ne null) {
-                          try return caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].decodeValue(kv._2)
+                          try return caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(kv._2)
                           catch {
                             case err if NonFatal(err) => error(caseInfo.spans, err)
                           }
                         }
                       }
-                      throw new JsonBinaryCodecError(Nil, "illegal discriminator")
-                    case _ => throw new JsonBinaryCodecError(Nil, "expected Json.Object")
+                      throw new JsonCodecError(Nil, "illegal discriminator")
+                    case _ => throw new JsonCodecError(Nil, "expected Json.Object")
                   }
 
                   override def encodeValue(x: A): Json = {
                     val caseInfo = root.discriminate(x)
                     new Json.Object(
-                      Chunk.single((caseInfo.getName, caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x)))
+                      Chunk.single((caseInfo.getName, caseInfo.codec.asInstanceOf[JsonCodec[A]].encodeValue(x)))
                     )
                   }
 
@@ -1317,7 +1311,7 @@ class JsonBinaryCodecDeriver private[json] (
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[JsonCodec[A]]]
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -1327,14 +1321,14 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[C[A]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[C[A]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { codec =>
         typeTag(element) match {
           case 1 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq intCodec) {
-              new JsonBinaryCodec[Col[Int]]() {
+              new JsonCodec[Col[Int]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -1402,10 +1396,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Int]]() {
+              new JsonCodec[Col[Int]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Int]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Int]]
 
                 def decodeValue(in: JsonReader): Col[Int] =
                   if (in.isNextToken('[')) {
@@ -1473,7 +1467,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 2 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq longCodec) {
-              new JsonBinaryCodec[Col[Long]]() {
+              new JsonCodec[Col[Long]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -1541,10 +1535,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Long]]() {
+              new JsonCodec[Col[Long]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Long]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Long]]
 
                 def decodeValue(in: JsonReader): Col[Long] =
                   if (in.isNextToken('[')) {
@@ -1612,7 +1606,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 3 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq floatCodec) {
-              new JsonBinaryCodec[Col[Float]]() {
+              new JsonCodec[Col[Float]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -1680,10 +1674,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Float]]() {
+              new JsonCodec[Col[Float]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Float]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Float]]
 
                 def decodeValue(in: JsonReader): Col[Float] =
                   if (in.isNextToken('[')) {
@@ -1751,7 +1745,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 4 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq doubleCodec) {
-              new JsonBinaryCodec[Col[Double]]() {
+              new JsonCodec[Col[Double]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -1819,10 +1813,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Double]]() {
+              new JsonCodec[Col[Double]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Double]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Double]]
 
                 def decodeValue(in: JsonReader): Col[Double] =
                   if (in.isNextToken('[')) {
@@ -1890,7 +1884,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 5 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq booleanCodec) {
-              new JsonBinaryCodec[Col[Boolean]]() {
+              new JsonCodec[Col[Boolean]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -1958,10 +1952,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Boolean]]() {
+              new JsonCodec[Col[Boolean]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Boolean]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Boolean]]
 
                 def decodeValue(in: JsonReader): Col[Boolean] =
                   if (in.isNextToken('[')) {
@@ -2029,7 +2023,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 6 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq byteCodec) {
-              new JsonBinaryCodec[Col[Byte]]() {
+              new JsonCodec[Col[Byte]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -2097,10 +2091,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Byte]]() {
+              new JsonCodec[Col[Byte]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Byte]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Byte]]
 
                 def decodeValue(in: JsonReader): Col[Byte] =
                   if (in.isNextToken('[')) {
@@ -2168,7 +2162,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 7 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq charCodec) {
-              new JsonBinaryCodec[Col[Char]]() {
+              new JsonCodec[Col[Char]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -2236,10 +2230,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Char]]() {
+              new JsonCodec[Col[Char]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Char]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Char]]
 
                 def decodeValue(in: JsonReader): Col[Char] =
                   if (in.isNextToken('[')) {
@@ -2307,7 +2301,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
           case 8 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq shortCodec) {
-              new JsonBinaryCodec[Col[Short]]() {
+              new JsonCodec[Col[Short]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
 
@@ -2375,10 +2369,10 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              new JsonBinaryCodec[Col[Short]]() {
+              new JsonCodec[Col[Short]]() {
                 private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
                 private[this] val constructor   = seqBinding.constructor
-                private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Short]]
+                private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Short]]
 
                 def decodeValue(in: JsonReader): Col[Short] =
                   if (in.isNextToken('[')) {
@@ -2445,10 +2439,10 @@ class JsonBinaryCodecDeriver private[json] (
               }
             }
           case _ =>
-            new JsonBinaryCodec[Col[Elem]]() {
+            new JsonCodec[Col[Elem]]() {
               private[this] val deconstructor = seqBinding.deconstructor
               private[this] val constructor   = seqBinding.constructor
-              private[this] val elementCodec  = codec.asInstanceOf[JsonBinaryCodec[Elem]]
+              private[this] val elementCodec  = codec.asInstanceOf[JsonCodec[Elem]]
               private[this] val elemClassTag  = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
               def decodeValue(in: JsonReader): Col[Elem] =
@@ -2511,7 +2505,7 @@ class JsonBinaryCodecDeriver private[json] (
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[C[A]]]]
+  }.asInstanceOf[Lazy[JsonCodec[C[A]]]]
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -2522,15 +2516,15 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[M[K, V]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[M[K, V]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (codec1, codec2) =>
-        new JsonBinaryCodec[Map[Key, Value]]() {
+        new JsonCodec[Map[Key, Value]]() {
           private[this] val deconstructor = mapBinding.deconstructor
           private[this] val constructor   = mapBinding.constructor
-          private[this] val keyCodec      = codec1.asInstanceOf[JsonBinaryCodec[Key]]
-          private[this] val valueCodec    = codec2.asInstanceOf[JsonBinaryCodec[Value]]
+          private[this] val keyCodec      = codec1.asInstanceOf[JsonCodec[Key]]
+          private[this] val valueCodec    = codec2.asInstanceOf[JsonCodec[Value]]
           private[this] val keyReflect    = key.asInstanceOf[Reflect.Bound[Key]]
 
           def decodeValue(in: JsonReader): Map[Key, Value] =
@@ -2617,7 +2611,7 @@ class JsonBinaryCodecDeriver private[json] (
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[M[K, V]]]]
+  }.asInstanceOf[Lazy[JsonCodec[M[K, V]]]]
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -2625,10 +2619,10 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[DynamicValue]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[DynamicValue]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[DynamicValue]]]
+  }.asInstanceOf[Lazy[JsonCodec[DynamicValue]]]
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -2638,14 +2632,14 @@ class JsonBinaryCodecDeriver private[json] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
       D.instance(wrapped.metadata).map { codec =>
-        new JsonBinaryCodec[A] {
+        new JsonCodec[A] {
           private[this] val unwrap       = wrapperBinding.unwrap
           private[this] val wrap         = wrapperBinding.wrap
-          private[this] val wrappedCodec = codec.asInstanceOf[JsonBinaryCodec[Wrapped]]
+          private[this] val wrappedCodec = codec.asInstanceOf[JsonCodec[Wrapped]]
 
           override def decodeValue(in: JsonReader): A =
             try wrap(wrappedCodec.decodeValue(in))
@@ -2692,14 +2686,14 @@ class JsonBinaryCodecDeriver private[json] (
           override def encodeKey(x: A): String =
             try wrappedCodec.encodeKey(unwrap(x))
             catch {
-              case err if NonFatal(err) => throw new JsonBinaryCodecError(Nil, err.getMessage)
+              case err if NonFatal(err) => throw new JsonCodecError(Nil, err.getMessage)
             }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[JsonBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[JsonCodec[A]]]
 
   override def instanceOverrides: IndexedSeq[InstanceOverride] = {
     recursiveRecordCache.remove()
@@ -2797,14 +2791,14 @@ private class FieldInfo(
   private[this] var isPredefinedCodec: Boolean     = false
   private[this] var isNonEscapedAsciiName: Boolean = false
   private[this] var name: String                   = null
-  private[this] var codec: JsonBinaryCodec[?]      = null
+  private[this] var codec: JsonCodec[?]            = null
 
   def setName(name: String): Unit = {
     isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
     this.name = name
   }
 
-  def setCodec(codec: JsonBinaryCodec[?]): Unit = {
+  def setCodec(codec: JsonCodec[?]): Unit = {
     isPredefinedCodec =
       (codec eq intCodec) || (codec eq longCodec) || (codec eq floatCodec) || (codec eq doubleCodec) ||
         (codec eq booleanCodec) || (codec eq byteCodec) || (codec eq charCodec) || (codec eq shortCodec)
@@ -2815,7 +2809,7 @@ private class FieldInfo(
   def getName: String = name
 
   @inline
-  def getCodec: JsonBinaryCodec[?] = codec
+  def getCodec: JsonCodec[?] = codec
 
   @inline
   def hasDefault: Boolean = defaultValue ne None
@@ -2831,72 +2825,72 @@ private class FieldInfo(
     val regs   = in.registers
     (typeTag: @switch) match {
       case 0 =>
-        regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(in))
+        regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(in))
       case 1 =>
         regs.setInt(
           offset,
           if (isPredefinedCodec) in.readInt()
-          else codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Int]].decodeValue(in)
         )
       case 2 =>
         regs.setLong(
           offset,
           if (isPredefinedCodec) in.readLong()
-          else codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Long]].decodeValue(in)
         )
       case 3 =>
         regs.setFloat(
           offset,
           if (isPredefinedCodec) in.readFloat()
-          else codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Float]].decodeValue(in)
         )
       case 4 =>
         regs.setDouble(
           offset,
           if (isPredefinedCodec) in.readDouble()
-          else codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Double]].decodeValue(in)
         )
       case 5 =>
         regs.setBoolean(
           offset,
           if (isPredefinedCodec) in.readBoolean()
-          else codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(in)
         )
       case 6 =>
         regs.setByte(
           offset,
           if (isPredefinedCodec) in.readByte()
-          else codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Byte]].decodeValue(in)
         )
       case 7 =>
         regs.setChar(
           offset,
           if (isPredefinedCodec) in.readChar()
-          else codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Char]].decodeValue(in)
         )
       case 8 =>
         regs.setShort(
           offset,
           if (isPredefinedCodec) in.readShort()
-          else codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(in)
+          else codec.asInstanceOf[JsonCodec[Short]].decodeValue(in)
         )
       case _ =>
-        codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(in)
+        codec.asInstanceOf[JsonCodec[Unit]].decodeValue(in)
     }
   }
 
   def readValue(regs: Registers, json: Json): Unit =
     (typeTag: @switch) match {
-      case 0 => regs.setObject(offset, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].decodeValue(json))
-      case 1 => regs.setInt(offset, codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(json))
-      case 2 => regs.setLong(offset, codec.asInstanceOf[JsonBinaryCodec[Long]].decodeValue(json))
-      case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonBinaryCodec[Float]].decodeValue(json))
-      case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonBinaryCodec[Double]].decodeValue(json))
-      case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonBinaryCodec[Boolean]].decodeValue(json))
-      case 6 => regs.setByte(offset, codec.asInstanceOf[JsonBinaryCodec[Byte]].decodeValue(json))
-      case 7 => regs.setChar(offset, codec.asInstanceOf[JsonBinaryCodec[Char]].decodeValue(json))
-      case 8 => regs.setShort(offset, codec.asInstanceOf[JsonBinaryCodec[Short]].decodeValue(json))
-      case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(json)
+      case 0 => regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(json))
+      case 1 => regs.setInt(offset, codec.asInstanceOf[JsonCodec[Int]].decodeValue(json))
+      case 2 => regs.setLong(offset, codec.asInstanceOf[JsonCodec[Long]].decodeValue(json))
+      case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonCodec[Float]].decodeValue(json))
+      case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonCodec[Double]].decodeValue(json))
+      case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(json))
+      case 6 => regs.setByte(offset, codec.asInstanceOf[JsonCodec[Byte]].decodeValue(json))
+      case 7 => regs.setChar(offset, codec.asInstanceOf[JsonCodec[Char]].decodeValue(json))
+      case 8 => regs.setShort(offset, codec.asInstanceOf[JsonCodec[Short]].decodeValue(json))
+      case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(json)
     }
 
   def setMissingValueOrError(in: JsonReader, baseOffset: RegisterOffset): Unit = {
@@ -2938,7 +2932,7 @@ private class FieldInfo(
       }
     } else if (isOptional) regs.setObject(offset, None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
-    else throw new JsonBinaryCodecError(Nil, s"missing required field \"$name\"")
+    else throw new JsonCodecError(Nil, s"missing required field \"$name\"")
 
   def writeDefaultValue(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
     val offset = this.offset + baseOffset
@@ -2949,63 +2943,63 @@ private class FieldInfo(
         val value = regs.getObject(offset)
         if (dv != value) {
           writeKey(out)
-          codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+          codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value, out)
         }
       case 1 =>
         val value = regs.getInt(offset)
         if (dv.asInstanceOf[Int] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Int]].encodeValue(value, out)
         }
       case 2 =>
         val value = regs.getLong(offset)
         if (dv.asInstanceOf[Long] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Long]].encodeValue(value, out)
         }
       case 3 =>
         val value = regs.getFloat(offset)
         if (dv.asInstanceOf[Float] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Float]].encodeValue(value, out)
         }
       case 4 =>
         val value = regs.getDouble(offset)
         if (dv.asInstanceOf[Double] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Double]].encodeValue(value, out)
         }
       case 5 =>
         val value = regs.getBoolean(offset)
         if (dv.asInstanceOf[Boolean] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(value, out)
         }
       case 6 =>
         val value = regs.getByte(offset)
         if (dv.asInstanceOf[Byte] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Byte]].encodeValue(value, out)
         }
       case 7 =>
         val value = regs.getChar(offset)
         if (dv.asInstanceOf[Char] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Char]].encodeValue(value, out)
         }
       case 8 =>
         val value = regs.getShort(offset)
         if (dv.asInstanceOf[Short] != value) {
           writeKey(out)
           if (isPredefinedCodec) out.writeVal(value)
-          else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
+          else codec.asInstanceOf[JsonCodec[Short]].encodeValue(value, out)
         }
       case _ =>
     }
@@ -3017,47 +3011,47 @@ private class FieldInfo(
       case 0 =>
         val value = regs.getObject(offset)
         if (dv != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
         }
       case 1 =>
         val value = regs.getInt(offset)
         if (dv.asInstanceOf[Int] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Int]].encodeValue(value)))
         }
       case 2 =>
         val value = regs.getLong(offset)
         if (dv.asInstanceOf[Long] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Long]].encodeValue(value)))
         }
       case 3 =>
         val value = regs.getFloat(offset)
         if (dv.asInstanceOf[Float] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Float]].encodeValue(value)))
         }
       case 4 =>
         val value = regs.getDouble(offset)
         if (dv.asInstanceOf[Double] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Double]].encodeValue(value)))
         }
       case 5 =>
         val value = regs.getBoolean(offset)
         if (dv.asInstanceOf[Boolean] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(value)))
         }
       case 6 =>
         val value = regs.getByte(offset)
         if (dv.asInstanceOf[Byte] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Byte]].encodeValue(value)))
         }
       case 7 =>
         val value = regs.getChar(offset)
         if (dv.asInstanceOf[Char] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Char]].encodeValue(value)))
         }
       case 8 =>
         val value = regs.getShort(offset)
         if (dv.asInstanceOf[Short] != value) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Short]].encodeValue(value)))
         }
       case _ =>
     }
@@ -3067,14 +3061,14 @@ private class FieldInfo(
     val value = out.registers.getObject(offset + baseOffset)
     if (value ne None) {
       writeKey(out)
-      codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+      codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value, out)
     }
   }
 
   def writeOptional(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
     val value = regs.getObject(offset)
     if (value ne None) {
-      builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value)))
+      builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
     }
   }
 
@@ -3083,12 +3077,12 @@ private class FieldInfo(
       case value: Iterable[?] =>
         if (value.nonEmpty) {
           writeKey(out)
-          codec.asInstanceOf[JsonBinaryCodec[Iterable[?]]].encodeValue(value, out)
+          codec.asInstanceOf[JsonCodec[Iterable[?]]].encodeValue(value, out)
         }
       case value: Array[?] =>
         if (value.length > 0) {
           writeKey(out)
-          codec.asInstanceOf[JsonBinaryCodec[Array[?]]].encodeValue(value, out)
+          codec.asInstanceOf[JsonCodec[Array[?]]].encodeValue(value, out)
         }
     }
 
@@ -3096,11 +3090,11 @@ private class FieldInfo(
     regs.getObject(offset) match {
       case value: Iterable[?] =>
         if (value.nonEmpty) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Iterable[?]]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Iterable[?]]].encodeValue(value)))
         }
       case value: Array[?] =>
         if (value.length > 0) {
-          builder.addOne((name, codec.asInstanceOf[JsonBinaryCodec[Array[?]]].encodeValue(value)))
+          builder.addOne((name, codec.asInstanceOf[JsonCodec[Array[?]]].encodeValue(value)))
         }
     }
 
@@ -3110,40 +3104,40 @@ private class FieldInfo(
     val regs   = out.registers
     (typeTag: @switch) match {
       case 0 =>
-        codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
+        codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
       case 1 =>
         val value = regs.getInt(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Int]].encodeValue(value, out)
       case 2 =>
         val value = regs.getLong(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Long]].encodeValue(value, out)
       case 3 =>
         val value = regs.getFloat(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Float]].encodeValue(value, out)
       case 4 =>
         val value = regs.getDouble(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Double]].encodeValue(value, out)
       case 5 =>
         val value = regs.getBoolean(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(value, out)
       case 6 =>
         val value = regs.getByte(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Byte]].encodeValue(value, out)
       case 7 =>
         val value = regs.getChar(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
+        else codec.asInstanceOf[JsonCodec[Char]].encodeValue(value, out)
       case 8 =>
         val value = regs.getShort(offset)
         if (isPredefinedCodec) out.writeVal(value)
-        else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
-      case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
+        else codec.asInstanceOf[JsonCodec[Short]].encodeValue(value, out)
+      case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue((), out)
     }
   }
 
@@ -3151,16 +3145,16 @@ private class FieldInfo(
     (
       name, {
         (typeTag: @switch) match {
-          case 0 => codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset))
-          case 1 => codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(regs.getInt(offset))
-          case 2 => codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(regs.getLong(offset))
-          case 3 => codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(regs.getFloat(offset))
-          case 4 => codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(regs.getDouble(offset))
-          case 5 => codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(regs.getBoolean(offset))
-          case 6 => codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(regs.getByte(offset))
-          case 7 => codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(regs.getChar(offset))
-          case 8 => codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(regs.getShort(offset))
-          case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue(())
+          case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
+          case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
+          case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
+          case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
+          case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
+          case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+          case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
+          case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
+          case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
+          case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
         }
       }
     )
@@ -3197,7 +3191,7 @@ private class DiscriminatorFieldInfo(name: String, value: String) {
 trait CaseInfo
 
 private class CaseLeafInfo(
-  var codec: JsonBinaryCodec[?],
+  var codec: JsonCodec[?],
   val spans: List[DynamicOptic.Node.Case]
 ) extends CaseInfo {
   private[this] var name: String                   = null

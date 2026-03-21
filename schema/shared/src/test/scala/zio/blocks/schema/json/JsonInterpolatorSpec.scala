@@ -337,7 +337,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with Float keys") {
       check(Gen.float.filter(_.isFinite))(x =>
         assertTrue {
-          val key = JsonBinaryCodec.floatCodec.encodeToString(x)
+          val key = JsonCodec.floatCodec.encodeToString(x)
           json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(key -> Json.String("y")))
         }
       )
@@ -345,7 +345,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with Double keys") {
       check(Gen.double.filter(_.isFinite))(x =>
         assertTrue {
-          val key = JsonBinaryCodec.doubleCodec.encodeToString(x)
+          val key = JsonCodec.doubleCodec.encodeToString(x)
           json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(key -> Json.String("y")))
         }
       )
@@ -545,8 +545,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val double: Double     = 2.5
         val bigInt: BigInt     = BigInt("12345678901234567890")
         val bigDec: BigDecimal = BigDecimal("123.456")
-        val floatKey           = JsonBinaryCodec.floatCodec.encodeToString(float)
-        val doubleKey          = JsonBinaryCodec.doubleCodec.encodeToString(double)
+        val floatKey           = JsonCodec.floatCodec.encodeToString(float)
+        val doubleKey          = JsonCodec.doubleCodec.encodeToString(double)
         assertTrue(
           json"""{$byte: 1}""".get("1").as[Int] == Right(1),
           json"""{$short: 1}""".get("2").as[Int] == Right(1),

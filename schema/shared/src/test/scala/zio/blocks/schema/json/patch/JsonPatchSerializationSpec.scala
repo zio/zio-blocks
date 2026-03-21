@@ -360,7 +360,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       // Verify roundtrip works for complex nested structure
       import zio.blocks.schema.json._
       val schema  = Schema[JsonPatch]
-      val codec   = schema.derive(JsonBinaryCodecDeriver)
+      val codec   = schema.derive(JsonCodecDeriver)
       val encoded = codec.encode(patch, WriterConfig)
       val decoded = codec.decode(encoded, ReaderConfig)
       assertTrue(decoded == Right(patch))
@@ -411,7 +411,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
 
       // Step 2: Serialize the patch to JSON bytes
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val patchBytes  = patchCodec.encode(patch, WriterConfig)
 
       // Step 3: Deserialize the patch from JSON bytes
@@ -500,7 +500,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
 
       // Serialize and deserialize
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val encoded     = patchCodec.encode(complexPatch, WriterConfig)
       val decoded     = patchCodec.decode(encoded, ReaderConfig)
 
@@ -522,7 +522,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       )
 
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val jsonString  = patchCodec.encodeToString(patch, WriterConfig)
 
       // Verify it's valid JSON that can be parsed back

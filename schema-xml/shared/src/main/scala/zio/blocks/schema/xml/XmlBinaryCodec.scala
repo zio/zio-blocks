@@ -19,7 +19,7 @@ package zio.blocks.schema.xml
 import zio.blocks.schema.SchemaError
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
-import zio.blocks.schema.json.JsonBinaryCodec
+import zio.blocks.schema.json.JsonCodec
 import java.nio.ByteBuffer
 import scala.annotation.switch
 import scala.util.control.NonFatal
@@ -297,7 +297,7 @@ object XmlBinaryCodec {
       case _ => new Left(XmlError.parseError("Expected <value> element", 0, 0))
     }
 
-    def encodeValue(x: BigInt): Xml = Xml.Element("value", new Xml.Text(JsonBinaryCodec.bigIntCodec.encodeToString(x)))
+    def encodeValue(x: BigInt): Xml = Xml.Element("value", new Xml.Text(JsonCodec.bigIntCodec.encodeToString(x)))
   }
 
   val bigDecimalCodec: XmlBinaryCodec[BigDecimal] = new XmlBinaryCodec[BigDecimal]() {
@@ -316,6 +316,6 @@ object XmlBinaryCodec {
     }
 
     def encodeValue(x: BigDecimal): Xml =
-      Xml.Element("value", new Xml.Text(JsonBinaryCodec.bigDecimalCodec.encodeToString(x)))
+      Xml.Element("value", new Xml.Text(JsonCodec.bigDecimalCodec.encodeToString(x)))
   }
 }

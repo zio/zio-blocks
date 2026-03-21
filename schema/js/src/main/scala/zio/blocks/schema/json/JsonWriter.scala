@@ -103,7 +103,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Char` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   in the case of `Char` value is a part of the surrogate pair
    */
   def writeKey(x: Char): Unit = {
@@ -156,7 +156,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeKey(x: Float): Unit = {
@@ -171,7 +171,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeKey(x: Double): Unit = {
@@ -232,7 +232,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `String` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the provided string has an illegal surrogate pair
    */
   def writeKey(x: String): Unit = {
@@ -499,14 +499,14 @@ final class JsonWriter private[json] (
   def registers: Registers = this.stack
 
   /**
-   * Throws a [[JsonBinaryCodecError]] with the given error message.
+   * Throws a [[JsonCodecError]] with the given error message.
    *
    * @param msg
    *   the error message
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   always
    */
-  def encodeError(msg: String): Nothing = throw new JsonBinaryCodecError(Nil, msg)
+  def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Writes a `BigDecimal` value as a JSON value.
@@ -554,7 +554,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `String` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the provided string has an illegal surrogate pair
    */
   def writeVal(x: String): Unit = {
@@ -817,7 +817,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Char` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   in the case of `Char` value is a part of the surrogate pair
    */
   def writeVal(x: Char): Unit = {
@@ -852,7 +852,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeVal(x: Float): Unit = {
@@ -865,7 +865,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeVal(x: Double): Unit = {
@@ -976,7 +976,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Float` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeValAsString(x: Float): Unit = {
@@ -991,7 +991,7 @@ final class JsonWriter private[json] (
    *
    * @param x
    *   the `Double` value to write
-   * @throws JsonBinaryCodecError
+   * @throws JsonCodecError
    *   if the value is non-finite
    */
   def writeValAsString(x: Double): Unit = {
@@ -1176,7 +1176,7 @@ final class JsonWriter private[json] (
    * @param config
    *   the writer configuration
    */
-  private[json] def write[A](codec: JsonBinaryCodec[A], x: A, out: OutputStream, config: WriterConfig): Unit =
+  private[json] def write[A](codec: JsonCodec[A], x: A, out: OutputStream, config: WriterConfig): Unit =
     try {
       top = 0
       maxTop = 0
@@ -1208,7 +1208,7 @@ final class JsonWriter private[json] (
    * @return
    *   the encoded JSON as a byte array
    */
-  private[json] def write[A](codec: JsonBinaryCodec[A], x: A, config: WriterConfig): Array[Byte] =
+  private[json] def write[A](codec: JsonCodec[A], x: A, config: WriterConfig): Array[Byte] =
     try {
       top = 0
       maxTop = 0
@@ -1237,7 +1237,7 @@ final class JsonWriter private[json] (
    * @param config
    *   the writer configuration
    */
-  private[json] def write[A](codec: JsonBinaryCodec[A], x: A, bbuf: ByteBuffer, config: WriterConfig): Unit = {
+  private[json] def write[A](codec: JsonCodec[A], x: A, bbuf: ByteBuffer, config: WriterConfig): Unit = {
     top = 0
     maxTop = 0
     indention = 0
@@ -1290,7 +1290,7 @@ final class JsonWriter private[json] (
    * @return
    *   the encoded JSON as a string
    */
-  private[json] def writeToString[A](codec: JsonBinaryCodec[A], x: A, config: WriterConfig): String =
+  private[json] def writeToString[A](codec: JsonCodec[A], x: A, config: WriterConfig): String =
     try {
       top = 0
       maxTop = 0

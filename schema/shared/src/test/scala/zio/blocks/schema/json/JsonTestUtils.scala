@@ -22,7 +22,7 @@ object JsonTestUtils {
   def roundTrip[A](
     value: A,
     expectedJson: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig = readerConfig,
     writerConfig: WriterConfig = writerConfig
   ): TestResult = {
@@ -73,7 +73,7 @@ object JsonTestUtils {
   def decode[A](
     json: String,
     expectedValue: A,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig = readerConfig
   ): TestResult = {
     val jsonBytes = json.getBytes(UTF_8)
@@ -91,24 +91,24 @@ object JsonTestUtils {
   def decodeError[A](invalidJson: Array[Byte], error: String)(implicit schema: Schema[A]): TestResult =
     decodeError(invalidJson, error, getOrDeriveCodec(schema))
 
-  def decodeError[A](invalidJson: String, error: String, codec: JsonBinaryCodec[A]): TestResult =
+  def decodeError[A](invalidJson: String, error: String, codec: JsonCodec[A]): TestResult =
     decodeError(invalidJson.getBytes(UTF_8), error, codec)
 
   def decodeError[A](
     invalidJson: String,
     error: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig
   ): TestResult =
     decodeError(invalidJson.getBytes(UTF_8), error, codec, readerConfig)
 
-  def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonBinaryCodec[A]): TestResult =
+  def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonCodec[A]): TestResult =
     decodeError(invalidJson, error, codec, ReaderConfig)
 
   def decodeError[A](
     invalidJson: Array[Byte],
     error: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig
   ): TestResult =
     assert(codec.decode(invalidJson, readerConfig))(isLeft(hasError(error))) &&
@@ -130,7 +130,7 @@ object JsonTestUtils {
   def encode[A](
     value: A,
     expectedJson: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     writerConfig: WriterConfig = writerConfig
   ): TestResult = {
     val heapByteBuffer = ByteBuffer.allocate(maxBufSize)
@@ -200,10 +200,10 @@ object JsonTestUtils {
 
   private[this] def writerConfig = WriterConfig.withPreferredBufSize(random.nextInt(11) + 1)
 
-  private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonBinaryCodec[A] =
+  private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonCodec[A] =
     codecs
-      .computeIfAbsent(schema, (s: Schema[_]) => s.deriving(JsonBinaryCodecDeriver).derive)
-      .asInstanceOf[JsonBinaryCodec[A]]
+      .computeIfAbsent(schema, (s: Schema[_]) => s.deriving(JsonCodecDeriver).derive)
+      .asInstanceOf[JsonCodec[A]]
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
@@ -212,7 +212,7 @@ object JsonTestUtils {
   private[this] def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
     ByteBuffer.allocateDirect(maxBufSize).put(bs).position(0).limit(bs.length)
 
-  private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonBinaryCodec[?]]()
+  private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonCodec[?]]()
   private[this] val random     = new Random()
   private[this] val maxBufSize = 16384
 }
