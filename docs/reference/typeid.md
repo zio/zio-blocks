@@ -616,11 +616,28 @@ TypeId.list.isProperType
 
 #### `isTypeConstructor` — Has Type Parameters
 
-Returns `true` when `arity > 0`, meaning this type takes type parameters.
+A **type constructor** is a parameterized type that cannot be instantiated directly — it requires concrete type arguments first. For example, `List` is a type constructor (you can't have a value of type `List`, only `List[Int]` or `List[String]`). The `isTypeConstructor` predicate returns `true` when `arity > 0`, indicating the type needs to be applied with arguments before use. This is useful for generic programming where you work with families of related types.
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Single[A](value: A)
+case class Pair[A, B](a: A, b: B)
+case class Value(x: Int)
+```
+
+Identify which types are type constructors:
 
 ```scala mdoc
+// Type constructors: need type arguments, arity > 0
+TypeId.of[Single].isTypeConstructor
+TypeId.of[Pair].isTypeConstructor
 TypeId.list.isTypeConstructor
 TypeId.map.isTypeConstructor
+
+// Proper types: fully instantiated, no type parameters
+TypeId.of[Value].isTypeConstructor
+TypeId.of[List[Int]].isTypeConstructor
 TypeId.int.isTypeConstructor
 ```
 
