@@ -939,7 +939,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a byte array as a JSON raw binary value.
+   * Writes a byte array as a JSON raw value.
    *
    * @param bs
    *   the byte array to write
@@ -950,7 +950,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Duration]] value as a JSON raw binary value.
+   * Writes a [[java.time.Duration]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.Duration]] value to write
@@ -961,7 +961,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Instant]] value as a JSON raw binary value.
+   * Writes a [[java.time.Instant]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.Instant]] value to write
@@ -972,7 +972,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDate]] value as a JSON raw binary value.
+   * Writes a [[java.time.LocalDate]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.LocalDate]] value to write
@@ -983,7 +983,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDateTime]] value as a JSON raw binary value.
+   * Writes a [[java.time.LocalDateTime]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.LocalDateTime]] value to write
@@ -994,7 +994,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalTime]] value as a JSON raw binary value.
+   * Writes a [[java.time.LocalTime]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.LocalTime]] value to write
@@ -1005,7 +1005,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.MonthDay]] value as a JSON raw binary value.
+   * Writes a [[java.time.MonthDay]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.MonthDay]] value to write
@@ -1016,7 +1016,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetDateTime]] value as a JSON raw binary value.
+   * Writes a [[java.time.OffsetDateTime]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.OffsetDateTime]] value to write
@@ -1027,7 +1027,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetTime]] value as a JSON raw binary value.
+   * Writes a [[java.time.OffsetTime]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.OffsetTime]] value to write
@@ -1038,7 +1038,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Period]] value as a JSON raw binary value.
+   * Writes a [[java.time.Period]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.Period]] value to write
@@ -1049,7 +1049,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZonedDateTime]] value as a JSON raw binary value.
+   * Writes a [[java.time.ZonedDateTime]] value as a JSON raw value.
    *
    * @param x
    *   the [[java.time.ZonedDateTime]] value to write

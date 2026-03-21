@@ -438,14 +438,53 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    */
   def encodeToJson(value: A): Json = encodeValue(value)
 
-  protected def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+  /**
+   * Throws a [[JsonCodecError]] wrapping the given error and adding a span.
+   *
+   * @param span
+   *   the span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonCodecError
+   *   always
+   */
+  def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: JsonCodecError =>
       e.spans = new ::(span, e.spans)
       throw e
     case _ => throw new JsonCodecError(new ::(span, Nil), error.getMessage)
   }
 
-  protected def error(spans: List[DynamicOptic.Node], error: Throwable): Nothing = error match {
+  /**
+   * Throws a [[JsonCodecError]] wrapping the given error and adding two spans.
+   *
+   * @param span1
+   *   the first span to add to the error
+   * @param span2
+   *   the second span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonCodecError
+   *   always
+   */
+  def error(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: JsonCodecError =>
+      e.spans = new ::(span1, new ::(span2, e.spans))
+      throw e
+    case _ => throw new JsonCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
+  }
+
+  /**
+   * Throws a [[JsonCodecError]] wrapping the given error and adding spans.
+   *
+   * @param spans
+   *   spans to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonCodecError
+   *   always
+   */
+  def error(spans: List[DynamicOptic.Node], error: Throwable): Nothing = error match {
     case e: JsonCodecError =>
       e.spans = spans.foldLeft(e.spans)((ss, s) => s :: ss)
       throw e

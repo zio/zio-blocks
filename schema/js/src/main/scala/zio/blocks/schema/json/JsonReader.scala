@@ -22,7 +22,6 @@ import java.nio.ByteBuffer
 import java.time._
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
@@ -1628,22 +1627,6 @@ final class JsonReader private[json] (
   def registers: Registers = this.stack
 
   /**
-   * Throws a [[JsonCodecError]] with the message `expected ','`.
-   *
-   * @throws JsonCodecError
-   *   always
-   */
-  def commaError(): Nothing = decodeError("expected ','")
-
-  /**
-   * Throws a [[JsonCodecError]] with the message `expected ']'`.
-   *
-   * @throws JsonCodecError
-   *   always
-   */
-  def arrayEndError(): Nothing = decodeError("expected ']'")
-
-  /**
    * Throws a [[JsonCodecError]] with the message `expected ']' or ','`.
    *
    * @throws JsonCodecError
@@ -1667,61 +1650,7 @@ final class JsonReader private[json] (
    * @throws JsonCodecError
    *   always
    */
-  def decodeError(msg: String): Nothing = decodeError(appendString(msg, 0))
-
-  /**
-   * Throws a [[JsonCodecError]] wrapping the given error and adding a span.
-   *
-   * @param span
-   *   the span to add to the error
-   * @param error
-   *   the error to wrap
-   * @throws JsonCodecError
-   *   always
-   */
-  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: JsonCodecError =>
-      e.spans = new ::(span, e.spans)
-      throw e
-    case _ => throw new JsonCodecError(new ::(span, Nil), error.getMessage)
-  }
-
-  /**
-   * Throws a [[JsonCodecError]] wrapping the given error and adding two spans.
-   *
-   * @param span1
-   *   the first span to add to the error
-   * @param span2
-   *   the second span to add to the error
-   * @param error
-   *   the error to wrap
-   * @throws JsonCodecError
-   *   always
-   */
-  def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: JsonCodecError =>
-      e.spans = new ::(span1, new ::(span2, e.spans))
-      throw e
-    case _ => throw new JsonCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
-  }
-
-  /**
-   * Throws a [[JsonCodecError]] wrapping the given error and adding a list of
-   * spans.
-   *
-   * @param spans
-   *   the list of spans to add to the error
-   * @param error
-   *   the error to wrap
-   * @throws JsonCodecError
-   *   always
-   */
-  def decodeError(spans: List[DynamicOptic.Node], error: Throwable): Nothing = error match {
-    case e: JsonCodecError =>
-      e.spans = spans.foldLeft(e.spans)((ss, s) => s :: ss)
-      throw e
-    case _ => throw new JsonCodecError(spans, error.getMessage)
-  }
+  def decodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Indicates whether the reader is currently in use.
@@ -1951,8 +1880,7 @@ final class JsonReader private[json] (
     decodeError(i)
   }
 
-  private[this] def decodeError(from: Int): Nothing =
-    throw new JsonCodecError(Nil, new String(charBuf, 0, from))
+  private[this] def decodeError(from: Int): Nothing = throw new JsonCodecError(Nil, new String(charBuf, 0, from))
 
   @inline
   private[this] def setMark(pos: Int): Unit = {

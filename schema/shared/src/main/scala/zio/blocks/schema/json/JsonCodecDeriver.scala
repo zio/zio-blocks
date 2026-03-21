@@ -415,13 +415,13 @@ class JsonCodecDeriver private[json] (
                       case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(in)
                     }
                   } catch {
-                    case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), err)
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.Field(fields(idx).name), err)
                   }
                   offset += registerOffsets(idx)
                   idx += 1
-                  idx < len && (in.isNextToken(',') || in.commaError())
+                  idx < len && (in.isNextToken(',') || error("expected ','"))
                 }) ()
-                if (!in.isNextToken(']')) in.arrayEndError()
+                if (!in.isNextToken(']')) error("expected ']'")
               }
               constructor.construct(regs, baseOffset)
             } finally in.pop(usedRegisters)
@@ -517,7 +517,7 @@ class JsonCodecDeriver private[json] (
                 }
               case _ =>
             }
-            throw new JsonCodecError(Nil, "expected Json.Array")
+            error("expected Json.Array")
           }
 
           override def encodeValue(x: A): Json = {
@@ -681,7 +681,7 @@ class JsonCodecDeriver private[json] (
                       if (mask == 0L) in.duplicatedKeyError(keyLen)
                       try fieldInfo.readValue(in, baseOffset)
                       catch {
-                        case err if NonFatal(err) => in.decodeError(fieldInfo.span, err)
+                        case err if NonFatal(err) => error(fieldInfo.span, err)
                       }
                     } else skipOrReject(in, keyLen)
                   }
@@ -763,7 +763,7 @@ class JsonCodecDeriver private[json] (
                       mask &= missing2
                       missing2 ^= mask
                     }
-                    if (mask == 0L) duplicatedKeyError(key)
+                    if (mask == 0L) error(s"duplicated field \"$key\"")
                     try fieldInfo.readValue(regs, kv._2)
                     catch {
                       case err if NonFatal(err) => error(fieldInfo.span, err)
@@ -788,7 +788,7 @@ class JsonCodecDeriver private[json] (
                   }
                 }
                 constructor.construct(regs, 0)
-              case _ => throw new JsonCodecError(Nil, "expected Json.Object")
+              case _ => error("expected Json.Object")
             }
 
             override def encodeValue(x: A): Json = {
@@ -822,11 +822,8 @@ class JsonCodecDeriver private[json] (
 
             private[this] def skipOrReject(key: String): Unit =
               if (doReject && ((discriminatorField eq null) || discriminatorField.getName != key)) {
-                throw new JsonCodecError(Nil, s"unexpected field \"$key\"")
+                error(s"unexpected field \"$key\"")
               }
-
-            private[this] def duplicatedKeyError(key: String): Nothing =
-              throw new JsonCodecError(Nil, s"duplicated field \"$key\"")
 
             override lazy val toJsonSchema: JsonSchema = {
               val reqs    = Set.newBuilder[String]
@@ -880,7 +877,7 @@ class JsonCodecDeriver private[json] (
                 if (isNull) in.readNullOrError(None, "expected null")
                 else new Some(valueCodec.decodeValue(in))
               } catch {
-                case err if NonFatal(err) => decodeError(in, err, isNull)
+                case err if NonFatal(err) => decodeError(err, isNull)
               }
             }
 
@@ -890,15 +887,20 @@ class JsonCodecDeriver private[json] (
 
             override def decodeValue(json: Json): Option[Any] =
               if (json eq Json.Null) None
-              else new Some(valueCodec.decodeValue(json))
+              else {
+                try new Some(valueCodec.decodeValue(json))
+                catch {
+                  case err if NonFatal(err) => decodeError(err, false)
+                }
+              }
 
             override def encodeValue(x: Option[Any]): Json =
               if (x eq None) Json.Null
               else valueCodec.encodeValue(x.get)
 
-            private[this] def decodeError(in: JsonReader, error: Throwable, isNull: Boolean): Nothing =
-              if (isNull) in.decodeError(new DynamicOptic.Node.Case("None"), error)
-              else in.decodeError(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), error)
+            private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
+              if (isNull) error(new DynamicOptic.Node.Case("None"), err)
+              else error(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), err)
 
             override lazy val toJsonSchema: JsonSchema = valueCodec.toJsonSchema.withNullable
           }
@@ -962,8 +964,8 @@ class JsonCodecDeriver private[json] (
                 val enumName    = s.value
                 val constructor = constructorMap.get(enumName)
                 if (constructor ne null) constructor.construct(null, 0).asInstanceOf[A]
-                else throw new JsonCodecError(Nil, s"illegal enum value \"$enumName\"")
-              case _ => throw new JsonCodecError(Nil, "expected Json.String")
+                else error(s"illegal enum value \"$enumName\"")
+              case _ => error("expected Json.String")
             }
 
             override def encodeValue(x: A): Json = new Json.String(root.discriminate(x).enumName)
@@ -1046,7 +1048,7 @@ class JsonCodecDeriver private[json] (
                         in.rollbackToMark()
                         try caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(in)
                         catch {
-                          case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
+                          case err if NonFatal(err) => error(caseInfo.spans, err)
                         }
                       } else in.discriminatorValueError(discriminatorFieldName)
                     } else in.requiredFieldError(discriminatorFieldName)
@@ -1074,13 +1076,12 @@ class JsonCodecDeriver private[json] (
                               }
                             case _ =>
                           }
-                          val msg = s"illegal value of discriminator field \"$discriminatorFieldName\""
-                          throw new JsonCodecError(Nil, msg)
+                          error(s"illegal value of discriminator field \"$discriminatorFieldName\"")
                         }
                         idx += 1
                       }
-                      throw new JsonCodecError(Nil, s"missing required field \"$discriminatorFieldName\"")
-                    case _ => throw new JsonCodecError(Nil, "expected Json.Object")
+                      error(s"missing required field \"$discriminatorFieldName\"")
+                    case _ => error("expected Json.Object")
                   }
 
                   override def encodeValue(x: A): Json =
@@ -1152,7 +1153,7 @@ class JsonCodecDeriver private[json] (
                       }
                       idx += 1
                     }
-                    in.decodeError("expected a variant value")
+                    error("expected a variant value")
                   }
 
                   def encodeValue(x: A, out: JsonWriter): Unit =
@@ -1167,7 +1168,7 @@ class JsonCodecDeriver private[json] (
                       }
                       idx += 1
                     }
-                    throw new JsonCodecError(Nil, "expected a variant value")
+                    error("expected a variant value")
                   }
 
                   override def encodeValue(x: A): Json =
@@ -1230,7 +1231,7 @@ class JsonCodecDeriver private[json] (
                         val x =
                           try caseInfo.codec.asInstanceOf[JsonCodec[A]].decodeValue(in)
                           catch {
-                            case err if NonFatal(err) => in.decodeError(caseInfo.spans, err)
+                            case err if NonFatal(err) => error(caseInfo.spans, err)
                           }
                         if (!in.isNextToken('}')) in.objectEndOrCommaError()
                         return x
@@ -1260,8 +1261,8 @@ class JsonCodecDeriver private[json] (
                           }
                         }
                       }
-                      throw new JsonCodecError(Nil, "illegal discriminator")
-                    case _ => throw new JsonCodecError(Nil, "expected Json.Object")
+                      error("illegal discriminator")
+                    case _ => error("expected Json.Object")
                   }
 
                   override def encodeValue(x: A): Json = {
@@ -1346,7 +1347,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1415,7 +1416,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1485,7 +1486,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1554,7 +1555,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1624,7 +1625,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1693,7 +1694,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1763,7 +1764,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1832,7 +1833,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1902,7 +1903,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -1971,7 +1972,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2041,7 +2042,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2110,7 +2111,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2180,7 +2181,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2249,7 +2250,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2319,7 +2320,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2388,7 +2389,7 @@ class JsonCodecDeriver private[json] (
                           in.isNextToken(',')
                         }) ()
                       } catch {
-                        case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                       }
                       if (in.isCurrentToken(']')) constructor.result(builder)
                       else in.arrayEndOrCommaError()
@@ -2459,7 +2460,7 @@ class JsonCodecDeriver private[json] (
                         in.isNextToken(',')
                       }) ()
                     } catch {
-                      case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     if (in.isCurrentToken(']')) constructor.result[Elem](builder)
                     else in.arrayEndOrCommaError()
@@ -2525,7 +2526,7 @@ class JsonCodecDeriver private[json] (
           private[this] val constructor   = mapBinding.constructor
           private[this] val keyCodec      = codec1.asInstanceOf[JsonCodec[Key]]
           private[this] val valueCodec    = codec2.asInstanceOf[JsonCodec[Value]]
-          private[this] val keyReflect    = key.asInstanceOf[Reflect.Bound[Key]]
+          private[this] val keyRefl       = key.asInstanceOf[Reflect.Bound[Key]]
 
           def decodeValue(in: JsonReader): Map[Key, Value] =
             if (in.isNextToken('{')) {
@@ -2539,13 +2540,12 @@ class JsonCodecDeriver private[json] (
                   val k =
                     try keyCodec.decodeKey(in)
                     catch {
-                      case err if NonFatal(err) => in.decodeError(new DynamicOptic.Node.AtIndex(idx), err)
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                   val v =
                     try valueCodec.decodeValue(in)
                     catch {
-                      case err if NonFatal(err) =>
-                        in.decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtMapKey(keyRefl.toDynamicValue(k)), err)
                     }
                   constructor.addObject(builder, k, v)
                   in.isNextToken(',')
@@ -2583,8 +2583,7 @@ class JsonCodecDeriver private[json] (
                   val v =
                     try valueCodec.decodeValue(kv._2)
                     catch {
-                      case err if NonFatal(err) =>
-                        error(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.AtMapKey(keyRefl.toDynamicValue(k)), err)
                     }
                   constructor.addObject(builder, k, v)
                   idx += 1
@@ -2644,7 +2643,7 @@ class JsonCodecDeriver private[json] (
           override def decodeValue(in: JsonReader): A =
             try wrap(wrappedCodec.decodeValue(in))
             catch {
-              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
             }
 
           override def encodeValue(x: A, out: JsonWriter): Unit =
@@ -2668,7 +2667,7 @@ class JsonCodecDeriver private[json] (
           override def decodeKey(in: JsonReader): A =
             try wrap(wrappedCodec.decodeKey(in))
             catch {
-              case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit =
@@ -2686,7 +2685,7 @@ class JsonCodecDeriver private[json] (
           override def encodeKey(x: A): String =
             try wrappedCodec.encodeKey(unwrap(x))
             catch {
-              case err if NonFatal(err) => throw new JsonCodecError(Nil, err.getMessage)
+              case err if NonFatal(err) => error(err.getMessage)
             }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
