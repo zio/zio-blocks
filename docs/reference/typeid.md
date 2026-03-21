@@ -331,9 +331,7 @@ adminUser.fullName
 
 // Compare: both have name "User" but different owners
 userId.name == adminUser.name
-// res25: Boolean = true
 userId.owner.asString == adminUser.owner.asString
-// res26: Boolean = false
 ```
 
 This distinction enables type-indexed registries where you can safely store types with identical names from different sources without collision. 
