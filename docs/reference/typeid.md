@@ -459,7 +459,9 @@ v.isCovariant
 
 #### `typeArgs` — Applied Type Arguments
 
-Returns the concrete type arguments when this is an applied type.
+**Applied types** are generic types instantiated with concrete type arguments. For example, `List[Int]` is the generic `List` type constructor applied to the `Int` type argument, and `Map[String, Int]` applies two arguments to `Map`. When you derive a `TypeId` for an applied type, the `typeArgs` method returns the concrete type arguments as a list of `TypeRepr` values — allowing you to inspect what types were plugged into the type constructor.
+
+The `typeArgs` method is essential for schema systems and code generators that need to understand the full type structure. For instance, a serializer might need to know that `List[Int]` has `Int` as its element type, or a validator might need to distinguish between `Map[String, Int]` and `Map[String, String]`.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -467,10 +469,56 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+`typeArgs` returns a list of `TypeRepr` values. `TypeRepr` is an algebraic data type that represents type expressions in the Scala type system — these can be simple type references (like `Int` or `String`), complex applied types (like `List[String]`), or compound types (like `A & B`). For a detailed breakdown of all `TypeRepr` variants, see [TypeRepr — Type Expressions](#typerepr--type-expressions).
+
+Setup some custom generic types with different type argument patterns:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Pair[A, B](first: A, second: B)
+case class Container[T](value: T)
+case class Result[E, V](error: Option[E], value: Option[V])
+```
+
+Now inspect the type arguments of various applied types:
+
+```scala mdoc
+// Simple single type argument
+val containerIntId = TypeId.of[Container[Int]]
+containerIntId.typeArgs
+
+// Multiple type arguments
+val pairId = TypeId.of[Pair[String, Double]]
+pairId.typeArgs
+
+// Nested applied types
+val resultId = TypeId.of[Result[String, List[Int]]]
+resultId.typeArgs
+
+// Type constructor with no arguments has empty typeArgs
+TypeId.list.typeArgs
+```
+
+When you access `typeArgs`, each element is a `TypeRepr` describing that argument. You can inspect them further to understand the structure:
+
+```scala mdoc
+val mapStringIntId = TypeId.of[Map[String, Int]]
+val args = mapStringIntId.typeArgs
+
+// First argument: String
+args(0)
+
+// Second argument: Int
+args(1)
+```
+
+Built-in applied types also work:
+
 ```scala mdoc
 TypeId.of[List[Int]].typeArgs
 TypeId.of[Map[String, Int]].typeArgs
-TypeId.list.typeArgs
+TypeId.of[Option[String]].typeArgs
 ```
 
 #### `arity` — Number of Type Parameters
