@@ -767,8 +767,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("interpolator + inline integration")(
       test("js interpolator with script().inlineJs") {
         val name   = "World"
-        val result = script().inlineJs(js"console.log($name)").render
-        assertTrue(result == """<script>console.log("World")</script>""")
+        val result = script().inlineJs(js"console.log(\"$name\")").render
+        assertTrue(result == """<script>console.log(\""World"\")</script>""")
       },
       test("css interpolator with style().inlineCss") {
         val color  = "red"
