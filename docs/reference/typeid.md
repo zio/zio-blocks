@@ -437,7 +437,6 @@ sealed trait Box[+A]
 sealed trait Sink[-T]
 sealed trait Cache[K, +V]
 ```
-
 ```scala mdoc
 val boxId = TypeId.of[Box]
 boxId.typeParams.head.isCovariant
