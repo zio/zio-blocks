@@ -396,7 +396,9 @@ cacheId.typeParams.map(p => (p.name, p.variance.symbol))
 
 #### `TypeParam` — Type Parameter Details
 
-Each element in `TypeId#typeParams` is a `TypeParam` value. `TypeParam` captures four pieces of information about a type parameter:
+Each element in `TypeId#typeParams` is a `TypeParam` value. A type parameter defines a single formal parameter in a generic type's declaration — its name, position, variance (covariance, contravariance, invariance), bounds, and kind. When you derive a `TypeId` for a generic type like `Box[+A]`, the macro captures each declared parameter as a `TypeParam` so you can inspect them at runtime.
+
+`TypeParam` captures these pieces of information about a type parameter:
 
 ```scala
 final case class TypeParam(
@@ -415,6 +417,8 @@ import zio.blocks.typeid._
 
 sealed trait Functor[F[_]]
 ```
+
+To inspect individual fields of a type parameter, extract and examine each property:
 
 ```scala mdoc
 val functorId = TypeId.of[Functor]
