@@ -230,16 +230,6 @@ object TypeId {
 }
 ```
 
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-```
-
-```scala mdoc
-val emailId = TypeId.opaque[Any]("Email", Owner.fromPackagePath("com.example"), representation = TypeRepr.Ref(TypeId.string))
-emailId.isOpaque
-emailId.representation
-```
-
 #### `TypeId.applied` — Applied Types
 
 **Applied types** are generic types instantiated with type arguments. For example, `List[Int]` is `List` (the type constructor) applied to `Int` (the type argument), and `Map[String, Int]` is `Map` applied to two type arguments. TypeIds for applied types preserve the type arguments so serializers can generate specialized codecs, validators can type-check values, and code generators can emit correct code.
@@ -252,30 +242,6 @@ For testing or code generation, construct applied TypeIds by combining a type co
 object TypeId {
   def applied[A <: AnyKind](typeConstructor: TypeId[?], args: TypeRepr*): TypeId[A]
 }
-```
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-```
-
-Applied type with single type argument — `List[Int]`:
-
-```scala mdoc
-val listIntId = TypeId.applied[Any](TypeId.list, TypeRepr.Ref(TypeId.int))
-listIntId.isApplied
-listIntId.typeArgs
-```
-
-Applied type with multiple type arguments — `Map[String, Int]`:
-
-```scala mdoc
-val mapStringIntId = TypeId.applied[Any](
-  TypeId.map,
-  TypeRepr.Ref(TypeId.string),
-  TypeRepr.Ref(TypeId.int)
-)
-mapStringIntId.isApplied
-mapStringIntId.typeArgs
 ```
 
 ## Core Operations
