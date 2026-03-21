@@ -89,12 +89,9 @@ rm -rf "$wrapper_dir"
 wasm-rquickjs generate-wrapper-crate \
   --wit "$agent_wit_root" \
   --world golem:agent-guest/agent-guest \
+  --js-modules "golem-scala-sdk=$gen_dir/golem-scala-sdk.mjs" \
   --js-modules "user=@composition" \
-  --js-modules "@composition=@composition" \
   --output "$wrapper_dir"
-
-# wasm-rquickjs expects a user.js placeholder (injected by golem-cli at composition time)
-touch "$wrapper_dir/src/user.js"
 
 echo "[agent-guest] Building guest runtime (cargo component build --release)..." >&2
 if [[ -f "$HOME/.cargo/env" ]]; then
