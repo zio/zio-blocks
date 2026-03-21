@@ -12,7 +12,6 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
     suite("Tag")(
       test("can be constructed with required name field only") {
         val tag = Tag(name = "users")
-
         assertTrue(
           tag.name == "users",
           tag.description.isEmpty,
@@ -21,21 +20,17 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val externalDocs = ExternalDocumentation(
-          url = "https://docs.example.com/users",
-          description = Some(doc("User documentation"))
-        )
-        val extensions = ChunkMap(
-          "x-custom"   -> Json.String("value"),
-          "x-priority" -> Json.Number(1)
-        )
         val tag = Tag(
           name = "users",
           description = Some(doc("User operations")),
-          externalDocs = Some(externalDocs),
-          extensions = extensions
+          externalDocs = Some(
+            ExternalDocumentation(
+              url = "https://docs.example.com/users",
+              description = Some(doc("User documentation"))
+            )
+          ),
+          extensions = ChunkMap("x-custom" -> Json.String("value"), "x-priority" -> Json.Number(1))
         )
-
         assertTrue(
           tag.name == "users",
           tag.description.contains(doc("User operations")),
@@ -47,13 +42,14 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-display-name" -> Json.String("User Management"),
-          "x-icon"         -> Json.String("user-icon"),
-          "x-order"        -> Json.Number(5)
+        val tag = Tag(
+          name = "users",
+          extensions = ChunkMap(
+            "x-display-name" -> Json.String("User Management"),
+            "x-icon"         -> Json.String("user-icon"),
+            "x-order"        -> Json.Number(5)
+          )
         )
-        val tag = Tag(name = "users", extensions = extensions)
-
         assertTrue(
           tag.extensions.size == 3,
           tag.extensions.get("x-display-name").contains(Json.String("User Management")),
@@ -64,15 +60,11 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
       test("Schema[Tag] can be derived") {
         val tag    = Tag(name = "users")
         val schema = Schema[Tag]
-
         assertTrue(schema != null, tag != null)
       },
       test("Tag round-trips through DynamicValue with minimal fields") {
-        val tag = Tag(name = "users")
-
-        val dv     = Schema[Tag].toDynamicValue(tag)
-        val result = Schema[Tag].fromDynamicValue(dv)
-
+        val tag    = Tag(name = "users")
+        val result = Schema[Tag].fromDynamicValue(Schema[Tag].toDynamicValue(tag))
         assertTrue(
           result.isRight,
           result.exists(_.name == "users"),
@@ -82,24 +74,18 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("Tag round-trips through DynamicValue with all fields") {
-        val externalDocs = ExternalDocumentation(
-          url = "https://docs.example.com/users",
-          description = Some(doc("User API docs"))
-        )
-        val extensions = ChunkMap(
-          "x-custom" -> Json.String("test"),
-          "x-value"  -> Json.Number(42)
-        )
         val tag = Tag(
           name = "users",
           description = Some(doc("User operations")),
-          externalDocs = Some(externalDocs),
-          extensions = extensions
+          externalDocs = Some(
+            ExternalDocumentation(
+              url = "https://docs.example.com/users",
+              description = Some(doc("User API docs"))
+            )
+          ),
+          extensions = ChunkMap("x-custom" -> Json.String("test"), "x-value" -> Json.Number(42))
         )
-
-        val dv     = Schema[Tag].toDynamicValue(tag)
-        val result = Schema[Tag].fromDynamicValue(dv)
-
+        val result = Schema[Tag].fromDynamicValue(Schema[Tag].toDynamicValue(tag))
         assertTrue(
           result.isRight,
           result.exists(_.name == "users"),
@@ -113,20 +99,18 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("Tag preserves nested ExternalDocumentation with extensions") {
-        val externalDocs = ExternalDocumentation(
-          url = "https://example.com",
-          description = Some(doc("Docs")),
-          extensions = ChunkMap("x-doc-version" -> Json.String("v1"))
-        )
         val tag = Tag(
           name = "test",
-          externalDocs = Some(externalDocs),
+          externalDocs = Some(
+            ExternalDocumentation(
+              url = "https://example.com",
+              description = Some(doc("Docs")),
+              extensions = ChunkMap("x-doc-version" -> Json.String("v1"))
+            )
+          ),
           extensions = ChunkMap("x-tag-level" -> Json.String("top"))
         )
-
-        val dv     = Schema[Tag].toDynamicValue(tag)
-        val result = Schema[Tag].fromDynamicValue(dv)
-
+        val result = Schema[Tag].fromDynamicValue(Schema[Tag].toDynamicValue(tag))
         assertTrue(
           result.isRight,
           result.exists(_.externalDocs.exists(_.extensions.contains("x-doc-version"))),
@@ -137,7 +121,6 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
     suite("ExternalDocumentation")(
       test("can be constructed with required url field only") {
         val docs = ExternalDocumentation(url = "https://docs.example.com")
-
         assertTrue(
           docs.url == "https://docs.example.com",
           docs.description.isEmpty,
@@ -145,16 +128,14 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val extensions = ChunkMap(
-          "x-language" -> Json.String("en"),
-          "x-version"  -> Json.String("2.0")
-        )
         val docs = ExternalDocumentation(
           url = "https://docs.example.com/api",
           description = Some(doc("Complete API documentation")),
-          extensions = extensions
+          extensions = ChunkMap(
+            "x-language" -> Json.String("en"),
+            "x-version"  -> Json.String("2.0")
+          )
         )
-
         assertTrue(
           docs.url == "https://docs.example.com/api",
           docs.description.contains(doc("Complete API documentation")),
@@ -164,16 +145,14 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-format" -> Json.String("swagger-ui"),
-          "x-public" -> Json.Boolean(true),
-          "x-rating" -> Json.Number(4.5)
-        )
         val docs = ExternalDocumentation(
           url = "https://example.com",
-          extensions = extensions
+          extensions = ChunkMap(
+            "x-format" -> Json.String("swagger-ui"),
+            "x-public" -> Json.Boolean(true),
+            "x-rating" -> Json.Number(4.5)
+          )
         )
-
         assertTrue(
           docs.extensions.size == 3,
           docs.extensions.get("x-format").contains(Json.String("swagger-ui")),
@@ -184,15 +163,11 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
       test("Schema[ExternalDocumentation] can be derived") {
         val docs   = ExternalDocumentation(url = "https://example.com")
         val schema = Schema[ExternalDocumentation]
-
         assertTrue(schema != null, docs != null)
       },
       test("ExternalDocumentation round-trips through DynamicValue with minimal fields") {
-        val docs = ExternalDocumentation(url = "https://docs.example.com")
-
-        val dv     = Schema[ExternalDocumentation].toDynamicValue(docs)
-        val result = Schema[ExternalDocumentation].fromDynamicValue(dv)
-
+        val docs   = ExternalDocumentation(url = "https://docs.example.com")
+        val result = Schema[ExternalDocumentation].fromDynamicValue(Schema[ExternalDocumentation].toDynamicValue(docs))
         assertTrue(
           result.isRight,
           result.exists(_.url == "https://docs.example.com"),
@@ -201,19 +176,15 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
         )
       },
       test("ExternalDocumentation round-trips through DynamicValue with all fields") {
-        val extensions = ChunkMap(
-          "x-custom" -> Json.String("value"),
-          "x-number" -> Json.Number(123)
-        )
         val docs = ExternalDocumentation(
           url = "https://docs.example.com/api/v2",
           description = Some(doc("API Reference Documentation")),
-          extensions = extensions
+          extensions = ChunkMap(
+            "x-custom" -> Json.String("value"),
+            "x-number" -> Json.Number(123)
+          )
         )
-
-        val dv     = Schema[ExternalDocumentation].toDynamicValue(docs)
-        val result = Schema[ExternalDocumentation].fromDynamicValue(dv)
-
+        val result = Schema[ExternalDocumentation].fromDynamicValue(Schema[ExternalDocumentation].toDynamicValue(docs))
         assertTrue(
           result.isRight,
           result.exists(_.url == "https://docs.example.com/api/v2"),
@@ -230,37 +201,29 @@ object TagExternalDocsSpec extends SchemaBaseSpec {
           "https://api.example.com/v1/docs#section",
           "https://example.com/docs?version=latest"
         )
-
         val results = urls.map { url =>
-          val docs   = ExternalDocumentation(url = url)
-          val dv     = Schema[ExternalDocumentation].toDynamicValue(docs)
-          val result = Schema[ExternalDocumentation].fromDynamicValue(dv)
+          val d      = ExternalDocumentation(url = url)
+          val result = Schema[ExternalDocumentation].fromDynamicValue(Schema[ExternalDocumentation].toDynamicValue(d))
           result.exists(_.url == url)
         }
-
         assertTrue(results.forall(identity))
       }
     ),
     suite("Integration")(
       test("Tag can contain ExternalDocumentation and both preserve extensions") {
-        val docExtensions = ChunkMap("x-doc-lang" -> Json.String("en"))
-        val tagExtensions = ChunkMap("x-tag-group" -> Json.String("core"))
-
-        val docs = ExternalDocumentation(
-          url = "https://example.com",
-          description = Some(doc("Documentation")),
-          extensions = docExtensions
-        )
         val tag = Tag(
           name = "api",
           description = Some(doc("API operations")),
-          externalDocs = Some(docs),
-          extensions = tagExtensions
+          externalDocs = Some(
+            ExternalDocumentation(
+              url = "https://example.com",
+              description = Some(doc("Documentation")),
+              extensions = ChunkMap("x-doc-lang" -> Json.String("en"))
+            )
+          ),
+          extensions = ChunkMap("x-tag-group" -> Json.String("core"))
         )
-
-        val dv     = Schema[Tag].toDynamicValue(tag)
-        val result = Schema[Tag].fromDynamicValue(dv)
-
+        val result = Schema[Tag].fromDynamicValue(Schema[Tag].toDynamicValue(tag))
         assertTrue(
           result.isRight,
           result.exists(_.name == "api"),

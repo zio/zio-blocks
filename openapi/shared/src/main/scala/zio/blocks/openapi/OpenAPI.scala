@@ -54,12 +54,7 @@ final case class OpenAPI(
 )
 
 object OpenAPI {
-  import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
-
-  implicit lazy val schema: Schema[OpenAPI] = Schema.derived
-
-  implicit lazy val jsonCodec: JsonCodec[OpenAPI] =
-    schema.derive(JsonCodecDeriver)
+  implicit val schema: Schema[OpenAPI] = Schema.derived
 }
 
 /**
@@ -142,48 +137,33 @@ object Server {
 }
 
 /**
- * An object representing a Server Variable for server URL template
- * substitution.
+ * Creates a ServerVariable with validation. If `enum` is non-empty, the
+ * `default` value MUST be one of the enum values.
+ *
+ * @param default
+ *   REQUIRED. The default value to use for substitution.
+ * @param enum
+ *   An enumeration of string values to be used if the substitution options are
+ *   from a limited set.
+ * @param description
+ *   An optional description for the server variable.
+ * @param extensions
+ *   Specification extensions (x-* fields).
  */
 final case class ServerVariable(
   default: String,
   `enum`: Chunk[String] = Chunk.empty,
   description: Option[Doc] = None,
   extensions: ChunkMap[String, Json] = ChunkMap.empty
-)
+) {
+  require(
+    `enum`.isEmpty || `enum`.contains(default),
+    s"ServerVariable validation failed: default value '$default' must be one of the enum values: ${`enum`.mkString(", ")}"
+  )
+}
 
 object ServerVariable {
   implicit val schema: Schema[ServerVariable] = Schema.derived
-
-  /**
-   * Creates a ServerVariable with validation. If `enum` is non-empty, the
-   * `default` value MUST be one of the enum values.
-   *
-   * @param default
-   *   REQUIRED. The default value to use for substitution.
-   * @param enum
-   *   An enumeration of string values to be used if the substitution options
-   *   are from a limited set.
-   * @param description
-   *   An optional description for the server variable.
-   * @param extensions
-   *   Specification extensions (x-* fields).
-   * @return
-   *   Either a validation error message or a valid ServerVariable.
-   */
-  def validated(
-    default: String,
-    `enum`: Chunk[String] = Chunk.empty,
-    description: Option[Doc] = None,
-    extensions: ChunkMap[String, Json] = ChunkMap.empty
-  ): Either[String, ServerVariable] =
-    if (`enum`.nonEmpty && !`enum`.contains(default)) {
-      Left(
-        s"ServerVariable validation failed: default value '$default' must be one of the enum values: ${`enum`.mkString(", ")}"
-      )
-    } else {
-      Right(ServerVariable(default, `enum`, description, extensions))
-    }
 }
 
 /**
@@ -394,8 +374,8 @@ object ReferenceOr {
  *   Replaces the name of the element/attribute used for the described schema
  *   property. When defined within items, it will affect the name of the
  *   individual XML elements within the list. When defined alongside type being
- *   array (outside the items), it will affect the wrapping element and only if
- *   wrapped is true. If wrapped is false, it will be ignored.
+ *   arrayed (outside the items), it will affect the wrapping element and only
+ *   if wrapped is true. If wrapped is false, it will be ignored.
  * @param namespace
  *   The URI of the namespace definition. This MUST be in the form of an
  *   absolute URI.
@@ -408,7 +388,7 @@ object ReferenceOr {
  *   MAY be used only for an array definition. Signifies whether the array is
  *   wrapped (for example, `<books><book/><book/></books>`) or unwrapped
  *   (`<book/><book/>`). Default value is false. The definition takes effect
- *   only when defined alongside type being array (outside the items).
+ *   only when defined alongside type being arrayed (outside the items).
  */
 final case class XML(
   name: Option[String] = None,
@@ -870,8 +850,8 @@ object Response {
  *   text representation.
  * @param value
  *   Embedded literal example. The value field and externalValue field are
- *   mutually exclusive. To represent examples of media types that cannot
- *   naturally represented in JSON or YAML, use a string value to contain the
+ *   mutually exclusive. To represent examples of media types that cannot be
+ *   represented in JSON or YAML naturally, use a string value to contain the
  *   example, escaping where necessary.
  * @param externalValue
  *   A URI that identifies the location of the example value. This provides the
@@ -882,7 +862,7 @@ object Response {
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
  */
-final case class Example private (
+final case class Example(
   summary: Option[Doc] = None,
   description: Option[Doc] = None,
   value: Option[Json] = None,
@@ -897,18 +877,6 @@ final case class Example private (
 
 object Example {
   implicit val schema: Schema[Example] = Schema.derived
-
-  /**
-   * Creates an Example with validation of mutual exclusivity constraints.
-   */
-  def apply(
-    summary: Option[Doc] = None,
-    description: Option[Doc] = None,
-    value: Option[Json] = None,
-    externalValue: Option[String] = None,
-    extensions: ChunkMap[String, Json] = ChunkMap.empty
-  ): Example =
-    new Example(summary, description, value, externalValue, extensions)
 }
 
 /**
@@ -924,10 +892,12 @@ object Example {
  * expression is used for accessing values in an operation and using them as
  * parameters while invoking the linked operation.
  *
- * @param operationRefOrId
- *   An optional Either where Left is a relative or absolute URI reference to an
- *   OAS operation (operationRef) and Right is the name of an existing,
- *   resolvable OAS operation (operationId). These are mutually exclusive.
+ * @param operationRef
+ *   An optional absolute URI reference to an OAS operation (operationRef),
+ *   mutually exclusive with operationId.
+ * @param operationId
+ *   A name of an existing, resolvable OAS operation (operationId), mutually
+ *   exclusive with operationRef.
  * @param parameters
  *   A map representing parameters to pass to an operation as specified with
  *   operationId or identified via operationRef. The key is the parameter name
@@ -948,37 +918,22 @@ object Example {
  *   properties beyond the standard OpenAPI fields.
  */
 final case class Link(
-  operationRefOrId: Option[Either[String, String]] = None,
+  operationRef: Option[String] = None,
+  operationId: Option[String] = None,
   parameters: ChunkMap[String, Json] = ChunkMap.empty,
   requestBody: Option[Json] = None,
   description: Option[Doc] = None,
   server: Option[Server] = None,
   extensions: ChunkMap[String, Json] = ChunkMap.empty
-)
+) {
+  require(
+    operationRef.isEmpty || operationId.isEmpty,
+    "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
+  )
+}
 
 object Link {
   implicit lazy val schema: Schema[Link] = Schema.derived
-
-  def apply(
-    operationRef: Option[String],
-    operationId: Option[String],
-    parameters: ChunkMap[String, Json],
-    requestBody: Option[Json],
-    description: Option[Doc],
-    server: Option[Server],
-    extensions: ChunkMap[String, Json]
-  ): Link = {
-    val operationRefOrId = (operationRef, operationId) match {
-      case (Some(ref), None)  => Some(Left(ref))
-      case (None, Some(id))   => Some(Right(id))
-      case (None, None)       => None
-      case (Some(_), Some(_)) =>
-        throw new IllegalArgumentException(
-          "Link operationRef and operationId fields are mutually exclusive - only one may be specified"
-        )
-    }
-    new Link(operationRefOrId, parameters, requestBody, description, server, extensions)
-  }
 }
 
 /**
