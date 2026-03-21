@@ -129,7 +129,7 @@ object HostApi {
    * A registered agent type as reported by the Golem host registry.
    *
    * @param typeName
-   *   The WIT type name (kebab-case, from `@agentDefinition`)
+   *   The type name (from `@agentDefinition`)
    * @param implementedBy
    *   The component that implements this agent type
    */

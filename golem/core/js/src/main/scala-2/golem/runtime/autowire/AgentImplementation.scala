@@ -85,13 +85,8 @@ private[golem] object AgentImplementation {
 }
 
 private[golem] object AgentImplementationMacroFacade {
-  private def defaultTypeNameFromTrait(c: blackbox.Context)(sym: c.universe.Symbol): String = {
-    val raw = sym.name.decodedName.toString
-    raw
-      .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-      .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-      .toLowerCase
-  }
+  private def defaultTypeNameFromTrait(c: blackbox.Context)(sym: c.universe.Symbol): String =
+    sym.name.decodedName.toString
 
   def registerImpl[Trait: c.WeakTypeTag](
     c: blackbox.Context

@@ -68,9 +68,6 @@ object AgentClientMacroImpl {
     import c.universe._
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name.decodedName.toString
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
 
     def extractTypeName(args: List[Tree]): Option[String] =
       // Keep this simple and resilient across Scala 2 minor versions:
