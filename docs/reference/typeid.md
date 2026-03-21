@@ -555,7 +555,7 @@ multiValueId.typeArgs
 
 #### `arity` — Number of Type Parameters
 
-Returns `typeParams.size`.
+The **arity** of a type is the number of formal type parameters it declares. A type with arity 0 is fully applied (a "proper type"), while arity > 0 means it's a type constructor that needs to be instantiated with type arguments. Arity is useful for generic programming and type-indexed registries where you need to distinguish between different levels of type abstraction.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -563,10 +563,28 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Setup some generic types with different arities:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Single[A](value: A)           // Arity 1
+case class Pair[A, B](a: A, b: B)       // Arity 2
+case class Triple[A, B, C](a: A, b: B, c: C) // Arity 3
+case class Value(x: Int)                 // Arity 0
+```
+
+Check the arity of different types:
+
 ```scala mdoc
-TypeId.list.arity
-TypeId.map.arity
-TypeId.int.arity
+TypeId.of[Single].arity
+TypeId.of[Pair].arity
+TypeId.of[Triple].arity
+TypeId.of[Value].arity
+
+// Applied types have the same arity as their type constructor
+TypeId.of[Single[Int]].arity
+TypeId.of[Pair[String, Int]].arity
 ```
 
 #### `isProperType` — Has No Type Parameters
