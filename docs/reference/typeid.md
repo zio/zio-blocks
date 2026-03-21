@@ -513,15 +513,7 @@ args(0)
 args(1)
 ```
 
-Built-in applied types also work:
-
-```scala mdoc
-TypeId.of[List[Int]].typeArgs
-TypeId.of[Map[String, Int]].typeArgs
-TypeId.of[Option[String]].typeArgs
-```
-
-For more sophisticated Scala 3 types, `typeArgs` captures complex type expressions as `TypeRepr` values:
+For more complex types, `typeArgs` captures the full structure of the arguments, including unions, intersections, function types, and tuples:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
