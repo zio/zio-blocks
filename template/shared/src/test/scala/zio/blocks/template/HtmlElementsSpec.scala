@@ -616,22 +616,34 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(el.render == """<span class="cls">inner</span>""")
       }
     ),
-    suite("class attribute merging via DSL")(
-      test("div with duplicate className merges values") {
+    suite("class attribute accumulation via DSL")(
+      test("className := overrides (last wins)") {
         val result = div(className := "a", className := "b").render
+        assertTrue(result == """<div class="b"></div>""")
+      },
+      test("className += accumulates") {
+        val result = div(className += "a", className += "b").render
         assertTrue(result == """<div class="a b"></div>""")
       },
-      test("div with className and when(true) merges class") {
-        val result = div(className := "a").when(true)(className := "b").render
+      test("className += with when(true) accumulates") {
+        val result = div(className += "a").when(true)(className += "b").render
         assertTrue(result == """<div class="a b"></div>""")
       },
       test("div with className and when(false) keeps single class") {
-        val result = div(className := "a").when(false)(className := "b").render
+        val result = div(className += "a").when(false)(className += "b").render
         assertTrue(result == """<div class="a"></div>""")
       },
-      test("triple class merge") {
-        val result = div(className := "a", className := "b", className := "c").render
+      test("className += triple accumulate") {
+        val result = div(className += "a", className += "b", className += "c").render
         assertTrue(result == """<div class="a b c"></div>""")
+      },
+      test("className := then += appends to override") {
+        val result = div(className := "base", className += "extra").render
+        assertTrue(result == """<div class="base extra"></div>""")
+      },
+      test("+= without prior := works") {
+        val result = div(className += "only").render
+        assertTrue(result == """<div class="only"></div>""")
       }
     ),
     suite("element constructor edge cases")(
