@@ -20,7 +20,7 @@ import zio.blocks.schema.DynamicOptic
 
 /**
  * A custom exception class without the stack trace representing errors that
- * occur during JSON binary codec operations.
+ * occur during JSON encoding/decoding operations.
  *
  * The `JsonCodecError` class extends `Throwable` to provide enhanced error
  * reporting for scenarios involving JSON encoding or decoding errors where

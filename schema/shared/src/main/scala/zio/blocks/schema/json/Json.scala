@@ -2362,7 +2362,7 @@ object Json {
               if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
             }
           } catch {
-            case error if NonFatal(error) && errIdx >= 0 => in.decodeError(new DynamicOptic.Node.AtIndex(errIdx), error)
+            case err if NonFatal(err) && errIdx >= 0 => error(new DynamicOptic.Node.AtIndex(errIdx), err)
           }
           if (in.isCurrentToken(']')) {
             if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
@@ -2387,7 +2387,7 @@ object Json {
               if (arr.length == x) arr = util.Arrays.copyOf(arr, x << 1)
             }
           } catch {
-            case error if NonFatal(error) && (key ne null) => in.decodeError(new DynamicOptic.Node.Field(key), error)
+            case err if NonFatal(err) && (key ne null) => error(new DynamicOptic.Node.Field(key), err)
           }
           if (in.isCurrentToken('}')) {
             if (arr.length != x) arr = util.Arrays.copyOf(arr, x)
@@ -2402,17 +2402,28 @@ object Json {
 
     override def encodeValue(x: Json, out: JsonWriter): Unit = x match {
       case str: String   => out.writeVal(str.value)
-      case bool: Boolean => out.writeVal(bool.value)
       case num: Number   => out.writeVal(num.value)
+      case bool: Boolean => out.writeVal(bool.value)
       case arr: Array    =>
         out.writeArrayStart()
-        arr.value.foreach(encodeValue(_, out))
+        val elems = arr.value
+        val len   = elems.length
+        var idx   = 0
+        while (idx < len) {
+          encodeValue(elems(idx), out)
+          idx += 1
+        }
         out.writeArrayEnd()
       case obj: Object =>
         out.writeObjectStart()
-        obj.value.foreach { kv =>
+        val kvs = obj.value
+        val len = kvs.length
+        var idx = 0
+        while (idx < len) {
+          val kv = kvs(idx)
           out.writeKey(kv._1)
           encodeValue(kv._2, out)
+          idx += 1
         }
         out.writeObjectEnd()
       case _ => out.writeNull()
