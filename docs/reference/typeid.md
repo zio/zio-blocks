@@ -347,7 +347,7 @@ Methods for inspecting generic type information.
 
 #### `typeParams` — Formal Type Parameters
 
-Returns the list of formal type parameters declared by this type.
+Returns the list of formal type parameters declared by this type. Each `TypeParam` captures the parameter's name, position, variance (+/−/invariant), and any bounds.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -355,14 +355,41 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Type parameters describe how a type is generic. Different types have different parameter structures:
+
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
+
+sealed trait Container[+A]
+case class Box[+A](value: A) extends Container[A]
+
+sealed trait Sink[-T]
+case class Logger[-T]() extends Sink[T]
+
+sealed trait Cache[K, +V]
+case class LRUCache[K, +V](maxSize: Int) extends Cache[K, V]
 ```
 
 ```scala mdoc
-TypeId.list.typeParams
-TypeId.map.typeParams
+val boxId = TypeId.of[Box]
+boxId.typeParams
+boxId.typeParams.head.variance
+boxId.typeParams.head.name
+
+val sinkId = TypeId.of[Sink]
+sinkId.typeParams
+sinkId.typeParams.head.variance
+
+val cacheId = TypeId.of[Cache]
+cacheId.typeParams
+cacheId.typeParams.map(p => (p.name, p.variance.symbol))
+```
+
+Type parameters are empty for monomorphic types:
+
+```scala mdoc
 TypeId.int.typeParams
+TypeId.string.typeParams
 ```
 
 #### `typeArgs` — Applied Type Arguments
