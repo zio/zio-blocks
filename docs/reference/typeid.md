@@ -1020,7 +1020,7 @@ usernameType.isEquivalentTo(stringType)
 
 #### `parents` — Direct Parent Types
 
-Returns the list of direct parent type representations from the type definition as `TypeRepr` values. This shows only the **immediate parents**, not the full transitive hierarchy. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type without traversing the entire hierarchy. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have.
+Returns the list of direct parent type representations from the type definition as `TypeRepr` values. This includes all trait and class parents that the type directly extends, including traits inherited through intermediate class/trait extensions. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1089,11 +1089,12 @@ val duckId = TypeId.of[Duck]
 duckId.parents
 
 val mallardId = TypeId.of[MallardDuck]
-// MallardDuck directly extends Duck
+// MallardDuck extends Duck, which extends Swimmer and Flyer
+// Parents include all extended traits, even through intermediate traits
 mallardId.parents
 
-// Parents are immediate only, not transitive
-// So MallardDuck.parents doesn't include Swimmer or Flyer
+// Note: MallardDuck.parents includes Swimmer and Flyer
+// because Duck extends both
 mallardId.parents.size
 ```
 
@@ -1131,7 +1132,7 @@ genericBoxId.parents
 ```
 
 :::note
-The `parents` method returns only **direct parents**, not the full inheritance hierarchy. To traverse the complete hierarchy, use `isSubtypeOf` or examine the type definition with `defKind`. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., if a parent is a generic type like `List[String]`).
+The `parents` method returns all parent types (including those inherited through intermediate traits). Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., if a parent is a generic type like `List[String]`). To traverse the complete inheritance hierarchy including transitive supertypes, use `isSubtypeOf` or examine the type definition with `defKind`.
 :::
 
 ### Metadata
