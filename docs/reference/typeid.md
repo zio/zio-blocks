@@ -1020,7 +1020,7 @@ usernameType.isEquivalentTo(stringType)
 
 #### `parents` — Parent Types
 
-Returns the list of parent type representations as `TypeRepr` values. This includes all parent classes and traits in the type's inheritance hierarchy—both those the type directly extends, and those inherited through intermediate class/trait extensions. When a type extends a trait that itself extends other traits, all of those traits appear in the parents list. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the complete inheritance structure of a type.
+Returns the list of parent type representations as `TypeRepr` values, flattened across the full inheritance hierarchy. Each parent is represented as a `TypeRepr` that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1048,7 +1048,6 @@ Now inspect the parents:
 
 ```scala mdoc
 // Dog extends Mammal, which extends Animal
-// Parents include all parents in the inheritance chain
 dogId.parents
 
 // Mammal directly extends Animal
@@ -1056,9 +1055,6 @@ mammalId.parents
 
 // Animal has no explicit parents (sealed trait with no extends)
 animalId.parents
-
-// Cat also extends Mammal (same parents as Dog)
-TypeId.of[Cat].parents
 
 // Fish extends Animal directly
 TypeId.of[Fish].parents
@@ -1090,12 +1086,8 @@ val duckId = TypeId.of[Duck]
 duckId.parents
 
 val mallardId = TypeId.of[MallardDuck]
-// MallardDuck extends Duck, and Duck extends Swimmer and Flyer
-// The parents list is flattened to include all traits: [Duck, Swimmer, Flyer]
+// MallardDuck extends Duck — parents are flattened to include Duck, Swimmer, and Flyer
 mallardId.parents
-
-// MallardDuck has three parents (Duck and the two traits Duck extends)
-mallardId.parents.size
 ```
 
 Parents with type arguments are captured in the TypeRepr:
@@ -1132,7 +1124,7 @@ genericBoxId.parents
 ```
 
 :::note
-The `parents` method returns a flattened list of all parent types. This includes both the type's direct parents and any traits that those parents extend. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., `Container[String]`). This means that trait hierarchies are flattened into a single list of all parent types a type indirectly or directly inherits from.
+The `parents` method returns a flattened list of all parent types, including those inherited through intermediate traits. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., `Container[String]`).
 :::
 
 ### Metadata
