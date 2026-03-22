@@ -935,7 +935,7 @@ fishId.isSupertypeOf(mammalId)
 
 #### `isEquivalentTo` — Check Type Equivalence
 
-Returns `true` when two types are structurally equivalent — meaning they are mutual subtypes of each other. Two types are equivalent when they represent the same type through different paths or after normalization.
+Returns `true` when two types are structurally equivalent — meaning they are **mutual subtypes** of each other. In other words, both `A.isSubtypeOf(B)` and `B.isSubtypeOf(A)` must be true. Two types are equivalent when they represent the same type through different paths, or when they normalize to the same underlying type (important for type aliases and opaque types).
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -943,19 +943,47 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Check type equivalence:
+Check type equivalence with practical examples:
 
 ```scala mdoc
 // A type is always equivalent to itself
 dogId.isEquivalentTo(dogId)
 
-// Different types in the hierarchy are not equivalent
+// The same type referenced twice is equivalent
+val dogId2 = TypeId.of[Dog]
+dogId.isEquivalentTo(dogId2)
+
+// Different types in the hierarchy are NOT equivalent (one-way subtyping only)
 dogId.isEquivalentTo(mammalId)
 mammalId.isEquivalentTo(animalId)
 
-// But the same type referenced twice is equivalent
-val dogId2 = TypeId.of[Dog]
-dogId.isEquivalentTo(dogId2)
+// Cat and Dog are different types, even though both extend Mammal
+val catId = TypeId.of[Cat]
+dogId.isEquivalentTo(catId)
+```
+
+Type aliases normalize to the same type, making them equivalent:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+type UserId = String
+type Username = String
+```
+
+Both aliases normalize to `String`, so they are equivalent:
+
+```scala mdoc
+val userIdType = TypeId.of[UserId]
+val usernameType = TypeId.of[Username]
+val stringType = TypeId.of[String]
+
+// Both type aliases are equivalent because they normalize to the same underlying type
+userIdType.isEquivalentTo(usernameType)
+
+// And both are equivalent to their underlying type
+userIdType.isEquivalentTo(stringType)
+usernameType.isEquivalentTo(stringType)
 ```
 
 #### `parents` — Direct Parent Types
