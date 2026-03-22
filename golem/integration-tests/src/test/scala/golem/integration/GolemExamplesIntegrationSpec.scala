@@ -177,14 +177,12 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     Sample(
       "fork",
       "samples/fork/repl-fork.ts",
-      Contains("original-joined"),
-      skip = Some("fork() + awaitPromise blocks in REPL mode")
+      Contains("original-joined")
     ),
     Sample(
       "fork-json",
       "samples/fork/repl-fork-json.ts",
-      Contains("original-joined-json: count=42"),
-      skip = Some("fork() + awaitPromise blocks in REPL mode")
+      Contains("original-joined-json: count=42")
     ),
     Sample(
       "sync-return",

@@ -197,9 +197,9 @@ object GolemPlugin extends AutoPlugin {
         }
 
         log.info(s"[golem] Building Scala.js bundle for $component ...")
-        val report = (Compile / ScalaJSPlugin.autoImport.fastLinkJS).value.data
+        val report = (Compile / ScalaJSPlugin.autoImport.fullLinkJS).value.data
         val outDir =
-          (Compile / ScalaJSPlugin.autoImport.fastLinkJS / ScalaJSPlugin.autoImport.scalaJSLinkerOutputDirectory).value
+          (Compile / ScalaJSPlugin.autoImport.fullLinkJS / ScalaJSPlugin.autoImport.scalaJSLinkerOutputDirectory).value
         val jsName =
           report.publicModules.headOption
             .map(_.jsFileName)
