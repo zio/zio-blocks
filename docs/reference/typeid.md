@@ -791,7 +791,7 @@ TypeId.of[scala.Product].isProduct
 :::
 
 :::note
-`isSum` checks whether the normalized type is named `"Option"` or `"Either"` and resides directly in the `scala` package (not in a subpackage like `scala.util`). For any TypeId derived from the standard `scala.util.Either`, `isSum` returns `false` — use `isEither` instead. The `"Either"` branch of `isSum` would only match a hypothetical type named `Either` placed directly in the `scala` package. Similarly, use `isOption` for the standard `scala.Option`.
+In practice, use `isEither` for `scala.util.Either` and `isOption` for `scala.Option`. The `isSum` predicate is rarely used — it checks for types named `"Option"` or `"Either"` placed directly in the `scala` package itself, not in subpackages. This is almost never needed for standard library types.
 :::
 
 ### Subtype Relationships
