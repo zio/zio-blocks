@@ -183,16 +183,7 @@ object AgentDefinitionMacroImpl {
       c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe.$schemaHint")
     }
 
-    q"""
-      $schemaInstance.schema match {
-        case _root_.golem.data.StructuredSchema.Tuple(elements) if elements.length == 1 =>
-          elements.head.schema
-        case _root_.golem.data.StructuredSchema.Tuple(_) =>
-          throw new IllegalArgumentException("Parameter " + $paramName + " expands to multiple elements; wrap it in a case class")
-        case _root_.golem.data.StructuredSchema.Multimodal(_) =>
-          throw new IllegalArgumentException("Parameter " + $paramName + " is multimodal; use a dedicated multimodal wrapper")
-      }
-    """
+    q"$schemaInstance.elementSchema"
   }
 
   private def inferConstructorSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {

@@ -1,6 +1,6 @@
 package golem.runtime.macros
 
-import golem.data.{GolemSchema, NamedElementSchema, StructuredSchema}
+import golem.data.{DataType, ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.annotations.{description, prompt}
 import golem.runtime.{
   AgentMetadata,
@@ -233,26 +233,14 @@ object AgentDefinitionMacro {
 
   private def elementSchemaExpr(using
     Quotes
-  )(paramName: String, tpe: quotes.reflect.TypeRepr): Expr[golem.data.ElementSchema] = {
+  )(@scala.annotation.unused paramName: String, tpe: quotes.reflect.TypeRepr): Expr[golem.data.ElementSchema] = {
     import quotes.reflect.*
 
     tpe.asType match {
       case '[t] =>
         Expr.summon[GolemSchema[t]] match {
           case Some(codecExpr) =>
-            '{
-              $codecExpr.schema match {
-                case StructuredSchema.Tuple(elements) if elements.length == 1 => elements.head.schema
-                case StructuredSchema.Tuple(_)                                =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} expands to multiple elements; wrap it in a case class"
-                  )
-                case StructuredSchema.Multimodal(_) =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} is multimodal; use a dedicated multimodal wrapper"
-                  )
-              }
-            }
+            '{ $codecExpr.elementSchema }
           case None =>
             report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
@@ -271,10 +259,33 @@ object AgentDefinitionMacro {
       traitRepr.baseType(baseSym) match {
         case AppliedType(_, List(arg)) =>
           val tpe = arg.dealias
-          if (tpe =:= TypeRepr.of[Unit]) '{ StructuredSchema.Tuple(Nil) } else structuredSchemaExpr(tpe)
+          if (tpe =:= TypeRepr.of[Unit]) '{ StructuredSchema.Tuple(Nil) } else flattenedConstructorSchemaExpr(tpe)
         case _ =>
           '{ StructuredSchema.Tuple(Nil) }
       }
+  }
+
+  private def flattenedConstructorSchemaExpr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[StructuredSchema] = {
+    import quotes.reflect.*
+
+    tpe.asType match {
+      case '[t] =>
+        Expr.summon[GolemSchema[t]] match {
+          case Some(codecExpr) =>
+            '{
+              $codecExpr.elementSchema match {
+                case ElementSchema.Component(DataType.StructType(fields)) if fields.nonEmpty =>
+                  StructuredSchema.Tuple(
+                    fields.map(f => NamedElementSchema(f.name, ElementSchema.Component(f.dataType)))
+                  )
+                case _ =>
+                  $codecExpr.schema
+              }
+            }
+          case None =>
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
+        }
+    }
   }
 
   private def annotationString(using

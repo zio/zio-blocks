@@ -21,14 +21,16 @@ import zio.blocks.schema.Schema
 trait GolemSchema[A] {
 
   /**
-   * The schema describing this type's structure.
+   * The schema describing this type's top-level structure.
    *
-   * This is used for WIT type generation and validation.
+   * For multi-field types (tuples, case classes), this is a
+   * [[StructuredSchema.Tuple]] with one [[NamedElementSchema]] per field.
+   * For single-value types, this is a single-element tuple.
    */
   def schema: StructuredSchema
 
   /**
-   * Encodes a Scala value to the structured representation.
+   * Encodes a Scala value to the top-level structured representation.
    *
    * @param value
    *   The value to encode
@@ -38,7 +40,7 @@ trait GolemSchema[A] {
   def encode(value: A): Either[String, StructuredValue]
 
   /**
-   * Decodes a structured value to a Scala type.
+   * Decodes a top-level structured value to a Scala type.
    *
    * @param value
    *   The structured value to decode
@@ -46,6 +48,42 @@ trait GolemSchema[A] {
    *   Right with the decoded value, or Left with an error message
    */
   def decode(value: StructuredValue): Either[String, A]
+
+  /**
+   * The element-level schema for this type when used as a single parameter
+   * inside a multi-parameter method or constructor.
+   *
+   * Unlike [[schema]] which describes the top-level payload structure,
+   * `elementSchema` describes the type as a single element — analogous
+   * to Rust SDK's `Schema::get_type().get_element_schema()`.
+   *
+   * Default: extracts the single element from a 1-element tuple schema.
+   */
+  def elementSchema: ElementSchema =
+    schema match {
+      case StructuredSchema.Tuple(elem :: Nil) => elem.schema
+      case other =>
+        throw new UnsupportedOperationException(s"Type cannot be used as a single element parameter: $other")
+    }
+
+  /**
+   * Encodes a value as a single element (for use as one parameter among many).
+   *
+   * Default: encodes to structured value and extracts the single element.
+   */
+  def encodeElement(value: A): Either[String, ElementValue] =
+    encode(value).flatMap {
+      case StructuredValue.Tuple(NamedElementValue(_, elem) :: Nil) => Right(elem)
+      case other => Left(s"Expected single-element structured value, found: $other")
+    }
+
+  /**
+   * Decodes a single element value back to a Scala type.
+   *
+   * Default: wraps in a single-element structured value and decodes.
+   */
+  def decodeElement(value: ElementValue): Either[String, A] =
+    decode(StructuredValue.single(value))
 }
 
 /**
@@ -67,6 +105,15 @@ object GolemSchema {
           case other                                               =>
             Left(s"Expected empty tuple for Unit payload, found: ${other.getClass.getSimpleName}")
         }
+
+      override val elementSchema: ElementSchema =
+        ElementSchema.Component(DataType.TupleType(Nil))
+
+      override def encodeElement(value: Unit): Either[String, ElementValue] =
+        Right(ElementValue.Component(DataValue.TupleValue(Nil)))
+
+      override def decodeElement(value: ElementValue): Either[String, Unit] =
+        Right(())
     }
 
   /**
@@ -140,6 +187,27 @@ object GolemSchema {
           case StructuredValue.Multimodal(_) =>
             Left("Multimodal payload cannot be decoded as component-model value")
         }
+
+      override val elementSchema: ElementSchema =
+        ElementSchema.Component(DataType.TupleType(List(aDt, bDt)))
+
+      override def encodeElement(value: (A, B)): Either[String, ElementValue] = {
+        val (a, b) = value
+        val av     = DataInterop.toData[A](a)(aSchema)
+        val bv     = DataInterop.toData[B](b)(bSchema)
+        Right(ElementValue.Component(DataValue.TupleValue(List(av, bv))))
+      }
+
+      override def decodeElement(value: ElementValue): Either[String, (A, B)] =
+        value match {
+          case ElementValue.Component(DataValue.TupleValue(List(av, bv))) =>
+            for {
+              a <- DataInterop.fromData[A](av)(aSchema)
+              b <- DataInterop.fromData[B](bv)(bSchema)
+            } yield (a, b)
+          case other =>
+            Left(s"Expected component TupleValue for Tuple2, found: ${other.getClass.getSimpleName}")
+        }
     }
 
   implicit def tuple3GolemSchema[A: Schema, B: Schema, C: Schema]: GolemSchema[(A, B, C)] =
@@ -205,6 +273,29 @@ object GolemSchema {
           case StructuredValue.Multimodal(_) =>
             Left("Multimodal payload cannot be decoded as component-model value")
         }
+
+      override val elementSchema: ElementSchema =
+        ElementSchema.Component(DataType.TupleType(List(aDt, bDt, cDt)))
+
+      override def encodeElement(value: (A, B, C)): Either[String, ElementValue] = {
+        val (a, b, c) = value
+        val av        = DataInterop.toData[A](a)(aSchema)
+        val bv        = DataInterop.toData[B](b)(bSchema)
+        val cv        = DataInterop.toData[C](c)(cSchema)
+        Right(ElementValue.Component(DataValue.TupleValue(List(av, bv, cv))))
+      }
+
+      override def decodeElement(value: ElementValue): Either[String, (A, B, C)] =
+        value match {
+          case ElementValue.Component(DataValue.TupleValue(List(av, bv, cv))) =>
+            for {
+              a <- DataInterop.fromData[A](av)(aSchema)
+              b <- DataInterop.fromData[B](bv)(bSchema)
+              c <- DataInterop.fromData[C](cv)(cSchema)
+            } yield (a, b, c)
+          case other =>
+            Left(s"Expected component TupleValue for Tuple3, found: ${other.getClass.getSimpleName}")
+        }
     }
 
   /**
@@ -238,6 +329,20 @@ object GolemSchema {
           }
         case StructuredValue.Multimodal(_) =>
           Left("Multimodal payload cannot be decoded as component-model value")
+      }
+
+    override val elementSchema: ElementSchema =
+      ElementSchema.Component(dataType)
+
+    override def encodeElement(value: A): Either[String, ElementValue] =
+      Right(ElementValue.Component(DataInterop.toData[A](value)(baseSchema)))
+
+    override def decodeElement(value: ElementValue): Either[String, A] =
+      value match {
+        case ElementValue.Component(dataValue) =>
+          DataInterop.fromData[A](dataValue)(baseSchema)
+        case other =>
+          Left(s"Expected component-model value, found: ${other.getClass.getSimpleName}")
       }
   }
 }

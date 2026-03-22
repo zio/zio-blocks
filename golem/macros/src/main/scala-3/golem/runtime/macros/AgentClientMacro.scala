@@ -214,27 +214,14 @@ object AgentClientMacro {
     }
   }
 
-  private def elementSchemaExpr(using Quotes)(paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
+  private def elementSchemaExpr(using Quotes)(@scala.annotation.unused paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
     import quotes.reflect.*
 
     tpe.asType match {
       case '[t] =>
         Expr.summon[GolemSchema[t]] match {
           case Some(schemaExpr) =>
-            '{
-              $schemaExpr.schema match {
-                case StructuredSchema.Tuple(elements) if elements.length == 1 =>
-                  elements.head.schema
-                case StructuredSchema.Tuple(_) =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} expands to multiple elements; wrap it in a case class"
-                  )
-                case StructuredSchema.Multimodal(_) =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} is multimodal; use a single multimodal wrapper parameter"
-                  )
-              }
-            }
+            '{ $schemaExpr.elementSchema }
           case None =>
             report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
@@ -376,14 +363,7 @@ object AgentClientMacro {
           var idx     = 0
           while (idx < params.length) {
             val (paramName, codec) = params(idx)
-            codec.schema match {
-              case _root_.golem.data.StructuredSchema.Tuple(elements) if elements.length == 1 =>
-                builder += _root_.golem.data.NamedElementSchema(paramName, elements.head.schema)
-              case other =>
-                throw new IllegalArgumentException(
-                  s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element, found: $other"
-                )
-            }
+            builder += _root_.golem.data.NamedElementSchema(paramName, codec.elementSchema)
             idx += 1
           }
           _root_.golem.data.StructuredSchema.Tuple(builder.result())
@@ -399,22 +379,11 @@ object AgentClientMacro {
             var idx     = 0
             while (idx < params.length) {
               val (paramName, codec) = params(idx)
-              codec.encode(value(idx)) match {
+              codec.encodeElement(value(idx)) match {
                 case Left(err) =>
                   return Left(s"Failed to encode parameter '$paramName' in method '${$methodNameExpr}': $err")
-                case Right(_root_.golem.data.StructuredValue.Tuple(elements)) =>
-                  elements match {
-                    case _root_.golem.data.NamedElementValue(_, elementValue) :: Nil =>
-                      builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
-                    case _ =>
-                      return Left(
-                        s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element value"
-                      )
-                  }
-                case Right(other) =>
-                  return Left(
-                    s"Parameter '$paramName' in method '${$methodNameExpr}' produced unexpected structured value: $other"
-                  )
+                case Right(elementValue) =>
+                  builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
               }
               idx += 1
             }
@@ -443,7 +412,7 @@ object AgentClientMacro {
                       s"Structured element name mismatch for method '${$methodNameExpr}'. Expected '$paramName', found '${element.name}'"
                     )
                   else {
-                    codec.decode(_root_.golem.data.StructuredValue.single(element.value)) match {
+                    codec.decodeElement(element.value) match {
                       case Left(err) =>
                         failure = Some(s"Failed to decode parameter '$paramName' in method '${$methodNameExpr}': $err")
                       case Right(decoded) =>
@@ -458,6 +427,15 @@ object AgentClientMacro {
             case other =>
               Left(s"Structured value mismatch for method '${$methodNameExpr}'. Expected tuple payload, found: $other")
           }
+
+        override def elementSchema: _root_.golem.data.ElementSchema =
+          throw new UnsupportedOperationException("Multi-param schema cannot be used as a single element")
+
+        override def encodeElement(value: Vector[Any]): Either[String, _root_.golem.data.ElementValue] =
+          Left("Multi-param schema cannot be encoded as a single element")
+
+        override def decodeElement(value: _root_.golem.data.ElementValue): Either[String, Vector[Any]] =
+          Left("Multi-param schema cannot be decoded from a single element")
       }
     }
   }

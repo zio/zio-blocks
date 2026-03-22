@@ -64,6 +64,32 @@ trait InventoryAgent extends BaseAgent[(String, Int)] {
 object InventoryAgent extends AgentCompanion[InventoryAgent, (String, Int)]
 
 // ---------------------------------------------------------------------------
+// Case class constructor: BaseAgent[CatalogParams]
+//
+// Mount path variables match the case class field names: {region}, {catalog}.
+// GolemSchema flattens case class fields into individual constructor elements.
+// ---------------------------------------------------------------------------
+final case class CatalogParams(region: String, catalog: String)
+object CatalogParams {
+  implicit val schema: zio.blocks.schema.Schema[CatalogParams] = zio.blocks.schema.Schema.derived
+}
+
+@agentDefinition(mount = "/api/catalog/{region}/{catalog}")
+@description("A catalog agent demonstrating case-class constructor parameters")
+trait CatalogAgent extends BaseAgent[CatalogParams] {
+
+  @endpoint(method = "GET", path = "/search?q={query}")
+  @description("Search the catalog")
+  def search(query: String): Future[String]
+
+  @endpoint(method = "GET", path = "/item/{itemId}")
+  @description("Get a specific item")
+  def getItem(itemId: String): Future[String]
+}
+
+object CatalogAgent extends AgentCompanion[CatalogAgent, CatalogParams]
+
+// ---------------------------------------------------------------------------
 // Phantom agent with webhook suffix
 // ---------------------------------------------------------------------------
 @agentDefinition(

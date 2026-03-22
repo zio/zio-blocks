@@ -110,6 +110,15 @@ object TextSegment {
           case other =>
             Left(s"Expected unstructured-text element, found $other")
         }
+
+      override def elementSchema: ElementSchema =
+        throw new UnsupportedOperationException("Unstructured types cannot be used as a single element parameter")
+
+      override def encodeElement(value: TextSegment[Lang]): Either[String, ElementValue] =
+        Left("Unstructured types cannot be encoded as a single element")
+
+      override def decodeElement(value: ElementValue): Either[String, TextSegment[Lang]] =
+        Left("Unstructured types cannot be decoded from a single element")
     }
 }
 
@@ -172,5 +181,14 @@ object BinarySegment {
           case other =>
             Left(s"Expected unstructured-binary element, found $other")
         }
+
+      override def elementSchema: ElementSchema =
+        throw new UnsupportedOperationException("Unstructured types cannot be used as a single element parameter")
+
+      override def encodeElement(value: BinarySegment[Descriptor]): Either[String, ElementValue] =
+        Left("Unstructured types cannot be encoded as a single element")
+
+      override def decodeElement(value: ElementValue): Either[String, BinarySegment[Descriptor]] =
+        Left("Unstructured types cannot be decoded from a single element")
     }
 }

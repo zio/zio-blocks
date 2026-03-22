@@ -41,6 +41,16 @@ final class InventoryAgentImpl(
 }
 
 @agentImplementation()
+final class CatalogAgentImpl(@unused private val params: CatalogParams) extends CatalogAgent {
+
+  override def search(query: String): Future[String] =
+    Future.successful(s"Searching ${params.catalog} in ${params.region} for '$query'")
+
+  override def getItem(itemId: String): Future[String] =
+    Future.successful(s"Item $itemId from ${params.catalog} in ${params.region}")
+}
+
+@agentImplementation()
 final class WebhookAgentImpl(@unused private val key: String) extends WebhookAgent {
   override def receive(payload: String): Future[String] =
     Future.successful(s"Received: $payload")

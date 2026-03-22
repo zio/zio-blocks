@@ -267,14 +267,7 @@ object AgentImplementationMacroImpl {
           var idx = 0
           while (idx < params.length) {
             val (paramName, codec) = params(idx)
-            codec.schema match {
-              case _root_.golem.data.StructuredSchema.Tuple(elements) if elements.length == 1 =>
-                builder += _root_.golem.data.NamedElementSchema(paramName, elements.head.schema)
-              case other =>
-                throw new IllegalArgumentException(
-                  "Parameter '" + paramName + "' in method '" + $methodName + "' must encode to a single element, found: " + other
-                )
-            }
+            builder += _root_.golem.data.NamedElementSchema(paramName, codec.elementSchema)
             idx += 1
           }
           _root_.golem.data.StructuredSchema.Tuple(builder.result())
@@ -290,18 +283,11 @@ object AgentImplementationMacroImpl {
             var error: Option[String] = None
             while (idx < params.length && error.isEmpty) {
               val (paramName, codec) = params(idx)
-              codec.encode(values(idx)) match {
+              codec.encodeElement(values(idx)) match {
                 case Left(err) =>
                   error = Some("Failed to encode parameter '" + paramName + "' in method '" + $methodName + "': " + err)
-                case Right(_root_.golem.data.StructuredValue.Tuple(elements)) =>
-                  elements match {
-                    case _root_.golem.data.NamedElementValue(_, elementValue) :: Nil =>
-                      builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
-                    case _ =>
-                      error = Some("Parameter '" + paramName + "' in method '" + $methodName + "' must encode to a single element value")
-                  }
-                case Right(other) =>
-                  error = Some("Parameter '" + paramName + "' in method '" + $methodName + "' produced unexpected structured value: " + other)
+                case Right(elementValue) =>
+                  builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
               }
               idx += 1
             }
@@ -326,7 +312,7 @@ object AgentImplementationMacroImpl {
                   if (element.name != paramName)
                     error = Some("Structured element name mismatch for method '" + $methodName + "'. Expected '" + paramName + "', found '" + element.name + "'")
                   else {
-                    codec.decode(_root_.golem.data.StructuredValue.single(element.value)) match {
+                    codec.decodeElement(element.value) match {
                       case Left(err) =>
                         error = Some("Failed to decode parameter '" + paramName + "' in method '" + $methodName + "': " + err)
                       case Right(decoded) =>
@@ -340,6 +326,15 @@ object AgentImplementationMacroImpl {
             case other =>
               Left("Structured value mismatch for method '" + $methodName + "'. Expected tuple payload, found: " + other)
           }
+
+        override def elementSchema: _root_.golem.data.ElementSchema =
+          throw new UnsupportedOperationException("Multi-param schema cannot be used as a single element")
+
+        override def encodeElement(value: List[Any]): Either[String, _root_.golem.data.ElementValue] =
+          Left("Multi-param schema cannot be encoded as a single element")
+
+        override def decodeElement(value: _root_.golem.data.ElementValue): Either[String, List[Any]] =
+          Left("Multi-param schema cannot be decoded from a single element")
       }
     """
   }

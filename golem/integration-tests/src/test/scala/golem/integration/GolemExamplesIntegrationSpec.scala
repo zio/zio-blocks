@@ -138,8 +138,15 @@ object GolemServer {
                val golemTemp = new File(examplesDir, "golem-temp")
                if (golemTemp.exists()) {
                  def deleteRecursive(f: File): Unit = {
-                   if (f.isDirectory) Option(f.listFiles()).getOrElse(Array.empty[File]).foreach(deleteRecursive)
-                   f.delete()
+                   val path = f.toPath
+                   if (java.nio.file.Files.isSymbolicLink(path)) {
+                     java.nio.file.Files.delete(path)
+                   } else if (f.isDirectory) {
+                     Option(f.listFiles()).getOrElse(Array.empty[File]).foreach(deleteRecursive)
+                     f.delete()
+                   } else {
+                     f.delete()
+                   }
                  }
                  deleteRecursive(golemTemp)
                }
@@ -632,8 +639,28 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     }
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
+  // ---------------------------------------------------------------------------
+  // CatalogAgent: case class constructor (BaseAgent[CatalogParams])
+  // Mount: /api/catalog/{region}/{catalog}  — field names from case class
+  // ---------------------------------------------------------------------------
+  private val catalogTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("http-catalog-search") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/catalog/us-east/electronics/search?q=laptop")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("electronics") && body.contains("us-east") && body.contains("laptop"))
+    },
+
+    test("http-catalog-item") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/catalog/us-east/electronics/item/prod-123")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("prod-123") && body.contains("electronics") && body.contains("us-east"))
+    }
+  ).map(_ @@ TestAspect.timeout(60.seconds))
+
   private val httpTests: Seq[Spec[GolemServer, Throwable]] =
-    weatherTests ++ inventoryTests
+    weatherTests ++ inventoryTests ++ catalogTests
 
   override def spec: Spec[GolemServer, Any] =
     suite("GolemExamplesIntegrationSpec")(
