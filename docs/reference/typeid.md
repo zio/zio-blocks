@@ -1173,7 +1173,7 @@ Methods for type erasure, runtime class lookup, and reflective construction.
 
 #### `erased` — Erase Type Parameter
 
-Erases the phantom type parameter, returning a `TypeId.Erased` (alias for `TypeId[TypeId.Unknown]`). Use this when storing TypeIds in type-indexed maps.
+Erases the phantom type parameter, returning a `TypeId.Erased` (alias for `TypeId[TypeId.Unknown]`). This is useful when you need to store heterogeneous `TypeId` values in a collection or a type-indexed map, where the exact type parameter is unknown or irrelevant at the storage site.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1181,14 +1181,21 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Different types can be stored together once erased:
+
 ```scala mdoc
-val erased: TypeId.Erased = TypeId.int.erased
-erased
+val ids: List[TypeId.Erased] = List(
+  TypeId.of[Int].erased,
+  TypeId.of[String].erased,
+  TypeId.of[Boolean].erased
+)
+
+ids.map(_.name)
 ```
 
 #### `classTag` — Runtime ClassTag
 
-Returns a `ClassTag` for this type. Returns the correct primitive `ClassTag` for Scala primitive types and `ClassTag.AnyRef` for all reference types. Useful for creating properly-typed arrays at runtime.
+Returns a `ClassTag` for this type. Returns the correct primitive `ClassTag` for Scala primitive types (`Int`, `Long`, `Boolean`, etc.) and `ClassTag.AnyRef` for all reference types. This is useful when you need to create properly-typed arrays or work with generic collections that require implicit `ClassTag` evidence at runtime.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1196,9 +1203,21 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Primitive types get their dedicated `ClassTag`; reference types get `AnyRef`:
+
+```scala mdoc
+// Primitive types have dedicated ClassTags
+TypeId.of[Int].classTag
+TypeId.of[Boolean].classTag
+
+// Reference types use ClassTag.AnyRef
+TypeId.of[String].classTag
+TypeId.of[List[Int]].classTag
+```
+
 #### `clazz` — Runtime Class
 
-Returns the runtime `Class[_]` for this type (on the JVM only). On Scala.js, `clazz` returns `None` for all types since JVM reflection is unavailable. On the JVM, it returns `None` for alias and opaque TypeIds, and `Some(Class[_])` for nominal and applied types.
+Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque `TypeId`s. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1206,13 +1225,23 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+```scala
+// JVM only
+TypeId.of[String].clazz   // Some(class java.lang.String)
+TypeId.of[Int].clazz      // Some(int)
+TypeId.of[List[Int]].clazz // Some(class scala.collection.immutable.List)
+
+type Age = Int
+TypeId.of[Age].clazz      // None — aliases have no runtime class
+```
+
 :::note
-The JVM behavior (returning the correct `Class[_]` for nominal and applied types) is verified by test annotations like `@jvmOnly`. On Scala.js, the method always returns `None`.
+On Scala.js, `clazz` always returns `None`. Use `classTag` instead when you need cross-platform runtime type information.
 :::
 
 #### `construct` — Reflective Construction
 
-Constructs an instance using the primary constructor on the JVM, or returns `Left` with an error message on Scala.js or when construction fails.
+Constructs an instance using the primary constructor on the JVM by passing constructor arguments as a `Chunk[AnyRef]`. Returns `Left` with an error message on Scala.js or when construction fails (wrong argument count, wrong types, or abstract types). Primitive values must be explicitly boxed since the argument type is `AnyRef`.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1220,13 +1249,13 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Primitive values must be explicitly boxed when passed to `construct`. In Scala 2, unboxed primitives like `30` do not auto-box to `AnyRef`:
-
 ```scala
-// JVM example (not runnable in mdoc due to platform specificity)
-val personId = TypeId.of[Person]
-personId.clazz            // Some(class Person) on JVM, None on Scala.js
-personId.construct(Chunk("Alice", 30: Integer))  // Right(Person(Alice,30)) on JVM
+// JVM only
+case class User(name: String, age: Int)
+
+val userId = TypeId.of[User]
+userId.construct(Chunk("Alice", 30: Integer))  // Right(User(Alice,30))
+userId.construct(Chunk("Bob"))                 // Left(...) — wrong argument count
 ```
 
 :::note
