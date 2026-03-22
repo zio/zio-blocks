@@ -1102,26 +1102,32 @@ Parents with type arguments are captured in the TypeRepr:
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-// A generic parent type with concrete type arguments
-case class StringList() extends scala.collection.mutable.ListBuffer[String]
+// A generic trait with type parameters
+trait Container[T] {
+  def get: T
+}
 
-// A type with multiple generic parents
-case class Entry[K, V](key: K, value: V) extends scala.collection.Map[K, V] {
-  def iterator = Iterator((key, value))
-  def get(k: K) = if (k == key) Some(value) else None
+// A case class that extends a generic trait with concrete type argument
+case class StringBox(value: String) extends Container[String] {
+  def get: String = value
+}
+
+// A case class with type parameters extending a generic trait
+case class GenericBox[T](value: T) extends Container[T] {
+  def get: T = value
 }
 ```
 
 Parents preserve type argument information:
 
 ```scala mdoc
-val stringListId = TypeId.of[StringList]
-// StringList extends ListBuffer[String] - the type argument is captured
-stringListId.parents
+val stringBoxId = TypeId.of[StringBox]
+// StringBox extends Container[String] - the type argument is captured
+stringBoxId.parents
 
-val entryId = TypeId.of[Entry[String, Int]]
-// Entry[String, Int] extends Map[String, Int] - type arguments are preserved
-entryId.parents
+val genericBoxId = TypeId.of[GenericBox[Int]]
+// GenericBox[Int] extends Container[Int] - type arguments are preserved
+genericBoxId.parents
 ```
 
 :::note
