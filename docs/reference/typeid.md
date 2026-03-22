@@ -1051,6 +1051,33 @@ mallardId.parents
 mallardId.parents.size
 ```
 
+Parents with type arguments are captured in the TypeRepr:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// A generic parent type with concrete type arguments
+case class StringList() extends scala.collection.mutable.ListBuffer[String]
+
+// A type with multiple generic parents
+case class Entry[K, V](key: K, value: V) extends scala.collection.Map[K, V] {
+  def iterator = Iterator((key, value))
+  def get(k: K) = if (k == key) Some(value) else None
+}
+```
+
+Parents preserve type argument information:
+
+```scala mdoc
+val stringListId = TypeId.of[StringList]
+// StringList extends ListBuffer[String] - the type argument is captured
+stringListId.parents
+
+val entryId = TypeId.of[Entry[String, Int]]
+// Entry[String, Int] extends Map[String, Int] - type arguments are preserved
+entryId.parents
+```
+
 :::note
 The `parents` method returns only **direct parents**, not the full inheritance hierarchy. To traverse the complete hierarchy, use `isSubtypeOf` or examine the type definition with `defKind`. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., if a parent is a generic type like `List[String]`).
 :::
