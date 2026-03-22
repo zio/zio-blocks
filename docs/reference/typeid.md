@@ -929,13 +929,9 @@ dogId.isSupertypeOf(mammalId)
 fishId.isSupertypeOf(mammalId)
 ```
 
-Contravariant type constructors reverse subtyping relationships:
-
-```scala mdoc
-// Function that accepts Mammal is a supertype of function that accepts Dog
-// Because you can pass a Dog-specific function where a general Mammal function is expected
-TypeId.of[Mammal => String].isSupertypeOf(TypeId.of[Dog => String])
-```
+:::note
+**Limitation:** TypeId's subtyping checks currently do not handle contravariance in function types. In type theory, `Mammal => String` should be a supertype of `Dog => String` due to contravariance of input parameters, but `isSupertypeOf` returns `false` for function types with subtype relationships. For practical purposes, rely on `isSupertypeOf` for class and trait hierarchies rather than complex generic type relationships.
+:::
 
 #### `isEquivalentTo` — Check Type Equivalence
 
