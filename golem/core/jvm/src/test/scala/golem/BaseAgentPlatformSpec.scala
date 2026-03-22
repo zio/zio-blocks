@@ -1,16 +1,24 @@
 package golem
 
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
+import zio.test._
 
-class BaseAgentPlatformSpec extends AnyFunSuite with Matchers {
-  test("BaseAgentPlatform accessors throw on JVM") {
-    val ex1 = intercept[UnsupportedOperationException](BaseAgentPlatform.agentId)
-    val ex2 = intercept[UnsupportedOperationException](BaseAgentPlatform.agentType)
-    val ex3 = intercept[UnsupportedOperationException](BaseAgentPlatform.agentName)
+import scala.util.Try
 
-    ex1.getMessage.should(include("BaseAgent is only available"))
-    ex2.getMessage.should(include("BaseAgent is only available"))
-    ex3.getMessage.should(include("BaseAgent is only available"))
-  }
+object BaseAgentPlatformSpec extends ZIOSpecDefault {
+  def spec = suite("BaseAgentPlatformSpec")(
+    test("BaseAgentPlatform accessors throw on JVM") {
+      val ex1 = Try(BaseAgentPlatform.agentId).failed.get
+      val ex2 = Try(BaseAgentPlatform.agentType).failed.get
+      val ex3 = Try(BaseAgentPlatform.agentName).failed.get
+
+      assertTrue(
+        ex1.isInstanceOf[UnsupportedOperationException],
+        ex1.getMessage.contains("BaseAgent is only available"),
+        ex2.isInstanceOf[UnsupportedOperationException],
+        ex2.getMessage.contains("BaseAgent is only available"),
+        ex3.isInstanceOf[UnsupportedOperationException],
+        ex3.getMessage.contains("BaseAgent is only available")
+      )
+    }
+  )
 }

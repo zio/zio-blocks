@@ -871,7 +871,8 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   .settings(
     publish / skip := true,
     libraryDependencies ++= Seq(
-      "org.scalatest" %%% "scalatest" % "3.2.19" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     // Match zioGolemModel/macros: compile per-Scala-version sources from src/main/scala-2 and src/main/scala-3.
     Compile / unmanagedSourceDirectories ++= {
@@ -928,7 +929,8 @@ lazy val zioGolemTools = project
     fork           := true,
     libraryDependencies ++= Seq(
       "com.lihaoyi"   %% "ujson"                 % "3.1.0",
-      "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
+      "dev.zio"       %% "zio-test"              % "2.1.24" % Test,
+      "dev.zio"       %% "zio-test-sbt"          % "2.1.24" % Test,
       "dev.zio"       %% "zio-schema"            % "1.8.3"  % Test,
       "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
     )
@@ -977,11 +979,14 @@ lazy val zioGolemIntegrationTests = project
     publish / skip            := true,
     Test / fork               := true,
     Test / parallelExecution  := false,
-    Test / testFrameworks     := Seq(new TestFramework("org.scalatest.tools.Framework")),
     Test / javaOptions ++= sys.env.get("GOLEM_TS_PACKAGES_PATH")
       .map(v => s"-Dgolem.tsPackagesPath=$v").toSeq,
+    Test / envVars ++= sys.env.get("GOLEM_TS_PACKAGES_PATH")
+      .map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v)).getOrElse(Map.empty),
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.19" % Test
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test,
+      "dev.zio" %% "zio-process"  % "0.8.0"  % Test
     )
   )
 

@@ -65,6 +65,26 @@ private[rpc] object RpcValueCodec {
   def decodeValue[A](witValue: JsWitValue)(implicit codec: GolemSchema[A]): Either[String, A] =
     structuredFromWit(codec.schema, witValue).flatMap(codec.decode)
 
+  def decodeResult[A](dataValue: JsDataValue)(implicit codec: GolemSchema[A]): Either[String, A] =
+    dataValue.tag match {
+      case "tuple" =>
+        val elements = dataValue.asInstanceOf[JsDataValueTuple].value
+        if (elements.length != 1)
+          Left(s"Expected single-element tuple result, found ${elements.length} elements")
+        else {
+          val elem = elements(0)
+          elem.tag match {
+            case "component-model" =>
+              val witValue = elem.asInstanceOf[JsElementValueComponentModel].value
+              decodeValue[A](witValue)
+            case other =>
+              Left(s"Expected component-model element, found $other")
+          }
+        }
+      case other =>
+        Left(s"Expected tuple data value for result, found $other")
+    }
+
   private def structuredToDataValue(
     schema: StructuredSchema,
     value: StructuredValue

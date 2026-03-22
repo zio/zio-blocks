@@ -2,11 +2,11 @@ package golem.host
 
 import golem.HostApi
 import golem.runtime.rpc.host.AgentHostApi
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
 import scala.scalajs.js
 
-class OplogApiCompileSpec extends AnyFunSuite {
+object OplogApiCompileSpec extends ZIOSpecDefault {
   import OplogApi._
 
   private val ts        = ContextApi.DateTime(BigInt(1700000000L), 500000000L)
@@ -189,54 +189,55 @@ class OplogApiCompileSpec extends AnyFunSuite {
     )
   }
 
-  test("all 37 OplogEntry variants constructed") {
-    val distinctTags = allEntries.map(describeEntry).map(_.takeWhile(_ != '(')).distinct
-    assert(distinctTags.size >= 37)
-  }
-
-  test("exhaustive OplogEntry match compiles") {
-    allEntries.foreach(e => assert(describeEntry(e).nonEmpty))
-  }
-
-  test("every entry has timestamp") {
-    allEntries.foreach(e => assert(e.timestamp.seconds >= BigInt(0)))
-  }
-
-  test("SpanData exhaustive match") {
-    spanDatas.foreach {
-      case SpanData.LocalSpan(d)    => assert(d.spanId.nonEmpty)
-      case SpanData.ExternalSpan(d) => assert(d.spanId.nonEmpty)
+  def spec = suite("OplogApiCompileSpec")(
+    test("all 37 OplogEntry variants constructed") {
+      val distinctTags = allEntries.map(describeEntry).map(_.takeWhile(_ != '(')).distinct
+      assertTrue(distinctTags.size >= 37)
+    },
+    test("exhaustive OplogEntry match compiles") {
+      allEntries.foreach(e => Predef.assert(describeEntry(e).nonEmpty))
+      assertCompletes
+    },
+    test("every entry has timestamp") {
+      allEntries.foreach(e => Predef.assert(e.timestamp.seconds >= BigInt(0)))
+      assertCompletes
+    },
+    test("SpanData exhaustive match") {
+      spanDatas.foreach {
+        case SpanData.LocalSpan(d)    => Predef.assert(d.spanId.nonEmpty)
+        case SpanData.ExternalSpan(d) => Predef.assert(d.spanId.nonEmpty)
+      }
+      assertCompletes
+    },
+    test("AgentInvocation exhaustive match") {
+      agentInvocations.foreach {
+        case AgentInvocation.ExportedFunction(p) => Predef.assert(p.functionName.nonEmpty)
+        case AgentInvocation.ManualUpdate(rev)   => Predef.assert(rev > 0)
+      }
+      assertCompletes
+    },
+    test("UpdateDescription exhaustive match") {
+      updateDescs.foreach {
+        case UpdateDescription.AutoUpdate       => Predef.assert(true)
+        case UpdateDescription.SnapshotBased(d) => Predef.assert(d.nonEmpty)
+      }
+      assertCompletes
+    },
+    test("LogLevel exhaustive match") {
+      logLevels.foreach(l => Predef.assert(describeLogLevel(l).nonEmpty))
+      assertTrue(logLevels.size == 8)
+    },
+    test("supporting record construction") {
+      assertTrue(
+        pluginDesc.name == "plug",
+        oplogRegion.start == BigInt(0),
+        localSpan.spanId == "span1",
+        externalSpan.spanId == "span2"
+      )
+    },
+    test("OplogIndex type alias") {
+      val idx: OplogIndex = BigInt(99)
+      assertTrue(idx == BigInt(99))
     }
-  }
-
-  test("AgentInvocation exhaustive match") {
-    agentInvocations.foreach {
-      case AgentInvocation.ExportedFunction(p) => assert(p.functionName.nonEmpty)
-      case AgentInvocation.ManualUpdate(rev)   => assert(rev > 0)
-    }
-  }
-
-  test("UpdateDescription exhaustive match") {
-    updateDescs.foreach {
-      case UpdateDescription.AutoUpdate       => assert(true)
-      case UpdateDescription.SnapshotBased(d) => assert(d.nonEmpty)
-    }
-  }
-
-  test("LogLevel exhaustive match") {
-    assert(logLevels.size == 8)
-    logLevels.foreach(l => assert(describeLogLevel(l).nonEmpty))
-  }
-
-  test("supporting record construction") {
-    assert(pluginDesc.name == "plug")
-    assert(oplogRegion.start == BigInt(0))
-    assert(localSpan.spanId == "span1")
-    assert(externalSpan.spanId == "span2")
-  }
-
-  test("OplogIndex type alias") {
-    val idx: OplogIndex = BigInt(99)
-    assert(idx == BigInt(99))
-  }
+  )
 }

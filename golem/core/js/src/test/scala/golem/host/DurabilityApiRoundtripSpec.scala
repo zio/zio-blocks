@@ -2,127 +2,149 @@ package golem.host
 
 import golem.HostApi
 import golem.host.js._
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
+import zio.test._
 
 import scala.scalajs.js
 
-class DurabilityApiRoundtripSpec extends AnyFunSuite with Matchers {
+object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
   import DurabilityApi._
 
-  // --- DurableFunctionType round-trips ---
+  def spec = suite("DurabilityApiRoundtripSpec")(
+    // --- DurableFunctionType round-trips ---
 
-  test("ReadLocal round-trip") {
-    val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadLocal)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "read-local"
-    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.ReadLocal
-  }
+    test("ReadLocal round-trip") {
+      val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadLocal)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "read-local",
+        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.ReadLocal
+      )
+    },
 
-  test("WriteLocal round-trip") {
-    val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteLocal)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-local"
-    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.WriteLocal
-  }
+    test("WriteLocal round-trip") {
+      val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteLocal)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-local",
+        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.WriteLocal
+      )
+    },
 
-  test("ReadRemote round-trip") {
-    val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadRemote)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "read-remote"
-    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.ReadRemote
-  }
+    test("ReadRemote round-trip") {
+      val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadRemote)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "read-remote",
+        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.ReadRemote
+      )
+    },
 
-  test("WriteRemote round-trip") {
-    val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteRemote)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote"
-    DurableFunctionType.fromJs(jsVal) shouldBe DurableFunctionType.WriteRemote
-  }
+    test("WriteRemote round-trip") {
+      val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteRemote)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote",
+        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.WriteRemote
+      )
+    },
 
-  test("WriteRemoteBatched with None round-trip") {
-    val ft    = DurableFunctionType.WriteRemoteBatched(None)
-    val jsVal = DurableFunctionType.toJs(ft)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote-batched"
-    DurableFunctionType.fromJs(jsVal) shouldBe ft
-  }
+    test("WriteRemoteBatched with None round-trip") {
+      val ft    = DurableFunctionType.WriteRemoteBatched(None)
+      val jsVal = DurableFunctionType.toJs(ft)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote-batched",
+        DurableFunctionType.fromJs(jsVal) == ft
+      )
+    },
 
-  test("WriteRemoteBatched with Some round-trip") {
-    val ft     = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
-    val jsVal  = DurableFunctionType.toJs(ft)
-    val parsed = DurableFunctionType.fromJs(jsVal)
-    parsed shouldBe a[DurableFunctionType.WriteRemoteBatched]
-    parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin shouldBe Some(BigInt(42))
-  }
+    test("WriteRemoteBatched with Some round-trip") {
+      val ft     = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
+      val jsVal  = DurableFunctionType.toJs(ft)
+      val parsed = DurableFunctionType.fromJs(jsVal)
+      assertTrue(
+        parsed.isInstanceOf[DurableFunctionType.WriteRemoteBatched],
+        parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin == Some(BigInt(42))
+      )
+    },
 
-  test("WriteRemoteTransaction with None round-trip") {
-    val ft    = DurableFunctionType.WriteRemoteTransaction(None)
-    val jsVal = DurableFunctionType.toJs(ft)
-    jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] shouldBe "write-remote-transaction"
-    DurableFunctionType.fromJs(jsVal) shouldBe ft
-  }
+    test("WriteRemoteTransaction with None round-trip") {
+      val ft    = DurableFunctionType.WriteRemoteTransaction(None)
+      val jsVal = DurableFunctionType.toJs(ft)
+      assertTrue(
+        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote-transaction",
+        DurableFunctionType.fromJs(jsVal) == ft
+      )
+    },
 
-  test("WriteRemoteTransaction with Some round-trip") {
-    val ft     = DurableFunctionType.WriteRemoteTransaction(Some(BigInt(100)))
-    val jsVal  = DurableFunctionType.toJs(ft)
-    val parsed = DurableFunctionType.fromJs(jsVal)
-    parsed shouldBe a[DurableFunctionType.WriteRemoteTransaction]
-    parsed.asInstanceOf[DurableFunctionType.WriteRemoteTransaction].begin shouldBe Some(BigInt(100))
-  }
+    test("WriteRemoteTransaction with Some round-trip") {
+      val ft     = DurableFunctionType.WriteRemoteTransaction(Some(BigInt(100)))
+      val jsVal  = DurableFunctionType.toJs(ft)
+      val parsed = DurableFunctionType.fromJs(jsVal)
+      assertTrue(
+        parsed.isInstanceOf[DurableFunctionType.WriteRemoteTransaction],
+        parsed.asInstanceOf[DurableFunctionType.WriteRemoteTransaction].begin == Some(BigInt(100))
+      )
+    },
 
-  test("unknown DurableFunctionType tag throws") {
-    val raw = js.Dynamic.literal(tag = "unknown")
-    an[IllegalArgumentException] should be thrownBy DurableFunctionType.fromJs(raw.asInstanceOf[JsWrappedFunctionType])
-  }
+    test("unknown DurableFunctionType tag throws") {
+      val raw = js.Dynamic.literal(tag = "unknown")
+      assertTrue(scala.util.Try(DurableFunctionType.fromJs(raw.asInstanceOf[JsWrappedFunctionType])).isFailure)
+    },
 
-  // --- OplogEntryVersion ---
+    // --- OplogEntryVersion ---
 
-  test("OplogEntryVersion.fromString v1") {
-    OplogEntryVersion.fromString("v1") shouldBe OplogEntryVersion.V1
-  }
+    test("OplogEntryVersion.fromString v1") {
+      assertTrue(OplogEntryVersion.fromString("v1") == OplogEntryVersion.V1)
+    },
 
-  test("OplogEntryVersion.fromString v2") {
-    OplogEntryVersion.fromString("v2") shouldBe OplogEntryVersion.V2
-  }
+    test("OplogEntryVersion.fromString v2") {
+      assertTrue(OplogEntryVersion.fromString("v2") == OplogEntryVersion.V2)
+    },
 
-  test("OplogEntryVersion.fromString unknown defaults to V1") {
-    OplogEntryVersion.fromString("v3") shouldBe OplogEntryVersion.V1
-  }
+    test("OplogEntryVersion.fromString unknown defaults to V1") {
+      assertTrue(OplogEntryVersion.fromString("v3") == OplogEntryVersion.V1)
+    },
 
-  // --- DurableExecutionState from mock js.Dynamic ---
+    // --- DurableExecutionState from mock js.Dynamic ---
 
-  test("DurableExecutionState fields") {
-    val state = DurableExecutionState(isLive = true, persistenceLevel = HostApi.PersistenceLevel.Smart)
-    state.isLive shouldBe true
-    state.persistenceLevel shouldBe HostApi.PersistenceLevel.Smart
-  }
+    test("DurableExecutionState fields") {
+      val state = DurableExecutionState(isLive = true, persistenceLevel = HostApi.PersistenceLevel.Smart)
+      assertTrue(
+        state.isLive == true,
+        state.persistenceLevel == HostApi.PersistenceLevel.Smart
+      )
+    },
 
-  test("DurableExecutionState with all persistence levels") {
-    List(
-      HostApi.PersistenceLevel.PersistNothing,
-      HostApi.PersistenceLevel.PersistRemoteSideEffects,
-      HostApi.PersistenceLevel.Smart
-    ).foreach { pl =>
-      val state = DurableExecutionState(isLive = false, persistenceLevel = pl)
-      state.persistenceLevel shouldBe pl
+    test("DurableExecutionState with all persistence levels") {
+      List(
+        HostApi.PersistenceLevel.PersistNothing,
+        HostApi.PersistenceLevel.PersistRemoteSideEffects,
+        HostApi.PersistenceLevel.Smart
+      ).foreach { pl =>
+        val state = DurableExecutionState(isLive = false, persistenceLevel = pl)
+        assert(state.persistenceLevel == pl)
+      }
+      assertCompletes
+    },
+
+    // --- PersistedDurableFunctionInvocation ---
+
+    test("PersistedDurableFunctionInvocation construction") {
+      val vat = WitValueTypes.ValueAndType(
+        WitValueTypes.WitValue(List(WitValueTypes.WitNode.PrimString("test"))),
+        WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
+      )
+      val inv = PersistedDurableFunctionInvocation(
+        timestamp = Datetime(BigInt(1700000000L), 500000000),
+        functionName = "golem:api/test.{invoke}",
+        response = vat,
+        functionType = DurableFunctionType.ReadRemote,
+        entryVersion = OplogEntryVersion.V2
+      )
+      assertTrue(
+        inv.timestamp.seconds == BigInt(1700000000L),
+        inv.timestamp.nanoseconds == 500000000,
+        inv.functionName == "golem:api/test.{invoke}",
+        inv.response.value.nodes.head == WitValueTypes.WitNode.PrimString("test"),
+        inv.functionType == DurableFunctionType.ReadRemote,
+        inv.entryVersion == OplogEntryVersion.V2
+      )
     }
-  }
-
-  // --- PersistedDurableFunctionInvocation ---
-
-  test("PersistedDurableFunctionInvocation construction") {
-    val vat = WitValueTypes.ValueAndType(
-      WitValueTypes.WitValue(List(WitValueTypes.WitNode.PrimString("test"))),
-      WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
-    )
-    val inv = PersistedDurableFunctionInvocation(
-      timestamp = Datetime(BigInt(1700000000L), 500000000),
-      functionName = "golem:api/test.{invoke}",
-      response = vat,
-      functionType = DurableFunctionType.ReadRemote,
-      entryVersion = OplogEntryVersion.V2
-    )
-    inv.timestamp.seconds shouldBe BigInt(1700000000L)
-    inv.timestamp.nanoseconds shouldBe 500000000
-    inv.functionName shouldBe "golem:api/test.{invoke}"
-    inv.response.value.nodes.head shouldBe WitValueTypes.WitNode.PrimString("test")
-    inv.functionType shouldBe DurableFunctionType.ReadRemote
-    inv.entryVersion shouldBe OplogEntryVersion.V2
-  }
+  )
 }

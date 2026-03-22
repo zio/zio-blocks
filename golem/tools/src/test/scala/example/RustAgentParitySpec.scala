@@ -9,9 +9,9 @@ import golem.runtime.annotations.DurabilityMode
 import golem.runtime.macros.{AgentClientMacro, AgentImplementationMacro, AgentMacros}
 import golem.runtime.agenttype.{AsyncImplementationMethod, MethodInvocation}
 import golem.tools.AgentTypeJsonEncoder
-import org.scalatest.funsuite.AnyFunSuite
 import ujson.Value
 import zio.blocks.schema.Schema
+import zio.test._
 
 import scala.concurrent.Future
 
@@ -98,21 +98,8 @@ private[example] object RustAgentParityTypes {
   }
 }
 
-final class RustAgentParitySpec extends AnyFunSuite {
+object RustAgentParitySpec extends ZIOSpecDefault {
   import RustAgentParityTypes._
-
-  private val echoMetadata            = AgentMacros.agentMetadata[EchoAgent]
-  private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
-  private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
-  private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
-  private val durableDefaultImplType  =
-    AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
-  private val durableExplicitImplType =
-    AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
-  private val rpcImplType = AgentImplementationMacro.implementationType[RpcParityAgent](new RpcParityAgent {
-    override def rpcCall(payload: String): Future[String] = Future.successful(payload)
-    override def rpcCallTrigger(payload: String): Unit    = ()
-  })
 
   @agentDefinition()
   @description("Rust-style Echo agent for metadata parity")
@@ -128,60 +115,6 @@ final class RustAgentParitySpec extends AnyFunSuite {
   @agentDefinition(mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent {
     def ping(): Future[String]
-  }
-
-  test("EchoAgent metadata exposes all method names") {
-    val names = echoMetadata.methods.map(_.name).sorted
-    assert(names == List("combine", "echo", "echoOption", "echoResult"))
-    assert(echoMetadata.description.contains("Rust-style Echo agent for metadata parity"))
-  }
-
-  test("EchoAgent combine method keeps parameter ordering and schema") {
-    val method = echoMetadata.methods.find(_.name == "combine").getOrElse(fail("combine missing"))
-    method.input match {
-      case StructuredSchema.Tuple(elements) =>
-        assert(elements.map(_.name) == List("left", "right"))
-        assert(elements.head.schema == ElementSchema.Component(golem.data.DataType.StringType))
-        assert(elements(1).schema == ElementSchema.Component(golem.data.DataType.IntType))
-      case other =>
-        fail(s"Unexpected schema for combine input: $other")
-    }
-  }
-
-  test("AgentTypeJsonEncoder emits constructor and method entries") {
-    val value: Value = AgentTypeJsonEncoder.encode("echo-agent", echoMetadata)
-    val rendered     = value.render()
-    assert(rendered.contains("echo-agent"))
-    assert(rendered.contains("Rust-style Echo agent"))
-    assert(rendered.contains("combine"))
-  }
-
-  test("Agent metadata captures trait-level mode annotation") {
-    assert(ephemeralMetadata.mode.contains("ephemeral"))
-  }
-
-  test("Agent metadata omits mode when durable annotation is not provided") {
-    assert(durableDefaultMetadata.mode.isEmpty)
-  }
-
-  test("Agent metadata omits durable default (even when explicitly set via agentDefinition)") {
-    assert(durableExplicitMetadata.mode.forall(_ == "durable"))
-  }
-
-  test("AgentImplementationMacro preserves annotated agent mode") {
-    val implType = AgentImplementationMacro.implementationType[EphemeralAgent](new EphemeralAgentImpl)
-    assert(implType.metadata.mode.contains("ephemeral"))
-  }
-
-  test("AgentImplementationMacro leaves mode unset for durable defaults") {
-    // Depending on how Scala represents default annotation args, the durable default may appear as None or Some("durable").
-    // Both are acceptable; what we *don't* want is an unexpected non-durable value here.
-    assert(durableDefaultImplType.metadata.mode.forall(_ == "durable"))
-  }
-
-  test("AgentImplementationMacro preserves durable annotations in implementation metadata") {
-    // Durable is the default; we allow it to be elided (None) even if explicitly set via @agentDefinition(mode = Durable).
-    assert(durableExplicitImplType.metadata.mode.forall(_ == "durable"))
   }
 
   @agentDefinition()
@@ -214,78 +147,145 @@ final class RustAgentParitySpec extends AnyFunSuite {
     override def ping(): Future[String] = Future.successful("durable-explicit")
   }
 
-  test("Multimodal schemas capture modality ordering and restrictions") {
-    val schema = implicitly[GolemSchema[MediaPayload]].schema
-    schema match {
-      case StructuredSchema.Multimodal(elements) =>
-        val names = elements.map(_.name)
-        assert(names == List("transcript", "snapshot"))
-        assert(elements.head.schema == ElementSchema.UnstructuredText(Some(List("en"))))
-        assert(elements(1).schema == ElementSchema.UnstructuredBinary(Some(List("image/png"))))
-      case other =>
-        fail(s"Expected multimodal schema, found $other")
-    }
-  }
+  private val echoMetadata            = AgentMacros.agentMetadata[EchoAgent]
+  private val ephemeralMetadata       = AgentMacros.agentMetadata[EphemeralAgent]
+  private val durableDefaultMetadata  = AgentMacros.agentMetadata[DurableDefaultAgent]
+  private val durableExplicitMetadata = AgentMacros.agentMetadata[DurableExplicitAgent]
+  private val durableDefaultImplType  =
+    AgentImplementationMacro.implementationType[DurableDefaultAgent](new DurableDefaultAgentImpl)
+  private val durableExplicitImplType =
+    AgentImplementationMacro.implementationType[DurableExplicitAgent](new DurableExplicitAgentImpl)
+  private val rpcImplType = AgentImplementationMacro.implementationType[RpcParityAgent](new RpcParityAgent {
+    override def rpcCall(payload: String): Future[String] = Future.successful(payload)
+    override def rpcCallTrigger(payload: String): Unit    = ()
+  })
 
-  test("TextSegment codec round-trips inline content with language hints") {
-    val codec   = implicitly[GolemSchema[TextSegment[EnglishOnly]]]
-    val segment = TextSegment.inline[EnglishOnly]("ciao scala", Some("en"))
-    val encoded = codec.encode(segment).fold(err => fail(err), identity)
-    val decoded = codec.decode(encoded).fold(err => fail(err), identity)
-    decoded.value match {
-      case UnstructuredTextValue.Inline(data, language) =>
-        assert(data == "ciao scala")
-        assert(language.contains("en"))
-      case other =>
-        fail(s"Unexpected decoded text payload: $other")
-    }
-  }
+  override def spec: Spec[TestEnvironment, Any] =
+    suite("RustAgentParitySpec")(
+      test("EchoAgent metadata exposes all method names") {
+        val names = echoMetadata.methods.map(_.name).sorted
+        assertTrue(
+          names == List("combine", "echo", "echoOption", "echoResult"),
+          echoMetadata.description.contains("Rust-style Echo agent for metadata parity")
+        )
+      },
+      test("EchoAgent combine method keeps parameter ordering and schema") {
+        val method = echoMetadata.methods.find(_.name == "combine").get
+        method.input match {
+          case StructuredSchema.Tuple(elements) =>
+            assertTrue(
+              elements.map(_.name) == List("left", "right"),
+              elements.head.schema == ElementSchema.Component(golem.data.DataType.StringType),
+              elements(1).schema == ElementSchema.Component(golem.data.DataType.IntType)
+            )
+          case other =>
+            throw new AssertionError(s"Unexpected schema for combine input: $other")
+        }
+      },
+      test("AgentTypeJsonEncoder emits constructor and method entries") {
+        val value: Value = AgentTypeJsonEncoder.encode("echo-agent", echoMetadata)
+        val rendered     = value.render()
+        assertTrue(
+          rendered.contains("echo-agent"),
+          rendered.contains("Rust-style Echo agent"),
+          rendered.contains("combine")
+        )
+      },
+      test("Agent metadata captures trait-level mode annotation") {
+        assertTrue(ephemeralMetadata.mode.contains("ephemeral"))
+      },
+      test("Agent metadata omits mode when durable annotation is not provided") {
+        assertTrue(durableDefaultMetadata.mode.isEmpty)
+      },
+      test("Agent metadata omits durable default (even when explicitly set via agentDefinition)") {
+        assertTrue(durableExplicitMetadata.mode.forall(_ == "durable"))
+      },
+      test("AgentImplementationMacro preserves annotated agent mode") {
+        val implType = AgentImplementationMacro.implementationType[EphemeralAgent](new EphemeralAgentImpl)
+        assertTrue(implType.metadata.mode.contains("ephemeral"))
+      },
+      test("AgentImplementationMacro leaves mode unset for durable defaults") {
+        assertTrue(durableDefaultImplType.metadata.mode.forall(_ == "durable"))
+      },
+      test("AgentImplementationMacro preserves durable annotations in implementation metadata") {
+        assertTrue(durableExplicitImplType.metadata.mode.forall(_ == "durable"))
+      },
+      test("Multimodal schemas capture modality ordering and restrictions") {
+        val schema = implicitly[GolemSchema[MediaPayload]].schema
+        schema match {
+          case StructuredSchema.Multimodal(elements) =>
+            val names = elements.map(_.name)
+            assertTrue(
+              names == List("transcript", "snapshot"),
+              elements.head.schema == ElementSchema.UnstructuredText(Some(List("en"))),
+              elements(1).schema == ElementSchema.UnstructuredBinary(Some(List("image/png")))
+            )
+          case other =>
+            throw new AssertionError(s"Expected multimodal schema, found $other")
+        }
+      },
+      test("TextSegment codec round-trips inline content with language hints") {
+        val codec   = implicitly[GolemSchema[TextSegment[EnglishOnly]]]
+        val segment = TextSegment.inline[EnglishOnly]("ciao scala", Some("en"))
+        val encoded = codec.encode(segment).fold(err => throw new RuntimeException(err), identity)
+        val decoded = codec.decode(encoded).fold(err => throw new RuntimeException(err), identity)
+        decoded.value match {
+          case UnstructuredTextValue.Inline(data, language) =>
+            assertTrue(
+              data == "ciao scala",
+              language.contains("en")
+            )
+          case other =>
+            throw new AssertionError(s"Unexpected decoded text payload: $other")
+        }
+      },
+      test("BinarySegment codec round-trips inline bytes with mime restrictions") {
+        val codec   = implicitly[GolemSchema[BinarySegment[VisionOnly]]]
+        val bytes   = Array[Byte](1, 2, 3, 4)
+        val segment = BinarySegment.inline[VisionOnly](bytes, "image/png")
+        val encoded = codec.encode(segment).fold(err => throw new RuntimeException(err), identity)
+        val decoded = codec.decode(encoded).fold(err => throw new RuntimeException(err), identity)
+        decoded.value match {
+          case UnstructuredBinaryValue.Inline(data, mime) =>
+            assertTrue(
+              data.sameElements(bytes),
+              mime == "image/png"
+            )
+          case other =>
+            throw new AssertionError(s"Unexpected decoded binary payload: $other")
+        }
+      },
+      test("Multimodal payloads round-trip through codec preserving modalities") {
+        val codec   = implicitly[GolemSchema[MediaPayload]]
+        val bytes   = Array[Byte](42, 24)
+        val payload = Multimodal(
+          MediaBundle(
+            transcript = TextSegment.inline[EnglishOnly]("ciao scala", Some("en")),
+            snapshot = BinarySegment.inline[VisionOnly](bytes, "image/png")
+          )
+        )
+        val encoded = codec.encode(payload).fold(err => throw new RuntimeException(err), identity)
+        val decoded = codec.decode(encoded).fold(err => throw new RuntimeException(err), identity)
+        val bundle  = decoded.value
 
-  test("BinarySegment codec round-trips inline bytes with mime restrictions") {
-    val codec   = implicitly[GolemSchema[BinarySegment[VisionOnly]]]
-    val bytes   = Array[Byte](1, 2, 3, 4)
-    val segment = BinarySegment.inline[VisionOnly](bytes, "image/png")
-    val encoded = codec.encode(segment).fold(err => fail(err), identity)
-    val decoded = codec.decode(encoded).fold(err => fail(err), identity)
-    decoded.value match {
-      case UnstructuredBinaryValue.Inline(data, mime) =>
-        assert(data.sameElements(bytes))
-        assert(mime == "image/png")
-      case other =>
-        fail(s"Unexpected decoded binary payload: $other")
-    }
-  }
-
-  test("Multimodal payloads round-trip through codec preserving modalities") {
-    val codec   = implicitly[GolemSchema[MediaPayload]]
-    val bytes   = Array[Byte](42, 24)
-    val payload = Multimodal(
-      MediaBundle(
-        transcript = TextSegment.inline[EnglishOnly]("ciao scala", Some("en")),
-        snapshot = BinarySegment.inline[VisionOnly](bytes, "image/png")
-      )
-    )
-    val encoded = codec.encode(payload).fold(err => fail(err), identity)
-    val decoded = codec.decode(encoded).fold(err => fail(err), identity)
-    val bundle  = decoded.value
-
-    assert(bundle.transcript.value.isInstanceOf[UnstructuredTextValue.Inline])
-    assert(bundle.snapshot.value.isInstanceOf[UnstructuredBinaryValue.Inline])
-  }
-
-  test("AgentClientMacro produces fire-and-forget invocation for Unit-returning method") {
-    val agentType     = AgentClientMacro.agentType[RpcParityAgent]
-    val triggerMethod =
-      agentType.methods.find(_.metadata.name == "rpcCallTrigger").getOrElse(fail("rpcCallTrigger missing"))
-    assert(triggerMethod.invocation == MethodInvocation.FireAndForget)
-  }
-
-  test("AgentImplementationMacro preserves method invocation kinds") {
-    val awaitable =
-      rpcImplType.methods.collectFirst {
-        case m: AsyncImplementationMethod[RpcParityAgent @unchecked, _, _] if m.metadata.name == "rpcCall" =>
-          m
+        assertTrue(
+          bundle.transcript.value.isInstanceOf[UnstructuredTextValue.Inline],
+          bundle.snapshot.value.isInstanceOf[UnstructuredBinaryValue.Inline]
+        )
+      },
+      test("AgentClientMacro produces fire-and-forget invocation for Unit-returning method") {
+        val agentType     = AgentClientMacro.agentType[RpcParityAgent]
+        val triggerMethod =
+          agentType.methods.find(_.metadata.name == "rpcCallTrigger").get
+        assertTrue(triggerMethod.invocation == MethodInvocation.FireAndForget)
+      },
+      test("AgentImplementationMacro preserves method invocation kinds") {
+        val awaitable =
+          rpcImplType.methods.collectFirst {
+            case m: AsyncImplementationMethod[RpcParityAgent @unchecked, _, _] if m.metadata.name == "rpcCall" =>
+              m
+          }
+        assertTrue(awaitable.isDefined)
       }
-    assert(awaitable.isDefined)
-  }
+    )
 }

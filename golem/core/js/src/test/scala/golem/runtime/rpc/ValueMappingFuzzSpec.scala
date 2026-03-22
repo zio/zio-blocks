@@ -2,7 +2,7 @@ package golem.runtime.rpc
 
 import golem.data.GolemSchema
 import golem.host.js._
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 import zio.blocks.schema.Schema
 
 import scala.util.Random
@@ -20,7 +20,7 @@ private[rpc] object ValueMappingFuzzSpecTypes {
   }
 }
 
-final class ValueMappingFuzzSpec extends AnyFunSuite {
+object ValueMappingFuzzSpec extends ZIOSpecDefault {
   import ValueMappingFuzzSpecTypes._
 
   private val rng = new Random(0xc0ffee)
@@ -52,28 +52,31 @@ final class ValueMappingFuzzSpec extends AnyFunSuite {
       case _ => TinySum.C(genTinyProduct())
     }
 
-  private def rpcRoundTrip[A: Schema](label: String, iterations: Int)(gen: => A): Unit = {
+  private def rpcRoundTripTests[A: Schema](label: String, iterations: Int)(gen: => A): Spec[Any, Nothing] = {
     implicit val gs: GolemSchema[A] = GolemSchema.fromBlocksSchema[A]
     test(s"rpc roundtrip fuzz: $label ($iterations cases)") {
       var i = 0
       while (i < iterations) {
-        val in     = gen
-        val dataValue = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
+        val in        = gen
+        val dataValue = RpcValueCodec.encodeArgs(in).fold(err => throw new RuntimeException(err), identity)
         val witValue  = dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
-        val out       = RpcValueCodec.decodeValue[A](witValue).fold(err => fail(err), identity)
-        assert(out == in)
+        val out       = RpcValueCodec.decodeValue[A](witValue).fold(err => throw new RuntimeException(err), identity)
+        Predef.assert(out == in)
         i += 1
       }
+      assertCompletes
     }
   }
 
-  rpcRoundTrip[Int]("int", 200)(rng.nextInt())
-  rpcRoundTrip[String]("string", 200)(genString(64))
-  rpcRoundTrip[Option[Int]]("option", 200)(if (rng.nextBoolean()) Some(rng.nextInt(1000)) else None)
-  rpcRoundTrip[List[String]]("list", 150)(List.fill(rng.nextInt(6))(genString(12)))
-  rpcRoundTrip[Map[String, Int]]("map", 150)(
-    (0 until rng.nextInt(6)).map(_ => genString(6) -> rng.nextInt(100)).toMap
+  def spec = suite("ValueMappingFuzzSpec")(
+    rpcRoundTripTests[Int]("int", 200)(rng.nextInt()),
+    rpcRoundTripTests[String]("string", 200)(genString(64)),
+    rpcRoundTripTests[Option[Int]]("option", 200)(if (rng.nextBoolean()) Some(rng.nextInt(1000)) else None),
+    rpcRoundTripTests[List[String]]("list", 150)(List.fill(rng.nextInt(6))(genString(12))),
+    rpcRoundTripTests[Map[String, Int]]("map", 150)(
+      (0 until rng.nextInt(6)).map(_ => genString(6) -> rng.nextInt(100)).toMap
+    ),
+    rpcRoundTripTests[TinyProduct]("product", 150)(genTinyProduct()),
+    rpcRoundTripTests[TinySum]("sum", 150)(genTinySum())
   )
-  rpcRoundTrip[TinyProduct]("product", 150)(genTinyProduct())
-  rpcRoundTrip[TinySum]("sum", 150)(genTinySum())
 }

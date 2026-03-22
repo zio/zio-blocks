@@ -97,7 +97,7 @@ object AgentClientRuntime {
         raw    <- client.rpc.invokeAndAwait(functionName, params)
         value  <- {
           implicit val outSchema: GolemSchema[Out] = method.outputSchema
-          RpcValueCodec.decodeValue[Out](raw.asInstanceOf[JsWitValue])
+          RpcValueCodec.decodeResult[Out](raw)
         }
       } yield value
 

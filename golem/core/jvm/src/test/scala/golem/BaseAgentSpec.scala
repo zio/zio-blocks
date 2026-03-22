@@ -1,22 +1,21 @@
 package golem
 
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.matchers.should.Matchers
+import zio.test._
 
-class BaseAgentSpec extends AnyFunSuite with Matchers {
+import scala.util.Try
+
+object BaseAgentSpec extends ZIOSpecDefault {
   final class DummyAgent extends BaseAgent[Unit]
 
-  test("BaseAgent delegates to platform accessors") {
-    val agent = new DummyAgent
+  def spec = suite("BaseAgentSpec")(
+    test("BaseAgent delegates to platform accessors") {
+      val agent = new DummyAgent
 
-    intercept[UnsupportedOperationException] {
-      agent.agentId
+      assertTrue(
+        Try(agent.agentId).failed.get.isInstanceOf[UnsupportedOperationException],
+        Try(agent.agentType).failed.get.isInstanceOf[UnsupportedOperationException],
+        Try(agent.agentName).failed.get.isInstanceOf[UnsupportedOperationException]
+      )
     }
-    intercept[UnsupportedOperationException] {
-      agent.agentType
-    }
-    intercept[UnsupportedOperationException] {
-      agent.agentName
-    }
-  }
+  )
 }

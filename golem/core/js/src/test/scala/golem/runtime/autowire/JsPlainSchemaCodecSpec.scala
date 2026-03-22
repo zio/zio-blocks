@@ -1,6 +1,6 @@
 package golem.runtime.autowire
 
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
 import scala.scalajs.js
 import zio.blocks.schema.Schema
@@ -23,40 +23,41 @@ private[autowire] object JsPlainSchemaCodecSpecTypes {
   }
 }
 
-final class JsPlainSchemaCodecSpec extends AnyFunSuite {
+object JsPlainSchemaCodecSpec extends ZIOSpecDefault {
   import JsPlainSchemaCodecSpecTypes._
 
-  test("roundtrip: Scala value -> JS plain -> Scala value") {
-    val v = Payload("abc", 7, Some("n"), List("x", "y", "z"), Nested(1.5, List("a", "b")))
+  def spec = suite("JsPlainSchemaCodecSpec")(
+    test("roundtrip: Scala value -> JS plain -> Scala value") {
+      val v = Payload("abc", 7, Some("n"), List("x", "y", "z"), Nested(1.5, List("a", "b")))
 
-    val jsAny = JsPlainSchemaCodec.encode(v)
-    val back  = JsPlainSchemaCodec.decode[Payload](jsAny)
+      val jsAny = JsPlainSchemaCodec.encode(v)
+      val back  = JsPlainSchemaCodec.decode[Payload](jsAny)
 
-    assert(back == Right(v))
-  }
+      assertTrue(back == Right(v))
+    },
+    test("decode from manual JS object (null option)") {
+      val jsObj =
+        js.Dynamic.literal(
+          "name"   -> "abc",
+          "count"  -> 7,
+          "note"   -> null,
+          "flags"  -> js.Array("x", "y"),
+          "nested" -> js.Dynamic.literal("x" -> 1.5, "tags" -> js.Array("a", "b"))
+        )
 
-  test("decode from manual JS object (null option)") {
-    val jsObj =
-      js.Dynamic.literal(
-        "name"   -> "abc",
-        "count"  -> 7,    // JS number (double)
-        "note"   -> null, // None
-        "flags"  -> js.Array("x", "y"),
-        "nested" -> js.Dynamic.literal("x" -> 1.5, "tags" -> js.Array("a", "b"))
-      )
+      val got = JsPlainSchemaCodec.decode[Payload](jsObj.asInstanceOf[js.Any])
 
-    val got = JsPlainSchemaCodec.decode[Payload](jsObj.asInstanceOf[js.Any])
-
-    assert(
-      got == Right(
-        Payload(
-          name = "abc",
-          count = 7,
-          note = None,
-          flags = List("x", "y"),
-          nested = Nested(1.5, List("a", "b"))
+      assertTrue(
+        got == Right(
+          Payload(
+            name = "abc",
+            count = 7,
+            note = None,
+            flags = List("x", "y"),
+            nested = Nested(1.5, List("a", "b"))
+          )
         )
       )
-    )
-  }
+    }
+  )
 }

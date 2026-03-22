@@ -5,15 +5,14 @@ import golem.runtime.Sum
 import golem.BaseAgent
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.runtime.util.FutureInterop
-import org.scalatest.funsuite.AsyncFunSuite
+import zio._
+import zio.test._
 import zio.blocks.schema.Schema
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.scalajs.js
 
-final class AgentEndToEndSpec extends AsyncFunSuite {
-  override implicit def executionContext: ExecutionContext =
-    scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+object AgentEndToEndSpec extends ZIOSpecDefault {
 
   // ---------------------------------------------------------------------------
   // Fixture types
@@ -77,107 +76,75 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
     methodName: String,
     input: In,
     expected: Out
-  ): Future[org.scalatest.Assertion] = {
+  ): ZIO[Any, Throwable, TestResult] = {
     val b = binding(methodName, broadDefn)
-    for {
-      payload <- liftEither(HostPayload.encode[In](input))
-      raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
-      decoded <- liftEither(HostPayload.decode[Out](raw))
-    } yield assert(decoded == expected)
+    ZIO.fromFuture { implicit ec =>
+      for {
+        payload <- liftEither(HostPayload.encode[In](input))
+        raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+        decoded <- liftEither(HostPayload.decode[Out](raw))
+      } yield decoded
+    }.map(decoded => assertTrue(decoded == expected))
   }
 
   // ---------------------------------------------------------------------------
-  // Tests: String roundtrip
+  // Tests
   // ---------------------------------------------------------------------------
 
-  test("echo string roundtrips through binding") {
-    roundtrip[String, String]("echo", "world", "hello world")
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Case class payload
-  // ---------------------------------------------------------------------------
-
-  test("case class payload roundtrips through binding") {
-    roundtrip[Sum, Int]("add", Sum(2, 3), 5)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Primitive types
-  // ---------------------------------------------------------------------------
-
-  test("Int roundtrips through binding") {
-    roundtrip[Int, Int]("echoInt", 42, 42)
-  }
-
-  test("Boolean roundtrips through binding") {
-    roundtrip[Boolean, Boolean]("echoBoolean", true, true)
-  }
-
-  test("Long roundtrips through binding") {
-    roundtrip[Long, Long]("echoLong", 9876543210L, 9876543210L)
-  }
-
-  test("Double roundtrips through binding") {
-    roundtrip[Double, Double]("echoDouble", 3.14159, 3.14159)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Option types
-  // ---------------------------------------------------------------------------
-
-  test("Option[String] Some roundtrips through binding") {
-    roundtrip[Option[String], Option[String]]("echoOptionSome", Some("present"), Some("present"))
-  }
-
-  test("Option[String] None roundtrips through binding") {
-    roundtrip[Option[String], Option[String]]("echoOptionNone", None, None)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: List types
-  // ---------------------------------------------------------------------------
-
-  test("List[Int] non-empty roundtrips through binding") {
-    roundtrip[List[Int], List[Int]]("echoList", List(1, 2, 3), List(1, 2, 3))
-  }
-
-  test("List[Int] empty roundtrips through binding") {
-    roundtrip[List[Int], List[Int]]("echoListEmpty", Nil, Nil)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Nested case class
-  // ---------------------------------------------------------------------------
-
-  test("nested case class roundtrips through binding") {
-    val input = Outer("root", DeepNested("child", List(10, 20)))
-    roundtrip[Outer, Outer]("echoNested", input, input)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Multi-param method
-  // ---------------------------------------------------------------------------
-
-  test("multi-parameter method roundtrips through binding") {
-    val b = binding("multiParam", broadDefn)
-    for {
-      payload <- liftEither(HostPayload.encode[(String, Int)](("hello", 42)))
-      raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
-      decoded <- liftEither(HostPayload.decode[String](raw))
-    } yield assert(decoded == "hello-42")
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Unit return
-  // ---------------------------------------------------------------------------
-
-  test("Future[Unit] return roundtrips through binding") {
-    val b = binding("asyncVoid", broadDefn)
-    for {
-      payload <- liftEither(HostPayload.encode[String]("ignored"))
-      raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
-      decoded <- liftEither(HostPayload.decode[Unit](raw))
-    } yield succeed
-  }
+  def spec = suite("AgentEndToEndSpec")(
+    test("echo string roundtrips through binding") {
+      roundtrip[String, String]("echo", "world", "hello world")
+    },
+    test("case class payload roundtrips through binding") {
+      roundtrip[Sum, Int]("add", Sum(2, 3), 5)
+    },
+    test("Int roundtrips through binding") {
+      roundtrip[Int, Int]("echoInt", 42, 42)
+    },
+    test("Boolean roundtrips through binding") {
+      roundtrip[Boolean, Boolean]("echoBoolean", true, true)
+    },
+    test("Long roundtrips through binding") {
+      roundtrip[Long, Long]("echoLong", 9876543210L, 9876543210L)
+    },
+    test("Double roundtrips through binding") {
+      roundtrip[Double, Double]("echoDouble", 3.14159, 3.14159)
+    },
+    test("Option[String] Some roundtrips through binding") {
+      roundtrip[Option[String], Option[String]]("echoOptionSome", Some("present"), Some("present"))
+    },
+    test("Option[String] None roundtrips through binding") {
+      roundtrip[Option[String], Option[String]]("echoOptionNone", None, None)
+    },
+    test("List[Int] non-empty roundtrips through binding") {
+      roundtrip[List[Int], List[Int]]("echoList", List(1, 2, 3), List(1, 2, 3))
+    },
+    test("List[Int] empty roundtrips through binding") {
+      roundtrip[List[Int], List[Int]]("echoListEmpty", Nil, Nil)
+    },
+    test("nested case class roundtrips through binding") {
+      val input = Outer("root", DeepNested("child", List(10, 20)))
+      roundtrip[Outer, Outer]("echoNested", input, input)
+    },
+    test("multi-parameter method roundtrips through binding") {
+      val b = binding("multiParam", broadDefn)
+      ZIO.fromFuture { implicit ec =>
+        for {
+          payload <- liftEither(HostPayload.encode[(String, Int)](("hello", 42)))
+          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+          decoded <- liftEither(HostPayload.decode[String](raw))
+        } yield decoded
+      }.map(decoded => assertTrue(decoded == "hello-42"))
+    },
+    test("Future[Unit] return roundtrips through binding") {
+      val b = binding("asyncVoid", broadDefn)
+      ZIO.fromFuture { implicit ec =>
+        for {
+          payload <- liftEither(HostPayload.encode[String]("ignored"))
+          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+          decoded <- liftEither(HostPayload.decode[Unit](raw))
+        } yield decoded
+      }.as(assertCompletes)
+    }
+  )
 }

@@ -1,8 +1,8 @@
 package golem.host
 
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
-class WitValueTypesCompileSpec extends AnyFunSuite {
+object WitValueTypesCompileSpec extends ZIOSpecDefault {
   import WitValueTypes._
 
   private val allWitNodes: List[WitNode] = List(
@@ -125,51 +125,60 @@ class WitValueTypesCompileSpec extends AnyFunSuite {
 
   private val _nodeIdx: NodeIndex = 0
 
-  test("all 22 WitNode variants constructed") {
-    assert(allWitNodes.map(describeWitNode).distinct.size >= 22)
-  }
+  def spec = suite("WitValueTypesCompileSpec")(
+    test("all 22 WitNode variants constructed") {
+      assertTrue(allWitNodes.map(describeWitNode).distinct.size >= 22)
+    },
 
-  test("exhaustive WitNode match compiles") {
-    allWitNodes.foreach(n => assert(describeWitNode(n).nonEmpty))
-  }
+    test("exhaustive WitNode match compiles") {
+      allWitNodes.foreach(n => assert(describeWitNode(n).nonEmpty))
+      assertCompletes
+    },
 
-  test("all 21 WitTypeNode variants constructed") {
-    assert(allWitTypeNodes.map(describeWitTypeNode).distinct.size >= 21)
-  }
+    test("all 21 WitTypeNode variants constructed") {
+      assertTrue(allWitTypeNodes.map(describeWitTypeNode).distinct.size >= 21)
+    },
 
-  test("exhaustive WitTypeNode match compiles") {
-    allWitTypeNodes.foreach(n => assert(describeWitTypeNode(n).nonEmpty))
-  }
+    test("exhaustive WitTypeNode match compiles") {
+      allWitTypeNodes.foreach(n => assert(describeWitTypeNode(n).nonEmpty))
+      assertCompletes
+    },
 
-  test("ResourceMode exhaustive") {
-    resourceModes.foreach {
-      case ResourceMode.Owned    => assert(true)
-      case ResourceMode.Borrowed => assert(true)
+    test("ResourceMode exhaustive") {
+      resourceModes.foreach {
+        case ResourceMode.Owned    => ()
+        case ResourceMode.Borrowed => ()
+      }
+      assertCompletes
+    },
+
+    test("NamedWitTypeNode construction") {
+      assertTrue(
+        namedNodes.size == 3,
+        namedNodes.head.name.contains("field"),
+        namedNodes.head.owner.contains("owner"),
+        namedNodes(1).name.isEmpty
+      )
+    },
+
+    test("WitValue construction") {
+      assertTrue(witValue.nodes.nonEmpty)
+    },
+
+    test("WitType construction") {
+      assertTrue(witType.nodes.nonEmpty)
+    },
+
+    test("ValueAndType construction") {
+      assertTrue(
+        vat.value.nodes.nonEmpty,
+        vat.typ.nodes.nonEmpty
+      )
+    },
+
+    test("NodeIndex type alias") {
+      val idx: NodeIndex = 42
+      assertTrue(idx == 42)
     }
-  }
-
-  test("NamedWitTypeNode construction") {
-    assert(namedNodes.size == 3)
-    assert(namedNodes.head.name.contains("field"))
-    assert(namedNodes.head.owner.contains("owner"))
-    assert(namedNodes(1).name.isEmpty)
-  }
-
-  test("WitValue construction") {
-    assert(witValue.nodes.nonEmpty)
-  }
-
-  test("WitType construction") {
-    assert(witType.nodes.nonEmpty)
-  }
-
-  test("ValueAndType construction") {
-    assert(vat.value.nodes.nonEmpty)
-    assert(vat.typ.nodes.nonEmpty)
-  }
-
-  test("NodeIndex type alias") {
-    val idx: NodeIndex = 42
-    assert(idx == 42)
-  }
+  )
 }

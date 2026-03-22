@@ -28,7 +28,7 @@ object JsMysqlDbValue {
   def tinyintUnsigned(v: Int): JsMysqlDbValue       = JsShape.tagged[JsMysqlDbValue]("tinyint-unsigned", v.asInstanceOf[js.Any])
   def smallintUnsigned(v: Int): JsMysqlDbValue      = JsShape.tagged[JsMysqlDbValue]("smallint-unsigned", v.asInstanceOf[js.Any])
   def mediumintUnsigned(v: Int): JsMysqlDbValue     = JsShape.tagged[JsMysqlDbValue]("mediumint-unsigned", v.asInstanceOf[js.Any])
-  def intUnsigned(v: Int): JsMysqlDbValue           = JsShape.tagged[JsMysqlDbValue]("int-unsigned", v.asInstanceOf[js.Any])
+  def intUnsigned(v: Double): JsMysqlDbValue         = JsShape.tagged[JsMysqlDbValue]("int-unsigned", v.asInstanceOf[js.Any])
   def bigintUnsigned(v: js.BigInt): JsMysqlDbValue  = JsShape.tagged[JsMysqlDbValue]("bigint-unsigned", v.asInstanceOf[js.Any])
   def float(v: Double): JsMysqlDbValue              = JsShape.tagged[JsMysqlDbValue]("float", v.asInstanceOf[js.Any])
   def double(v: Double): JsMysqlDbValue             = JsShape.tagged[JsMysqlDbValue]("double", v.asInstanceOf[js.Any])

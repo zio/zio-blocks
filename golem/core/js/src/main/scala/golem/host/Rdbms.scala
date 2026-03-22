@@ -210,7 +210,7 @@ object Rdbms {
       case TinyIntUnsigned(n)   => JsMysqlDbValue.tinyintUnsigned(n.toInt)
       case SmallIntUnsigned(n)  => JsMysqlDbValue.smallintUnsigned(n)
       case MediumIntUnsigned(n) => JsMysqlDbValue.mediumintUnsigned(n.toInt)
-      case IntUnsigned(n)       => JsMysqlDbValue.intUnsigned(n.toInt)
+      case IntUnsigned(n)       => JsMysqlDbValue.intUnsigned(n.toDouble)
       case BigIntUnsigned(n)    => JsMysqlDbValue.bigintUnsigned(js.BigInt(n.toString))
       case FloatVal(n)          => JsMysqlDbValue.float(n.toDouble)
       case DoubleVal(n)         => JsMysqlDbValue.double(n)

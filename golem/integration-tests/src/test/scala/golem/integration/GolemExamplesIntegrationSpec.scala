@@ -1,21 +1,22 @@
 package golem.integration
 
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.funsuite.AnyFunSuite
+import zio._
+import zio.process.{Command as Cmd, Process as ZProcess, ProcessOutput}
+import zio.test._
 
 import java.io.File
-import java.net.Socket
-import java.nio.file.{Files, Path}
-import java.util.concurrent.TimeUnit
-import scala.sys.process.Process
-import scala.util.{Try, Using}
+import java.net.InetSocketAddress
+import java.nio.channels.AsynchronousSocketChannel
+import java.nio.file.Path
 
-final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfterAll {
+final case class GolemServer(process: ZProcess, examplesDir: File, tsPackagesPath: Option[String])
+
+object GolemServer {
 
   private val golemPort        = 9881
-  private val startupTimeoutMs = 60_000L
-  private val pollIntervalMs   = 500L
-  private val replTimeoutSec   = 180L
+  private val startupTimeout   = 60.seconds
+  private val pollInterval     = 500.millis
+  private val deployTimeoutSec = 300L
 
   private val examplesDir: File = {
     val cwd        = Path.of(sys.props.getOrElse("user.dir", ".")).toAbsolutePath.normalize
@@ -34,83 +35,116 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
     sys.props.get("golem.tsPackagesPath")
       .orElse(sys.env.get("GOLEM_TS_PACKAGES_PATH"))
 
-  private var serverProcess: Option[java.lang.Process] = None
-  private var serverLogFile: File = scala.compiletime.uninitialized
+  private def canConnect(port: Int): UIO[Boolean] =
+    ZIO.acquireReleaseWith(
+      ZIO.attemptBlockingIO(AsynchronousSocketChannel.open())
+    )(ch => ZIO.succeed(ch.close())) { client =>
+      ZIO.fromFutureJava(client.connect(new InetSocketAddress("localhost", port)))
+        .as(true)
+        .catchAll(_ => ZIO.succeed(false))
+    }.catchAll(_ => ZIO.succeed(false))
 
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
+  private def golemOnPath: ZIO[Any, Throwable, Unit] =
+    Cmd("golem", "--version")
+      .redirectErrorStream(true)
+      .string
+      .mapError(e => new RuntimeException(s"golem executable not found on PATH: $e"))
+      .unit
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-
-    assume(golemOnPath(), "golem executable not found on PATH")
-    assume(
-      tsPackagesPath.nonEmpty,
-      "GOLEM_TS_PACKAGES_PATH env var or golem.tsPackagesPath system property must be set"
-    )
-    assume(portFree(golemPort), s"port $golemPort is already in use")
-
-    try {
-      serverLogFile = Files.createTempFile("golem-server-", ".log").toFile
-      serverLogFile.deleteOnExit()
-
-      val pb = new ProcessBuilder(
-          "golem", "server", "run", "--clean", "--disable-app-manifest-discovery"
-        ).directory(examplesDir)
-        .redirectErrorStream(true)
-        .redirectOutput(serverLogFile)
-
-      tsPackagesPath.foreach(v => pb.environment().put("GOLEM_TS_PACKAGES_PATH", v))
-
-      val p = pb.start()
-      serverProcess = Some(p)
-
-      val deadline = System.currentTimeMillis() + startupTimeoutMs
-      var ready    = false
-      while (!ready && System.currentTimeMillis() < deadline) {
-        if (!p.isAlive) {
-          val log = Try(new String(Files.readAllBytes(serverLogFile.toPath))).getOrElse("")
-          fail(s"golem server exited early (exit=${p.exitValue()}):\n$log")
-        }
-        Thread.sleep(pollIntervalMs)
-        ready = canConnect(golemPort)
+  private def waitUntilReady(process: ZProcess): ZIO[Any, Throwable, Unit] = {
+    val probe: ZIO[Any, Throwable, Unit] =
+      process.isAlive.flatMap {
+        case false =>
+          ZIO.fail(new RuntimeException("golem server exited during startup"))
+        case true =>
+          canConnect(golemPort).flatMap {
+            case true  => ZIO.unit
+            case false => ZIO.fail(new RuntimeException("not ready yet"))
+          }
       }
-      assume(ready, s"golem server did not become ready within ${startupTimeoutMs}ms")
 
-      // Deploy the component (retry once for the known deploy race)
-      val deployTimeoutSec = 300L
-      val deployResult = runGolem(deployTimeoutSec, "deploy")
-      if (deployResult.exitCode != 0) {
-        Thread.sleep(2000)
-        val retry = runGolem(deployTimeoutSec, "deploy")
-        assert(
-          retry.exitCode == 0,
-          s"golem deploy failed after retry (exit=${retry.exitCode}):\n${retry.output}"
-        )
-      }
-    } catch {
-      case t: Throwable =>
-        stopServer()
-        throw t
-    }
+    probe
+      .retry(Schedule.spaced(pollInterval) && Schedule.recurs(120))
+      .timeoutFail(new RuntimeException(s"golem server did not become ready within $startupTimeout"))(startupTimeout)
   }
 
-  override def afterAll(): Unit =
-    try stopServer()
-    finally super.afterAll()
+  private def buildEnv: Map[String, String] =
+    tsPackagesPath.map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v)).getOrElse(Map.empty)
 
-  private def stopServer(): Unit = {
-    serverProcess.foreach { p =>
-      val h = p.toHandle
-      h.descendants().forEach(_.destroy())
-      h.destroy()
-      Thread.sleep(1000)
-      h.descendants().forEach(_.destroyForcibly())
-      if (h.isAlive) h.destroyForcibly()
-    }
-    serverProcess = None
+  private def runGolemCmd(dir: File, timeoutSec: Long, args: String*): ZIO[Any, Throwable, GolemResult] = {
+    val appManifest = new File(dir, "golem.yaml").getAbsolutePath
+    val fullArgs    = Seq("--yes", "--local", "--app-manifest-path", appManifest) ++ args
+
+    Cmd("golem", fullArgs*)
+      .workingDirectory(dir)
+      .env(buildEnv)
+      .redirectErrorStream(true)
+      .string
+      .timeout(timeoutSec.seconds)
+      .map {
+        case Some(output) => GolemResult(0, output)
+        case None         => GolemResult(-1, s"TIMEOUT after ${timeoutSec}s")
+      }
+      .catchAll { e =>
+        ZIO.succeed(GolemResult(-1, s"Command failed: $e"))
+      }
   }
+
+  private def deploy(dir: File): ZIO[Any, Throwable, Unit] =
+    runGolemCmd(dir, deployTimeoutSec, "deploy").flatMap { result =>
+      if (result.exitCode == 0) ZIO.unit
+      else
+        ZIO.sleep(2.seconds) *>
+          runGolemCmd(dir, deployTimeoutSec, "deploy").flatMap { retry =>
+            if (retry.exitCode == 0) ZIO.unit
+            else ZIO.fail(new RuntimeException(
+              s"golem deploy failed after retry (exit=${retry.exitCode}):\n${retry.output}"
+            ))
+          }
+    }
+
+  val layer: ZLayer[Any, Throwable, GolemServer] =
+    ZLayer.scoped {
+      for {
+        _ <- golemOnPath
+        _ <- ZIO.when(tsPackagesPath.isEmpty)(
+               ZIO.fail(new RuntimeException(
+                 "GOLEM_TS_PACKAGES_PATH env var or golem.tsPackagesPath system property must be set"
+               ))
+             )
+        _ <- canConnect(golemPort).flatMap {
+               case false => ZIO.unit
+               case true  => ZIO.fail(new RuntimeException(s"port $golemPort is already in use"))
+             }
+        logFile <- ZIO.attemptBlocking {
+                     java.nio.file.Files.createTempFile("golem-server-", ".log").toFile
+                   }
+        process <- ZIO.acquireRelease(
+                     Cmd("golem", "server", "run", "--clean", "--disable-app-manifest-discovery")
+                       .workingDirectory(examplesDir)
+                       .env(buildEnv)
+                       .redirectErrorStream(true)
+                       .stdout(ProcessOutput.FileRedirect(logFile))
+                       .run
+                       .mapError(e => new RuntimeException(s"Failed to start golem server: $e"))
+                   )(process =>
+                     process.killTree.orElse(process.killTreeForcibly).ignore
+                   )
+        _       <- waitUntilReady(process)
+        server   = GolemServer(process, examplesDir, tsPackagesPath)
+        _       <- deploy(examplesDir)
+      } yield server
+    }
+}
+
+case class GolemResult(exitCode: Int, output: String)
+
+object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
+
+  override val bootstrap: ZLayer[Any, Any, GolemServer] =
+    GolemServer.layer
+
+  private val replTimeoutSec = 180L
 
   // ---------------------------------------------------------------------------
   // Sample manifest
@@ -124,8 +158,8 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
   )
 
   private sealed trait Assertion
-  private case class Contains(fragments: String*)  extends Assertion
-  private case class Custom(check: String => Unit) extends Assertion
+  private case class Contains(fragments: String*)           extends Assertion
+  private case class Custom(check: String => TestResult) extends Assertion
 
   private val samples: Seq[Sample] = Seq(
     // --- Simple / deterministic ---
@@ -133,9 +167,11 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
       "snapshot-counter",
       "samples/snapshot-counter/repl-snapshot-counter.ts",
       Custom { output =>
-        assert(output.contains("a:") || output.contains("a ="), s"expected field 'a' in: $output")
-        assert(output.contains("1"), s"expected value 1 in: $output")
-        assert(output.contains("2"), s"expected value 2 in: $output")
+        assertTrue(
+          output.contains("a:") || output.contains("a ="),
+          output.contains("1"),
+          output.contains("2")
+        )
       }
     ),
     Sample(
@@ -159,43 +195,51 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
       "json-tasks",
       "samples/json-tasks/repl-json-tasks.ts",
       Custom { output =>
-        assert(output.contains("t1"), s"expected title 't1' in: $output")
-        assert(output.contains("true") || output.contains("completed"), s"expected completed in: $output")
+        assertTrue(
+          output.contains("t1"),
+          output.contains("true") || output.contains("completed")
+        )
       }
     ),
     Sample(
       "human-in-the-loop",
       "samples/human-in-the-loop/repl-human-in-the-loop.ts",
       Custom { output =>
-        assert(output.contains("pending"), s"expected 'pending' in: $output")
-        assert(output.contains("approved"), s"expected 'approved' in: $output")
+        assertTrue(
+          output.contains("pending"),
+          output.contains("approved")
+        )
       }
     ),
     Sample(
       "simple-rpc",
       "samples/simple-rpc/repl-counter.ts",
       Custom { output =>
-        // Coordinator.route reverses the input string
-        assert(output.contains("olleh"), s"expected reversed 'hello' in: $output")
-        assert(output.contains("dlrow"), s"expected reversed 'world' in: $output")
+        assertTrue(
+          output.contains("olleh"),
+          output.contains("dlrow")
+        )
       }
     ),
     Sample(
       "agent-to-agent",
       "samples/agent-to-agent/repl-minimal-agent-to-agent.ts",
       Custom { output =>
-        assert(output.contains("olleh"), s"expected reversed 'hello' in: $output")
-        assert(output.contains("cba"), s"expected reversed 'abc' in: $output")
+        assertTrue(
+          output.contains("olleh"),
+          output.contains("cba")
+        )
       }
     ),
     Sample(
       "stateful-counter",
       "samples/stateful-counter/repl-stateful-counter.ts",
       Custom { output =>
-        // initial=10, first increment=11, second=12, current=12
-        assert(output.contains("first") && output.contains("11"), s"expected first=11 in: $output")
-        assert(output.contains("second") && output.contains("12"), s"expected second=12 in: $output")
-        assert(output.contains("current") && output.contains("12"), s"expected current=12 in: $output")
+        assertTrue(
+          output.contains("first") && output.contains("11"),
+          output.contains("second") && output.contains("12"),
+          output.contains("current") && output.contains("12")
+        )
       }
     ),
     Sample(
@@ -207,8 +251,10 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
       "trigger",
       "samples/trigger/repl-trigger.ts",
       Custom { output =>
-        assert(output.contains("pong"), s"expected 'pong' in: $output")
-        assert(output.contains("10"), s"expected first process result in: $output")
+        assertTrue(
+          output.contains("pong"),
+          output.contains("10")
+        )
       }
     ),
 
@@ -353,110 +399,42 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
   )
 
   // ---------------------------------------------------------------------------
-  // Test generation
-  // ---------------------------------------------------------------------------
-
-  samples.foreach { sample =>
-    test(sample.name) {
-      sample.skip.foreach(reason => assume(false, reason))
-
-      val result = runRepl(sample.script)
-      assert(
-        result.exitCode == 0,
-        s"golem repl failed for '${sample.name}' (exit=${result.exitCode}):\n${result.output}"
-      )
-
-      val output = normalizeOutput(result.output)
-
-      sample.assertion match {
-        case Contains(fragments*) =>
-          fragments.foreach { frag =>
-            assert(output.contains(frag), s"Expected output to contain '$frag', got:\n$output")
-          }
-
-        case Custom(check) =>
-          check(output)
-      }
-    }
-  }
-
-  // Verify the manifest covers all sample scripts
-  test("manifest covers all sample scripts") {
-    val samplesDir = new File(examplesDir, "samples")
-    val allScripts = findTsFiles(samplesDir).map(_.relativeTo(examplesDir)).sorted
-    val manifest   = samples.map(_.script).sorted
-    val uncovered  = allScripts.filterNot(manifest.contains)
-    assert(uncovered.isEmpty, s"Sample scripts not covered by manifest: ${uncovered.mkString(", ")}")
-  }
-
-  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private case class GolemResult(exitCode: Int, output: String)
+  private def runGolem(server: GolemServer, timeoutSec: Long, args: String*): ZIO[Any, Nothing, GolemResult] = {
+    val appManifest = new File(server.examplesDir, "golem.yaml").getAbsolutePath
+    val fullArgs    = Seq("--yes", "--local", "--app-manifest-path", appManifest) ++ args
+    val env         = server.tsPackagesPath.map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v)).getOrElse(Map.empty)
 
-  private def runRepl(scriptFile: String): GolemResult =
+    Cmd("golem", fullArgs*)
+      .workingDirectory(server.examplesDir)
+      .env(env)
+      .redirectErrorStream(true)
+      .string
+      .timeout(timeoutSec.seconds)
+      .map {
+        case Some(output) => GolemResult(0, output)
+        case None         => GolemResult(-1, s"TIMEOUT after ${timeoutSec}s")
+      }
+      .catchAll { e =>
+        ZIO.succeed(GolemResult(-1, s"Command failed: $e"))
+      }
+  }
+
+  private def runRepl(server: GolemServer, scriptFile: String): ZIO[Any, Nothing, GolemResult] =
     runGolem(
-      replTimeoutSec,
+      server, replTimeoutSec,
       "repl", "scala:examples",
       "--language", "typescript",
       "--script-file", scriptFile
     )
 
-  private def runGolem(args: String*): GolemResult =
-    runGolem(120L, args*)
-
-  private def runGolem(timeoutSec: Long, args: String*): GolemResult = {
-    val appManifest = new File(examplesDir, "golem.yaml").getAbsolutePath
-    val cmd         = Seq("golem", "--yes", "--local", "--app-manifest-path", appManifest) ++ args
-
-    val pb = new ProcessBuilder(cmd*)
-      .directory(examplesDir)
-      .redirectErrorStream(true)
-
-    tsPackagesPath.foreach(v => pb.environment().put("GOLEM_TS_PACKAGES_PATH", v))
-
-    val proc      = pb.start()
-    val outBuffer = new java.io.ByteArrayOutputStream()
-    val reader    = new Thread(() => {
-      try {
-        val buf = new Array[Byte](4096)
-        val is  = proc.getInputStream
-        var n   = is.read(buf)
-        while (n != -1) {
-          outBuffer.write(buf, 0, n)
-          n = is.read(buf)
-        }
-      } catch { case _: Exception => }
-    })
-    reader.setDaemon(true)
-    reader.start()
-
-    val done = proc.waitFor(timeoutSec, TimeUnit.SECONDS)
-    if (!done) {
-      proc.destroyForcibly()
-      reader.join(2000)
-      GolemResult(-1, s"TIMEOUT after ${timeoutSec}s. Partial output:\n${outBuffer.toString("UTF-8")}")
-    } else {
-      reader.join(5000)
-      GolemResult(proc.exitValue(), outBuffer.toString("UTF-8"))
-    }
-  }
-
   private def normalizeOutput(raw: String): String =
     raw
-      .replaceAll("\u001b\\[[0-9;]*[a-zA-Z]", "") // strip ANSI escape codes
-      .replaceAll("\r\n", "\n")                     // normalize line endings
+      .replaceAll("\u001b\\[[0-9;]*[a-zA-Z]", "")
+      .replaceAll("\r\n", "\n")
       .trim
-
-  private def golemOnPath(): Boolean =
-    Try(Process(Seq("golem", "--version")).!!).isSuccess
-
-  private def portFree(port: Int): Boolean =
-    !canConnect(port)
-
-  private def canConnect(port: Int): Boolean =
-    Try(Using.resource(new Socket("localhost", port))(_ => ())).isSuccess
 
   private def findTsFiles(dir: File): Seq[File] =
     if (!dir.exists()) Seq.empty
@@ -471,4 +449,49 @@ final class GolemExamplesIntegrationSpec extends AnyFunSuite with BeforeAndAfter
     def relativeTo(base: File): String =
       base.toPath.relativize(f.toPath).toString
   }
+
+  // ---------------------------------------------------------------------------
+  // Test generation
+  // ---------------------------------------------------------------------------
+
+  private val sampleTests: Seq[Spec[GolemServer, Throwable]] = samples.map { sample =>
+    test(sample.name) {
+      for {
+        server <- ZIO.service[GolemServer]
+        result <- runRepl(server, sample.script)
+      } yield {
+        val exitCodeResult = assertTrue(result.exitCode == 0)
+        val output         = normalizeOutput(result.output)
+
+        val assertionResult = sample.assertion match {
+          case Contains(fragments*) =>
+            fragments.foldLeft(assertCompletes) { (acc, frag) =>
+              acc && assertTrue(output.contains(frag))
+            }
+          case Custom(check) =>
+            check(output)
+        }
+
+        exitCodeResult && assertionResult
+      }
+    } @@ (if (sample.skip.isDefined) TestAspect.ignore else TestAspect.identity)
+  }
+
+  private val manifestTest: Spec[GolemServer, Throwable] =
+    test("manifest covers all sample scripts") {
+      for {
+        server <- ZIO.service[GolemServer]
+      } yield {
+        val samplesDir = new File(server.examplesDir, "samples")
+        val allScripts = findTsFiles(samplesDir).map(_.relativeTo(server.examplesDir)).sorted
+        val manifest   = samples.map(_.script).sorted
+        val uncovered  = allScripts.filterNot(manifest.contains)
+        assertTrue(uncovered.isEmpty)
+      }
+    }
+
+  override def spec: Spec[GolemServer, Any] =
+    suite("GolemExamplesIntegrationSpec")(
+      (sampleTests :+ manifestTest)*
+    ) @@ TestAspect.sequential @@ TestAspect.withLiveClock
 }
