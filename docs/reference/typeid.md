@@ -1028,66 +1028,23 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Inspect parent types in a linear inheritance chain:
-
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-sealed trait Animal
-sealed trait Mammal extends Animal
-case class Dog(name: String) extends Mammal
-case class Cat(name: String) extends Mammal
-case class Fish(species: String) extends Animal
-
-val dogId     = TypeId.of[Dog]
-val mammalId  = TypeId.of[Mammal]
-val animalId  = TypeId.of[Animal]
-```
-
-Now inspect the parents:
-
-```scala mdoc
-// Dog extends Mammal, which extends Animal
-dogId.parents
-
-// Mammal directly extends Animal
-mammalId.parents
-
-// Animal has no explicit parents (sealed trait with no extends)
-animalId.parents
-
-// Fish extends Animal directly
-TypeId.of[Fish].parents
-```
-
-Parents are flattened through intermediate extensions:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-// A trait can extend multiple traits
-trait Swimmer {
-  def swim(): Unit = ()
-}
-trait Flyer {
-  def fly(): Unit = ()
-}
+trait Swimmer { def swim(): Unit = () }
+trait Flyer   { def fly(): Unit  = () }
 trait Duck extends Swimmer with Flyer
-
-// A case class can extend a trait
 case class MallardDuck() extends Duck
 ```
 
-When a type extends a trait that extends multiple traits, all parent traits are included:
+Parents are flattened across the full hierarchy:
 
 ```scala mdoc
-val duckId = TypeId.of[Duck]
 // Duck extends Swimmer and Flyer directly
-duckId.parents
+TypeId.of[Duck].parents
 
-val mallardId = TypeId.of[MallardDuck]
-// MallardDuck extends Duck — parents are flattened to include Duck, Swimmer, and Flyer
-mallardId.parents
+// MallardDuck extends Duck — parents include Duck, Swimmer, and Flyer
+TypeId.of[MallardDuck].parents
 ```
 
 Parents with type arguments are captured in the TypeRepr:
