@@ -1070,10 +1070,10 @@ import zio.blocks.typeid._
 
 // A trait can extend multiple traits
 trait Swimmer {
-  def swim(): Unit
+  def swim(): Unit = ()
 }
 trait Flyer {
-  def fly(): Unit
+  def fly(): Unit = ()
 }
 trait Duck extends Swimmer with Flyer
 
