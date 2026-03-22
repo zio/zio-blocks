@@ -761,6 +761,8 @@ colorId.isEnum
 
 **Semantic predicates** check specific semantic properties of the type after normalization, allowing you to identify built-in Scala types like tuples, products, sums, options, and either. These are useful for generic serializers and validators that treat built-in types specially.
 
+**Normalization** resolves type aliases and opaque types to their underlying representations. For example, if you have `type UserId = String`, normalization reveals that the underlying type is `String`. Similarly, an opaque type like `opaque type Email = String` normalizes to `String`. This allows predicates like `isOption` to work correctly even when the type is wrapped in an alias or opaque type — it will look through the wrapper to find the actual semantic type.
+
 | Predicate   | Checks                                                                |
 |-------------|-----------------------------------------------------------------------|
 | `isTuple`   | Normalized type is `scala.TupleN`                                     |
