@@ -158,15 +158,15 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("Migration reverse")(
       test("reverse of rename migration swaps back") {
-        val migration = Migration
-          .newBuilder[PersonV1, PersonV1]
-          .renameField("name", "fullName")
-          .buildPartial
-
-        val person   = PersonV1("Alice", 30)
-        val renamed  = migration(person).getOrElse(sys.error("unexpected"))
-        val restored = migration.reverse(renamed).getOrElse(sys.error("unexpected"))
-        assertTrue(restored == person)
+        // Test at the DynamicMigration level: rename name->fullName and then reverse
+        val action    = MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName")
+        val migration = DynamicMigration.fromAction(action)
+        val schema    = PersonV1.schema
+        val person    = PersonV1("Alice", 30)
+        val dynamic   = schema.toDynamicValue(person)
+        val renamed   = migration(dynamic).getOrElse(sys.error("forward migration failed"))
+        val restored  = migration.reverse(renamed).getOrElse(sys.error("reverse migration failed"))
+        assertTrue(schema.fromDynamicValue(restored) == Right(person))
       },
       test("reverse.reverse is structurally equal") {
         val migration = Migration
