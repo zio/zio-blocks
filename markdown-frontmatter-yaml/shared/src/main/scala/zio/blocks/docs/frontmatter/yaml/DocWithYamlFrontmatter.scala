@@ -20,11 +20,11 @@ import zio.blocks.docs.Doc
 import zio.blocks.schema.yaml.Yaml
 
 final case class DocWithYamlFrontmatter(frontmatter: Option[Map[String, Yaml]], doc: Doc)
-  extends Product
-  with Serializable {
+    extends Product
+    with Serializable {
 
   override def toString: String =
     Renderer.render(this)
-    
+
   def frontmatterKey(key: String): Option[Yaml] = frontmatter.flatMap(_.get(key))
 }

@@ -11,8 +11,8 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
     else zio.Chunk(TestAspect.timeout(120.seconds), TestAspect.timed, TestAspect.sequential, TestAspect.size(10))
 
   def roundTrip(input: String): TestResult = {
-    val parsed: Either[ParseError, DocWithYamlFrontmatter] = Parser.parse(input)
-    val rendered: Either[ParseError, String] = parsed.map(Renderer.render)
+    val parsed: Either[ParseError, DocWithYamlFrontmatter]   = Parser.parse(input)
+    val rendered: Either[ParseError, String]                 = parsed.map(Renderer.render)
     val reparsed: Either[ParseError, DocWithYamlFrontmatter] = rendered.flatMap(Parser.parse)
     assertTrue(parsed == reparsed)
   }
@@ -55,7 +55,7 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
         parsed.toOption.get.frontmatterKey("title").isDefined,
         parsed.toOption.get.frontmatterKey("title").get match {
           case Yaml.Scalar("Hello", _) => true
-          case _ => false
+          case _                       => false
         }
       )
     },
