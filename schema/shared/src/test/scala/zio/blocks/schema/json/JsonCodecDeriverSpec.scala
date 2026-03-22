@@ -3173,7 +3173,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Map[Int, Long]]("""{"1"""", "unexpected end of input at: .at(0)") &&
         decodeError[Map[Int, Long]]("""{"1":""", "unexpected end of input at: .atKey(1)") &&
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .") &&
-        decodeError[Map[Unit, Long]]("""{"null":1}""", "expected an empty JSON object at: . at: .at(0)")
+        decodeError[Map[Unit, Long]]("""{"null":1}""", "expected an empty JSON object at: .at(0)")
       },
       test("primitive key with recursive values") {
         roundTrip(

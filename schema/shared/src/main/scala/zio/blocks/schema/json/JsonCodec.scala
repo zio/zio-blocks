@@ -83,10 +83,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    *   an instance of `JsonReader` which provides access to the JSON input to
    *   parse a JSON key to value of type `A`
    */
-  def decodeKey(in: JsonReader): A = decode(in.readKeyAsString()) match {
-    case Right(x)  => x
-    case Left(err) => throw err
-  }
+  def decodeKey(in: JsonReader): A = decodeUnsafe(in.readKeyAsString())
 
   /**
    * Encodes the specified value using provided `JsonWriter` as a JSON key, but
@@ -104,10 +101,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   /**
    * Attempts to decode a value of type `A` from the string representation.
    */
-  def decodeKey(s: String): A = decode(s) match {
-    case Right(x)  => x
-    case Left(err) => throw err
-  }
+  def decodeKey(s: String): A = decodeUnsafe(s)
 
   /**
    * Converts a value to its string representation for use as a JSON key.
