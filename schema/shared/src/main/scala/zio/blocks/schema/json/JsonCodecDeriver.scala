@@ -826,30 +826,78 @@ class JsonCodecDeriver private[json] (
               }
 
             override lazy val toJsonSchema: JsonSchema = {
-              val reqs    = Set.newBuilder[String]
-              val len     = fieldInfos.length
-              val names   = ChunkBuilder.make[String](len)
-              val schemas = ChunkBuilder.make[JsonSchema](len)
-              var idx     = 0
+              val reqs             = Set.newBuilder[String]
+              val properties       = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+              val dependentSchemas = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+              val allOf            = ChunkBuilder.make[JsonSchema]()
+              val len              = fieldInfos.length
+              properties.sizeHint(len)
+              var idx = 0
               while (idx < len) {
                 val fieldInfo = fieldInfos(idx)
+                val field     = fields(idx)
                 if (
                   fieldInfo.nonTransient && {
-                    names.addOne(fieldInfo.getName)
-                    schemas.addOne(fieldInfo.getCodec.toJsonSchema)
-                    !(fieldInfo.hasDefault || fieldInfo.isOptional || fieldInfo.isCollection)
+                    val schema = fieldInfo.getCodec.toJsonSchema
+                    val name   = fieldInfo.getName
+                    properties.add(name, schema)
+                    val isRequired      = !(fieldInfo.hasDefault || fieldInfo.isOptional || fieldInfo.isCollection)
+                    var nameWithAliases = Chunk.empty[String]
+                    field.modifiers.foreach {
+                      case m: Modifier.alias =>
+                        val alias = m.name
+                        properties.add(alias, schema)
+                        nameWithAliases = nameWithAliases :+ alias
+                      case _ =>
+                    }
+                    if (nameWithAliases.nonEmpty) {
+                      nameWithAliases = name +: nameWithAliases
+                      if (isRequired) {
+                        allOf.addOne(new JsonSchema.Object(
+                          oneOf = NonEmptyChunk.fromChunk(nameWithAliases.map { nameOrAlias =>
+                            toObjectNot(nameWithAliases, nameOrAlias, true)
+                          })
+                        ))
+                      } else {
+                        nameWithAliases.foreach { nameOrAlias =>
+                          dependentSchemas.add(nameOrAlias, toObjectNot(nameWithAliases, nameOrAlias, false))
+                        }
+                      }
+                      false
+                    } else isRequired
                   }
                 ) reqs.addOne(fieldInfo.getName)
                 idx += 1
               }
               val required = reqs.result()
               JsonSchema.obj(
-                properties = new Some(ChunkMap.fromChunks(names.result(), schemas.result())),
+                properties = new Some(properties.result()),
                 required = if (required.nonEmpty) new Some(required) else None,
                 additionalProperties = if (doReject) new Some(JsonSchema.False) else None,
-                title = new Some(typeName)
+                title = new Some(typeName),
+                allOf = NonEmptyChunk.fromChunk(allOf.result()),
+                dependentSchemas = if (dependentSchemas.knownSize > 0) Some(dependentSchemas.result()) else None
               )
             }
+
+            private[this] def toObjectNot(
+                                           nameWithAliases: Chunk[String],
+                                           nameOrAlias: String,
+                                           isRequired: Boolean
+                                         ): JsonSchema.Object =
+              new JsonSchema.Object(
+                required = if (isRequired) new Some(Set(nameOrAlias)) else None,
+                not = new Some({
+                  val required = nameWithAliases.filter(_ != nameOrAlias)
+                  if (required.length == 1) new JsonSchema.Object(required = new Some(required.toSet))
+                  else {
+                    new JsonSchema.Object(anyOf = NonEmptyChunk.fromChunk(required.map { n =>
+                      new JsonSchema.Object(required = new Some(Set(n)))
+                    }))
+                  }
+                })
+              )
+
           }
         }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance

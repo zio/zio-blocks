@@ -1493,7 +1493,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
           """{"r1_1":{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}}"""
         )
       },
-      test("big record with up to 128 fields") {
+      test("recursive big record with up to 128 fields") {
         roundTrip(BigProduct(f00 = true, f69 = 1), """{"f00":true,"f69":1}""") &&
         roundTrip(BigProduct(f00 = true, f63 = Some(2), f69 = 1), """{"f00":true,"f63":2,"f69":1}""") &&
         roundTrip(
@@ -1508,7 +1508,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
           "missing required field \"f00\" at: .f67.when[Some].value"
         )
       },
-      test("record with transient field") {
+      test("recursive record with transient field") {
         encode(BigProduct(f00 = true, f66 = Some(2), f69 = 1), """{"f00":true,"f69":1}""") &&
         decode("""{"f00":true,"f66":2,"f69":1}""", BigProduct(f00 = true, f66 = Some(1), f69 = 1))
       },
@@ -1748,12 +1748,23 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         decodeError("""{"big_int":"0","bigDec":1}""", "expected '\"' at: .bigDecimal", codec2)
       },
       test("record with field name aliases") {
-        val codec = Record5.schema
+        val codec1 = Record4.schema
+          .deriving(JsonCodecDeriver)
+          .modifier(Record4.optKey, Modifier.alias("opt"))
+          .derive
+        val codec2 = Record5.schema
           .deriving(JsonCodecDeriver)
           .modifier(Record5.bigDecimal, Modifier.alias("bd"))
+          .modifier(Record5.bigDecimal, Modifier.alias("bDec"))
           .modifier(Record5.bigInt, Modifier.alias("bi"))
           .derive
-        decode("""{"bi":1,"bd":2.0}""", Record5(BigInt(1), BigDecimal(2.0)), codec)
+        decode("""{"hіdden":{},"opt":"VVV"}""", Record4((), Some("VVV")), codec1) &&
+        decode("""{"bi":1,"bd":2.0}""", Record5(BigInt(1), BigDecimal(2.0)), codec2) &&
+        decodeError("""{"hіdden":{},"opt":"VVV","optKеy":123}""", "duplicated field \"optKеy\" at: .", codec1) &&
+        decodeError("""{"bi":1,"bd":2.0,"bigInt":2}""", "duplicated field \"bigInt\" at: .", codec2) &&
+        decodeError("""{"bi":1,"bd":2.0,"bigDecimal":1.0}""", "duplicated field \"bigDecimal\" at: .", codec2) &&
+        decodeError("""{"bi":1,"bDec":2.0,"bigDecimal":1.0}""", "duplicated field \"bigDecimal\" at: .", codec2) &&
+        decodeError("""{"bi":1,"bd":2.0,"bDec":1.0}""", "duplicated field \"bDec\" at: .", codec2)
       },
       test("record with duplicated field names") {
         assert(scala.util.Try {
@@ -2378,7 +2389,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
           codec
         )
       },
-      test("record with a custom codec for a nested sequence injected by type and term name") {
+      test("recursive record with a custom codec for a nested sequence injected by type and term name") {
         val emptyListCodec = new JsonCodec[List[Recursive]] {
           def decodeValue(in: JsonReader): List[Recursive] = {
             in.skip()
@@ -3220,14 +3231,12 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         val codec2 = Schema[Color].derive(
           JsonCodecDeriver.withEnumValuesAsStrings(false).withDiscriminatorKind(DiscriminatorKind.Field("$type"))
         )
-        /*
         roundTrip(TrafficLight.Green, """{"$type":"Green"}""", codec1) &&
         roundTrip(TrafficLight.Yellow, """{"$type":"Yellow"}""", codec1) &&
         roundTrip(TrafficLight.Red, """{"$type":"Rеd"}""", codec1) &&
         roundTrip(Color.Green, """{"$type":"Green"}""", codec2) &&
         roundTrip(Color.Yellow, """{"$type":"Yellow"}""", codec2) &&
         roundTrip(Color.Orаnge, """{"$type":"Orаnge"}""", codec2) &&
-         */
         roundTrip(Color.Red, """{"$type":"Red"}""", codec2)
       },
       test("ADT with nested trait hierarchy") {

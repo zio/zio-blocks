@@ -1334,7 +1334,7 @@ object JsonCodec {
 
     override def encodeKey(x: ZonedDateTime): String = Json.zonedDateTimeRawCodec.encodeToString(x)
 
-    override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("date-time"))
+    override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
   val currencyCodec: JsonCodec[Currency] = new JsonCodec[Currency] {
     def decodeValue(in: JsonReader): Currency = {
