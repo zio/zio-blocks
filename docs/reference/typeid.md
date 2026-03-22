@@ -763,13 +763,13 @@ colorId.isEnum
 
 **Normalization** resolves type aliases and opaque types to their underlying representations. For example, if you have `type UserId = String`, normalization reveals that the underlying type is `String`. Similarly, an opaque type like `opaque type Email = String` normalizes to `String`. This allows predicates like `isOption` to work correctly even when the type is wrapped in an alias or opaque type — it will look through the wrapper to find the actual semantic type.
 
-| Predicate   | Checks                                                                |
-|-------------|-----------------------------------------------------------------------|
-| `isTuple`   | Normalized type is `scala.TupleN`                                     |
-| `isProduct` | Normalized type is `scala.Product` or `scala.ProductN`                |
+| Predicate   | Checks                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------|
+| `isTuple`   | Normalized type is `scala.TupleN`                                                              |
+| `isProduct` | Normalized type is `scala.Product` or `scala.ProductN`                                         |
 | `isSum`     | Normalized type is named `Either` or `Option` in the `scala` package (not `scala.util.Either`) |
-| `isEither`  | Normalized type is `scala.util.Either`                                |
-| `isOption`  | Normalized type is `scala.Option`                                     |
+| `isEither`  | Normalized type is `scala.util.Either`                                                         |
+| `isOption`  | Normalized type is `scala.Option`                                                              |
 
 Check semantic properties with practical examples:
 
@@ -792,28 +792,19 @@ TypeId.of[scala.Product].isProduct
 
 Understanding the distinction between `isSum`, `isEither`, and `isOption`:
 
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-// Standard library sum types
-type StdOption = Option[String]
-type StdEither = Either[String, Int]
-```
-
 ```scala mdoc
+import zio.blocks.typeid._
 // For standard library types, use isEither and isOption
 TypeId.of[Option[String]].isOption
-TypeId.of[Either[String, Int]].isEither
-
-// isSum checks for types named "Option" or "Either" directly in scala package
-// (not scala.util.Either or scala.Option). It's rarely used in practice.
 TypeId.of[Option[String]].isSum
+
+TypeId.of[Either[String, Int]].isEither
 TypeId.of[Either[String, Int]].isSum
 ```
 
-:::note
-**Practical guidance:** Always use `isEither` for `scala.util.Either` and `isOption` for `scala.Option`. The `isSum` predicate is rarely needed — it checks for hypothetical types named `"Option"` or `"Either"` placed directly in the `scala` package itself (not in `scala.util` subpackage), which almost never occurs in real code.
-:::
+[//]: # (:::note)
+[//]: # (**Practical guidance:** Always use `isEither` for `scala.util.Either` and `isOption` for `scala.Option`. The `isSum` predicate is rarely needed — it checks for hypothetical types named `"Option"` or `"Either"` placed directly in the `scala` package itself &#40;not in `scala.util` subpackage&#41;, which almost never occurs in real code.)
+[//]: # (:::)
 
 ### Subtype Relationships
 
