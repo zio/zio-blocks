@@ -763,13 +763,13 @@ colorId.isEnum
 
 **Normalization** resolves type aliases and opaque types to their underlying representations. For example, if you have `type UserId = String`, normalization reveals that the underlying type is `String`. Similarly, an opaque type like `opaque type Email = String` normalizes to `String`. This allows predicates like `isOption` to work correctly even when the type is wrapped in an alias or opaque type — it will look through the wrapper to find the actual semantic type.
 
-| Predicate   | Checks                                                                                         |
-|-------------|------------------------------------------------------------------------------------------------|
-| `isTuple`   | Normalized type is `scala.TupleN`                                                              |
-| `isProduct` | Normalized type is `scala.Product` or `scala.ProductN`                                         |
-| `isSum`     | Normalized type is named `Either` or `Option` in the `scala` package (not `scala.util.Either`) |
-| `isEither`  | Normalized type is `scala.util.Either`                                                         |
-| `isOption`  | Normalized type is `scala.Option`                                                              |
+| Predicate   | Checks                                                 |
+|-------------|--------------------------------------------------------|
+| `isTuple`   | Normalized type is `scala.TupleN`                      |
+| `isProduct` | Normalized type is `scala.Product` or `scala.ProductN` |
+| `isSum`     | Normalized type is named `Either` or `Option`          |
+| `isEither`  | Normalized type is `scala.util.Either`                 |
+| `isOption`  | Normalized type is `scala.Option`                      |
 
 Check semantic properties with practical examples:
 
@@ -783,7 +783,7 @@ TypeId.of[Option[String]].isOption
 TypeId.of[Either[String, Int]].isEither
 
 // Products (built-in Scala Product interface, not user case classes)
-TypeId.of[scala.Product].isProduct
+TypeId.of[Product2[String, Int]].isProduct
 ```
 
 :::note
@@ -856,6 +856,43 @@ Covariant type constructors preserve subtyping relationships:
 ```scala mdoc
 TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Mammal]])
 TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
+```
+
+**Scala 3 exclusive features:** In Scala 3, `isSubtypeOf` handles advanced type relationships that Scala 2 cannot. These examples show what works in Scala 3:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// Scala 3: Enum cases
+enum Color {
+  case Red
+  case Green
+  case Blue
+}
+
+// Scala 3: Union type aliases
+type StringOrInt = String | Int
+
+// Scala 3: Intersection type aliases
+trait Readable { def read(): String }
+trait Writable { def write(data: String): Unit }
+type ReadWrite = Readable & Writable
+```
+
+In Scala 3, `isSubtypeOf` correctly handles these advanced type cases:
+
+```scala mdoc
+// Enum cases: Red is a subtype of Color
+TypeId.of[Color.Red.type].isSubtypeOf(TypeId.of[Color])
+
+// Union type aliases: String is one of the union members
+TypeId.of[String].isSubtypeOf(TypeId.of[StringOrInt])
+TypeId.of[Int].isSubtypeOf(TypeId.of[StringOrInt])
+
+// Intersection type aliases: A type implementing both traits is a subtype
+val readWriteId = TypeId.of[ReadWrite]
+val readableId = TypeId.of[Readable]
+readWriteId.isSubtypeOf(readableId)
 ```
 
 :::note
