@@ -1018,9 +1018,9 @@ userIdType.isEquivalentTo(stringType)
 usernameType.isEquivalentTo(stringType)
 ```
 
-#### `parents` — Direct Parent Types
+#### `parents` — Parent Types
 
-Returns the list of direct parent type representations from the type definition as `TypeRepr` values. This includes all trait and class parents that the type directly extends, including traits inherited through intermediate class/trait extensions. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type.
+Returns the list of parent type representations as `TypeRepr` values. This includes all parent classes and traits in the type's inheritance hierarchy—both those the type directly extends, and those inherited through intermediate class/trait extensions. When a type extends a trait that itself extends other traits, all of those traits appear in the parents list. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the complete inheritance structure of a type.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1028,7 +1028,7 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Inspect direct parent types:
+Inspect parent types in a linear inheritance chain:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1047,23 +1047,24 @@ val animalId  = TypeId.of[Animal]
 Now inspect the parents:
 
 ```scala mdoc
-// Dog directly extends Mammal (single parent)
+// Dog extends Mammal, which extends Animal
+// Parents include all parents in the inheritance chain
 dogId.parents
 
 // Mammal directly extends Animal
 mammalId.parents
 
-// Animal has no explicit parents (only Any)
+// Animal has no explicit parents (sealed trait with no extends)
 animalId.parents
 
-// Cat also extends Mammal (same parent as Dog)
+// Cat also extends Mammal (same parents as Dog)
 TypeId.of[Cat].parents
 
-// Fish extends Animal (different parent than mammals)
+// Fish extends Animal directly
 TypeId.of[Fish].parents
 ```
 
-Traits can have multiple parents:
+Parents are flattened through intermediate extensions:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1081,20 +1082,19 @@ trait Duck extends Swimmer with Flyer
 case class MallardDuck() extends Duck
 ```
 
-Multiple inheritance is captured in the parents list:
+When a type extends a trait that extends multiple traits, all parent traits are included:
 
 ```scala mdoc
 val duckId = TypeId.of[Duck]
-// Duck has two direct parents
+// Duck extends Swimmer and Flyer directly
 duckId.parents
 
 val mallardId = TypeId.of[MallardDuck]
-// MallardDuck extends Duck, which extends Swimmer and Flyer
-// Parents include all extended traits, even through intermediate traits
+// MallardDuck extends Duck, and Duck extends Swimmer and Flyer
+// The parents list is flattened to include all traits: [Duck, Swimmer, Flyer]
 mallardId.parents
 
-// Note: MallardDuck.parents includes Swimmer and Flyer
-// because Duck extends both
+// MallardDuck has three parents (Duck and the two traits Duck extends)
 mallardId.parents.size
 ```
 
@@ -1132,7 +1132,7 @@ genericBoxId.parents
 ```
 
 :::note
-The `parents` method returns all parent types (including those inherited through intermediate traits). Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., if a parent is a generic type like `List[String]`). To traverse the complete inheritance hierarchy including transitive supertypes, use `isSubtypeOf` or examine the type definition with `defKind`.
+The `parents` method returns a flattened list of all parent types. This includes both the type's direct parents and any traits that those parents extend. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., `Container[String]`). This means that trait hierarchies are flattened into a single list of all parent types a type indirectly or directly inherits from.
 :::
 
 ### Metadata
