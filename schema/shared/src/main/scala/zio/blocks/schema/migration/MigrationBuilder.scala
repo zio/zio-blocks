@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
 import zio.blocks.schema.migration.MigrationAction._
 
 /**
@@ -146,8 +146,7 @@ final class MigrationBuilder[A, B] private (
     withAction(TransformValue(path, expr))
 
   /**
-   * Make an optional field mandatory, using `default` when the value is
-   * `None`.
+   * Make an optional field mandatory, using `default` when the value is `None`.
    *
    * @param fieldName
    *   The name of the optional field in the source schema
@@ -284,8 +283,8 @@ final class MigrationBuilder[A, B] private (
    *   - All `DropField` and `Rename` paths reference fields that exist in the
    *     source schema
    *
-   * Returns `Left` with a description of any validation errors, or `Right`
-   * with the built [[Migration]].
+   * Returns `Left` with a description of any validation errors, or `Right` with
+   * the built [[Migration]].
    *
    * Note: Full macro-level validation (ensuring old schema has been completely
    * migrated to new schema) is a future enhancement.
@@ -297,8 +296,8 @@ final class MigrationBuilder[A, B] private (
   }
 
   /**
-   * Build the migration without full structural validation. Useful for
-   * partial migrations or migrations on schemas not known at compile time.
+   * Build the migration without full structural validation. Useful for partial
+   * migrations or migrations on schemas not known at compile time.
    */
   def buildPartial: Migration[A, B] =
     new Migration(new DynamicMigration(actions), sourceSchema, targetSchema)
@@ -353,10 +352,6 @@ final class MigrationBuilder[A, B] private (
 }
 
 object MigrationBuilder {
-
-  /** Create an empty `MigrationBuilder`. */
-  def empty[A, B](implicit sa: Schema[A], sb: Schema[B]): MigrationBuilder[A, B] =
-    new MigrationBuilder[A, B](sa, sb, Vector.empty)
 
   /** Create an empty `MigrationBuilder` with explicit schemas. */
   def empty[A, B](sa: Schema[A], sb: Schema[B]): MigrationBuilder[A, B] =

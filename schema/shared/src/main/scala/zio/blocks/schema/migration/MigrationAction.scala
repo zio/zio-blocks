@@ -26,8 +26,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue}
  * also knows how to reverse itself, enabling round-trip and downgrade
  * migrations.
  *
- * `MigrationAction` contains only data (no functions, closures, or
- * reflection), enabling full serializability, inspection, and code generation.
+ * `MigrationAction` contains only data (no functions, closures, or reflection),
+ * enabling full serializability, inspection, and code generation.
  */
 sealed trait MigrationAction {
 
@@ -49,8 +49,8 @@ object MigrationAction {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Add a new field to a record. The `at` path specifies the new field
-   * (the last node must be a `Field` node). The `default` value is used as the
+   * Add a new field to a record. The `at` path specifies the new field (the
+   * last node must be a `Field` node). The `default` value is used as the
    * field's value.
    *
    * Reverse: `DropField(at, default)`.

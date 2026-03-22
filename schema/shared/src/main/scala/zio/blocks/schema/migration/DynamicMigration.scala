@@ -48,8 +48,8 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * passing the result to the next action.
    *
    * @return
-   *   `Right` with the migrated value, or `Left` with a [[MigrationError]]
-   *   that includes the path at which the failure occurred.
+   *   `Right` with the migrated value, or `Left` with a [[MigrationError]] that
+   *   includes the path at which the failure occurred.
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
     var current: DynamicValue = value
@@ -149,7 +149,7 @@ object DynamicMigration {
       op(value)
     } else {
       // Navigate one more level into the container
-      navigateOneLevel(value, path(pathIdx), path, pathIdx, fullPath) { inner =>
+      navigateOneLevel(value, path(pathIdx), path, pathIdx) { inner =>
         applyStructural(inner, path, pathIdx + 1, fullPath, op)
       }
     }
@@ -168,7 +168,7 @@ object DynamicMigration {
     if (pathIdx == path.length) {
       op(value)
     } else {
-      navigateOneLevel(value, path(pathIdx), path, pathIdx, fullPath) { inner =>
+      navigateOneLevel(value, path(pathIdx), path, pathIdx) { inner =>
         applyAtPath(inner, path, pathIdx + 1, fullPath, op)
       }
     }
@@ -181,8 +181,7 @@ object DynamicMigration {
     value: DynamicValue,
     node: DynamicOptic.Node,
     path: IndexedSeq[DynamicOptic.Node],
-    pathIdx: Int,
-    fullPath: DynamicOptic
+    pathIdx: Int
   )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
     val nodePath = new DynamicOptic(path.take(pathIdx + 1))
     node match {
@@ -211,7 +210,7 @@ object DynamicMigration {
               case l              => l
             }
           case _: DynamicValue.Variant => new Right(value) // case doesn't match, skip
-          case _ =>
+          case _                       =>
             new Left(MigrationError.typeMismatch(nodePath, "Variant", value.getClass.getSimpleName))
         }
 
@@ -313,7 +312,9 @@ object DynamicMigration {
         f(value)
 
       case _ =>
-        new Left(MigrationError.atPath(nodePath, s"Unsupported navigation node in migration: ${node.getClass.getSimpleName}"))
+        new Left(
+          MigrationError.atPath(nodePath, s"Unsupported navigation node in migration: ${node.getClass.getSimpleName}")
+        )
     }
   }
 
@@ -327,7 +328,7 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] = {
     val fieldName = action.at.nodes.lastOption match {
       case Some(f: DynamicOptic.Node.Field) => f.name
-      case _ =>
+      case _                                =>
         return new Left(MigrationError.atPath(action.at, "AddField: last path node must be a Field node"))
     }
     container match {
@@ -347,7 +348,7 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] = {
     val fieldName = action.at.nodes.lastOption match {
       case Some(f: DynamicOptic.Node.Field) => f.name
-      case _ =>
+      case _                                =>
         return new Left(MigrationError.atPath(action.at, "DropField: last path node must be a Field node"))
     }
     container match {
@@ -366,7 +367,7 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] = {
     val fromName = action.at.nodes.lastOption match {
       case Some(f: DynamicOptic.Node.Field) => f.name
-      case _ =>
+      case _                                =>
         return new Left(MigrationError.atPath(action.at, "Rename: last path node must be a Field node"))
     }
     container match {
@@ -392,7 +393,7 @@ object DynamicMigration {
   ): Either[MigrationError, DynamicValue] =
     action.transform(value) match {
       case Right(updated) => new Right(updated)
-      case Left(err) =>
+      case Left(err)      =>
         val path = if (err.path.nodes.isEmpty) action.at else err.path
         new Left(new MigrationError(err.message, path))
     }
@@ -405,7 +406,10 @@ object DynamicMigration {
       case v: DynamicValue.Variant =>
         if (v.caseNameValue == "Some") new Right(v.value)
         else if (v.caseNameValue == "None") new Right(action.default)
-        else new Left(MigrationError.atPath(action.at, s"Mandate: expected Some/None Variant but got case '${v.caseNameValue}'"))
+        else
+          new Left(
+            MigrationError.atPath(action.at, s"Mandate: expected Some/None Variant but got case '${v.caseNameValue}'")
+          )
       case DynamicValue.Null =>
         new Right(action.default)
       case _ =>

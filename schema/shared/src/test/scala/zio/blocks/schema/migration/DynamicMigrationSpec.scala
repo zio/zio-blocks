@@ -28,11 +28,11 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
   // Test helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  def intVal(n: Int): DynamicValue    = new DynamicValue.Primitive(new PrimitiveValue.Int(n))
-  def longVal(n: Long): DynamicValue  = new DynamicValue.Primitive(new PrimitiveValue.Long(n))
-  def strVal(s: String): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.String(s))
+  def intVal(n: Int): DynamicValue      = new DynamicValue.Primitive(new PrimitiveValue.Int(n))
+  def longVal(n: Long): DynamicValue    = new DynamicValue.Primitive(new PrimitiveValue.Long(n))
+  def strVal(s: String): DynamicValue   = new DynamicValue.Primitive(new PrimitiveValue.String(s))
   def boolVal(b: Boolean): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Boolean(b))
-  def dblVal(d: Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(d))
+  def dblVal(d: Double): DynamicValue   = new DynamicValue.Primitive(new PrimitiveValue.Double(d))
 
   def record(fields: (String, DynamicValue)*): DynamicValue =
     new DynamicValue.Record(Chunk.from(fields))
@@ -46,7 +46,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
   def kvMap(entries: (DynamicValue, DynamicValue)*): DynamicValue =
     new DynamicValue.Map(Chunk.from(entries))
 
-  def fieldPath(name: String): DynamicOptic  = DynamicOptic.root.field(name)
+  def fieldPath(name: String): DynamicOptic          = DynamicOptic.root.field(name)
   def nestedPath(a: String, b: String): DynamicOptic = DynamicOptic.root.field(a).field(b)
 
   def migration(actions: MigrationAction*): DynamicMigration =
@@ -72,7 +72,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           record("x" -> intVal(1)),
           seq(intVal(1), intVal(2))
         )
-        val allPass = values.forall { v => DynamicMigration.empty(v) == Right(v) }
+        val allPass = values.forall(v => DynamicMigration.empty(v) == Right(v))
         assertTrue(allPass)
       },
       test("associativity law: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
@@ -119,10 +119,10 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("AddField at nested path") {
-        val inner  = record("street" -> strVal("Main St"))
-        val value  = record("address" -> inner)
-        val m      = migration(AddField(nestedPath("address", "city"), strVal("NYC")))
-        val result = m(value)
+        val inner    = record("street" -> strVal("Main St"))
+        val value    = record("address" -> inner)
+        val m        = migration(AddField(nestedPath("address", "city"), strVal("NYC")))
+        val result   = m(value)
         val expected = record("address" -> record("street" -> strVal("Main St"), "city" -> strVal("NYC")))
         assertTrue(result == Right(expected))
       }
@@ -142,9 +142,9 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(value))
       },
       test("DropField reverse adds the field back") {
-        val value  = record("name" -> strVal("Alice"), "email" -> strVal("alice@example.com"))
-        val m      = migration(DropField(fieldPath("email"), strVal("default@example.com")))
-        val dropped = m(value).getOrElse(sys.error("unexpected"))
+        val value    = record("name" -> strVal("Alice"), "email" -> strVal("alice@example.com"))
+        val m        = migration(DropField(fieldPath("email"), strVal("default@example.com")))
+        val dropped  = m(value).getOrElse(sys.error("unexpected"))
         val restored = m.reverse(dropped).getOrElse(sys.error("unexpected"))
         // Should restore field with the stored default
         assertTrue(restored == record("name" -> strVal("Alice"), "email" -> strVal("default@example.com")))
@@ -184,10 +184,10 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result.isLeft)
       },
       test("Rename at nested path") {
-        val inner  = record("firstName" -> strVal("John"))
-        val value  = record("person" -> inner)
-        val m      = migration(Rename(nestedPath("person", "firstName"), "fullName"))
-        val result = m(value)
+        val inner    = record("firstName" -> strVal("John"))
+        val value    = record("person" -> inner)
+        val m        = migration(Rename(nestedPath("person", "firstName"), "fullName"))
+        val result   = m(value)
         val expected = record("person" -> record("fullName" -> strVal("John")))
         assertTrue(result == Right(expected))
       }
@@ -307,16 +307,16 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(value))
       },
       test("RenameCase reverse renames back") {
-        val value   = variant("OldName", intVal(42))
-        val m       = migration(RenameCase(DynamicOptic.root, "OldName", "NewName"))
+        val value    = variant("OldName", intVal(42))
+        val m        = migration(RenameCase(DynamicOptic.root, "OldName", "NewName"))
         val renamed  = m(value).getOrElse(sys.error("unexpected"))
         val restored = m.reverse(renamed).getOrElse(sys.error("unexpected"))
         assertTrue(restored == value)
       },
       test("RenameCase at nested field path") {
-        val value  = record("payment" -> variant("CreditCard", record("number" -> strVal("1234"))))
-        val m      = migration(RenameCase(fieldPath("payment"), "CreditCard", "Card"))
-        val result = m(value)
+        val value    = record("payment" -> variant("CreditCard", record("number" -> strVal("1234"))))
+        val m        = migration(RenameCase(fieldPath("payment"), "CreditCard", "Card"))
+        val result   = m(value)
         val expected = record("payment" -> variant("Card", record("number" -> strVal("1234"))))
         assertTrue(result == Right(expected))
       }
@@ -324,26 +324,26 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     // ───────────────── TransformCase ─────────────────
     suite("TransformCase")(
       test("transforms inner value of matching case") {
-        val inner  = record("street" -> strVal("Main St"), "zip" -> strVal("10001"))
-        val value  = variant("Home", inner)
+        val inner      = record("street" -> strVal("Main St"), "zip" -> strVal("10001"))
+        val value      = variant("Home", inner)
         val subActions = Vector(Rename(fieldPath("zip"), "postalCode"))
-        val m      = migration(TransformCase(DynamicOptic.root, "Home", subActions))
-        val result = m(value)
-        val expected = variant("Home", record("street" -> strVal("Main St"), "postalCode" -> strVal("10001")))
+        val m          = migration(TransformCase(DynamicOptic.root, "Home", subActions))
+        val result     = m(value)
+        val expected   = variant("Home", record("street" -> strVal("Main St"), "postalCode" -> strVal("10001")))
         assertTrue(result == Right(expected))
       },
       test("TransformCase passes through non-matching cases") {
-        val value  = variant("Work", record("floor" -> intVal(3)))
+        val value      = variant("Work", record("floor" -> intVal(3)))
         val subActions = Vector(Rename(fieldPath("zip"), "postalCode"))
-        val m      = migration(TransformCase(DynamicOptic.root, "Home", subActions))
-        val result = m(value)
+        val m          = migration(TransformCase(DynamicOptic.root, "Home", subActions))
+        val result     = m(value)
         assertTrue(result == Right(value))
       },
       test("TransformCase reverse reverses nested actions") {
-        val inner  = record("street" -> strVal("Main St"), "zip" -> strVal("10001"))
-        val value  = variant("Home", inner)
-        val subActions = Vector(Rename(fieldPath("zip"), "postalCode"))
-        val m      = migration(TransformCase(DynamicOptic.root, "Home", subActions))
+        val inner       = record("street" -> strVal("Main St"), "zip" -> strVal("10001"))
+        val value       = variant("Home", inner)
+        val subActions  = Vector(Rename(fieldPath("zip"), "postalCode"))
+        val m           = migration(TransformCase(DynamicOptic.root, "Home", subActions))
         val transformed = m(value).getOrElse(sys.error("unexpected"))
         val restored    = m.reverse(transformed).getOrElse(sys.error("unexpected"))
         assertTrue(restored == value)
@@ -358,9 +358,9 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(seq(longVal(1L), longVal(2L), longVal(3L))))
       },
       test("TransformElements on a sequence field") {
-        val value  = record("nums" -> seq(intVal(1), intVal(2)))
-        val m      = migration(TransformElements(fieldPath("nums"), IntToString))
-        val result = m(value)
+        val value    = record("nums" -> seq(intVal(1), intVal(2)))
+        val m        = migration(TransformElements(fieldPath("nums"), IntToString))
+        val result   = m(value)
         val expected = record("nums" -> seq(strVal("1"), strVal("2")))
         assertTrue(result == Right(expected))
       },
@@ -381,16 +381,16 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     // ───────────────── TransformKeys / TransformValues ─────────────────
     suite("TransformKeys and TransformValues")(
       test("transforms map keys") {
-        val value  = kvMap(intVal(1) -> strVal("a"), intVal(2) -> strVal("b"))
-        val m      = migration(TransformKeys(DynamicOptic.root, IntToString))
-        val result = m(value)
+        val value    = kvMap(intVal(1) -> strVal("a"), intVal(2) -> strVal("b"))
+        val m        = migration(TransformKeys(DynamicOptic.root, IntToString))
+        val result   = m(value)
         val expected = kvMap(strVal("1") -> strVal("a"), strVal("2") -> strVal("b"))
         assertTrue(result == Right(expected))
       },
       test("transforms map values") {
-        val value  = kvMap(strVal("x") -> intVal(10), strVal("y") -> intVal(20))
-        val m      = migration(TransformValues(DynamicOptic.root, IntToLong))
-        val result = m(value)
+        val value    = kvMap(strVal("x") -> intVal(10), strVal("y") -> intVal(20))
+        val m        = migration(TransformValues(DynamicOptic.root, IntToLong))
+        val result   = m(value)
         val expected = kvMap(strVal("x") -> longVal(10L), strVal("y") -> longVal(20L))
         assertTrue(result == Right(expected))
       },
@@ -411,7 +411,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     // ───────────────── Reverse laws ─────────────────
     suite("Reverse laws")(
       test("structural reverse of reverse is identity for Rename") {
-        val m  = migration(Rename(fieldPath("a"), "b"))
+        val m = migration(Rename(fieldPath("a"), "b"))
         assertTrue(m.reverse.reverse == m)
       },
       test("structural reverse of reverse is identity for RenameCase") {
@@ -447,8 +447,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     // ───────────────── Error handling ─────────────────
     suite("Error handling")(
       test("errors include path information for missing field") {
-        val value  = record("x" -> intVal(1))
-        val m      = migration(Rename(fieldPath("y"), "z"))
+        val value = record("x" -> intVal(1))
+        val m     = migration(Rename(fieldPath("y"), "z"))
         m(value) match {
           case Left(err) => assertTrue(err.path.toString.contains("y"))
           case Right(_)  => assertTrue(false)
@@ -473,12 +473,12 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     // ───────────────── Complex/compound migrations ─────────────────
     suite("Complex migrations")(
       test("compose rename + addField migration") {
-        val value  = record("firstName" -> strVal("John"), "lastName" -> strVal("Doe"))
-        val m      = migration(
+        val value = record("firstName" -> strVal("John"), "lastName" -> strVal("Doe"))
+        val m     = migration(
           Rename(fieldPath("firstName"), "fullName"),
           AddField(fieldPath("age"), intVal(0))
         )
-        val result = m(value)
+        val result   = m(value)
         val expected = record("fullName" -> strVal("John"), "lastName" -> strVal("Doe"), "age" -> intVal(0))
         assertTrue(result == Right(expected))
       },
@@ -488,13 +488,13 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           Rename(fieldPath("a"), "x"),
           Rename(fieldPath("b"), "y")
         )
-        val result = m(value)
+        val result   = m(value)
         val expected = record("x" -> intVal(1), "y" -> intVal(2), "c" -> intVal(3))
         assertTrue(result == Right(expected))
       },
       test("rename + drop field") {
-        val value  = record("name" -> strVal("Alice"), "temp" -> strVal("junk"))
-        val m      = migration(
+        val value = record("name" -> strVal("Alice"), "temp" -> strVal("junk"))
+        val m     = migration(
           Rename(fieldPath("name"), "fullName"),
           DropField(fieldPath("temp"), strVal(""))
         )
@@ -502,8 +502,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(result == Right(record("fullName" -> strVal("Alice"))))
       },
       test("ConcatFields expression concatenates record fields") {
-        val value  = record("firstName" -> strVal("John"), "lastName" -> strVal("Doe"))
-        val expr   = ConcatFields(Vector("firstName", "lastName"), " ")
+        val value = record("firstName" -> strVal("John"), "lastName" -> strVal("Doe"))
+        val expr  = ConcatFields(Vector("firstName", "lastName"), " ")
         // Apply the expression directly to the record
         val result = expr(value)
         assertTrue(result == Right(strVal("John Doe")))

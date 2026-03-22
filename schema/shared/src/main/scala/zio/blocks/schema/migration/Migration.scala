@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{Schema, SchemaError}
+import zio.blocks.schema.Schema
 
 /**
  * A type-safe migration that transforms values of type `A` into values of type
@@ -113,7 +113,7 @@ object Migration {
    * `.build` or `.buildPartial` to produce the `Migration`.
    */
   def newBuilder[A, B](implicit sa: Schema[A], sb: Schema[B]): MigrationBuilder[A, B] =
-    MigrationBuilder.empty[A, B]
+    MigrationBuilder.empty[A, B](sa, sb)
 
   /**
    * Create a `Migration` directly from a `DynamicMigration` and schemas.

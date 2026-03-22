@@ -163,8 +163,8 @@ object MigrationSpec extends SchemaBaseSpec {
           .renameField("name", "fullName")
           .buildPartial
 
-        val person = PersonV1("Alice", 30)
-        val renamed = migration(person).getOrElse(sys.error("unexpected"))
+        val person   = PersonV1("Alice", 30)
+        val renamed  = migration(person).getOrElse(sys.error("unexpected"))
         val restored = migration.reverse(renamed).getOrElse(sys.error("unexpected"))
         assertTrue(restored == person)
       },
@@ -206,8 +206,8 @@ object MigrationSpec extends SchemaBaseSpec {
         val dynMigration = new DynamicMigration(
           Vector(MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson"))
         )
-        val value   = new DynamicValue.Variant("Red", DynamicValue.Null)
-        val result  = dynMigration(value)
+        val value    = new DynamicValue.Variant("Red", DynamicValue.Null)
+        val result   = dynMigration(value)
         val expected = new DynamicValue.Variant("Crimson", DynamicValue.Null)
         assertTrue(result == Right(expected))
       }

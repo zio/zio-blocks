@@ -21,10 +21,11 @@ import zio.blocks.schema.DynamicOptic
 import scala.util.control.NoStackTrace
 
 /**
- * An error that occurs during schema migration. Captures both a message and
- * the path at which the error occurred, enabling precise diagnostics.
+ * An error that occurs during schema migration. Captures both a message and the
+ * path at which the error occurred, enabling precise diagnostics.
  *
- * For example: "Failed to apply TransformValue at `.addresses.each.streetNumber`"
+ * For example: "Failed to apply TransformValue at
+ * `.addresses.each.streetNumber`"
  */
 final case class MigrationError(message: String, path: DynamicOptic)
     extends Exception(s"Migration failed at $path: $message")

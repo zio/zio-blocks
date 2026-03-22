@@ -32,8 +32,8 @@ import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 sealed trait DynamicMigrationExpr {
 
   /**
-   * Apply this expression to a `DynamicValue`, producing a transformed value
-   * or a `MigrationError` if the input type is incompatible.
+   * Apply this expression to a `DynamicValue`, producing a transformed value or
+   * a `MigrationError` if the input type is incompatible.
    */
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
 
@@ -43,7 +43,9 @@ sealed trait DynamicMigrationExpr {
    */
   def reverse: DynamicMigrationExpr
 
-  /** Compose this expression with another, applying `this` first, then `that`. */
+  /**
+   * Compose this expression with another, applying `this` first, then `that`.
+   */
   final def andThen(that: DynamicMigrationExpr): DynamicMigrationExpr =
     DynamicMigrationExpr.Compose(this, that)
 }
@@ -57,8 +59,8 @@ object DynamicMigrationExpr {
   }
 
   /**
-   * Replace any input with a constant literal value.
-   * Reverse is `Identity` (best-effort; the original value is not stored).
+   * Replace any input with a constant literal value. Reverse is `Identity`
+   * (best-effort; the original value is not stored).
    */
   final case class Constant(value: DynamicValue) extends DynamicMigrationExpr {
     def apply(in: DynamicValue): Either[MigrationError, DynamicValue] = new Right(value)
@@ -224,7 +226,9 @@ object DynamicMigrationExpr {
                   parts(idx) = v.value
                 case other =>
                   return new Left(
-                    MigrationError(s"ConcatFields: field '$fieldName' is not a String but ${other.getClass.getSimpleName}")
+                    MigrationError(
+                      s"ConcatFields: field '$fieldName' is not a String but ${other.getClass.getSimpleName}"
+                    )
                   )
               }
           }
