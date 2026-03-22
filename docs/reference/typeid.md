@@ -1047,43 +1047,6 @@ TypeId.of[Duck].parents
 TypeId.of[MallardDuck].parents
 ```
 
-Parents with type arguments are captured in the TypeRepr:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-// A generic trait with type parameters
-trait Container[T] {
-  def get: T
-}
-
-// A case class that extends a generic trait with concrete type argument
-case class StringBox(value: String) extends Container[String] {
-  def get: String = value
-}
-
-// A case class with type parameters extending a generic trait
-case class GenericBox[T](value: T) extends Container[T] {
-  def get: T = value
-}
-```
-
-Parents preserve type argument information:
-
-```scala mdoc
-val stringBoxId = TypeId.of[StringBox]
-// StringBox extends Container[String] - the type argument is captured
-stringBoxId.parents
-
-val genericBoxId = TypeId.of[GenericBox[Int]]
-// GenericBox[Int] extends Container[Int] - type arguments are preserved
-genericBoxId.parents
-```
-
-:::note
-The `parents` method returns a flattened list of all parent types, including those inherited through intermediate traits. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., `Container[String]`).
-:::
-
 ### Metadata
 
 Methods for accessing annotations, self-type, alias target, and opaque representation.
