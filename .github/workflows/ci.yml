@@ -61,7 +61,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Lint code
-        run: sbt "++2.13; check; ++3.7; check"
+        run: sbt "++2.13; check; headerCheck; ++3.7; check; headerCheck"
 
   testJVM:
     runs-on: ubuntu-latest
