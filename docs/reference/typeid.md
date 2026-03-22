@@ -901,7 +901,7 @@ In Scala 2, `isSubtypeOf` does not handle `EnumCase` subtypes, types aliased to 
 
 #### `isSupertypeOf` — Check Supertyping
 
-The mirror of `isSubtypeOf` — returns `true` if the other type is a subtype of this type. Useful for checking if a type can accept instances of another type.
+The mirror of `isSubtypeOf` — returns `true` if the other type is a subtype of this type. This is useful when you need to check if a type can accept instances of another type, or when validating that a container type can hold values of a more specific type.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -909,18 +909,32 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Check supertyping relationships:
+Check supertyping relationships using the same hierarchy:
 
 ```scala mdoc
-// Mammal is a supertype of Dog
+// Mammal is a supertype of Dog (Mammal can hold Dog instances)
 mammalId.isSupertypeOf(dogId)
 
-// Animal is a supertype of both Dog and Fish
+// Animal is a supertype of both Dog and Fish (Animal is the most general)
 animalId.isSupertypeOf(dogId)
 animalId.isSupertypeOf(fishId)
 
-// Dog is not a supertype of Mammal
+// Mammal is a supertype of Cat too
+mammalId.isSupertypeOf(TypeId.of[Cat])
+
+// But Dog is not a supertype of Mammal (can't hold all Mammals as Dogs)
 dogId.isSupertypeOf(mammalId)
+
+// And Fish is not a supertype of Mammal
+fishId.isSupertypeOf(mammalId)
+```
+
+Contravariant type constructors reverse subtyping relationships:
+
+```scala mdoc
+// Function that accepts Mammal is a supertype of function that accepts Dog
+// Because you can pass a Dog-specific function where a general Mammal function is expected
+TypeId.of[Mammal => String].isSupertypeOf(TypeId.of[Dog => String])
 ```
 
 #### `isEquivalentTo` — Check Type Equivalence
