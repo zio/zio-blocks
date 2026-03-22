@@ -643,11 +643,29 @@ TypeId.of[Int].isTypeConstructor
 
 #### `isApplied` — Has Type Arguments
 
-Returns `true` when `typeArgs.nonEmpty`.
+An **applied type** is a generic type that has been instantiated with concrete type arguments. For example, `List[Int]` is an applied type (`List` applied to `Int`), while `List` by itself is a type constructor with no arguments applied. The `isApplied` predicate returns `true` when `typeArgs.nonEmpty`, helping distinguish between abstract type constructors and concrete instantiated types. This is useful for code generators that need to know whether a type is ready for use.
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+case class Single[A](value: A)
+case class Pair[A, B](a: A, b: B)
+```
+
+Check which types are applied:
 
 ```scala mdoc
+// Applied types: have type arguments
 TypeId.of[List[Int]].isApplied
+TypeId.of[Pair[String, Int]].isApplied
+TypeId.of[Single[Boolean]].isApplied
+TypeId.of[Map[String, Double]].isApplied
+
+// Type constructors: no type arguments applied
 TypeId.of[List].isApplied
+TypeId.of[Single].isApplied
+TypeId.of[Pair].isApplied
+TypeId.of[Map].isApplied
 ```
 
 ### Type Classification
