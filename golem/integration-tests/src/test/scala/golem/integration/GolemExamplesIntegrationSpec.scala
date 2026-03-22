@@ -116,11 +116,22 @@ object GolemServer {
                case false => ZIO.unit
                case true  => ZIO.fail(new RuntimeException(s"port $golemPort is already in use"))
              }
+        // Clean stale REPL caches so regenerated scripts/SDKs are picked up
+        _ <- ZIO.attemptBlocking {
+               val golemTemp = new File(examplesDir, "golem-temp")
+               if (golemTemp.exists()) {
+                 def deleteRecursive(f: File): Unit = {
+                   if (f.isDirectory) Option(f.listFiles()).getOrElse(Array.empty[File]).foreach(deleteRecursive)
+                   f.delete()
+                 }
+                 deleteRecursive(golemTemp)
+               }
+             }
         logFile <- ZIO.attemptBlocking {
                      java.nio.file.Files.createTempFile("golem-server-", ".log").toFile
                    }
         process <- ZIO.acquireRelease(
-                     Cmd("golem", "server", "run", "--clean", "--disable-app-manifest-discovery")
+                     Cmd("golem", "-vvv", "server", "run", "--clean", "--disable-app-manifest-discovery")
                        .workingDirectory(examplesDir)
                        .env(buildEnv)
                        .redirectErrorStream(true)
@@ -282,7 +293,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     Sample(
       "guards-resource",
       "samples/guards/repl-guards-resource.ts",
-      Contains("result=")
+      Contains("Resource-style Guards Demo", "after drop():", "markAtomicOperation:")
     ),
     Sample(
       "guards-oplog",
@@ -349,7 +360,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     Sample(
       "host-api-explorer-all",
       "samples/host-api-explorer/repl-explore-all.ts",
-      Contains("=== Config", "=== Durability", "=== Context")
+      Contains("=== CONFIG", "=== DURABILITY", "=== CONTEXT")
     ),
     Sample(
       "host-api-explorer-config",
@@ -359,7 +370,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     Sample(
       "host-api-explorer-context",
       "samples/host-api-explorer/repl-explore-context.ts",
-      Contains("traceId=", "spanId=")
+      Contains("traceId =", "spanId =")
     ),
     Sample(
       "host-api-explorer-durability",
@@ -374,7 +385,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     Sample(
       "host-api-explorer-oplog",
       "samples/host-api-explorer/repl-explore-oplog.ts",
-      Contains("oplog entry count=")
+      Contains("OplogApi.GetOplog entries=")
     ),
     Sample(
       "host-api-explorer-keyvalue",
@@ -402,7 +413,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
   private def runGolem(server: GolemServer, timeoutSec: Long, args: String*): ZIO[Any, Nothing, GolemResult] = {
     val appManifest = new File(server.examplesDir, "golem.yaml").getAbsolutePath
-    val fullArgs    = Seq("--yes", "--local", "--app-manifest-path", appManifest) ++ args
+    val fullArgs    = Seq("--yes", "-vvv", "--local", "--app-manifest-path", appManifest) ++ args
     val env         = server.tsPackagesPath.map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v)).getOrElse(Map.empty)
 
     Cmd("golem", fullArgs*)
@@ -472,7 +483,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
         exitCodeResult && assertionResult
       }
-    } @@ (if (sample.skip.isDefined) TestAspect.ignore else TestAspect.identity)
+    } @@ TestAspect.timeout(300.seconds) @@ (if (sample.skip.isDefined) TestAspect.ignore else TestAspect.identity)
   }
 
   private val manifestTest: Spec[GolemServer, Throwable] =

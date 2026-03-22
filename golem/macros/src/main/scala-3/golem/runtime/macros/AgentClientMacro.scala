@@ -134,8 +134,7 @@ object AgentClientMacro {
   ): Expr[AgentMethod[Trait, ?, ?]] = {
 
     val metadataExpr = methodMetadata(method)
-    val agentType    = agentTypeNameOrDefault(method.owner)
-    val functionName = Expr(s"$agentType.{${method.name}}")
+    val functionName = Expr(method.name)
 
     val parameters                   = extractParameters(method)
     val accessMode                   = methodAccess(parameters)

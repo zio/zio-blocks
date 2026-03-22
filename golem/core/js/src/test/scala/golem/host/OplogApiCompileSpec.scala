@@ -15,6 +15,7 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     WitValueTypes.WitValue(List(WitValueTypes.WitNode.PrimString("test"))),
     WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
   )
+  private val sampleTdv = TypedDataValue("""{"tag":"tuple","val":[]}""", """{"tag":"tuple","val":[]}""")
 
   private val pluginDesc  = PluginInstallationDescription("plug", "1.0", Map("key" -> "val"))
   private val oplogRegion = OplogRegion(BigInt(0), BigInt(10))
@@ -25,10 +26,10 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
 
   private val agentInvocations: List[AgentInvocation] = List(
     AgentInvocation.ExportedFunction(
-      ExportedFunctionInvocationParameters(
+      AgentMethodInvocationParameters(
         "idem-1",
         "func",
-        Some(List(sampleVat)),
+        Some(List(sampleTdv)),
         "trace1",
         List("state1"),
         List(spanDatas)
@@ -67,9 +68,9 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
   @SuppressWarnings(Array("all"))
   private def describeEntry(e: OplogEntry): String = e match {
     case OplogEntry.Create(p)                       => s"create(${p.componentRevision})"
-    case OplogEntry.ImportedFunctionInvoked(p)      => s"import(${p.functionName})"
-    case OplogEntry.ExportedFunctionInvoked(p)      => s"export(${p.functionName})"
-    case OplogEntry.ExportedFunctionCompleted(p)    => s"completed(${p.consumedFuel})"
+    case OplogEntry.HostCall(p)      => s"import(${p.functionName})"
+    case OplogEntry.AgentInvocationStarted(p)      => s"export(${p.functionName})"
+    case OplogEntry.AgentInvocationFinished(p)    => s"completed(${p.consumedFuel})"
     case OplogEntry.Suspend(t)                      => s"suspend(${t.seconds})"
     case OplogEntry.Error(p)                        => s"error(${p.error})"
     case OplogEntry.NoOp(t)                         => s"noop(${t.seconds})"
@@ -93,7 +94,7 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     case OplogEntry.ActivatePlugin(p)               => s"activate(${p.plugin.name})"
     case OplogEntry.DeactivatePlugin(p)             => s"deactivate(${p.plugin.name})"
     case OplogEntry.Revert(p)                       => s"revert(${p.start})"
-    case OplogEntry.CancelInvocation(p)             => s"cancel(${p.idempotencyKey})"
+    case OplogEntry.CancelPendingInvocation(p)             => s"cancel(${p.idempotencyKey})"
     case OplogEntry.StartSpan(p)                    => s"start-span(${p.spanId})"
     case OplogEntry.FinishSpan(p)                   => s"finish-span(${p.spanId})"
     case OplogEntry.SetSpanAttribute(p)             => s"set-attr(${p.key})"
@@ -141,7 +142,7 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
       OplogEntry.EndAtomicRegion(EndAtomicRegionParameters(ts, BigInt(1))),
       OplogEntry.EndRemoteWrite(EndRemoteWriteParameters(ts, BigInt(2))),
       OplogEntry.GrowMemory(GrowMemoryParameters(ts, BigInt(65536))),
-      OplogEntry.CancelInvocation(CancelInvocationParameters(ts, "idem-key")),
+      OplogEntry.CancelPendingInvocation(CancelPendingInvocationParameters(ts, "idem-key")),
       OplogEntry.FinishSpan(FinishSpanParameters(ts, "span-1")),
       OplogEntry.ChangePersistenceLevel(ChangePersistenceLevelParameters(ts, HostApi.PersistenceLevel.Smart)),
       OplogEntry.BeginRemoteTransaction(BeginRemoteTransactionParameters(ts, "tx-1")),
@@ -149,10 +150,10 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
       OplogEntry.PreRollbackRemoteTransaction(RemoteTransactionParameters(ts, BigInt(11))),
       OplogEntry.CommittedRemoteTransaction(RemoteTransactionParameters(ts, BigInt(12))),
       OplogEntry.RolledBackRemoteTransaction(RemoteTransactionParameters(ts, BigInt(13))),
-      OplogEntry.ExportedFunctionCompleted(ExportedFunctionCompletedParameters(ts, Some(sampleVat), 1000L)),
-      OplogEntry.ExportedFunctionCompleted(ExportedFunctionCompletedParameters(ts, None, 0L)),
-      OplogEntry.ImportedFunctionInvoked(
-        ImportedFunctionInvokedParameters(
+      OplogEntry.AgentInvocationFinished(AgentInvocationFinishedParameters(ts, Some(sampleTdv), 1000L)),
+      OplogEntry.AgentInvocationFinished(AgentInvocationFinishedParameters(ts, None, 0L)),
+      OplogEntry.HostCall(
+        HostCallParameters(
           ts,
           "wasi:io/read",
           sampleVat,
@@ -160,11 +161,11 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
           DurabilityApi.DurableFunctionType.ReadRemote
         )
       ),
-      OplogEntry.ExportedFunctionInvoked(
-        ExportedFunctionInvokedParameters(
+      OplogEntry.AgentInvocationStarted(
+        AgentInvocationStartedParameters(
           ts,
           "increment",
-          List(sampleVat),
+          List(sampleTdv),
           "idem-1",
           "trace-1",
           List("state"),

@@ -57,7 +57,7 @@ final class HostApiExplorerImpl(@unused private val name: String) extends HostAp
     sb.append(s"traceId = ${ctx.traceId()}\n")
     sb.append(s"spanId = ${ctx.spanId()}\n")
     sb.append(s"parent = ${ctx.parent()}\n")
-    val attrs = ctx.getAttributes(false)
+    val attrs = ctx.getAttributes(false).sortBy(_.key)
     sb.append(s"attributes (${attrs.size}):\n")
     attrs.foreach(a => sb.append(s"  ${a.key} = ${a.value}\n"))
     val headers = ctx.traceContextHeaders()

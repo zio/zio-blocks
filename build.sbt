@@ -76,8 +76,8 @@ addCommandAlias(
     List(
       // Scala 3.7.4 JVM / 3.3.7 JS (via jsSettings) for deps
       List(setVersion, noDoc) ++ deps,
-      // Scala 3.3.7 for all Golem projects
-      List("++3.3.7", setVersion, noDoc) ++ golem,
+      // Scala 3.8.2 for all Golem projects (Symbol.newClass requires 3.5+)
+      List("++3.8.2", setVersion, noDoc) ++ golem,
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
       // Scala 2.12 for sbt plugin
@@ -886,6 +886,13 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
   .jsSettings(
+    // Override jsSettings' Scala 3.3.7 pin: golem macros use Symbol.newClass (stable since 3.5)
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => "3.8.2"
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    },
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0" % Test,
       "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0" % Test,
@@ -942,6 +949,13 @@ lazy val zioGolemExamples = project
   .settings(stdSettings("zio-golem-examples-js"))
   .settings(jsSettings)
   .settings(
+    // Override jsSettings' Scala 3.3.7 pin to match golem core
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => "3.8.2"
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    },
     publish / skip                  := true,
     name                            := "zio-golem-examples",
     scalaJSUseMainModuleInitializer := false,

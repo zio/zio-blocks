@@ -43,7 +43,7 @@ object OplogApi {
     configVars: Map[String, String]
   )
 
-  final case class ImportedFunctionInvokedParameters(
+  final case class HostCallParameters(
     timestamp: ContextApi.DateTime,
     functionName: String,
     request: WitValueTypes.ValueAndType,
@@ -68,19 +68,29 @@ object OplogApi {
     final case class ExternalSpan(data: ExternalSpanData) extends SpanData
   }
 
-  final case class ExportedFunctionInvokedParameters(
+  final case class TypedDataValue(value: String, schema: String)
+
+  object TypedDataValue {
+    def fromJs(raw: JsTypedDataValue): TypedDataValue =
+      TypedDataValue(
+        value = js.JSON.stringify(raw.value.asInstanceOf[js.Any]),
+        schema = js.JSON.stringify(raw.schema.asInstanceOf[js.Any])
+      )
+  }
+
+  final case class AgentInvocationStartedParameters(
     timestamp: ContextApi.DateTime,
     functionName: String,
-    request: List[WitValueTypes.ValueAndType],
+    request: List[TypedDataValue],
     idempotencyKey: String,
     traceId: String,
     traceStates: List[String],
     invocationContext: List[List[SpanData]]
   )
 
-  final case class ExportedFunctionCompletedParameters(
+  final case class AgentInvocationFinishedParameters(
     timestamp: ContextApi.DateTime,
-    response: Option[WitValueTypes.ValueAndType],
+    response: Option[TypedDataValue],
     consumedFuel: Long
   )
 
@@ -112,10 +122,10 @@ object OplogApi {
     beginIndex: OplogIndex
   )
 
-  final case class ExportedFunctionInvocationParameters(
+  final case class AgentMethodInvocationParameters(
     idempotencyKey: String,
     functionName: String,
-    input: Option[List[WitValueTypes.ValueAndType]],
+    input: Option[List[TypedDataValue]],
     traceId: String,
     traceStates: List[String],
     invocationContext: List[List[SpanData]]
@@ -123,7 +133,11 @@ object OplogApi {
 
   sealed trait AgentInvocation extends Product with Serializable
   object AgentInvocation {
-    final case class ExportedFunction(params: ExportedFunctionInvocationParameters) extends AgentInvocation
+    final case class ExportedFunction(params: AgentMethodInvocationParameters) extends AgentInvocation
+    final case class AgentInitialization(idempotencyKey: String)                    extends AgentInvocation
+    case object SaveSnapshot                                                       extends AgentInvocation
+    case object LoadSnapshot                                                       extends AgentInvocation
+    final case class ProcessOplogEntries(idempotencyKey: String)                   extends AgentInvocation
     final case class ManualUpdate(componentRevision: BigInt)                        extends AgentInvocation
   }
 
@@ -223,7 +237,7 @@ object OplogApi {
     end: OplogIndex
   )
 
-  final case class CancelInvocationParameters(
+  final case class CancelPendingInvocationParameters(
     timestamp: ContextApi.DateTime,
     idempotencyKey: String
   )
@@ -284,13 +298,13 @@ object OplogApi {
     final case class Create(params: CreateParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
-    final case class ImportedFunctionInvoked(params: ImportedFunctionInvokedParameters) extends OplogEntry {
+    final case class HostCall(params: HostCallParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
-    final case class ExportedFunctionInvoked(params: ExportedFunctionInvokedParameters) extends OplogEntry {
+    final case class AgentInvocationStarted(params: AgentInvocationStartedParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
-    final case class ExportedFunctionCompleted(params: ExportedFunctionCompletedParameters) extends OplogEntry {
+    final case class AgentInvocationFinished(params: AgentInvocationFinishedParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
     final case class Suspend(ts: ContextApi.DateTime) extends OplogEntry {
@@ -362,7 +376,7 @@ object OplogApi {
     final case class Revert(params: RevertParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
-    final case class CancelInvocation(params: CancelInvocationParameters) extends OplogEntry {
+    final case class CancelPendingInvocation(params: CancelPendingInvocationParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
     final case class StartSpan(params: StartSpanParameters) extends OplogEntry {
@@ -392,7 +406,7 @@ object OplogApi {
     final case class RolledBackRemoteTransaction(params: RemoteTransactionParameters) extends OplogEntry {
       def timestamp: ContextApi.DateTime = params.timestamp
     }
-    final case class SnapshotEntry(ts: ContextApi.DateTime, data: Array[Byte], mimeType: String) extends OplogEntry {
+    final case class Snapshot(ts: ContextApi.DateTime, data: Array[Byte], mimeType: String) extends OplogEntry {
       def timestamp: ContextApi.DateTime = ts
     }
     final case class OplogProcessorCheckpoint(params: OplogProcessorCheckpointParameters) extends OplogEntry {
@@ -407,9 +421,9 @@ object OplogApi {
       def v     = entry.asInstanceOf[JsPublicOplogEntryWithValue].value
       tag match {
         case "create"                                                  => Create(parseCreateParameters(v.asInstanceOf[JsCreateParameters]))
-        case "host-call" | "imported-function-invoked"                 => ImportedFunctionInvoked(parseHostCallParameters(v.asInstanceOf[JsHostCallParameters]))
-        case "agent-invocation-started" | "exported-function-invoked"  => ExportedFunctionInvoked(parseAgentInvocationStartedParameters(v.asInstanceOf[JsAgentInvocationStartedParameters]))
-        case "agent-invocation-finished" | "exported-function-completed" => ExportedFunctionCompleted(parseAgentInvocationFinishedParameters(v.asInstanceOf[JsAgentInvocationFinishedParameters]))
+        case "host-call" | "imported-function-invoked"                 => HostCall(parseHostCallParameters(v.asInstanceOf[JsHostCallParameters]))
+        case "agent-invocation-started" | "exported-function-invoked"  => AgentInvocationStarted(parseAgentInvocationStartedParameters(v.asInstanceOf[JsAgentInvocationStartedParameters]))
+        case "agent-invocation-finished" | "exported-function-completed" => AgentInvocationFinished(parseAgentInvocationFinishedParameters(v.asInstanceOf[JsAgentInvocationFinishedParameters]))
         case "suspend"                                                 => Suspend(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
         case "error"                                                   => Error(parseErrorParameters(v.asInstanceOf[JsErrorParameters]))
         case "no-op"                                                   => NoOp(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
@@ -433,7 +447,7 @@ object OplogApi {
         case "activate-plugin"                                         => ActivatePlugin(parseActivatePluginParameters(v.asInstanceOf[JsActivatePluginParameters]))
         case "deactivate-plugin"                                       => DeactivatePlugin(parseDeactivatePluginParameters(v.asInstanceOf[JsDeactivatePluginParameters]))
         case "revert"                                                  => Revert(parseRevertParameters(v.asInstanceOf[JsRevertParameters]))
-        case "cancel-pending-invocation" | "cancel-invocation"         => CancelInvocation(parseCancelInvocationParameters(v.asInstanceOf[JsCancelPendingInvocationParameters]))
+        case "cancel-pending-invocation" | "cancel-invocation"         => CancelPendingInvocation(parseCancelPendingInvocationParameters(v.asInstanceOf[JsCancelPendingInvocationParameters]))
         case "start-span"                                              => StartSpan(parseStartSpanParameters(v.asInstanceOf[JsStartSpanParameters]))
         case "finish-span"                                             => FinishSpan(parseFinishSpanParameters(v.asInstanceOf[JsFinishSpanParameters]))
         case "set-span-attribute"                                      => SetSpanAttribute(parseSetSpanAttributeParameters(v.asInstanceOf[JsSetSpanAttributeParameters]))
@@ -445,7 +459,7 @@ object OplogApi {
         case "rolled-back-remote-transaction"                          => RolledBackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
         case "snapshot"                                                =>
           val sp = v.asInstanceOf[JsSnapshotParameters]
-          SnapshotEntry(
+          Snapshot(
             ts = parseDateTime(sp.timestamp),
             data = new scala.scalajs.js.typedarray.Int8Array(sp.data.buffer).toArray,
             mimeType = sp.mimeType
@@ -505,8 +519,8 @@ object OplogApi {
       configVars = raw.configVars.toSeq.map(t => t._1 -> t._2).toMap
     )
 
-  private def parseHostCallParameters(raw: JsHostCallParameters): ImportedFunctionInvokedParameters =
-    ImportedFunctionInvokedParameters(
+  private def parseHostCallParameters(raw: JsHostCallParameters): HostCallParameters =
+    HostCallParameters(
       timestamp = parseDateTime(raw.timestamp),
       functionName = raw.functionName,
       request = WitValueTypes.ValueAndType.fromJs(raw.request),
@@ -540,19 +554,18 @@ object OplogApi {
   private def parseSpanDataLists(raw: js.Array[js.Array[JsSpanData]]): List[List[SpanData]] =
     raw.toList.map(_.toList.map(parseSpanData))
 
-  private def parseAgentInvocationStartedParameters(raw: JsAgentInvocationStartedParameters): ExportedFunctionInvokedParameters = {
-    val inv    = raw.invocation
-    val invVal = inv.asInstanceOf[JsAgentInvocationWithValue].value
+  private def parseAgentInvocationStartedParameters(raw: JsAgentInvocationStartedParameters): AgentInvocationStartedParameters = {
+    val inv = raw.invocation
     inv.tag match {
       case "agent-method-invocation" | "exported-function" =>
-        val p = invVal.asInstanceOf[JsAgentMethodInvocationParameters]
-        ExportedFunctionInvokedParameters(
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsAgentMethodInvocationParameters]
+        AgentInvocationStartedParameters(
           timestamp = parseDateTime(raw.timestamp),
           functionName = p.methodName,
           request = {
             val fi = p.functionInput.asInstanceOf[js.Any]
             if (js.isUndefined(fi) || fi == null) Nil
-            else List(WitValueTypes.ValueAndType.fromJs(fi.asInstanceOf[JsValueAndType]))
+            else List(TypedDataValue.fromJs(fi.asInstanceOf[JsTypedDataValue]))
           },
           idempotencyKey = p.idempotencyKey,
           traceId = p.traceId,
@@ -560,8 +573,8 @@ object OplogApi {
           invocationContext = parseSpanDataLists(p.invocationContext)
         )
       case "agent-initialization" =>
-        val p = invVal.asInstanceOf[JsAgentInitializationParameters]
-        ExportedFunctionInvokedParameters(
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsAgentInitializationParameters]
+        AgentInvocationStartedParameters(
           timestamp = parseDateTime(raw.timestamp),
           functionName = "<agent-initialization>",
           request = Nil,
@@ -570,8 +583,39 @@ object OplogApi {
           traceStates = p.traceStates.toList,
           invocationContext = parseSpanDataLists(p.invocationContext)
         )
+      case "save-snapshot" =>
+        AgentInvocationStartedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = "<save-snapshot>",
+          request = Nil,
+          idempotencyKey = "",
+          traceId = "",
+          traceStates = Nil,
+          invocationContext = Nil
+        )
+      case "load-snapshot" =>
+        AgentInvocationStartedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = "<load-snapshot>",
+          request = Nil,
+          idempotencyKey = "",
+          traceId = "",
+          traceStates = Nil,
+          invocationContext = Nil
+        )
+      case "process-oplog-entries" =>
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsProcessOplogEntriesParameters]
+        AgentInvocationStartedParameters(
+          timestamp = parseDateTime(raw.timestamp),
+          functionName = "<process-oplog-entries>",
+          request = Nil,
+          idempotencyKey = p.idempotencyKey,
+          traceId = "",
+          traceStates = Nil,
+          invocationContext = Nil
+        )
       case other =>
-        ExportedFunctionInvokedParameters(
+        AgentInvocationStartedParameters(
           timestamp = parseDateTime(raw.timestamp),
           functionName = s"<$other>",
           request = Nil,
@@ -583,16 +627,15 @@ object OplogApi {
     }
   }
 
-  private def parseAgentInvocationFinishedParameters(raw: JsAgentInvocationFinishedParameters): ExportedFunctionCompletedParameters = {
-    val result    = raw.invocationResult
-    val resultVal = result.asInstanceOf[JsAgentInvocationResultWithValue].value
-    val response  = result.tag match {
-      case "agent-invocation-output" =>
-        val p = resultVal.asInstanceOf[JsAgentInvocationOutputParameters]
-        Some(WitValueTypes.ValueAndType.fromJs(p.output.asInstanceOf[JsValueAndType]))
+  private def parseAgentInvocationFinishedParameters(raw: JsAgentInvocationFinishedParameters): AgentInvocationFinishedParameters = {
+    val result   = raw.invocationResult
+    val response = result.tag match {
+      case "agent-initialization" | "agent-method" =>
+        val p = result.asInstanceOf[JsAgentInvocationResultWithValue].value.asInstanceOf[JsAgentInvocationOutputParameters]
+        Some(TypedDataValue.fromJs(p.output))
       case _ => None
     }
-    ExportedFunctionCompletedParameters(
+    AgentInvocationFinishedParameters(
       timestamp = parseDateTime(raw.timestamp),
       response = response,
       consumedFuel = BigInt(raw.consumedFuel.toString).toLong
@@ -639,23 +682,32 @@ object OplogApi {
     )
 
   private def parsePendingAgentInvocationParameters(raw: JsPendingAgentInvocationParameters): PendingAgentInvocationParameters = {
-    val inv    = raw.invocation
-    val invVal = inv.asInstanceOf[JsAgentInvocationWithValue].value
+    val inv = raw.invocation
     val agentInv = inv.tag match {
       case "agent-method-invocation" | "exported-function" =>
-        val p = invVal.asInstanceOf[JsAgentMethodInvocationParameters]
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsAgentMethodInvocationParameters]
         AgentInvocation.ExportedFunction(
-          ExportedFunctionInvocationParameters(
+          AgentMethodInvocationParameters(
             idempotencyKey = p.idempotencyKey,
             functionName = p.methodName,
-            input = Some(List(WitValueTypes.ValueAndType.fromJs(p.functionInput.asInstanceOf[JsValueAndType]))),
+            input = Some(List(TypedDataValue.fromJs(p.functionInput))),
             traceId = p.traceId,
             traceStates = p.traceStates.toList,
             invocationContext = parseSpanDataLists(p.invocationContext)
           )
         )
+      case "agent-initialization" =>
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsAgentInitializationParameters]
+        AgentInvocation.AgentInitialization(idempotencyKey = p.idempotencyKey)
+      case "save-snapshot" =>
+        AgentInvocation.SaveSnapshot
+      case "load-snapshot" =>
+        AgentInvocation.LoadSnapshot
+      case "process-oplog-entries" =>
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsProcessOplogEntriesParameters]
+        AgentInvocation.ProcessOplogEntries(idempotencyKey = p.idempotencyKey)
       case "manual-update" =>
-        val p = invVal.asInstanceOf[JsManualUpdateParameters]
+        val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsManualUpdateParameters]
         AgentInvocation.ManualUpdate(BigInt(p.targetRevision.toString))
       case other =>
         throw new IllegalArgumentException(s"Unknown AgentInvocation tag: $other")
@@ -744,8 +796,8 @@ object OplogApi {
       end = BigInt(raw.droppedRegion.end.toString)
     )
 
-  private def parseCancelInvocationParameters(raw: JsCancelPendingInvocationParameters): CancelInvocationParameters =
-    CancelInvocationParameters(
+  private def parseCancelPendingInvocationParameters(raw: JsCancelPendingInvocationParameters): CancelPendingInvocationParameters =
+    CancelPendingInvocationParameters(
       timestamp = parseDateTime(raw.timestamp),
       idempotencyKey = raw.idempotencyKey
     )

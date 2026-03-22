@@ -122,7 +122,7 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
         parsed.asInstanceOf[OplogEntry.GrowMemory].params.delta == BigInt(65536)
       )
     },
-    test("CancelInvocation from dynamic") {
+    test("CancelPendingInvocation from dynamic") {
       val raw = wrapEntry(
         "cancel-invocation",
         js.Dynamic.literal(
@@ -132,8 +132,8 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
       )
       val parsed = OplogEntry.fromJs(raw)
       assertTrue(
-        parsed.isInstanceOf[OplogEntry.CancelInvocation],
-        parsed.asInstanceOf[OplogEntry.CancelInvocation].params.idempotencyKey == "idem-123"
+        parsed.isInstanceOf[OplogEntry.CancelPendingInvocation],
+        parsed.asInstanceOf[OplogEntry.CancelPendingInvocation].params.idempotencyKey == "idem-123"
       )
     },
     test("FinishSpan from dynamic") {
@@ -288,61 +288,48 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
         l.params.message == "Agent started"
       )
     },
-    test("ExportedFunctionCompleted with response from dynamic") {
-      val vatDyn = js.Dynamic.literal(
-        value = js.Dynamic.literal(nodes =
-          js.Array(
-            js.Dynamic.literal(tag = "prim-string", `val` = "result")
-          )
-        ),
-        typ = js.Dynamic.literal(nodes =
-          js.Array(
-            js.Dynamic.literal(
-              name = "r",
-              owner = js.undefined,
-              `type` = js.Dynamic.literal(tag = "prim-string-type")
-            )
-          )
-        )
+    test("AgentInvocationFinished with response from dynamic (agent-method result)") {
+      val tdvDyn = js.Dynamic.literal(
+        value = js.Dynamic.literal(tag = "tuple", `val` = js.Array[js.Any]()),
+        schema = js.Dynamic.literal(tag = "tuple", `val` = js.Array[js.Any]())
       )
       val raw = wrapEntry(
-        "exported-function-completed",
+        "agent-invocation-finished",
         js.Dynamic.literal(
           timestamp = ts(),
           invocationResult = js.Dynamic.literal(
-            tag = "agent-invocation-output",
-            `val` = js.Dynamic.literal(output = vatDyn)
+            tag = "agent-method",
+            `val` = js.Dynamic.literal(output = tdvDyn)
           ),
           consumedFuel = js.BigInt("1000"),
           componentRevision = js.BigInt("1")
         )
       )
       val parsed = OplogEntry.fromJs(raw)
-      val c      = parsed.asInstanceOf[OplogEntry.ExportedFunctionCompleted]
+      val c      = parsed.asInstanceOf[OplogEntry.AgentInvocationFinished]
       assertTrue(
-        parsed.isInstanceOf[OplogEntry.ExportedFunctionCompleted],
+        parsed.isInstanceOf[OplogEntry.AgentInvocationFinished],
         c.params.response.isDefined == true,
-        c.params.consumedFuel == 1000L,
-        c.params.response.get.value.nodes.head == WitValueTypes.WitNode.PrimString("result")
+        c.params.consumedFuel == 1000L
       )
     },
-    test("ExportedFunctionCompleted without response from dynamic") {
+    test("AgentInvocationFinished without response from dynamic (manual-update result)") {
       val raw = wrapEntry(
-        "exported-function-completed",
+        "agent-invocation-finished",
         js.Dynamic.literal(
           timestamp = ts(),
-          invocationResult = js.Dynamic.literal(tag = "no-output"),
+          invocationResult = js.Dynamic.literal(tag = "manual-update"),
           consumedFuel = js.BigInt("0"),
           componentRevision = js.BigInt("1")
         )
       )
       val parsed = OplogEntry.fromJs(raw)
       assertTrue(
-        parsed.isInstanceOf[OplogEntry.ExportedFunctionCompleted],
-        parsed.asInstanceOf[OplogEntry.ExportedFunctionCompleted].params.response == None
+        parsed.isInstanceOf[OplogEntry.AgentInvocationFinished],
+        parsed.asInstanceOf[OplogEntry.AgentInvocationFinished].params.response == None
       )
     },
-    test("ImportedFunctionInvoked from dynamic") {
+    test("HostCall from dynamic") {
       val vatDyn = js.Dynamic.literal(
         value = js.Dynamic.literal(nodes = js.Array(js.Dynamic.literal(tag = "prim-s32", `val` = 42))),
         typ = js.Dynamic.literal(nodes =
@@ -363,9 +350,9 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
         )
       )
       val parsed = OplogEntry.fromJs(raw)
-      val i      = parsed.asInstanceOf[OplogEntry.ImportedFunctionInvoked]
+      val i      = parsed.asInstanceOf[OplogEntry.HostCall]
       assertTrue(
-        parsed.isInstanceOf[OplogEntry.ImportedFunctionInvoked],
+        parsed.isInstanceOf[OplogEntry.HostCall],
         i.params.functionName == "wasi:io/read",
         i.params.wrappedFunctionType == DurabilityApi.DurableFunctionType.ReadRemote
       )
@@ -602,10 +589,9 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
       )
     },
     test("PendingAgentInvocation with exported-function from dynamic") {
-      // The parser casts functionInput to JsValueAndType (which uses `typ`, not `schema`)
       val dummyInput = js.Dynamic.literal(
-        value = js.Dynamic.literal(nodes = js.Array[js.Any]()),
-        typ = js.Dynamic.literal(nodes = js.Array[js.Any]())
+        value = js.Dynamic.literal(tag = "tuple", `val` = js.Array[js.Any]()),
+        schema = js.Dynamic.literal(tag = "tuple", `val` = js.Array[js.Any]())
       )
       val raw = wrapEntry(
         "pending-agent-invocation",

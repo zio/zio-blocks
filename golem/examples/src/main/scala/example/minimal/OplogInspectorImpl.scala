@@ -56,17 +56,17 @@ final class OplogInspectorImpl(@unused private val name: String) extends OplogIn
       case OplogApi.OplogEntry.Create(p) =>
         s"CREATE @ $ts revision=${p.componentRevision} args=${p.args.mkString(",")}"
 
-      case OplogApi.OplogEntry.ImportedFunctionInvoked(p) =>
+      case OplogApi.OplogEntry.HostCall(p) =>
         val reqSummary = summarizeVat(p.request)
         val resSummary = summarizeVat(p.response)
         s"IMPORT @ $ts func=${p.functionName} req=$reqSummary res=$resSummary type=${p.wrappedFunctionType.tag}"
 
-      case OplogApi.OplogEntry.ExportedFunctionInvoked(p) =>
+      case OplogApi.OplogEntry.AgentInvocationStarted(p) =>
         val reqCount = p.request.size
         s"EXPORT @ $ts func=${p.functionName} params=$reqCount idem=${p.idempotencyKey}"
 
-      case OplogApi.OplogEntry.ExportedFunctionCompleted(p) =>
-        val resp = p.response.map(summarizeVat).getOrElse("void")
+      case OplogApi.OplogEntry.AgentInvocationFinished(p) =>
+        val resp = p.response.map(summarizeTdv).getOrElse("void")
         s"COMPLETED @ $ts response=$resp fuel=${p.consumedFuel}"
 
       case OplogApi.OplogEntry.Suspend(t)                => s"SUSPEND @ ${t.seconds}s"
@@ -82,8 +82,12 @@ final class OplogInspectorImpl(@unused private val name: String) extends OplogIn
       case OplogApi.OplogEntry.EndRemoteWrite(p)         => s"END_REMOTE_WRITE @ $ts begin=${p.beginIndex}"
       case OplogApi.OplogEntry.PendingAgentInvocation(p) =>
         val invDesc = p.invocation match {
-          case OplogApi.AgentInvocation.ExportedFunction(params) => s"func(${params.functionName})"
-          case OplogApi.AgentInvocation.ManualUpdate(rev)        => s"manual-update(rev=$rev)"
+          case OplogApi.AgentInvocation.ExportedFunction(params)    => s"func(${params.functionName})"
+          case OplogApi.AgentInvocation.AgentInitialization(key)    => s"agent-init(key=$key)"
+          case OplogApi.AgentInvocation.SaveSnapshot                => "save-snapshot"
+          case OplogApi.AgentInvocation.LoadSnapshot                => "load-snapshot"
+          case OplogApi.AgentInvocation.ProcessOplogEntries(key)    => s"process-oplog(key=$key)"
+          case OplogApi.AgentInvocation.ManualUpdate(rev)           => s"manual-update(rev=$rev)"
         }
         s"PENDING_INVOCATION @ $ts $invDesc"
       case OplogApi.OplogEntry.PendingUpdate(p) =>
@@ -115,7 +119,7 @@ final class OplogInspectorImpl(@unused private val name: String) extends OplogIn
       case OplogApi.OplogEntry.ActivatePlugin(p)   => s"ACTIVATE_PLUGIN @ $ts ${p.plugin.name}@${p.plugin.version}"
       case OplogApi.OplogEntry.DeactivatePlugin(p) => s"DEACTIVATE_PLUGIN @ $ts ${p.plugin.name}@${p.plugin.version}"
       case OplogApi.OplogEntry.Revert(p)           => s"REVERT @ $ts range=[${p.start},${p.end}]"
-      case OplogApi.OplogEntry.CancelInvocation(p) => s"CANCEL @ $ts idem=${p.idempotencyKey}"
+      case OplogApi.OplogEntry.CancelPendingInvocation(p) => s"CANCEL @ $ts idem=${p.idempotencyKey}"
       case OplogApi.OplogEntry.StartSpan(p)        =>
         s"START_SPAN @ $ts id=${p.spanId} parent=${p.parent.getOrElse("none")} attrs=${p.attributes.size}"
       case OplogApi.OplogEntry.FinishSpan(p)             => s"FINISH_SPAN @ $ts id=${p.spanId}"
@@ -136,6 +140,9 @@ final class OplogInspectorImpl(@unused private val name: String) extends OplogIn
     val firstNode = vat.value.nodes.headOption.map(describeNode).getOrElse("empty")
     s"VAT($nodeCount nodes, $typeCount types, first=$firstNode)"
   }
+
+  private def summarizeTdv(tdv: OplogApi.TypedDataValue): String =
+    s"TDV(value=${tdv.value.take(50)}, schema=${tdv.schema.take(50)})"
 
   private def describeNode(n: WitValueTypes.WitNode): String = n match {
     case WitValueTypes.WitNode.RecordValue(f)     => s"record(${f.size})"

@@ -12,7 +12,7 @@ components:
     templates: scala.js
     buildMergeMode: replace
     build:
-    - command: bash -c 'COMP_DIR="$PWD" && cd ../.. && sbt -batch -no-colors -Dsbt.supershell=false "++3.3.7!" "project zioGolemExamples" "golemBuildComponent scala:examples $COMP_DIR/.golem/scala.js"'
+    - command: bash -c 'COMP_DIR="$PWD" && cd ../.. && sbt -batch -no-colors -Dsbt.supershell=false "++3.8.2!" "project zioGolemExamples" "golemBuildComponent scala:examples $COMP_DIR/.golem/scala.js"'
       sources:
       - src
       targets:
