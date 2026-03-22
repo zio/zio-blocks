@@ -988,7 +988,7 @@ usernameType.isEquivalentTo(stringType)
 
 #### `parents` — Direct Parent Types
 
-Returns the list of direct parent type representations from the type definition. This shows only the immediate parents, not the full transitive hierarchy.
+Returns the list of direct parent type representations from the type definition as `TypeRepr` values. This shows only the **immediate parents**, not the full transitive hierarchy. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type without traversing the entire hierarchy. Each parent is represented as a `TypeRepr` — a type expression that captures the parent type, including any type arguments it might have.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -996,10 +996,10 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Inspect parent types:
+Inspect direct parent types:
 
 ```scala mdoc
-// Dog directly extends Mammal
+// Dog directly extends Mammal (single parent)
 dogId.parents
 
 // Mammal directly extends Animal
@@ -1007,7 +1007,53 @@ mammalId.parents
 
 // Animal has no explicit parents (only Any)
 animalId.parents
+
+// Cat also extends Mammal (same parent as Dog)
+val catId = TypeId.of[Cat]
+catId.parents
+
+// Fish extends Animal (different parent than mammals)
+val fishId = TypeId.of[Fish]
+fishId.parents
 ```
+
+Traits can have multiple parents:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// A trait can extend multiple traits
+trait Swimmer {
+  def swim(): Unit
+}
+trait Flyer {
+  def fly(): Unit
+}
+trait Duck extends Swimmer with Flyer
+
+// A case class can extend a trait
+case class MallardDuck() extends Duck
+```
+
+Multiple inheritance is captured in the parents list:
+
+```scala mdoc
+val duckId = TypeId.of[Duck]
+// Duck has two direct parents
+duckId.parents
+
+val mallardId = TypeId.of[MallardDuck]
+// MallardDuck directly extends Duck
+mallardId.parents
+
+// Parents are immediate only, not transitive
+// So MallardDuck.parents doesn't include Swimmer or Flyer
+mallardId.parents.size
+```
+
+:::note
+The `parents` method returns only **direct parents**, not the full inheritance hierarchy. To traverse the complete hierarchy, use `isSubtypeOf` or examine the type definition with `defKind`. Each parent is returned as a `TypeRepr`, which may include type arguments (e.g., if a parent is a generic type like `List[String]`).
+:::
 
 ### Metadata
 
