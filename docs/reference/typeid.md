@@ -808,11 +808,11 @@ TypeId.of[Either[String, Int]].isSum
 
 ### Subtype Relationships
 
-Methods for checking type hierarchy relationships at runtime.
+**Subtype relationships** determine the inheritance hierarchy and compatibility between types at runtime. This is essential for type-safe dispatch, generic programming, and validating that a value of one type can be used where another type is expected. TypeId provides methods to check direct and transitive subtyping, supertyping, type equivalence, and inspect the parent types in the hierarchy.
 
 #### `isSubtypeOf` — Check Subtyping
 
-Checks if this type is a subtype of another type. Handles direct inheritance, sealed trait subtypes, enum cases, transitive inheritance, and variance-aware subtyping for applied types.
+Checks if this type is a subtype of another type. A type is a subtype if it extends or implements the other type, either directly or transitively. This method handles direct inheritance, sealed trait subtypes, enum cases, transitive inheritance chains, and variance-aware subtyping for applied generic types.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -820,25 +820,41 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Define a type hierarchy with direct and transitive relationships:
+
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
 sealed trait Animal
-case class Dog(name: String) extends Animal
-case class Cat(name: String) extends Animal
+sealed trait Mammal extends Animal
+case class Dog(name: String) extends Mammal
+case class Cat(name: String) extends Mammal
+case class Fish(species: String) extends Animal
 ```
 
-```scala mdoc
-val dogId    = TypeId.of[Dog]
-val animalId = TypeId.of[Animal]
+Check subtyping relationships:
 
+```scala mdoc
+val dogId     = TypeId.of[Dog]
+val mammalId  = TypeId.of[Mammal]
+val animalId  = TypeId.of[Animal]
+val fishId    = TypeId.of[Fish]
+
+// Direct inheritance: Dog extends Mammal
+dogId.isSubtypeOf(mammalId)
+
+// Transitive inheritance: Dog extends Mammal extends Animal
 dogId.isSubtypeOf(animalId)
-animalId.isSubtypeOf(dogId)
+
+// Not a subtype relationship
+dogId.isSubtypeOf(fishId)
+fishId.isSubtypeOf(mammalId)
 ```
 
-Covariant type constructors preserve subtyping:
+Covariant type constructors preserve subtyping relationships:
 
 ```scala mdoc
+TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Mammal]])
 TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
 ```
 
@@ -848,7 +864,7 @@ In Scala 2, `isSubtypeOf` does not handle `EnumCase` subtypes, types aliased to 
 
 #### `isSupertypeOf` — Check Supertyping
 
-Returns `other.isSubtypeOf(this)`.
+The mirror of `isSubtypeOf` — returns `true` if the other type is a subtype of this type. Useful for checking if a type can accept instances of another type.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -856,13 +872,23 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Check supertyping relationships:
+
 ```scala mdoc
+// Mammal is a supertype of Dog
+mammalId.isSupertypeOf(dogId)
+
+// Animal is a supertype of both Dog and Fish
 animalId.isSupertypeOf(dogId)
+animalId.isSupertypeOf(fishId)
+
+// Dog is not a supertype of Mammal
+dogId.isSupertypeOf(mammalId)
 ```
 
 #### `isEquivalentTo` — Check Type Equivalence
 
-Returns `true` when both types are mutual subtypes: `this.isSubtypeOf(other) && other.isSubtypeOf(this)`.
+Returns `true` when two types are structurally equivalent — meaning they are mutual subtypes of each other. Two types are equivalent when they represent the same type through different paths or after normalization.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -870,14 +896,24 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Check type equivalence:
+
 ```scala mdoc
+// A type is always equivalent to itself
 dogId.isEquivalentTo(dogId)
-dogId.isEquivalentTo(animalId)
+
+// Different types in the hierarchy are not equivalent
+dogId.isEquivalentTo(mammalId)
+mammalId.isEquivalentTo(animalId)
+
+// But the same type referenced twice is equivalent
+val dogId2 = TypeId.of[Dog]
+dogId.isEquivalentTo(dogId2)
 ```
 
 #### `parents` — Direct Parent Types
 
-Returns the list of direct parent type representations from `defKind.baseTypes`.
+Returns the list of direct parent type representations from the type definition. This shows only the immediate parents, not the full transitive hierarchy.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -885,8 +921,17 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Inspect parent types:
+
 ```scala mdoc
+// Dog directly extends Mammal
 dogId.parents
+
+// Mammal directly extends Animal
+mammalId.parents
+
+// Animal has no explicit parents (only Any)
+animalId.parents
 ```
 
 ### Metadata
