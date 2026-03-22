@@ -670,7 +670,7 @@ TypeId.of[Map].isApplied
 
 ### Type Classification
 
-Predicates that inspect the `defKind` to determine what kind of type definition this is.
+**Type classification** determines what kind of type definition something is — whether it's a class, trait, object, enum, alias, opaque type, or something else. This is essential for code generators, serializers, and frameworks that need to handle different type categories differently. TypeId provides both a `defKind` property that returns detailed classification information, and convenient predicates (like `isClass`, `isTrait`, `isCaseClass`) for common checks.
 
 #### `defKind` — Type Definition Kind
 
@@ -682,23 +682,33 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+Define types representing different classifications:
+
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-case object Origin
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case object Sentinel
+type UserId = String
+opaque type Email = String
+enum Color { case Red; case Green; case Blue }
 ```
 
+Inspect the `defKind` for each type to see how they're classified:
+
 ```scala mdoc
-TypeId.of[Circle].defKind
-TypeId.of[Shape].defKind
-TypeId.of[Origin.type].defKind
+TypeId.of[Dog].defKind
+TypeId.of[Animal].defKind
+TypeId.of[Sentinel.type].defKind
+TypeId.of[UserId].defKind
+TypeId.of[Email].defKind
+TypeId.of[Color].defKind
 ```
 
 #### Classification Predicates
 
-Each predicate inspects `defKind` for a specific type definition kind:
+Each predicate inspects `defKind` for a specific type definition kind. These are convenience methods that save you from pattern matching on `defKind` directly:
 
 | Predicate        | Returns `true` when                                         |
 |------------------|-------------------------------------------------------------|
@@ -713,15 +723,34 @@ Each predicate inspects `defKind` for a specific type definition kind:
 | `isCaseClass`    | `defKind` is `TypeDefKind.Class(_, _, isCase = true, _, _)` |
 | `isValueClass`   | `defKind` is `TypeDefKind.Class(_, _, _, isValue = true, _)`|
 
-```scala mdoc
-val shapeId  = TypeId.of[Shape]
-val circleId = TypeId.of[Circle]
-val originId = TypeId.of[Origin.type]
+Use the classification predicates to identify type kinds:
 
-shapeId.isTrait
-shapeId.isSealed
-circleId.isCaseClass
-originId.isObject
+```scala mdoc
+val animalId   = TypeId.of[Animal]
+val dogId      = TypeId.of[Dog]
+val sentinelId = TypeId.of[Sentinel.type]
+val userIdId   = TypeId.of[UserId]
+val emailId    = TypeId.of[Email]
+val colorId    = TypeId.of[Color]
+
+// Trait classifications
+animalId.isTrait
+animalId.isSealed
+
+// Case class
+dogId.isCaseClass
+
+// Object/Singleton
+sentinelId.isObject
+
+// Type alias
+userIdId.isAlias
+
+// Opaque type
+emailId.isOpaque
+
+// Enum
+colorId.isEnum
 ```
 
 :::note
@@ -730,7 +759,7 @@ originId.isObject
 
 #### Semantic Predicates
 
-These predicates check specific semantic properties of the type after normalization:
+**Semantic predicates** check specific semantic properties of the type after normalization, allowing you to identify built-in Scala types like tuples, products, sums, options, and either. These are useful for generic serializers and validators that treat built-in types specially.
 
 | Predicate   | Checks                                                                |
 |-------------|-----------------------------------------------------------------------|
@@ -739,6 +768,21 @@ These predicates check specific semantic properties of the type after normalizat
 | `isSum`     | Normalized type is named `Either` or `Option` in the `scala` package (not `scala.util.Either`) |
 | `isEither`  | Normalized type is `scala.util.Either`                                |
 | `isOption`  | Normalized type is `scala.Option`                                     |
+
+Check semantic properties with practical examples:
+
+```scala mdoc
+// Tuples
+TypeId.of[(String, Int)].isTuple
+TypeId.of[(Int, String, Boolean)].isTuple
+
+// Options and Either
+TypeId.of[Option[String]].isOption
+TypeId.of[Either[String, Int]].isEither
+
+// Products (built-in Scala Product interface, not user case classes)
+TypeId.of[scala.Product].isProduct
+```
 
 :::note
 `isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, etc. -- not for user-defined case classes. Use `isCaseClass` for that.
