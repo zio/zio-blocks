@@ -790,8 +790,29 @@ TypeId.of[scala.Product].isProduct
 `isProduct` returns `true` only for Scala's built-in `scala.Product`, `scala.Product1`, etc. -- not for user-defined case classes. Use `isCaseClass` for that.
 :::
 
+Understanding the distinction between `isSum`, `isEither`, and `isOption`:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// Standard library sum types
+type StdOption = Option[String]
+type StdEither = Either[String, Int]
+```
+
+```scala mdoc
+// For standard library types, use isEither and isOption
+TypeId.of[Option[String]].isOption
+TypeId.of[Either[String, Int]].isEither
+
+// isSum checks for types named "Option" or "Either" directly in scala package
+// (not scala.util.Either or scala.Option). It's rarely used in practice.
+TypeId.of[Option[String]].isSum
+TypeId.of[Either[String, Int]].isSum
+```
+
 :::note
-In practice, use `isEither` for `scala.util.Either` and `isOption` for `scala.Option`. The `isSum` predicate is rarely used — it checks for types named `"Option"` or `"Either"` placed directly in the `scala` package itself, not in subpackages. This is almost never needed for standard library types.
+**Practical guidance:** Always use `isEither` for `scala.util.Either` and `isOption` for `scala.Option`. The `isSum` predicate is rarely needed — it checks for hypothetical types named `"Option"` or `"Either"` placed directly in the `scala` package itself (not in `scala.util` subpackage), which almost never occurs in real code.
 :::
 
 ### Subtype Relationships
