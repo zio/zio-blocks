@@ -911,6 +911,23 @@ sealed trait TypeId[A <: AnyKind] {
 
 Check supertyping relationships using the same hierarchy:
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Animal
+sealed trait Mammal extends Animal
+case class Dog(name: String) extends Mammal
+case class Cat(name: String) extends Mammal
+case class Fish(species: String) extends Animal
+
+val dogId     = TypeId.of[Dog]
+val mammalId  = TypeId.of[Mammal]
+val animalId  = TypeId.of[Animal]
+val fishId    = TypeId.of[Fish]
+```
+
+Now check supertyping relationships:
+
 ```scala mdoc
 // Mammal is a supertype of Dog (Mammal can hold Dog instances)
 mammalId.isSupertypeOf(dogId)
@@ -945,6 +962,22 @@ sealed trait TypeId[A <: AnyKind] {
 
 Check type equivalence with practical examples:
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Animal
+sealed trait Mammal extends Animal
+case class Dog(name: String) extends Mammal
+case class Cat(name: String) extends Mammal
+
+val dogId     = TypeId.of[Dog]
+val mammalId  = TypeId.of[Mammal]
+val animalId  = TypeId.of[Animal]
+val catId     = TypeId.of[Cat]
+```
+
+Now check type equivalence:
+
 ```scala mdoc
 // A type is always equivalent to itself
 dogId.isEquivalentTo(dogId)
@@ -958,7 +991,6 @@ dogId.isEquivalentTo(mammalId)
 mammalId.isEquivalentTo(animalId)
 
 // Cat and Dog are different types, even though both extend Mammal
-val catId = TypeId.of[Cat]
 dogId.isEquivalentTo(catId)
 ```
 
@@ -998,6 +1030,22 @@ sealed trait TypeId[A <: AnyKind] {
 
 Inspect direct parent types:
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Animal
+sealed trait Mammal extends Animal
+case class Dog(name: String) extends Mammal
+case class Cat(name: String) extends Mammal
+case class Fish(species: String) extends Animal
+
+val dogId     = TypeId.of[Dog]
+val mammalId  = TypeId.of[Mammal]
+val animalId  = TypeId.of[Animal]
+```
+
+Now inspect the parents:
+
 ```scala mdoc
 // Dog directly extends Mammal (single parent)
 dogId.parents
@@ -1009,12 +1057,10 @@ mammalId.parents
 animalId.parents
 
 // Cat also extends Mammal (same parent as Dog)
-val catId = TypeId.of[Cat]
-catId.parents
+TypeId.of[Cat].parents
 
 // Fish extends Animal (different parent than mammals)
-val fishId = TypeId.of[Fish]
-fishId.parents
+TypeId.of[Fish].parents
 ```
 
 Traits can have multiple parents:
