@@ -6,8 +6,11 @@ import zio.test._
 
 import java.io.File
 import java.net.InetSocketAddress
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.file.Path
+import java.time.Duration as JDuration
 
 final case class GolemServer(process: ZProcess, examplesDir: File, tsPackagesPath: Option[String])
 
@@ -74,19 +77,33 @@ object GolemServer {
   private def runGolemCmd(dir: File, timeoutSec: Long, args: String*): ZIO[Any, Throwable, GolemResult] = {
     val appManifest = new File(dir, "golem.yaml").getAbsolutePath
     val fullArgs    = Seq("--yes", "--local", "--app-manifest-path", appManifest) ++ args
+    val label       = s"golem ${args.mkString(" ")}"
 
     Cmd("golem", fullArgs*)
       .workingDirectory(dir)
       .env(buildEnv)
       .redirectErrorStream(true)
-      .string
+      .run
+      .flatMap { process =>
+        for {
+          output <- process.stdout.string
+          code   <- process.exitCode
+        } yield GolemResult(code.code, output)
+      }
       .timeout(timeoutSec.seconds)
       .map {
-        case Some(output) => GolemResult(0, output)
+        case Some(result) => result
         case None         => GolemResult(-1, s"TIMEOUT after ${timeoutSec}s")
       }
       .catchAll { e =>
         ZIO.succeed(GolemResult(-1, s"Command failed: $e"))
+      }
+      .tap { result =>
+        ZIO.succeed {
+          println(s"=== $label (exit=${result.exitCode}) ===")
+          println(result.output)
+          println(s"=== end $label ===")
+        }
       }
   }
 
@@ -499,8 +516,127 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       }
     }
 
+  // ---------------------------------------------------------------------------
+  // HTTP endpoint tests (code-first HTTP routes)
+  // ---------------------------------------------------------------------------
+
+  private val httpPort = 9006
+
+  private def httpGet(path: String): ZIO[Any, Throwable, (Int, String)] =
+    ZIO.attemptBlocking {
+      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest.newBuilder()
+        .uri(URI.create(s"http://localhost:$httpPort$path"))
+        .GET()
+        .timeout(JDuration.ofSeconds(30))
+        .build()
+      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+      (response.statusCode(), response.body())
+    }
+
+  private def httpPost(path: String, body: String): ZIO[Any, Throwable, (Int, String)] =
+    ZIO.attemptBlocking {
+      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest.newBuilder()
+        .uri(URI.create(s"http://localhost:$httpPort$path"))
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .header("Content-Type", "application/json")
+        .timeout(JDuration.ofSeconds(30))
+        .build()
+      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+      (response.statusCode(), response.body())
+    }
+
+  private def httpPostWithHeaders(path: String, body: String, headers: Map[String, String]): ZIO[Any, Throwable, (Int, String)] =
+    ZIO.attemptBlocking {
+      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val builder = HttpRequest.newBuilder()
+        .uri(URI.create(s"http://localhost:$httpPort$path"))
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .header("Content-Type", "application/json")
+        .timeout(JDuration.ofSeconds(30))
+      headers.foreach { case (k, v) => builder.header(k, v) }
+      val response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+      (response.statusCode(), response.body())
+    }
+
+  // ---------------------------------------------------------------------------
+  // WeatherAgent: single-element constructor (BaseAgent[String])
+  // Mount: /api/weather/{value}  — {value} is the default name for single-element types
+  // ---------------------------------------------------------------------------
+  private val weatherTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("http-weather-get") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/weather/test-key/current/london")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("Sunny in london"))
+    },
+
+    test("http-weather-root") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/weather/test-key/")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("Welcome to the Weather API"))
+    },
+
+    test("http-weather-search") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/weather/test-key/search?q=rain&limit=5")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("5") && body.contains("rain"))
+    },
+
+    test("http-weather-catch-all") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/weather/test-key/greet/alice/some/nested/path")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("alice") && body.contains("some/nested/path"))
+    },
+
+    test("http-weather-header") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpPostWithHeaders(
+                            "/api/weather/test-key/report",
+                            """{"data": "weather data"}""",
+                            Map("X-Tenant" -> "acme-corp")
+                          )
+      } yield assertTrue(status == 200) && assertTrue(body.contains("acme-corp"))
+    },
+
+    test("http-weather-public") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/weather/test-key/public")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("Public"))
+    }
+  ).map(_ @@ TestAspect.timeout(60.seconds))
+
+  // ---------------------------------------------------------------------------
+  // InventoryAgent: tuple constructor (BaseAgent[(String, Int)])
+  // Mount: /api/inventory/{arg0}/{arg1}  — positional names for tuple elements
+  // ---------------------------------------------------------------------------
+  private val inventoryTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("http-inventory-stock") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/inventory/warehouse-a/3/stock")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("warehouse-a") && body.contains("3"))
+    },
+
+    test("http-inventory-item") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        (status, body) <- httpGet("/api/inventory/warehouse-b/7/item/widget-99")
+      } yield assertTrue(status == 200) && assertTrue(body.contains("widget-99") && body.contains("warehouse-b"))
+    }
+  ).map(_ @@ TestAspect.timeout(60.seconds))
+
+  private val httpTests: Seq[Spec[GolemServer, Throwable]] =
+    weatherTests ++ inventoryTests
+
   override def spec: Spec[GolemServer, Any] =
     suite("GolemExamplesIntegrationSpec")(
-      (sampleTests :+ manifestTest)*
+      (sampleTests ++ httpTests :+ manifestTest)*
     ) @@ TestAspect.sequential @@ TestAspect.withLiveClock
 }

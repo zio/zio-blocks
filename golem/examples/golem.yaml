@@ -21,3 +21,11 @@ components:
       module: .golem/scala.js
       moduleWasm: .golem/agents/scala_examples.module.wasm
       into: .golem/agents/scala_examples.dynamic.wasm
+
+httpApi:
+  deployments:
+    local:
+    - domain: localhost:9006
+      agents:
+        WeatherAgent: {}
+        InventoryAgent: {}

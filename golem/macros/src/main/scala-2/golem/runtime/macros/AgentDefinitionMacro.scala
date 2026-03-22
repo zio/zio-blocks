@@ -1,7 +1,16 @@
 package golem.runtime.macros
 
 import golem.data.GolemSchema
-import golem.runtime.AgentMetadata
+import golem.runtime.{
+  AgentMetadata,
+  HeaderVariable,
+  HttpEndpointDetails,
+  HttpMethod,
+  HttpMountDetails,
+  HttpRouteParser,
+  HttpValidation,
+  PathSegment
+}
 
 import scala.reflect.macros.blackbox
 
@@ -51,14 +60,19 @@ object AgentDefinitionMacroImpl {
 
     val descriptionType = typeOf[golem.runtime.annotations.description]
     val promptType      = typeOf[golem.runtime.annotations.prompt]
+    val endpointType    = typeOf[golem.runtime.annotations.endpoint]
+    val headerType      = typeOf[golem.runtime.annotations.header]
 
     val traitDescription = annotationString(c)(typeSymbol, descriptionType)
     val traitMode        =
       agentDefinitionModeWireValueExpr(c)(typeSymbol, agentDefinitionType)
 
+    val httpMountOpt = extractHttpMount(c)(typeSymbol, agentTypeName, agentDefinitionType)
+    val hasMount     = httpMountOpt.isDefined
+
     val methods = tpe.decls.collect {
       case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
-        methodMetadata(c)(method, descriptionType, promptType)
+        methodMetadata(c)(method, descriptionType, promptType, endpointType, headerType, agentTypeName, hasMount)
     }.toList
 
     val constructorSchema = inferConstructorSchema(c)(tpe)
@@ -66,6 +80,10 @@ object AgentDefinitionMacroImpl {
     val typeName      = agentTypeName
     val traitDescExpr = optionalStringExpr(c)(traitDescription)
     val traitModeExpr = optionalTreeExpr(c)(traitMode)
+    val httpMountExpr = httpMountOpt match {
+      case Some(tree) => q"_root_.scala.Some($tree)"
+      case None       => q"_root_.scala.None"
+    }
 
     c.Expr[AgentMetadata](q"""
       _root_.golem.runtime.AgentMetadata(
@@ -73,7 +91,8 @@ object AgentDefinitionMacroImpl {
         description = $traitDescExpr,
         mode = $traitModeExpr,
         methods = List(..$methods),
-        constructor = $constructorSchema
+        constructor = $constructorSchema,
+        httpMount = $httpMountExpr
       )
     """)
   }
@@ -84,7 +103,11 @@ object AgentDefinitionMacroImpl {
   private def methodMetadata(c: blackbox.Context)(
     method: c.universe.MethodSymbol,
     descriptionType: c.universe.Type,
-    promptType: c.universe.Type
+    promptType: c.universe.Type,
+    endpointType: c.universe.Type,
+    headerType: c.universe.Type,
+    agentName: String,
+    hasMount: Boolean
   ): c.Tree = {
     import c.universe._
 
@@ -94,6 +117,10 @@ object AgentDefinitionMacroImpl {
     val inputSchema  = methodInputSchema(c)(method)
     val outputSchema = methodOutputSchema(c)(method)
 
+    val paramNames     = method.paramLists.flatten.collect { case p if p.isTerm => p.name.toString }.toSet
+    val headerVarMap   = extractHeaderAnnotations(c)(method, headerType)
+    val endpointTrees  = extractEndpoints(c)(method, endpointType, headerVarMap, agentName, methodName, paramNames, hasMount)
+
     q"""
       _root_.golem.runtime.MethodMetadata(
         name = $methodName,
@@ -101,7 +128,8 @@ object AgentDefinitionMacroImpl {
         prompt = $promptExpr,
         mode = _root_.scala.None,
         input = $inputSchema,
-        output = $outputSchema
+        output = $outputSchema,
+        httpEndpoints = _root_.scala.List(..$endpointTrees)
       )
     """
   }
@@ -175,6 +203,249 @@ object AgentDefinitionMacroImpl {
     val inputTpe   = baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
     if (inputTpe =:= typeOf[Unit]) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
     else structuredSchemaExpr(c)(inputTpe)
+  }
+
+  private def extractHttpMount(c: blackbox.Context)(
+    typeSymbol: c.universe.Symbol,
+    agentName: String,
+    agentDefinitionType: c.universe.Type
+  ): Option[c.Tree] = {
+    import c.universe._
+
+    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType)
+    annOpt.flatMap { ann =>
+      val args = ann.tree.children.tail
+      val mountStr        = extractNamedStringArg(c)(args, "mount", 2).getOrElse("")
+      val authRequired    = extractNamedBooleanArg(c)(args, "auth", 3).getOrElse(false)
+      val corsPatterns     = extractNamedStringArrayArg(c)(args, "cors", 4).getOrElse(Nil)
+      val phantomAgent    = extractNamedBooleanArg(c)(args, "phantomAgent", 5).getOrElse(false)
+      val webhookStr      = extractNamedStringArg(c)(args, "webhookSuffix", 6).getOrElse("")
+
+      if (mountStr.isEmpty) None
+      else {
+        val pathPrefix = HttpRouteParser.parsePathOnly(mountStr, "mount path") match {
+          case Right(segments) => segments
+          case Left(err)       => c.abort(c.enclosingPosition, s"Invalid HTTP mount path on agent '$agentName': $err")
+        }
+        val webhookSuffix = if (webhookStr.isEmpty) Nil
+        else HttpRouteParser.parsePathOnly(webhookStr, "webhookSuffix") match {
+          case Right(segments) => segments
+          case Left(err)       => c.abort(c.enclosingPosition, s"Invalid webhookSuffix on agent '$agentName': $err")
+        }
+
+        val mount = HttpMountDetails(pathPrefix, authRequired, phantomAgent, corsPatterns, webhookSuffix)
+        HttpValidation.validateNoCatchAllInMount(agentName, mount) match {
+          case Left(err) => c.abort(c.enclosingPosition, err)
+          case Right(()) => ()
+        }
+
+        val prefixTrees  = pathPrefix.map(seg => pathSegmentTree(c)(seg))
+        val corsTrees    = corsPatterns.map(p => q"$p")
+        val webhookTrees = webhookSuffix.map(seg => pathSegmentTree(c)(seg))
+
+        Some(q"""
+          _root_.golem.runtime.HttpMountDetails(
+            pathPrefix = _root_.scala.List(..$prefixTrees),
+            authRequired = $authRequired,
+            phantomAgent = $phantomAgent,
+            corsAllowedPatterns = _root_.scala.List(..$corsTrees),
+            webhookSuffix = _root_.scala.List(..$webhookTrees)
+          )
+        """)
+      }
+    }
+  }
+
+  private def pathSegmentTree(c: blackbox.Context)(seg: PathSegment): c.Tree = {
+    import c.universe._
+    seg match {
+      case PathSegment.Literal(value)               => q"_root_.golem.runtime.PathSegment.Literal($value)"
+      case PathSegment.PathVariable(name)            => q"_root_.golem.runtime.PathSegment.PathVariable($name)"
+      case PathSegment.RemainingPathVariable(name)   => q"_root_.golem.runtime.PathSegment.RemainingPathVariable($name)"
+      case PathSegment.SystemVariable(name)          => q"_root_.golem.runtime.PathSegment.SystemVariable($name)"
+    }
+  }
+
+  private def extractHeaderAnnotations(c: blackbox.Context)(
+    method: c.universe.MethodSymbol,
+    headerType: c.universe.Type
+  ): Map[String, String] = {
+    import c.universe._
+    method.paramLists.flatten.collect { case param if param.isTerm =>
+      val paramName = param.name.toString
+      param.annotations.collectFirst {
+        case ann if ann.tree.tpe != null && ann.tree.tpe =:= headerType =>
+          ann.tree.children.tail.collectFirst { case Literal(Constant(headerName: String)) => headerName }
+      }.flatten.map(headerName => paramName -> headerName)
+    }.flatten.toMap
+  }
+
+  private def extractEndpoints(c: blackbox.Context)(
+    method: c.universe.MethodSymbol,
+    endpointType: c.universe.Type,
+    headerVarMap: Map[String, String],
+    agentName: String,
+    methodName: String,
+    paramNames: Set[String],
+    hasMount: Boolean
+  ): List[c.Tree] = {
+    import c.universe._
+
+    method.annotations.filter(ann => ann.tree.tpe != null && ann.tree.tpe =:= endpointType).map { ann =>
+      val args = ann.tree.children.tail
+
+      val httpMethodStr = extractNamedStringArg(c)(args, "method", 0)
+        .getOrElse(c.abort(c.enclosingPosition, s"@endpoint on method '$methodName' requires a 'method' argument"))
+      val pathStr = extractNamedStringArg(c)(args, "path", 1)
+        .getOrElse(c.abort(c.enclosingPosition, s"@endpoint on method '$methodName' requires a 'path' argument"))
+      val authByte = extractNamedByteArg(c)(args, "auth", 2).getOrElse(-1: Byte)
+      val corsPatterns = extractNamedStringArrayArg(c)(args, "cors", 3).getOrElse(Nil)
+
+      val httpMethod = HttpMethod.fromString(httpMethodStr) match {
+        case Right(m)  => m
+        case Left(err) => c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': $err")
+      }
+
+      val parsed = HttpRouteParser.parse(pathStr) match {
+        case Right(p)  => p
+        case Left(err) => c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': invalid path '$pathStr': $err")
+      }
+
+      val headerVars = headerVarMap.map { case (varName, headerName) =>
+        HeaderVariable(headerName, varName)
+      }.toList
+
+      val authOverride: Option[Boolean] = authByte match {
+        case -1 => None
+        case 0  => Some(false)
+        case 1  => Some(true)
+        case _  => c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': auth must be -1, 0, or 1")
+      }
+      val corsOverride: Option[List[String]] = if (corsPatterns.isEmpty) None else Some(corsPatterns)
+
+      val endpointDetails = HttpEndpointDetails(httpMethod, parsed.pathSegments, headerVars, parsed.queryVars, authOverride, corsOverride)
+      HttpValidation.validateEndpointVars(agentName, methodName, endpointDetails, paramNames, hasMount) match {
+        case Left(err) => c.abort(c.enclosingPosition, err)
+        case Right(()) => ()
+      }
+
+      val methodTree = httpMethodTree(c)(httpMethod)
+      val pathTrees  = parsed.pathSegments.map(seg => pathSegmentTree(c)(seg))
+      val headerTrees = headerVars.map { hv =>
+        q"_root_.golem.runtime.HeaderVariable(${hv.headerName}, ${hv.variableName})"
+      }
+      val queryTrees = parsed.queryVars.map { qv =>
+        q"_root_.golem.runtime.QueryVariable(${qv.queryParamName}, ${qv.variableName})"
+      }
+      val authOverrideTree = authOverride match {
+        case Some(v) => q"_root_.scala.Some($v)"
+        case None    => q"_root_.scala.None"
+      }
+      val corsOverrideTree = corsOverride match {
+        case Some(patterns) =>
+          val ts = patterns.map(p => q"$p")
+          q"_root_.scala.Some(_root_.scala.List(..$ts))"
+        case None => q"_root_.scala.None"
+      }
+
+      q"""
+        _root_.golem.runtime.HttpEndpointDetails(
+          httpMethod = $methodTree,
+          pathSuffix = _root_.scala.List(..$pathTrees),
+          headerVars = _root_.scala.List(..$headerTrees),
+          queryVars = _root_.scala.List(..$queryTrees),
+          authOverride = $authOverrideTree,
+          corsOverride = $corsOverrideTree
+        )
+      """
+    }
+  }
+
+  private def httpMethodTree(c: blackbox.Context)(method: HttpMethod): c.Tree = {
+    import c.universe._
+    method match {
+      case HttpMethod.Get     => q"_root_.golem.runtime.HttpMethod.Get"
+      case HttpMethod.Post    => q"_root_.golem.runtime.HttpMethod.Post"
+      case HttpMethod.Put     => q"_root_.golem.runtime.HttpMethod.Put"
+      case HttpMethod.Delete  => q"_root_.golem.runtime.HttpMethod.Delete"
+      case HttpMethod.Patch   => q"_root_.golem.runtime.HttpMethod.Patch"
+      case HttpMethod.Head    => q"_root_.golem.runtime.HttpMethod.Head"
+      case HttpMethod.Options => q"_root_.golem.runtime.HttpMethod.Options"
+      case HttpMethod.Connect => q"_root_.golem.runtime.HttpMethod.Connect"
+      case HttpMethod.Trace   => q"_root_.golem.runtime.HttpMethod.Trace"
+      case HttpMethod.Custom(m) => q"_root_.golem.runtime.HttpMethod.Custom($m)"
+    }
+  }
+
+  private def extractNamedStringArg(c: blackbox.Context)(
+    args: List[c.universe.Tree],
+    name: String,
+    positionalIndex: Int
+  ): Option[String] = {
+    import c.universe._
+    args.collectFirst {
+      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: String))) => v
+    }.orElse {
+      args.lift(positionalIndex).collect {
+        case Literal(Constant(v: String))                                    => v
+        case NamedArg(_, Literal(Constant(v: String)))                       => v
+      }
+    }.filter(_.nonEmpty)
+  }
+
+  private def extractNamedBooleanArg(c: blackbox.Context)(
+    args: List[c.universe.Tree],
+    name: String,
+    positionalIndex: Int
+  ): Option[Boolean] = {
+    import c.universe._
+    args.collectFirst {
+      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: Boolean))) => v
+    }.orElse {
+      args.lift(positionalIndex).collect {
+        case Literal(Constant(v: Boolean))                                    => v
+        case NamedArg(_, Literal(Constant(v: Boolean)))                       => v
+      }
+    }
+  }
+
+  private def extractNamedByteArg(c: blackbox.Context)(
+    args: List[c.universe.Tree],
+    name: String,
+    positionalIndex: Int
+  ): Option[Byte] = {
+    import c.universe._
+    args.collectFirst {
+      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: Byte))) => v
+    }.orElse {
+      args.lift(positionalIndex).collect {
+        case Literal(Constant(v: Byte))                                    => v
+        case NamedArg(_, Literal(Constant(v: Byte)))                       => v
+      }
+    }
+  }
+
+  private def extractNamedStringArrayArg(c: blackbox.Context)(
+    args: List[c.universe.Tree],
+    name: String,
+    positionalIndex: Int
+  ): Option[List[String]] = {
+    import c.universe._
+    def extractArray(tree: Tree): Option[List[String]] = tree match {
+      case Apply(_, elems) =>
+        val strings = elems.collect { case Literal(Constant(s: String)) => s }
+        if (strings.length == elems.length) Some(strings) else None
+      case _ => None
+    }
+    def unwrapNamedArg(tree: Tree): Tree = tree match {
+      case NamedArg(_, v) => v
+      case other          => other
+    }
+    args.collectFirst {
+      case NamedArg(Ident(TermName(`name`)), arr) => extractArray(arr)
+    }.flatten.orElse {
+      args.lift(positionalIndex).flatMap(t => extractArray(unwrapNamedArg(t)))
+    }
   }
 
   private def annotationString(

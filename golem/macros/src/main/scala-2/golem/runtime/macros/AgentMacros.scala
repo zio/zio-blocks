@@ -46,7 +46,8 @@ object AgentMacrosImpl {
             prompt = $promptExpr,
             mode = _root_.scala.None,
             input = $inputSchemaExpr,
-            output = $outputSchemaExpr
+            output = $outputSchemaExpr,
+            httpEndpoints = _root_.scala.Nil
           )
         """
     }.toList
@@ -64,7 +65,8 @@ object AgentMacrosImpl {
         description = $traitDescExpr,
         mode = $traitModeExpr,
         methods = List(..$methods),
-        constructor = $ctorSchema
+        constructor = $ctorSchema,
+        httpMount = _root_.scala.None
       )
     """)
   }
