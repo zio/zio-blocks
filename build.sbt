@@ -169,6 +169,8 @@ lazy val root = project
     `http-model-schema`.js,
     markdown.jvm,
     markdown.js,
+    `markdown-frontmatter-yaml`.jvm,
+    `markdown-frontmatter-yaml`.js,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCore.jvm,
@@ -546,6 +548,25 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     }),
+    coverageMinimumStmtTotal   := 16,
+    coverageMinimumBranchTotal := 13
+  )
+
+lazy val `markdown-frontmatter-yaml` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-docs-frontmatter-yaml"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.docs.frontmatter.yaml"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(markdown)
+  .dependsOn(`schema-yaml`)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
     coverageMinimumStmtTotal   := 16,
     coverageMinimumBranchTotal := 13
   )

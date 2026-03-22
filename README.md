@@ -91,6 +91,8 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.28"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.28"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.28"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml" % "0.0.28"
 ```
 
 ### Example: Optics
