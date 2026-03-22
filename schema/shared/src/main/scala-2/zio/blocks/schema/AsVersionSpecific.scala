@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import zio.blocks.schema.CommonMacroOps
@@ -87,19 +103,14 @@ private object AsVersionSpecificImpl {
       )
     }
 
-    if (bTpe =:= dynamicValueType) {
-      return deriveToDynamicValue()
-    }
-    if (aTpe =:= dynamicValueType) {
-      return deriveFromDynamicValue()
-    }
+    if (bTpe =:= dynamicValueType) return deriveToDynamicValue()
+    if (aTpe =:= dynamicValueType) return deriveFromDynamicValue()
 
     def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
     def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
 
-    def isProductType(tpe: Type): Boolean =
-      tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass
+    def isProductType(tpe: Type): Boolean = tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass
 
     def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -228,14 +239,12 @@ private object AsVersionSpecificImpl {
       val bothCollections =
         (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
           (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
-
       if (bothOptions || bothCollections) {
         (getContainerElementType(sourceTpe), getContainerElementType(targetTpe)) match {
           case (Some(sourceElem), Some(targetElem)) =>
             // Same element type - trivially convertible
-            if (sourceElem =:= targetElem) {
-              true
-            } else {
+            if (sourceElem =:= targetElem) true
+            else {
               // Check if element types are bidirectionally convertible
               val hasAsInstance = isImplicitAsAvailable(sourceElem, targetElem)
               if (hasAsInstance) {
@@ -246,15 +255,12 @@ private object AsVersionSpecificImpl {
                   isImplicitIntoAvailable(sourceElem, targetElem)
                 val canConvertElemsBack = isNumericCoercible(targetElem, sourceElem) ||
                   isImplicitIntoAvailable(targetElem, sourceElem)
-
                 canConvertElems && canConvertElemsBack
               }
             }
           case _ => false
         }
-      } else {
-        false
-      }
+      } else false
     }
 
     def checkFieldMappingConsistency(sourceInfo: ProductInfo, targetInfo: ProductInfo): Unit = {
@@ -268,7 +274,6 @@ private object AsVersionSpecificImpl {
             if (!(sourceField.tpe =:= targetField.tpe)) {
               // Check if As[source, target] is available (bidirectional)
               val hasAsInstance = isImplicitAsAvailable(sourceField.tpe, targetField.tpe)
-
               if (hasAsInstance) {
                 // As instance provides both directions - OK
               } else {
@@ -279,23 +284,19 @@ private object AsVersionSpecificImpl {
                   // Container types with bidirectionally convertible elements - OK
                 } else {
                   // Check for newtype conversions (bidirectional)
-                  val newtypeConvert     = requiresNewtypeConversion(sourceField.tpe, targetField.tpe)
-                  val newtypeUnwrap      = requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe)
-                  val newtypeConvertBack = requiresNewtypeConversion(targetField.tpe, sourceField.tpe)
-                  val newtypeUnwrapBack  = requiresNewtypeUnwrapping(targetField.tpe, sourceField.tpe)
-
+                  val newtypeConvert       = requiresNewtypeConversion(sourceField.tpe, targetField.tpe)
+                  val newtypeUnwrap        = requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe)
+                  val newtypeConvertBack   = requiresNewtypeConversion(targetField.tpe, sourceField.tpe)
+                  val newtypeUnwrapBack    = requiresNewtypeUnwrapping(targetField.tpe, sourceField.tpe)
                   val canConvertViaNewtype =
                     (newtypeConvert && newtypeUnwrapBack) || (newtypeUnwrap && newtypeConvertBack)
-
                   // Check for single-field product (AnyVal wrapper) conversions (bidirectional)
-                  val singleFieldConvert     = requiresSingleFieldProductConversion(sourceField.tpe, targetField.tpe)
-                  val singleFieldUnwrap      = requiresSingleFieldProductUnwrapping(sourceField.tpe, targetField.tpe)
-                  val singleFieldConvertBack = requiresSingleFieldProductConversion(targetField.tpe, sourceField.tpe)
-                  val singleFieldUnwrapBack  = requiresSingleFieldProductUnwrapping(targetField.tpe, sourceField.tpe)
-
+                  val singleFieldConvert       = requiresSingleFieldProductConversion(sourceField.tpe, targetField.tpe)
+                  val singleFieldUnwrap        = requiresSingleFieldProductUnwrapping(sourceField.tpe, targetField.tpe)
+                  val singleFieldConvertBack   = requiresSingleFieldProductConversion(targetField.tpe, sourceField.tpe)
+                  val singleFieldUnwrapBack    = requiresSingleFieldProductUnwrapping(targetField.tpe, sourceField.tpe)
                   val canConvertViaSingleField =
                     (singleFieldConvert && singleFieldUnwrapBack) || (singleFieldUnwrap && singleFieldConvertBack)
-
                   if (canConvertViaNewtype || canConvertViaSingleField) {
                     // Newtype or single-field product conversion is bidirectional - OK
                   } else {
@@ -308,7 +309,6 @@ private object AsVersionSpecificImpl {
                       newtypeConvertBack || newtypeUnwrapBack ||
                       singleFieldConvertBack || singleFieldUnwrapBack ||
                       isImplicitIntoAvailable(targetField.tpe, sourceField.tpe)
-
                     if (!canConvert || !canConvertBack) {
                       val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
                       val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -338,13 +338,12 @@ private object AsVersionSpecificImpl {
                 }
               }
             }
-          case None =>
+          case _ =>
           // Source has field that target doesn't have
           // It's OK if source has extra fields - they just get dropped when going to target
           // and become None when coming back (if target has them as Option)
         }
       }
-
       // Check: fields that exist in target but NOT in source (the reverse direction)
       // For As, only Optional fields are allowed (defaults break round-trip guarantee)
       targetFieldsByName.foreach { case (name, targetField) =>
@@ -353,7 +352,6 @@ private object AsVersionSpecificImpl {
           // When going B → A, this field will be missing
           // For As, only Option fields are allowed
           val isOptional = isOptionType(targetField.tpe)
-
           if (!isOptional) {
             val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
             val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -377,7 +375,6 @@ private object AsVersionSpecificImpl {
           }
         }
       }
-
       // Also check the reverse: fields in source that don't exist in target
       // When going A → B, these get dropped. When coming back B → A, they can't be restored
       // For As, only Optional fields are allowed (defaults break round-trip guarantee)
@@ -387,7 +384,6 @@ private object AsVersionSpecificImpl {
           // When going A → B → A, this field will be lost
           // For As, only Option fields are allowed
           val isOptional = isOptionType(sourceField.tpe)
-
           if (!isOptional) {
             val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
             val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -417,12 +413,10 @@ private object AsVersionSpecificImpl {
 
     // === ZIO Prelude Newtype Detection ===
 
-    def isZIONewtype(tpe: Type): Boolean = {
-      val dealiased = tpe.dealias
-
+    def isZIONewtype(tpe: Type): Boolean =
       // For ZIO Prelude newtypes, the type is TypeRef with prefix pointing to the companion
       // e.g., Types.RtAge.Type has prefix Types.RtAge (the companion object)
-      dealiased match {
+      tpe.dealias match {
         case TypeRef(pre, sym, _) if sym.name.decodedName.toString == "Type" =>
           // The prefix should be a SingleType or ThisType pointing to the companion object
           pre match {
@@ -433,32 +427,23 @@ private object AsVersionSpecificImpl {
                   val name = bc.fullName
                   name == "zio.prelude.Subtype" || name == "zio.prelude.Newtype"
                 }
-              } else {
-                false
-              }
-            case _ =>
-              false
+              } else false
+            case _ => false
           }
-        case _ =>
-          false
+        case _ => false
       }
-    }
 
-    def getNewtypeUnderlying(tpe: Type): Option[Type] = {
-      val dealiased = tpe.dealias
-
-      dealiased match {
+    def getNewtypeUnderlying(tpe: Type): Option[Type] =
+      tpe.dealias match {
         case TypeRef(pre, sym, _) if sym.name.decodedName.toString == "Type" =>
           pre match {
             case SingleType(_, companionSym) if companionSym.isModule =>
               val companionType = companionSym.asModule.moduleClass.asType.toType
-
               // Find the Subtype or Newtype base class
               val baseClass = companionType.baseClasses.find { bc =>
                 val name = bc.fullName
                 name == "zio.prelude.Subtype" || name == "zio.prelude.Newtype"
               }
-
               baseClass.flatMap { cls =>
                 val baseType = companionType.baseType(cls)
                 baseType match {
@@ -470,7 +455,6 @@ private object AsVersionSpecificImpl {
           }
         case _ => None
       }
-    }
 
     def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if target is a ZIO Prelude newtype and source is its underlying type
@@ -479,9 +463,7 @@ private object AsVersionSpecificImpl {
           case Some(underlying) => sourceTpe =:= underlying
           case None             => false
         }
-      } else {
-        false
-      }
+      } else false
 
     def requiresNewtypeUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if source is a ZIO Prelude newtype and target is its underlying type
@@ -503,48 +485,32 @@ private object AsVersionSpecificImpl {
       }
 
     def getSingleFieldType(tpe: Type): Option[Type] =
-      if (isSingleFieldProduct(tpe)) {
-        val info = new ProductInfo(tpe)
-        Some(info.fields.head.tpe)
-      } else {
-        None
-      }
+      if (isSingleFieldProduct(tpe)) Some(new ProductInfo(tpe).fields.head.tpe)
+      else None
 
     def requiresSingleFieldProductConversion(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if target is a single-field product and source is its underlying type
       if (isSingleFieldProduct(targetTpe)) {
         getSingleFieldType(targetTpe) match {
           case Some(fieldType) => sourceTpe =:= fieldType
-          case None            => false
+          case _               => false
         }
-      } else {
-        false
-      }
+      } else false
 
     def requiresSingleFieldProductUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if source is a single-field product and target is its underlying type
       if (isSingleFieldProduct(sourceTpe)) {
         getSingleFieldType(sourceTpe) match {
           case Some(fieldType) => targetTpe =:= fieldType
-          case None            => false
+          case _               => false
         }
-      } else {
-        false
-      }
+      } else false
+
+    lazy val numericTypes = Array(typeOf[Byte], typeOf[Short], typeOf[Int], typeOf[Long], typeOf[Float], typeOf[Double])
 
     def isNumericCoercible(from: Type, to: Type): Boolean = {
-      val numericTypes = List(
-        typeOf[Byte],
-        typeOf[Short],
-        typeOf[Int],
-        typeOf[Long],
-        typeOf[Float],
-        typeOf[Double]
-      )
-
       val fromIdx = numericTypes.indexWhere(t => from =:= t)
       val toIdx   = numericTypes.indexWhere(t => to =:= t)
-
       // Any numeric type can convert to any other with runtime validation
       fromIdx >= 0 && toIdx >= 0
     }
@@ -596,13 +562,11 @@ private object AsVersionSpecificImpl {
     def checkStructuralFieldMappingConsistency(sourceInfo: ProductInfo, targetInfo: StructuralInfo): Unit = {
       val sourceFieldsByName = sourceInfo.fields.map(f => f.name -> f).toMap
       val targetFieldsByName = targetInfo.fields.map(f => f.name -> f).toMap
-
       // Check: fields in source that don't exist in target
       // For As, only Optional fields are allowed (defaults break round-trip guarantee)
       sourceFieldsByName.foreach { case (name, sourceField) =>
         if (!targetFieldsByName.contains(name)) {
           val isOptional = isOptionType(sourceField.tpe)
-
           if (!isOptional) {
             val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
             val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -633,13 +597,11 @@ private object AsVersionSpecificImpl {
     def checkStructuralFieldMappingConsistencyReverse(sourceInfo: StructuralInfo, targetInfo: ProductInfo): Unit = {
       val sourceFieldsByName = sourceInfo.fields.map(f => f.name -> f).toMap
       val targetFieldsByName = targetInfo.fields.map(f => f.name -> f).toMap
-
       // Check: fields in target that don't exist in source
       // For As, only Optional fields are allowed (defaults break round-trip guarantee)
       targetFieldsByName.foreach { case (name, targetField) =>
         if (!sourceFieldsByName.contains(name)) {
           val isOptional = isOptionType(targetField.tpe)
-
           if (!isOptional) {
             val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
             val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
@@ -678,7 +640,6 @@ private object AsVersionSpecificImpl {
     (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct, aIsStructural, bIsStructural) match {
       case (_, _, true, true, _, _, _, _) =>
       // Tuple to tuple - no default value checks needed, positional matching
-
       case (true, _, _, true, _, _, _, _) | (_, true, true, _, _, _, _, _) =>
         if (aIsProduct && !aIsTuple && bIsProduct && !bIsTuple) {
           val aInfo = new ProductInfo(aTpe)
@@ -694,41 +655,29 @@ private object AsVersionSpecificImpl {
           val bInfo = new ProductInfo(bTpe)
           checkNoDefaultValues(bInfo, aInfo, "target")
         }
-
       case (true, true, _, _, _, _, _, _) =>
         val aInfo = new ProductInfo(aTpe)
         val bInfo = new ProductInfo(bTpe)
-
         checkNoDefaultValues(aInfo, bInfo, "source")
         checkNoDefaultValues(bInfo, aInfo, "target")
-
         checkFieldMappingConsistency(aInfo, bInfo)
-
       case (true, _, _, _, _, _, _, true) =>
         val aInfo = new ProductInfo(aTpe)
         val bInfo = new StructuralInfo(bTpe)
-
         checkStructuralFieldMappingConsistency(aInfo, bInfo)
-
       case (_, true, _, _, _, _, true, _) =>
         val aInfo = new StructuralInfo(aTpe)
         val bInfo = new ProductInfo(bTpe)
-
         checkStructuralFieldMappingConsistencyReverse(aInfo, bInfo)
-
       case (_, _, _, _, true, true, _, _) =>
       // Coproduct to coproduct - no additional checks needed
-
       case _ =>
       // Try to derive anyway - the Into macros will fail if not possible
     }
-
     // Now try to derive both Into instances using the existing Into.derived macro
     // We use c.typecheck to ensure the macros expand correctly
-
     val intoABExpr = q"_root_.zio.blocks.schema.Into.derived[$aTpe, $bTpe]"
     val intoBAExpr = q"_root_.zio.blocks.schema.Into.derived[$bTpe, $aTpe]"
-
     c.Expr[As[A, B]](
       q"""
         {

@@ -1,4 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
+
+import zio.blocks.chunk.Chunk
 
 /**
  * Pure Scala parser for schema representation syntax.
@@ -42,7 +60,7 @@ private[schema] object SchemaParser {
   }
 
   // Set of primitive type names that are recognized as Primitive rather than Nominal
-  private val primitiveNames: Set[String] = Set(
+  private[this] val primitiveNames: Set[String] = Set(
     "string",
     "int",
     "long",
@@ -110,39 +128,39 @@ private[schema] object SchemaParser {
     def skipWhitespace(): Unit = while (!atEnd && current.isWhitespace) advance()
   }
 
-  private def parseSchema(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseSchema(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
     if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("schema expression"))
-
     ctx.current match {
       case '_' if !isIdentifierPart(ctx.peek()) =>
         // Standalone underscore is Wildcard (not followed by identifier chars)
         ctx.advance()
         new Right(SchemaRepr.Wildcard)
-      case c if isIdentifierStart(c) =>
-        parseIdentifierOrKeyword(ctx)
       case c =>
-        new Left(new ParseError.UnexpectedChar(c, ctx.pos, "identifier, keyword, or '_'"))
+        if (isIdentifierStart(c)) parseIdentifierOrKeyword(ctx)
+        else new Left(new ParseError.UnexpectedChar(c, ctx.pos, "identifier, keyword, or '_'"))
     }
   }
 
-  private def parseIdentifierOrKeyword(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseIdentifierOrKeyword(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     val start = ctx.pos
     val ident = parseIdentifier(ctx)
     if (ident.isEmpty) return new Left(new ParseError.InvalidIdentifier(start))
-
     ident match {
       case "record"                  => parseRecord(ctx)
       case "variant"                 => parseVariant(ctx)
       case "list" | "set" | "vector" => parseSequence(ctx)
       case "map"                     => parseMap(ctx)
       case "option"                  => parseOptional(ctx)
-      case name if isPrimitive(name) => new Right(SchemaRepr.Primitive(name))
-      case name                      => new Right(SchemaRepr.Nominal(name))
+      case name                      =>
+        new Right({
+          if (isPrimitive(name)) SchemaRepr.Primitive(name)
+          else SchemaRepr.Nominal(name)
+        })
     }
   }
 
-  private def parseRecord(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseRecord(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
     val bracePos = ctx.pos
     if (ctx.atEnd || ctx.current != '{')
@@ -152,36 +170,28 @@ private[schema] object SchemaParser {
       )
     ctx.advance() // Skip '{'
     ctx.skipWhitespace()
-
-    if (ctx.current == '}') {
-      return new Left(new ParseError.EmptyRecord(bracePos))
-    }
-
-    val fields = Vector.newBuilder[(String, SchemaRepr)]
+    if (ctx.current == '}') return new Left(new ParseError.EmptyRecord(bracePos))
+    val fields = Chunk.newBuilder[(String, SchemaRepr)]
     var first  = true
-
     while (!ctx.atEnd && ctx.current != '}') {
       if (!first) {
-        if (ctx.current != ',')
-          return new Left(new ParseError.UnexpectedChar(ctx.current, ctx.pos, "',' or '}'"))
+        if (ctx.current != ',') return new Left(new ParseError.UnexpectedChar(ctx.current, ctx.pos, "',' or '}'"))
         ctx.advance() // Skip ','
         ctx.skipWhitespace()
       }
       first = false
-
       parseField(ctx) match {
         case Right(field) => fields.addOne(field)
         case l            => return l.asInstanceOf[Either[ParseError, SchemaRepr]]
       }
       ctx.skipWhitespace()
     }
-
     if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("'}'"))
     ctx.advance() // Skip '}'
     new Right(SchemaRepr.Record(fields.result()))
   }
 
-  private def parseVariant(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseVariant(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
     val bracePos = ctx.pos
     if (ctx.atEnd || ctx.current != '{')
@@ -191,14 +201,9 @@ private[schema] object SchemaParser {
       )
     ctx.advance() // Skip '{'
     ctx.skipWhitespace()
-
-    if (ctx.current == '}') {
-      return new Left(new ParseError.EmptyVariant(bracePos))
-    }
-
-    val cases = Vector.newBuilder[(String, SchemaRepr)]
+    if (ctx.current == '}') return new Left(new ParseError.EmptyVariant(bracePos))
+    val cases = Chunk.newBuilder[(String, SchemaRepr)]
     var first = true
-
     while (!ctx.atEnd && ctx.current != '}') {
       if (!first) {
         if (ctx.current != ',')
@@ -207,38 +212,35 @@ private[schema] object SchemaParser {
         ctx.skipWhitespace()
       }
       first = false
-
       parseField(ctx) match {
         case Right(field) => cases.addOne(field)
         case l            => return l.asInstanceOf[Either[ParseError, SchemaRepr]]
       }
       ctx.skipWhitespace()
     }
-
     if (ctx.atEnd) return new Left(new ParseError.UnexpectedEnd("'}'"))
     ctx.advance() // Skip '}'
     new Right(SchemaRepr.Variant(cases.result()))
   }
 
-  private def parseField(ctx: ParseContext): Either[ParseError, (String, SchemaRepr)] = {
+  private[this] def parseField(ctx: ParseContext): Either[ParseError, (String, SchemaRepr)] = {
     ctx.skipWhitespace()
     val nameStart = ctx.pos
     val name      = parseIdentifier(ctx)
     if (name.isEmpty) return new Left(new ParseError.InvalidIdentifier(nameStart))
-
     ctx.skipWhitespace()
-    if (ctx.atEnd || ctx.current != ':')
+    if (ctx.atEnd || ctx.current != ':') {
       return new Left(
         if (ctx.atEnd) new ParseError.UnexpectedEnd("':'")
         else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "':'")
       )
+    }
     ctx.advance() // Skip ':'
     ctx.skipWhitespace()
-
     parseSchema(ctx).map(schema => (name, schema))
   }
 
-  private def parseSequence(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseSequence(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
     if (ctx.atEnd || ctx.current != '(')
       return new Left(
@@ -247,54 +249,52 @@ private[schema] object SchemaParser {
       )
     ctx.advance() // Skip '('
     ctx.skipWhitespace()
-
     parseSchema(ctx).flatMap { element =>
       ctx.skipWhitespace()
-      if (ctx.atEnd || ctx.current != ')')
+      if (ctx.atEnd || ctx.current != ')') {
         new Left(
           if (ctx.atEnd) new ParseError.UnexpectedEnd("')'")
           else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "')'")
         )
-      else {
+      } else {
         ctx.advance() // Skip ')'
         new Right(SchemaRepr.Sequence(element))
       }
     }
   }
 
-  private def parseMap(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseMap(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
-    if (ctx.atEnd || ctx.current != '(')
+    if (ctx.atEnd || ctx.current != '(') {
       return new Left(
         if (ctx.atEnd) new ParseError.UnexpectedEnd("'('")
         else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "'('")
       )
+    }
     ctx.advance() // Skip '('
     ctx.skipWhitespace()
-
     parseSchema(ctx) match {
       case Left(err)  => new Left(err)
       case Right(key) =>
         ctx.skipWhitespace()
-        if (ctx.atEnd || ctx.current != ',')
+        if (ctx.atEnd || ctx.current != ',') {
           new Left(
             if (ctx.atEnd) new ParseError.UnexpectedEnd("','")
             else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "','")
           )
-        else {
+        } else {
           ctx.advance() // Skip ','
           ctx.skipWhitespace()
-
           parseSchema(ctx) match {
             case Left(err)    => new Left(err)
             case Right(value) =>
               ctx.skipWhitespace()
-              if (ctx.atEnd || ctx.current != ')')
+              if (ctx.atEnd || ctx.current != ')') {
                 new Left(
                   if (ctx.atEnd) new ParseError.UnexpectedEnd("')'")
                   else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "')'")
                 )
-              else {
+              } else {
                 ctx.advance() // Skip ')'
                 new Right(SchemaRepr.Map(key, value))
               }
@@ -303,31 +303,31 @@ private[schema] object SchemaParser {
     }
   }
 
-  private def parseOptional(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
+  private[this] def parseOptional(ctx: ParseContext): Either[ParseError, SchemaRepr] = {
     ctx.skipWhitespace()
-    if (ctx.atEnd || ctx.current != '(')
+    if (ctx.atEnd || ctx.current != '(') {
       return new Left(
         if (ctx.atEnd) new ParseError.UnexpectedEnd("'('")
         else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "'('")
       )
+    }
     ctx.advance() // Skip '('
     ctx.skipWhitespace()
-
     parseSchema(ctx).flatMap { inner =>
       ctx.skipWhitespace()
-      if (ctx.atEnd || ctx.current != ')')
+      if (ctx.atEnd || ctx.current != ')') {
         new Left(
           if (ctx.atEnd) new ParseError.UnexpectedEnd("')'")
           else new ParseError.UnexpectedChar(ctx.current, ctx.pos, "')'")
         )
-      else {
+      } else {
         ctx.advance() // Skip ')'
         new Right(SchemaRepr.Optional(inner))
       }
     }
   }
 
-  private def parseIdentifier(ctx: ParseContext): String = {
+  private[this] def parseIdentifier(ctx: ParseContext): String = {
     val sb = new java.lang.StringBuilder
     while (!ctx.atEnd && isIdentifierPart(ctx.current)) {
       sb.append(ctx.current)
@@ -336,9 +336,9 @@ private[schema] object SchemaParser {
     sb.toString
   }
 
-  private def isPrimitive(name: String): Boolean = primitiveNames.contains(name.toLowerCase)
+  private[this] def isPrimitive(name: String): Boolean = primitiveNames.contains(name.toLowerCase)
 
-  private def isIdentifierStart(c: Char): Boolean = c == '_' || Character.isLetter(c)
+  private[this] def isIdentifierStart(c: Char): Boolean = c == '_' || Character.isLetter(c)
 
-  private def isIdentifierPart(c: Char): Boolean = c == '_' || Character.isLetterOrDigit(c)
+  private[this] def isIdentifierPart(c: Char): Boolean = c == '_' || Character.isLetterOrDigit(c)
 }

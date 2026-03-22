@@ -1,5 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.TypeId
 import zio.test.Assertion.{equalTo, isNone, isRight, isSome}
@@ -143,7 +160,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.root.search[X].toString)(equalTo("#X"))
     },
     test("toString renders SchemaSearch with schema syntax") {
-      val repr = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+      val repr = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
       assert(DynamicOptic.root.searchSchema(repr).toString)(equalTo("#record { name: string }"))
     },
     test("toString renders SchemaSearch for primitive") {
@@ -179,10 +196,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       },
       test("SchemaSearch node with complex SchemaRepr roundtrips through DynamicValue") {
         val repr = SchemaRepr.Record(
-          Vector(
-            "name" -> SchemaRepr.Primitive("string"),
-            "age"  -> SchemaRepr.Primitive("int")
-          )
+          Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
         )
         val node = DynamicOptic.Node.SchemaSearch(repr)
         val dv   = Schema[DynamicOptic.Node].toDynamicValue(node)

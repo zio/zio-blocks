@@ -1,5 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test.Assertion.{equalTo, isRight}
 import zio.test.{Spec, TestEnvironment, assert}
 
@@ -15,12 +32,12 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(repr)(equalTo(SchemaRepr.Primitive("string")))
       },
       test("Record creates structural record with fields") {
-        val repr = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
-        assert(repr.fields)(equalTo(Vector("name" -> SchemaRepr.Primitive("string"))))
+        val repr = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
+        assert(repr.fields)(equalTo(Chunk("name" -> SchemaRepr.Primitive("string"))))
       },
       test("Record creates structural record with multiple fields") {
         val repr = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -29,7 +46,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Variant creates structural variant with cases") {
         val repr = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -55,18 +72,18 @@ object SchemaReprSpec extends SchemaBaseSpec {
     ),
     suite("nesting")(
       test("Record containing Record") {
-        val inner   = SchemaRepr.Record(Vector("street" -> SchemaRepr.Primitive("string")))
-        val outer   = SchemaRepr.Record(Vector("address" -> inner))
+        val inner   = SchemaRepr.Record(Chunk("street" -> SchemaRepr.Primitive("string")))
+        val outer   = SchemaRepr.Record(Chunk("address" -> inner))
         val address = outer.fields.head._2.asInstanceOf[SchemaRepr.Record]
         assert(address.fields.head._1)(equalTo("street"))
       },
       test("Sequence containing Record") {
-        val record = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val record = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val seq    = SchemaRepr.Sequence(record)
         assert(seq.element)(equalTo(record))
       },
       test("Map with complex value type") {
-        val value = SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
+        val value = SchemaRepr.Record(Chunk("x" -> SchemaRepr.Primitive("int")))
         val map   = SchemaRepr.Map(SchemaRepr.Primitive("string"), value)
         assert(map.value)(equalTo(value))
       },
@@ -84,12 +101,12 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(SchemaRepr.Primitive("string").toString)(equalTo("string"))
       },
       test("Record renders with braces and fields") {
-        val repr = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val repr = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         assert(repr.toString)(equalTo("record { name: string }"))
       },
       test("Record renders multiple fields comma-separated") {
         val repr = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -98,7 +115,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Variant renders with cases") {
         val repr = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -122,7 +139,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Nested structure renders correctly") {
         val repr = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))
           )
         )
@@ -142,8 +159,8 @@ object SchemaReprSpec extends SchemaBaseSpec {
         assert(SchemaRepr.Primitive("string"))(equalTo(SchemaRepr.Primitive("string")))
       },
       test("Record equality by fields") {
-        val a = SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
-        val b = SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
+        val a = SchemaRepr.Record(Chunk("x" -> SchemaRepr.Primitive("int")))
+        val b = SchemaRepr.Record(Chunk("x" -> SchemaRepr.Primitive("int")))
         assert(a)(equalTo(b))
       },
       test("Wildcard equality") {
@@ -163,7 +180,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Record roundtrips through DynamicValue") {
         val repr = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -173,7 +190,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("Variant roundtrips through DynamicValue") {
         val repr = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -203,7 +220,7 @@ object SchemaReprSpec extends SchemaBaseSpec {
       },
       test("deeply nested SchemaRepr roundtrips through DynamicValue") {
         val repr = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "items" -> SchemaRepr.Sequence(
               SchemaRepr.Map(
                 SchemaRepr.Primitive("string"),
@@ -211,9 +228,9 @@ object SchemaReprSpec extends SchemaBaseSpec {
               )
             ),
             "tag" -> SchemaRepr.Variant(
-              Vector(
+              Chunk(
                 "A" -> SchemaRepr.Primitive("int"),
-                "B" -> SchemaRepr.Record(Vector("x" -> SchemaRepr.Wildcard))
+                "B" -> SchemaRepr.Record(Chunk("x" -> SchemaRepr.Wildcard))
               )
             )
           )
