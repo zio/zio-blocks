@@ -1053,7 +1053,7 @@ Methods for accessing annotations, self-type, alias target, and opaque represent
 
 #### `annotations` — Type Annotations
 
-Returns the list of annotations attached to this type at compile time.
+Returns the list of annotations attached to this type at compile time. Each `Annotation` carries the annotation's name and its argument values, making this useful for frameworks that drive behaviour from annotations (e.g. serialization hints, validation rules, or access-control markers).
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1064,19 +1064,25 @@ sealed trait TypeId[A <: AnyKind] {
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
+@deprecated("use NewData instead", "2.0")
 @transient
-case class ImportantData(id: Int, payload: String)
+case class LegacyData(id: Int, payload: String)
 case class Plain(x: Int)
 ```
 
+A type with annotations reports each annotation by name; an unannotated type returns an empty list:
+
 ```scala mdoc
-TypeId.of[ImportantData].annotations.map(_.name)
+// LegacyData has two annotations
+TypeId.of[LegacyData].annotations.map(_.name)
+
+// Plain has no annotations
 TypeId.of[Plain].annotations
 ```
 
 #### `selfType` — Self-Type Annotation
 
-Returns `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` otherwise.
+Returns `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` otherwise. Self-types express a dependency requirement: a trait that declares `self: Logger =>` can only be mixed into a class that also mixes in `Logger`. This method lets frameworks detect and validate those requirements at runtime.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1091,14 +1097,19 @@ trait Logger { def log(msg: String): Unit }
 trait Service { self: Logger => def doWork(): Unit = log("working") }
 ```
 
+`Service` requires a `Logger` to be mixed in, while `Logger` has no self-type requirement:
+
 ```scala mdoc
+// Service declares a self-type dependency on Logger
 TypeId.of[Service].selfType
+
+// Logger has no self-type requirement
 TypeId.of[Logger].selfType
 ```
 
 #### `aliasedTo` — Alias Target
 
-Returns `Some(typeRepr)` for type aliases, `None` for nominal and opaque types.
+Returns `Some(typeRepr)` for type aliases pointing to their underlying type, and `None` for nominal and opaque types. This lets you inspect what a type alias expands to without evaluating expressions at runtime.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1108,17 +1119,27 @@ sealed trait TypeId[A <: AnyKind] {
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
+
+type Age = Int
+type Name = String
 ```
 
+A type alias resolves to its target; a concrete type returns `None`:
+
 ```scala mdoc
-val ageAlias = TypeId.alias[Any]("Age", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
-ageAlias.aliasedTo
-TypeId.int.aliasedTo
+// Age is an alias for Int
+TypeId.of[Age].aliasedTo
+
+// Name is an alias for String
+TypeId.of[Name].aliasedTo
+
+// Int is a concrete type, not an alias
+TypeId.of[Int].aliasedTo
 ```
 
 #### `representation` — Opaque Type Representation
 
-Returns `Some(typeRepr)` for opaque types (the underlying representation type), `None` otherwise.
+Returns `Some(typeRepr)` for opaque types revealing their underlying representation type, and `None` for all other types. Opaque types hide their implementation behind a new name, but `representation` lets frameworks such as serializers discover what the type is actually stored as.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1126,10 +1147,24 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+opaque type Email = String
+opaque type UserId = Int
+```
+
+An opaque type exposes its representation; a non-opaque type returns `None`:
+
 ```scala mdoc
-val opaqueEmail = TypeId.opaque[Any]("Email", Owner.Root, representation = TypeRepr.Ref(TypeId.string))
-opaqueEmail.representation
-TypeId.int.representation
+// Email is an opaque type backed by String
+TypeId.of[Email].representation
+
+// UserId is an opaque type backed by Int
+TypeId.of[UserId].representation
+
+// Int is not opaque
+TypeId.of[Int].representation
 ```
 
 ### Erasure and Runtime
