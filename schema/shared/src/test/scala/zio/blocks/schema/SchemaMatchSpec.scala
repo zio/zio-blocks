@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import java.util.UUID
 import java.time._
@@ -201,7 +202,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
     suite("Record")(
       test("matches record with same fields") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -213,12 +214,8 @@ object SchemaMatchSpec extends SchemaBaseSpec {
         assertTrue(SchemaMatch.matches(pattern, value))
       },
       test("matches record with extra fields (subset matching)") {
-        val pattern = SchemaRepr.Record(
-          Vector(
-            "name" -> SchemaRepr.Primitive("string")
-          )
-        )
-        val value = DynamicValue.Record(
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
+        val value   = DynamicValue.Record(
           "name"  -> DynamicValue.string("Alice"),
           "age"   -> DynamicValue.int(30),
           "email" -> DynamicValue.string("alice@example.com")
@@ -227,7 +224,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("rejects record missing required field") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name"  -> SchemaRepr.Primitive("string"),
             "email" -> SchemaRepr.Primitive("string")
           )
@@ -240,7 +237,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("rejects record where field has wrong type") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -252,7 +249,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
         assertTrue(!SchemaMatch.matches(pattern, value))
       },
       test("empty pattern matches any record") {
-        val pattern = SchemaRepr.Record(Vector.empty)
+        val pattern = SchemaRepr.Record(Chunk.empty)
         val value   = DynamicValue.Record(
           "name" -> DynamicValue.string("Alice"),
           "age"  -> DynamicValue.int(30)
@@ -260,13 +257,13 @@ object SchemaMatchSpec extends SchemaBaseSpec {
         assertTrue(SchemaMatch.matches(pattern, value))
       },
       test("empty pattern matches empty record") {
-        val pattern = SchemaRepr.Record(Vector.empty)
+        val pattern = SchemaRepr.Record(Chunk.empty)
         val value   = DynamicValue.Record.empty
         assertTrue(SchemaMatch.matches(pattern, value))
       },
       test("non-empty pattern rejects empty record") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string")
           )
         )
@@ -274,7 +271,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
         assertTrue(!SchemaMatch.matches(pattern, value))
       },
       test("record pattern does not match non-Record values") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         assertTrue(
           !SchemaMatch.matches(pattern, DynamicValue.string("Alice")) &&
             !SchemaMatch.matches(pattern, DynamicValue.Sequence(DynamicValue.string("Alice"))) &&
@@ -284,9 +281,9 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("matches nested records") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "address" -> SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "city" -> SchemaRepr.Primitive("string")
               )
             )
@@ -305,7 +302,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
     suite("Variant")(
       test("matches variant with matching case") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -315,7 +312,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("rejects variant with non-matching case name") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left" -> SchemaRepr.Primitive("int")
           )
         )
@@ -324,7 +321,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("rejects variant with wrong payload type") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left" -> SchemaRepr.Primitive("int")
           )
         )
@@ -333,7 +330,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("matches when multiple cases exist and one matches") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"   -> SchemaRepr.Primitive("int"),
             "Right"  -> SchemaRepr.Primitive("string"),
             "Middle" -> SchemaRepr.Primitive("boolean")
@@ -343,7 +340,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
         assertTrue(SchemaMatch.matches(pattern, value))
       },
       test("variant pattern does not match non-Variant values") {
-        val pattern = SchemaRepr.Variant(Vector("Left" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Variant(Chunk("Left" -> SchemaRepr.Primitive("int")))
         assertTrue(
           !SchemaMatch.matches(pattern, DynamicValue.Record("Left" -> DynamicValue.int(42))) &&
             !SchemaMatch.matches(pattern, DynamicValue.Sequence(DynamicValue.int(42))) &&
@@ -353,9 +350,9 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("matches variant with nested record payload") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Success" -> SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "value" -> SchemaRepr.Primitive("string")
               )
             )
@@ -423,7 +420,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       test("matches sequence of records") {
         val pattern = SchemaRepr.Sequence(
           SchemaRepr.Record(
-            Vector(
+            Chunk(
               "id" -> SchemaRepr.Primitive("int")
             )
           )
@@ -483,7 +480,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       test("matches map with record values") {
         val pattern = SchemaRepr.Map(
           SchemaRepr.Primitive("string"),
-          SchemaRepr.Record(Vector("count" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("count" -> SchemaRepr.Primitive("int")))
         )
         val value = DynamicValue.Map(
           DynamicValue.string("a") -> DynamicValue.Record("count" -> DynamicValue.int(5)),
@@ -544,11 +541,11 @@ object SchemaMatchSpec extends SchemaBaseSpec {
     suite("Nested patterns")(
       test("deeply nested record pattern") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "level1" -> SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "level2" -> SchemaRepr.Record(
-                  Vector(
+                  Chunk(
                     "value" -> SchemaRepr.Primitive("int")
                   )
                 )
@@ -575,10 +572,10 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("record containing sequence containing record") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "items" -> SchemaRepr.Sequence(
               SchemaRepr.Record(
-                Vector(
+                Chunk(
                   "id" -> SchemaRepr.Primitive("int")
                 )
               )
@@ -596,7 +593,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       test("variant inside sequence") {
         val pattern = SchemaRepr.Sequence(
           SchemaRepr.Variant(
-            Vector(
+            Chunk(
               "Some" -> SchemaRepr.Primitive("int"),
               "None" -> SchemaRepr.Primitive("unit")
             )
@@ -611,7 +608,7 @@ object SchemaMatchSpec extends SchemaBaseSpec {
       },
       test("map with record keys and sequence values") {
         val pattern = SchemaRepr.Map(
-          SchemaRepr.Record(Vector("key" -> SchemaRepr.Primitive("string"))),
+          SchemaRepr.Record(Chunk("key" -> SchemaRepr.Primitive("string"))),
           SchemaRepr.Sequence(SchemaRepr.Primitive("int"))
         )
         val value = DynamicValue.Map(

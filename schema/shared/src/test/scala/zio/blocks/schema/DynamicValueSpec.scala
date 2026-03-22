@@ -688,7 +688,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("get with AtMapKeys navigates multiple keys") {
         val map    = DynamicValue.Map(stringVal -> intVal, intVal -> boolVal)
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(stringVal, intVal))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(stringVal, intVal))))
         val result = map.get(path)
         assertTrue(result.toChunk.length == 2)
       },
@@ -720,7 +720,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
         val map    = DynamicValue.Map(k1 -> intVal, k2 -> intVal)
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = map.modify(path)(_ => DynamicValue.int(100))
         assertTrue(result.entries.head._2 == DynamicValue.int(100))
       },
@@ -754,7 +754,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
         val map    = DynamicValue.Map(k1 -> intVal, k2 -> intVal)
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = map.delete(path)
         assertTrue(result.entries.length == 1)
       },
@@ -794,7 +794,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
         val map    = DynamicValue.Map(k1 -> intVal)
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k2)))
         val result = map.insert(path, boolVal)
         assertTrue(result.entries.length == 2)
       },
@@ -810,7 +810,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerMap = DynamicValue.Map(k2 -> intVal)
         val outerMap = DynamicValue.Map(k1 -> innerMap)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k2)))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k2)))
         val result   = outerMap.delete(path)
         assertTrue(result.entries.head._2.entries.isEmpty)
       },
@@ -827,7 +827,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k3       = DynamicValue.string("new")
         val innerMap = DynamicValue.Map(k2 -> intVal)
         val outerMap = DynamicValue.Map(k1 -> innerMap)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k3)))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k3)))
         val result   = outerMap.insert(path, boolVal)
         assertTrue(result.get(k1).one.map(_.entries.length) == Right(2))
       },
@@ -1366,7 +1366,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe with map path") {
         val key    = DynamicValue.string("key")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(key).one == Right(intVal))
@@ -1450,7 +1450,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerMap = DynamicValue.Map(k1 -> intVal, k2 -> stringVal)
         val outerRec = DynamicValue.Record("map" -> innerMap)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result   = outerRec.delete(path)
         assertTrue(result.get("map").one.map(_.entries.length) == Right(1))
       },
@@ -1459,7 +1459,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerMap = DynamicValue.Map(k1 -> intVal, k2 -> intVal)
         val outerRec = DynamicValue.Record("map" -> innerMap)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKeys(Seq(k1, k2))))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKeys(Seq(k1, k2))))
         val result   = outerRec.modify(path)(_ => DynamicValue.int(0))
         assertTrue(result.get("map").one.map(_.entries.forall(_._2 == DynamicValue.int(0))) == Right(true))
       }
@@ -1479,7 +1479,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe with map inside record") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(key)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get("map").one.flatMap(_.get(key).one) == Right(intVal))
@@ -1499,8 +1499,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe with map updating existing key") {
         val key    = DynamicValue.string("k")
-        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
-        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path1  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
+        val path2  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(key).one == Right(stringVal))
@@ -1528,7 +1528,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("fromKVUnsafe with nested map path") {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k2)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.AtMapKey(k2)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(k1).one.flatMap(_.get(k2).one) == Right(intVal))
@@ -1545,7 +1545,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerMap = DynamicValue.Map(k1 -> intVal)
         val outerRec = DynamicValue.Record("map" -> innerMap)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(k1)))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(k1)))
         val result   = outerRec.delete(path)
         assertTrue(result.get("map").one.map(_.entries.isEmpty) == Right(true))
       },
@@ -1621,7 +1621,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
         val map      = DynamicValue.Map(k1 -> innerRec, k2 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("x")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("x")))
         val result   = map.delete(path)
         val first    = result.entries.head._2.fields.length
         val second   = result.entries(1)._2.fields.length
@@ -1708,7 +1708,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey on non-Map returns empty") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val result = recordVal.get(path)
         assertTrue(result.one.isLeft)
       },
@@ -1719,7 +1719,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKeys on non-Map returns empty") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = recordVal.get(path)
         assertTrue(result.one.isLeft)
       },
@@ -1761,7 +1761,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey on non-Map returns None") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val result = recordVal.modify(path)(_ => intVal)
         assertTrue(result == recordVal)
       },
@@ -1772,7 +1772,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKeys on non-Map returns None") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = recordVal.modify(path)(_ => intVal)
         assertTrue(result == recordVal)
       },
@@ -1819,7 +1819,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey key doesn't exist returns None") {
         val key    = DynamicValue.string("missing")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val result = mapVal.delete(path)
         assertTrue(result == mapVal)
       },
@@ -1835,13 +1835,13 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKeys keys don't exist returns None") {
         val k1     = DynamicValue.string("missing")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = mapVal.delete(path)
         assertTrue(result == mapVal)
       },
       test("AtMapKeys on non-Map returns None") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = recordVal.delete(path)
         assertTrue(result == recordVal)
       },
@@ -1867,7 +1867,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("nested AtMapKey on non-Map returns None") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtMapKey(k1)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.Field("name"), DynamicOptic.Node.AtMapKey(k1)))
         val result = recordVal.delete(path)
         assertTrue(result == recordVal)
       }
@@ -1899,7 +1899,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey on non-Map returns None") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val result = recordVal.insert(path, intVal)
         assertTrue(result == recordVal)
       },
@@ -1925,7 +1925,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKeys path returns None (unsupported)") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1))))
         val result = mapVal.insert(path, intVal)
         assertTrue(result == mapVal)
       },
@@ -1941,7 +1941,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey nested insert on non-Map returns None") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
         val result = recordVal.insert(path, intVal)
         assertTrue(result == recordVal)
       }
@@ -2060,7 +2060,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("Field on non-Record creates new Record") {
         val key    = DynamicValue.string("k")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key), DynamicOptic.Node.Field("x")))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(key).one.flatMap(_.get("x").one) == Right(intVal))
@@ -2075,8 +2075,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("AtMapKey adding new key to existing Map") {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
-        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
-        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val path1  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k2)))
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.entries.length == 2)
@@ -2095,7 +2095,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(result.getCase("Some").one.map(_.fields.length) == Right(2))
       },
       test("AtIndex on non-Sequence creates Sequence with padding") {
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("arr"), DynamicOptic.Node.AtIndex(2)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.Field("arr"), DynamicOptic.Node.AtIndex(2)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get("arr").one.map(_.elements.length) == Right(3))
@@ -2114,7 +2114,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("AtMapKey on non-Map creates new Map") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(k1).one == Right(intVal))
@@ -2128,7 +2128,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("getAtPath AtMapKey finds value in Map") {
         val key    = stringVal
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(key)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(key)))
         val result = mapVal.get(path)
         assertTrue(result.one == Right(intVal))
       },
@@ -2147,7 +2147,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("modifyAtPath AtMapKey nested with existing key") {
         val k1       = DynamicValue.string("a")
         val innerMap = DynamicValue.Map(k1 -> intVal)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
         val result   = innerMap.modify(path)(_ => stringVal)
         assertTrue(result.get(k1).one == Right(stringVal))
       },
@@ -2155,7 +2155,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val k2       = DynamicValue.string("b")
         val innerMap = DynamicValue.Map(k1 -> intVal)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k2)))
         val result   = innerMap.modify(path)(_ => stringVal)
         assertTrue(result == innerMap)
       },
@@ -2167,7 +2167,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("modifyAtPath AtMapKeys with valid keys") {
         val k1     = stringVal
         val k2     = intVal
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1, k2))))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1, k2))))
         val result = mapVal.modify(path)(_ => DynamicValue.int(0))
         assertTrue(result.entries.forall(_._2 == DynamicValue.int(0)))
       },
@@ -2190,7 +2190,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
         val result   = innerMap.delete(path)
         assertTrue(result.get(k1).one.map(_.fields.isEmpty) == Right(true))
       },
@@ -2206,7 +2206,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerRec = DynamicValue.Record("x" -> intVal, "y" -> stringVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec, k2 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1, k2)), DynamicOptic.Node.Field("x")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1, k2)), DynamicOptic.Node.Field("x")))
         val result   = innerMap.delete(path)
         assertTrue(result.entries.forall(_._2.fields.length == 1))
       },
@@ -2257,7 +2257,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("y")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("y")))
         val result   = innerMap.insert(path, stringVal)
         assertTrue(result.get(k1).one.flatMap(_.get("y").one) == Right(stringVal))
       },
@@ -2380,7 +2380,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
         val result   = innerMap.modify(path)(_ => stringVal)
         assertTrue(result == innerMap)
       },
@@ -2402,7 +2402,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
         val result   = innerMap.modify(path)(_ => stringVal)
         assertTrue(result.get(k1).one.flatMap(_.get("x").one) == Right(stringVal))
       }
@@ -2412,7 +2412,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("missing")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("missing")))
         val result   = innerMap.delete(path)
         assertTrue(result == innerMap)
       },
@@ -2427,7 +2427,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKeys(Seq(k1)), DynamicOptic.Node.Field("missing")))
         val result   = innerMap.delete(path)
         assertTrue(result == innerMap)
       },
@@ -2481,7 +2481,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k2       = DynamicValue.string("b")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2), DynamicOptic.Node.Field("y")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k2), DynamicOptic.Node.Field("y")))
         val result   = innerMap.insert(path, stringVal)
         assertTrue(result == innerMap)
       }
@@ -2541,8 +2541,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe AtMapKey on existing Map updates value") {
         val k1     = DynamicValue.string("a")
-        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
-        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path1  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(k1).one == Right(stringVal))
@@ -2553,7 +2553,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
         val result   = innerMap.modify(path)(_ => stringVal)
         assertTrue(result == innerMap)
       }
@@ -2579,7 +2579,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("nonexistent")))
         val result   = innerMap.delete(path)
         assertTrue(result == innerMap)
       }
@@ -2607,7 +2607,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1       = DynamicValue.string("a")
         val innerRec = DynamicValue.Record("x" -> intVal)
         val innerMap = DynamicValue.Map(k1 -> innerRec)
-        val path     = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val path     = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
         val result   = innerMap.insert(path, stringVal)
         assertTrue(result == innerMap)
       }
@@ -2616,7 +2616,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("insertAtPath AtMapKey when key exists at last node") {
         val k1     = DynamicValue.string("a")
         val m      = DynamicValue.Map(k1 -> intVal)
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
         val result = m.insert(path, stringVal)
         assertTrue(result == m)
       }
@@ -2624,7 +2624,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
     suite("upsertAtPathCreatingParents edge cases")(
       test("fromKVUnsafe Field on non-Record (Map) creates new Record") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1), DynamicOptic.Node.Field("x")))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(k1).one.flatMap(_.get("x").one) == Right(intVal))
@@ -2652,8 +2652,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe AtMapKey updating existing key") {
         val k1     = DynamicValue.string("a")
-        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
-        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
+        val path1  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get(k1).one == Right(stringVal))
@@ -2661,8 +2661,8 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("fromKVUnsafe AtMapKey adding new key to existing Map") {
         val k1     = DynamicValue.string("a")
         val k2     = DynamicValue.string("b")
-        val path1  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k1)))
-        val path2  = new DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(k2)))
+        val path1  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k1)))
+        val path2  = new DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(k2)))
         val kvs    = Seq((path1, intVal), (path2, stringVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.entries.length == 2)
@@ -2689,7 +2689,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       },
       test("fromKVUnsafe with nested AtMapKey on non-Map") {
         val k1     = DynamicValue.string("a")
-        val path   = new DynamicOptic(Vector(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(k1)))
+        val path   = new DynamicOptic(Chunk(DynamicOptic.Node.Field("map"), DynamicOptic.Node.AtMapKey(k1)))
         val kvs    = Seq((path, intVal))
         val result = DynamicValue.fromKVUnsafe(kvs)
         assertTrue(result.get("map").one.flatMap(_.get(k1).one) == Right(intVal))
@@ -2759,7 +2759,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         assertTrue(mapVal.compare(DynamicValue.Null) < 0)
       },
       test("DynamicValue compare with ordering implicit") {
-        val values = Vector(DynamicValue.Null, intVal, recordVal)
+        val values = Chunk(DynamicValue.Null, intVal, recordVal)
         val sorted = values.sorted
         assertTrue(sorted.head == intVal)
       },
@@ -2936,7 +2936,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("SchemaSearch with Record pattern matches nested records") {
         val person = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
         val outer  = DynamicValue.Record("person" -> person, "count" -> intVal)
-        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"))))
         val result = outer.get(path)
         assertTrue(result.toChunk.length == 1)
       },
@@ -2964,7 +2964,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
         val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = outer.modify(path)(_ => DynamicValue.int(0))
         assertTrue(
@@ -2992,7 +2992,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
         val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = outer.delete(path)
         assertTrue(
@@ -3099,7 +3099,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val person        = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
         val outer         = DynamicValue.Record("person" -> person)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("missing")
         val result = outer.modify(path)(_ => DynamicValue.string("X"))
         // Should return unchanged since remaining path fails
@@ -3148,7 +3148,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("SchemaSearch with Record pattern - verify matched record") {
         val person = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
         val outer  = DynamicValue.Record("person" -> person, "count" -> intVal)
-        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+        val path   = DynamicOptic.root.searchSchema(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"))))
         val result = outer.get(path)
         assertTrue(result.toChunk == Chunk(person))
       },
@@ -3157,7 +3157,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
         val outer         = DynamicValue.Record("p1" -> person1, "p2" -> person2)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = outer.delete(path)
         // Each person record should only have "name" field remaining
@@ -3213,7 +3213,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val innerRec      = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
         val variant       = DynamicValue.Variant("Data", innerRec)
         val recordPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(recordPattern).field("age")
         val result = variant.delete(path)
         result match {
@@ -3232,7 +3232,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val person2       = DynamicValue.Record("name" -> DynamicValue.string("Bob"), "age" -> DynamicValue.int(25))
         val seq           = DynamicValue.Sequence(person1, person2)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = seq.delete(path)
         result match {
@@ -3251,7 +3251,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val k1            = DynamicValue.string("person1")
         val map           = DynamicValue.Map(k1 -> person)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = map.delete(path)
         result match {
@@ -3277,7 +3277,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val variant       = DynamicValue.Variant("Wrapper", innerPerson)
         val outer         = DynamicValue.Record("data" -> variant)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path    = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result  = outer.delete(path)
         val payload = result.get("data").one.map {
@@ -3292,7 +3292,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val seq           = DynamicValue.Sequence(person1)
         val outer         = DynamicValue.Record("items" -> seq)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = outer.delete(path)
         val items  = result.get("items").one.map(_.elements)
@@ -3312,7 +3312,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         val map           = DynamicValue.Map(k1 -> person)
         val outer         = DynamicValue.Record("people" -> map)
         val personPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path      = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result    = outer.delete(path)
         val mapResult = result.get("people").one.map {
@@ -3337,7 +3337,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
         // Root itself matches the record pattern - children matching same pattern get removed
         val innerRec    = DynamicValue.Record("name" -> DynamicValue.string("nested"))
         val rootRec     = DynamicValue.Record("name" -> DynamicValue.string("root"), "child" -> innerRec)
-        val namePattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val namePattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val path        = DynamicOptic.root.searchSchema(namePattern)
         val result      = rootRec.delete(path)
         // Root matches and isLast, so delegates to children. Child "child" matches → removed
@@ -3350,7 +3350,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("delete with SchemaSearch root matches, non-last, remaining path succeeds") {
         val rootRec       = DynamicValue.Record("name" -> stringVal, "age" -> intVal)
         val recordPattern =
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int")))
         val path   = DynamicOptic.root.searchSchema(recordPattern).field("age")
         val result = rootRec.delete(path)
         assertTrue(
@@ -3369,7 +3369,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
           "reports" -> DynamicValue.Sequence(inner)
         )
         val personPattern = SchemaRepr.Record(
-          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+          Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
         )
         val path   = DynamicOptic.root.searchSchema(personPattern).field("age")
         val result = outer.delete(path)
@@ -3391,7 +3391,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
           "child" -> DynamicValue.Variant("Wrapper", inner)
         )
         val pattern = SchemaRepr.Record(
-          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+          Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
         )
         val path   = DynamicOptic.root.searchSchema(pattern).field("age")
         val result = outer.delete(path)
@@ -3414,7 +3414,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
           "child" -> child
         )
         val pattern = SchemaRepr.Record(
-          Vector("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+          Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
         )
         val path   = DynamicOptic.root.searchSchema(pattern).field("age")
         val result = rootRec.delete(path)
@@ -3429,7 +3429,7 @@ object DynamicValueSpec extends SchemaBaseSpec {
       test("delete with SchemaSearch root matches, non-last, remaining path fails falls back to children") {
         val child       = DynamicValue.Record("name" -> DynamicValue.string("child"), "age" -> DynamicValue.int(5))
         val rootRec     = DynamicValue.Record("name" -> DynamicValue.string("root"), "child" -> child)
-        val namePattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val namePattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         // Root matches namePattern, but field("missing") fails, so fallback to deleteMatching on children
         val path   = DynamicOptic.root.searchSchema(namePattern).field("missing")
         val result = rootRec.delete(path)

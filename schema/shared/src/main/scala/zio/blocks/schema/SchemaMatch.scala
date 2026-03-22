@@ -1,6 +1,23 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
+import scala.annotation.tailrec
 
 /**
  * Provides matching logic for SchemaRepr patterns against DynamicValue
@@ -42,79 +59,76 @@ object SchemaMatch {
    * @return
    *   true if the value matches the pattern, false otherwise
    */
-  def matches(pattern: SchemaRepr, value: DynamicValue): Boolean = (pattern, value) match {
-    case (SchemaRepr.Wildcard, _) =>
-      true
-
-    case (SchemaRepr.Primitive(name), DynamicValue.Primitive(pv)) =>
-      primitiveTypeMatches(name, pv)
-
-    case (SchemaRepr.Record(fields), DynamicValue.Record(actualFields)) =>
-      recordMatches(fields, actualFields)
-
-    case (SchemaRepr.Variant(cases), DynamicValue.Variant(caseName, payload)) =>
-      variantMatches(cases, caseName, payload)
-
-    case (SchemaRepr.Sequence(elemPattern), DynamicValue.Sequence(elements)) =>
-      sequenceMatches(elemPattern, elements)
-
-    case (SchemaRepr.Map(keyPattern, valuePattern), DynamicValue.Map(entries)) =>
-      mapMatches(keyPattern, valuePattern, entries)
-
-    case (SchemaRepr.Optional(_), DynamicValue.Null) =>
-      true
-
-    case (SchemaRepr.Optional(inner), value) =>
-      matches(inner, value)
-
-    case (SchemaRepr.Nominal(_), _) =>
-      // Nominal types require schema context not available in DynamicValue
-      false
-
-    case _ =>
-      // Type mismatch (e.g., Primitive pattern against Record value)
-      false
+  @tailrec
+  def matches(pattern: SchemaRepr, value: DynamicValue): Boolean = pattern match {
+    case _: SchemaRepr.Wildcard.type => true
+    case p: SchemaRepr.Primitive     =>
+      value match {
+        case dv: DynamicValue.Primitive => primitiveTypeMatches(p.name, dv.value)
+        case _                          => false
+      }
+    case r: SchemaRepr.Record =>
+      value match {
+        case dv: DynamicValue.Record => recordMatches(r.fields, dv.fields)
+        case _                       => false
+      }
+    case v: SchemaRepr.Variant =>
+      value match {
+        case dv: DynamicValue.Variant => variantMatches(v.cases, dv.caseNameValue, dv.value)
+        case _                        => false
+      }
+    case s: SchemaRepr.Sequence =>
+      value match {
+        case dv: DynamicValue.Sequence => sequenceMatches(s.element, dv.elements)
+        case _                         => false
+      }
+    case m: SchemaRepr.Map =>
+      value match {
+        case dv: DynamicValue.Map => mapMatches(m.key, m.value, dv.entries)
+        case _                    => false
+      }
+    case o: SchemaRepr.Optional =>
+      if (value eq DynamicValue.Null) true
+      else matches(o.inner, value)
+    case _ => false
   }
 
   /**
    * Tests whether a PrimitiveValue's type matches a primitive type name. The
    * comparison is case-insensitive.
    */
-  private def primitiveTypeMatches(name: String, pv: PrimitiveValue): Boolean = {
-    val lowerName = name.toLowerCase
-    pv match {
-      case PrimitiveValue.Unit              => lowerName == "unit"
-      case PrimitiveValue.Boolean(_)        => lowerName == "boolean"
-      case PrimitiveValue.Byte(_)           => lowerName == "byte"
-      case PrimitiveValue.Short(_)          => lowerName == "short"
-      case PrimitiveValue.Int(_)            => lowerName == "int"
-      case PrimitiveValue.Long(_)           => lowerName == "long"
-      case PrimitiveValue.Float(_)          => lowerName == "float"
-      case PrimitiveValue.Double(_)         => lowerName == "double"
-      case PrimitiveValue.Char(_)           => lowerName == "char"
-      case PrimitiveValue.String(_)         => lowerName == "string"
-      case PrimitiveValue.BigInt(_)         => lowerName == "bigint"
-      case PrimitiveValue.BigDecimal(_)     => lowerName == "bigdecimal"
-      case PrimitiveValue.DayOfWeek(_)      => lowerName == "dayofweek"
-      case PrimitiveValue.Duration(_)       => lowerName == "duration"
-      case PrimitiveValue.Instant(_)        => lowerName == "instant"
-      case PrimitiveValue.LocalDate(_)      => lowerName == "localdate"
-      case PrimitiveValue.LocalDateTime(_)  => lowerName == "localdatetime"
-      case PrimitiveValue.LocalTime(_)      => lowerName == "localtime"
-      case PrimitiveValue.Month(_)          => lowerName == "month"
-      case PrimitiveValue.MonthDay(_)       => lowerName == "monthday"
-      case PrimitiveValue.OffsetDateTime(_) => lowerName == "offsetdatetime"
-      case PrimitiveValue.OffsetTime(_)     => lowerName == "offsettime"
-      case PrimitiveValue.Period(_)         => lowerName == "period"
-      case PrimitiveValue.Year(_)           => lowerName == "year"
-      case PrimitiveValue.YearMonth(_)      => lowerName == "yearmonth"
-      case PrimitiveValue.ZoneId(_)         => lowerName == "zoneid"
-      case PrimitiveValue.ZoneOffset(_)     => lowerName == "zoneoffset"
-      case PrimitiveValue.ZonedDateTime(_)  => lowerName == "zoneddatetime"
-      case PrimitiveValue.Currency(_)       => lowerName == "currency"
-      case PrimitiveValue.UUID(_)           => lowerName == "uuid"
-    }
-  }
+  private def primitiveTypeMatches(name: String, pv: PrimitiveValue): Boolean = name.compareToIgnoreCase(pv match {
+    case _: PrimitiveValue.Unit.type      => "unit"
+    case _: PrimitiveValue.Boolean        => "boolean"
+    case _: PrimitiveValue.Byte           => "byte"
+    case _: PrimitiveValue.Short          => "short"
+    case _: PrimitiveValue.Int            => "int"
+    case _: PrimitiveValue.Long           => "long"
+    case _: PrimitiveValue.Float          => "float"
+    case _: PrimitiveValue.Double         => "double"
+    case _: PrimitiveValue.Char           => "char"
+    case _: PrimitiveValue.String         => "string"
+    case _: PrimitiveValue.BigInt         => "bigint"
+    case _: PrimitiveValue.BigDecimal     => "bigdecimal"
+    case _: PrimitiveValue.DayOfWeek      => "dayofweek"
+    case _: PrimitiveValue.Duration       => "duration"
+    case _: PrimitiveValue.Instant        => "instant"
+    case _: PrimitiveValue.LocalDate      => "localdate"
+    case _: PrimitiveValue.LocalDateTime  => "localdatetime"
+    case _: PrimitiveValue.LocalTime      => "localtime"
+    case _: PrimitiveValue.Month          => "month"
+    case _: PrimitiveValue.MonthDay       => "monthday"
+    case _: PrimitiveValue.OffsetDateTime => "offsetdatetime"
+    case _: PrimitiveValue.OffsetTime     => "offsettime"
+    case _: PrimitiveValue.Period         => "period"
+    case _: PrimitiveValue.Year           => "year"
+    case _: PrimitiveValue.YearMonth      => "yearmonth"
+    case _: PrimitiveValue.ZoneId         => "zoneid"
+    case _: PrimitiveValue.ZoneOffset     => "zoneoffset"
+    case _: PrimitiveValue.ZonedDateTime  => "zoneddatetime"
+    case _: PrimitiveValue.Currency       => "currency"
+    case _: PrimitiveValue.UUID           => "uuid"
+  }) == 0
 
   /**
    * Tests whether a DynamicValue.Record matches a Record pattern using subset
@@ -122,8 +136,8 @@ object SchemaMatch {
    * record with matching types. The actual record may have additional fields
    * that are not in the pattern.
    */
-  private def recordMatches(
-    patternFields: Vector[(String, SchemaRepr)],
+  private[this] def recordMatches(
+    patternFields: IndexedSeq[(String, SchemaRepr)],
     actualFields: Chunk[(String, DynamicValue)]
   ): Boolean =
     patternFields.forall { case (patternName, patternRepr) =>
@@ -137,8 +151,8 @@ object SchemaMatch {
    * variant's case name must match one of the pattern's cases, and the payload
    * must match that case's pattern.
    */
-  private def variantMatches(
-    patternCases: Vector[(String, SchemaRepr)],
+  private[this] def variantMatches(
+    patternCases: IndexedSeq[(String, SchemaRepr)],
     caseName: String,
     payload: DynamicValue
   ): Boolean =
@@ -151,23 +165,17 @@ object SchemaMatch {
    * sequences always match. For non-empty sequences, all elements must match
    * the element pattern.
    */
-  private def sequenceMatches(
-    elemPattern: SchemaRepr,
-    elements: Chunk[DynamicValue]
-  ): Boolean =
-    if (elements.isEmpty) true
-    else elements.forall(elem => matches(elemPattern, elem))
+  private[this] def sequenceMatches(elemPattern: SchemaRepr, elements: Chunk[DynamicValue]): Boolean =
+    elements.forall(elem => matches(elemPattern, elem))
 
   /**
    * Tests whether a DynamicValue.Map matches a Map pattern. Empty maps always
    * match. For non-empty maps, all entries must have keys matching the key
    * pattern and values matching the value pattern.
    */
-  private def mapMatches(
+  private[this] def mapMatches(
     keyPattern: SchemaRepr,
     valuePattern: SchemaRepr,
     entries: Chunk[(DynamicValue, DynamicValue)]
-  ): Boolean =
-    if (entries.isEmpty) true
-    else entries.forall { case (k, v) => matches(keyPattern, k) && matches(valuePattern, v) }
+  ): Boolean = entries.forall { case (k, v) => matches(keyPattern, k) && matches(valuePattern, v) }
 }

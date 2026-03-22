@@ -1049,7 +1049,7 @@ object ReflectSpec extends SchemaBaseSpec {
       test("SchemaSearch with Record pattern using subset matching") {
         // Create a record with name: String and age: Int
         val personSchema = Schema.derived[PersonRecord]
-        val pattern      = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("string"))))
+        val pattern      = SchemaRepr.Record(Chunk(("name", SchemaRepr.Primitive("string"))))
         val optic        = DynamicOptic.root.searchSchema(pattern)
         val result       = personSchema.reflect.get(optic)
         assert(result.map(_.typeId))(isSome(equalTo(TypeId.of[PersonRecord])))
@@ -1155,20 +1155,20 @@ object ReflectSpec extends SchemaBaseSpec {
         assert(result)(isNone)
       },
       test("SchemaSearch Record pattern does not match when field is missing") {
-        val pattern = SchemaRepr.Record(Vector(("nonexistent", SchemaRepr.Primitive("string"))))
+        val pattern = SchemaRepr.Record(Chunk(("nonexistent", SchemaRepr.Primitive("string"))))
         val optic   = DynamicOptic.root.searchSchema(pattern)
         val result  = Schema.derived[PersonRecord].reflect.get(optic)
         assert(result)(isNone)
       },
       test("SchemaSearch Record pattern does not match when field type is wrong") {
         // PersonRecord.name is String, not Int
-        val pattern = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("int"))))
+        val pattern = SchemaRepr.Record(Chunk(("name", SchemaRepr.Primitive("int"))))
         val optic   = DynamicOptic.root.searchSchema(pattern)
         val result  = Schema.derived[PersonRecord].reflect.get(optic)
         assert(result)(isNone)
       },
       test("SchemaSearch Record pattern does not match non-Record node") {
-        val pattern = SchemaRepr.Record(Vector(("name", SchemaRepr.Primitive("string"))))
+        val pattern = SchemaRepr.Record(Chunk(("name", SchemaRepr.Primitive("string"))))
         val optic   = DynamicOptic.root.searchSchema(pattern)
         val result  = Reflect.int[Binding].get(optic)
         assert(result)(isNone)
@@ -1230,7 +1230,7 @@ object ReflectSpec extends SchemaBaseSpec {
       test("SchemaSearch with path composition: searchSchema then field") {
         val nestedSchema = Schema.derived[(Int, PersonRecord)].reflect
         val pattern      = SchemaRepr.Record(
-          Vector(
+          Chunk(
             ("name", SchemaRepr.Primitive("string")),
             ("age", SchemaRepr.Primitive("int"))
           )

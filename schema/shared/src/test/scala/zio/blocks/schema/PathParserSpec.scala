@@ -62,7 +62,7 @@ object PathParserSpec extends SchemaBaseSpec {
           parse("""{"a","b"}""") == Right(
             Chunk(
               Node.AtMapKeys(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
                   DynamicValue.Primitive(PrimitiveValue.String("b"))
                 )
@@ -534,7 +534,7 @@ object PathParserSpec extends SchemaBaseSpec {
           parse("""{ "a" , "b" }""") == Right(
             Chunk(
               Node.AtMapKeys(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
                   DynamicValue.Primitive(PrimitiveValue.String("b"))
                 )
@@ -563,7 +563,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("record with single field") {
         assertTrue(
           parse("#record { name: string }") == Right(
-            Chunk(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))))
           )
         )
       },
@@ -573,7 +573,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector(
+                  Chunk(
                     "name" -> SchemaRepr.Primitive("string"),
                     "age"  -> SchemaRepr.Primitive("int")
                   )
@@ -589,7 +589,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Variant(
-                  Vector(
+                  Chunk(
                     "Left"  -> SchemaRepr.Primitive("int"),
                     "Right" -> SchemaRepr.Primitive("string")
                   )
@@ -628,7 +628,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+                  Chunk("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
                 )
               )
             )

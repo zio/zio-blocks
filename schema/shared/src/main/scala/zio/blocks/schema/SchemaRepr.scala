@@ -1,5 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
@@ -44,12 +61,12 @@ object SchemaRepr {
   /**
    * A structural record type with named fields.
    */
-  final case class Record(fields: Vector[(String, SchemaRepr)]) extends SchemaRepr
+  final case class Record(fields: IndexedSeq[(String, SchemaRepr)]) extends SchemaRepr
 
   /**
    * A structural variant (sum) type with named cases.
    */
-  final case class Variant(cases: Vector[(String, SchemaRepr)]) extends SchemaRepr
+  final case class Variant(cases: IndexedSeq[(String, SchemaRepr)]) extends SchemaRepr
 
   /**
    * A sequence type (list, set, array).
@@ -125,7 +142,7 @@ object SchemaRepr {
   // Helper schema for (String, SchemaRepr) tuples used in Record and Variant fields
   private implicit lazy val stringSchemaReprTupleSchema: Schema[(String, SchemaRepr)] = new Schema(
     reflect = new Reflect.Record[Binding, (String, SchemaRepr)](
-      fields = Vector(
+      fields = Chunk(
         Schema[String].reflect.asTerm("_1"),
         Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("_2")
       ),
@@ -144,15 +161,13 @@ object SchemaRepr {
           }
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val nominalSchema: Schema[Nominal] = new Schema(
     reflect = new Reflect.Record[Binding, Nominal](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[Nominal],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Nominal] {
@@ -166,15 +181,13 @@ object SchemaRepr {
             out.setObject(offset + 0, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val primitiveSchema: Schema[Primitive] = new Schema(
     reflect = new Reflect.Record[Binding, Primitive](
-      fields = Vector(
-        Schema[String].reflect.asTerm("name")
-      ),
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
       typeId = TypeId.of[Primitive],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Primitive] {
@@ -188,21 +201,19 @@ object SchemaRepr {
             out.setObject(offset + 0, in.name)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val recordSchema: Schema[Record] = new Schema(
     reflect = new Reflect.Record[Binding, Record](
-      fields = Vector(
-        Reflect.Deferred(() => Schema[Vector[(String, SchemaRepr)]].reflect).asTerm("fields")
-      ),
+      fields = Chunk.single(Reflect.Deferred(() => Schema[IndexedSeq[(String, SchemaRepr)]].reflect).asTerm("fields")),
       typeId = TypeId.of[Record],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Record] {
           def usedRegisters: RegisterOffset                            = 1
           def construct(in: Registers, offset: RegisterOffset): Record =
-            Record(in.getObject(offset + 0).asInstanceOf[Vector[(String, SchemaRepr)]])
+            new Record(in.getObject(offset + 0).asInstanceOf[IndexedSeq[(String, SchemaRepr)]])
         },
         deconstructor = new Deconstructor[Record] {
           def usedRegisters: RegisterOffset                                         = 1
@@ -210,21 +221,19 @@ object SchemaRepr {
             out.setObject(offset + 0, in.fields)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val variantSchema: Schema[Variant] = new Schema(
     reflect = new Reflect.Record[Binding, Variant](
-      fields = Vector(
-        Reflect.Deferred(() => Schema[Vector[(String, SchemaRepr)]].reflect).asTerm("cases")
-      ),
+      fields = Chunk.single(Reflect.Deferred(() => Schema[IndexedSeq[(String, SchemaRepr)]].reflect).asTerm("cases")),
       typeId = TypeId.of[Variant],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Variant] {
           def usedRegisters: RegisterOffset                             = 1
           def construct(in: Registers, offset: RegisterOffset): Variant =
-            Variant(in.getObject(offset + 0).asInstanceOf[Vector[(String, SchemaRepr)]])
+            new Variant(in.getObject(offset + 0).asInstanceOf[IndexedSeq[(String, SchemaRepr)]])
         },
         deconstructor = new Deconstructor[Variant] {
           def usedRegisters: RegisterOffset                                          = 1
@@ -232,15 +241,13 @@ object SchemaRepr {
             out.setObject(offset + 0, in.cases)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val sequenceSchema: Schema[Sequence] = new Schema(
     reflect = new Reflect.Record[Binding, Sequence](
-      fields = Vector(
-        Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("element")
-      ),
+      fields = Chunk.single(Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("element")),
       typeId = TypeId.of[Sequence],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Sequence] {
@@ -254,13 +261,13 @@ object SchemaRepr {
             out.setObject(offset + 0, in.element)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val mapSchema: Schema[Map] = new Schema(
     reflect = new Reflect.Record[Binding, Map](
-      fields = Vector(
+      fields = Chunk(
         Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("key"),
         Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("value")
       ),
@@ -282,15 +289,13 @@ object SchemaRepr {
           }
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val optionalSchema: Schema[Optional] = new Schema(
     reflect = new Reflect.Record[Binding, Optional](
-      fields = Vector(
-        Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("inner")
-      ),
+      fields = Chunk.single(Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("inner")),
       typeId = TypeId.of[Optional],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Optional] {
@@ -304,26 +309,26 @@ object SchemaRepr {
             out.setObject(offset + 0, in.inner)
         }
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   implicit lazy val wildcardSchema: Schema[Wildcard.type] = new Schema(
     reflect = new Reflect.Record[Binding, Wildcard.type](
-      fields = Vector.empty,
+      fields = Chunk.empty,
       typeId = TypeId.of[Wildcard.type],
       recordBinding = new Binding.Record(
         constructor = new ConstantConstructor[Wildcard.type](Wildcard),
         deconstructor = new ConstantDeconstructor[Wildcard.type]
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 
   // Schema for SchemaRepr sealed trait
   implicit lazy val schemaReprSchema: Schema[SchemaRepr] = new Schema(
     reflect = new Reflect.Variant[Binding, SchemaRepr](
-      cases = Vector(
+      cases = Chunk(
         nominalSchema.reflect.asTerm("Nominal"),
         primitiveSchema.reflect.asTerm("Primitive"),
         recordSchema.reflect.asTerm("Record"),
@@ -398,7 +403,7 @@ object SchemaRepr {
           }
         )
       ),
-      modifiers = Vector.empty
+      modifiers = Chunk.empty
     )
   )
 }

@@ -107,7 +107,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         val patch = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.AtMapKey(stringVal("b")))),
+          DynamicOptic(Chunk(DynamicOptic.Node.AtMapKey(stringVal("b")))),
           DynamicPatch.Operation.Set(intVal(99))
         )
         val result = patch(original)
@@ -510,7 +510,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails when applying Elements node to non-sequence (Record)") {
         val original = personRecord("Alice", 30)
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicOptic(Chunk(DynamicOptic.Node.Elements)),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original, PatchMode.Strict)
@@ -519,7 +519,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       test("fails when applying Elements node to non-sequence (Primitive)") {
         val original = intVal(42)
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicOptic(Chunk(DynamicOptic.Node.Elements)),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(1))
         )
         val result = patch(original, PatchMode.Strict)
@@ -2126,7 +2126,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       },
       test("matches record pattern (structural)") {
         // Pattern: record with "name" field of type string
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
 
         val original = DynamicValue.Sequence(
           Chunk(
@@ -2196,7 +2196,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
       },
       test("SchemaSearch followed by field navigation") {
         // Search for records with "value" field, then navigate to that field
-        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Record(Chunk("value" -> SchemaRepr.Primitive("int")))
 
         val original = DynamicValue.Sequence(
           Chunk(
@@ -2328,7 +2328,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         import zio.blocks.typeid.TypeId
         val original = intVal(42)
         val patch    = DynamicPatch(
-          DynamicOptic(Vector(DynamicOptic.Node.TypeSearch(TypeId.of[Int]))),
+          DynamicOptic(Chunk(DynamicOptic.Node.TypeSearch(TypeId.of[Int]))),
           DynamicPatch.Operation.Set(intVal(100))
         )
         val result = patch(original)
@@ -2413,7 +2413,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         )
         // Variant pattern matches both Left and Right cases
         val variantPattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -2444,7 +2444,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             DynamicValue.Record(Chunk("name" -> stringVal("Bob")))
           )
         )
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
           DynamicPatch.Operation.Set(intVal(0))
@@ -2460,7 +2460,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             DynamicValue.Record(Chunk("name" -> stringVal("Bob")))
           )
         )
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
           DynamicPatch.Operation.Set(intVal(0))
@@ -2475,7 +2475,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             DynamicValue.Record(Chunk("name" -> stringVal("Alice")))
           )
         )
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
           DynamicPatch.Operation.Set(intVal(0))
@@ -2491,7 +2491,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             "b" -> DynamicValue.Record(Chunk("x" -> intVal(2)))
           )
         )
-        val pattern = SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Record(Chunk("x" -> SchemaRepr.Primitive("int")))
         // Navigate to "missing" field after search — first match will fail
         val patch = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("missing"),
@@ -2510,7 +2510,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             )
           )
         )
-        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Record(Chunk("value" -> SchemaRepr.Primitive("int")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("value"),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(8))
@@ -2534,7 +2534,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
             stringVal("key2") -> DynamicValue.Record(Chunk("value" -> intVal(20)))
           )
         )
-        val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Record(Chunk("value" -> SchemaRepr.Primitive("int")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern).field("value"),
           DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5))
@@ -2629,7 +2629,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
           )
         )
         // Match only Left variants with int payload
-        val pattern = SchemaRepr.Variant(Vector("Left" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Variant(Chunk("Left" -> SchemaRepr.Primitive("int")))
         val patch   = DynamicPatch(
           DynamicOptic.root.searchSchema(pattern),
           DynamicPatch.Operation.Set(DynamicValue.Variant("Left", intVal(0)))
@@ -2714,7 +2714,7 @@ object DynamicPatchSpec extends SchemaBaseSpec {
         assertTrue(result == Right(expected))
       },
       test("SchemaSearch with nested patch operation") {
-        val pattern = SchemaRepr.Record(Vector("count" -> SchemaRepr.Primitive("int")))
+        val pattern = SchemaRepr.Record(Chunk("count" -> SchemaRepr.Primitive("int")))
 
         val original = DynamicValue.Sequence(
           Chunk(

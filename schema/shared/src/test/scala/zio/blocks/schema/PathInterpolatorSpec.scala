@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 import zio.test.Assertion._
 
@@ -9,15 +10,15 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
   def spec = suite("PathInterpolatorSpec")(
     suite("Record field access")(
       test("single field with leading dot") {
-        assertTrue(p".foo" == DynamicOptic(Vector(Node.Field("foo"))))
+        assertTrue(p".foo" == DynamicOptic(Chunk(Node.Field("foo"))))
       },
       test("single field without leading dot") {
-        assertTrue(p"foo" == DynamicOptic(Vector(Node.Field("foo"))))
+        assertTrue(p"foo" == DynamicOptic(Chunk(Node.Field("foo"))))
       },
       test("chained fields with leading dot") {
         assertTrue(
           p".foo.bar.baz" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("foo"),
               Node.Field("bar"),
               Node.Field("baz")
@@ -28,7 +29,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained fields without leading dot") {
         assertTrue(
           p"foo.bar.baz" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("foo"),
               Node.Field("bar"),
               Node.Field("baz")
@@ -37,82 +38,82 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("field with leading underscore") {
-        assertTrue(p"._private" == DynamicOptic(Vector(Node.Field("_private"))))
+        assertTrue(p"._private" == DynamicOptic(Chunk(Node.Field("_private"))))
       },
       test("field underscore only") {
-        assertTrue(p"._" == DynamicOptic(Vector(Node.Field("_"))))
+        assertTrue(p"._" == DynamicOptic(Chunk(Node.Field("_"))))
       },
       test("field with digits") {
-        assertTrue(p".field123" == DynamicOptic(Vector(Node.Field("field123"))))
+        assertTrue(p".field123" == DynamicOptic(Chunk(Node.Field("field123"))))
       },
       test("field starting with underscore and digits") {
-        assertTrue(p"._123" == DynamicOptic(Vector(Node.Field("_123"))))
+        assertTrue(p"._123" == DynamicOptic(Chunk(Node.Field("_123"))))
       },
       test("field that looks like keyword true") {
-        assertTrue(p".true" == DynamicOptic(Vector(Node.Field("true"))))
+        assertTrue(p".true" == DynamicOptic(Chunk(Node.Field("true"))))
       },
       test("field that looks like keyword false") {
-        assertTrue(p".false" == DynamicOptic(Vector(Node.Field("false"))))
+        assertTrue(p".false" == DynamicOptic(Chunk(Node.Field("false"))))
       },
       test("field that looks like keyword null") {
-        assertTrue(p".null" == DynamicOptic(Vector(Node.Field("null"))))
+        assertTrue(p".null" == DynamicOptic(Chunk(Node.Field("null"))))
       },
       test("unicode field name") {
-        assertTrue(p".café" == DynamicOptic(Vector(Node.Field("café"))))
+        assertTrue(p".café" == DynamicOptic(Chunk(Node.Field("café"))))
       },
       test("unicode field name without leading dot") {
-        assertTrue(p"café" == DynamicOptic(Vector(Node.Field("café"))))
+        assertTrue(p"café" == DynamicOptic(Chunk(Node.Field("café"))))
       },
       test("field with many underscores") {
-        assertTrue(p".__foo__bar__" == DynamicOptic(Vector(Node.Field("__foo__bar__"))))
+        assertTrue(p".__foo__bar__" == DynamicOptic(Chunk(Node.Field("__foo__bar__"))))
       }
     ),
 
     suite("Sequence index access - single index")(
       test("index zero") {
-        assertTrue(p"[0]" == DynamicOptic(Vector(Node.AtIndex(0))))
+        assertTrue(p"[0]" == DynamicOptic(Chunk(Node.AtIndex(0))))
       },
       test("index positive") {
-        assertTrue(p"[42]" == DynamicOptic(Vector(Node.AtIndex(42))))
+        assertTrue(p"[42]" == DynamicOptic(Chunk(Node.AtIndex(42))))
       },
       test("index large") {
-        assertTrue(p"[999999]" == DynamicOptic(Vector(Node.AtIndex(999999))))
+        assertTrue(p"[999999]" == DynamicOptic(Chunk(Node.AtIndex(999999))))
       },
       test("index max int") {
-        assertTrue(p"[2147483647]" == DynamicOptic(Vector(Node.AtIndex(2147483647))))
+        assertTrue(p"[2147483647]" == DynamicOptic(Chunk(Node.AtIndex(2147483647))))
       },
       test("index with leading zeros") {
-        assertTrue(p"[007]" == DynamicOptic(Vector(Node.AtIndex(7))))
+        assertTrue(p"[007]" == DynamicOptic(Chunk(Node.AtIndex(7))))
       },
       test("index with many leading zeros") {
-        assertTrue(p"[00000042]" == DynamicOptic(Vector(Node.AtIndex(42))))
+        assertTrue(p"[00000042]" == DynamicOptic(Chunk(Node.AtIndex(42))))
       },
       test("index with spaces") {
-        assertTrue(p"[ 42 ]" == DynamicOptic(Vector(Node.AtIndex(42))))
+        assertTrue(p"[ 42 ]" == DynamicOptic(Chunk(Node.AtIndex(42))))
       }
     ),
 
     suite("Sequence index access - multiple indices")(
       test("two indices") {
-        assertTrue(p"[0,1]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 1)))))
+        assertTrue(p"[0,1]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 1)))))
       },
       test("several indices") {
-        assertTrue(p"[0,2,5,10]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 2, 5, 10)))))
+        assertTrue(p"[0,2,5,10]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 2, 5, 10)))))
       },
       test("indices with spaces") {
-        assertTrue(p"[0, 2, 5]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 2, 5)))))
+        assertTrue(p"[0, 2, 5]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 2, 5)))))
       },
       test("indices with inconsistent spacing") {
-        assertTrue(p"[0 ,1, 2 ,3]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 1, 2, 3)))))
+        assertTrue(p"[0 ,1, 2 ,3]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 1, 2, 3)))))
       },
       test("duplicate indices allowed") {
-        assertTrue(p"[0,0,1,1]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 0, 1, 1)))))
+        assertTrue(p"[0,0,1,1]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 0, 1, 1)))))
       },
       test("out of order indices allowed") {
-        assertTrue(p"[5,2,8,1]" == DynamicOptic(Vector(Node.AtIndices(Seq(5, 2, 8, 1)))))
+        assertTrue(p"[5,2,8,1]" == DynamicOptic(Chunk(Node.AtIndices(Seq(5, 2, 8, 1)))))
       },
       test("indices with leading zeros") {
-        assertTrue(p"[001,002,003]" == DynamicOptic(Vector(Node.AtIndices(Seq(1, 2, 3)))))
+        assertTrue(p"[001,002,003]" == DynamicOptic(Chunk(Node.AtIndices(Seq(1, 2, 3)))))
       }
     ),
 
@@ -120,7 +121,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range basic") {
         assertTrue(
           p"[0:5]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(0, 1, 2, 3, 4))
             )
           )
@@ -129,7 +130,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range zero to ten") {
         assertTrue(
           p"[0:10]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
             )
           )
@@ -138,7 +139,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range with spaces") {
         assertTrue(
           p"[ 0 : 5 ]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(0, 1, 2, 3, 4))
             )
           )
@@ -147,7 +148,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range starting nonzero") {
         assertTrue(
           p"[5:8]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(5, 6, 7))
             )
           )
@@ -156,7 +157,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range single element") {
         assertTrue(
           p"[3:4]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(3))
             )
           )
@@ -165,7 +166,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range empty when start equals end") {
         assertTrue(
           p"[5:5]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq.empty)
             )
           )
@@ -174,7 +175,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range inverted produces empty") {
         assertTrue(
           p"[10:5]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq.empty)
             )
           )
@@ -183,7 +184,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("range with leading zeros") {
         assertTrue(
           p"[001:005]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(1, 2, 3, 4))
             )
           )
@@ -193,21 +194,21 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
 
     suite("Sequence index access - element selectors")(
       test("select all elements with star") {
-        assertTrue(p"[*]" == DynamicOptic(Vector(Node.Elements)))
+        assertTrue(p"[*]" == DynamicOptic(Chunk(Node.Elements)))
       },
       test("select all elements with colon star") {
-        assertTrue(p"[:*]" == DynamicOptic(Vector(Node.Elements)))
+        assertTrue(p"[:*]" == DynamicOptic(Chunk(Node.Elements)))
       },
       test("star with spaces") {
-        assertTrue(p"[ * ]" == DynamicOptic(Vector(Node.Elements)))
+        assertTrue(p"[ * ]" == DynamicOptic(Chunk(Node.Elements)))
       },
       test("colon star with spaces") {
-        assertTrue(p"[ :* ]" == DynamicOptic(Vector(Node.Elements)))
+        assertTrue(p"[ :* ]" == DynamicOptic(Chunk(Node.Elements)))
       },
       test("chained single indices") {
         assertTrue(
           p"[0][1][2]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndex(0),
               Node.AtIndex(1),
               Node.AtIndex(2)
@@ -218,7 +219,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained elements selectors") {
         assertTrue(
           p"[*][*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Elements,
               Node.Elements
             )
@@ -228,7 +229,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained colon star selectors") {
         assertTrue(
           p"[:*][:*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Elements,
               Node.Elements
             )
@@ -238,7 +239,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("mixed elements and indices") {
         assertTrue(
           p"[*][0][*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Elements,
               Node.AtIndex(0),
               Node.Elements
@@ -252,7 +253,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("simple string key") {
         assertTrue(
           p"""{"foo"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
             )
           )
@@ -261,7 +262,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with spaces") {
         assertTrue(
           p"""{"foo bar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo bar")))
             )
           )
@@ -270,7 +271,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with escaped quote") {
         assertTrue(
           p"""{"foo\"bar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\"bar")))
             )
           )
@@ -279,7 +280,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with escaped backslash") {
         assertTrue(
           p"""{"foo\\bar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\\bar")))
             )
           )
@@ -288,7 +289,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with newline escape") {
         assertTrue(
           p"""{"foo\nbar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\nbar")))
             )
           )
@@ -297,7 +298,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with tab escape") {
         assertTrue(
           p"""{"foo\tbar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\tbar")))
             )
           )
@@ -306,7 +307,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with carriage return escape") {
         assertTrue(
           p"""{"foo\rbar"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo\rbar")))
             )
           )
@@ -315,7 +316,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key only backslash") {
         assertTrue(
           p"""{"\\"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\\")))
             )
           )
@@ -324,7 +325,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key only quote") {
         assertTrue(
           p"""{"\""}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("\"")))
             )
           )
@@ -333,7 +334,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("empty string key") {
         assertTrue(
           p"""{""}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("")))
             )
           )
@@ -342,7 +343,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with unicode") {
         assertTrue(
           p"""{"日本語"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("日本語")))
             )
           )
@@ -351,7 +352,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string key with emoji") {
         assertTrue(
           p"""{"🎉"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("🎉")))
             )
           )
@@ -360,7 +361,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("multiple string keys") {
         assertTrue(
           p"""{"foo", "bar", "baz"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("foo")),
@@ -375,7 +376,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("two string keys") {
         assertTrue(
           p"""{"a", "b"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
@@ -392,7 +393,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("positive integer") {
         assertTrue(
           p"{42}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
             )
           )
@@ -401,7 +402,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("zero") {
         assertTrue(
           p"{0}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
           )
@@ -410,7 +411,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("negative integer") {
         assertTrue(
           p"{-42}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-42)))
             )
           )
@@ -419,7 +420,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("max int") {
         assertTrue(
           p"{2147483647}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(2147483647)))
             )
           )
@@ -428,7 +429,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("min int") {
         assertTrue(
           p"{-2147483648}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-2147483648)))
             )
           )
@@ -437,7 +438,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("leading zeros") {
         assertTrue(
           p"{007}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(7)))
             )
           )
@@ -446,7 +447,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("negative with leading zeros") {
         assertTrue(
           p"{-007}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(-7)))
             )
           )
@@ -455,7 +456,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("multiple integer keys") {
         assertTrue(
           p"{1, 2, 3}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Int(1)),
@@ -470,7 +471,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("multiple integer keys with negatives") {
         assertTrue(
           p"{-1, 0, 1}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Int(-1)),
@@ -488,7 +489,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("true") {
         assertTrue(
           p"{true}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
             )
           )
@@ -497,7 +498,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("false") {
         assertTrue(
           p"{false}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
             )
           )
@@ -506,7 +507,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("multiple booleans") {
         assertTrue(
           p"{true, false}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
@@ -520,7 +521,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("duplicate booleans") {
         assertTrue(
           p"{true, true, false}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
@@ -538,7 +539,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("simple char") {
         assertTrue(
           p"{'a'}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('a')))
             )
           )
@@ -547,7 +548,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char space") {
         assertTrue(
           p"{' '}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char(' ')))
             )
           )
@@ -556,7 +557,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char digit") {
         assertTrue(
           p"{'9'}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('9')))
             )
           )
@@ -565,7 +566,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char escaped newline") {
         assertTrue(
           p"""{'\n'}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\n')))
             )
           )
@@ -574,7 +575,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char escaped tab") {
         assertTrue(
           p"""{'\t'}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\t')))
             )
           )
@@ -583,7 +584,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char escaped carriage return") {
         assertTrue(
           p"""{'\r'}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\r')))
             )
           )
@@ -592,7 +593,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char escaped single quote") {
         assertTrue(
           p"""{'\''}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\'')))
             )
           )
@@ -601,7 +602,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("char escaped backslash") {
         assertTrue(
           p"""{'\\'}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Char('\\')))
             )
           )
@@ -610,7 +611,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("multiple char keys") {
         assertTrue(
           p"{'a', 'b', 'c'}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Char('a')),
@@ -628,7 +629,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string and integer") {
         assertTrue(
           p"""{"foo", 42}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("foo")),
@@ -642,7 +643,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("integer and boolean") {
         assertTrue(
           p"{1, true, 2, false}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.Int(1)),
@@ -658,7 +659,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("string and char") {
         assertTrue(
           p"""{"foo", 'x'}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("foo")),
@@ -672,7 +673,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("all supported primitive types") {
         assertTrue(
           p"""{"s", 'c', 42, true}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("s")),
@@ -688,7 +689,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("negative int with string and bool") {
         assertTrue(
           p"""{"key", -99, false}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("key")),
@@ -704,27 +705,27 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
 
     suite("Map key/value selectors")(
       test("select all values with star") {
-        assertTrue(p"{*}" == DynamicOptic(Vector(Node.MapValues)))
+        assertTrue(p"{*}" == DynamicOptic(Chunk(Node.MapValues)))
       },
       test("select all values with colon star") {
-        assertTrue(p"{:*}" == DynamicOptic(Vector(Node.MapValues)))
+        assertTrue(p"{:*}" == DynamicOptic(Chunk(Node.MapValues)))
       },
       test("select all keys with star colon") {
-        assertTrue(p"{*:}" == DynamicOptic(Vector(Node.MapKeys)))
+        assertTrue(p"{*:}" == DynamicOptic(Chunk(Node.MapKeys)))
       },
       test("star with spaces") {
-        assertTrue(p"{ * }" == DynamicOptic(Vector(Node.MapValues)))
+        assertTrue(p"{ * }" == DynamicOptic(Chunk(Node.MapValues)))
       },
       test("colon star with spaces") {
-        assertTrue(p"{ :* }" == DynamicOptic(Vector(Node.MapValues)))
+        assertTrue(p"{ :* }" == DynamicOptic(Chunk(Node.MapValues)))
       },
       test("star colon with spaces") {
-        assertTrue(p"{ *: }" == DynamicOptic(Vector(Node.MapKeys)))
+        assertTrue(p"{ *: }" == DynamicOptic(Chunk(Node.MapKeys)))
       },
       test("chained map values") {
         assertTrue(
           p"{*}{*}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapValues,
               Node.MapValues
             )
@@ -734,7 +735,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained map keys") {
         assertTrue(
           p"{*:}{*:}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapKeys,
               Node.MapKeys
             )
@@ -744,7 +745,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map values then map keys") {
         assertTrue(
           p"{*}{*:}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapValues,
               Node.MapKeys
             )
@@ -755,42 +756,42 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
 
     suite("Variant case access")(
       test("simple case") {
-        assertTrue(p"<Left>" == DynamicOptic(Vector(Node.Case("Left"))))
+        assertTrue(p"<Left>" == DynamicOptic(Chunk(Node.Case("Left"))))
       },
       test("case with digits") {
-        assertTrue(p"<Case1>" == DynamicOptic(Vector(Node.Case("Case1"))))
+        assertTrue(p"<Case1>" == DynamicOptic(Chunk(Node.Case("Case1"))))
       },
       test("case lowercase") {
-        assertTrue(p"<none>" == DynamicOptic(Vector(Node.Case("none"))))
+        assertTrue(p"<none>" == DynamicOptic(Chunk(Node.Case("none"))))
       },
       test("case underscore prefix") {
-        assertTrue(p"<_Empty>" == DynamicOptic(Vector(Node.Case("_Empty"))))
+        assertTrue(p"<_Empty>" == DynamicOptic(Chunk(Node.Case("_Empty"))))
       },
       test("case underscore only") {
-        assertTrue(p"<_>" == DynamicOptic(Vector(Node.Case("_"))))
+        assertTrue(p"<_>" == DynamicOptic(Chunk(Node.Case("_"))))
       },
       test("case that looks like keyword true") {
-        assertTrue(p"<true>" == DynamicOptic(Vector(Node.Case("true"))))
+        assertTrue(p"<true>" == DynamicOptic(Chunk(Node.Case("true"))))
       },
       test("case that looks like keyword false") {
-        assertTrue(p"<false>" == DynamicOptic(Vector(Node.Case("false"))))
+        assertTrue(p"<false>" == DynamicOptic(Chunk(Node.Case("false"))))
       },
       test("case that looks like keyword null") {
-        assertTrue(p"<null>" == DynamicOptic(Vector(Node.Case("null"))))
+        assertTrue(p"<null>" == DynamicOptic(Chunk(Node.Case("null"))))
       },
       test("case with spaces around name") {
-        assertTrue(p"< Left >" == DynamicOptic(Vector(Node.Case("Left"))))
+        assertTrue(p"< Left >" == DynamicOptic(Chunk(Node.Case("Left"))))
       },
       test("unicode case name") {
-        assertTrue(p"<Ñoño>" == DynamicOptic(Vector(Node.Case("Ñoño"))))
+        assertTrue(p"<Ñoño>" == DynamicOptic(Chunk(Node.Case("Ñoño"))))
       },
       test("unicode case name café") {
-        assertTrue(p"<café>" == DynamicOptic(Vector(Node.Case("café"))))
+        assertTrue(p"<café>" == DynamicOptic(Chunk(Node.Case("café"))))
       },
       test("chained cases") {
         assertTrue(
           p"<A><B>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("A"),
               Node.Case("B")
             )
@@ -800,7 +801,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained cases three") {
         assertTrue(
           p"<A><B><C>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("A"),
               Node.Case("B"),
               Node.Case("C")
@@ -814,7 +815,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then index") {
         assertTrue(
           p".items[0]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.AtIndex(0)
             )
@@ -824,7 +825,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then indices") {
         assertTrue(
           p".items[0,1,2]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.AtIndices(Seq(0, 1, 2))
             )
@@ -834,7 +835,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then range") {
         assertTrue(
           p".items[0:5]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.AtIndices(Seq(0, 1, 2, 3, 4))
             )
@@ -844,7 +845,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then elements") {
         assertTrue(
           p".items[*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.Elements
             )
@@ -854,7 +855,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field without dot then index") {
         assertTrue(
           p"items[0]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.AtIndex(0)
             )
@@ -867,7 +868,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then string map key") {
         assertTrue(
           p""".config{"host"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("config"),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
             )
@@ -877,7 +878,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then int map key") {
         assertTrue(
           p".lookup{42}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("lookup"),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42)))
             )
@@ -887,7 +888,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then map values") {
         assertTrue(
           p".lookup{*}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("lookup"),
               Node.MapValues
             )
@@ -897,7 +898,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then map keys") {
         assertTrue(
           p".lookup{*:}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("lookup"),
               Node.MapKeys
             )
@@ -907,7 +908,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field without dot then map key") {
         assertTrue(
           p"""config{"host"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("config"),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("host")))
             )
@@ -920,7 +921,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field then variant case") {
         assertTrue(
           p".result<Success>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("result"),
               Node.Case("Success")
             )
@@ -930,7 +931,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field without dot then variant") {
         assertTrue(
           p"result<Success>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("result"),
               Node.Case("Success")
             )
@@ -943,7 +944,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("record in sequence") {
         assertTrue(
           p".users[0].name" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("users"),
               Node.AtIndex(0),
               Node.Field("name")
@@ -954,7 +955,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("all elements then field") {
         assertTrue(
           p".users[*].email" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("users"),
               Node.Elements,
               Node.Field("email")
@@ -965,7 +966,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map values then field") {
         assertTrue(
           p".lookup{*}.value" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("lookup"),
               Node.MapValues,
               Node.Field("value")
@@ -976,7 +977,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map keys then field") {
         assertTrue(
           p".lookup{*:}.id" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("lookup"),
               Node.MapKeys,
               Node.Field("id")
@@ -987,7 +988,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then field") {
         assertTrue(
           p".response<Ok>.body" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("response"),
               Node.Case("Ok"),
               Node.Field("body")
@@ -998,7 +999,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then index") {
         assertTrue(
           p"<Right>[0]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("Right"),
               Node.AtIndex(0)
             )
@@ -1008,7 +1009,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then map access") {
         assertTrue(
           p"""<Some>{"key"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("Some"),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
             )
@@ -1018,7 +1019,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then elements") {
         assertTrue(
           p"<Items>[*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("Items"),
               Node.Elements
             )
@@ -1028,7 +1029,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then map values") {
         assertTrue(
           p"<Data>{*}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("Data"),
               Node.MapValues
             )
@@ -1041,7 +1042,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("four levels of fields") {
         assertTrue(
           p".a.b.c.d" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("a"),
               Node.Field("b"),
               Node.Field("c"),
@@ -1053,7 +1054,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field sequence field sequence") {
         assertTrue(
           p".items[0].children[1]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.AtIndex(0),
               Node.Field("children"),
@@ -1065,7 +1066,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("deeply nested with elements") {
         assertTrue(
           p""".root.children[*].metadata{"tags"}[0]""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("root"),
               Node.Field("children"),
               Node.Elements,
@@ -1079,7 +1080,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("complex with variant") {
         assertTrue(
           p".data<Some>.items[0,1,2].props{*:}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("data"),
               Node.Case("Some"),
               Node.Field("items"),
@@ -1093,7 +1094,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("all node types in sequence") {
         assertTrue(
           p""".a[0]{"k"}<V>.b[*]{*}.c{*:}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("a"),
               Node.AtIndex(0),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
@@ -1110,7 +1111,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("alternating field and index") {
         assertTrue(
           p".a[0].b[1].c[2]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("a"),
               Node.AtIndex(0),
               Node.Field("b"),
@@ -1124,7 +1125,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("alternating field and map key") {
         assertTrue(
           p""".a{"x"}.b{"y"}.c{"z"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("a"),
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("x"))),
               Node.Field("b"),
@@ -1148,15 +1149,15 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
 
     suite("Whitespace handling")(
       test("spaces in index list") {
-        assertTrue(p"[ 0 , 1 , 2 ]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 1, 2)))))
+        assertTrue(p"[ 0 , 1 , 2 ]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 1, 2)))))
       },
       test("spaces in range") {
-        assertTrue(p"[ 0 : 5 ]" == DynamicOptic(Vector(Node.AtIndices(Seq(0, 1, 2, 3, 4)))))
+        assertTrue(p"[ 0 : 5 ]" == DynamicOptic(Chunk(Node.AtIndices(Seq(0, 1, 2, 3, 4)))))
       },
       test("spaces in key list") {
         assertTrue(
           p"""{ "a" , "b" }""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKeys(
                 Seq(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
@@ -1168,24 +1169,24 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
         )
       },
       test("spaces around single index") {
-        assertTrue(p"[ 0 ]" == DynamicOptic(Vector(Node.AtIndex(0))))
+        assertTrue(p"[ 0 ]" == DynamicOptic(Chunk(Node.AtIndex(0))))
       },
       test("spaces around single key") {
         assertTrue(
           p"""{ "foo" }""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("foo")))
             )
           )
         )
       },
       test("spaces in variant") {
-        assertTrue(p"< Foo >" == DynamicOptic(Vector(Node.Case("Foo"))))
+        assertTrue(p"< Foo >" == DynamicOptic(Chunk(Node.Case("Foo"))))
       },
       test("mixed spacing in complex path") {
         assertTrue(
           p""".foo[ 0 ].bar{ "key" }<Baz>""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("foo"),
               Node.AtIndex(0),
               Node.Field("bar"),
@@ -1201,7 +1202,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("index then field") {
         assertTrue(
           p"[0].foo" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndex(0),
               Node.Field("foo")
             )
@@ -1211,7 +1212,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map key then field") {
         assertTrue(
           p"""{"k"}.foo""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("k"))),
               Node.Field("foo")
             )
@@ -1221,7 +1222,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant then variant") {
         assertTrue(
           p"<A><B>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("A"),
               Node.Case("B")
             )
@@ -1231,7 +1232,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("elements then elements") {
         assertTrue(
           p"[*][*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Elements,
               Node.Elements
             )
@@ -1241,7 +1242,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map values then map values") {
         assertTrue(
           p"{*}{*}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapValues,
               Node.MapValues
             )
@@ -1251,7 +1252,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map keys then map keys") {
         assertTrue(
           p"{*:}{*:}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapKeys,
               Node.MapKeys
             )
@@ -1261,7 +1262,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("elements then map values") {
         assertTrue(
           p"[*]{*}" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Elements,
               Node.MapValues
             )
@@ -1271,7 +1272,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map values then elements") {
         assertTrue(
           p"{*}[*]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.MapValues,
               Node.Elements
             )
@@ -1281,7 +1282,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant at start then index") {
         assertTrue(
           p"<Some>[0]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Case("Some"),
               Node.AtIndex(0)
             )
@@ -1291,7 +1292,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("index at start then variant") {
         assertTrue(
           p"[0]<Some>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndex(0),
               Node.Case("Some")
             )
@@ -1301,31 +1302,31 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("map key at start") {
         assertTrue(
           p"""{"key"}""" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
             )
           )
         )
       },
       test("index at start") {
-        assertTrue(p"[0]" == DynamicOptic(Vector(Node.AtIndex(0))))
+        assertTrue(p"[0]" == DynamicOptic(Chunk(Node.AtIndex(0))))
       },
       test("variant at start") {
-        assertTrue(p"<Foo>" == DynamicOptic(Vector(Node.Case("Foo"))))
+        assertTrue(p"<Foo>" == DynamicOptic(Chunk(Node.Case("Foo"))))
       },
       test("elements at start") {
-        assertTrue(p"[*]" == DynamicOptic(Vector(Node.Elements)))
+        assertTrue(p"[*]" == DynamicOptic(Chunk(Node.Elements)))
       },
       test("map values at start") {
-        assertTrue(p"{*}" == DynamicOptic(Vector(Node.MapValues)))
+        assertTrue(p"{*}" == DynamicOptic(Chunk(Node.MapValues)))
       },
       test("map keys at start") {
-        assertTrue(p"{*:}" == DynamicOptic(Vector(Node.MapKeys)))
+        assertTrue(p"{*:}" == DynamicOptic(Chunk(Node.MapKeys)))
       },
       test("long chain of same type") {
         assertTrue(
           p".a.b.c.d.e.f.g.h" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("a"),
               Node.Field("b"),
               Node.Field("c"),
@@ -1341,7 +1342,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("many indices in sequence") {
         assertTrue(
           p"[0][1][2][3][4]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndex(0),
               Node.AtIndex(1),
               Node.AtIndex(2),
@@ -1354,7 +1355,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("large index list") {
         assertTrue(
           p"[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.AtIndices(Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
             )
           )
@@ -1365,38 +1366,38 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
     suite("Search nodes")(
       test("simple nominal type") {
         assertTrue(
-          p"#Person" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Nominal("Person"))))
+          p"#Person" == DynamicOptic(Chunk(Node.SchemaSearch(SchemaRepr.Nominal("Person"))))
         )
       },
       test("primitive type string") {
         assertTrue(
-          p"#string" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Primitive("string"))))
+          p"#string" == DynamicOptic(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("string"))))
         )
       },
       test("primitive type int") {
         assertTrue(
-          p"#int" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Primitive("int"))))
+          p"#int" == DynamicOptic(Chunk(Node.SchemaSearch(SchemaRepr.Primitive("int"))))
         )
       },
       test("wildcard") {
         assertTrue(
-          p"#_" == DynamicOptic(Vector(Node.SchemaSearch(SchemaRepr.Wildcard)))
+          p"#_" == DynamicOptic(Chunk(Node.SchemaSearch(SchemaRepr.Wildcard)))
         )
       },
       test("record with single field") {
         assertTrue(
           p"#record { name: string }" == DynamicOptic(
-            Vector(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))))
           )
         )
       },
       test("record with multiple fields") {
         assertTrue(
           p"#record { name: string, age: int }" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector(
+                  Chunk(
                     "name" -> SchemaRepr.Primitive("string"),
                     "age"  -> SchemaRepr.Primitive("int")
                   )
@@ -1409,10 +1410,10 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("variant type") {
         assertTrue(
           p"#variant { Left: int, Right: string }" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Variant(
-                  Vector(
+                  Chunk(
                     "Left"  -> SchemaRepr.Primitive("int"),
                     "Right" -> SchemaRepr.Primitive("string")
                   )
@@ -1425,14 +1426,14 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("list type") {
         assertTrue(
           p"#list(string)" == DynamicOptic(
-            Vector(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Primitive("string"))))
           )
         )
       },
       test("map type") {
         assertTrue(
           p"#map(string, int)" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Primitive("int")))
             )
           )
@@ -1441,17 +1442,17 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("option type") {
         assertTrue(
           p"#option(Person)" == DynamicOptic(
-            Vector(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Optional(SchemaRepr.Nominal("Person"))))
           )
         )
       },
       test("nested schema") {
         assertTrue(
           p"#record { items: list(Person) }" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+                  Chunk("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
                 )
               )
             )
@@ -1461,7 +1462,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("search followed by field") {
         assertTrue(
           p"#Person.name" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
               Node.Field("name")
             )
@@ -1471,7 +1472,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("field followed by search") {
         assertTrue(
           p".users#Person" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("users"),
               Node.SchemaSearch(SchemaRepr.Nominal("Person"))
             )
@@ -1481,7 +1482,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("search in complex path") {
         assertTrue(
           p".items[*]#Person.name" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.Field("items"),
               Node.Elements,
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
@@ -1493,7 +1494,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("chained searches") {
         assertTrue(
           p"#list(Person)#Person" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Sequence(SchemaRepr.Nominal("Person"))),
               Node.SchemaSearch(SchemaRepr.Nominal("Person"))
             )
@@ -1503,7 +1504,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("search followed by index") {
         assertTrue(
           p"#Person[0]" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Person")),
               Node.AtIndex(0)
             )
@@ -1513,7 +1514,7 @@ object PathInterpolatorSpec extends SchemaBaseSpec {
       test("search followed by variant case") {
         assertTrue(
           p"#Either<Right>" == DynamicOptic(
-            Vector(
+            Chunk(
               Node.SchemaSearch(SchemaRepr.Nominal("Either")),
               Node.Case("Right")
             )

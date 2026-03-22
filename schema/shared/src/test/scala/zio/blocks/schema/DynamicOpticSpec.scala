@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.TypeId
 import zio.test.Assertion.{equalTo, isNone, isRight, isSome}
@@ -143,7 +144,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       assert(DynamicOptic.root.search[X].toString)(equalTo("#X"))
     },
     test("toString renders SchemaSearch with schema syntax") {
-      val repr = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+      val repr = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
       assert(DynamicOptic.root.searchSchema(repr).toString)(equalTo("#record { name: string }"))
     },
     test("toString renders SchemaSearch for primitive") {
@@ -179,10 +180,7 @@ object DynamicOpticSpec extends SchemaBaseSpec {
       },
       test("SchemaSearch node with complex SchemaRepr roundtrips through DynamicValue") {
         val repr = SchemaRepr.Record(
-          Vector(
-            "name" -> SchemaRepr.Primitive("string"),
-            "age"  -> SchemaRepr.Primitive("int")
-          )
+          Chunk("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
         )
         val node = DynamicOptic.Node.SchemaSearch(repr)
         val dv   = Schema[DynamicOptic.Node].toDynamicValue(node)
