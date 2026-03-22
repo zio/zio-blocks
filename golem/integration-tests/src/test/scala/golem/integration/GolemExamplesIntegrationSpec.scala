@@ -567,6 +567,19 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       (response.statusCode(), response.body())
     }
 
+  private def httpPostAbsolute(url: String, body: String): ZIO[Any, Throwable, (Int, String)] =
+    ZIO.attemptBlocking {
+      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .header("Content-Type", "application/json")
+        .timeout(JDuration.ofSeconds(30))
+        .build()
+      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+      (response.statusCode(), response.body())
+    }
+
   // ---------------------------------------------------------------------------
   // WeatherAgent: single-element constructor (BaseAgent[String])
   // Mount: /api/weather/{value}  — {value} is the default name for single-element types
@@ -659,8 +672,32 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     }
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
+  // ---------------------------------------------------------------------------
+  // WebhookDemo: webhook creation and payload await
+  // Mount: /api/webhook-demo/{value}  — webhookSuffix: /incoming
+  // ---------------------------------------------------------------------------
+  private val webhookTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("http-webhook-create-and-await") {
+      for {
+        _                    <- ZIO.service[GolemServer]
+        (createStatus, rawWebhookUrl) <- httpGet("/api/webhook-demo/test-key/create")
+        webhookUrl = rawWebhookUrl.trim.stripPrefix("\"").stripSuffix("\"")
+        _                    <- ZIO.succeed(assertTrue(createStatus == 200))
+        _                    <- ZIO.succeed(assertTrue(webhookUrl.contains("/incoming")))
+        // POST JSON payload to the webhook URL — run concurrently with await
+        awaitFiber           <- httpGet("/api/webhook-demo/test-key/await").fork
+        _                    <- ZIO.sleep(1.second)
+        (postStatus, _)      <- httpPostAbsolute(webhookUrl, """{"message":"hello","count":42}""")
+        _                    <- ZIO.succeed(assertTrue(postStatus >= 200 && postStatus < 300))
+        (awaitStatus, awaitBody) <- awaitFiber.join
+      } yield assertTrue(awaitStatus == 200) &&
+        assertTrue(awaitBody.contains("message=hello")) &&
+        assertTrue(awaitBody.contains("count=42"))
+    }
+  ).map(_ @@ TestAspect.timeout(120.seconds))
+
   private val httpTests: Seq[Spec[GolemServer, Throwable]] =
-    weatherTests ++ inventoryTests ++ catalogTests
+    weatherTests ++ inventoryTests ++ catalogTests ++ webhookTests
 
   override def spec: Spec[GolemServer, Any] =
     suite("GolemExamplesIntegrationSpec")(

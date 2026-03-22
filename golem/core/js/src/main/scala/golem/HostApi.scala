@@ -465,6 +465,81 @@ object HostApi {
     completePromise(promiseId, codec.encode(value))
   }
 
+  // ----- Webhooks --------------------------------------------------------------------------
+
+  /**
+   * Creates a webhook that can be used to integrate with webhook-driven APIs.
+   *
+   * This creates a promise and registers a webhook URL for it. When an external
+   * service POSTs to the returned URL, the underlying promise is completed with
+   * the request body. The agent type must be deployed via an HTTP API for this
+   * to work.
+   *
+   * Usage:
+   * {{{
+   *   val webhook = HostApi.createWebhook()
+   *   // Send webhook.url to an external service
+   *   val payload = webhook.awaitBlocking()
+   *   val data = payload.json[MyType]
+   * }}}
+   */
+  def createWebhook(): WebhookHandler = {
+    val promiseId  = AgentHostApi.createPromise()
+    val webhookUrl = AgentHostApi.createWebhook(promiseId)
+    new WebhookHandler(webhookUrl, promiseId)
+  }
+
+  /**
+   * A handle to a pending webhook. Provides the webhook URL and methods to
+   * await the incoming POST payload.
+   */
+  final class WebhookHandler private[HostApi] (val url: String, private val promiseId: PromiseId) {
+
+    /**
+     * Awaits the webhook POST payload asynchronously.
+     *
+     * This is non-blocking (polls via `setTimeout`). For fork+join patterns
+     * where the Golem runtime must know the worker is suspended, use
+     * [[awaitBlocking]] instead.
+     */
+    def await(): Future[WebhookRequestPayload] =
+      awaitPromiseRaw(promiseId).map(new WebhookRequestPayload(_))(
+        scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+      )
+
+    /**
+     * Blocks until the webhook POST payload arrives.
+     *
+     * Uses WASI `pollable.block()` under the hood. Use this from synchronous
+     * code paths or fork+join patterns.
+     */
+    def awaitBlocking(): WebhookRequestPayload =
+      new WebhookRequestPayload(awaitPromiseBlockingRaw(promiseId))
+  }
+
+  /**
+   * The payload received from a webhook POST request.
+   */
+  final class WebhookRequestPayload private[HostApi] (private val payload: Uint8Array) {
+
+    /** Returns the raw payload as a byte array. */
+    def bytes: Array[Byte] = fromUint8Array(payload)
+
+    /**
+     * Decodes the payload as JSON using `zio.blocks.schema.json`.
+     *
+     * By default, decoding is lenient (extra JSON fields are ignored).
+     * Set `rejectExtraFields = true` for strict decoding.
+     */
+    def json[A](rejectExtraFields: Boolean = false)(implicit schema: Schema[A]): A = {
+      val codec = jsonCodec[A](rejectExtraFields)
+      codec.decode(fromUint8Array(payload)) match {
+        case Right(value) => value
+        case Left(err)    => throw new IllegalArgumentException(s"Failed to decode webhook payload: $err")
+      }
+    }
+  }
+
   // ----- Helpers ---------------------------------------------------------------------------
 
   private def toJsBigInt(value: BigInt): js.BigInt =

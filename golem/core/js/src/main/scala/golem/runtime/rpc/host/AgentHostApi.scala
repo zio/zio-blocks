@@ -138,6 +138,9 @@ object AgentHostApi {
   def completePromise(promiseId: PromiseIdLiteral, data: Uint8Array): Boolean =
     HostModule.completePromise(promiseId, data)
 
+  def createWebhook(promiseId: PromiseIdLiteral): String =
+    AgentRegistryModule.createWebhook(promiseId)
+
   def getOplogIndex(): OplogIndex =
     HostModule.getOplogIndex()
 
@@ -419,5 +422,7 @@ object AgentHostApi {
     def makeAgentId(agentTypeName: String, input: JsDataValue, phantom: js.Any): String = js.native
 
     def parseAgentId(agentId: String): js.Array[js.Any] = js.native
+
+    def createWebhook(promiseId: PromiseIdLiteral): String = js.native
   }
 }

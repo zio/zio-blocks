@@ -30,3 +30,4 @@ httpApi:
         WeatherAgent: {}
         InventoryAgent: {}
         CatalogAgent: {}
+        WebhookDemo: {}
