@@ -836,7 +836,7 @@ lazy val benchmarks = project
 lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .in(file("golem/model"))
-  .settings(stdSettings("zio-golem-model"))
+  .settings(stdSettings("zio-golem-model", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(
     publish / skip := true,
     Compile / unmanagedSourceDirectories ++= {
@@ -863,11 +863,20 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   )
   .dependsOn(schema)
   .jsSettings(jsSettings)
+  .jsSettings(
+    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => BuildHelper.Scala3Golem
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    }
+  )
 
 lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .in(file("golem/core"))
-  .settings(stdSettings("zio-golem-core"))
+  .settings(stdSettings("zio-golem-core", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(
     publish / skip := true,
     libraryDependencies ++= Seq(
@@ -886,10 +895,10 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
   .jsSettings(
-    // Override jsSettings' Scala 3.3.7 pin: golem macros use Symbol.newClass (stable since 3.5)
+    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
     scalaVersion := {
       CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => "3.8.2"
+        case Some((3, _)) => BuildHelper.Scala3Golem
         case _            => (ThisBuild / scalaVersion).value
       }
     },
@@ -907,7 +916,7 @@ lazy val zioGolemCoreJVM = zioGolemCore.jvm.dependsOn(zioGolemMacros)
 
 lazy val zioGolemMacros = project
   .in(file("golem/macros"))
-  .settings(stdSettings("zio-golem-macros"))
+  .settings(stdSettings("zio-golem-macros", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(
     publish / skip        := true,
     coverageEnabled       := false,
@@ -930,7 +939,7 @@ lazy val zioGolemMacros = project
 
 lazy val zioGolemTools = project
   .in(file("golem/tools"))
-  .settings(stdSettings("zio-golem-tools"))
+  .settings(stdSettings("zio-golem-tools", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(
     publish / skip := true,
     fork           := true,
@@ -946,13 +955,13 @@ lazy val zioGolemTools = project
 
 lazy val zioGolemExamples = project
   .in(file("golem/examples"))
-  .settings(stdSettings("zio-golem-examples-js"))
+  .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
-    // Override jsSettings' Scala 3.3.7 pin to match golem core
+    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
     scalaVersion := {
       CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => "3.8.2"
+        case Some((3, _)) => BuildHelper.Scala3Golem
         case _            => (ThisBuild / scalaVersion).value
       }
     },
@@ -986,7 +995,7 @@ lazy val zioGolemExamples = project
 
 lazy val zioGolemIntegrationTests = project
   .in(file("golem/integration-tests"))
-  .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3)))
+  .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3Golem)))
   .settings(
     publish / skip            := true,
     Test / fork               := true,

@@ -29,7 +29,7 @@ golem/
 
 ## Scala Versions
 
-- **Scala 3.3.7** — All Golem JS/JVM projects. Must always prefix sbt commands with `++3.3.7`.
+- **Scala 3.8.2** (`Scala3Golem` in `BuildHelper.scala`) — All Golem Scala 3 projects. Prefix sbt commands with `++3.8.2` (without `!` — upstream deps like `schema`, `chunk` compile at their own Scala version; only golem projects with 3.8.2 in crossScalaVersions are affected).
 - **Scala 2.12.21** — The SBT plugin (`zioGolemSbt`) only. Use `++2.12.21!` (the `!` forces override).
 
 > **Important**: `sbt --client` mode preserves Scala version across invocations. Always specify the version explicitly to avoid version drift.
@@ -50,20 +50,20 @@ From the monorepo root (`/home/vigoo/projects/zio-blocks`):
 
 ```bash
 # Compile examples (good smoke test)
-sbt --client "++3.3.7; zioGolemExamples/fastLinkJS"
+sbt --client "++3.8.2; zioGolemExamples/fastLinkJS"
 
 # Compile core
-sbt --client "++3.3.7; zioGolemCoreJS/compile"
+sbt --client "++3.8.2; zioGolemCoreJS/compile"
 
 # Compile model
-sbt --client "++3.3.7; zioGolemModelJS/compile"
+sbt --client "++3.8.2; zioGolemModelJS/compile"
 ```
 
 Use the standard AGENTS.md sbt logging pattern:
 ```bash
 ROOT="$(git rev-parse --show-toplevel)" && mkdir -p "$ROOT/.git/agent-logs"
 LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"
-sbt --client -Dsbt.color=false "++3.3.7; zioGolemExamples/fastLinkJS" >"$LOG" 2>&1
+sbt --client -Dsbt.color=false "++3.8.2; zioGolemExamples/fastLinkJS" >"$LOG" 2>&1
 echo "Exit: $? | Log: $LOG"
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 ```
@@ -72,10 +72,10 @@ echo "Exit: $? | Log: $LOG"
 
 The `gettingStarted` project depends on `0.0.0-SNAPSHOT` artifacts. All golem projects have `publish / skip := true` by default, so you must override it.
 
-### Step 1: Publish Dependencies + Golem Libraries (Scala 3.3.7)
+### Step 1: Publish Dependencies + Golem Libraries (Scala 3.8.2)
 
 ```bash
-sbt --client '++3.3.7; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; markdownJVM/publishLocal; markdownJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal'
+sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; markdownJVM/publishLocal; markdownJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal'
 ```
 
 ### Step 2: Publish SBT Plugin (Scala 2.12.21)
