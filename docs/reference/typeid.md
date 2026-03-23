@@ -1215,6 +1215,25 @@ TypeId.of[String].classTag
 TypeId.of[List[Int]].classTag
 ```
 
+A typical use case is supplying `ClassTag` evidence in generic code that works with erased types. For example, filtering a heterogeneous list by a type known only at the call site:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+import scala.reflect.ClassTag
+
+def filterByType[T](items: List[Any], id: TypeId[T]): List[T] = {
+  implicit val ct: ClassTag[T] = id.classTag.asInstanceOf[ClassTag[T]]
+  items.collect { case t: T => t }
+}
+```
+
+```scala mdoc
+val mixed: List[Any] = List(1, "hello", 2, "world", true)
+
+filterByType(mixed, TypeId.of[Int])
+filterByType(mixed, TypeId.of[String])
+```
+
 #### `clazz` — Runtime Class
 
 Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque `TypeId`s. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries.
