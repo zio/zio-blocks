@@ -1215,29 +1215,25 @@ TypeId.of[String].classTag
 TypeId.of[List[Int]].classTag
 ```
 
-A typical use case is creating correctly-typed arrays for primitive types. Because `classTag` returns the real primitive `ClassTag` (not a boxed one), the resulting array uses the primitive JVM representation rather than an object array:
+A practical use case is detecting JVM primitive types at runtime. `classTag` returns a distinct `ClassTag` for each primitive (`Int`, `Long`, `Double`, etc.) but returns `ClassTag.AnyRef` for all reference types. This lets you distinguish primitives from reference types without a long chain of `isInstanceOf` checks — useful in serializers and code generators that need to decide between primitive and boxed array layouts:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
-import scala.reflect.ClassTag
 
-def newArray(id: TypeId[?], size: Int): AnyRef =
-  id.classTag.newArray(size)
+def isPrimitive(id: TypeId[?]): Boolean =
+  id.classTag != scala.reflect.ClassTag.AnyRef
 ```
 
 ```scala mdoc
-// Creates a primitive int[] on the JVM, not an Integer[]
-newArray(TypeId.of[Int], 3)
-
-// Creates a primitive boolean[]
-newArray(TypeId.of[Boolean], 3)
-
-// Reference types produce an AnyRef array
-newArray(TypeId.of[String], 3)
+isPrimitive(TypeId.of[Int])
+isPrimitive(TypeId.of[Double])
+isPrimitive(TypeId.of[Boolean])
+isPrimitive(TypeId.of[String])
+isPrimitive(TypeId.of[List[Int]])
 ```
 
 :::note
-`classTag` returns `ClassTag.AnyRef` for all reference types, including `String`, `List`, and case classes. It only returns a distinct `ClassTag` for Scala primitive types (`Int`, `Long`, `Double`, etc.). For filtering or matching by a specific reference type at runtime, use `clazz` instead.
+`classTag` returns `ClassTag.AnyRef` for all reference types. For matching or filtering by a specific reference type at runtime, use `clazz` instead.
 :::
 
 #### `clazz` — Runtime Class
