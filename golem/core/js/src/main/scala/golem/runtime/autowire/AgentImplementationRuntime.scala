@@ -12,13 +12,13 @@ private[autowire] object AgentImplementationRuntime {
     implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] = {
     val effectiveBuild: Ctor => Trait = implType.configBuilder match {
-      case Some(builder) =>
+      case Some(builder) if !implType.configInjectedViaConstructor =>
         (ctor: Ctor) => {
           val config = ConfigLoader.loadConfig(builder)
           ConfigHolder.set(config)
           implType.buildInstance(ctor)
         }
-      case None => implType.buildInstance
+      case _ => implType.buildInstance
     }
 
     val constructor =

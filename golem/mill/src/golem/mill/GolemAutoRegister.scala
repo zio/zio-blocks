@@ -277,18 +277,7 @@ trait GolemAutoRegister extends ScalaJSModule {
           def registrationExpr(ai: AgentImpl): String = {
             val traitFqn = fqn(ai.pkg, ai.traitType)
             val implFqn  = fqn(ai.pkg, ai.implClass)
-            ai.ctorTypes match {
-              case Nil =>
-                s"AgentImplementation.register[$traitFqn](new $implFqn())"
-              case tpe :: Nil =>
-                val fqnTpe = fqn(ai.pkg, tpe)
-                s"AgentImplementation.register[$traitFqn, $fqnTpe]((in: $fqnTpe) => new $implFqn(in))"
-              case many =>
-                val fqnMany = many.map(t => fqn(ai.pkg, t))
-                val args    = fqnMany.indices.map(i => s"in._${i + 1}").mkString(", ")
-                val ctorTpe = s"(${fqnMany.mkString(", ")})"
-                s"AgentImplementation.register[$traitFqn, $ctorTpe]((in: $ctorTpe) => new $implFqn($args))"
-            }
+            s"AgentImplementation.registerClass[$traitFqn, $implFqn]"
           }
 
           val perPkgFiles: Seq[os.Path] =

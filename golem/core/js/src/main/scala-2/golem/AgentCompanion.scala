@@ -1,6 +1,6 @@
 package golem
 
-import golem.config.ConfigOverride
+import golem.config.{ConfigOverride, RpcConfig}
 import golem.runtime.agenttype.AgentType
 
 import scala.language.experimental.macros
@@ -81,5 +81,11 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
 
   def getWithConfig(configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getWithConfigUnitImpl
+
+  def getWithConfig[C](input: Input, config: RpcConfig[C]): Trait with TriggerSchedule =
+    macro golem.runtime.macros.AgentCompanionMacro.getWithConfigTypedImpl
+
+  def getWithConfig[C](config: RpcConfig[C]): Trait with TriggerSchedule =
+    macro golem.runtime.macros.AgentCompanionMacro.getWithConfigTypedUnitImpl
 
 }

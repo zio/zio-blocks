@@ -1,18 +1,17 @@
 package example.minimal
 
-import golem.config.{ConfigHolder, ConfigOverride}
+import golem.config.{Config, ConfigOverride}
 import golem.runtime.annotations.agentImplementation
 
 import scala.concurrent.Future
 
 @agentImplementation()
-final class ConfigAgentImpl(input: String) extends ConfigAgent {
-  private val config = ConfigHolder.current[MyAppConfig]
-
+final class ConfigAgentImpl(input: String, config: Config[MyAppConfig]) extends ConfigAgent {
   override def greet(): Future[String] = {
-    val appName = config.value.appName
-    val host = config.value.db.host
-    val port = config.value.db.port
+    val cfg = config.value
+    val appName = cfg.appName
+    val host = cfg.db.host
+    val port = cfg.db.port
     Future.successful(s"Hello from $appName! DB at $host:$port, input=$input")
   }
 }

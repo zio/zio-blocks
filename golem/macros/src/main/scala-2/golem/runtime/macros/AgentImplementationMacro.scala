@@ -1,5 +1,6 @@
 package golem.runtime.macros
 
+import golem.config.ConfigBuilder
 import golem.data.GolemSchema
 import golem.runtime.agenttype.AgentImplementationType
 
@@ -14,6 +15,9 @@ object AgentImplementationMacro {
     build: Ctor => Trait
   ): AgentImplementationType[Trait, Ctor] =
     macro AgentImplementationMacroImpl.implementationTypeWithCtorImpl[Trait, Ctor]
+
+  def implementationTypeFromClass[Trait, Impl <: Trait]: AgentImplementationType[Trait, _] =
+    macro AgentImplementationMacroImpl.implementationTypeFromClassImpl[Trait, Impl]
 }
 
 object AgentImplementationMacroImpl {
@@ -371,6 +375,283 @@ object AgentImplementationMacroImpl {
       case ParamAccessMode.SingleArg => params.head._2
       case ParamAccessMode.MultiArgs => typeOf[List[Any]]
     }
+  }
+
+  def implementationTypeFromClassImpl[Trait: c.WeakTypeTag, Impl: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentImplementationType[Trait, _]] = {
+    import c.universe._
+
+    val traitType   = weakTypeOf[Trait]
+    val traitSymbol = traitType.typeSymbol
+
+    if (!traitSymbol.isClass || !traitSymbol.asClass.isTrait) {
+      c.abort(c.enclosingPosition, s"@agentImplementation target must be a trait, found: ${traitSymbol.fullName}")
+    }
+
+    val implType   = weakTypeOf[Impl]
+    val implSymbol = implType.typeSymbol
+
+    if (!implSymbol.isClass) {
+      c.abort(c.enclosingPosition, s"Impl type must be a concrete class, found: ${implSymbol.fullName}")
+    }
+    val implClass = implSymbol.asClass
+    if (implClass.isAbstract) {
+      c.abort(c.enclosingPosition, s"Impl type must be a concrete class, found abstract: ${implSymbol.fullName}")
+    }
+    if (implClass.isTrait) {
+      c.abort(c.enclosingPosition, s"Impl type must be a concrete class, found trait: ${implSymbol.fullName}")
+    }
+    if (implClass.isModuleClass || implSymbol.isModule) {
+      c.abort(c.enclosingPosition, s"Impl type must be a concrete class, found object: ${implSymbol.fullName}")
+    }
+
+    val primaryCtors = implType.decls.collect {
+      case m: MethodSymbol if m.isConstructor && m.isPrimaryConstructor => m
+    }.toList
+    if (primaryCtors.isEmpty) {
+      c.abort(c.enclosingPosition, s"Impl type ${implSymbol.fullName} has no accessible primary constructor")
+    }
+    val primaryCtor = primaryCtors.head
+    val termParamLists = primaryCtor.paramLists.filter(_.forall(_.isTerm))
+    if (termParamLists.length != 1) {
+      c.abort(
+        c.enclosingPosition,
+        s"Impl type ${implSymbol.fullName} must have exactly one term parameter list, found ${termParamLists.length}"
+      )
+    }
+
+    val params: List[(TermName, Type)] = termParamLists.head.map { sym =>
+      (sym.name.toTermName, sym.typeSignature)
+    }
+
+    val configFullName = "golem.config.Config"
+
+    case class ParamInfo(name: TermName, tpe: Type, index: Int, isConfig: Boolean, configInnerType: Option[Type])
+
+    val paramInfos: List[ParamInfo] = params.zipWithIndex.map { case ((name, tpe), idx) =>
+      val dealiased = tpe.dealias
+      if (dealiased.typeSymbol.fullName == configFullName && dealiased.typeArgs.nonEmpty) {
+        ParamInfo(name, tpe, idx, isConfig = true, configInnerType = Some(dealiased.typeArgs.head))
+      } else {
+        ParamInfo(name, tpe, idx, isConfig = false, configInnerType = None)
+      }
+    }
+
+    val configParams   = paramInfos.filter(_.isConfig)
+    val identityParams = paramInfos.filter(!_.isConfig)
+
+    if (configParams.length > 1) {
+      c.abort(
+        c.enclosingPosition,
+        s"Impl type ${implSymbol.fullName} has ${configParams.length} Config[_] parameters, at most one is allowed"
+      )
+    }
+
+    // Extract BaseAgent[Input] type from the trait
+    val expectedCtor: Type = {
+      val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
+      val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
+      baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+    }
+
+    if (expectedCtor =:= typeOf[Unit]) {
+      if (identityParams.nonEmpty) {
+        c.abort(
+          c.enclosingPosition,
+          s"Trait ${traitSymbol.fullName} extends BaseAgent[Unit] (or no BaseAgent), " +
+            s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
+            s"${identityParams.map(_.name.toString).mkString(", ")}"
+        )
+      }
+    } else {
+      if (identityParams.length == 1) {
+        if (!(identityParams.head.tpe =:= expectedCtor)) {
+          c.abort(
+            c.enclosingPosition,
+            s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe}, " +
+              s"but BaseAgent[$expectedCtor] expects $expectedCtor"
+          )
+        }
+      } else if (identityParams.length > 1) {
+        val tuplePrefix = "scala.Tuple"
+        if (expectedCtor.typeSymbol.fullName.startsWith(tuplePrefix)) {
+          val tupleArgs = expectedCtor.typeArgs
+          if (tupleArgs.length != identityParams.length) {
+            c.abort(
+              c.enclosingPosition,
+              s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
+                s"BaseAgent expects a ${tupleArgs.length}-element tuple"
+            )
+          }
+          identityParams.zip(tupleArgs).foreach { case (param, expected) =>
+            if (!(param.tpe =:= expected)) {
+              c.abort(
+                c.enclosingPosition,
+                s"Constructor parameter '${param.name}' has type ${param.tpe}, " +
+                  s"expected $expected (from tuple element of BaseAgent[$expectedCtor])"
+              )
+            }
+          }
+        } else {
+          c.abort(
+            c.enclosingPosition,
+            s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
+              s"BaseAgent[$expectedCtor] is not a tuple type"
+          )
+        }
+      }
+    }
+
+    // Determine the Ctor type based on identity params
+    val ctorType: Type = identityParams match {
+      case Nil      => expectedCtor
+      case p :: Nil => p.tpe
+      case ps       =>
+        val types = ps.map(_.tpe)
+        val tupleClass = rootMirror.staticClass(s"scala.Tuple${types.length}")
+        appliedType(tupleClass.toType, types)
+    }
+
+    val metadataExpr = q"_root_.golem.runtime.macros.AgentDefinitionMacro.generate[$traitType]"
+    val methodsExpr  = buildImplementationMethodsExpr(c)(traitType, metadataExpr)
+
+    val ctorSchemaTpe  = appliedType(typeOf[GolemSchema[_]].typeConstructor, ctorType)
+    val ctorSchemaExpr = c.inferImplicitValue(ctorSchemaTpe)
+    if (ctorSchemaExpr.isEmpty) {
+      c.abort(
+        c.enclosingPosition,
+        s"Unable to summon GolemSchema for constructor type $ctorType on ${traitSymbol.fullName}.$schemaHint"
+      )
+    }
+
+    // Resolve configBuilder
+    val configParam = configParams.headOption
+
+    val configBuilderExpr: Tree = configParam match {
+      case Some(cp) =>
+        val configInner = cp.configInnerType.get
+        val agentConfigBases = traitType.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
+        if (agentConfigBases.isEmpty) {
+          c.abort(
+            c.enclosingPosition,
+            s"Impl ${implSymbol.fullName} has a Config[$configInner] parameter, " +
+              s"but trait ${traitSymbol.fullName} does not extend AgentConfig"
+          )
+        }
+
+        val configTypes = agentConfigBases.flatMap { sym =>
+          traitType.baseType(sym) match {
+            case TypeRef(_, _, List(arg)) => Some(arg)
+            case _                       => None
+          }
+        }
+
+        configTypes.headOption match {
+          case Some(agentConfigType) =>
+            if (!(configInner =:= agentConfigType)) {
+              c.abort(
+                c.enclosingPosition,
+                s"Config parameter type Config[$configInner] does not match " +
+                  s"AgentConfig[$agentConfigType] on trait ${traitSymbol.fullName}"
+              )
+            }
+            val cbTpe = appliedType(typeOf[ConfigBuilder[_]].typeConstructor, configInner)
+            val builderImplicit = c.inferImplicitValue(cbTpe)
+            if (builderImplicit.isEmpty) {
+              c.abort(
+                c.enclosingPosition,
+                s"No implicit ConfigBuilder available for config type $configInner.\n" +
+                  "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+              )
+            }
+            q"_root_.scala.Some($builderImplicit: _root_.golem.config.ConfigBuilder[_])"
+          case None =>
+            c.abort(
+              c.enclosingPosition,
+              s"Trait ${traitSymbol.fullName} extends AgentConfig but type argument could not be extracted"
+            )
+        }
+
+      case None =>
+        // Detect if trait extends AgentConfig[X] and summon ConfigBuilder
+        val agentConfigBases = traitType.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
+        if (agentConfigBases.isEmpty) {
+          q"_root_.scala.None"
+        } else {
+          val configTypes = agentConfigBases.flatMap { sym =>
+            traitType.baseType(sym) match {
+              case TypeRef(_, _, List(arg)) => Some(arg)
+              case _                       => None
+            }
+          }
+          configTypes.headOption match {
+            case Some(configType) =>
+              val cbTpe = appliedType(typeOf[ConfigBuilder[_]].typeConstructor, configType)
+              val builderImplicit = c.inferImplicitValue(cbTpe)
+              if (builderImplicit.isEmpty) {
+                c.abort(
+                  c.enclosingPosition,
+                  s"No implicit ConfigBuilder available for config type $configType.\n" +
+                    "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                )
+              }
+              q"_root_.scala.Some($builderImplicit: _root_.golem.config.ConfigBuilder[_])"
+            case None =>
+              q"_root_.scala.None"
+          }
+        }
+    }
+
+    // Build the instance construction lambda: Ctor => Trait
+    val inputTermName = TermName("input")
+
+    val buildInstanceExpr: Tree = configParam match {
+      case None =>
+        val argTerms: List[Tree] = paramInfos.map { pi =>
+          identityParams match {
+            case Nil      => c.abort(c.enclosingPosition, "Unexpected: no identity params but trying to construct args")
+            case _ :: Nil => q"$inputTermName"
+            case ps       =>
+              val idx = ps.indexWhere(_.index == pi.index)
+              q"$inputTermName.${TermName(s"_${idx + 1}")}"
+          }
+        }
+        q"($inputTermName: $ctorType) => new $implType(..$argTerms)"
+
+      case Some(cp) =>
+        val configInner = cp.configInnerType.get
+        val cbTpe = appliedType(typeOf[ConfigBuilder[_]].typeConstructor, configInner)
+        val builderImplicit = c.inferImplicitValue(cbTpe)
+        val argTerms: List[Tree] = paramInfos.map { pi =>
+          if (pi.isConfig) {
+            q"_root_.golem.config.ConfigLoader.createLazyConfig[$configInner]($builderImplicit)"
+          } else {
+            identityParams match {
+              case Nil      => c.abort(c.enclosingPosition, "Unexpected: identity param not found")
+              case _ :: Nil => q"$inputTermName"
+              case ps       =>
+                val idx = ps.indexWhere(_.index == pi.index)
+                q"$inputTermName.${TermName(s"_${idx + 1}")}"
+            }
+          }
+        }
+        q"($inputTermName: $ctorType) => new $implType(..$argTerms)"
+    }
+
+    c.Expr[AgentImplementationType[Trait, _]](
+      q"""
+      {
+        val metadata = $metadataExpr
+        _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
+          metadata = metadata,
+          constructorSchema = $ctorSchemaExpr,
+          buildInstance = $buildInstanceExpr,
+          methods = $methodsExpr,
+          configBuilder = $configBuilderExpr,
+          configInjectedViaConstructor = ${if (configParam.isDefined) q"true" else q"false"}
+        )
+      }
+      """
+    )
   }
 
   private sealed trait ParamAccessMode

@@ -1,6 +1,6 @@
 package golem.runtime.macros
 
-import golem.config.{AgentConfigDeclaration, ConfigSchema}
+import golem.config.ConfigSchema
 import golem.data.GolemSchema
 import golem.runtime.{
   AgentMetadata,
@@ -180,7 +180,7 @@ object AgentDefinitionMacroImpl {
     q"$schemaInstance.schema"
   }
 
-  private def elementSchemaExpr(c: blackbox.Context)(paramName: String, tpe: c.universe.Type): c.Tree = {
+  private def elementSchemaExpr(c: blackbox.Context)(@annotation.unused paramName: String, tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)

@@ -1,6 +1,6 @@
 package golem
 
-import golem.config.ConfigOverride
+import golem.config.{ConfigOverride, RpcConfig}
 import golem.runtime.macros.AgentNameMacro
 import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.AgentClient
@@ -99,5 +99,13 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
   /** Unit-constructor + config overrides convenience. */
   transparent inline def getWithConfig(configOverrides: List[ConfigOverride]): Trait =
     ${ AgentCompanionMacro.getWithConfigUnitImpl[Trait]('configOverrides) }
+
+  /** Connect to (or create) an agent instance with typed config overrides. */
+  transparent inline def getWithConfig[C](input: Input, config: RpcConfig[C]): Trait =
+    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Input]('input, '{ config.toOverrides }) }
+
+  /** Unit-constructor + typed config overrides convenience. */
+  transparent inline def getWithConfig[C](config: RpcConfig[C]): Trait =
+    ${ AgentCompanionMacro.getWithConfigUnitImpl[Trait]('{ config.toOverrides }) }
 
 }

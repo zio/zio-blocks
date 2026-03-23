@@ -17,7 +17,8 @@ final case class AgentImplementationType[Instance, Ctor](
   constructorSchema: GolemSchema[Ctor],
   buildInstance: Ctor => Instance,
   methods: List[ImplementationMethod[Instance]],
-  configBuilder: Option[ConfigBuilder[_]] = None
+  configBuilder: Option[ConfigBuilder[_]] = None,
+  configInjectedViaConstructor: Boolean = false
 )
 
 sealed trait ImplementationMethod[Instance] {

@@ -15,7 +15,10 @@ private[golem] object ConfigLoader extends ConfigFieldLoader {
     makeSecret[A](path, elementSchema)
 
   def loadConfig[T](builder: ConfigBuilder[T]): Config[T] =
-    Config(builder.build(Nil, this))
+    Config.eager(builder.build(Nil, this))
+
+  def createLazyConfig[T](builder: ConfigBuilder[T]): Config[T] =
+    Config(() => builder.build(Nil, ConfigLoader))
 
   def loadValue[A](path: List[String], elementSchema: ElementSchema)(implicit schema: Schema[A]): A =
     elementSchema match {

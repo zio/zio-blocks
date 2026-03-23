@@ -285,6 +285,19 @@ object AgentCompanionMacro {
     getWithConfigImpl(c)(q"()", configOverrides)
   }
 
+  def getWithConfigTypedImpl(c: blackbox.Context)(input: c.Tree, config: c.Tree): c.Tree = {
+    import c.universe._
+    getWithConfigImpl(c)(input, q"$config.toOverrides")
+  }
+
+  def getWithConfigTypedUnitImpl(c: blackbox.Context)(config: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getWithConfig(config) requires: BaseAgent[Unit] (found: $inTpe)")
+    getWithConfigImpl(c)(q"()", q"$config.toOverrides")
+  }
+
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
     val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
