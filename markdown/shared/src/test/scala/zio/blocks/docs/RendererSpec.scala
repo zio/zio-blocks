@@ -245,6 +245,14 @@ object RendererSpec extends MarkdownBaseSpec {
         val doc = Doc(Chunk(Paragraph(Chunk(Link(Chunk(Text("text")), "url", Some("title"))))))
         assertTrue(Renderer.render(doc) == "[text](url \"title\")\n\n")
       },
+      test("renders wiki link") {
+        val doc = Doc(Chunk(Paragraph(Chunk(WikiLink("a wiki link", None)))))
+        assertTrue(Renderer.render(doc) == "[[a wiki link]]\n\n")
+      },
+      test("renders wiki link with text") {
+        val doc = Doc(Chunk(Paragraph(Chunk(WikiLink("a wiki link", Some("text"))))))
+        assertTrue(Renderer.render(doc) == "[[a wiki link | text]]\n\n")
+      },
       test("renders image without title") {
         val doc = Doc(Chunk(Paragraph(Chunk(Image("alt", "url", None)))))
         assertTrue(Renderer.render(doc) == "![alt](url)\n\n")
@@ -332,6 +340,14 @@ object RendererSpec extends MarkdownBaseSpec {
           Chunk(Paragraph(Chunk(Inline.Link(Chunk(Inline.Text("text")), "url", Some("title")))))
         )
         assertTrue(Renderer.render(doc) == "[text](url \"title\")\n\n")
+      },
+      test("renders Inline.WikiLink") {
+        val doc = Doc(Chunk(Paragraph(Chunk(WikiLink("a wiki link", None)))))
+        assertTrue(Renderer.render(doc) == "[[a wiki link]]\n\n")
+      },
+      test("renders Inline.WikiLink with text") {
+        val doc = Doc(Chunk(Paragraph(Chunk(WikiLink("a wiki link", Some("text"))))))
+        assertTrue(Renderer.render(doc) == "[[a wiki link | text]]\n\n")
       },
       test("renders Inline.Image without title") {
         val doc = Doc(Chunk(Paragraph(Chunk(Inline.Image("alt", "url", None)))))

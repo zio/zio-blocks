@@ -506,6 +506,25 @@ object ParserSpec extends MarkdownBaseSpec {
           link.title == Some("title")
         )
       },
+      test("parses wiki link") {
+        val result = Parser.parse("[[url]]", ParserConfig.default.copy(processWikiLinks = true))
+        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
+        println(result.toOption.get.blocks.head)
+        val link = para.content.head.asInstanceOf[WikiLink]
+        assertTrue(
+          link.url == "url",
+          link.text.isEmpty
+        )
+      },
+      test("parses wiki link with text") {
+        val result = Parser.parse("[[url | text]]", ParserConfig.default.copy(processWikiLinks = true))
+        val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]
+        val link   = para.content.head.asInstanceOf[WikiLink]
+        assertTrue(
+          link.url == "url",
+          link.text == Some("text")
+        )
+      },
       test("parses image") {
         val result = Parser.parse("![alt](url)")
         val para   = result.toOption.get.blocks.head.asInstanceOf[Paragraph]

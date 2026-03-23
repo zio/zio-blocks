@@ -59,11 +59,16 @@ object Parser {
    *   $${err.line}: $${err.message}") } }}}
    */
   def parse(input: String): Either[ParseError, Doc] = {
-    val state = new ParserState(input)
+    val state = new ParserState(input, ParserConfig.default)
     state.parseDocument()
   }
 
-  private class ParserState(input: String) {
+  def parse(input: String, config: ParserConfig): Either[ParseError, Doc] = {
+    val state = new ParserState(input, config)
+    state.parseDocument()
+  }
+
+  private class ParserState(input: String, config: ParserConfig) {
     private val lines: Array[String] = input.split("\n", -1)
     private var lineIndex: Int       = 0
 
@@ -212,7 +217,7 @@ object Parser {
       }
 
       val innerInput = quoteLines.result().toList.mkString("\n")
-      val innerState = new ParserState(innerInput)
+      val innerState = new ParserState(innerInput, config)
       innerState.parseBlocks().map(blocks => BlockQuote(blocks))
     }
 
@@ -254,7 +259,7 @@ object Parser {
         }
 
         val itemText    = continuationLines.result().toList.mkString("\n")
-        val innerState  = new ParserState(itemText)
+        val innerState  = new ParserState(itemText, config)
         val innerBlocks = innerState.parseBlocks().getOrElse(Chunk.empty)
 
         val finalBlocks =
@@ -312,7 +317,7 @@ object Parser {
         }
 
         val itemText    = continuationLines.result().toList.mkString("\n")
-        val innerState  = new ParserState(itemText)
+        val innerState  = new ParserState(itemText, config)
         val innerBlocks = innerState.parseBlocks().getOrElse(Chunk.empty)
 
         val finalBlocks =
@@ -553,6 +558,12 @@ object Parser {
             result += Text("`")
             pos += 1
           }
+        } else if (config.processWikiLinks && remaining.startsWith("[[") && remaining.substring(2).contains("]]")) {
+          val closeBrackets = remaining.indexOf("]]", 2)
+          if (closeBrackets > 2) {
+            result += parseWikiLink(remaining.substring(2, closeBrackets))
+            pos += closeBrackets + 2
+          }
         } else if (remaining.startsWith("![")) {
           val closeBracket = remaining.indexOf(']', 2)
           if (closeBracket > 2 && remaining.length > closeBracket + 1 && remaining(closeBracket + 1) == '(') {
@@ -649,6 +660,19 @@ object Parser {
         }
       } else {
         (trimmed, None)
+      }
+    }
+
+    private def parseWikiLink(body: String): WikiLink = {
+      val trimmed = body.trim
+      val pipeIdx = trimmed.indexOf('|')
+      if (pipeIdx > 0) {
+        WikiLink(
+          trimmed.substring(0, pipeIdx).trim,
+          Some(trimmed.substring(pipeIdx + 1).trim)
+        )
+      } else {
+        WikiLink(trimmed, None)
       }
     }
 

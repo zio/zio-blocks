@@ -245,6 +245,17 @@ object TerminalRenderer {
     case Inline.Image(alt, url, _) =>
       s"[Image: $alt] ($url)"
 
+    case WikiLink(url, text) =>
+      text match {
+        case None => s"$Blue$Underline$url$Reset"
+        case Some(text) => s"$Blue$Underline$text$Reset ($url)"
+      }
+    case Inline.WikiLink(url, text) =>
+      text match {
+        case None => s"$Blue$Underline$url$Reset"
+        case Some(text) => s"$Blue$Underline$text$Reset ($url)"
+      }
+
     case HtmlInline(html) =>
       html
     case Inline.HtmlInline(html) =>

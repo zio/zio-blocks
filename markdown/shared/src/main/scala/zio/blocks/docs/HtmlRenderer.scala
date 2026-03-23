@@ -218,6 +218,17 @@ object HtmlRenderer {
         case None        => s"""<a href="${escape(url)}">${renderInlines(text)}</a>"""
       }
 
+    case WikiLink(url, text) =>
+      text match {
+        case Some(text) => s"""<a href="${escape(url)}">$text}</a>"""
+        case None       => s"""<a href="${escape(url)}">$url</a>"""
+      }
+    case Inline.WikiLink(url, text) =>
+      text match {
+        case Some(text) => s"""<a href="${escape(url)}">$text}</a>"""
+        case None       => s"""<a href="${escape(url)}">$url</a>"""
+      }
+
     case Image(alt, url, titleOpt) =>
       titleOpt match {
         case Some(title) => s"""<img src="${escape(url)}" alt="${escape(alt)}" title="${escape(title)}">"""

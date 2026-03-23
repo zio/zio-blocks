@@ -19,7 +19,7 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * An inline markdown element.
+ * An inline Markdown element.
  *
  * Inline elements are the content within block elements, such as text,
  * emphasis, links, and code spans.
@@ -79,6 +79,17 @@ object Inline {
    *   Optional link title
    */
   final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
+
+  /**
+   * A wiki link.
+   *
+   * @param url
+   *   Wiki link URL
+   *
+   * @param text
+   *   Wiki link text
+   */
+  final case class WikiLink(url: String, text: Option[String]) extends Inline
 
   /**
    * An image.
@@ -168,6 +179,17 @@ final case class Strikethrough(content: Chunk[Inline]) extends Inline
  *   Optional link title
  */
 final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
+
+/**
+ * A wiki link.
+ *
+ * @param url
+ *   Wiki link URL
+ *
+ * @param text
+ *   Wiki link text
+ */
+final case class WikiLink(url: String, text: Option[String]) extends Inline
 
 /**
  * An image.

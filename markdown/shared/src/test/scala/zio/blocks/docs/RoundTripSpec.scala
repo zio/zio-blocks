@@ -122,6 +122,20 @@ object RoundTripSpec extends MarkdownBaseSpec {
       val reparsed = rendered.flatMap(Parser.parse)
       assertTrue(parsed == reparsed)
     },
+    test("wiki link round-trips") {
+      val input    = "[[url]]\n\n"
+      val parsed   = Parser.parse(input)
+      val rendered = parsed.map(Renderer.render)
+      val reparsed = rendered.flatMap(Parser.parse)
+      assertTrue(parsed == reparsed)
+    },
+    test("wiki link with text round-trips") {
+      val input    = "[[url | text]]\n\n"
+      val parsed   = Parser.parse(input)
+      val rendered = parsed.map(Renderer.render)
+      val reparsed = rendered.flatMap(Parser.parse)
+      assertTrue(parsed == reparsed)
+    },
     test("image round-trips") {
       val input    = "![alt](url)\n\n"
       val parsed   = Parser.parse(input)

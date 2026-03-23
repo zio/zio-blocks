@@ -244,6 +244,13 @@ object Renderer {
       val titleStr = titleOpt.map(t => s""" "$t"""").getOrElse("")
       s"![${alt}]($url$titleStr)"
 
+    case WikiLink(url, text) =>
+      val textStr = text.map(text => s" | $text").getOrElse("")
+      s"[[$url$textStr]]"
+    case Inline.WikiLink(url, text) =>
+      val textStr = text.map(text => s" | $text").getOrElse("")
+      s"[[$url$textStr]]"
+
     case HtmlInline(content) =>
       content
     case Inline.HtmlInline(content) =>
