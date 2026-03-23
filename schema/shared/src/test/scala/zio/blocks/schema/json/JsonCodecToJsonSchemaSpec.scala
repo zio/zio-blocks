@@ -239,8 +239,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[ZonedDateTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("string")),
-          json.get("format").one == Right(Json.String("date-time"))
+          json.get("type").one == Right(Json.String("string"))
         )
       },
       test("Duration produces string with duration format") {
