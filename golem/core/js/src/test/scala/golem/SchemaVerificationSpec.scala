@@ -39,7 +39,7 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
   // Agent with many parameter/return type combinations
   // ---------------------------------------------------------------------------
 
-  @agentDefinition()
+  @agentDefinition("schema-verify-agent")
   trait SchemaVerifyAgent extends BaseAgent[Unit] {
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]
@@ -76,9 +76,7 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     override def multimodalMethod(m: Multimodal[PersonInfo]): Future[Multimodal[PersonInfo]]  = Future.successful(m)
   }
 
-  private lazy val defn = AgentImplementation.register[SchemaVerifyAgent]("schema-verify-agent")(
-    new SchemaVerifyAgentImpl()
-  )
+  private lazy val defn = AgentImplementation.registerClass[SchemaVerifyAgent, SchemaVerifyAgentImpl]
 
   private def findMethod(name: String): MethodBinding[SchemaVerifyAgent] =
     defn.methodMetadata.find(_.metadata.name == name).getOrElse(sys.error(s"method not found: $name"))

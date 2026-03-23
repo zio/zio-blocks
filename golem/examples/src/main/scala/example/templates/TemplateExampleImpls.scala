@@ -2,7 +2,6 @@ package example.templates
 
 import golem._
 import golem.runtime.annotations.agentImplementation
-import golem.runtime.snapshot.SnapshotExports
 
 import scala.annotation.unused
 import scala.concurrent.Future
@@ -61,14 +60,13 @@ final class TasksImpl(@unused private val name: String) extends Tasks {
 final class SnapshotCounterImpl(@unused private val name: String) extends SnapshotCounter {
   private var value: Int = 0
 
-  SnapshotExports.configure(
-    save = () => Future.successful(encodeU32(value)),
-    load = bytes =>
-      Future.successful {
-        value = decodeU32(bytes)
-        ()
-      }
-  )
+  def saveSnapshot(): Future[Array[Byte]] =
+    Future.successful(encodeU32(value))
+
+  def loadSnapshot(bytes: Array[Byte]): Future[Unit] =
+    Future.successful {
+      value = decodeU32(bytes)
+    }
 
   override def increment(): Future[Int] =
     Future.successful {
@@ -89,6 +87,25 @@ final class SnapshotCounterImpl(@unused private val name: String) extends Snapsh
       ((bytes(1) & 0xff) << 16) |
       ((bytes(2) & 0xff) << 8) |
       (bytes(3) & 0xff)
+}
+
+final case class SnapshotCounterState(value: Int)
+object SnapshotCounterState {
+  implicit val schema: zio.blocks.schema.Schema[SnapshotCounterState] = zio.blocks.schema.Schema.derived
+}
+
+@agentImplementation()
+final class AutoSnapshotCounterImpl(@unused private val name: String)
+    extends AutoSnapshotCounter
+    with Snapshotted[SnapshotCounterState] {
+
+  var state: SnapshotCounterState = SnapshotCounterState(0)
+
+  override def increment(): Future[Int] =
+    Future.successful {
+      state = state.copy(value = state.value + 1)
+      state.value
+    }
 }
 
 @agentImplementation()

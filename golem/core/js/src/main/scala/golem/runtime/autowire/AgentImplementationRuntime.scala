@@ -52,19 +52,13 @@ private[autowire] object AgentImplementationRuntime {
       metadata = implType.metadata,
       constructor = constructor,
       bindings = bindings,
-      mode = mode
+      mode = mode,
+      snapshotHandlers = implType.snapshotHandlers
     )
 
     AgentRegistry.register(definition)
     definition
   }
-
-  def registerWithCtor[Trait, Ctor](
-    typeName: String,
-    mode: AgentMode,
-    implType: AgentImplementationType[Trait, Ctor]
-  ): AgentDefinition[Trait] =
-    register[Trait, Ctor](typeName, mode, implType)
 
   private def buildSyncBinding[Trait, In, Out](
     method: SyncImplementationMethod[Trait, In, Out]

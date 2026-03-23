@@ -13,7 +13,9 @@ import golem.runtime.{
   HttpValidation,
   MethodMetadata,
   PathSegment,
-  QueryVariable
+  QueryVariable,
+  Snapshotting,
+  SnapshottingConfig
 }
 
 import scala.quoted.*
@@ -70,6 +72,21 @@ object AgentDefinitionMacro {
     val constructorSchema = inferConstructorSchema(typeRepr)
     val configExpr: Expr[List[AgentConfigDeclaration]] = detectAgentConfig(typeRepr).getOrElse('{ Nil })
 
+    val snapshottingStr =
+      extractAgentDefinitionStringArg(typeSymbol, "snapshotting", positionalIndex = 7).getOrElse("disabled")
+    val snapshottingValue: Snapshotting = Snapshotting.parse(snapshottingStr) match {
+      case Right(v)  => v
+      case Left(err) => report.errorAndAbort(s"Invalid snapshotting on @agentDefinition for ${typeSymbol.fullName}: $err")
+    }
+    val snapshottingExpr: Expr[Snapshotting] = snapshottingValue match {
+      case Snapshotting.Disabled                                  => '{ Snapshotting.Disabled }
+      case Snapshotting.Enabled(SnapshottingConfig.Default)       => '{ Snapshotting.Enabled(SnapshottingConfig.Default) }
+      case Snapshotting.Enabled(SnapshottingConfig.Periodic(nanos)) =>
+        '{ Snapshotting.Enabled(SnapshottingConfig.Periodic(${ Expr(nanos) })) }
+      case Snapshotting.Enabled(SnapshottingConfig.EveryN(count)) =>
+        '{ Snapshotting.Enabled(SnapshottingConfig.EveryN(${ Expr(count) })) }
+    }
+
     '{
       AgentMetadata(
         name = ${
@@ -86,7 +103,8 @@ object AgentDefinitionMacro {
         },
         constructor = $constructorSchema,
         httpMount = $httpMountExpr,
-        config = $configExpr
+        config = $configExpr,
+        snapshotting = $snapshottingExpr
       )
     }
   }

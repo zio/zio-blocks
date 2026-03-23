@@ -10,7 +10,7 @@ import scala.concurrent.Future
 
 object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
-  @agentDefinition()
+  @agentDefinition("meta-agent")
   @description("An agent used for metadata tests.")
   trait MetaAgent extends BaseAgent[Unit] {
     @description("Echoes input.")
@@ -31,13 +31,13 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   }
 
   private lazy val defn: AgentDefinition[MetaAgent] =
-    AgentImplementation.register[MetaAgent]("meta-agent")(new MetaAgentImpl())
+    AgentImplementation.registerClass[MetaAgent, MetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Ephemeral mode
   // ---------------------------------------------------------------------------
 
-  @agentDefinition(mode = DurabilityMode.Ephemeral)
+  @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralMetaAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
@@ -48,7 +48,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   }
 
   private lazy val ephDefn: AgentDefinition[EphemeralMetaAgent] =
-    AgentImplementation.register[EphemeralMetaAgent]("ephemeral-meta-agent")(new EphemeralMetaAgentImpl())
+    AgentImplementation.registerClass[EphemeralMetaAgent, EphemeralMetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Constructor type agent
@@ -57,7 +57,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   final case class MetaConfig(host: String, port: Int)
   object MetaConfig { implicit val schema: Schema[MetaConfig] = Schema.derived }
 
-  @agentDefinition()
+  @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
   trait CtorMetaAgent extends BaseAgent[MetaConfig] {
     def info(): Future[String]
@@ -69,13 +69,13 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   }
 
   private lazy val ctorDefn: AgentDefinition[CtorMetaAgent] =
-    AgentImplementation.register[CtorMetaAgent]("ctor-meta-agent")(new CtorMetaAgentImpl(MetaConfig("h", 80)))
+    AgentImplementation.registerClass[CtorMetaAgent, CtorMetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Explicit Durable mode
   // ---------------------------------------------------------------------------
 
-  @agentDefinition(mode = DurabilityMode.Durable)
+  @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
   trait ExplicitDurableAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
@@ -86,7 +86,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   }
 
   private lazy val durDefn: AgentDefinition[ExplicitDurableAgent] =
-    AgentImplementation.register[ExplicitDurableAgent]("explicit-durable-agent")(new ExplicitDurableAgentImpl())
+    AgentImplementation.registerClass[ExplicitDurableAgent, ExplicitDurableAgentImpl]
 
   def spec = suite("AgentRegistrationMetadataSpec")(
     test("registered agent has correct typeName") {

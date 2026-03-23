@@ -20,7 +20,8 @@ final case class AgentImplementationType[Instance, Ctor](
   methods: List[ImplementationMethod[Instance]],
   configBuilder: Option[ConfigBuilder[_]] = None,
   configInjectedViaConstructor: Boolean = false,
-  principalInjectedViaConstructor: Boolean = false
+  principalInjectedViaConstructor: Boolean = false,
+  snapshotHandlers: Option[SnapshotHandlers[Instance]] = None
 )
 
 sealed trait ImplementationMethod[Instance] {

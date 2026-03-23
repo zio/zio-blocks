@@ -16,45 +16,40 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   // Constructor patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition(mode = DurabilityMode.Durable)
+  @agentDefinition("unit-ctor-agent", mode = DurabilityMode.Durable)
   trait UnitCtorAgent extends BaseAgent[Unit] {
     def ping(): Future[String]
   }
 
-  @agentDefinition()
+  @agentDefinition("string-ctor-agent")
   trait StringCtorAgent extends BaseAgent[String] {
     def echo(): Future[String]
   }
 
-  @agentDefinition()
-  trait IntCtorAgent extends BaseAgent[Int] {
-    def value(): Future[Int]
+  @agentDefinition("case-class-ctor-agent")
+  trait CaseClassCtorAgent extends BaseAgent[MyConfig] {
+    def info(): Future[String]
   }
 
   final case class MyConfig(host: String, port: Int)
   object MyConfig { implicit val schema: Schema[MyConfig] = Schema.derived }
 
-  @agentDefinition()
-  trait CaseClassCtorAgent extends BaseAgent[MyConfig] {
-    def info(): Future[String]
-  }
-
-  @agentDefinition()
+  @agentDefinition("tuple2-ctor-agent")
   trait Tuple2CtorAgent extends BaseAgent[(String, Int)] {
     def combined(): Future[String]
   }
 
-  @agentDefinition()
+  @agentDefinition("tuple3-ctor-agent")
   trait Tuple3CtorAgent extends BaseAgent[(String, Int, Boolean)] {
     def all(): Future[String]
   }
 
-  @agentDefinition()
+  @agentDefinition("tuple4-ctor-agent")
   trait Tuple4CtorAgent extends BaseAgent[(String, Int, Boolean, Double)] {
     def data(): Future[String]
   }
 
-  @agentDefinition()
+  @agentDefinition("tuple5-ctor-agent")
   trait Tuple5CtorAgent extends BaseAgent[(String, Int, Boolean, Double, Long)] {
     def data(): Future[String]
   }
@@ -63,7 +58,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   // Method return type patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition()
+  @agentDefinition("return-types-agent")
   trait ReturnTypesAgent extends BaseAgent[Unit] {
     def asyncString(): Future[String]
     def asyncInt(): Future[Int]
@@ -82,7 +77,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   final case class Nested(inner: String, count: Int)
   object Nested { implicit val schema: Schema[Nested] = Schema.derived }
 
-  @agentDefinition()
+  @agentDefinition("param-types-agent")
   trait ParamTypesAgent extends BaseAgent[Unit] {
     def singlePrimitive(s: String): Future[String]
     def multipleParams(a: String, b: Int, c: Boolean): Future[String]
@@ -155,7 +150,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   // Annotation patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition()
+  @agentDefinition("explicit-name-agent")
   @description("An agent with explicit type name.")
   trait ExplicitNameAgent extends BaseAgent[Unit] {
     @description("Says hello.")
@@ -163,7 +158,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
     def greet(name: String): Future[String]
   }
 
-  @agentDefinition(mode = DurabilityMode.Ephemeral)
+  @agentDefinition("ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent extends BaseAgent[String] {
     def process(): Future[String]
   }
@@ -290,34 +285,39 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   }
 
   // ---------------------------------------------------------------------------
+  // Shared registrations (each agent type can only be registered once)
+  // ---------------------------------------------------------------------------
+
+  private lazy val unitCtorDefn      = AgentImplementation.registerClass[UnitCtorAgent, UnitCtorAgentImpl]
+  private lazy val stringCtorDefn    = AgentImplementation.registerClass[StringCtorAgent, StringCtorAgentImpl]
+  private lazy val caseClassCtorDefn = AgentImplementation.registerClass[CaseClassCtorAgent, CaseClassCtorAgentImpl]
+  private lazy val tuple2CtorDefn    = AgentImplementation.registerClass[Tuple2CtorAgent, Tuple2CtorAgentImpl]
+  private lazy val returnTypesDefn   = AgentImplementation.registerClass[ReturnTypesAgent, ReturnTypesAgentImpl]
+  private lazy val kitchenSinkDefn   = AgentImplementation.registerClass[KitchenSinkAgent, KitchenSinkAgentImpl]
+  private lazy val factoryCtorDefn   = AgentImplementation.registerClass[FactoryCtorAgent, FactoryCtorAgentImpl]
+  private lazy val noMethodsDefn     = AgentImplementation.registerClass[NoMethodsAgent, NoMethodsAgentImpl]
+  private lazy val singleMethodDefn  = AgentImplementation.registerClass[SingleMethodAgent, SingleMethodAgentImpl]
+  private lazy val multimodalDefn    = AgentImplementation.registerClass[MultimodalAgent, MultimodalAgentImpl]
+
+  // ---------------------------------------------------------------------------
   // Tests
   // ---------------------------------------------------------------------------
 
   def spec = suite("AgentDefinitionCompileSpec")(
     test("BaseAgent[Unit] constructor compiles") {
-      val impl = new UnitCtorAgentImpl()
-      val defn = AgentImplementation.register[UnitCtorAgent]("unit-ctor-agent")(impl)
-      assertTrue(defn.methodMetadata.nonEmpty)
+      assertTrue(unitCtorDefn.methodMetadata.nonEmpty)
     },
     test("BaseAgent[String] constructor compiles") {
-      val impl = new StringCtorAgentImpl("test")
-      val defn = AgentImplementation.register[StringCtorAgent]("string-ctor-agent")(impl)
-      assertTrue(defn.methodMetadata.nonEmpty)
+      assertTrue(stringCtorDefn.methodMetadata.nonEmpty)
     },
     test("BaseAgent[CaseClass] constructor compiles") {
-      val impl = new CaseClassCtorAgentImpl(MyConfig("localhost", 8080))
-      val defn = AgentImplementation.register[CaseClassCtorAgent]("case-class-ctor-agent")(impl)
-      assertTrue(defn.methodMetadata.nonEmpty)
+      assertTrue(caseClassCtorDefn.methodMetadata.nonEmpty)
     },
     test("BaseAgent[(String, Int)] constructor compiles") {
-      val impl = new Tuple2CtorAgentImpl("test", 42)
-      val defn = AgentImplementation.register[Tuple2CtorAgent]("tuple2-ctor-agent")(impl)
-      assertTrue(defn.methodMetadata.nonEmpty)
+      assertTrue(tuple2CtorDefn.methodMetadata.nonEmpty)
     },
     test("async and sync return types compile") {
-      val impl        = new ReturnTypesAgentImpl()
-      val defn        = AgentImplementation.register[ReturnTypesAgent]("return-types-agent")(impl)
-      val methodNames = defn.methodMetadata.map(_.metadata.name).toSet
+      val methodNames = returnTypesDefn.methodMetadata.map(_.metadata.name).toSet
       assertTrue(
         methodNames.contains("asyncString"),
         methodNames.contains("asyncInt"),
@@ -330,19 +330,13 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
       )
     },
     test("method count is correct for ReturnTypesAgent") {
-      val impl = new ReturnTypesAgentImpl()
-      val defn = AgentImplementation.register[ReturnTypesAgent]("return-types-agent-2")(impl)
-      assertTrue(defn.methodMetadata.size == 8)
+      assertTrue(returnTypesDefn.methodMetadata.size == 8)
     },
     test("kitchen-sink agent with 18 methods registers correctly") {
-      val impl = new KitchenSinkAgentImpl("test")
-      val defn = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent")(impl)
-      assertTrue(defn.methodMetadata.size == 18)
+      assertTrue(kitchenSinkDefn.methodMetadata.size == 18)
     },
     test("kitchen-sink agent method names are all present") {
-      val impl        = new KitchenSinkAgentImpl("test")
-      val defn        = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent-names")(impl)
-      val methodNames = defn.methodMetadata.map(_.metadata.name).toSet
+      val methodNames = kitchenSinkDefn.methodMetadata.map(_.metadata.name).toSet
       val expected    = Set(
         "echoString",
         "echoInt",
@@ -366,9 +360,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
       assertTrue(methodNames == expected)
     },
     test("kitchen-sink agent described method has annotations") {
-      val impl = new KitchenSinkAgentImpl("test")
-      val defn = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent-ann")(impl)
-      val m    = defn.methodMetadata.find(_.metadata.name == "describedMethod").get
+      val m = kitchenSinkDefn.methodMetadata.find(_.metadata.name == "describedMethod").get
       assertTrue(
         m.metadata.description.contains("A described method."),
         m.metadata.prompt.contains("Use this to echo with metadata.")
@@ -386,37 +378,28 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
         new prompt("test prompt").value == "test prompt"
       )
     },
-    test("register with factory constructor (Ctor => Trait) compiles") {
-      val defn = AgentImplementation.register[FactoryCtorAgent, MyConfig] { config =>
-        new FactoryCtorAgentImpl(config)
-      }
+    test("register with factory constructor compiles") {
       assertTrue(
-        defn.methodMetadata.nonEmpty,
-        defn.typeName == "factory-ctor-agent"
+        factoryCtorDefn.methodMetadata.nonEmpty,
+        factoryCtorDefn.typeName == "factory-ctor-agent"
       )
     },
     test("agent with zero methods (only constructor) compiles and registers") {
-      val impl = new NoMethodsAgentImpl("test")
-      val defn = AgentImplementation.register[NoMethodsAgent]("no-methods-agent")(impl)
       assertTrue(
-        defn.methodMetadata.isEmpty,
-        defn.typeName == "no-methods-agent"
+        noMethodsDefn.methodMetadata.isEmpty,
+        noMethodsDefn.typeName == "no-methods-agent"
       )
     },
     test("agent with single method compiles and registers") {
-      val impl = new SingleMethodAgentImpl()
-      val defn = AgentImplementation.register[SingleMethodAgent]("single-method-agent")(impl)
       assertTrue(
-        defn.methodMetadata.size == 1,
-        defn.methodMetadata.head.metadata.name == "only"
+        singleMethodDefn.methodMetadata.size == 1,
+        singleMethodDefn.methodMetadata.head.metadata.name == "only"
       )
     },
     test("multimodal agent compiles and registers with 5 methods") {
-      val impl  = new MultimodalAgentImpl()
-      val defn  = AgentImplementation.register[MultimodalAgent]("multimodal-agent")(impl)
-      val names = defn.methodMetadata.map(_.metadata.name).toSet
+      val names = multimodalDefn.methodMetadata.map(_.metadata.name).toSet
       assertTrue(
-        defn.methodMetadata.size == 5,
+        multimodalDefn.methodMetadata.size == 5,
         names == Set("echoMultimodal", "echoText", "echoTextAny", "echoBinary", "echoBinaryAny")
       )
     },

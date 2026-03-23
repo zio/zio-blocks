@@ -17,5 +17,6 @@ final class agentDefinition(
   val auth: Boolean = false,
   val cors: Array[String] = Array.empty,
   val phantomAgent: Boolean = false,
-  val webhookSuffix: String = ""
+  val webhookSuffix: String = "",
+  val snapshotting: String = "disabled"
 ) extends StaticAnnotation

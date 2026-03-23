@@ -7,14 +7,15 @@ import golem.runtime.util.FutureInterop
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSExportTopLevel
+import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
+import scala.scalajs.js.typedarray.Uint8Array
 
 /**
  * Scala.js implementation of the mandatory Golem JS guest exports.
  *
  * The Scala application code is responsible for registering agent definitions
  * into AgentRegistry at module initialization time (typically via
- * `AgentImplementation.register[...]` calls in a small exported value whose
+ * `AgentImplementation.registerClass[...]` calls in a small exported value whose
  * initializer runs on module load).
  */
 object Guest {
@@ -131,6 +132,26 @@ object Guest {
         js.Promise.reject(asAgentError(t.toString, "custom-error")).asInstanceOf[js.Promise[js.Array[js.Any]]]
     }
 
+  private def toUint8Array(bytes: Array[Byte]): Uint8Array = {
+    val array = new Uint8Array(bytes.length)
+    var i     = 0
+    while (i < bytes.length) {
+      array(i) = (bytes(i) & 0xff).toShort
+      i += 1
+    }
+    array
+  }
+
+  private def fromUint8Array(bytes: Uint8Array): Array[Byte] = {
+    val out = new Array[Byte](bytes.length)
+    var i   = 0
+    while (i < bytes.length) {
+      out(i) = bytes(i).toByte
+      i += 1
+    }
+    out
+  }
+
   @JSExportTopLevel("guest")
   val guest: js.Dynamic =
     js.Dynamic.literal(
@@ -139,4 +160,48 @@ object Guest {
       "getDefinition"      -> (() => getDefinition()),
       "discoverAgentTypes" -> (() => discoverAgentTypes())
     )
+
+  @JSExportTopLevel("saveSnapshot")
+  object SaveSnapshot {
+    @JSExport
+    def save(): js.Promise[JsSnapshot] = {
+      if (js.isUndefined(resolved)) {
+        FutureInterop.toPromise(Future.successful(JsSnapshot(new Uint8Array(0), "application/octet-stream")))
+      } else {
+        val r = resolved.asInstanceOf[Resolved]
+        r.defn.snapshotHandlers match {
+          case Some(handlers) =>
+            FutureInterop.toPromise(
+              handlers.save(r.instance).map { payload =>
+                JsSnapshot(toUint8Array(payload.bytes), payload.mimeType)
+              }
+            )
+          case None =>
+            FutureInterop.toPromise(Future.successful(JsSnapshot(new Uint8Array(0), "application/octet-stream")))
+        }
+      }
+    }
+  }
+
+  @JSExportTopLevel("loadSnapshot")
+  object LoadSnapshot {
+    @JSExport
+    def load(snapshot: JsSnapshot): js.Promise[Unit] = {
+      if (js.isUndefined(resolved)) {
+        FutureInterop.toPromise(Future.successful(()))
+      } else {
+        val r = resolved.asInstanceOf[Resolved]
+        r.defn.snapshotHandlers match {
+          case Some(handlers) =>
+            FutureInterop.toPromise(
+              handlers.load(r.instance, fromUint8Array(snapshot.data)).map { newInstance =>
+                resolved = Resolved(r.defn, newInstance)
+              }
+            )
+          case None =>
+            FutureInterop.toPromise(Future.successful(()))
+        }
+      }
+    }
+  }
 }

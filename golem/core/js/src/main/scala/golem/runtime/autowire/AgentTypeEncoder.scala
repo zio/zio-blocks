@@ -70,7 +70,7 @@ object AgentTypeEncoder {
       methods = methodsArray,
       dependencies = new js.Array[JsAgentDependency](),
       mode = definition.mode.value,
-      snapshotting = JsSnapshotting.disabled,
+      snapshotting = encodeSnapshotting(metadataInfo.snapshotting),
       config = encodeConfigDeclarations(metadataInfo.config),
       httpMount = jsHttpMount
     )
@@ -146,6 +146,17 @@ object AgentTypeEncoder {
       case PathSegment.SystemVariable(name)        => arr.push(JsPathSegment.systemVariable(name.asInstanceOf[JsSystemVariable]))
     }
     arr
+  }
+
+  private def encodeSnapshotting(snapshotting: Snapshotting): JsSnapshotting = snapshotting match {
+    case Snapshotting.Disabled => JsSnapshotting.disabled
+    case Snapshotting.Enabled(config) =>
+      val jsConfig = config match {
+        case SnapshottingConfig.Default        => JsSnapshottingConfig.default
+        case SnapshottingConfig.Periodic(nanos) => JsSnapshottingConfig.periodic(js.BigInt(nanos.toString))
+        case SnapshottingConfig.EveryN(count)  => JsSnapshottingConfig.everyNInvocation(count)
+      }
+      JsSnapshotting.enabled(jsConfig)
   }
 
   private def encodeHttpMethod(method: HttpMethod): JsHttpMethod = method match {

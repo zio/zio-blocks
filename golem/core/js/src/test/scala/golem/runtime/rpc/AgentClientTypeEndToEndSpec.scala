@@ -3,7 +3,7 @@ package golem.runtime.rpc
 import golem.host.js._
 import golem.BaseAgent
 import golem.runtime.agenttype.AgentMethod
-import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation}
 import golem.runtime.autowire.AgentImplementation
 import golem.runtime.rpc.RpcValueCodec
 import zio._
@@ -20,15 +20,18 @@ object AgentClientTypeEndToEndSpec extends ZIOSpecDefault {
     def echo(in: String): Future[String]
   }
 
+  @agentImplementation()
+  final class AsyncEchoAgentImpl() extends AsyncEchoAgent {
+    override def echo(in: String): Future[String] =
+      Future.successful(s"hello $in")
+  }
+
+  private lazy val asyncEchoDefn = AgentImplementation.registerClass[AsyncEchoAgent, AsyncEchoAgentImpl]
+
   def spec = suite("AgentClientTypeEndToEndSpec")(
     test("client type loopback via AgentClientRuntime.resolve (Future-returning method)") {
       ZIO.fromFuture { implicit ec =>
-        val impl = new AsyncEchoAgent {
-          override def echo(in: String): Future[String] =
-            Future.successful(s"hello $in")
-        }
-
-        AgentImplementation.register[AsyncEchoAgent]("e2e-client-async")(impl)
+        val _ = asyncEchoDefn
 
         val agentType = golem.runtime.macros.AgentClientMacro.agentType[AsyncEchoAgent]
 

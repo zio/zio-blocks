@@ -1,0 +1,49 @@
+package golem.runtime
+
+import scala.concurrent.duration.{Duration, FiniteDuration}
+
+sealed trait Snapshotting
+object Snapshotting {
+  case object Disabled extends Snapshotting
+  final case class Enabled(config: SnapshottingConfig) extends Snapshotting
+
+  def parse(value: String): Either[String, Snapshotting] = {
+    val trimmed = value.trim.toLowerCase
+    trimmed match {
+      case "disabled" => Right(Disabled)
+      case "enabled"  => Right(Enabled(SnapshottingConfig.Default))
+      case s if s.startsWith("periodic(") && s.endsWith(")") =>
+        val inner = s.substring("periodic(".length, s.length - 1).trim
+        try {
+          val dur = Duration(inner)
+          if (!dur.isFinite) Left(s"periodic duration must be finite, got: $inner")
+          else {
+            val fd = FiniteDuration(dur.toNanos, scala.concurrent.duration.NANOSECONDS)
+            if (fd.toNanos <= 0) Left(s"periodic duration must be positive, got: $inner")
+            else Right(Enabled(SnapshottingConfig.Periodic(fd.toNanos)))
+          }
+        } catch {
+          case _: NumberFormatException =>
+            Left(s"invalid duration in periodic('$inner'). Use formats like '5 seconds', '500 millis', '1 minute'")
+        }
+      case s if s.startsWith("every(") && s.endsWith(")") =>
+        val inner = s.substring("every(".length, s.length - 1).trim
+        try {
+          val n = inner.toInt
+          if (n <= 0) Left(s"every count must be positive, got: $n")
+          else Right(Enabled(SnapshottingConfig.EveryN(n)))
+        } catch {
+          case _: NumberFormatException => Left(s"invalid count in every('$inner'), expected a positive integer")
+        }
+      case other =>
+        Left(s"invalid snapshotting value '$other'. Valid values: disabled, enabled, periodic(<duration>), every(<count>)")
+    }
+  }
+}
+
+sealed trait SnapshottingConfig
+object SnapshottingConfig {
+  case object Default extends SnapshottingConfig
+  final case class Periodic(nanos: Long) extends SnapshottingConfig
+  final case class EveryN(count: Int) extends SnapshottingConfig
+}

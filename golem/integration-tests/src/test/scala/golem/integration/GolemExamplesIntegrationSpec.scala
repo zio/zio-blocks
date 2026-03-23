@@ -254,7 +254,20 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
         assertTrue(
           output.contains("a:") || output.contains("a ="),
           output.contains("1"),
-          output.contains("2")
+          output.contains("2"),
+          output.contains("3")
+        )
+      }
+    ),
+    Sample(
+      "auto-snapshot-counter",
+      "samples/snapshot-counter-auto/repl-auto-snapshot-counter.ts",
+      Custom { output =>
+        assertTrue(
+          output.contains("a:") || output.contains("a ="),
+          output.contains("1"),
+          output.contains("2"),
+          output.contains("3")
         )
       }
     ),
@@ -781,8 +794,40 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   private val httpTests: Seq[Spec[GolemServer, Throwable]] =
     weatherTests ++ inventoryTests ++ catalogTests ++ webhookTests
 
+  // ---------------------------------------------------------------------------
+  // Snapshotting oplog tests
+  // ---------------------------------------------------------------------------
+
+  private def queryOplog(server: GolemServer, agentId: String): ZIO[Any, Nothing, GolemResult] =
+    runGolem(server, 30L, "agent", "oplog", agentId, "--format", "json")
+
+  private val snapshotOplogTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("snapshot-oplog-custom: custom saveSnapshot/loadSnapshot produces snapshot entries in oplog") {
+      for {
+        server <- ZIO.service[GolemServer]
+        oplogResult <- queryOplog(server, "SnapshotCounter(\"custom-demo\")")
+      } yield {
+        val output = normalizeOutput(oplogResult.output)
+        assertTrue(oplogResult.exitCode == 0) &&
+        assertTrue(output.contains("\"type\":\"Snapshot\""))
+      }
+    },
+    test("snapshot-oplog-auto: Snapshotted[S] produces JSON snapshot entries in oplog") {
+      for {
+        server <- ZIO.service[GolemServer]
+        oplogResult <- queryOplog(server, "AutoSnapshotCounter(\"auto-demo\")")
+      } yield {
+        val output = normalizeOutput(oplogResult.output)
+        assertTrue(oplogResult.exitCode == 0) &&
+        assertTrue(output.contains("\"type\":\"Snapshot\"")) &&
+        assertTrue(output.contains("\"type\":\"Json\"")) &&
+        assertTrue(output.contains("\"value\":3"))
+      }
+    }
+  ).map(_ @@ TestAspect.timeout(60.seconds))
+
   override def spec: Spec[GolemServer, Any] =
     suite("GolemExamplesIntegrationSpec")(
-      (sampleTests ++ httpTests :+ manifestTest)*
+      (sampleTests ++ httpTests ++ snapshotOplogTests :+ manifestTest)*
     ) @@ TestAspect.sequential @@ TestAspect.withLiveClock
 }

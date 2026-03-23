@@ -66,17 +66,19 @@ trait NameAgent extends BaseAgent[Unit] {
 ### Implement and Register
 
 ```scala
+import golem.runtime.annotations.agentImplementation
 import golem.runtime.autowire._
 
-object NameAgentModule {
-  private class NameAgentImpl extends NameAgent {
-    override def reverse(input: Name): Name =
-      input.copy(value = input.value.reverse)
-  }
+@agentImplementation()
+final class NameAgentImpl() extends NameAgent {
+  override def reverse(input: Name): Future[Name] =
+    Future.successful(input.copy(value = input.value.reverse))
+}
 
+object NameAgentModule {
   // Type name is derived from @agentDefinition(...) on the trait:
   val definition: AgentDefinition[NameAgent] =
-    AgentImplementation.register[NameAgent](new NameAgentImpl)
+    AgentImplementation.registerClass[NameAgent, NameAgentImpl]
 }
 ```
 
@@ -168,7 +170,7 @@ final class ShardImpl(input: (String, Int)) extends Shard {
 
 object ShardModule {
   val definition: AgentDefinition[Shard] =
-    AgentImplementation.register[Shard, (String, Int)](in => new ShardImpl(in))
+    AgentImplementation.registerClass[Shard, ShardImpl]
 }
 
 object Example {

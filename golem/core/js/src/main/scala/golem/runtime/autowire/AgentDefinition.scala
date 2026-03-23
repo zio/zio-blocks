@@ -3,6 +3,7 @@ package golem.runtime.autowire
 import golem.Principal
 import golem.host.js._
 import golem.runtime.AgentMetadata
+import golem.runtime.agenttype.SnapshotHandlers
 
 import scala.scalajs.js
 
@@ -46,7 +47,8 @@ final class AgentDefinition[Instance](
   val metadata: AgentMetadata,
   val constructor: AgentConstructor[Instance],
   bindings: List[MethodBinding[Instance]],
-  val mode: AgentMode = AgentMode.Durable
+  val mode: AgentMode = AgentMode.Durable,
+  val snapshotHandlers: Option[SnapshotHandlers[Instance]] = None
 ) {
 
   /**

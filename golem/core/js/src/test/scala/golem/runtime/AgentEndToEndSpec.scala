@@ -3,7 +3,7 @@ package golem.runtime
 import golem.runtime.autowire.{AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.Sum
 import golem.{BaseAgent, Principal}
-import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation}
 import golem.runtime.util.FutureInterop
 import zio._
 import zio.test._
@@ -45,7 +45,8 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
     def echoDouble(in: Double): Future[Double]
   }
 
-  private val broadImpl = new BroadAgent {
+  @agentImplementation()
+  final class BroadAgentImpl() extends BroadAgent {
     override def echo(in: String): Future[String]                           = Future.successful(s"hello $in")
     override def add(in: Sum): Future[Int]                                  = Future.successful(in.a + in.b)
     override def echoInt(in: Int): Future[Int]                              = Future.successful(in)
@@ -61,7 +62,8 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
     override def echoDouble(in: Double): Future[Double]                     = Future.successful(in)
   }
 
-  private lazy val broadDefn = AgentImplementation.register[BroadAgent]("e2e-broad")(broadImpl)
+  private lazy val broadDefn = AgentImplementation.registerClass[BroadAgent, BroadAgentImpl]
+  private lazy val broadImpl = new BroadAgentImpl()
 
   private val testPrincipal: Principal = Principal.Anonymous
 

@@ -59,5 +59,6 @@ final case class AgentMetadata(
   methods: List[MethodMetadata],
   constructor: StructuredSchema,
   httpMount: Option[HttpMountDetails] = None,
-  config: List[AgentConfigDeclaration] = Nil
+  config: List[AgentConfigDeclaration] = Nil,
+  snapshotting: Snapshotting = Snapshotting.Disabled
 )
