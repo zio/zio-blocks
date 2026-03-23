@@ -247,12 +247,12 @@ object TerminalRenderer {
 
     case WikiLink(url, text) =>
       text match {
-        case None => s"$Blue$Underline$url$Reset"
+        case None       => s"$Blue$Underline$url$Reset"
         case Some(text) => s"$Blue$Underline$text$Reset ($url)"
       }
     case Inline.WikiLink(url, text) =>
       text match {
-        case None => s"$Blue$Underline$url$Reset"
+        case None       => s"$Blue$Underline$url$Reset"
         case Some(text) => s"$Blue$Underline$text$Reset ($url)"
       }
 

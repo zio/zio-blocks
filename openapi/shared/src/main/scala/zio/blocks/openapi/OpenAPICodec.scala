@@ -41,7 +41,8 @@ import zio.blocks.docs.{
   Strong,
   Table,
   TableRow,
-  Text
+  Text,
+  WikiLink
 }
 import zio.blocks.docs.{Link => MdLink}
 import zio.blocks.schema.Schema
@@ -182,6 +183,7 @@ object OpenAPICodec {
     case s: Strong         => new Inline.Strong(normalizeInlines(s.content))
     case st: Strikethrough => new Inline.Strikethrough(normalizeInlines(st.content))
     case l: MdLink         => new Inline.Link(normalizeInlines(l.text), l.url, l.title)
+    case l: WikiLink       => new Inline.WikiLink(l.url, l.text)
     case i: Image          => new Inline.Image(i.alt, i.url, i.title)
     case h: HtmlInline     => new Inline.HtmlInline(h.content)
     case SoftBreak         => Inline.SoftBreak
