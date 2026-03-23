@@ -82,6 +82,10 @@ println(page.render)
 // <div><h1>My Page</h1><p>This is a paragraph.</p><p>Another paragraph.</p></div>
 ```
 
+:::note
+The HTML DSL supports all HTML Living Standard elements and attributes, including newer ones such as `hgroup`, `menu`, `popover`, `inert`, `fetchpriority`, and many others. If a particular element or attribute is missing, please open an issue on GitHub.
+:::
+
 ### Attributes
 
 Attributes are set using the `:=` operator:
@@ -105,6 +109,33 @@ println(link.render)
 // <a href="https://example.com" target="_blank">Visit Example</a>
 ```
 
+### Attribute Override vs Accumulation
+
+For multi-value attributes like `class` and `rel`:
+
+- `:=` **overrides** (last wins):
+  ```scala
+  div(className := "a", className := "b")
+  // renders: <div class="b"></div>
+  ```
+
+- `+=` **accumulates**:
+  ```scala
+  div(className += "a", className += "b")
+  // renders: <div class="a b"></div>
+  ```
+
+- Mixed — override then append:
+  ```scala
+  div(className := "base", className += "extra")
+  // renders: <div class="base extra"></div>
+  ```
+
+Works with conditional rendering:
+```scala
+div(className += "card").when(isActive)(className += "active")
+// renders: <div class="card active"></div>  (when true)
+```
 ### Children
 
 Children can be strings, elements, or collections:
@@ -245,7 +276,7 @@ println(withAttrs.render)
 ```
 
 :::caution
-The `html""` interpolator requires a **single root element**. Templates with multiple top-level nodes will throw an `IllegalArgumentException` at runtime. Wrap sibling elements in a parent:
+The `html""` interpolator requires a **single root element**. Templates with multiple top-level nodes produce an error at runtime.
 
 ```scala
 // ❌ This will fail:
@@ -467,6 +498,11 @@ import zio.blocks.chunk.Chunk
 // A CSS declaration (property-value pair)
 val marginDecl = Css.Declaration("margin", "10px")
 val colorDecl = Css.Declaration("color", "blue")
+
+// Css.Declaration accepts ToCss types:
+val marginPx = Css.Declaration("margin", 10.px)     // CssLength
+val rgb = Css.Declaration("color", CssColor.rgb(255, 0, 0)) // CssColor
+val opacity = Css.Declaration("opacity", "0.5")    // String
 
 // A CSS rule (selector + declarations)
 val rule = Css.Rule(
