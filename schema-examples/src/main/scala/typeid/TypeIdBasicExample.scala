@@ -223,7 +223,6 @@ object TypeIdBasicExample extends App {
   def isPrimitive(id: TypeId[?]): Boolean =
     id.classTag != scala.reflect.ClassTag.AnyRef
 
-
   show {
     isPrimitive(TypeId.of[Int])
     isPrimitive(TypeId.of[Double])

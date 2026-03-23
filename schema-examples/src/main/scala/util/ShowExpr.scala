@@ -16,64 +16,37 @@
 
 package util
 
-import sourcecode.{File, Line, Text}
-
-import java.io.{File => JFile}
-import scala.io.Source
-
 /**
  * Prints one or more expressions together with their evaluated results.
  *
- * All consecutive `//` comment lines immediately above the `show(...)` call are
- * printed first as a label. Multiple expressions can be passed in a single call
- * and are printed sequentially, giving output of the form:
+ * Supports two call styles:
  *
- * {{{
- *   // Converts all elements from Int to Long.
- *   // Duplicates are removed because the target is a Set.
- *   Into[List[Int], Set[Long]].into(List(1, 2, 2, 3))
- *   // Right(HashSet(1, 2, 3))
- * }}}
- *
- * Multiple expressions in one call:
+ * Comma-separated:
  * {{{
  *   show(
  *     isPrimitive(TypeId.of[Int]),
  *     isPrimitive(TypeId.of[String])
  *   )
- *   // isPrimitive(TypeId.of[Int])
+ * }}}
+ *
+ * Block form (newline-separated):
+ * {{{
+ *   show {
+ *     isPrimitive(TypeId.of[Int])
+ *     isPrimitive(TypeId.of[String])
+ *   }
+ * }}}
+ *
+ * In both cases, consecutive `//` comment lines immediately above the `show`
+ * call are printed as a label, and each expression is followed by its result:
+ * {{{
+ *   isPrimitive(TypeId.of[Int])
  *   // true
- *   // isPrimitive(TypeId.of[String])
+ *   isPrimitive(TypeId.of[String])
  *   // false
  * }}}
  */
 object ShowExpr {
 
-  def show(exprs: Text[?]*)(implicit file: File, line: Line): Unit = {
-    if (exprs.isEmpty) return
-    commentsAbove(file.value, line.value).foreach(println)
-    exprs.foreach { expr =>
-      println(expr.source)
-      expr.value.toString.linesIterator.foreach(l => println(s"// $l"))
-    }
-    println()
-  }
-
-  private def commentsAbove(filePath: String, lineNum: Int): List[String] = {
-    val f = new JFile(filePath)
-    if (!f.exists()) return Nil
-    val source = Source.fromFile(f)
-    try {
-      // Only load lines up to the call site to minimize memory usage
-      val lines  = source.getLines().take(lineNum).toList
-      var idx    = Math.min(lineNum - 2, lines.length - 1)
-      var result = List.empty[String]
-      while (idx >= 0 && lines(idx).trim.startsWith("//")) {
-        result = lines(idx).trim :: result
-        idx -= 1
-      }
-      result
-    } finally source.close()
-  }
-
+  inline def show(inline exprs: Any*): Unit = ${ ShowExprMacro.showImpl('exprs) }
 }

@@ -23,8 +23,8 @@ object CompleteExample extends App {
 
   // Custom codecs
   val stringifyInt = new JsonBinaryCodec[Int] {
-    def decodeValue(in: JsonReader): Int = in.readStringAsInt()
-    def encodeValue(x: Int, out: JsonWriter): Unit     = out.writeVal(x.toString)
+    def decodeValue(in: JsonReader): Int           = in.readStringAsInt()
+    def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toString)
   }
 
   val padStringCodec = new JsonBinaryCodec[String] {
@@ -82,8 +82,8 @@ object CompleteExample extends App {
       TypeId.of[UserProfile],
       "score",
       new JsonBinaryCodec[Int] {
-        def decodeValue(in: JsonReader): Int = in.readInt()
-        def encodeValue(x: Int, out: JsonWriter): Unit     = out.writeVal(x)
+        def decodeValue(in: JsonReader): Int           = in.readInt()
+        def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x)
       }
     )
     // Level 1: Optic-based — highest priority, overrides both above for exact path
