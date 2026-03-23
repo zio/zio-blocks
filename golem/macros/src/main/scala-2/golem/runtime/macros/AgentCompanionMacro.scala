@@ -258,6 +258,33 @@ object AgentCompanionMacro {
     getPhantomImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)", phantom.tree)
   }
 
+  def getWithConfigImpl(c: blackbox.Context)(input: c.Tree, configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime
+         .resolveWithConfig[$traitTpe, $inTpe](
+           $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+           $input.asInstanceOf[$inTpe],
+           $configOverrides
+         ) match {
+           case _root_.scala.util.Left(err) =>
+             throw _root_.scala.scalajs.js.JavaScriptException(err)
+           case _root_.scala.util.Right(resolved) =>
+             ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
+         }
+     """
+  }
+
+  def getWithConfigUnitImpl(c: blackbox.Context)(configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getWithConfig(configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+    getWithConfigImpl(c)(q"()", configOverrides)
+  }
+
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
     val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")

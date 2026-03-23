@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.config.{AgentConfigDeclaration, AgentConfigSource}
 import golem.data.StructuredSchema
 import golem.host.js._
 import golem.runtime._
@@ -70,9 +71,28 @@ object AgentTypeEncoder {
       dependencies = new js.Array[JsAgentDependency](),
       mode = definition.mode.value,
       snapshotting = JsSnapshotting.disabled,
-      config = new js.Array[JsAgentConfigDeclaration](),
+      config = encodeConfigDeclarations(metadataInfo.config),
       httpMount = jsHttpMount
     )
+  }
+
+  private def encodeConfigDeclarations(decls: List[AgentConfigDeclaration]): js.Array[JsAgentConfigDeclaration] = {
+    val arr = new js.Array[JsAgentConfigDeclaration]()
+    decls.foreach { decl =>
+      val source: JsAgentConfigSource = decl.source match {
+        case AgentConfigSource.Local  => "local"
+        case AgentConfigSource.Secret => "secret"
+      }
+      val path = js.Array(decl.path: _*)
+      val witType = decl.valueType match {
+        case golem.data.ElementSchema.Component(dataType) =>
+          WitTypeBuilder.build(dataType)
+        case _ =>
+          throw new UnsupportedOperationException(s"Config declaration only supports component schemas")
+      }
+      arr.push(JsAgentConfigDeclaration(source, path, witType))
+    }
+    arr
   }
 
   private def encodeHttpMount(mount: HttpMountDetails): JsHttpMountDetails =

@@ -1,5 +1,6 @@
 package golem.runtime.macros
 
+import golem.config.{AgentConfigDeclaration, ConfigSchema}
 import golem.data.{DataType, ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.annotations.{description, prompt}
 import golem.runtime.{
@@ -67,6 +68,7 @@ object AgentDefinitionMacro {
     }
 
     val constructorSchema = inferConstructorSchema(typeRepr)
+    val configExpr: Expr[List[AgentConfigDeclaration]] = detectAgentConfig(typeRepr).getOrElse('{ Nil })
 
     '{
       AgentMetadata(
@@ -83,7 +85,8 @@ object AgentDefinitionMacro {
           Expr.ofList(methods)
         },
         constructor = $constructorSchema,
-        httpMount = $httpMountExpr
+        httpMount = $httpMountExpr,
+        config = $configExpr
       )
     }
   }
@@ -244,6 +247,40 @@ object AgentDefinitionMacro {
           case None =>
             report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
+    }
+  }
+
+  private def detectAgentConfig(using Quotes)(traitRepr: quotes.reflect.TypeRepr): Option[Expr[List[AgentConfigDeclaration]]] = {
+    import quotes.reflect.*
+
+    val agentConfigBases = traitRepr.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
+
+    if (agentConfigBases.isEmpty) None
+    else {
+      val configTypes = agentConfigBases.flatMap { sym =>
+        traitRepr.baseType(sym) match {
+          case AppliedType(_, List(arg)) => Some(arg)
+          case _                        => None
+        }
+      }
+
+      if (configTypes.length > 1)
+        report.errorAndAbort(s"Agent trait may extend at most one AgentConfig[T], found ${configTypes.length}")
+
+      configTypes.headOption.map { configType =>
+        configType.asType match {
+          case '[t] =>
+            Expr.summon[ConfigSchema[t]] match {
+              case Some(schemaExpr) =>
+                '{ $schemaExpr.describe(Nil) }
+              case None =>
+                report.errorAndAbort(
+                  s"No implicit ConfigSchema available for config type ${Type.show[t]}.\n" +
+                    "Hint: Derive it with `derives ConfigSchemaDerived` or define it manually."
+                )
+            }
+        }
+      }
     }
   }
 

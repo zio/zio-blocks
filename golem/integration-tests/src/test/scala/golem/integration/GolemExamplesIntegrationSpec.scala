@@ -120,6 +120,54 @@ object GolemServer {
           }
     }
 
+  private def provisionSecrets(dir: File): ZIO[Any, Throwable, Unit] = {
+    val secretValues = Map(
+      "apiKey"      -> """"test-api-key"""",
+      "db.password" -> """"test-password""""
+    )
+
+    runGolemCmd(dir, 30L, "agent-secret", "list", "--format", "json").flatMap { listResult =>
+      if (listResult.exitCode != 0)
+        ZIO.fail(new RuntimeException(s"Failed to list secrets: ${listResult.output}"))
+      else {
+        import scala.util.matching.Regex
+
+        val idPattern: Regex = """"id"\s*:\s*"([^"]+)"""".r
+        val pathPattern: Regex = """"path"\s*:\s*\[([^\]]*)\]""".r
+        val revPattern: Regex = """"revision"\s*:\s*(\d+)""".r
+
+        // Parse each secret block from the JSON array
+        val secretBlocks = listResult.output.split("""\{""").tail.map("{" + _)
+        ZIO.foreachDiscard(secretBlocks) { block =>
+          val idOpt = idPattern.findFirstMatchIn(block).map(_.group(1))
+          val pathOpt = pathPattern.findFirstMatchIn(block).map(_.group(1))
+          val revOpt = revPattern.findFirstMatchIn(block).map(_.group(1))
+
+          (idOpt, pathOpt, revOpt) match {
+            case (Some(id), Some(pathStr), Some(rev)) =>
+              val normalizedPath = pathStr.replaceAll(""""|\s""", "").split(",").mkString(".")
+              secretValues.get(normalizedPath) match {
+                case Some(value) =>
+                  runGolemCmd(dir, 30L,
+                    "agent-secret", "update-value",
+                    "--id", id,
+                    "--current-revision", rev,
+                    "--secret-value", value
+                  ).flatMap { result =>
+                    if (result.exitCode == 0) ZIO.unit
+                    else ZIO.fail(new RuntimeException(
+                      s"Failed to update secret '$normalizedPath' (exit=${result.exitCode}):\n${result.output}"
+                    ))
+                  }
+                case None => ZIO.unit
+              }
+            case _ => ZIO.unit
+          }
+        }
+      }
+    }
+  }
+
   val layer: ZLayer[Any, Throwable, GolemServer] =
     ZLayer.scoped {
       for {
@@ -168,6 +216,7 @@ object GolemServer {
         _       <- waitUntilReady(process)
         server   = GolemServer(process, examplesDir, tsPackagesPath)
         _       <- deploy(examplesDir)
+        _       <- provisionSecrets(examplesDir)
       } yield server
     }
 }
@@ -420,6 +469,32 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       "host-api-explorer-rdbms",
       "samples/host-api-explorer/repl-explore-rdbms.ts",
       Contains("Left(")
+    ),
+
+    // --- Config ---
+    Sample(
+      "config-default",
+      "samples/config/repl-config-default.ts",
+      Custom { output =>
+        assertTrue(
+          output.contains("config-default="),
+          output.contains("ManifestApp"),
+          output.contains("manifest-db.example.com"),
+          output.contains("5432")
+        )
+      }
+    ),
+    Sample(
+      "config-override",
+      "samples/config/repl-config-override.ts",
+      Custom { output =>
+        assertTrue(
+          output.contains("config-result="),
+          output.contains("OverriddenApp"),
+          output.contains("overridden-host.example.com"),
+          output.contains("9999")
+        )
+      }
     ),
 
     // --- Database (requires external DB) ---

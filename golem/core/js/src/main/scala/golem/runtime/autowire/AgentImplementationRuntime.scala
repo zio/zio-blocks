@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.config.{ConfigHolder, ConfigLoader}
 import golem.data.GolemSchema
 import golem.data.StructuredSchema
 import golem.runtime.agenttype.{AgentImplementationType, AsyncImplementationMethod, SyncImplementationMethod}
@@ -10,10 +11,20 @@ private[autowire] object AgentImplementationRuntime {
     mode: AgentMode,
     implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] = {
+    val effectiveBuild: Ctor => Trait = implType.configBuilder match {
+      case Some(builder) =>
+        (ctor: Ctor) => {
+          val config = ConfigLoader.loadConfig(builder)
+          ConfigHolder.set(config)
+          implType.buildInstance(ctor)
+        }
+      case None => implType.buildInstance
+    }
+
     val constructor =
       implType.constructorSchema.schema match {
         case StructuredSchema.Tuple(elements) if elements.isEmpty =>
-          val instance = implType.buildInstance(().asInstanceOf[Ctor])
+          val instance = effectiveBuild(().asInstanceOf[Ctor])
           AgentConstructor.noArgs[Trait](
             description = implType.metadata.description.getOrElse(typeName),
             prompt = None
@@ -26,7 +37,7 @@ private[autowire] object AgentImplementationRuntime {
               description = implType.metadata.description.getOrElse(typeName),
               promptHint = None
             )
-          )(implType.buildInstance)
+          )(effectiveBuild)
       }
 
     val bindings = implType.methods.map {

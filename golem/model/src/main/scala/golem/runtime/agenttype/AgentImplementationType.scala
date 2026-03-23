@@ -1,5 +1,6 @@
 package golem.runtime.agenttype
 
+import golem.config.ConfigBuilder
 import golem.data.GolemSchema
 import golem.runtime.{AgentMetadata, MethodMetadata}
 
@@ -15,7 +16,8 @@ final case class AgentImplementationType[Instance, Ctor](
   metadata: AgentMetadata,
   constructorSchema: GolemSchema[Ctor],
   buildInstance: Ctor => Instance,
-  methods: List[ImplementationMethod[Instance]]
+  methods: List[ImplementationMethod[Instance]],
+  configBuilder: Option[ConfigBuilder[_]] = None
 )
 
 sealed trait ImplementationMethod[Instance] {

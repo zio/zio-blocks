@@ -1,5 +1,6 @@
 package golem
 
+import golem.config.ConfigOverride
 import golem.runtime.macros.AgentNameMacro
 import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.AgentClient
@@ -90,5 +91,13 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
     ${
       AgentCompanionMacro.getPhantomTuple5Impl[Trait, A1, A2, A3, A4, A5]('a1, 'a2, 'a3, 'a4, 'a5, 'phantom)
     }
+
+  /** Connect to (or create) an agent instance with config overrides. */
+  transparent inline def getWithConfig(input: Input, configOverrides: List[ConfigOverride]): Trait =
+    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Input]('input, 'configOverrides) }
+
+  /** Unit-constructor + config overrides convenience. */
+  transparent inline def getWithConfig(configOverrides: List[ConfigOverride]): Trait =
+    ${ AgentCompanionMacro.getWithConfigUnitImpl[Trait]('configOverrides) }
 
 }

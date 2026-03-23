@@ -5,7 +5,7 @@ import golem.host.js._
 
 import scala.scalajs.js
 
-private[autowire] object WitTypeBuilder {
+private[golem] object WitTypeBuilder {
   def build(dataType: DataType): JsWitType = {
     val builder = new Builder
     builder.buildNode(dataType)

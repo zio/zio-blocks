@@ -1,5 +1,6 @@
 package golem.runtime.macros
 
+import golem.config.ConfigBuilder
 import golem.data.GolemSchema
 import golem.runtime.agenttype.{
   AgentImplementationType,
@@ -50,13 +51,16 @@ object AgentImplementationMacro {
         )
       }
 
+    val configBuilderExpr = detectConfigBuilder[Trait]
+
     '{
       val metadata = $metadataExpr
       AgentImplementationType[Trait, Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (_: Unit) => $buildExpr,
-        methods = $methodsExpr
+        methods = $methodsExpr,
+        configBuilder = $configBuilderExpr
       )
     }
   }
@@ -96,13 +100,16 @@ object AgentImplementationMacro {
 
     val buildTyped = buildExpr.asExprOf[Ctor => Trait]
 
+    val configBuilderExpr = detectConfigBuilder[Trait]
+
     '{
       val metadata = $metadataExpr
       AgentImplementationType[Trait, Ctor](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (input: Ctor) => $buildTyped(input),
-        methods = $methodsExpr
+        methods = $methodsExpr,
+        configBuilder = $configBuilderExpr
       )
     }
   }
@@ -117,6 +124,40 @@ object AgentImplementationMacro {
         case AppliedType(_, List(arg)) => arg
         case _                         => TypeRepr.of[Unit]
       }
+  }
+
+  private def detectConfigBuilder[Trait: Type](using Quotes): Expr[Option[ConfigBuilder[_]]] = {
+    import quotes.reflect.*
+
+    val traitRepr        = TypeRepr.of[Trait]
+    val agentConfigBases = traitRepr.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
+
+    if (agentConfigBases.isEmpty) '{ None }
+    else {
+      val configTypes = agentConfigBases.flatMap { sym =>
+        traitRepr.baseType(sym) match {
+          case AppliedType(_, List(arg)) => Some(arg)
+          case _                         => None
+        }
+      }
+
+      configTypes.headOption match {
+        case Some(configType) =>
+          configType.asType match {
+            case '[t] =>
+              Expr.summon[ConfigBuilder[t]] match {
+                case Some(builderExpr) =>
+                  '{ Some($builderExpr: ConfigBuilder[_]) }
+                case None =>
+                  report.errorAndAbort(
+                    s"No implicit ConfigBuilder available for config type ${Type.show[t]}.\n" +
+                      "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                  )
+              }
+          }
+        case None => '{ None }
+      }
+    }
   }
 
   private def buildImplementationMethodsExpr[Trait: Type](using

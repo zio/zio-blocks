@@ -141,6 +141,9 @@ object AgentHostApi {
   def createWebhook(promiseId: PromiseIdLiteral): String =
     AgentRegistryModule.createWebhook(promiseId)
 
+  def getConfigValue(key: List[String], expectedType: JsWitType): JsWitValue =
+    AgentRegistryModule.getConfigValue(js.Array(key: _*), expectedType)
+
   def getOplogIndex(): OplogIndex =
     HostModule.getOplogIndex()
 
@@ -424,5 +427,7 @@ object AgentHostApi {
     def parseAgentId(agentId: String): js.Array[js.Any] = js.native
 
     def createWebhook(promiseId: PromiseIdLiteral): String = js.native
+
+    def getConfigValue(key: js.Array[String], expectedType: JsWitType): JsWitValue = js.native
   }
 }

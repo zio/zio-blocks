@@ -1,5 +1,6 @@
 package golem.runtime
 
+import golem.config.AgentConfigDeclaration
 import golem.data.StructuredSchema
 
 /**
@@ -57,5 +58,6 @@ final case class AgentMetadata(
   mode: Option[String],
   methods: List[MethodMetadata],
   constructor: StructuredSchema,
-  httpMount: Option[HttpMountDetails] = None
+  httpMount: Option[HttpMountDetails] = None,
+  config: List[AgentConfigDeclaration] = Nil
 )

@@ -22,6 +22,16 @@ components:
       moduleWasm: .golem/agents/scala_examples.module.wasm
       into: .golem/agents/scala_examples.dynamic.wasm
 
+    agents:
+      ConfigAgent:
+        config:
+        - path: ["appName"]
+          value: "ManifestApp"
+        - path: ["db", "host"]
+          value: "manifest-db.example.com"
+        - path: ["db", "port"]
+          value: 5432
+
 httpApi:
   deployments:
     local:

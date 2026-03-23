@@ -1,5 +1,6 @@
 package golem.runtime.macros
 
+import golem.config.{AgentConfigDeclaration, ConfigSchema}
 import golem.data.GolemSchema
 import golem.runtime.{
   AgentMetadata,
@@ -85,6 +86,11 @@ object AgentDefinitionMacroImpl {
       case None       => q"_root_.scala.None"
     }
 
+    val configExpr = detectAgentConfig(c)(tpe) match {
+      case Some(tree) => tree
+      case None       => q"_root_.scala.Nil"
+    }
+
     c.Expr[AgentMetadata](q"""
       _root_.golem.runtime.AgentMetadata(
         name = $typeName,
@@ -92,7 +98,8 @@ object AgentDefinitionMacroImpl {
         mode = $traitModeExpr,
         methods = List(..$methods),
         constructor = $constructorSchema,
-        httpMount = $httpMountExpr
+        httpMount = $httpMountExpr,
+        config = $configExpr
       )
     """)
   }
@@ -194,6 +201,36 @@ object AgentDefinitionMacroImpl {
     val inputTpe   = baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
     if (inputTpe =:= typeOf[Unit]) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
     else structuredSchemaExpr(c)(inputTpe)
+  }
+
+  private def detectAgentConfig(c: blackbox.Context)(tpe: c.universe.Type): Option[c.Tree] = {
+    import c.universe._
+
+    val agentConfigBases = tpe.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
+
+    if (agentConfigBases.isEmpty) None
+    else {
+      val configTypes = agentConfigBases.flatMap { sym =>
+        tpe.baseType(sym).typeArgs.headOption
+      }
+
+      if (configTypes.length > 1)
+        c.abort(c.enclosingPosition, s"Agent trait may extend at most one AgentConfig[T], found ${configTypes.length}")
+
+      configTypes.headOption.map { configType =>
+        val configSchemaType = appliedType(typeOf[ConfigSchema[_]].typeConstructor, configType)
+        val configSchemaInstance = c.inferImplicitValue(configSchemaType)
+
+        if (configSchemaInstance.isEmpty) {
+          c.abort(c.enclosingPosition,
+            s"No implicit ConfigSchema available for config type $configType.\n" +
+              "Hint: Define an implicit ConfigSchema[T] for your config type."
+          )
+        }
+
+        q"$configSchemaInstance.describe(_root_.scala.Nil)"
+      }
+    }
   }
 
   private def extractHttpMount(c: blackbox.Context)(

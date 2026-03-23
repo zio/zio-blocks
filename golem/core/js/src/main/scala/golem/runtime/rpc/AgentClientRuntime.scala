@@ -1,5 +1,6 @@
 package golem.runtime.rpc
 
+import golem.config.ConfigOverride
 import golem.data.GolemSchema
 import golem.host.js._
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
@@ -24,6 +25,21 @@ object AgentClientRuntime {
     agentType: AgentType[Trait, Constructor],
     constructorArgs: Constructor,
     phantom: Option[Uuid]
+  ): Either[String, ResolvedAgent[Trait]] =
+    resolveWithPhantomAndConfig(agentType, constructorArgs, phantom, configOverrides = Nil)
+
+  def resolveWithConfig[Trait, Constructor](
+    agentType: AgentType[Trait, Constructor],
+    constructorArgs: Constructor,
+    configOverrides: List[ConfigOverride]
+  ): Either[String, ResolvedAgent[Trait]] =
+    resolveWithPhantomAndConfig(agentType, constructorArgs, phantom = None, configOverrides)
+
+  def resolveWithPhantomAndConfig[Trait, Constructor](
+    agentType: AgentType[Trait, Constructor],
+    constructorArgs: Constructor,
+    phantom: Option[Uuid],
+    configOverrides: List[ConfigOverride]
   ): Either[String, ResolvedAgent[Trait]] = {
     implicit val ctorSchema: GolemSchema[Constructor] = agentType.constructor.schema
 
@@ -36,18 +52,19 @@ object AgentClientRuntime {
           RpcValueCodec.encodeArgs[Constructor](constructorArgs)
         }
       }
-      remote <- resolveRemote(agentType.typeName, payload, phantom)
+      remote <- resolveRemote(agentType.typeName, payload, phantom, configOverrides)
     } yield ResolvedAgent(agentType.asInstanceOf[AgentType[Trait, Any]], remote)
   }
 
   private def resolveRemote(
     agentTypeName: String,
     payload: JsDataValue,
-    phantom: Option[Uuid]
+    phantom: Option[Uuid],
+    configOverrides: List[ConfigOverride]
   ): Either[String, RemoteAgentClient] =
     remoteResolverOverride match {
       case Some(custom) => custom(agentTypeName, payload)
-      case None         => RemoteAgentClient.resolve(agentTypeName, payload, phantom)
+      case None         => RemoteAgentClient.resolve(agentTypeName, payload, phantom, configOverrides)
     }
 
   final case class ResolvedAgent[Trait](agentType: AgentType[Trait, Any], client: RemoteAgentClient) {

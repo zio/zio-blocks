@@ -1,5 +1,6 @@
 package golem
 
+import golem.config.ConfigOverride
 import golem.runtime.agenttype.AgentType
 import golem.runtime.rpc.{AgentClient, AgentClientRuntime}
 import golem.Uuid
@@ -295,6 +296,52 @@ private[golem] object AgentCompanionMacro {
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
         $tup,
         phantom = Some($phantom)
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def getWithConfigImpl[Trait: Type, In: Type](
+    input: Expr[In],
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val got      = TypeRepr.of[In]
+    if !(got =:= expected) then
+      report.errorAndAbort(
+        s"getWithConfig(input, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
+      )
+    '{
+      AgentClientRuntime.resolveWithConfig[Trait, In](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
+        $input,
+        $configOverrides
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def getWithConfigUnitImpl[Trait: Type](
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    if !(expected =:= TypeRepr.of[Unit]) then
+      report.errorAndAbort(s"getWithConfig(configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+    '{
+      AgentClientRuntime.resolveWithConfig[Trait, Unit](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
+        (),
+        $configOverrides
       ) match {
         case Left(err) =>
           throw scala.scalajs.js.JavaScriptException(err)

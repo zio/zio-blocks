@@ -2,6 +2,7 @@ package golem.runtime.rpc
 
 import golem.Datetime
 import golem.Uuid
+import golem.config.{ConfigOverride, ConfigOverrideEncoder}
 import golem.host.js._
 import golem.runtime.rpc.host.AgentHostApi.RegisteredAgentType
 import golem.runtime.rpc.host.WasmRpcApi.WasmRpcClient
@@ -26,6 +27,14 @@ object RemoteAgentClient {
     constructorPayload: JsDataValue,
     phantom: Option[Uuid]
   ): Either[String, RemoteAgentClient] =
+    resolve(agentTypeName, constructorPayload, phantom, configOverrides = Nil)
+
+  def resolve(
+    agentTypeName: String,
+    constructorPayload: JsDataValue,
+    phantom: Option[Uuid],
+    configOverrides: List[ConfigOverride]
+  ): Either[String, RemoteAgentClient] =
     AgentHostApi
       .registeredAgentType(agentTypeName)
       .toRight(s"Agent type '$agentTypeName' is not registered on this host")
@@ -38,7 +47,9 @@ object RemoteAgentClient {
               js.BigInt(uuid.lowBits.toString)
             )
           }
-          val rpcClient = WasmRpcApi.newClient(displayTypeName, constructorPayload, phantomArg, js.Array())
+          val jsConfig = if (configOverrides.isEmpty) js.Array[JsTypedAgentConfigValue]()
+                         else ConfigOverrideEncoder.encode(configOverrides)
+          val rpcClient = WasmRpcApi.newClient(displayTypeName, constructorPayload, phantomArg, jsConfig)
           RemoteAgentClient(displayTypeName, id, agentType, new WasmRpcInvoker(rpcClient))
         }
       }
