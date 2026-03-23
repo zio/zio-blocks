@@ -83,7 +83,11 @@ private[rpc] object AgentClientBindMacro {
     if (!traitSym.isClass || !traitSym.asClass.isTrait)
       c.abort(c.enclosingPosition, s"Agent client target must be a trait, found: ${traitSym.fullName}")
 
-    val futureSym = typeOf[scala.concurrent.Future[_]].typeSymbol
+    val futureSym        = typeOf[scala.concurrent.Future[_]].typeSymbol
+    val principalFullName = "golem.Principal"
+
+    def isPrincipalType(tpe: Type): Boolean =
+      tpe.dealias.typeSymbol.fullName == principalFullName
 
     def isPromiseReturn(tpe: Type): Boolean =
       tpe.typeSymbol.fullName == "scala.scalajs.js.Promise"
@@ -118,7 +122,7 @@ private[rpc] object AgentClientBindMacro {
       """
 
     def inputExpr(paramss: List[List[ValDef]]): Tree = {
-      val params = paramss.flatten
+      val params = paramss.flatten.filter(p => !isPrincipalType(p.tpt.tpe))
       params match {
         case Nil        => q"()"
         case one :: Nil => q"${Ident(one.name)}"
@@ -146,8 +150,10 @@ private[rpc] object AgentClientBindMacro {
       val paramss: List[List[ValDef]] = m.paramLists.map(_.map(mkParamValDef))
       val returnTpe                   = m.returnType
 
+      val nonPrincipalParams = m.paramLists.flatten.filter(p => !isPrincipalType(p.typeSignature))
+
       val inType: Type =
-        m.paramLists.flatten match {
+        nonPrincipalParams match {
           case Nil        => typeOf[Unit]
           case one :: Nil => one.typeSignature
           case _          => typeOf[Vector[Any]]

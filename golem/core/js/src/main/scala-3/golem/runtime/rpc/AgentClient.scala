@@ -137,12 +137,16 @@ private object AgentClientInlineMacros {
     case class MethodData(
       method: Symbol,
       params: List[(String, TypeRepr)],
+      nonPrincipalParams: List[(String, TypeRepr)],
       accessMode: MethodParamAccess,
       inputType: TypeRepr,
       outputType: TypeRepr,
       returnType: TypeRepr,
       invocation: InvocationKind
     )
+
+    def isPrincipalType(tpe: TypeRepr): Boolean =
+      tpe.dealias.typeSymbol.fullName == "golem.Principal"
 
     val traitRepr   = TypeRepr.of[Trait]
     val traitSymbol = traitRepr.typeSymbol
@@ -153,13 +157,15 @@ private object AgentClientInlineMacros {
     val pendingMethods = traitSymbol.methodMembers.collect {
       case method if method.flags.is(Flags.Deferred) && method.isDefDef && method.name != "new" =>
         val params                                   = extractParameters(method)
-        val accessMode                               = methodAccess(params)
-        val inputType                                = inputTypeFor(accessMode, params)
+        val nonPrincipalParams                       = params.filter { case (_, tpe) => !isPrincipalType(tpe) }
+        val accessMode                               = methodAccess(nonPrincipalParams)
+        val inputType                                = inputTypeFor(accessMode, nonPrincipalParams)
         val (invocationKind, outputType, returnType) = methodInvocationInfo(method)
 
         MethodData(
           method = method,
           params = params,
+          nonPrincipalParams = nonPrincipalParams,
           accessMode = accessMode,
           inputType = inputType,
           outputType = outputType,
@@ -209,12 +215,16 @@ private object AgentClientInlineMacros {
     def buildMethodBody(methodData: MethodData, paramExprs: List[Expr[Any]]): Expr[Any] = {
       val methodNameExpr: Expr[String] = Expr(methodData.method.name)
 
+      val nonPrincipalParamExprs = paramExprs
+        .zip(methodData.params)
+        .collect { case (expr, (_, tpe)) if !isPrincipalType(tpe) => expr }
+
       methodData.inputType.asType match {
         case '[input] =>
           methodData.outputType.asType match {
             case '[output] =>
               val inputValueExpr =
-                buildInputValueExpr(methodData.accessMode, methodData.inputType, paramExprs).asExprOf[input]
+                buildInputValueExpr(methodData.accessMode, methodData.inputType, nonPrincipalParamExprs).asExprOf[input]
               val methodExpr =
                 findMethod[input, output](methodData.method.name)
 

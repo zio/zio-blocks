@@ -67,25 +67,34 @@ object AgentImplementationMacro {
       }
     }
 
-    val configFullName = "golem.config.Config"
+    val configFullName    = "golem.config.Config"
+    val principalFullName = "golem.Principal"
 
-    case class ParamInfo(name: String, tpe: TypeRepr, index: Int, isConfig: Boolean, configInnerType: Option[TypeRepr])
+    case class ParamInfo(name: String, tpe: TypeRepr, index: Int, isConfig: Boolean, isPrincipal: Boolean, configInnerType: Option[TypeRepr])
 
     val paramInfos: List[ParamInfo] = params.zipWithIndex.map { case ((name, tpe), idx) =>
       tpe.dealias match {
         case AppliedType(tycon, List(inner)) if tycon.typeSymbol.fullName == configFullName =>
-          ParamInfo(name, tpe, idx, isConfig = true, configInnerType = Some(inner))
+          ParamInfo(name, tpe, idx, isConfig = true, isPrincipal = false, configInnerType = Some(inner))
+        case t if t.typeSymbol.fullName == principalFullName =>
+          ParamInfo(name, tpe, idx, isConfig = false, isPrincipal = true, configInnerType = None)
         case _ =>
-          ParamInfo(name, tpe, idx, isConfig = false, configInnerType = None)
+          ParamInfo(name, tpe, idx, isConfig = false, isPrincipal = false, configInnerType = None)
       }
     }
 
-    val configParams    = paramInfos.filter(_.isConfig)
-    val identityParams  = paramInfos.filter(!_.isConfig)
+    val configParams     = paramInfos.filter(_.isConfig)
+    val principalParams  = paramInfos.filter(_.isPrincipal)
+    val identityParams   = paramInfos.filter(pi => !pi.isConfig && !pi.isPrincipal)
 
     if configParams.length > 1 then
       report.errorAndAbort(
         s"Impl type ${implSymbol.fullName} has ${configParams.length} Config[_] parameters, at most one is allowed"
+      )
+
+    if principalParams.length > 1 then
+      report.errorAndAbort(
+        s"Impl type ${implSymbol.fullName} has ${principalParams.length} Principal parameters, at most one is allowed"
       )
 
     val expectedCtor = agentInputTypeRepr[Trait]
@@ -203,30 +212,36 @@ object AgentImplementationMacro {
             detectConfigBuilder[Trait]
         }
 
-        // Build the instance construction lambda: Ctor => Trait
-        val buildInstanceExpr: Expr[ctor => Trait] = configParam match {
+        val hasPrincipalParam = principalParams.nonEmpty
+
+        // Build the instance construction lambda: (Ctor, Principal) => Trait
+        val buildInstanceExpr: Expr[(ctor, golem.Principal) => Trait] = configParam match {
           case None =>
             // No config param - straightforward construction
             val lambdaType =
-              MethodType(List("input"))(_ => List(ctorTypeRepr), _ => TypeRepr.of[Trait])
+              MethodType(List("input", "principal"))(_ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Trait])
 
             Lambda(
               Symbol.spliceOwner,
               lambdaType,
               { (_, lambdaParams) =>
-                val inputTerm = lambdaParams.head.asInstanceOf[Term]
+                val inputTerm     = lambdaParams.head.asInstanceOf[Term]
+                val principalTerm = lambdaParams(1).asInstanceOf[Term]
                 val argTerms: List[Term] = paramInfos.map { pi =>
-                  identityParams match {
-                    case Nil      => report.errorAndAbort("Unexpected: no identity params but trying to construct args")
-                    case _ :: Nil => inputTerm
-                    case ps       =>
-                      val idx = ps.indexWhere(_.index == pi.index)
-                      Select.unique(inputTerm, s"_${idx + 1}")
+                  if pi.isPrincipal then principalTerm
+                  else {
+                    identityParams match {
+                      case Nil      => report.errorAndAbort("Unexpected: no identity params but trying to construct args")
+                      case _ :: Nil => inputTerm
+                      case ps       =>
+                        val idx = ps.indexWhere(_.index == pi.index)
+                        Select.unique(inputTerm, s"_${idx + 1}")
+                    }
                   }
                 }
                 Apply(Select(New(TypeTree.of[Impl]), implConstructor), argTerms).asExprOf[Trait].asTerm
               }
-            ).asExprOf[ctor => Trait]
+            ).asExprOf[(ctor, golem.Principal) => Trait]
 
           case Some(cp) =>
             val configInner = cp.configInnerType.get
@@ -234,13 +249,14 @@ object AgentImplementationMacro {
               case '[configT] =>
                 val builderExpr = Expr.summon[ConfigBuilder[configT]].get
                 val lambdaType =
-                  MethodType(List("input"))(_ => List(ctorTypeRepr), _ => TypeRepr.of[Trait])
+                  MethodType(List("input", "principal"))(_ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Trait])
 
                 Lambda(
                   Symbol.spliceOwner,
                   lambdaType,
                   { (_, lambdaParams) =>
-                    val inputTerm = lambdaParams.head.asInstanceOf[Term]
+                    val inputTerm     = lambdaParams.head.asInstanceOf[Term]
+                    val principalTerm = lambdaParams(1).asInstanceOf[Term]
 
                     // Generate: _root_.golem.config.ConfigLoader.createLazyConfig(builder)
                     // ConfigLoader is in core/js, not available in macros, so we construct the call via reflection
@@ -256,6 +272,7 @@ object AgentImplementationMacro {
 
                     val argTerms: List[Term] = paramInfos.map { pi =>
                       if pi.isConfig then configTerm
+                      else if pi.isPrincipal then principalTerm
                       else {
                         identityParams match {
                           case Nil      => report.errorAndAbort("Unexpected: identity param not found")
@@ -269,7 +286,7 @@ object AgentImplementationMacro {
 
                     Apply(Select(New(TypeTree.of[Impl]), implConstructor), argTerms).asExprOf[Trait].asTerm
                   }
-                ).asExprOf[ctor => Trait]
+                ).asExprOf[(ctor, golem.Principal) => Trait]
             }
         }
 
@@ -278,10 +295,11 @@ object AgentImplementationMacro {
           AgentImplementationType[Trait, ctor](
             metadata = metadata,
             constructorSchema = $ctorSchemaExpr,
-            buildInstance = (input: ctor) => $buildInstanceExpr(input),
+            buildInstance = (input: ctor, principal: golem.Principal) => $buildInstanceExpr(input, principal),
             methods = $methodsExpr,
             configBuilder = $configBuilderExpr,
-            configInjectedViaConstructor = ${ Expr(configParam.isDefined) }
+            configInjectedViaConstructor = ${ Expr(configParam.isDefined) },
+            principalInjectedViaConstructor = ${ Expr(hasPrincipalParam) }
           )
         }
     }
@@ -320,7 +338,7 @@ object AgentImplementationMacro {
       AgentImplementationType[Trait, Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
-        buildInstance = (_: Unit) => $buildExpr,
+        buildInstance = (_: Unit, _: golem.Principal) => $buildExpr,
         methods = $methodsExpr,
         configBuilder = $configBuilderExpr
       )
@@ -369,7 +387,7 @@ object AgentImplementationMacro {
       AgentImplementationType[Trait, Ctor](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
-        buildInstance = (input: Ctor) => $buildTyped(input),
+        buildInstance = (input: Ctor, _: golem.Principal) => $buildTyped(input),
         methods = $methodsExpr,
         configBuilder = $configBuilderExpr
       )
@@ -430,10 +448,13 @@ object AgentImplementationMacro {
   ): Expr[List[ImplementationMethod[Trait]]] = {
     import quotes.reflect.*
 
+    val principalFullName = "golem.Principal"
+
     val methodExprs: List[Expr[ImplementationMethod[Trait]]] = methods.map { methodSymbol =>
       val methodName       = methodSymbol.name
       val methodMetadata   = methodMetadataExpr(metadataExpr, methodName)
-      val parameterDetails = extractParameters(methodSymbol)
+      val allParameters    = extractParameters(methodSymbol)
+      val parameterDetails = allParameters.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != principalFullName }
 
       val accessMode: MethodParamAccess =
         parameterDetails match {
@@ -466,7 +487,7 @@ object AgentImplementationMacro {
                 val outputSchemaExpr = summonSchema[out](methodName, "output")
 
                 if !isAsync then {
-                  val handlerExpr = handlerLambda[Trait, in, out](methodSymbol, accessMode, parameterDetails)
+                  val handlerExpr = handlerLambda[Trait, in, out](methodSymbol, accessMode, parameterDetails, allParameters)
                   '{
                     val metadataEntry = $methodMetadata
                     SyncImplementationMethod[Trait, in, out](
@@ -480,9 +501,9 @@ object AgentImplementationMacro {
                   handlerTpe.asType match {
                     case '[handlerReturn] =>
                       val handlerExpr =
-                        handlerLambda[Trait, in, handlerReturn](methodSymbol, accessMode, parameterDetails)
+                        handlerLambda[Trait, in, handlerReturn](methodSymbol, accessMode, parameterDetails, allParameters)
                       val normalized =
-                        handlerExpr.asExprOf[(Trait, in) => scala.concurrent.Future[out]]
+                        handlerExpr.asExprOf[(Trait, in, golem.Principal) => scala.concurrent.Future[out]]
                       '{
                         val metadataEntry = $methodMetadata
                         AsyncImplementationMethod[Trait, in, out](
@@ -697,25 +718,38 @@ object AgentImplementationMacro {
   )(
     method: quotes.reflect.Symbol,
     access: MethodParamAccess,
-    parameters: List[(String, quotes.reflect.TypeRepr)]
-  ): Expr[(Trait, In) => Out] = {
+    parameters: List[(String, quotes.reflect.TypeRepr)],
+    allParameters: List[(String, quotes.reflect.TypeRepr)]
+  ): Expr[(Trait, In, golem.Principal) => Out] = {
     import quotes.reflect.*
 
+    val principalFullName = "golem.Principal"
+
     val lambdaType =
-      MethodType(List("instance", "input"))(_ => List(TypeRepr.of[Trait], TypeRepr.of[In]), _ => TypeRepr.of[Out])
+      MethodType(List("instance", "input", "principal"))(_ => List(TypeRepr.of[Trait], TypeRepr.of[In], TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Out])
 
     Lambda(
       Symbol.spliceOwner,
       lambdaType,
       { (lambdaOwner, params) =>
-        val instanceTerm = params.head.asInstanceOf[Term]
-        val inputTerm    = params(1).asInstanceOf[Term]
+        val instanceTerm  = params.head.asInstanceOf[Term]
+        val inputTerm     = params(1).asInstanceOf[Term]
+        val principalTerm = params(2).asInstanceOf[Term]
 
         val callTerm: Term = access match {
           case MethodParamAccess.NoArgs =>
-            Apply(Select(instanceTerm, method), Nil)
+            val argTerms = allParameters.map { case (_, paramType) =>
+              if paramType.dealias.typeSymbol.fullName == principalFullName then principalTerm
+              else report.errorAndAbort(s"Unexpected non-principal param in NoArgs method ${method.name}")
+            }
+            if argTerms.isEmpty then Apply(Select(instanceTerm, method), Nil)
+            else Apply(Select(instanceTerm, method), argTerms)
           case MethodParamAccess.SingleArg =>
-            Apply(Select(instanceTerm, method), List(inputTerm))
+            val argTerms = allParameters.map { case (_, paramType) =>
+              if paramType.dealias.typeSymbol.fullName == principalFullName then principalTerm
+              else inputTerm
+            }
+            Apply(Select(instanceTerm, method), argTerms)
           case MethodParamAccess.MultiArgs =>
             val valuesSym =
               Symbol.newVal(lambdaOwner, "values", TypeRepr.of[List[Any]], Flags.EmptyFlags, Symbol.noSymbol)
@@ -734,10 +768,16 @@ object AgentImplementationMacro {
                 }
               checkExpr.asTerm
             }
-            val argTerms: List[Term] = parameters.zipWithIndex.map { case ((_, paramType), idx) =>
-              paramType.asType match {
-                case '[p] =>
-                  '{ $valuesRef.apply(${ Expr(idx) }).asInstanceOf[p] }.asTerm
+            var nonPrincipalIdx = 0
+            val argTerms: List[Term] = allParameters.map { case (_, paramType) =>
+              if paramType.dealias.typeSymbol.fullName == principalFullName then principalTerm
+              else {
+                val idx = nonPrincipalIdx
+                nonPrincipalIdx += 1
+                paramType.asType match {
+                  case '[p] =>
+                    '{ $valuesRef.apply(${ Expr(idx) }).asInstanceOf[p] }.asTerm
+                }
               }
             }
             Block(
@@ -751,6 +791,6 @@ object AgentImplementationMacro {
 
         callTerm
       }
-    ).asExprOf[(Trait, In) => Out]
+    ).asExprOf[(Trait, In, golem.Principal) => Out]
   }
 }

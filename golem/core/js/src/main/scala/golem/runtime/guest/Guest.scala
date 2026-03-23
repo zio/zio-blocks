@@ -7,7 +7,6 @@ import golem.runtime.util.FutureInterop
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
-import scala.annotation.unused
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 /**
@@ -73,7 +72,7 @@ object Guest {
       methodName.substring(start, methodName.length - 1)
     } else methodName
 
-  private def initialize(agentTypeName: String, input: js.Dynamic, @unused principal: js.Dynamic): js.Promise[Unit] =
+  private def initialize(agentTypeName: String, input: js.Dynamic, principal: js.Dynamic): js.Promise[Unit] =
     if (!js.isUndefined(resolved)) {
       js.Promise.reject(customError("Agent is already initialized in this container")).asInstanceOf[js.Promise[Unit]]
     } else {
@@ -81,8 +80,9 @@ object Guest {
         case None =>
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
+          val scalaPrincipal           = PrincipalConverter.fromJs(principal)
           // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
-          val initPromise              = defnAny.initializeAny(input.asInstanceOf[JsDataValue])
+          val initPromise              = defnAny.initializeAny(input.asInstanceOf[JsDataValue], scalaPrincipal)
           val initFuture: Future[Unit] =
             FutureInterop
               .fromPromise(initPromise)
@@ -97,18 +97,19 @@ object Guest {
       }
     }
 
-  private def invoke(methodName: String, input: js.Dynamic, @unused principal: js.Dynamic): js.Promise[js.Dynamic] =
+  private def invoke(methodName: String, input: js.Dynamic, principal: js.Dynamic): js.Promise[js.Dynamic] =
     if (js.isUndefined(resolved)) {
       js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
     } else {
       val r                                                      = resolved.asInstanceOf[Resolved]
       val mn                                                     = normalizeMethodName(methodName)
+      val scalaPrincipal                                         = PrincipalConverter.fromJs(principal)
       val onRejected: js.Function1[Any, js.Thenable[js.Dynamic]] =
         js.Any.fromFunction1((err: Any) =>
           js.Promise.reject(asAgentError(err, "invalid-method")).asInstanceOf[js.Thenable[js.Dynamic]]
         )
       r.defn
-        .invokeAny(r.instance, mn, input.asInstanceOf[JsDataValue])
+        .invokeAny(r.instance, mn, input.asInstanceOf[JsDataValue], scalaPrincipal)
         .asInstanceOf[js.Promise[js.Dynamic]]
         .`catch`[js.Dynamic](onRejected)
     }

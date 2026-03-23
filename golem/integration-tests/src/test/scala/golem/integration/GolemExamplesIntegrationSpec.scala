@@ -497,6 +497,13 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       }
     ),
 
+    // --- Principal injection ---
+    Sample(
+      "principal",
+      "samples/principal/principal.ts",
+      Contains("was created by:")
+    ),
+
     // --- Database (requires external DB) ---
     Sample(
       "database",

@@ -314,10 +314,12 @@ object AgentCompanionMacro {
           m
       }.toList
 
+    val principalFullName = "golem.Principal"
+
     def paramsFor(m: MethodSymbol): List[(TermName, Type)] =
       m.paramLists.headOption.getOrElse(Nil).map { sym =>
         (sym.name.toTermName, sym.typeSignatureIn(traitTpe).dealias.widen)
-      }
+      }.filter { case (_, tpe) => tpe.typeSymbol.fullName != principalFullName }
 
     def inputTypeFor(params: List[(TermName, Type)]): Type =
       params match {

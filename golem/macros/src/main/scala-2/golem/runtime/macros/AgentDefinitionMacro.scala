@@ -124,7 +124,10 @@ object AgentDefinitionMacroImpl {
     val inputSchema  = methodInputSchema(c)(method)
     val outputSchema = methodOutputSchema(c)(method)
 
-    val paramNames     = method.paramLists.flatten.collect { case p if p.isTerm => p.name.toString }.toSet
+    val principalFullName = "golem.Principal"
+    val paramNames     = method.paramLists.flatten.collect {
+      case p if p.isTerm && p.typeSignature.dealias.typeSymbol.fullName != principalFullName => p.name.toString
+    }.toSet
     val headerVarMap   = extractHeaderAnnotations(c)(method, headerType)
     val endpointTrees  = extractEndpoints(c)(method, endpointType, headerVarMap, agentName, methodName, paramNames, hasMount)
 
@@ -144,9 +147,10 @@ object AgentDefinitionMacroImpl {
   private def methodInputSchema(c: blackbox.Context)(method: c.universe.MethodSymbol): c.Tree = {
     import c.universe._
 
+    val principalFullName = "golem.Principal"
     val params = method.paramLists.flatten.collect {
       case param if param.isTerm => (param.name.toString, param.typeSignature)
-    }
+    }.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != principalFullName }
 
     if (params.isEmpty) {
       q"_root_.golem.data.StructuredSchema.Tuple(Nil)"

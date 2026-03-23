@@ -185,7 +185,7 @@ object AgentDefinitionMacro {
           case v: ValDef => (sym.name, v.tpt.tpe)
           case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
         }
-    }
+    }.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != "golem.Principal" }
 
     if params.isEmpty then
       '{

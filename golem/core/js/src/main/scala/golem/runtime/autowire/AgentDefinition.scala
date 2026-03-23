@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.Principal
 import golem.host.js._
 import golem.runtime.AgentMetadata
 
@@ -63,25 +64,27 @@ final class AgentDefinition[Instance](
    * Initializes a new agent instance, returning as Any for type-erased
    * contexts.
    */
-  def initializeAny(payload: JsDataValue): js.Promise[Any] =
-    initialize(payload).asInstanceOf[js.Promise[Any]]
+  def initializeAny(payload: JsDataValue, principal: Principal): js.Promise[Any] =
+    initialize(payload, principal).asInstanceOf[js.Promise[Any]]
 
   /**
    * Initializes a new agent instance from a constructor payload.
    *
    * @param payload
    *   The constructor arguments as a JsDataValue
+   * @param principal
+   *   The principal performing the initialization
    * @return
    *   A Promise resolving to the initialized instance
    */
-  def initialize(payload: JsDataValue): js.Promise[Instance] =
-    constructor.initialize(payload)
+  def initialize(payload: JsDataValue, principal: Principal): js.Promise[Instance] =
+    constructor.initialize(payload, principal)
 
   /**
    * Invokes a method with type-erased instance for dynamic dispatch.
    */
-  def invokeAny(instance: Any, methodName: String, payload: JsDataValue): js.Promise[JsDataValue] =
-    invoke(instance.asInstanceOf[Instance], methodName, payload)
+  def invokeAny(instance: Any, methodName: String, payload: JsDataValue, principal: Principal): js.Promise[JsDataValue] =
+    invoke(instance.asInstanceOf[Instance], methodName, payload, principal)
 
   /**
    * Invokes a method on an agent instance.
@@ -92,10 +95,12 @@ final class AgentDefinition[Instance](
    *   The method to invoke
    * @param payload
    *   The method arguments as a JsDataValue
+   * @param principal
+   *   The principal performing the invocation
    * @return
    *   A Promise resolving to the method result
    */
-  def invoke(instance: Instance, methodName: String, payload: JsDataValue): js.Promise[JsDataValue] = {
+  def invoke(instance: Instance, methodName: String, payload: JsDataValue, principal: Principal): js.Promise[JsDataValue] = {
     if (!methodsByName.contains(methodName)) {
       scala.scalajs.js.Dynamic.global.console.log(
         s"[AgentDefinition] Unknown method: $methodName, available: ${methodsByName.keySet.mkString(",")}"
@@ -103,7 +108,7 @@ final class AgentDefinition[Instance](
     }
     methodsByName
       .get(methodName)
-      .map(_.invoke(instance, payload))
+      .map(_.invoke(instance, payload, principal))
       .getOrElse(js.Promise.reject(s"Unknown method: $methodName"))
   }
 

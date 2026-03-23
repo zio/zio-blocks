@@ -1,5 +1,6 @@
 package golem.runtime.agenttype
 
+import golem.Principal
 import golem.config.ConfigBuilder
 import golem.data.GolemSchema
 import golem.runtime.{AgentMetadata, MethodMetadata}
@@ -15,10 +16,11 @@ import scala.concurrent.Future
 final case class AgentImplementationType[Instance, Ctor](
   metadata: AgentMetadata,
   constructorSchema: GolemSchema[Ctor],
-  buildInstance: Ctor => Instance,
+  buildInstance: (Ctor, Principal) => Instance,
   methods: List[ImplementationMethod[Instance]],
   configBuilder: Option[ConfigBuilder[_]] = None,
-  configInjectedViaConstructor: Boolean = false
+  configInjectedViaConstructor: Boolean = false,
+  principalInjectedViaConstructor: Boolean = false
 )
 
 sealed trait ImplementationMethod[Instance] {
@@ -29,12 +31,12 @@ final case class SyncImplementationMethod[Instance, In, Out](
   metadata: MethodMetadata,
   inputSchema: GolemSchema[In],
   outputSchema: GolemSchema[Out],
-  handler: (Instance, In) => Out
+  handler: (Instance, In, Principal) => Out
 ) extends ImplementationMethod[Instance]
 
 final case class AsyncImplementationMethod[Instance, In, Out](
   metadata: MethodMetadata,
   inputSchema: GolemSchema[In],
   outputSchema: GolemSchema[Out],
-  handler: (Instance, In) => Future[Out]
+  handler: (Instance, In, Principal) => Future[Out]
 ) extends ImplementationMethod[Instance]

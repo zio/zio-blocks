@@ -1,5 +1,6 @@
 package golem.runtime.autowire
 
+import golem.Principal
 import golem.config.{ConfigHolder, ConfigLoader}
 import golem.data.GolemSchema
 import golem.data.StructuredSchema
@@ -11,12 +12,12 @@ private[autowire] object AgentImplementationRuntime {
     mode: AgentMode,
     implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] = {
-    val effectiveBuild: Ctor => Trait = implType.configBuilder match {
+    val effectiveBuild: (Ctor, Principal) => Trait = implType.configBuilder match {
       case Some(builder) if !implType.configInjectedViaConstructor =>
-        (ctor: Ctor) => {
+        (ctor: Ctor, principal: Principal) => {
           val config = ConfigLoader.loadConfig(builder)
           ConfigHolder.set(config)
-          implType.buildInstance(ctor)
+          implType.buildInstance(ctor, principal)
         }
       case _ => implType.buildInstance
     }
@@ -24,11 +25,10 @@ private[autowire] object AgentImplementationRuntime {
     val constructor =
       implType.constructorSchema.schema match {
         case StructuredSchema.Tuple(elements) if elements.isEmpty =>
-          val instance = effectiveBuild(().asInstanceOf[Ctor])
           AgentConstructor.noArgs[Trait](
             description = implType.metadata.description.getOrElse(typeName),
             prompt = None
-          )(instance)
+          )((principal: Principal) => effectiveBuild(().asInstanceOf[Ctor], principal))
         case _ =>
           implicit val ctorSchema: GolemSchema[Ctor] = implType.constructorSchema
           AgentConstructor.sync[Ctor, Trait](
@@ -72,8 +72,8 @@ private[autowire] object AgentImplementationRuntime {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.sync[Trait, In, Out](method.metadata) { (instance, input) =>
-      method.handler(instance, input)
+    MethodBinding.sync[Trait, In, Out](method.metadata) { (instance, input, principal) =>
+      method.handler(instance, input, principal)
     }
   }
 
@@ -83,8 +83,8 @@ private[autowire] object AgentImplementationRuntime {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.async[Trait, In, Out](method.metadata) { (instance, input) =>
-      method.handler(instance, input)
+    MethodBinding.async[Trait, In, Out](method.metadata) { (instance, input, principal) =>
+      method.handler(instance, input, principal)
     }
   }
 }

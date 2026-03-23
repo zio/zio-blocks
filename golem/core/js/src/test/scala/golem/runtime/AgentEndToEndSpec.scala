@@ -2,7 +2,7 @@ package golem.runtime
 
 import golem.runtime.autowire.{AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.Sum
-import golem.BaseAgent
+import golem.{BaseAgent, Principal}
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.runtime.util.FutureInterop
 import zio._
@@ -63,6 +63,8 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
 
   private lazy val broadDefn = AgentImplementation.register[BroadAgent]("e2e-broad")(broadImpl)
 
+  private val testPrincipal: Principal = Principal.Anonymous
+
   private def liftEither[A](e: Either[String, A]): Future[A] =
     e.fold(err => Future.failed(js.JavaScriptException(err)), Future.successful)
 
@@ -81,7 +83,7 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
     ZIO.fromFuture { implicit ec =>
       for {
         payload <- liftEither(HostPayload.encode[In](input))
-        raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+        raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload, testPrincipal))
         decoded <- liftEither(HostPayload.decode[Out](raw))
       } yield decoded
     }.map(decoded => assertTrue(decoded == expected))
@@ -131,7 +133,7 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
       ZIO.fromFuture { implicit ec =>
         for {
           payload <- liftEither(HostPayload.encode[(String, Int)](("hello", 42)))
-          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload, testPrincipal))
           decoded <- liftEither(HostPayload.decode[String](raw))
         } yield decoded
       }.map(decoded => assertTrue(decoded == "hello-42"))
@@ -141,7 +143,7 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
       ZIO.fromFuture { implicit ec =>
         for {
           payload <- liftEither(HostPayload.encode[String]("ignored"))
-          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload))
+          raw     <- FutureInterop.fromPromise(b.invoke(broadImpl, payload, testPrincipal))
           decoded <- liftEither(HostPayload.decode[Unit](raw))
         } yield decoded
       }.as(assertCompletes)
