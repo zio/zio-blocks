@@ -33,12 +33,9 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
     assertTrue(parsed == reparsed)
   }
 
-  def error(input: String, verifier: ParseError => Boolean): TestResult = {
-    val parsed = Parser.parse(input)
-    assertTrue(
-      parsed.isLeft,
-      verifier(parsed.swap.toOption.get)
-    )
+  def error(input: String, verify: ParseError => TestResult): TestResult = {
+    val parsed: Either[ParseError, DocWithYamlFrontmatter] = Parser.parse(input)
+    assertTrue(parsed.isLeft) && verify(parsed.swap.toOption.get)
   }
 
   override def spec = suite("DocWithYamlFrontmatter")(
@@ -76,7 +73,7 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
       )
     },
     test("malformed Markdown without frontmatter") {
-      error("####### Too deep", _.line == 1)
+      error("####### Too deep", error => assertTrue(error.line == 1))
     },
     test("malformed Markdown with frontmatter") {
       error(
@@ -87,7 +84,7 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
           |---
           |####### Too deep
           |""".stripMargin,
-        _.line == 6
+        error => assertTrue(error.line == 6)
       )
     },
     test("frontmatter must be a mapping") {
@@ -97,7 +94,7 @@ object DocWithYamlFrontmatterSpec extends ZIOSpecDefault {
           |---
           |# Hello
           |""".stripMargin,
-        _.message.contains("must be a mapping")
+        error => assertTrue(error.message.contains("must be a mapping"))
       )
     }
   )
