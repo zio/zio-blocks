@@ -258,6 +258,98 @@ object AgentCompanionMacro {
     getPhantomImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)", phantom.tree)
   }
 
+  def newPhantomImpl(c: blackbox.Context)(input: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime.resolveWithPhantom[$traitTpe, $inTpe](
+         $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+         $input.asInstanceOf[$inTpe],
+         phantom = _root_.scala.Some(_root_.golem.HostApi.generateIdempotencyKey())
+       ) match {
+         case _root_.scala.util.Left(err) =>
+           throw _root_.scala.scalajs.js.JavaScriptException(err)
+         case _root_.scala.util.Right(resolved) =>
+           ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
+       }
+     """
+  }
+
+  def newPhantomUnitImpl(c: blackbox.Context)(): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"newPhantom() requires: BaseAgent[Unit] (found: $inTpe)")
+    newPhantomImpl(c)(q"()")
+  }
+
+  def newPhantomTuple2Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
+    if (!(inTpe =:= expected))
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2) requires: BaseAgent[($expected)] (found: $inTpe)")
+    newPhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
+  }
+
+  def newPhantomTuple3Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2],
+    a3: c.Expr[A3]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   =
+      appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
+    if (!(inTpe =:= expected))
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3) requires: BaseAgent[($expected)] (found: $inTpe)")
+    newPhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)")
+  }
+
+  def newPhantomTuple4Impl[A1: c.WeakTypeTag, A2: c.WeakTypeTag, A3: c.WeakTypeTag, A4: c.WeakTypeTag](c: blackbox.Context)(
+    a1: c.Expr[A1],
+    a2: c.Expr[A2],
+    a3: c.Expr[A3],
+    a4: c.Expr[A4]
+  ): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   =
+      appliedType(
+        typeOf[Tuple4[_, _, _, _]].typeConstructor,
+        List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4])
+      )
+    if (!(inTpe =:= expected))
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3,a4) requires: BaseAgent[($expected)] (found: $inTpe)")
+    newPhantomImpl(c)(q"_root_.scala.Tuple4($a1, $a2, $a3, $a4)")
+  }
+
+  def newPhantomTuple5Impl[
+    A1: c.WeakTypeTag,
+    A2: c.WeakTypeTag,
+    A3: c.WeakTypeTag,
+    A4: c.WeakTypeTag,
+    A5: c.WeakTypeTag
+  ](c: blackbox.Context)(a1: c.Expr[A1], a2: c.Expr[A2], a3: c.Expr[A3], a4: c.Expr[A4], a5: c.Expr[A5]): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    val expected   =
+      appliedType(
+        typeOf[Tuple5[_, _, _, _, _]].typeConstructor,
+        List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4], weakTypeOf[A5])
+      )
+    if (!(inTpe =:= expected))
+      c.abort(
+        c.enclosingPosition,
+        s"newPhantom(a1,a2,a3,a4,a5) requires: BaseAgent[($expected)] (found: $inTpe)"
+      )
+    newPhantomImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)")
+  }
+
   def getWithConfigImpl(c: blackbox.Context)(input: c.Tree, configOverrides: c.Tree): c.Tree = {
     import c.universe._
     val (traitTpe, inTpe) = prefixTraitAndInput(c)
@@ -296,6 +388,88 @@ object AgentCompanionMacro {
     if (!(inTpe =:= typeOf[Unit]))
       c.abort(c.enclosingPosition, s"getWithConfig(config) requires: BaseAgent[Unit] (found: $inTpe)")
     getWithConfigImpl(c)(q"()", q"$config.toOverrides")
+  }
+
+  def getPhantomWithConfigImpl(c: blackbox.Context)(input: c.Tree, phantom: c.Tree, configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime
+         .resolveWithPhantomAndConfig[$traitTpe, $inTpe](
+           $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+           $input.asInstanceOf[$inTpe],
+           phantom = _root_.scala.Some($phantom.asInstanceOf[_root_.golem.Uuid]),
+           $configOverrides
+         ) match {
+           case _root_.scala.util.Left(err) =>
+             throw _root_.scala.scalajs.js.JavaScriptException(err)
+           case _root_.scala.util.Right(resolved) =>
+             ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
+         }
+     """
+  }
+
+  def getPhantomWithConfigUnitImpl(c: blackbox.Context)(phantom: c.Tree, configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+    getPhantomWithConfigImpl(c)(q"()", phantom, configOverrides)
+  }
+
+  def getPhantomWithConfigTypedImpl(c: blackbox.Context)(input: c.Tree, phantom: c.Tree, config: c.Tree): c.Tree = {
+    import c.universe._
+    getPhantomWithConfigImpl(c)(input, phantom, q"$config.toOverrides")
+  }
+
+  def getPhantomWithConfigTypedUnitImpl(c: blackbox.Context)(phantom: c.Tree, config: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, config) requires: BaseAgent[Unit] (found: $inTpe)")
+    getPhantomWithConfigImpl(c)(q"()", phantom, q"$config.toOverrides")
+  }
+
+  def newPhantomWithConfigImpl(c: blackbox.Context)(input: c.Tree, configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (traitTpe, inTpe) = prefixTraitAndInput(c)
+    val agentTypeExpr     = agentTypeImpl(c)
+    q"""
+       _root_.golem.runtime.rpc.AgentClientRuntime
+         .resolveWithPhantomAndConfig[$traitTpe, $inTpe](
+           $agentTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $inTpe]],
+           $input.asInstanceOf[$inTpe],
+           phantom = _root_.scala.Some(_root_.golem.HostApi.generateIdempotencyKey()),
+           $configOverrides
+         ) match {
+           case _root_.scala.util.Left(err) =>
+             throw _root_.scala.scalajs.js.JavaScriptException(err)
+           case _root_.scala.util.Right(resolved) =>
+             ${attachTriggerSchedule(c)(traitTpe, q"resolved")}
+         }
+     """
+  }
+
+  def newPhantomWithConfigUnitImpl(c: blackbox.Context)(configOverrides: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"newPhantomWithConfig(configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+    newPhantomWithConfigImpl(c)(q"()", configOverrides)
+  }
+
+  def newPhantomWithConfigTypedImpl(c: blackbox.Context)(input: c.Tree, config: c.Tree): c.Tree = {
+    import c.universe._
+    newPhantomWithConfigImpl(c)(input, q"$config.toOverrides")
+  }
+
+  def newPhantomWithConfigTypedUnitImpl(c: blackbox.Context)(config: c.Tree): c.Tree = {
+    import c.universe._
+    val (_, inTpe) = prefixTraitAndInput(c)
+    if (!(inTpe =:= typeOf[Unit]))
+      c.abort(c.enclosingPosition, s"newPhantomWithConfig(config) requires: BaseAgent[Unit] (found: $inTpe)")
+    newPhantomWithConfigImpl(c)(q"()", q"$config.toOverrides")
   }
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {

@@ -305,6 +305,146 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
+  def newPhantomImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val got      = TypeRepr.of[In]
+    if !(got =:= expected) then
+      report.errorAndAbort(
+        s"newPhantom(input) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
+      )
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, In](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
+        $input,
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomUnitImpl[Trait: Type](using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    if !(expected =:= TypeRepr.of[Unit]) then
+      report.errorAndAbort(s"newPhantom() requires: BaseAgent[Unit] (found: ${expected.show})")
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, Unit](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
+        (),
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val want     = TypeRepr.of[Tuple2[A1, A2]]
+    if !(expected =:= want) then
+      report.errorAndAbort(s"newPhantom(a1, a2) requires: BaseAgent[${want.show}] (found: ${expected.show})")
+    val tup = '{ Tuple2($a1, $a2) }
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple2[A1, A2]](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple2[A1, A2]]],
+        $tup,
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
+    Quotes
+  ): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
+    if !(expected =:= want) then
+      report.errorAndAbort(s"newPhantom(a1, a2, a3) requires: BaseAgent[${want.show}] (found: ${expected.show})")
+    val tup = '{ Tuple3($a1, $a2, $a3) }
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple3[A1, A2, A3]](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple3[A1, A2, A3]]],
+        $tup,
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomTuple4Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type](
+    a1: Expr[A1],
+    a2: Expr[A2],
+    a3: Expr[A3],
+    a4: Expr[A4]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
+    if !(expected =:= want) then
+      report.errorAndAbort(s"newPhantom(a1, a2, a3, a4) requires: BaseAgent[${want.show}] (found: ${expected.show})")
+    val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple4[A1, A2, A3, A4]](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple4[A1, A2, A3, A4]]],
+        $tup,
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomTuple5Impl[Trait: Type, A1: Type, A2: Type, A3: Type, A4: Type, A5: Type](
+    a1: Expr[A1],
+    a2: Expr[A2],
+    a3: Expr[A3],
+    a4: Expr[A4],
+    a5: Expr[A5]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
+    if !(expected =:= want) then
+      report.errorAndAbort(
+        s"newPhantom(a1, a2, a3, a4, a5) requires: BaseAgent[${want.show}] (found: ${expected.show})"
+      )
+    val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
+    '{
+      AgentClientRuntime.resolveWithPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Tuple5[A1, A2, A3, A4, A5]]],
+        $tup,
+        phantom = Some(golem.HostApi.generateIdempotencyKey())
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
   def getWithConfigImpl[Trait: Type, In: Type](
     input: Expr[In],
     configOverrides: Expr[List[ConfigOverride]]
@@ -341,6 +481,104 @@ private[golem] object AgentCompanionMacro {
       AgentClientRuntime.resolveWithConfig[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
         (),
+        $configOverrides
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def getPhantomWithConfigImpl[Trait: Type, In: Type](
+    input: Expr[In],
+    phantom: Expr[Uuid],
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val got      = TypeRepr.of[In]
+    if !(got =:= expected) then
+      report.errorAndAbort(
+        s"getPhantomWithConfig(input, phantom, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
+      )
+    '{
+      AgentClientRuntime.resolveWithPhantomAndConfig[Trait, In](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
+        $input,
+        phantom = Some($phantom),
+        $configOverrides
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def getPhantomWithConfigUnitImpl[Trait: Type](
+    phantom: Expr[Uuid],
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    if !(expected =:= TypeRepr.of[Unit]) then
+      report.errorAndAbort(s"getPhantomWithConfig(phantom, configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+    '{
+      AgentClientRuntime.resolveWithPhantomAndConfig[Trait, Unit](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
+        (),
+        phantom = Some($phantom),
+        $configOverrides
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomWithConfigImpl[Trait: Type, In: Type](
+    input: Expr[In],
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    val got      = TypeRepr.of[In]
+    if !(got =:= expected) then
+      report.errorAndAbort(
+        s"newPhantomWithConfig(input, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
+      )
+    '{
+      AgentClientRuntime.resolveWithPhantomAndConfig[Trait, In](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
+        $input,
+        phantom = Some(golem.HostApi.generateIdempotencyKey()),
+        $configOverrides
+      ) match {
+        case Left(err) =>
+          throw scala.scalajs.js.JavaScriptException(err)
+        case Right(resolved) =>
+          ${ attachTriggerSchedule[Trait]('resolved) }
+      }
+    }
+  }
+
+  def newPhantomWithConfigUnitImpl[Trait: Type](
+    configOverrides: Expr[List[ConfigOverride]]
+  )(using Quotes): Expr[Trait] = {
+    import quotes.reflect.*
+    val expected = agentInputTypeRepr[Trait]
+    if !(expected =:= TypeRepr.of[Unit]) then
+      report.errorAndAbort(s"newPhantomWithConfig(configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+    '{
+      AgentClientRuntime.resolveWithPhantomAndConfig[Trait, Unit](
+        AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
+        (),
+        phantom = Some(golem.HostApi.generateIdempotencyKey()),
         $configOverrides
       ) match {
         case Left(err) =>
