@@ -22,10 +22,11 @@ import java.io.{File => JFile}
 import scala.io.Source
 
 /**
- * Prints an expression together with its evaluated result.
+ * Prints one or more expressions together with their evaluated results.
  *
  * All consecutive `//` comment lines immediately above the `show(...)` call are
- * printed first as a label, giving output of the form:
+ * printed first as a label. Multiple expressions can be passed in a single call
+ * and are printed sequentially, giving output of the form:
  *
  * {{{
  *   // Converts all elements from Int to Long.
@@ -33,25 +34,27 @@ import scala.io.Source
  *   Into[List[Int], Set[Long]].into(List(1, 2, 2, 3))
  *   // Right(HashSet(1, 2, 3))
  * }}}
+ *
+ * Multiple expressions in one call:
+ * {{{
+ *   show(
+ *     isPrimitive(TypeId.of[Int]),
+ *     isPrimitive(TypeId.of[String])
+ *   )
+ *   // isPrimitive(TypeId.of[Int])
+ *   // true
+ *   // isPrimitive(TypeId.of[String])
+ *   // false
+ * }}}
  */
 object ShowExpr {
 
-  def show[A](expr: Text[A])(implicit file: File, line: Line): Unit = {
+  def show(exprs: Text[?]*)(implicit file: File, line: Line): Unit = {
+    if (exprs.isEmpty) return
     commentsAbove(file.value, line.value).foreach(println)
-    println(expr.source)
-    val it = expr.value.toString.linesIterator
-    if (it.hasNext) {
-      val first = it.next()
-      if (!it.hasNext) {
-        // Single-line result
-        println(s"// $first")
-      } else {
-        // Multi-line result
-        println(s"// $first")
-        while (it.hasNext) {
-          println(s"// ${it.next()}")
-        }
-      }
+    exprs.foreach { expr =>
+      println(expr.source)
+      expr.value.toString.linesIterator.foreach(l => println(s"// $l"))
     }
     println()
   }

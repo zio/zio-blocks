@@ -1,6 +1,6 @@
 package typeid
 
-import zio.blocks.typeid._
+import zio.blocks.typeid.*
 import util.ShowExpr.show
 
 /**
@@ -93,4 +93,144 @@ object TypeIdBasicExample extends App {
   show(personIdImplicit.name)
 
   println("\n═══════════════════════════════════════════════════════════════")
+
+  show(
+    TypeId.of[scala.util.Either].isSum
+  )
+
+  show(
+    TypeId.of[Option[String]].isOption
+  )
+  show(
+    TypeId.of[Either[String, Int]].isEither
+  )
+
+  show(
+    TypeId.of[Option[String]].isSum
+  )
+
+  show(
+    TypeId.of[Either[String, Int]].isSum
+  )
+
+
+  show(
+    TypeId.of[(Int, String)].isProduct
+  )
+
+  show(
+    TypeId.of[Tuple2[Int, String]].isProduct
+  )
+
+  show(
+    TypeId.of[Product2[Int, String]].isProduct
+  )
+
+  show(
+    TypeId.of[(Int, String, Boolean)].isTuple
+  )
+
+
+  import zio.blocks.typeid._
+
+  sealed trait Animal
+
+  sealed trait Mammal extends Animal
+
+  case class Dog(name: String) extends Mammal
+
+  case class Cat(name: String) extends Mammal
+
+  case class Fish(species: String) extends Animal
+
+
+  val dogId = TypeId.of[Dog]
+  val mammalId = TypeId.of[Mammal]
+  val animalId = TypeId.of[Animal]
+  val fishId = TypeId.of[Fish]
+
+  // Direct inheritance: Dog extends Mammal
+  dogId.isSubtypeOf(mammalId)
+
+  // Transitive inheritance: Dog extends Mammal extends Animal
+  dogId.isSubtypeOf(animalId)
+
+  // Not a subtype relationship
+  dogId.isSubtypeOf(fishId)
+  fishId.isSubtypeOf(mammalId)
+
+  TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Mammal]])
+  TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
+
+
+  show(
+    TypeId.of[Mammal => String].isSupertypeOf(TypeId.of[Dog => String])
+  )
+
+
+
+  // A generic parent type with concrete type arguments
+  case class StringList() extends scala.collection.mutable.ListBuffer[String]
+
+  // A type with multiple generic parents
+  case class Entry[K, V](key: K, value: V) extends scala.collection.Map[K, V] {
+    def iterator = Iterator((key, value))
+
+    def get(k: K) = if (k == key) Some(value) else None
+
+    override def -(key: K): collection.Map[K, V] = ???
+
+    override def -(key1: K, key2: K, keys: K*): collection.Map[K, V] = ???
+  }
+
+
+  val stringListId = TypeId.of[StringList]
+  // StringList extends ListBuffer[String] - the type argument is captured
+  show(
+    stringListId.parents
+  )
+
+  val entryId = TypeId.of[Entry[String, Int]]
+  // Entry[String, Int] extends Map[String, Int] - type arguments are preserved
+
+  show(
+    entryId.parents
+  )
+
+
+  import zio.blocks.typeid._
+
+  // A trait can extend multiple traits
+  trait Swimmer {
+    def swim(): Unit = ()
+  }
+
+  trait Flyer {
+    def fly(): Unit = ()
+  }
+
+  trait Duck extends Swimmer with Flyer
+
+  // A case class can extend a trait
+  case class MallardDuck() extends Duck
+
+
+  show(
+    TypeId.of[MallardDuck].parents
+  )
+
+
+  def isPrimitive(id: TypeId[?]): Boolean =
+    id.classTag != scala.reflect.ClassTag.AnyRef
+
+
+  show {
+    isPrimitive(TypeId.of[Int])
+    isPrimitive(TypeId.of[Double])
+    isPrimitive(TypeId.of[Boolean])
+    isPrimitive(TypeId.of[String])
+    isPrimitive(TypeId.of[List[Int]])
+  }
+
+
 }
