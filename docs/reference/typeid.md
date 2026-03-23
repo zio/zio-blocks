@@ -1215,24 +1215,30 @@ TypeId.of[String].classTag
 TypeId.of[List[Int]].classTag
 ```
 
-A typical use case is supplying `ClassTag` evidence in generic code that works with erased types. For example, filtering a heterogeneous list by a type known only at the call site:
+A typical use case is creating correctly-typed arrays for primitive types. Because `classTag` returns the real primitive `ClassTag` (not a boxed one), the resulting array uses the primitive JVM representation rather than an object array:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 import scala.reflect.ClassTag
 
-def filterByType[T](items: List[Any], id: TypeId[T]): List[T] = {
-  implicit val ct: ClassTag[T] = id.classTag.asInstanceOf[ClassTag[T]]
-  items.collect { case t: T => t }
-}
+def newArray(id: TypeId[?], size: Int): AnyRef =
+  id.classTag.newArray(size)
 ```
 
 ```scala mdoc
-val mixed: List[Any] = List(1, "hello", 2, "world", true)
+// Creates a primitive int[] on the JVM, not an Integer[]
+newArray(TypeId.of[Int], 3)
 
-filterByType(mixed, TypeId.of[Int])
-filterByType(mixed, TypeId.of[String])
+// Creates a primitive boolean[]
+newArray(TypeId.of[Boolean], 3)
+
+// Reference types produce an AnyRef array
+newArray(TypeId.of[String], 3)
 ```
+
+:::note
+`classTag` returns `ClassTag.AnyRef` for all reference types, including `String`, `List`, and case classes. It only returns a distinct `ClassTag` for Scala primitive types (`Int`, `Long`, `Double`, etc.). For filtering or matching by a specific reference type at runtime, use `clazz` instead.
+:::
 
 #### `clazz` — Runtime Class
 
