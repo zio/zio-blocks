@@ -19,7 +19,7 @@ abstract class Codec[DecodeInput, EncodeOutput, Value] {
 - **`encode`** writes the encoded form of `value` into `output`. The output parameter is typically a mutable buffer (`ByteBuffer`, `CharBuffer`) that the caller provides.
 - **`decode`** reads from `input` and returns either a `SchemaError` describing the failure or the decoded value.
 
-End users rarely interact with `Codec` directly. Instead, they work with format-specific subclasses like `JsonBinaryCodec[A]` or `ToonBinaryCodec[A]`, which add convenience methods for common input/output types.
+End users rarely interact with `Codec` directly. Instead, they work with format-specific subclasses like `JsonCodec[A]` or `ToonBinaryCodec[A]`, which add convenience methods for common input/output types.
 
 Given a `Schema[A]`, you can derive a codec for any supported format by calling `Schema[A].derive(format)`, which uses the `Deriver` associated with that format to generate the appropriate codec instance. For example, to derive a JSON codec:
 
@@ -33,7 +33,7 @@ object Person {
   // Derive a schema for Person (required for codec derivation)
   implicit val schema: Schema[Person] = Schema.derived
    // Derive a JSON codec from the schema
-   implicit val codec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+   implicit val codec: JsonCodec[Person] = schema.derive(JsonFormat)
 }
 
 // Encode
@@ -76,7 +76,7 @@ The codec system in ZIO Blocks is organized as a layered hierarchy:
 ```
 Codec[DecodeInput, EncodeOutput, Value]        
 ├── BinaryCodec[A] =  Codec[ByteBuffer, ByteBuffer, A]   (ByteBuffer ↔ A)
-│   ├── JsonBinaryCodec[A]                    
+│   ├── JsonCodec[A]                    
 │   ├── AvroBinaryCodec[A]                   
 │   ├── ToonBinaryCodec[A]                  
 │   ├── ThriftBinaryCodec[A]               
@@ -116,7 +116,7 @@ object Person {
 }
 
 // Pass a Format object to get a codec for that format
-val jsonCodec: JsonBinaryCodec[Person] = Schema[Person].derive(JsonFormat)
+val jsonCodec: JsonCodec[Person] = Schema[Person].derive(JsonFormat)
 ```
 
 This works with any format:
@@ -151,12 +151,12 @@ object Person extends CompanionOptics[Person] {
 }
 
 // Override the codec for the "name" field
-val customNameCodec = new JsonBinaryCodec[String] {
+val customNameCodec = new JsonCodec[String] {
   def decodeValue(in: JsonReader): String = in.readString()
   def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x.toUpperCase)
 }
 
-val codec: JsonBinaryCodec[Person] = Schema[Person]
+val codec: JsonCodec[Person] = Schema[Person]
   .deriving(JsonFormat.deriver)
   .instance(Person.name, customNameCodec)
   .derive
@@ -207,11 +207,11 @@ Passing a `Deriver` directly is useful when working with custom or configured de
 
 ## Convenience Methods on Format-Specific Codecs
 
-While the base `Codec` class defines only `encode(value, output)` and `decode(input)`, format-specific subclasses like `JsonBinaryCodec` and `ToonBinaryCodec` add convenience overloads for common I/O types.
+While the base `Codec` class defines only `encode(value, output)` and `decode(input)`, format-specific subclasses like `JsonCodec` and `ToonBinaryCodec` add convenience overloads for common I/O types.
 
-### JsonBinaryCodec Convenience Methods
+### JsonCodec Convenience Methods
 
-`JsonBinaryCodec[A]` provides the following overloads beyond the base `ByteBuffer` API:
+`JsonCodec[A]` provides the following overloads beyond the base `ByteBuffer` API:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -307,7 +307,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val customDeriver = JsonBinaryCodecDeriver
+val customDeriver = JsonCodecDeriver
   .withFieldNameMapper(NameMapper.SnakeCase)
   .withTransientNone(true)
   .withRejectExtraFields(true)

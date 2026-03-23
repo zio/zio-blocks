@@ -1,11 +1,27 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverVersionSpecificSpec")(
+object JsonCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
+  def spec: Spec[TestEnvironment, Any] = suite("JsonCodecDeriverVersionSpecificSpec")(
     suite("records")(
       test("generic tuples") {
         type GenericTuple4 = Byte *: Short *: Int *: Long *: EmptyTuple
@@ -64,7 +80,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
 
         val codec = Schema
           .derived[LinkedList[Double]]
-          .derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+          .derive(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
         roundTrip(Node(1.0, Node(2.0, End)), """{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", codec)
       },
       test("union type with key discriminator") {
@@ -82,7 +98,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
       test("union type without discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int] | Unit
 
-        val codec = Schema.derived[Value].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        val codec = Schema.derived[Value].derive(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
         roundTrip(1, "1", codec) &&
         roundTrip(true, "true", codec) &&
         roundTrip("VVV", """"VVV"""", codec) &&
@@ -102,7 +118,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
 
         case class Case2(value: Map[Int, Long]) extends Base
 
-        val codec = Schema.derived[Base].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        val codec = Schema.derived[Base].derive(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
         roundTrip(Case1(1), """{"value":1}""", codec) &&
         roundTrip(Case1(true), """{"value":true}""", codec) &&
         roundTrip(Case1("VVV"), """{"value":"VVV"}""", codec) &&

@@ -536,7 +536,7 @@ val protoCodec: BinaryCodec[Person] = ProtobufCodec.protobufCodec(Person.schema)
 // ZIO Blocks Schema — all codecs via schema.derive(Format); return type inferred
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonFormat
-val jsonCodec = Person.schema.derive(JsonFormat)   // inferred: JsonBinaryCodec[Person]
+val jsonCodec = Person.schema.derive(JsonFormat)   // inferred: JsonCodec[Person]
 
 import zio.blocks.schema.avro.AvroFormat
 val avroCodec = Person.schema.derive(AvroFormat)
@@ -593,7 +593,7 @@ val codec = JsonCodec.jsonCodec(Person.schema)  // returns zio.json.JsonCodec
 
 // ZIO Blocks Schema — built into zio-blocks-schema; no extra dependency
 import zio.blocks.schema.json.JsonFormat
-val codec = Person.schema.derive(JsonFormat)  // returns JsonBinaryCodec[Person]
+val codec = Person.schema.derive(JsonFormat)  // returns JsonCodec[Person]
 ```
 
 ### Streaming Codecs

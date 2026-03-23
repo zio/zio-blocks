@@ -1,5 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.test._
 
@@ -79,7 +96,7 @@ object JsonMatchSpec extends SchemaBaseSpec {
         assertTrue(JsonMatch.matches(SchemaRepr.Primitive("bigdecimal"), Json.Number(3.14159)))
       },
       test("Primitive(unit) matches Json.Null") {
-        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("unit"), Json.Null))
+        assertTrue(JsonMatch.matches(SchemaRepr.Primitive("unit"), Json.Object.empty))
       },
       test("Primitive(short) rejects non-number values") {
         assertTrue(
@@ -96,13 +113,13 @@ object JsonMatchSpec extends SchemaBaseSpec {
     ),
     suite("Record matching")(
       test("Record with single field matches object with that field") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val json    = Json.Object("name" -> Json.String("Alice"))
         assertTrue(JsonMatch.matches(pattern, json))
       },
       test("Record with multiple fields matches object with those fields") {
         val pattern = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -111,36 +128,36 @@ object JsonMatchSpec extends SchemaBaseSpec {
         assertTrue(JsonMatch.matches(pattern, json))
       },
       test("Record pattern allows extra fields in object") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val json    = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30), "active" -> Json.Boolean(true))
         assertTrue(JsonMatch.matches(pattern, json))
       },
       test("Record rejects object missing required field") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val json    = Json.Object("age" -> Json.Number(30))
         assertTrue(!JsonMatch.matches(pattern, json))
       },
       test("Record rejects object with field of wrong type") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         val json    = Json.Object("name" -> Json.Number(42))
         assertTrue(!JsonMatch.matches(pattern, json))
       },
       test("Record rejects non-object values") {
-        val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+        val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         assertTrue(
           !JsonMatch.matches(pattern, Json.String("test")),
           !JsonMatch.matches(pattern, Json.Array.empty)
         )
       },
       test("Empty Record matches any object") {
-        val pattern = SchemaRepr.Record(Vector.empty)
+        val pattern = SchemaRepr.Record(Chunk.empty)
         assertTrue(
           JsonMatch.matches(pattern, Json.Object.empty),
           JsonMatch.matches(pattern, Json.Object("x" -> Json.Number(1)))
         )
       },
       test("Empty Record does not match non-object types") {
-        val pattern = SchemaRepr.Record(Vector.empty)
+        val pattern = SchemaRepr.Record(Chunk.empty)
         assertTrue(
           !JsonMatch.matches(pattern, Json.Array.empty),
           !JsonMatch.matches(pattern, Json.String("test")),
@@ -218,7 +235,7 @@ object JsonMatchSpec extends SchemaBaseSpec {
         assertTrue(!JsonMatch.matches(pattern, json))
       },
       test("Map with Record key pattern rejects objects") {
-        val pattern = SchemaRepr.Map(SchemaRepr.Record(Vector.empty), SchemaRepr.Primitive("int"))
+        val pattern = SchemaRepr.Map(SchemaRepr.Record(Chunk.empty), SchemaRepr.Primitive("int"))
         val json    = Json.Object("a" -> Json.Number(1))
         assertTrue(!JsonMatch.matches(pattern, json))
       },
@@ -270,7 +287,7 @@ object JsonMatchSpec extends SchemaBaseSpec {
     suite("Variant matching")(
       test("Variant always returns false since JSON has no tagged variants") {
         val pattern = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -286,8 +303,8 @@ object JsonMatchSpec extends SchemaBaseSpec {
     suite("Nested patterns")(
       test("Nested Record in Record") {
         val pattern = SchemaRepr.Record(
-          Vector(
-            "person" -> SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+          Chunk(
+            "person" -> SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
           )
         )
         val json = Json.Object("person" -> Json.Object("name" -> Json.String("Alice")))
@@ -295,7 +312,7 @@ object JsonMatchSpec extends SchemaBaseSpec {
       },
       test("Sequence of Records") {
         val pattern = SchemaRepr.Sequence(
-          SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+          SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
         )
         val json = Json.Array(
           Json.Object("name" -> Json.String("Alice")),

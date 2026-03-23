@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
@@ -62,7 +78,7 @@ object PathParserSpec extends SchemaBaseSpec {
           parse("""{"a","b"}""") == Right(
             Chunk(
               Node.AtMapKeys(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
                   DynamicValue.Primitive(PrimitiveValue.String("b"))
                 )
@@ -534,7 +550,7 @@ object PathParserSpec extends SchemaBaseSpec {
           parse("""{ "a" , "b" }""") == Right(
             Chunk(
               Node.AtMapKeys(
-                Vector(
+                Chunk(
                   DynamicValue.Primitive(PrimitiveValue.String("a")),
                   DynamicValue.Primitive(PrimitiveValue.String("b"))
                 )
@@ -563,7 +579,7 @@ object PathParserSpec extends SchemaBaseSpec {
       test("record with single field") {
         assertTrue(
           parse("#record { name: string }") == Right(
-            Chunk(Node.SchemaSearch(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))))
+            Chunk(Node.SchemaSearch(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))))
           )
         )
       },
@@ -573,7 +589,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector(
+                  Chunk(
                     "name" -> SchemaRepr.Primitive("string"),
                     "age"  -> SchemaRepr.Primitive("int")
                   )
@@ -589,7 +605,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Variant(
-                  Vector(
+                  Chunk(
                     "Left"  -> SchemaRepr.Primitive("int"),
                     "Right" -> SchemaRepr.Primitive("string")
                   )
@@ -628,7 +644,7 @@ object PathParserSpec extends SchemaBaseSpec {
             Chunk(
               Node.SchemaSearch(
                 SchemaRepr.Record(
-                  Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+                  Chunk("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
                 )
               )
             )

@@ -17,7 +17,7 @@
 package schemaerror
 
 import zio.blocks.schema._
-import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
+import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
 
 /**
  * SchemaError — Schema#transform with validation
@@ -59,8 +59,8 @@ object SchemaErrorExample extends App {
 
   case class ShoppingCart(items: List[Product])
   object ShoppingCart {
-    implicit val schema: Schema[ShoppingCart]         = Schema.derived[ShoppingCart]
-    implicit val codec: JsonBinaryCodec[ShoppingCart] = schema.derive(JsonBinaryCodecDeriver)
+    implicit val schema: Schema[ShoppingCart]   = Schema.derived[ShoppingCart]
+    implicit val codec: JsonCodec[ShoppingCart] = schema.derive(JsonCodecDeriver)
   }
 
   /** A product type combining both validated wrappers. */

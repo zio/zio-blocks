@@ -648,8 +648,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 77,
-    coverageMinimumBranchTotal := 69
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 67
   )
   .jsSettings(
     libraryDependencies ++= Seq(

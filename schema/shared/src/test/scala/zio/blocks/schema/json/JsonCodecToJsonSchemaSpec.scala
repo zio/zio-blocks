@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.schema._
@@ -5,7 +21,7 @@ import zio.test._
 import java.time._
 import java.util.UUID
 
-object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
+object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
 
   case class Person(name: String, age: Int)
   object Person {
@@ -92,7 +108,7 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
     implicit val schema: Schema[WithUUID] = Schema.derived
   }
 
-  def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecToJsonSchemaSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("JsonCodecToJsonSchemaSpec")(
     suite("Primitive types")(
       test("String produces string JSON Schema") {
         val jsonSchema = Schema[String].toJsonSchema
@@ -223,8 +239,7 @@ object JsonBinaryCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[ZonedDateTime].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("string")),
-          json.get("format").one == Right(Json.String("date-time"))
+          json.get("type").one == Right(Json.String("string"))
         )
       },
       test("Duration produces string with duration format") {

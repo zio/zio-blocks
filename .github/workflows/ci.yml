@@ -54,14 +54,14 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Action
-        uses: coursier/setup-action@v2
+        uses: coursier/setup-action@v3
         with:
           jvm: temurin:17
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Lint code
-        run: sbt "++2.13; check; ++3.7; check"
+        run: sbt "++2.13; check; headerCheckAll; ++3.7; check; headerCheckAll"
 
   testJVM:
     runs-on: ubuntu-latest
@@ -82,7 +82,7 @@ jobs:
         run: echo "JAVA_TOOL_OPTIONS=-XX:+UseCompactObjectHeaders" >> $GITHUB_ENV
         shell: bash
       - name: Setup Action
-        uses: coursier/setup-action@v2
+        uses: coursier/setup-action@v3
         with:
           jvm: temurin:${{ matrix.java }}
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
@@ -121,7 +121,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Action
-        uses: coursier/setup-action@v2
+        uses: coursier/setup-action@v3
         with:
           jvm: temurin:${{ matrix.java }}
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
@@ -159,7 +159,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Action
-        uses: coursier/setup-action@v2
+        uses: coursier/setup-action@v3
         with:
           jvm: temurin:17
           apps: sbt

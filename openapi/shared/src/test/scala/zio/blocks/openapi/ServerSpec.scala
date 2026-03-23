@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.openapi
 
 import zio.blocks.chunk.{Chunk, ChunkMap}
@@ -12,7 +28,6 @@ object ServerSpec extends SchemaBaseSpec {
     suite("Server")(
       test("can be constructed with required fields only") {
         val server = Server(url = "https://api.example.com")
-
         assertTrue(
           server.url == "https://api.example.com",
           server.description.isEmpty,
@@ -21,24 +36,21 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val variable = ServerVariable(
-          default = "v1",
-          `enum` = Chunk("v1", "v2"),
-          description = Some(doc("API version"))
-        )
-        val variables   = ChunkMap("version" -> variable)
-        val extensions  = ChunkMap("x-custom" -> Json.String("value"))
-        val description = doc("Production API server")
-        val server      = Server(
+        val server = Server(
           url = "https://api.example.com/{version}",
-          description = Some(description),
-          variables = variables,
-          extensions = extensions
+          description = Some(doc("Production API server")),
+          variables = ChunkMap(
+            "version" -> ServerVariable(
+              default = "v1",
+              `enum` = Chunk("v1", "v2"),
+              description = Some(doc("API version"))
+            )
+          ),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           server.url == "https://api.example.com/{version}",
-          server.description.contains(description),
+          server.description.contains(doc("Production API server")),
           server.variables.size == 1,
           server.variables.contains("version"),
           server.extensions.size == 1,
@@ -46,12 +58,13 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-internal"   -> Json.Boolean(true),
-          "x-rate-limit" -> Json.Number(1000)
+        val server = Server(
+          url = "https://api.example.com",
+          extensions = ChunkMap(
+            "x-internal"   -> Json.Boolean(true),
+            "x-rate-limit" -> Json.Number(1000)
+          )
         )
-        val server = Server(url = "https://api.example.com", extensions = extensions)
-
         assertTrue(
           server.extensions.size == 2,
           server.extensions.get("x-internal").contains(Json.Boolean(true)),
@@ -61,25 +74,22 @@ object ServerSpec extends SchemaBaseSpec {
       test("Schema[Server] can be derived") {
         val server = Server(url = "https://api.example.com")
         val schema = Schema[Server]
-
         assertTrue(schema != null, server != null)
       },
       test("Server round-trips through DynamicValue") {
-        val variable = ServerVariable(
-          default = "prod",
-          `enum` = Chunk("dev", "staging", "prod"),
-          description = Some(doc("Environment"))
-        )
         val server = Server(
           url = "https://{environment}.api.example.com",
           description = Some(doc("Multi-environment server")),
-          variables = ChunkMap("environment" -> variable),
+          variables = ChunkMap(
+            "environment" -> ServerVariable(
+              default = "prod",
+              `enum` = Chunk("dev", "staging", "prod"),
+              description = Some(doc("Environment"))
+            )
+          ),
           extensions = ChunkMap("x-region" -> Json.String("us-east-1"))
         )
-
-        val dv     = Schema[Server].toDynamicValue(server)
-        val result = Schema[Server].fromDynamicValue(dv)
-
+        val result = Schema[Server].fromDynamicValue(Schema[Server].toDynamicValue(server))
         assertTrue(
           result.isRight,
           result.exists(_.url == "https://{environment}.api.example.com"),
@@ -89,13 +99,13 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("Server with URL template variables") {
-        val portVar    = ServerVariable(default = "443", `enum` = Chunk("443", "8443"))
-        val versionVar = ServerVariable(default = "v1", `enum` = Chunk("v1", "v2", "v3"))
-        val server     = Server(
+        val server = Server(
           url = "https://api.example.com:{port}/{version}",
-          variables = ChunkMap("port" -> portVar, "version" -> versionVar)
+          variables = ChunkMap(
+            "port"    -> ServerVariable(default = "443", `enum` = Chunk("443", "8443")),
+            "version" -> ServerVariable(default = "v1", `enum` = Chunk("v1", "v2", "v3"))
+          )
         )
-
         assertTrue(
           server.url == "https://api.example.com:{port}/{version}",
           server.variables.size == 2,
@@ -107,7 +117,6 @@ object ServerSpec extends SchemaBaseSpec {
     suite("ServerVariable")(
       test("can be constructed with required fields only") {
         val variable = ServerVariable(default = "production")
-
         assertTrue(
           variable.default == "production",
           variable.`enum`.isEmpty,
@@ -116,18 +125,15 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val enumValues = Chunk("dev", "staging", "production")
-        val extensions = ChunkMap("x-priority" -> Json.Number(1))
-        val variable   = ServerVariable(
+        val variable = ServerVariable(
           default = "production",
-          `enum` = enumValues,
+          `enum` = Chunk("dev", "staging", "production"),
           description = Some(doc("Deployment environment")),
-          extensions = extensions
+          extensions = ChunkMap("x-priority" -> Json.Number(1))
         )
-
         assertTrue(
           variable.default == "production",
-          variable.`enum` == enumValues,
+          variable.`enum` == Chunk("dev", "staging", "production"),
           variable.description.contains(doc("Deployment environment")),
           variable.extensions.size == 1,
           variable.extensions.get("x-priority").contains(Json.Number(1))
@@ -135,7 +141,6 @@ object ServerSpec extends SchemaBaseSpec {
       },
       test("enum field uses backticks (reserved keyword)") {
         val variable = ServerVariable(default = "v1", `enum` = Chunk("v1", "v2"))
-
         assertTrue(
           variable.`enum` == Chunk("v1", "v2"),
           variable.`enum`.contains("v1"),
@@ -143,28 +148,31 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("validates that default is in enum when enum is non-empty") {
-        val validResult = ServerVariable.validated(
-          default = "v1",
-          `enum` = Chunk("v1", "v2", "v3")
-        )
-        val invalidResult = ServerVariable.validated(
-          default = "v4",
-          `enum` = Chunk("v1", "v2", "v3")
-        )
-
+        val validResult = util
+          .Try(
+            ServerVariable(
+              default = "v1",
+              `enum` = Chunk("v1", "v2", "v3")
+            )
+          )
+          .toEither
+        val invalidResult = util
+          .Try(
+            ServerVariable(
+              default = "v4",
+              `enum` = Chunk("v1", "v2", "v3")
+            )
+          )
+          .toEither
         assertTrue(
           validResult.isRight,
           validResult.exists(_.default == "v1"),
           invalidResult.isLeft,
-          invalidResult.left.exists(_.contains("default"))
+          invalidResult.left.exists(_.getMessage.contains("default"))
         )
       },
       test("validation allows any default when enum is empty") {
-        val result = ServerVariable.validated(
-          default = "any-value",
-          `enum` = Chunk.empty
-        )
-
+        val result = util.Try(ServerVariable(default = "any-value", `enum` = Chunk.empty)).toEither
         assertTrue(
           result.isRight,
           result.exists(_.default == "any-value"),
@@ -172,13 +180,16 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("validation works with description and extensions") {
-        val result = ServerVariable.validated(
-          default = "prod",
-          `enum` = Chunk("dev", "prod"),
-          description = Some(doc("Environment")),
-          extensions = ChunkMap("x-custom" -> Json.String("value"))
-        )
-
+        val result = util
+          .Try(
+            ServerVariable(
+              default = "prod",
+              `enum` = Chunk("dev", "prod"),
+              description = Some(doc("Environment")),
+              extensions = ChunkMap("x-custom" -> Json.String("value"))
+            )
+          )
+          .toEither
         assertTrue(
           result.isRight,
           result.exists(_.description.contains(doc("Environment"))),
@@ -186,12 +197,13 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-example"    -> Json.String("example-value"),
-          "x-deprecated" -> Json.Boolean(false)
+        val variable = ServerVariable(
+          default = "default",
+          extensions = ChunkMap(
+            "x-example"    -> Json.String("example-value"),
+            "x-deprecated" -> Json.Boolean(false)
+          )
         )
-        val variable = ServerVariable(default = "default", extensions = extensions)
-
         assertTrue(
           variable.extensions.size == 2,
           variable.extensions.get("x-example").contains(Json.String("example-value")),
@@ -201,7 +213,6 @@ object ServerSpec extends SchemaBaseSpec {
       test("Schema[ServerVariable] can be derived") {
         val variable = ServerVariable(default = "v1")
         val schema   = Schema[ServerVariable]
-
         assertTrue(schema != null, variable != null)
       },
       test("ServerVariable round-trips through DynamicValue") {
@@ -211,10 +222,7 @@ object ServerSpec extends SchemaBaseSpec {
           description = Some(doc("HTTPS port")),
           extensions = ChunkMap("x-secure" -> Json.Boolean(true))
         )
-
-        val dv     = Schema[ServerVariable].toDynamicValue(variable)
-        val result = Schema[ServerVariable].fromDynamicValue(dv)
-
+        val result = Schema[ServerVariable].fromDynamicValue(Schema[ServerVariable].toDynamicValue(variable))
         assertTrue(
           result.isRight,
           result.exists(_.default == "8443"),
@@ -224,11 +232,7 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("ServerVariable with numeric-like string values") {
-        val variable = ServerVariable(
-          default = "443",
-          `enum` = Chunk("80", "443", "8080", "8443")
-        )
-
+        val variable = ServerVariable(default = "443", `enum` = Chunk("80", "443", "8080", "8443"))
         assertTrue(
           variable.default == "443",
           variable.`enum`.length == 4,
@@ -241,7 +245,6 @@ object ServerSpec extends SchemaBaseSpec {
           `enum` = Chunk("v1", "v2", "beta"),
           description = Some(doc("API version path segment"))
         )
-
         assertTrue(
           variable.default == "v1",
           variable.`enum` == Chunk("v1", "v2", "beta"),
@@ -249,7 +252,7 @@ object ServerSpec extends SchemaBaseSpec {
         )
       },
       test("validated with only default parameter uses default enum") {
-        val result = ServerVariable.validated(default = "value")
+        val result = util.Try(ServerVariable(default = "value")).toEither
         assertTrue(
           result.isRight,
           result.exists(_.default == "value"),

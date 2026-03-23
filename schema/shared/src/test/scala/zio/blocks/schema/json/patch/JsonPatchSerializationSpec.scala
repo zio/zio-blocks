@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json.patch
 
 import zio.blocks.chunk.Chunk
@@ -360,7 +376,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       // Verify roundtrip works for complex nested structure
       import zio.blocks.schema.json._
       val schema  = Schema[JsonPatch]
-      val codec   = schema.derive(JsonBinaryCodecDeriver)
+      val codec   = schema.derive(JsonCodecDeriver)
       val encoded = codec.encode(patch, WriterConfig)
       val decoded = codec.decode(encoded, ReaderConfig)
       assertTrue(decoded == Right(patch))
@@ -411,7 +427,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
 
       // Step 2: Serialize the patch to JSON bytes
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val patchBytes  = patchCodec.encode(patch, WriterConfig)
 
       // Step 3: Deserialize the patch from JSON bytes
@@ -500,7 +516,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
 
       // Serialize and deserialize
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val encoded     = patchCodec.encode(complexPatch, WriterConfig)
       val decoded     = patchCodec.decode(encoded, ReaderConfig)
 
@@ -522,7 +538,7 @@ object JsonPatchSerializationSpec extends SchemaBaseSpec {
       )
 
       val patchSchema = Schema[JsonPatch]
-      val patchCodec  = patchSchema.derive(JsonBinaryCodecDeriver)
+      val patchCodec  = patchSchema.derive(JsonCodecDeriver)
       val jsonString  = patchCodec.encodeToString(patch, WriterConfig)
 
       // Verify it's valid JSON that can be parsed back

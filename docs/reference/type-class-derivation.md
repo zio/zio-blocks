@@ -15,7 +15,7 @@ Consider a typical application with 50 domain types that needs 4 type classes (J
 
 Each instance requires understanding both the type's structure and the type class's semantics, then correctly implementing encoding, decoding, or whatever operation is required. This quickly becomes unmanageable as the codebase grows.
 
-Assume we have a simple `JsonCodec` type class for JSON serialization and deserialization:
+Assume we have a simple `JsonTC` type class for JSON serialization and deserialization:
 
 ```scala mdoc:silent
 import zio.blocks.schema.json._
@@ -28,7 +28,7 @@ case class ParseError(details: String)
 case class DecodeError(details: String, path: String) 
   extends JsonError(s"Decode Error at '$path': $details")
 
-trait JsonCodec[A] {
+trait JsonTC[A] {
   def encode(a: A): Json
   def decode(j: Json): Either[JsonError, A]
 }
@@ -40,8 +40,8 @@ A single manual codec for a simple type like `Person` looks like the following c
 case class Person(name: String, age: Int)
 
 object Person {
-  implicit val personCodec: JsonCodec[Person] =
-    new JsonCodec[Person] {
+  implicit val personCodec: JsonTC[Person] =
+    new JsonTC[Person] {
       def encode(c: Person): Json = Json.obj(
         "name" -> Json.str(c.name),
         "age"  -> Json.number(c.age)
@@ -132,11 +132,11 @@ case class Schema[A](reflect: Reflect.Bound[A]) {
 }
 ```
 
-It takes a `Deriver[TC]` as a parameter and returns a type class instance of type `TC[A]`. For example, in the following code snippet, we derive a `JsonBinaryCodec[Person]` instance for the `Person` case class using the `JsonBinaryCodecDeriver`:
+It takes a `Deriver[TC]` as a parameter and returns a type class instance of type `TC[A]`. For example, in the following code snippet, we derive a `JsonCodec[Person]` instance for the `Person` case class using the `JsonCodecDeriver`:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
-import zio.blocks.schema.json.JsonBinaryCodecDeriver
+import zio.blocks.schema.json.JsonCodecDeriver
 
 case class Person(name: String, age: Int)
 
@@ -144,8 +144,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived[Person]
 }
 
-val jsonCodec: JsonBinaryCodec[Person] =
-  Person.schema.derive(JsonBinaryCodecDeriver)
+val jsonCodec: JsonCodec[Person] = Person.schema.derive(JsonCodecDeriver)
 
 val result: Either[SchemaError, Person] = 
   jsonCodec.decode(
@@ -1780,8 +1779,8 @@ object User extends CompanionOptics[User] {
 Now we can derive a JSON codec with custom modifiers, renaming fields and marking one as transient, without changing the schema itself:
 
 ```scala mdoc:silent:nest
-val jsonCodec: JsonBinaryCodec[User] = User.schema
-  .deriving(JsonBinaryCodecDeriver)
+val jsonCodec: JsonCodec[User] = User.schema
+  .deriving(JsonCodecDeriver)
   .modifier(User.name, Modifier.rename("full_name"))
   .modifier(User.email, Modifier.alias("mail"))
   .modifier(User.internalScore, Modifier.transient())
@@ -1803,8 +1802,8 @@ new String(jsonCodec.encode(user), "UTF-8")
 The `modifier` method with `TypeId` allows you to add a `Modifier.Reflect` to all schema nodes of a given type. This is useful for attaching format-specific configuration metadata to all occurrences of a type:
 
 ```scala mdoc:silent:nest
-val jsonCodec: JsonBinaryCodec[User] = User.schema
-  .deriving(JsonBinaryCodecDeriver)
+val jsonCodec: JsonCodec[User] = User.schema
+  .deriving(JsonCodecDeriver)
   .modifier(TypeId.of[User], Modifier.config("json", "camelCase"))
   .modifier(User.internalScore, Modifier.transient())
   .derive
@@ -1815,8 +1814,8 @@ val jsonCodec: JsonBinaryCodec[User] = User.schema
 The `modifier` method with `TypeId` and `termName` allows you to add a `Modifier.Term` to a specific field or case identified by name inside a parent type identified by its `TypeId`. This is useful when you want to target a specific term without constructing an optic for it. The `typeId` refers to the parent record/variant type that owns the term. If no term with the given name exists in the parent type, the modifier is silently ignored:
 
 ```scala mdoc:silent:nest
-val jsonCodec: JsonBinaryCodec[User] = User.schema
-  .deriving(JsonBinaryCodecDeriver)
+val jsonCodec: JsonCodec[User] = User.schema
+  .deriving(JsonCodecDeriver)
   .modifier(User.schema.reflect.typeId, "name", Modifier.rename("full_name"))
   .modifier(User.schema.reflect.typeId, "internalScore", Modifier.transient())
   .derive

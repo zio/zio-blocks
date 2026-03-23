@@ -22,7 +22,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
-import zio.blocks.schema.json.{Json, JsonBinaryCodec}
+import zio.blocks.schema.json.{Json, JsonCodec}
 import zio.blocks.typeid.TypeId
 import java.time._
 import java.util.{Currency, UUID}
@@ -760,7 +760,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     case _ => new Left(XmlError.parseError("Expected <value> element", 0, 0))
   }
 
-  private[this] def decodeText[A](xml: Xml, codec: JsonBinaryCodec[A]): Either[XmlError, A] = xml match {
+  private[this] def decodeText[A](xml: Xml, codec: JsonCodec[A]): Either[XmlError, A] = xml match {
     case e: Xml.Element if e.name.localName == "value" =>
       e.children.headOption match {
         case Some(t: Xml.Text) =>

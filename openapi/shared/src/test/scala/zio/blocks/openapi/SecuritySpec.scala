@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.openapi
 
 import zio.blocks.chunk.{Chunk, ChunkMap}
@@ -12,30 +28,23 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("APIKeyLocation")(
       test("Query location can be constructed") {
         val location = APIKeyLocation.Query
-
         assertTrue(location == APIKeyLocation.Query)
       },
       test("Header location can be constructed") {
         val location = APIKeyLocation.Header
-
         assertTrue(location == APIKeyLocation.Header)
       },
       test("Cookie location can be constructed") {
         val location = APIKeyLocation.Cookie
-
         assertTrue(location == APIKeyLocation.Cookie)
       },
       test("Schema[APIKeyLocation] can be derived") {
         val schema = Schema[APIKeyLocation]
-
         assertTrue(schema != null)
       },
       test("APIKeyLocation round-trips through DynamicValue") {
         val location = APIKeyLocation.Header
-
-        val dv     = Schema[APIKeyLocation].toDynamicValue(location)
-        val result = Schema[APIKeyLocation].fromDynamicValue(dv)
-
+        val result   = Schema[APIKeyLocation].fromDynamicValue(Schema[APIKeyLocation].toDynamicValue(location))
         assertTrue(
           result.isRight,
           result.contains(APIKeyLocation.Header)
@@ -44,11 +53,7 @@ object SecuritySpec extends SchemaBaseSpec {
     ),
     suite("SecurityScheme.APIKey")(
       test("can be constructed with required fields") {
-        val apiKey = SecurityScheme.APIKey(
-          name = "api_key",
-          in = APIKeyLocation.Header
-        )
-
+        val apiKey = SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Header)
         assertTrue(
           apiKey.name == "api_key",
           apiKey.in == APIKeyLocation.Header,
@@ -57,14 +62,12 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-        val apiKey     = SecurityScheme.APIKey(
+        val apiKey = SecurityScheme.APIKey(
           name = "X-API-Key",
           in = APIKeyLocation.Header,
           description = Some(doc("API key authentication")),
-          extensions = extensions
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           apiKey.name == "X-API-Key",
           apiKey.in == APIKeyLocation.Header,
@@ -73,32 +76,19 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("supports query location") {
-        val apiKey = SecurityScheme.APIKey(
-          name = "api_key",
-          in = APIKeyLocation.Query
-        )
-
+        val apiKey = SecurityScheme.APIKey(name = "api_key", in = APIKeyLocation.Query)
         assertTrue(apiKey.in == APIKeyLocation.Query)
       },
       test("supports cookie location") {
-        val apiKey = SecurityScheme.APIKey(
-          name = "session",
-          in = APIKeyLocation.Cookie
-        )
-
+        val apiKey = SecurityScheme.APIKey(name = "session", in = APIKeyLocation.Cookie)
         assertTrue(apiKey.in == APIKeyLocation.Cookie)
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-internal"   -> Json.Boolean(true),
-          "x-rate-limit" -> Json.Number(1000)
-        )
         val apiKey = SecurityScheme.APIKey(
           name = "key",
           in = APIKeyLocation.Header,
-          extensions = extensions
+          extensions = ChunkMap("x-internal" -> Json.Boolean(true), "x-rate-limit" -> Json.Number(1000))
         )
-
         assertTrue(
           apiKey.extensions.size == 2,
           apiKey.extensions.get("x-internal").contains(Json.Boolean(true)),
@@ -112,10 +102,7 @@ object SecuritySpec extends SchemaBaseSpec {
           description = Some(doc("Test key")),
           extensions = ChunkMap("x-test" -> Json.String("value"))
         )
-
-        val dv     = Schema[SecurityScheme].toDynamicValue(apiKey)
-        val result = Schema[SecurityScheme].fromDynamicValue(dv)
-
+        val result = Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(apiKey))
         assertTrue(
           result.isRight,
           result.exists {
@@ -132,7 +119,6 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("SecurityScheme.HTTP")(
       test("can be constructed with required scheme field") {
         val http = SecurityScheme.HTTP(scheme = "bearer")
-
         assertTrue(
           http.scheme == "bearer",
           http.bearerFormat.isEmpty,
@@ -141,14 +127,12 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-        val http       = SecurityScheme.HTTP(
+        val http = SecurityScheme.HTTP(
           scheme = "bearer",
           bearerFormat = Some("JWT"),
           description = Some(doc("Bearer authentication using JWT")),
-          extensions = extensions
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           http.scheme == "bearer",
           http.bearerFormat.contains("JWT"),
@@ -158,24 +142,17 @@ object SecuritySpec extends SchemaBaseSpec {
       },
       test("supports basic auth scheme") {
         val http = SecurityScheme.HTTP(scheme = "basic")
-
         assertTrue(http.scheme == "basic")
       },
       test("supports custom auth schemes") {
         val http = SecurityScheme.HTTP(scheme = "digest")
-
         assertTrue(http.scheme == "digest")
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-token-type" -> Json.String("opaque"),
-          "x-version"    -> Json.Number(2)
-        )
         val http = SecurityScheme.HTTP(
           scheme = "bearer",
-          extensions = extensions
+          extensions = ChunkMap("x-token-type" -> Json.String("opaque"), "x-version" -> Json.Number(2))
         )
-
         assertTrue(
           http.extensions.size == 2,
           http.extensions.get("x-token-type").contains(Json.String("opaque")),
@@ -189,10 +166,7 @@ object SecuritySpec extends SchemaBaseSpec {
           description = Some(doc("Test auth")),
           extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
-
-        val dv     = Schema[SecurityScheme].toDynamicValue(http)
-        val result = Schema[SecurityScheme].fromDynamicValue(dv)
-
+        val result = Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(http))
         assertTrue(
           result.isRight,
           result.exists {
@@ -209,7 +183,6 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("OAuthFlow")(
       test("can be constructed with empty scopes") {
         val flow = OAuthFlow()
-
         assertTrue(
           flow.authorizationUrl.isEmpty,
           flow.tokenUrl.isEmpty,
@@ -219,20 +192,16 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val scopes = ChunkMap(
-          "read:users"  -> "Read user information",
-          "write:users" -> "Modify user information"
-        )
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-
         val flow = OAuthFlow(
           authorizationUrl = Some("https://example.com/oauth/authorize"),
           tokenUrl = Some("https://example.com/oauth/token"),
           refreshUrl = Some("https://example.com/oauth/refresh"),
-          scopes = scopes,
-          extensions = extensions
+          scopes = ChunkMap(
+            "read:users"  -> "Read user information",
+            "write:users" -> "Modify user information"
+          ),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           flow.authorizationUrl.contains("https://example.com/oauth/authorize"),
           flow.tokenUrl.contains("https://example.com/oauth/token"),
@@ -246,7 +215,6 @@ object SecuritySpec extends SchemaBaseSpec {
           authorizationUrl = Some("https://example.com/oauth/authorize"),
           scopes = ChunkMap("read" -> "Read access")
         )
-
         assertTrue(
           flow.authorizationUrl.isDefined,
           flow.tokenUrl.isEmpty
@@ -257,7 +225,6 @@ object SecuritySpec extends SchemaBaseSpec {
           tokenUrl = Some("https://example.com/oauth/token"),
           scopes = ChunkMap("read" -> "Read access")
         )
-
         assertTrue(
           flow.authorizationUrl.isEmpty,
           flow.tokenUrl.isDefined
@@ -269,21 +236,20 @@ object SecuritySpec extends SchemaBaseSpec {
           tokenUrl = Some("https://example.com/oauth/token"),
           scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
         )
-
         assertTrue(
           flow.authorizationUrl.isDefined,
           flow.tokenUrl.isDefined
         )
       },
       test("preserves multiple scopes") {
-        val scopes = ChunkMap(
-          "read:users"   -> "Read user data",
-          "write:users"  -> "Modify user data",
-          "delete:users" -> "Delete users",
-          "admin"        -> "Full admin access"
+        val flow = OAuthFlow(scopes =
+          ChunkMap(
+            "read:users"   -> "Read user data",
+            "write:users"  -> "Modify user data",
+            "delete:users" -> "Delete users",
+            "admin"        -> "Full admin access"
+          )
         )
-        val flow = OAuthFlow(scopes = scopes)
-
         assertTrue(
           flow.scopes.size == 4,
           flow.scopes.contains("read:users"),
@@ -293,12 +259,8 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-pkce-required" -> Json.Boolean(true),
-          "x-timeout"       -> Json.Number(3600)
-        )
-        val flow = OAuthFlow(extensions = extensions)
-
+        val flow =
+          OAuthFlow(extensions = ChunkMap("x-pkce-required" -> Json.Boolean(true), "x-timeout" -> Json.Number(3600)))
         assertTrue(
           flow.extensions.size == 2,
           flow.extensions.get("x-pkce-required").contains(Json.Boolean(true)),
@@ -307,7 +269,6 @@ object SecuritySpec extends SchemaBaseSpec {
       },
       test("Schema[OAuthFlow] can be derived") {
         val schema = Schema[OAuthFlow]
-
         assertTrue(schema != null)
       },
       test("OAuthFlow round-trips through DynamicValue") {
@@ -318,10 +279,7 @@ object SecuritySpec extends SchemaBaseSpec {
           scopes = ChunkMap("read" -> "Read access"),
           extensions = ChunkMap("x-test" -> Json.String("value"))
         )
-
-        val dv     = Schema[OAuthFlow].toDynamicValue(flow)
-        val result = Schema[OAuthFlow].fromDynamicValue(dv)
-
+        val result = Schema[OAuthFlow].fromDynamicValue(Schema[OAuthFlow].toDynamicValue(flow))
         assertTrue(
           result.isRight,
           result.exists(_.authorizationUrl.isDefined),
@@ -335,7 +293,6 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("OAuthFlows")(
       test("can be constructed with no flows") {
         val flows = OAuthFlows()
-
         assertTrue(
           flows.`implicit`.isEmpty,
           flows.password.isEmpty,
@@ -345,33 +302,34 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all flow types") {
-        val implicitFlow = OAuthFlow(
-          authorizationUrl = Some("https://example.com/oauth/authorize"),
-          scopes = ChunkMap("read" -> "Read access")
-        )
-        val passwordFlow = OAuthFlow(
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
-        )
-        val clientCredentialsFlow = OAuthFlow(
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("admin" -> "Admin access")
-        )
-        val authorizationCodeFlow = OAuthFlow(
-          authorizationUrl = Some("https://example.com/oauth/authorize"),
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
-        )
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-
         val flows = OAuthFlows(
-          `implicit` = Some(implicitFlow),
-          password = Some(passwordFlow),
-          clientCredentials = Some(clientCredentialsFlow),
-          authorizationCode = Some(authorizationCodeFlow),
-          extensions = extensions
+          `implicit` = Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/oauth/authorize"),
+              scopes = ChunkMap("read" -> "Read access")
+            )
+          ),
+          password = Some(
+            OAuthFlow(
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
+            )
+          ),
+          clientCredentials = Some(
+            OAuthFlow(
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("admin" -> "Admin access")
+            )
+          ),
+          authorizationCode = Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/oauth/authorize"),
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
+            )
+          ),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           flows.`implicit`.isDefined,
           flows.password.isDefined,
@@ -381,14 +339,14 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("supports only implicit flow") {
-        val flow = OAuthFlow(
-          authorizationUrl = Some("https://example.com/oauth/authorize"),
-          scopes = ChunkMap("read" -> "Read")
-        )
         val flows = OAuthFlows(
-          `implicit` = Some(flow)
+          `implicit` = Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/oauth/authorize"),
+              scopes = ChunkMap("read" -> "Read")
+            )
+          )
         )
-
         assertTrue(
           flows.`implicit`.isDefined,
           flows.password.isEmpty,
@@ -397,12 +355,14 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("supports only password flow") {
-        val flow = OAuthFlow(
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("read" -> "Read")
+        val flows = OAuthFlows(password =
+          Some(
+            OAuthFlow(
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("read" -> "Read")
+            )
+          )
         )
-        val flows = OAuthFlows(password = Some(flow))
-
         assertTrue(
           flows.`implicit`.isEmpty,
           flows.password.isDefined,
@@ -411,12 +371,14 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("supports only client credentials flow") {
-        val flow = OAuthFlow(
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("service" -> "Service access")
+        val flows = OAuthFlows(clientCredentials =
+          Some(
+            OAuthFlow(
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("service" -> "Service access")
+            )
+          )
         )
-        val flows = OAuthFlows(clientCredentials = Some(flow))
-
         assertTrue(
           flows.`implicit`.isEmpty,
           flows.password.isEmpty,
@@ -425,13 +387,15 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("supports only authorization code flow") {
-        val flow = OAuthFlow(
-          authorizationUrl = Some("https://example.com/oauth/authorize"),
-          tokenUrl = Some("https://example.com/oauth/token"),
-          scopes = ChunkMap("read" -> "Read", "write" -> "Write")
+        val flows = OAuthFlows(authorizationCode =
+          Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/oauth/authorize"),
+              tokenUrl = Some("https://example.com/oauth/token"),
+              scopes = ChunkMap("read" -> "Read", "write" -> "Write")
+            )
+          )
         )
-        val flows = OAuthFlows(authorizationCode = Some(flow))
-
         assertTrue(
           flows.`implicit`.isEmpty,
           flows.password.isEmpty,
@@ -440,12 +404,12 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-oauth-version" -> Json.String("2.0"),
-          "x-support-pkce"  -> Json.Boolean(true)
+        val flows = OAuthFlows(extensions =
+          ChunkMap(
+            "x-oauth-version" -> Json.String("2.0"),
+            "x-support-pkce"  -> Json.Boolean(true)
+          )
         )
-        val flows = OAuthFlows(extensions = extensions)
-
         assertTrue(
           flows.extensions.size == 2,
           flows.extensions.get("x-oauth-version").contains(Json.String("2.0")),
@@ -454,23 +418,20 @@ object SecuritySpec extends SchemaBaseSpec {
       },
       test("Schema[OAuthFlows] can be derived") {
         val schema = Schema[OAuthFlows]
-
         assertTrue(schema != null)
       },
       test("OAuthFlows round-trips through DynamicValue") {
-        val flow = OAuthFlow(
-          authorizationUrl = Some("https://example.com/auth"),
-          tokenUrl = Some("https://example.com/token"),
-          scopes = ChunkMap("read" -> "Read")
-        )
         val flows = OAuthFlows(
-          authorizationCode = Some(flow),
+          authorizationCode = Some(
+            OAuthFlow(
+              authorizationUrl = Some("https://example.com/auth"),
+              tokenUrl = Some("https://example.com/token"),
+              scopes = ChunkMap("read" -> "Read")
+            )
+          ),
           extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
-
-        val dv     = Schema[OAuthFlows].toDynamicValue(flows)
-        val result = Schema[OAuthFlows].fromDynamicValue(dv)
-
+        val result = Schema[OAuthFlows].fromDynamicValue(Schema[OAuthFlows].toDynamicValue(flows))
         assertTrue(
           result.isRight,
           result.exists(_.authorizationCode.isDefined),
@@ -480,17 +441,17 @@ object SecuritySpec extends SchemaBaseSpec {
     ),
     suite("SecurityScheme.OAuth2")(
       test("can be constructed with required flows field") {
-        val flows = OAuthFlows(
-          authorizationCode = Some(
-            OAuthFlow(
-              authorizationUrl = Some("https://example.com/oauth/authorize"),
-              tokenUrl = Some("https://example.com/oauth/token"),
-              scopes = ChunkMap("read" -> "Read access")
+        val oauth2 = SecurityScheme.OAuth2(flows =
+          OAuthFlows(
+            authorizationCode = Some(
+              OAuthFlow(
+                authorizationUrl = Some("https://example.com/oauth/authorize"),
+                tokenUrl = Some("https://example.com/oauth/token"),
+                scopes = ChunkMap("read" -> "Read access")
+              )
             )
           )
         )
-        val oauth2 = SecurityScheme.OAuth2(flows = flows)
-
         assertTrue(
           oauth2.flows.authorizationCode.isDefined,
           oauth2.description.isEmpty,
@@ -498,22 +459,18 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val flows = OAuthFlows(
-          `implicit` = Some(
-            OAuthFlow(
-              authorizationUrl = Some("https://example.com/oauth/authorize"),
-              scopes = ChunkMap("read" -> "Read access")
-            )
-          )
-        )
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-
         val oauth2 = SecurityScheme.OAuth2(
-          flows = flows,
+          flows = OAuthFlows(
+            `implicit` = Some(
+              OAuthFlow(
+                authorizationUrl = Some("https://example.com/oauth/authorize"),
+                scopes = ChunkMap("read" -> "Read access")
+              )
+            )
+          ),
           description = Some(doc("OAuth2 authentication")),
-          extensions = extensions
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           oauth2.flows.`implicit`.isDefined,
           oauth2.description.contains(doc("OAuth2 authentication")),
@@ -521,16 +478,13 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val flows      = OAuthFlows()
-        val extensions = ChunkMap(
-          "x-oauth-provider" -> Json.String("Auth0"),
-          "x-version"        -> Json.Number(2)
-        )
         val oauth2 = SecurityScheme.OAuth2(
-          flows = flows,
-          extensions = extensions
+          flows = OAuthFlows(),
+          extensions = ChunkMap(
+            "x-oauth-provider" -> Json.String("Auth0"),
+            "x-version"        -> Json.Number(2)
+          )
         )
-
         assertTrue(
           oauth2.extensions.size == 2,
           oauth2.extensions.get("x-oauth-provider").contains(Json.String("Auth0")),
@@ -538,23 +492,15 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("OAuth2 round-trips through DynamicValue") {
-        val flows = OAuthFlows(
-          password = Some(
-            OAuthFlow(
-              tokenUrl = Some("https://example.com/token"),
-              scopes = ChunkMap("read" -> "Read")
-            )
-          )
-        )
         val oauth2 = SecurityScheme.OAuth2(
-          flows = flows,
+          flows = OAuthFlows(
+            password =
+              Some(OAuthFlow(tokenUrl = Some("https://example.com/token"), scopes = ChunkMap("read" -> "Read")))
+          ),
           description = Some(doc("Test OAuth2")),
           extensions = ChunkMap("x-test" -> Json.String("value"))
         )
-
-        val dv     = Schema[SecurityScheme].toDynamicValue(oauth2)
-        val result = Schema[SecurityScheme].fromDynamicValue(dv)
-
+        val result = Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(oauth2))
         assertTrue(
           result.isRight,
           result.exists {
@@ -572,7 +518,6 @@ object SecuritySpec extends SchemaBaseSpec {
         val oidc = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration"
         )
-
         assertTrue(
           oidc.openIdConnectUrl == "https://example.com/.well-known/openid-configuration",
           oidc.description.isEmpty,
@@ -580,13 +525,11 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields") {
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-        val oidc       = SecurityScheme.OpenIdConnect(
+        val oidc = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
           description = Some(doc("OpenID Connect authentication")),
-          extensions = extensions
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           oidc.openIdConnectUrl == "https://example.com/.well-known/openid-configuration",
           oidc.description.contains(doc("OpenID Connect authentication")),
@@ -594,15 +537,10 @@ object SecuritySpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-provider" -> Json.String("Okta"),
-          "x-version"  -> Json.Number(1)
-        )
         val oidc = SecurityScheme.OpenIdConnect(
           openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
-          extensions = extensions
+          extensions = ChunkMap("x-provider" -> Json.String("Okta"), "x-version" -> Json.Number(1))
         )
-
         assertTrue(
           oidc.extensions.size == 2,
           oidc.extensions.get("x-provider").contains(Json.String("Okta")),
@@ -615,10 +553,7 @@ object SecuritySpec extends SchemaBaseSpec {
           description = Some(doc("Test OIDC")),
           extensions = ChunkMap("x-test" -> Json.Boolean(true))
         )
-
-        val dv     = Schema[SecurityScheme].toDynamicValue(oidc)
-        val result = Schema[SecurityScheme].fromDynamicValue(dv)
-
+        val result = Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(oidc))
         assertTrue(
           result.isRight,
           result.exists {
@@ -634,31 +569,25 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("SecurityScheme.MutualTLS")(
       test("can be constructed with no fields") {
         val mtls = SecurityScheme.MutualTLS()
-
         assertTrue(
           mtls.description.isEmpty,
           mtls.extensions.isEmpty
         )
       },
       test("can be constructed with all fields") {
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-        val mtls       = SecurityScheme.MutualTLS(
+        val mtls = SecurityScheme.MutualTLS(
           description = Some(doc("Mutual TLS authentication")),
-          extensions = extensions
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           mtls.description.contains(doc("Mutual TLS authentication")),
           mtls.extensions.size == 1
         )
       },
       test("preserves extensions") {
-        val extensions = ChunkMap(
-          "x-cert-required" -> Json.Boolean(true),
-          "x-ca-bundle"     -> Json.String("/path/to/ca.pem")
+        val mtls = SecurityScheme.MutualTLS(extensions =
+          ChunkMap("x-cert-required" -> Json.Boolean(true), "x-ca-bundle" -> Json.String("/path/to/ca.pem"))
         )
-        val mtls = SecurityScheme.MutualTLS(extensions = extensions)
-
         assertTrue(
           mtls.extensions.size == 2,
           mtls.extensions.get("x-cert-required").contains(Json.Boolean(true)),
@@ -670,10 +599,7 @@ object SecuritySpec extends SchemaBaseSpec {
           description = Some(doc("Test mTLS")),
           extensions = ChunkMap("x-test" -> Json.Number(1))
         )
-
-        val dv     = Schema[SecurityScheme].toDynamicValue(mtls)
-        val result = Schema[SecurityScheme].fromDynamicValue(dv)
-
+        val result = Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(mtls))
         assertTrue(
           result.isRight,
           result.exists {
@@ -687,22 +613,19 @@ object SecuritySpec extends SchemaBaseSpec {
     suite("SecurityScheme")(
       test("Schema[SecurityScheme] can be derived") {
         val schema = Schema[SecurityScheme]
-
         assertTrue(schema != null)
       },
       test("all SecurityScheme variants round-trip through DynamicValue") {
-        val apiKey = SecurityScheme.APIKey("api_key", APIKeyLocation.Header)
-        val http   = SecurityScheme.HTTP("bearer")
-        val oauth2 = SecurityScheme.OAuth2(OAuthFlows())
-        val oidc   = SecurityScheme.OpenIdConnect("https://example.com/.well-known/openid-configuration")
-        val mtls   = SecurityScheme.MutualTLS()
-
-        val schemes = Chunk(apiKey, http, oauth2, oidc, mtls)
+        val schemes = Chunk(
+          SecurityScheme.APIKey("api_key", APIKeyLocation.Header),
+          SecurityScheme.HTTP("bearer"),
+          SecurityScheme.OAuth2(OAuthFlows()),
+          SecurityScheme.OpenIdConnect("https://example.com/.well-known/openid-configuration"),
+          SecurityScheme.MutualTLS()
+        )
         val results = schemes.map { scheme =>
-          val dv = Schema[SecurityScheme].toDynamicValue(scheme)
-          Schema[SecurityScheme].fromDynamicValue(dv)
+          Schema[SecurityScheme].fromDynamicValue(Schema[SecurityScheme].toDynamicValue(scheme))
         }
-
         assertTrue(
           results.forall(_.isRight),
           results.size == 5

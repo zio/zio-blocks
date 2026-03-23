@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
@@ -117,7 +133,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
       assertTrue(result == Right(expected))
     },
     test("matches record pattern (structural) on JSON objects") {
-      val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+      val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
 
       val original = new Json.Array(
         Chunk(
@@ -189,7 +205,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
       assertTrue(result.isLeft)
     },
     test("SchemaSearch followed by field navigation") {
-      val pattern = SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("number")))
+      val pattern = SchemaRepr.Record(Chunk("value" -> SchemaRepr.Primitive("number")))
 
       val original = new Json.Array(
         Chunk(
@@ -319,7 +335,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
     test("TypeSearch returns error (requires Schema context)") {
       import zio.blocks.typeid.TypeId
       val original = new Json.Number(BigDecimal(42))
-      val path     = DynamicOptic(Vector(DynamicOptic.Node.TypeSearch(TypeId.of[Int])))
+      val path     = DynamicOptic(Chunk(DynamicOptic.Node.TypeSearch(TypeId.of[Int])))
       val patch    = JsonPatch(Chunk.single(JsonPatch.JsonPatchOp(path, JsonPatch.Op.Set(new Json.Number(BigDecimal(0))))))
       val result   = patch(original)
 
@@ -360,7 +376,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
           new Json.Object(Chunk("name" -> new Json.String("Bob")))
         )
       )
-      val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+      val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
       val patch   = JsonPatch(
         DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
         JsonPatch.Op.Set(new Json.Number(BigDecimal(0)))
@@ -375,7 +391,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
           new Json.Object(Chunk("name" -> new Json.String("Bob")))
         )
       )
-      val pattern = SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+      val pattern = SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
       val patch   = JsonPatch(
         DynamicOptic.root.searchSchema(pattern).field("nonexistent"),
         JsonPatch.Op.Set(new Json.Number(BigDecimal(0)))
@@ -384,7 +400,7 @@ object JsonPatchSchemaSearchSpec extends SchemaBaseSpec {
       assertTrue(result == Right(original))
     },
     test("SchemaSearch with nested patch operation") {
-      val pattern = SchemaRepr.Record(Vector("count" -> SchemaRepr.Primitive("number")))
+      val pattern = SchemaRepr.Record(Chunk("count" -> SchemaRepr.Primitive("number")))
 
       val original = new Json.Array(
         Chunk(

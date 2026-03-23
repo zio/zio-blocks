@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.schema.SchemaBaseSpec
@@ -216,17 +232,19 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         )
       )
     },
-    test("supports interpolated Year values") {
+    test("supports interpolated Year keys and values") {
       check(genYear)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").as[String].map(_.toInt) == Right(x.getValue)
+          json"""{"x": $x}""".get("x").as[String].map(_.toInt) == Right(x.getValue),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
-    test("supports interpolated YearMonth values") {
+    test("supports interpolated YearMonth keys and values") {
       check(genYearMonth)(x =>
         assertTrue(
-          json"""{"x": $x}""".get("x").as[String].map(YearMonth.parse) == Right(x)
+          json"""{"x": $x}""".get("x").as[String].map(YearMonth.parse) == Right(x),
+          json"""{$x: "v"}""".get(x.toString).as[String] == Right("v")
         )
       )
     },
@@ -293,51 +311,37 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with String keys") {
       check(
         Gen.string(Gen.char.filter(x => x < 0xd800 || x > 0xdfff)) // excluding surrogate chars
-      )(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x -> Json.String("y")))
-        )
-      )
+      )(x => assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x -> Json.String("y")))))
     },
     test("supports interpolated Map values with Boolean keys") {
       check(Gen.boolean)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Byte keys") {
       check(Gen.byte)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Short keys") {
       check(Gen.short)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Int keys") {
       check(Gen.int)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Long keys") {
       check(Gen.long)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Float keys") {
       check(Gen.float.filter(_.isFinite))(x =>
         assertTrue {
-          val key = JsonBinaryCodec.floatCodec.encodeToString(x)
+          val key = JsonCodec.floatCodec.encodeToString(x)
           json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(key -> Json.String("y")))
         }
       )
@@ -345,7 +349,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     test("supports interpolated Map values with Double keys") {
       check(Gen.double.filter(_.isFinite))(x =>
         assertTrue {
-          val key = JsonBinaryCodec.doubleCodec.encodeToString(x)
+          val key = JsonCodec.doubleCodec.encodeToString(x)
           json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(key -> Json.String("y")))
         }
       )
@@ -354,114 +358,82 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       check(
         Gen.char.filter(x => x < 0xd800 || x > 0xdfff) // excluding surrogate chars
       )(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with BigDecima keys") {
       check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with BigInt keys") {
       check(Gen.bigInt(BigInt("-" + "9" * 20), BigInt("9" * 20)))(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with DayOfWeek keys") {
       check(genDayOfWeek)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Duration keys") {
       check(genDuration)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Instant keys") {
       check(genInstant)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with LocalDate keys") {
       check(genLocalDate)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with LocalDateTime keys") {
       check(genLocalDateTime)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with LocalTime keys") {
       check(genLocalTime)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Month keys") {
       check(genMonth)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with MonthDay keys") {
       check(genMonthDay)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with OffsetDateTime keys") {
       check(genOffsetDateTime)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with OffsetTime keys") {
       check(genOffsetTime)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with Period keys") {
       check(genPeriod)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with ZoneId keys") {
       check(genZoneId)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with ZoneOffset keys") {
       check(genZoneOffset)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with ZonedDateTime keys") {
@@ -473,16 +445,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     },
     test("supports interpolated Map values with Currency keys") {
       check(Gen.currency)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with UUID keys") {
       check(Gen.uuid)(x =>
-        assertTrue(
-          json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y")))
-        )
+        assertTrue(json"""{"x": ${Map(x -> "y")}}""".get("x").one == Right(Json.Object(x.toString -> Json.String("y"))))
       )
     },
     test("supports interpolated Map values with 2 or more keys") {
@@ -545,8 +513,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val double: Double     = 2.5
         val bigInt: BigInt     = BigInt("12345678901234567890")
         val bigDec: BigDecimal = BigDecimal("123.456")
-        val floatKey           = JsonBinaryCodec.floatCodec.encodeToString(float)
-        val doubleKey          = JsonBinaryCodec.doubleCodec.encodeToString(double)
+        val floatKey           = JsonCodec.floatCodec.encodeToString(float)
+        val doubleKey          = JsonCodec.doubleCodec.encodeToString(double)
         assertTrue(
           json"""{$byte: 1}""".get("1").as[Int] == Right(1),
           json"""{$short: 1}""".get("2").as[Int] == Right(1),
@@ -685,9 +653,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val outerKey = "outer"
         val innerKey = 42
         val result   = json"""{$outerKey: {$innerKey: "nested"}}"""
-        assertTrue(
-          result.get("outer").get("42").as[String] == Right("nested")
-        )
+        assertTrue(result.get("outer").get("42").as[String] == Right("nested"))
       }
     ),
     suite("value position type checking")(
@@ -755,8 +721,10 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         sealed trait Status
 
         object Status {
-          case object Active                   extends Status
+          case object Active extends Status
+
           case class Suspended(reason: String) extends Status
+
           implicit lazy val schema: Schema[Status] = Schema.derived
         }
 
@@ -810,9 +778,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       test("Set works in value position") {
         val set    = Set("a", "b")
         val result = json"""{"values": $set}"""
-        assertTrue(
-          result.get("values").one.map(_.elements.size) == Right(2)
-        )
+        assertTrue(result.get("values").one.map(_.elements.size) == Right(2))
       },
       test("Seq works in value position") {
         val seq: Seq[Int] = Seq(10, 20, 30)
@@ -824,6 +790,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("Map[String, A] works in value position") {
         case class Stats(count: Int)
+
         object Stats {
           implicit val schema: Schema[Stats] = Schema.derived
         }
@@ -931,6 +898,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("complex nested structure with multiple value interpolations") {
         case class Inner(n: Int)
+
         object Inner {
           implicit val schema: Schema[Inner] = Schema.derived
         }
@@ -939,14 +907,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val inner2 = Inner(2)
         val list   = List("a", "b")
         val num    = 42
-
         val result = json"""{
           "first": $inner1,
           "second": $inner2,
           "items": $list,
           "count": $num
         }"""
-
         assertTrue(
           result.get("first").get("n").as[Int] == Right(1),
           result.get("second").get("n").as[Int] == Right(2),
@@ -956,31 +922,25 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("mixed key and value interpolation") {
         case class Data(value: Int)
+
         object Data {
           implicit val schema: Schema[Data] = Schema.derived
         }
 
-        val key  = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-        val data = Data(99)
-
+        val key    = java.util.UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+        val data   = Data(99)
         val result = json"""{$key: $data}"""
-        assertTrue(
-          result.get("a1b2c3d4-e5f6-7890-abcd-ef1234567890").get("value").as[Int] == Right(99)
-        )
+        assertTrue(result.get("a1b2c3d4-e5f6-7890-abcd-ef1234567890").get("value").as[Int] == Right(99))
       }
     ),
     suite("string literal interpolation")(
       test("supports String interpolation in strings") {
         val name = "Alice"
-        assertTrue(
-          json"""{"greeting": "Hello, $name!"}""".get("greeting").as[String] == Right("Hello, Alice!")
-        )
+        assertTrue(json"""{"greeting": "Hello, $name!"}""".get("greeting").as[String] == Right("Hello, Alice!"))
       },
       test("supports Int interpolation in strings") {
         val x = 42
-        assertTrue(
-          json"""{"msg": "x is $x"}""".get("msg").as[String] == Right("x is 42")
-        )
+        assertTrue(json"""{"msg": "x is $x"}""".get("msg").as[String] == Right("x is 42"))
       },
       test("supports all numeric types in strings") {
         val byte: Byte         = 1
@@ -1004,15 +964,11 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("supports Boolean in strings") {
         val b = true
-        assertTrue(
-          json"""{"msg": "flag is $b"}""".get("msg").as[String] == Right("flag is true")
-        )
+        assertTrue(json"""{"msg": "flag is $b"}""".get("msg").as[String] == Right("flag is true"))
       },
       test("supports Char in strings") {
         val c: Char = 'X'
-        assertTrue(
-          json"""{"msg": "char is $c"}""".get("msg").as[String] == Right("char is X")
-        )
+        assertTrue(json"""{"msg": "char is $c"}""".get("msg").as[String] == Right("char is X"))
       },
       test("supports UUID in strings") {
         val id = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
@@ -1022,21 +978,15 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("supports LocalDate in strings") {
         val date = LocalDate.of(2024, 1, 15)
-        assertTrue(
-          json"""{"file": "report-$date.pdf"}""".get("file").as[String] == Right("report-2024-01-15.pdf")
-        )
+        assertTrue(json"""{"file": "report-$date.pdf"}""".get("file").as[String] == Right("report-2024-01-15.pdf"))
       },
       test("supports LocalTime in strings") {
         val time = LocalTime.of(10, 30, 0)
-        assertTrue(
-          json"""{"log": "Event at $time"}""".get("log").as[String] == Right("Event at 10:30")
-        )
+        assertTrue(json"""{"log": "Event at $time"}""".get("log").as[String] == Right("Event at 10:30"))
       },
       test("supports Instant in strings") {
         val instant = Instant.parse("2024-01-15T10:30:00Z")
-        assertTrue(
-          json"""{"ts": "Created: $instant"}""".get("ts").as[String] == Right("Created: 2024-01-15T10:30:00Z")
-        )
+        assertTrue(json"""{"ts": "Created: $instant"}""".get("ts").as[String] == Right("Created: 2024-01-15T10:30:00Z"))
       },
       test("supports all java.time types in strings") {
         val dayOfWeek: DayOfWeek         = DayOfWeek.MONDAY
@@ -1051,7 +1001,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val yearMonth                    = java.time.YearMonth.of(2024, 1)
         val zoneId                       = java.time.ZoneId.of("UTC")
         val zoneOffset                   = java.time.ZoneOffset.UTC
-
         assertTrue(
           json"""{"msg": "day=$dayOfWeek"}""".get("msg").as[String] == Right("day=MONDAY"),
           json"""{"msg": "duration=$duration"}""".get("msg").as[String] == Right("duration=PT1H"),
@@ -1069,9 +1018,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("supports Currency in strings") {
         val currency = java.util.Currency.getInstance("USD")
-        assertTrue(
-          json"""{"label": "Price in $currency"}""".get("label").as[String] == Right("Price in USD")
-        )
+        assertTrue(json"""{"label": "Price in $currency"}""".get("label").as[String] == Right("Price in USD"))
       },
       test("supports multiple interpolations in one string") {
         val date    = LocalDate.of(2024, 1, 15)
@@ -1084,47 +1031,33 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("supports expression syntax in strings") {
         val x = 10
-        assertTrue(
-          json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").as[String] == Right("20 to 30")
-        )
+        assertTrue(json"""{"range": "${x * 2} to ${x * 3}"}""".get("range").as[String] == Right("20 to 30"))
       },
       test("supports expression with method calls in strings") {
         val items = List("a", "b", "c")
-        assertTrue(
-          json"""{"count": "Found ${items.size} items"}""".get("count").as[String] == Right("Found 3 items")
-        )
+        assertTrue(json"""{"count": "Found ${items.size} items"}""".get("count").as[String] == Right("Found 3 items"))
       },
       test("handles empty interpolation results in strings") {
         val empty = ""
-        assertTrue(
-          json"""{"msg": "[$empty]"}""".get("msg").as[String] == Right("[]")
-        )
+        assertTrue(json"""{"msg": "[$empty]"}""".get("msg").as[String] == Right("[]"))
       },
       test("handles adjacent interpolations in strings") {
         val a = "A"
         val b = "B"
         val c = "C"
-        assertTrue(
-          json"""{"s": "$a$b$c"}""".get("s").as[String] == Right("ABC")
-        )
+        assertTrue(json"""{"s": "$a$b$c"}""".get("s").as[String] == Right("ABC"))
       },
       test("handles interpolation at start of string") {
         val x = "start"
-        assertTrue(
-          json"""{"s": "$x end"}""".get("s").as[String] == Right("start end")
-        )
+        assertTrue(json"""{"s": "$x end"}""".get("s").as[String] == Right("start end"))
       },
       test("handles interpolation at end of string") {
         val x = "end"
-        assertTrue(
-          json"""{"s": "start $x"}""".get("s").as[String] == Right("start end")
-        )
+        assertTrue(json"""{"s": "start $x"}""".get("s").as[String] == Right("start end"))
       },
       test("handles only interpolation in string") {
         val x = "value"
-        assertTrue(
-          json"""{"s": "$x"}""".get("s").as[String] == Right("value")
-        )
+        assertTrue(json"""{"s": "$x"}""".get("s").as[String] == Right("value"))
       },
       test("property-based: keyable types work in strings") {
         check(Gen.uuid) { uuid =>
@@ -1177,6 +1110,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     suite("mixed interpolation contexts")(
       test("combines key, value, and string interpolation") {
         case class Data(value: Int)
+
         object Data {
           implicit val schema: Schema[Data] = Schema.derived
         }
@@ -1184,14 +1118,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val key       = java.util.UUID.fromString("12345678-1234-1234-1234-123456789abc")
         val data      = Data(42)
         val timestamp = Instant.parse("2024-01-15T10:30:00Z")
-
-        val result = json"""{
+        val result    = json"""{
           $key: {
             "data": $data,
             "note": "Recorded at $timestamp"
           }
         }"""
-
         assertTrue(
           result.get("12345678-1234-1234-1234-123456789abc").get("data").get("value").as[Int] == Right(42),
           result.get("12345678-1234-1234-1234-123456789abc").get("note").as[String] == Right(s"Recorded at $timestamp")
@@ -1203,13 +1135,11 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val dateKey = LocalDate.of(2024, 1, 15)
         val name    = "Alice"
         val count   = 42
-
-        val result = json"""{
+        val result  = json"""{
           $intKey: "Hello $name",
           $uuidKey: "Count is $count",
           $dateKey: "plain value"
         }"""
-
         assertTrue(
           result.get("1").as[String] == Right("Hello Alice"),
           result.get("fedcba98-7654-3210-fedc-ba9876543210").as[String] == Right("Count is 42"),
@@ -1218,6 +1148,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("array with value and string interpolations") {
         case class Item(n: Int)
+
         object Item {
           implicit val schema: Schema[Item] = Schema.derived
         }
@@ -1225,10 +1156,8 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val item = Item(1)
         val num  = 42
         val name = "Alice"
-
         // Array with mixed: object value, number, and string with interpolation
         val result = json"""[$item, $num, "Hello $name"]"""
-
         assertTrue(
           result.get(0).get("n").as[Int] == Right(1),
           result.get(1).as[Int] == Right(42),
@@ -1237,6 +1166,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("deeply nested with all contexts") {
         case class Inner(v: Int)
+
         object Inner {
           implicit val schema: Schema[Inner] = Schema.derived
         }
@@ -1245,8 +1175,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val innerKey = 123
         val data     = Inner(99)
         val label    = "test"
-
-        val result = json"""{
+        val result   = json"""{
           $outerKey: {
             $innerKey: {
               "data": $data,
@@ -1254,7 +1183,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
             }
           }
         }"""
-
         assertTrue(
           result.get("outer").get("123").get("data").get("v").as[Int] == Right(99),
           result.get("outer").get("123").get("label").as[String] == Right("Label: test")
@@ -1262,11 +1190,13 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
       },
       test("large JSON document with many interpolations") {
         case class Address(street: String, city: String, zip: Int)
+
         object Address {
           implicit val schema: Schema[Address] = Schema.derived
         }
 
         case class Person(name: String, age: Int, address: Address)
+
         object Person {
           implicit val schema: Schema[Person] = Schema.derived
         }
@@ -1280,14 +1210,12 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         val score       = 99.5
         val name        = "Alice"
         val environment = "production"
-
-        val alice   = Person("Alice", 30, Address("123 Main St", "NYC", 10001))
-        val bob     = Person("Bob", 25, Address("456 Oak Ave", "LA", 90001))
-        val team    = List(alice, bob)
-        val tags    = Vector("important", "urgent")
-        val metrics = Map("cpu" -> 0.75, "memory" -> 0.60)
-
-        val result = json"""{
+        val alice       = Person("Alice", 30, Address("123 Main St", "NYC", 10001))
+        val bob         = Person("Bob", 25, Address("456 Oak Ave", "LA", 90001))
+        val team        = List(alice, bob)
+        val tags        = Vector("important", "urgent")
+        val metrics     = Map("cpu" -> 0.75, "memory" -> 0.60)
+        val result      = json"""{
           "meta": {
             $id: {
               "created": $timestamp,
@@ -1315,7 +1243,6 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
             }
           }
         }"""
-
         assertTrue(
           // Meta section - key interpolation
           result.get("meta").get(id.toString).get("created").as[String] == Right(timestamp.toString),
@@ -1857,28 +1784,20 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
     suite("top-level string interpolation")(
       test("supports string interpolation at top level") {
         val name = "Alice"
-        assertTrue(
-          json""""Hello $name"""" == Json.String("Hello Alice")
-        )
+        assertTrue(json""""Hello $name"""" == Json.String("Hello Alice"))
       },
       test("supports multiple interpolations in top-level string") {
         val name = "Alice"
         val age  = 30
-        assertTrue(
-          json""""Name: $name, Age: $age"""" == Json.String("Name: Alice, Age: 30")
-        )
+        assertTrue(json""""Name: $name, Age: $age"""" == Json.String("Name: Alice, Age: 30"))
       },
       test("supports interpolation at start of top-level string") {
         val greeting = "Hello"
-        assertTrue(
-          json""""$greeting world"""" == Json.String("Hello world")
-        )
+        assertTrue(json""""$greeting world"""" == Json.String("Hello world"))
       },
       test("supports interpolation at end of top-level string") {
         val name = "Alice"
-        assertTrue(
-          json""""Hello $name"""" == Json.String("Hello Alice")
-        )
+        assertTrue(json""""Hello $name"""" == Json.String("Hello Alice"))
       },
       test("supports only interpolation in top-level string") {
         val value = "test"
@@ -2186,7 +2105,7 @@ object JsonInterpolatorSpec extends SchemaBaseSpec {
         assertTrue(jsonInString(BigInt("12345")).get("msg").as[String] == Right("prefix-12345-suffix"))
       },
       test("Unit in string") {
-        assertTrue(jsonInString(()).get("msg").as[String] == Right("prefix-()-suffix"))
+        assertTrue(jsonInString(()).get("msg").as[String] == Right("prefix-{}-suffix"))
       },
       test("Duration in string") {
         assertTrue(jsonInString(Duration.ofHours(1)).get("msg").as[String] == Right("prefix-PT1H-suffix"))

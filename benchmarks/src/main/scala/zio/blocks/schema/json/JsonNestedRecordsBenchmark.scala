@@ -54,5 +54,5 @@ class JsonNestedRecordsBenchmark extends BaseBenchmark {
 object JsonNestedRecordsBenchmark {
   case class Nested(value: Int, next: Option[Nested])
 
-  val zioBlocksCodec: JsonBinaryCodec[Nested] = Schema.derived.deriving(JsonFormat.deriver).derive
+  val zioBlocksCodec: JsonCodec[Nested] = Schema.derived.deriving(JsonFormat.deriver).derive
 }

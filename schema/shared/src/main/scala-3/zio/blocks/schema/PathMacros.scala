@@ -114,7 +114,7 @@ object PathMacros {
           '{ ($nameExpr, $reprExpr) }
         }
         val fieldsExpr = Expr.ofSeq(fieldExprs)
-        '{ SchemaRepr.Record(Vector($fieldsExpr: _*)) }
+        '{ SchemaRepr.Record(Chunk($fieldsExpr: _*)) }
       case SchemaRepr.Variant(cases) =>
         val caseExprs = cases.map { case (name, caseRepr) =>
           val nameExpr = Expr(name)
@@ -122,7 +122,7 @@ object PathMacros {
           '{ ($nameExpr, $reprExpr) }
         }
         val casesExpr = Expr.ofSeq(caseExprs)
-        '{ SchemaRepr.Variant(Vector($casesExpr: _*)) }
+        '{ SchemaRepr.Variant(Chunk($casesExpr: _*)) }
       case SchemaRepr.Sequence(element) =>
         val elementExpr = buildSchemaReprExpr(element)
         '{ SchemaRepr.Sequence($elementExpr) }

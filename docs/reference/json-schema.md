@@ -51,9 +51,9 @@ jsonSchema.conforms(valid)   // true
 jsonSchema.conforms(invalid) // false
 ```
 
-### Through JsonBinaryCodec
+### Through JsonCodec
 
-For more control, derive through `JsonBinaryCodec`:
+For more control, derive through `JsonCodec`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._

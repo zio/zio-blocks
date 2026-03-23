@@ -39,26 +39,17 @@ private[schema] object JsonInterpolatorRuntime {
     val out       = new ByteArrayOutputStream(str.length << 1)
     out.write(str)
     while (parts.hasNext && contextIt.hasNext) {
-      val ctx = contextIt.next()
-      ctx match {
-        case InterpolationContext.Key =>
-          // For key validation, write a placeholder key string
-          out.write('"')
-          out.write('_')
-          out.write('"')
-        case InterpolationContext.Value =>
-          // For value validation, write null as a valid placeholder
-          out.write('n')
-          out.write('u')
-          out.write('l')
-          out.write('l')
-        case InterpolationContext.InString =>
-          // For in-string validation, write nothing (placeholder is already inside quotes)
+      contextIt.next() match {
+        case InterpolationContext.Key => // For key validation, write a placeholder key string
+          out.write('"', '"')
+        case InterpolationContext.Value => // For value validation, write null as a valid placeholder
+          out.write('n', 'u', 'l', 'l')
+        case _ => // For in-string validation, write nothing (placeholder is already inside quotes)
           ()
       }
       out.write(parts.next())
     }
-    Json.jsonCodec.decode(out.toByteArray) match {
+    Json.jsonCodec.decode(out.getBuf, 0, out.getCount) match {
       case Left(error) => throw error
       case _           => () // Valid JSON
     }
@@ -77,15 +68,14 @@ private[schema] object JsonInterpolatorRuntime {
     out.write(str)
     while (argsIt.hasNext && contextIt.hasNext) {
       val arg = argsIt.next()
-      val ctx = contextIt.next()
-      ctx match {
-        case InterpolationContext.Key      => writeKeyOnly(out, arg)
-        case InterpolationContext.Value    => writeValue(out, arg)
-        case InterpolationContext.InString => writeInString(out, arg)
+      contextIt.next() match {
+        case InterpolationContext.Key   => writeKeyOnly(out, arg)
+        case InterpolationContext.Value => writeValue(out, arg)
+        case _                          => writeInString(out, arg)
       }
       out.write(parts.next())
     }
-    Json.jsonCodec.decode(out.toByteArray) match {
+    Json.jsonCodec.decode(out.getBuf, 0, out.getCount) match {
       case Right(json) => json
       case Left(error) => throw error
     }
@@ -97,67 +87,65 @@ private[schema] object JsonInterpolatorRuntime {
    * literal string context.
    */
   private[this] def writeKeyOnly(out: ByteArrayOutputStream, key: Any): Unit = key match {
-    case s: String  => JsonBinaryCodec.stringCodec.encode(s, out)
-    case c: Char    => JsonBinaryCodec.stringCodec.encode(c.toString, out)
+    case s: String  => JsonCodec.stringCodec.encode(s, out)
+    case c: Char    => JsonCodec.charCodec.encode(c, out)
     case b: Boolean =>
       out.write('"')
-      JsonBinaryCodec.booleanCodec.encode(b, out)
+      JsonCodec.booleanCodec.encode(b, out)
       out.write('"')
     case b: Byte =>
       out.write('"')
-      JsonBinaryCodec.byteCodec.encode(b, out)
+      JsonCodec.byteCodec.encode(b, out)
       out.write('"')
     case sh: Short =>
       out.write('"')
-      JsonBinaryCodec.shortCodec.encode(sh, out)
+      JsonCodec.shortCodec.encode(sh, out)
       out.write('"')
     case i: Int =>
       out.write('"')
-      JsonBinaryCodec.intCodec.encode(i, out)
+      JsonCodec.intCodec.encode(i, out)
       out.write('"')
     case l: Long =>
       out.write('"')
-      JsonBinaryCodec.longCodec.encode(l, out)
+      JsonCodec.longCodec.encode(l, out)
       out.write('"')
     case f: Float =>
       out.write('"')
-      JsonBinaryCodec.floatCodec.encode(f, out)
+      JsonCodec.floatCodec.encode(f, out)
       out.write('"')
     case d: Double =>
       out.write('"')
-      JsonBinaryCodec.doubleCodec.encode(d, out)
+      JsonCodec.doubleCodec.encode(d, out)
       out.write('"')
     case bd: BigDecimal =>
       out.write('"')
-      JsonBinaryCodec.bigDecimalCodec.encode(bd, out)
+      JsonCodec.bigDecimalCodec.encode(bd, out)
       out.write('"')
     case bi: BigInt =>
       out.write('"')
-      JsonBinaryCodec.bigIntCodec.encode(bi, out)
+      JsonCodec.bigIntCodec.encode(bi, out)
       out.write('"')
-    case _: Unit               => JsonBinaryCodec.stringCodec.encode("{}", out)
-    case d: Duration           => JsonBinaryCodec.durationCodec.encode(d, out)
-    case dow: DayOfWeek        => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
-    case i: Instant            => JsonBinaryCodec.instantCodec.encode(i, out)
-    case ld: LocalDate         => JsonBinaryCodec.localDateCodec.encode(ld, out)
-    case ldt: LocalDateTime    => JsonBinaryCodec.localDateTimeCodec.encode(ldt, out)
-    case lt: LocalTime         => JsonBinaryCodec.localTimeCodec.encode(lt, out)
-    case m: Month              => JsonBinaryCodec.monthCodec.encode(m, out)
-    case md: MonthDay          => JsonBinaryCodec.monthDayCodec.encode(md, out)
-    case odt: OffsetDateTime   => JsonBinaryCodec.offsetDateTimeCodec.encode(odt, out)
-    case ot: OffsetTime        => JsonBinaryCodec.offsetTimeCodec.encode(ot, out)
-    case p: Period             => JsonBinaryCodec.periodCodec.encode(p, out)
-    case y: Year               => JsonBinaryCodec.yearCodec.encode(y, out)
-    case ym: YearMonth         => JsonBinaryCodec.yearMonthCodec.encode(ym, out)
-    case zo: ZoneOffset        => JsonBinaryCodec.zoneOffsetCodec.encode(zo, out)
-    case zi: ZoneId            => JsonBinaryCodec.zoneIdCodec.encode(zi, out)
-    case zdt: ZonedDateTime    => JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out)
-    case c: java.util.Currency => JsonBinaryCodec.currencyCodec.encode(c, out)
-    case uuid: java.util.UUID  => JsonBinaryCodec.uuidCodec.encode(uuid, out)
-    case x                     =>
-      throw new IllegalArgumentException(
-        s"Unexpected type in key position: ${x.getClass.getName}. This should have been caught at compile time."
-      )
+    case _: Unit =>
+      out.write('"', '{', '}', '"')
+    case d: Duration           => JsonCodec.durationCodec.encode(d, out)
+    case dow: DayOfWeek        => JsonCodec.dayOfWeekCodec.encode(dow, out)
+    case i: Instant            => JsonCodec.instantCodec.encode(i, out)
+    case ld: LocalDate         => JsonCodec.localDateCodec.encode(ld, out)
+    case ldt: LocalDateTime    => JsonCodec.localDateTimeCodec.encode(ldt, out)
+    case lt: LocalTime         => JsonCodec.localTimeCodec.encode(lt, out)
+    case m: Month              => JsonCodec.monthCodec.encode(m, out)
+    case md: MonthDay          => JsonCodec.monthDayCodec.encode(md, out)
+    case odt: OffsetDateTime   => JsonCodec.offsetDateTimeCodec.encode(odt, out)
+    case ot: OffsetTime        => JsonCodec.offsetTimeCodec.encode(ot, out)
+    case p: Period             => JsonCodec.periodCodec.encode(p, out)
+    case y: Year               => JsonCodec.yearCodec.encode(y, out)
+    case ym: YearMonth         => JsonCodec.yearMonthCodec.encode(ym, out)
+    case zo: ZoneOffset        => JsonCodec.zoneOffsetCodec.encode(zo, out)
+    case zi: ZoneId            => JsonCodec.zoneIdCodec.encode(zi, out)
+    case zdt: ZonedDateTime    => JsonCodec.zonedDateTimeCodec.encode(zdt, out)
+    case c: java.util.Currency => JsonCodec.currencyCodec.encode(c, out)
+    case uuid: java.util.UUID  => JsonCodec.uuidCodec.encode(uuid, out)
+    case x                     => JsonCodec.stringCodec.encode(x.toString, out)
   }
 
   /**
@@ -167,38 +155,35 @@ private[schema] object JsonInterpolatorRuntime {
   private[this] def writeInString(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => writeRawString(out, s)
     case c: Char               => writeRawString(out, c.toString)
-    case b: Boolean            => writeRawString(out, b.toString)
-    case b: Byte               => writeRawString(out, b.toString)
-    case sh: Short             => writeRawString(out, sh.toString)
-    case i: Int                => writeRawString(out, i.toString)
-    case l: Long               => writeRawString(out, l.toString)
-    case f: Float              => writeRawString(out, JsonBinaryCodec.floatCodec.encodeToString(f))
-    case d: Double             => writeRawString(out, JsonBinaryCodec.doubleCodec.encodeToString(d))
-    case bd: BigDecimal        => writeRawString(out, JsonBinaryCodec.bigDecimalCodec.encodeToString(bd))
-    case bi: BigInt            => writeRawString(out, JsonBinaryCodec.bigIntCodec.encodeToString(bi))
-    case _: Unit               => writeRawString(out, "()")
+    case bl: Boolean           => JsonCodec.booleanCodec.encode(bl, out)
+    case b: Byte               => JsonCodec.byteCodec.encode(b, out)
+    case sh: Short             => JsonCodec.shortCodec.encode(sh, out)
+    case i: Int                => JsonCodec.intCodec.encode(i, out)
+    case l: Long               => JsonCodec.longCodec.encode(l, out)
+    case f: Float              => JsonCodec.floatCodec.encode(f, out)
+    case d: Double             => JsonCodec.doubleCodec.encode(d, out)
+    case bd: BigDecimal        => JsonCodec.bigDecimalCodec.encode(bd, out)
+    case bi: BigInt            => JsonCodec.bigIntCodec.encode(bi, out)
+    case _: Unit               => out.write('{', '}')
     case dow: DayOfWeek        => writeRawString(out, dow.toString)
-    case d: Duration           => writeRawString(out, Json.durationRawCodec.encodeToString(d))
-    case i: Instant            => writeRawString(out, Json.instantRawCodec.encodeToString(i))
-    case ld: LocalDate         => writeRawString(out, Json.localDateRawCodec.encodeToString(ld))
-    case ldt: LocalDateTime    => writeRawString(out, Json.localDateTimeRawCodec.encodeToString(ldt))
-    case lt: LocalTime         => writeRawString(out, Json.localTimeRawCodec.encodeToString(lt))
+    case d: Duration           => Json.durationRawCodec.encode(d, out)
+    case i: Instant            => Json.instantRawCodec.encode(i, out)
+    case ld: LocalDate         => Json.localDateRawCodec.encode(ld, out)
+    case ldt: LocalDateTime    => Json.localDateTimeRawCodec.encode(ldt, out)
+    case lt: LocalTime         => Json.localTimeRawCodec.encode(lt, out)
     case m: Month              => writeRawString(out, m.toString)
-    case md: MonthDay          => writeRawString(out, Json.monthDayRawCodec.encodeToString(md))
-    case odt: OffsetDateTime   => writeRawString(out, Json.offsetDateTimeRawCodec.encodeToString(odt))
-    case ot: OffsetTime        => writeRawString(out, Json.offsetTimeRawCodec.encodeToString(ot))
-    case p: Period             => writeRawString(out, Json.periodRawCodec.encodeToString(p))
-    case y: Year               => writeRawString(out, y.toString)
+    case md: MonthDay          => Json.monthDayRawCodec.encode(md, out)
+    case odt: OffsetDateTime   => Json.offsetDateTimeRawCodec.encode(odt, out)
+    case ot: OffsetTime        => Json.offsetTimeRawCodec.encode(ot, out)
+    case p: Period             => Json.periodRawCodec.encode(p, out)
+    case y: Year               => JsonCodec.intCodec.encode(y.getValue, out)
     case ym: YearMonth         => writeRawString(out, ym.toString)
     case zo: ZoneOffset        => writeRawString(out, zo.getId)
     case zi: ZoneId            => writeRawString(out, zi.getId)
-    case zdt: ZonedDateTime    => writeRawString(out, Json.zonedDateTimeRawCodec.encodeToString(zdt))
+    case zdt: ZonedDateTime    => Json.zonedDateTimeRawCodec.encode(zdt, out)
     case c: java.util.Currency => writeRawString(out, c.getCurrencyCode)
     case uuid: java.util.UUID  => writeRawString(out, uuid.toString)
-    case x                     =>
-      throw new IllegalArgumentException(
-        s"Unexpected type in string literal: ${x.getClass.getName}. This should have been caught at compile time."
-      )
+    case x                     => writeRawString(out, x.toString)
   }
 
   /**
@@ -209,124 +194,92 @@ private[schema] object JsonInterpolatorRuntime {
     var i = 0
     while (i < s.length) {
       val ch1 = s.charAt(i).toInt
-      ch1 match {
-        case '"' =>
-          out.write('\\')
-          out.write('"')
-        case '\\' =>
-          out.write('\\')
-          out.write('\\')
-        case '\b' =>
-          out.write('\\')
-          out.write('b')
-        case '\f' =>
-          out.write('\\')
-          out.write('f')
-        case '\n' =>
-          out.write('\\')
-          out.write('n')
-        case '\r' =>
-          out.write('\\')
-          out.write('r')
-        case '\t' =>
-          out.write('\\')
-          out.write('t')
-        case _ if ch1 < 0x20 =>
-          out.write('\\')
-          out.write('u')
-          out.write(hexDigit((ch1 >> 12) & 0xf))
-          out.write(hexDigit((ch1 >> 8) & 0xf))
-          out.write(hexDigit((ch1 >> 4) & 0xf))
-          out.write(hexDigit(ch1 & 0xf))
-        case _ if ch1 < 0x80 =>
-          // ASCII: single byte
-          out.write(ch1)
-        case _ if ch1 < 0x800 =>
-          // 2-byte UTF-8: 110xxxxx 10xxxxxx
-          out.write((ch1 >> 6) | 0xc0)
-          out.write((ch1 & 0x3f) | 0x80)
-        case _ if (ch1 & 0xf800) != 0xd800 =>
-          // 3-byte UTF-8: 1110xxxx 10xxxxxx 10xxxxxx
-          out.write((ch1 >> 12) | 0xe0)
-          out.write(((ch1 >> 6) & 0x3f) | 0x80)
-          out.write((ch1 & 0x3f) | 0x80)
-        case _ =>
-          // 4-byte UTF-8 (surrogate pair): 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-          if (i + 1 < s.length) {
-            val ch2 = s.charAt(i + 1).toInt
-            if ((ch2 & 0xfc00) == 0xdc00) {
-              val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
-              out.write((cp >> 18) | 0xf0)
-              out.write(((cp >> 12) & 0x3f) | 0x80)
-              out.write(((cp >> 6) & 0x3f) | 0x80)
-              out.write((cp & 0x3f) | 0x80)
-              i += 1 // Skip the low surrogate
-            } else {
-              // Invalid surrogate pair, write replacement character
-              out.write(0xef)
-              out.write(0xbf)
-              out.write(0xbd)
-            }
-          } else {
-            // Lone high surrogate at end, write replacement character
-            out.write(0xef)
-            out.write(0xbf)
-            out.write(0xbd)
-          }
+      if (ch1 < 0x20) {
+        ch1 match {
+          case '\b' => out.write('\\', 'b')
+          case '\f' => out.write('\\', 'f')
+          case '\n' => out.write('\\', 'n')
+          case '\r' => out.write('\\', 'r')
+          case '\t' => out.write('\\', 't')
+          case _    =>
+            out.write('\\', 'u')
+            out.write(hex((ch1 >> 12) & 0xf), hex((ch1 >> 8) & 0xf), hex((ch1 >> 4) & 0xf), hex(ch1 & 0xf))
+        }
+      } else if (ch1 < 0x80) {
+        ch1 match {
+          case '"'  => out.write('\\', '"')
+          case '\\' => out.write('\\', '\\')
+          case _    => out.write(ch1) // ASCII: single byte
+        }
+      } else if (ch1 < 0x800) { // 2-byte UTF-8: 110xxxxx 10xxxxxx
+        out.write(((ch1 >> 6) | 0xc0).toByte, ((ch1 & 0x3f) | 0x80).toByte)
+      } else if ((ch1 & 0xf800) != 0xd800) { // 3-byte UTF-8: 1110xxxx 10xxxxxx 10xxxxxx
+        out.write(((ch1 >> 12) | 0xe0).toByte, (((ch1 >> 6) & 0x3f) | 0x80).toByte)
+        out.write((ch1 & 0x3f) | 0x80)
+      } else if (i + 1 < s.length) { // 4-byte UTF-8 (surrogate pair): 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+        val ch2 = s.charAt(i + 1).toInt
+        if ((ch2 & 0xfc00) == 0xdc00) {
+          val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
+          out.write(
+            ((cp >> 18) | 0xf0).toByte,
+            (((cp >> 12) & 0x3f) | 0x80).toByte,
+            (((cp >> 6) & 0x3f) | 0x80).toByte,
+            ((cp & 0x3f) | 0x80).toByte
+          )
+          i += 1 // Skip the low surrogate
+        } else { // Invalid surrogate pair, write replacement character
+          out.write(0xef.toByte, 0xbf.toByte)
+          out.write(0xbd)
+        }
+      } else { // Lone high surrogate at end, write replacement character
+        out.write(0xef.toByte, 0xbf.toByte)
+        out.write(0xbd)
       }
       i += 1
     }
   }
 
-  private[this] def hexDigit(n: Int): Int = if (n < 10) '0' + n else 'a' + n - 10
+  private[this] def hex(n: Int): Byte =
+    (if (n < 10) '0' + n
+     else 'a' + n - 10).toByte
 
   private[this] def writeValue(out: ByteArrayOutputStream, value: Any): Unit = value match {
-    case s: String             => JsonBinaryCodec.stringCodec.encode(s, out)
-    case b: Boolean            => JsonBinaryCodec.booleanCodec.encode(b, out)
-    case b: Byte               => JsonBinaryCodec.byteCodec.encode(b, out)
-    case sh: Short             => JsonBinaryCodec.shortCodec.encode(sh, out)
-    case i: Int                => JsonBinaryCodec.intCodec.encode(i, out)
-    case l: Long               => JsonBinaryCodec.longCodec.encode(l, out)
-    case f: Float              => JsonBinaryCodec.floatCodec.encode(f, out)
-    case d: Double             => JsonBinaryCodec.doubleCodec.encode(d, out)
-    case c: Char               => JsonBinaryCodec.charCodec.encode(c, out)
-    case bd: BigDecimal        => JsonBinaryCodec.bigDecimalCodec.encode(bd, out)
-    case bi: BigInt            => JsonBinaryCodec.bigIntCodec.encode(bi, out)
-    case dow: DayOfWeek        => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
-    case d: Duration           => JsonBinaryCodec.durationCodec.encode(d, out)
-    case i: Instant            => JsonBinaryCodec.instantCodec.encode(i, out)
-    case ld: LocalDate         => JsonBinaryCodec.localDateCodec.encode(ld, out)
-    case ldt: LocalDateTime    => JsonBinaryCodec.localDateTimeCodec.encode(ldt, out)
-    case lt: LocalTime         => JsonBinaryCodec.localTimeCodec.encode(lt, out)
-    case m: Month              => JsonBinaryCodec.monthCodec.encode(m, out)
-    case md: MonthDay          => JsonBinaryCodec.monthDayCodec.encode(md, out)
-    case odt: OffsetDateTime   => JsonBinaryCodec.offsetDateTimeCodec.encode(odt, out)
-    case ot: OffsetTime        => JsonBinaryCodec.offsetTimeCodec.encode(ot, out)
-    case p: Period             => JsonBinaryCodec.periodCodec.encode(p, out)
-    case y: Year               => JsonBinaryCodec.yearCodec.encode(y, out)
-    case ym: YearMonth         => JsonBinaryCodec.yearMonthCodec.encode(ym, out)
-    case zo: ZoneOffset        => JsonBinaryCodec.zoneOffsetCodec.encode(zo, out)
-    case zi: ZoneId            => JsonBinaryCodec.zoneIdCodec.encode(zi, out)
-    case zdt: ZonedDateTime    => JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out)
-    case c: java.util.Currency => JsonBinaryCodec.currencyCodec.encode(c, out)
-    case uuid: java.util.UUID  => JsonBinaryCodec.uuidCodec.encode(uuid, out)
+    case s: String             => JsonCodec.stringCodec.encode(s, out)
+    case b: Boolean            => JsonCodec.booleanCodec.encode(b, out)
+    case b: Byte               => JsonCodec.byteCodec.encode(b, out)
+    case sh: Short             => JsonCodec.shortCodec.encode(sh, out)
+    case i: Int                => JsonCodec.intCodec.encode(i, out)
+    case l: Long               => JsonCodec.longCodec.encode(l, out)
+    case f: Float              => JsonCodec.floatCodec.encode(f, out)
+    case d: Double             => JsonCodec.doubleCodec.encode(d, out)
+    case c: Char               => JsonCodec.charCodec.encode(c, out)
+    case bd: BigDecimal        => JsonCodec.bigDecimalCodec.encode(bd, out)
+    case bi: BigInt            => JsonCodec.bigIntCodec.encode(bi, out)
+    case dow: DayOfWeek        => JsonCodec.dayOfWeekCodec.encode(dow, out)
+    case d: Duration           => JsonCodec.durationCodec.encode(d, out)
+    case i: Instant            => JsonCodec.instantCodec.encode(i, out)
+    case ld: LocalDate         => JsonCodec.localDateCodec.encode(ld, out)
+    case ldt: LocalDateTime    => JsonCodec.localDateTimeCodec.encode(ldt, out)
+    case lt: LocalTime         => JsonCodec.localTimeCodec.encode(lt, out)
+    case m: Month              => JsonCodec.monthCodec.encode(m, out)
+    case md: MonthDay          => JsonCodec.monthDayCodec.encode(md, out)
+    case odt: OffsetDateTime   => JsonCodec.offsetDateTimeCodec.encode(odt, out)
+    case ot: OffsetTime        => JsonCodec.offsetTimeCodec.encode(ot, out)
+    case p: Period             => JsonCodec.periodCodec.encode(p, out)
+    case y: Year               => JsonCodec.yearCodec.encode(y, out)
+    case ym: YearMonth         => JsonCodec.yearMonthCodec.encode(ym, out)
+    case zo: ZoneOffset        => JsonCodec.zoneOffsetCodec.encode(zo, out)
+    case zi: ZoneId            => JsonCodec.zoneIdCodec.encode(zi, out)
+    case zdt: ZonedDateTime    => JsonCodec.zonedDateTimeCodec.encode(zdt, out)
+    case c: java.util.Currency => JsonCodec.currencyCodec.encode(c, out)
+    case uuid: java.util.UUID  => JsonCodec.uuidCodec.encode(uuid, out)
     case opt: Option[_]        =>
       opt match {
         case Some(value) => writeValue(out, value)
-        case _           =>
-          out.write('n')
-          out.write('u')
-          out.write('l')
-          out.write('l')
+        case _           => out.write('n', 'u', 'l', 'l')
       }
-    case null =>
-      out.write('n')
-      out.write('u')
-      out.write('l')
-      out.write('l')
-    case _: Unit =>
-      out.write('{')
-      out.write('}')
+    case null                            => out.write('n', 'u', 'l', 'l')
+    case _: Unit                         => out.write('{', '}')
     case j: Json                         => Json.jsonCodec.encode(j, out)
     case map: scala.collection.Map[_, _] =>
       out.write('{')
@@ -364,62 +317,62 @@ private[schema] object JsonInterpolatorRuntime {
 
   private[this] def writeKey(out: ByteArrayOutputStream, key: Any): Unit = {
     key match {
-      case s: String  => JsonBinaryCodec.stringCodec.encode(s, out)
+      case s: String  => JsonCodec.stringCodec.encode(s, out)
       case b: Boolean =>
         out.write('"')
-        JsonBinaryCodec.booleanCodec.encode(b, out)
+        JsonCodec.booleanCodec.encode(b, out)
         out.write('"')
       case b: Byte =>
         out.write('"')
-        JsonBinaryCodec.byteCodec.encode(b, out)
+        JsonCodec.byteCodec.encode(b, out)
         out.write('"')
       case sh: Short =>
         out.write('"')
-        JsonBinaryCodec.shortCodec.encode(sh, out)
+        JsonCodec.shortCodec.encode(sh, out)
         out.write('"')
       case i: Int =>
         out.write('"')
-        JsonBinaryCodec.intCodec.encode(i, out)
+        JsonCodec.intCodec.encode(i, out)
         out.write('"')
       case l: Long =>
         out.write('"')
-        JsonBinaryCodec.longCodec.encode(l, out)
+        JsonCodec.longCodec.encode(l, out)
         out.write('"')
       case f: Float =>
         out.write('"')
-        JsonBinaryCodec.floatCodec.encode(f, out)
+        JsonCodec.floatCodec.encode(f, out)
         out.write('"')
       case d: Double =>
         out.write('"')
-        JsonBinaryCodec.doubleCodec.encode(d, out)
+        JsonCodec.doubleCodec.encode(d, out)
         out.write('"')
       case bd: BigDecimal =>
         out.write('"')
-        JsonBinaryCodec.bigDecimalCodec.encode(bd, out)
+        JsonCodec.bigDecimalCodec.encode(bd, out)
         out.write('"')
       case bi: BigInt =>
         out.write('"')
-        JsonBinaryCodec.bigIntCodec.encode(bi, out)
+        JsonCodec.bigIntCodec.encode(bi, out)
         out.write('"')
-      case d: Duration         => JsonBinaryCodec.durationCodec.encode(d, out)
-      case dow: DayOfWeek      => JsonBinaryCodec.dayOfWeekCodec.encode(dow, out)
-      case i: Instant          => JsonBinaryCodec.instantCodec.encode(i, out)
-      case ld: LocalDate       => JsonBinaryCodec.localDateCodec.encode(ld, out)
-      case ldt: LocalDateTime  => JsonBinaryCodec.localDateTimeCodec.encode(ldt, out)
-      case lt: LocalTime       => JsonBinaryCodec.localTimeCodec.encode(lt, out)
-      case m: Month            => JsonBinaryCodec.monthCodec.encode(m, out)
-      case md: MonthDay        => JsonBinaryCodec.monthDayCodec.encode(md, out)
-      case odt: OffsetDateTime => JsonBinaryCodec.offsetDateTimeCodec.encode(odt, out)
-      case ot: OffsetTime      => JsonBinaryCodec.offsetTimeCodec.encode(ot, out)
-      case p: Period           => JsonBinaryCodec.periodCodec.encode(p, out)
-      case y: Year             => JsonBinaryCodec.yearCodec.encode(y, out)
-      case ym: YearMonth       => JsonBinaryCodec.yearMonthCodec.encode(ym, out)
-      case zo: ZoneOffset      => JsonBinaryCodec.zoneOffsetCodec.encode(zo, out)
-      case zi: ZoneId          => JsonBinaryCodec.zoneIdCodec.encode(zi, out)
-      case zdt: ZonedDateTime  => JsonBinaryCodec.zonedDateTimeCodec.encode(zdt, out)
-      case c: Currency         => JsonBinaryCodec.currencyCodec.encode(c, out)
-      case uuid: UUID          => JsonBinaryCodec.uuidCodec.encode(uuid, out)
-      case x                   => JsonBinaryCodec.stringCodec.encode(x.toString, out)
+      case d: Duration         => JsonCodec.durationCodec.encode(d, out)
+      case dow: DayOfWeek      => JsonCodec.dayOfWeekCodec.encode(dow, out)
+      case i: Instant          => JsonCodec.instantCodec.encode(i, out)
+      case ld: LocalDate       => JsonCodec.localDateCodec.encode(ld, out)
+      case ldt: LocalDateTime  => JsonCodec.localDateTimeCodec.encode(ldt, out)
+      case lt: LocalTime       => JsonCodec.localTimeCodec.encode(lt, out)
+      case m: Month            => JsonCodec.monthCodec.encode(m, out)
+      case md: MonthDay        => JsonCodec.monthDayCodec.encode(md, out)
+      case odt: OffsetDateTime => JsonCodec.offsetDateTimeCodec.encode(odt, out)
+      case ot: OffsetTime      => JsonCodec.offsetTimeCodec.encode(ot, out)
+      case p: Period           => JsonCodec.periodCodec.encode(p, out)
+      case y: Year             => JsonCodec.yearCodec.encode(y, out)
+      case ym: YearMonth       => JsonCodec.yearMonthCodec.encode(ym, out)
+      case zo: ZoneOffset      => JsonCodec.zoneOffsetCodec.encode(zo, out)
+      case zi: ZoneId          => JsonCodec.zoneIdCodec.encode(zi, out)
+      case zdt: ZonedDateTime  => JsonCodec.zonedDateTimeCodec.encode(zdt, out)
+      case c: Currency         => JsonCodec.currencyCodec.encode(c, out)
+      case uuid: UUID          => JsonCodec.uuidCodec.encode(uuid, out)
+      case x                   => JsonCodec.stringCodec.encode(x.toString, out)
     }
     out.write(':')
   }
@@ -441,6 +394,24 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
     if (pos >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
     buf(pos) = b.toByte
     count = pos + 1
+  }
+
+  def write(b1: Byte, b2: Byte): Unit = {
+    val pos = count
+    if (pos + 1 >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
+    buf(pos) = b1
+    buf(pos + 1) = b2
+    count = pos + 2
+  }
+
+  def write(b1: Byte, b2: Byte, b3: Byte, b4: Byte): Unit = {
+    val pos = count
+    if (pos + 3 >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
+    buf(pos) = b1
+    buf(pos + 1) = b2
+    buf(pos + 2) = b3
+    buf(pos + 3) = b4
+    count = pos + 4
   }
 
   def write(s: String): Unit = count = write(s, 0, s.length, count, buf.length - 4)
@@ -472,7 +443,7 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
             ch2 = s.charAt(from + 1).toInt
             (ch2 & 0xfc00) != 0xdc00
           }
-        ) throw new JsonBinaryCodecError(Nil, "Illegal surrogate pair")
+        ) throw new JsonCodecError(Nil, "Illegal surrogate pair")
         val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
         buf(pos) = (cp >> 18 | 0xf0).toByte
         buf(pos + 1) = (cp >> 12 & 0x3f | 0x80).toByte
@@ -482,5 +453,7 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
       }
     }
 
-  def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
+  def getBuf: Array[Byte] = buf
+
+  def getCount: Int = count
 }

@@ -1,12 +1,26 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package golem
 
 import golem.host.js.{JsAgentMetadataRuntime, JsComponentId, JsDataValue, JsEnvironmentId}
 import golem.runtime.rpc.host.AgentHostApi
 import golem.Uuid
-
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{JsonBinaryCodec, JsonBinaryCodecDeriver}
-
+import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
 import scala.concurrent.Future
 import scala.scalajs.js
 import scala.scalajs.js.Dictionary
@@ -554,10 +568,10 @@ object HostApi {
       lowBits = BigInt(uuid.lowBits.toString)
     )
 
-  private def jsonCodec[A](rejectExtraFields: Boolean)(implicit schema: Schema[A]): JsonBinaryCodec[A] = {
+  private def jsonCodec[A](rejectExtraFields: Boolean)(implicit schema: Schema[A]): JsonCodec[A] = {
     val deriver =
-      if (rejectExtraFields) JsonBinaryCodecDeriver.withRejectExtraFields(true)
-      else JsonBinaryCodecDeriver
+      if (rejectExtraFields) JsonCodecDeriver.withRejectExtraFields(true)
+      else JsonCodecDeriver
     schema.derive(deriver)
   }
 

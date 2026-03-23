@@ -1574,8 +1574,10 @@ object JsonSchema {
     minProperties: Option[NonNegativeInt] = None,
     maxProperties: Option[NonNegativeInt] = None,
     unevaluatedProperties: Option[JsonSchema] = None,
-    title: Option[String] = None
-  ): JsonSchema = Object(
+    title: Option[String] = None,
+    allOf: Option[NonEmptyChunk[JsonSchema]] = None,
+    dependentSchemas: Option[ChunkMap[String, JsonSchema]] = None
+  ): JsonSchema = new Object(
     `type` = new Some(new SchemaType.Single(JsonSchemaType.Object)),
     properties = properties,
     required = required,
@@ -1585,7 +1587,9 @@ object JsonSchema {
     minProperties = minProperties,
     maxProperties = maxProperties,
     unevaluatedProperties = unevaluatedProperties,
-    title = title
+    title = title,
+    allOf = allOf,
+    dependentSchemas = dependentSchemas
   )
 
   def enumOf(values: NonEmptyChunk[Json]): JsonSchema = new Object(`enum` = new Some(values))

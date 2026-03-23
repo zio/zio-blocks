@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema.json
 
 import zio.blocks.schema.Schema
@@ -22,7 +38,7 @@ object JsonTestUtils {
   def roundTrip[A](
     value: A,
     expectedJson: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig = readerConfig,
     writerConfig: WriterConfig = writerConfig
   ): TestResult = {
@@ -58,9 +74,9 @@ object JsonTestUtils {
     assert(codec.decode(toHeapByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(new String(encodedBySchema1, UTF_8), readerConfig))(isRight(equalTo(value))) && {
-      val x = Json.jsonCodec.decode(encodedBySchema6, readerConfig)
-      val y = x.flatMap(codec.decode)
-      assert(y)(isRight(equalTo(value)))
+      val jsonResult = Json.jsonCodec.decode(encodedBySchema6, readerConfig)
+      assert(jsonResult.flatMap(codec.decode))(isRight(equalTo(value))) /*&&
+      assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isNone))*/
     }
   }
 
@@ -73,7 +89,7 @@ object JsonTestUtils {
   def decode[A](
     json: String,
     expectedValue: A,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig = readerConfig
   ): TestResult = {
     val jsonBytes = json.getBytes(UTF_8)
@@ -81,8 +97,11 @@ object JsonTestUtils {
     assert(codec.decode(toInputStream(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toHeapByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toDirectByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
-    assert(codec.decode(json, readerConfig))(isRight(equalTo(expectedValue))) &&
-    assert(Json.jsonCodec.decode(json, readerConfig).flatMap(codec.decode))(isRight(equalTo(expectedValue)))
+    assert(codec.decode(json, readerConfig))(isRight(equalTo(expectedValue))) && {
+      val jsonResult = Json.jsonCodec.decode(json, readerConfig)
+      assert(jsonResult.flatMap(codec.decode))(isRight(equalTo(expectedValue))) /*&&
+      assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isNone))*/
+    }
   }
 
   def decodeError[A](invalidJson: String, error: String)(implicit schema: Schema[A]): TestResult =
@@ -91,24 +110,24 @@ object JsonTestUtils {
   def decodeError[A](invalidJson: Array[Byte], error: String)(implicit schema: Schema[A]): TestResult =
     decodeError(invalidJson, error, getOrDeriveCodec(schema))
 
-  def decodeError[A](invalidJson: String, error: String, codec: JsonBinaryCodec[A]): TestResult =
+  def decodeError[A](invalidJson: String, error: String, codec: JsonCodec[A]): TestResult =
     decodeError(invalidJson.getBytes(UTF_8), error, codec)
 
   def decodeError[A](
     invalidJson: String,
     error: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig
   ): TestResult =
     decodeError(invalidJson.getBytes(UTF_8), error, codec, readerConfig)
 
-  def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonBinaryCodec[A]): TestResult =
+  def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonCodec[A]): TestResult =
     decodeError(invalidJson, error, codec, ReaderConfig)
 
   def decodeError[A](
     invalidJson: Array[Byte],
     error: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     readerConfig: ReaderConfig
   ): TestResult =
     assert(codec.decode(invalidJson, readerConfig))(isLeft(hasError(error))) &&
@@ -118,8 +137,11 @@ object JsonTestUtils {
       {
         if (error.startsWith("malformed byte(s)") || error.startsWith("illegal surrogate")) assertTrue(true)
         else assert(codec.decode(new String(invalidJson, UTF_8), readerConfig))(isLeft(hasError(error)))
-      } &&
-      assertTrue(Json.jsonCodec.decode(invalidJson, readerConfig).flatMap(codec.decode).isLeft)
+      } && {
+        val jsonResult = Json.jsonCodec.decode(invalidJson, readerConfig)
+        assertTrue(jsonResult.flatMap(codec.decode).isLeft) /*&&
+        assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isSome))*/
+      }
 
   def encode[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     encode(value, expectedJson, getOrDeriveCodec(schema))
@@ -130,7 +152,7 @@ object JsonTestUtils {
   def encode[A](
     value: A,
     expectedJson: String,
-    codec: JsonBinaryCodec[A],
+    codec: JsonCodec[A],
     writerConfig: WriterConfig = writerConfig
   ): TestResult = {
     val heapByteBuffer = ByteBuffer.allocate(maxBufSize)
@@ -200,10 +222,10 @@ object JsonTestUtils {
 
   private[this] def writerConfig = WriterConfig.withPreferredBufSize(random.nextInt(11) + 1)
 
-  private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonBinaryCodec[A] =
+  private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonCodec[A] =
     codecs
-      .computeIfAbsent(schema, (s: Schema[_]) => s.deriving(JsonBinaryCodecDeriver).derive)
-      .asInstanceOf[JsonBinaryCodec[A]]
+      .computeIfAbsent(schema, (s: Schema[_]) => s.deriving(JsonCodecDeriver).derive)
+      .asInstanceOf[JsonCodec[A]]
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
@@ -212,7 +234,7 @@ object JsonTestUtils {
   private[this] def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
     ByteBuffer.allocateDirect(maxBufSize).put(bs).position(0).limit(bs.length)
 
-  private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonBinaryCodec[?]]()
+  private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonCodec[?]]()
   private[this] val random     = new Random()
   private[this] val maxBufSize = 16384
 }

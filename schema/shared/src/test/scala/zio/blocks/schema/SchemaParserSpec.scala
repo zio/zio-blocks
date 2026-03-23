@@ -1,5 +1,22 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object SchemaParserSpec extends SchemaBaseSpec {
@@ -128,7 +145,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("parse record with single field") {
         assertTrue(
           parse("record { name: string }") == Right(
-            SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+            SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
           )
         )
       },
@@ -136,7 +153,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { name: string, age: int }") == Right(
             SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "name" -> SchemaRepr.Primitive("string"),
                 "age"  -> SchemaRepr.Primitive("int")
               )
@@ -148,7 +165,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { name: string, age: int, active: boolean }") == Right(
             SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "name"   -> SchemaRepr.Primitive("string"),
                 "age"    -> SchemaRepr.Primitive("int"),
                 "active" -> SchemaRepr.Primitive("boolean")
@@ -160,14 +177,14 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("parse record with nominal field type") {
         assertTrue(
           parse("record { person: Person }") == Right(
-            SchemaRepr.Record(Vector("person" -> SchemaRepr.Nominal("Person")))
+            SchemaRepr.Record(Chunk("person" -> SchemaRepr.Nominal("Person")))
           )
         )
       },
       test("parse record with minimal whitespace") {
         assertTrue(
           parse("record{name:string}") == Right(
-            SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string")))
+            SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string")))
           )
         )
       },
@@ -175,7 +192,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record  {  name  :  string  ,  age  :  int  }") == Right(
             SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "name" -> SchemaRepr.Primitive("string"),
                 "age"  -> SchemaRepr.Primitive("int")
               )
@@ -187,8 +204,8 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { address: record { street: string } }") == Right(
             SchemaRepr.Record(
-              Vector(
-                "address" -> SchemaRepr.Record(Vector("street" -> SchemaRepr.Primitive("string")))
+              Chunk(
+                "address" -> SchemaRepr.Record(Chunk("street" -> SchemaRepr.Primitive("string")))
               )
             )
           )
@@ -199,7 +216,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("parse variant with single case") {
         assertTrue(
           parse("variant { Left: int }") == Right(
-            SchemaRepr.Variant(Vector("Left" -> SchemaRepr.Primitive("int")))
+            SchemaRepr.Variant(Chunk("Left" -> SchemaRepr.Primitive("int")))
           )
         )
       },
@@ -207,7 +224,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("variant { Left: int, Right: string }") == Right(
             SchemaRepr.Variant(
-              Vector(
+              Chunk(
                 "Left"  -> SchemaRepr.Primitive("int"),
                 "Right" -> SchemaRepr.Primitive("string")
               )
@@ -219,7 +236,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("variant { A: int, B: string, C: boolean }") == Right(
             SchemaRepr.Variant(
-              Vector(
+              Chunk(
                 "A" -> SchemaRepr.Primitive("int"),
                 "B" -> SchemaRepr.Primitive("string"),
                 "C" -> SchemaRepr.Primitive("boolean")
@@ -231,7 +248,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("parse variant with nominal payload") {
         assertTrue(
           parse("variant { Success: Person }") == Right(
-            SchemaRepr.Variant(Vector("Success" -> SchemaRepr.Nominal("Person")))
+            SchemaRepr.Variant(Chunk("Success" -> SchemaRepr.Nominal("Person")))
           )
         )
       }
@@ -290,7 +307,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
           parse("map(string, record { x: int })") == Right(
             SchemaRepr.Map(
               SchemaRepr.Primitive("string"),
-              SchemaRepr.Record(Vector("x" -> SchemaRepr.Primitive("int")))
+              SchemaRepr.Record(Chunk("x" -> SchemaRepr.Primitive("int")))
             )
           )
         )
@@ -327,7 +344,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("parse option with complex type") {
         assertTrue(
           parse("option(record { name: string })") == Right(
-            SchemaRepr.Optional(SchemaRepr.Record(Vector("name" -> SchemaRepr.Primitive("string"))))
+            SchemaRepr.Optional(SchemaRepr.Record(Chunk("name" -> SchemaRepr.Primitive("string"))))
           )
         )
       },
@@ -344,7 +361,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { items: list(Person) }") == Right(
             SchemaRepr.Record(
-              Vector("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
+              Chunk("items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")))
             )
           )
         )
@@ -353,7 +370,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { email: option(string) }") == Right(
             SchemaRepr.Record(
-              Vector("email" -> SchemaRepr.Optional(SchemaRepr.Primitive("string")))
+              Chunk("email" -> SchemaRepr.Optional(SchemaRepr.Primitive("string")))
             )
           )
         )
@@ -362,7 +379,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { scores: map(string, int) }") == Right(
             SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "scores" -> SchemaRepr.Map(
                   SchemaRepr.Primitive("string"),
                   SchemaRepr.Primitive("int")
@@ -376,8 +393,8 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("variant { Success: record { value: int }, Error: string }") == Right(
             SchemaRepr.Variant(
-              Vector(
-                "Success" -> SchemaRepr.Record(Vector("value" -> SchemaRepr.Primitive("int"))),
+              Chunk(
+                "Success" -> SchemaRepr.Record(Chunk("value" -> SchemaRepr.Primitive("int"))),
                 "Error"   -> SchemaRepr.Primitive("string")
               )
             )
@@ -389,7 +406,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
           parse("list(record { name: string, age: int })") == Right(
             SchemaRepr.Sequence(
               SchemaRepr.Record(
-                Vector(
+                Chunk(
                   "name" -> SchemaRepr.Primitive("string"),
                   "age"  -> SchemaRepr.Primitive("int")
                 )
@@ -412,7 +429,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
         assertTrue(
           parse("record { data: option(list(map(string, Person))) }") == Right(
             SchemaRepr.Record(
-              Vector(
+              Chunk(
                 "data" -> SchemaRepr.Optional(
                   SchemaRepr.Sequence(
                     SchemaRepr.Map(
@@ -429,7 +446,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       test("wildcard in record field") {
         assertTrue(
           parse("record { any: _ }") == Right(
-            SchemaRepr.Record(Vector("any" -> SchemaRepr.Wildcard))
+            SchemaRepr.Record(Chunk("any" -> SchemaRepr.Wildcard))
           )
         )
       },
@@ -766,7 +783,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       },
       test("Record roundtrip") {
         val original = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "name" -> SchemaRepr.Primitive("string"),
             "age"  -> SchemaRepr.Primitive("int")
           )
@@ -775,7 +792,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       },
       test("Variant roundtrip") {
         val original = SchemaRepr.Variant(
-          Vector(
+          Chunk(
             "Left"  -> SchemaRepr.Primitive("int"),
             "Right" -> SchemaRepr.Primitive("string")
           )
@@ -796,7 +813,7 @@ object SchemaParserSpec extends SchemaBaseSpec {
       },
       test("Complex nested roundtrip") {
         val original = SchemaRepr.Record(
-          Vector(
+          Chunk(
             "items" -> SchemaRepr.Sequence(SchemaRepr.Nominal("Person")),
             "meta"  -> SchemaRepr.Optional(
               SchemaRepr.Map(SchemaRepr.Primitive("string"), SchemaRepr.Wildcard)

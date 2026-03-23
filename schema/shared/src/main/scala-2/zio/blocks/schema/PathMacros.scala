@@ -1,10 +1,25 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
 import scala.reflect.macros.blackbox
 
 object PathMacros {
-
   def pImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[DynamicOptic] = {
     import c.universe._
 
@@ -16,7 +31,6 @@ object PathMacros {
             "Path interpolator does not support runtime arguments. Use only literal strings like p\".field[0]\""
           )
         }
-
         val pathString = parts match {
           case List(Literal(Constant(str: String))) => str
           case _                                    =>
@@ -25,27 +39,19 @@ object PathMacros {
               "Path interpolator does not support runtime arguments. Use only literal strings like p\".field[0]\""
             )
         }
-
         PathParser.parse(pathString) match {
-          case Left(error) =>
-            c.abort(c.enclosingPosition, error.message)
-
-          case Right(nodes) =>
-            buildDynamicOpticExpr(c)(nodes)
+          case Left(error)  => c.abort(c.enclosingPosition, error.message)
+          case Right(nodes) => buildDynamicOpticExpr(c)(nodes)
         }
-
-      case _ =>
-        c.abort(c.enclosingPosition, "Invalid string interpolation")
+      case _ => c.abort(c.enclosingPosition, "Invalid string interpolation")
     }
   }
 
   private def buildDynamicOpticExpr(c: blackbox.Context)(nodes: Chunk[DynamicOptic.Node]): c.Expr[DynamicOptic] = {
     import c.universe._
 
-    val nodeExprs = nodes.map(node => buildNodeExpr(c)(node))
-
+    val nodeExprs  = nodes.map(node => buildNodeExpr(c)(node))
     val vectorTree = q"_root_.scala.Vector(..$nodeExprs)"
-
     c.Expr[DynamicOptic](q"_root_.zio.blocks.schema.DynamicOptic($vectorTree)")
   }
 
@@ -56,41 +62,30 @@ object PathMacros {
     node match {
       case Node.Field(name) =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.Field($name)"
-
       case Node.Case(name) =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.Case($name)"
-
       case Node.AtIndex(index) =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.AtIndex($index)"
-
       case Node.AtIndices(indices) =>
         val indicesSeq = indices.toSeq
         q"_root_.zio.blocks.schema.DynamicOptic.Node.AtIndices(_root_.scala.Seq(..$indicesSeq))"
-
       case Node.AtMapKey(key) =>
         val keyTree = buildDynamicValueExpr(c)(key)
         q"_root_.zio.blocks.schema.DynamicOptic.Node.AtMapKey($keyTree)"
-
       case Node.AtMapKeys(keys) =>
         val keyTrees = keys.map(buildDynamicValueExpr(c))
         q"_root_.zio.blocks.schema.DynamicOptic.Node.AtMapKeys(_root_.scala.Seq(..$keyTrees))"
-
       case Node.Elements =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.Elements"
-
       case Node.MapKeys =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.MapKeys"
-
       case Node.MapValues =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.MapValues"
-
       case Node.Wrapped =>
         q"_root_.zio.blocks.schema.DynamicOptic.Node.Wrapped"
-
       case Node.TypeSearch(typeId) =>
         val typeIdTree = buildTypeIdExpr(c)(typeId)
         q"_root_.zio.blocks.schema.DynamicOptic.Node.TypeSearch($typeIdTree)"
-
       case Node.SchemaSearch(schemaRepr) =>
         val schemaReprTree = buildSchemaReprExpr(c)(schemaRepr)
         q"_root_.zio.blocks.schema.DynamicOptic.Node.SchemaSearch($schemaReprTree)"
@@ -104,7 +99,6 @@ object PathMacros {
       case DynamicValue.Primitive(pv) =>
         val pvTree = buildPrimitiveValueExpr(c)(pv)
         q"_root_.zio.blocks.schema.DynamicValue.Primitive($pvTree)"
-
       case _ =>
         c.abort(c.enclosingPosition, s"Unsupported DynamicValue type: ${value.getClass.getName}")
     }
@@ -116,16 +110,12 @@ object PathMacros {
     pv match {
       case PrimitiveValue.String(value) =>
         q"_root_.zio.blocks.schema.PrimitiveValue.String($value)"
-
       case PrimitiveValue.Int(value) =>
         q"_root_.zio.blocks.schema.PrimitiveValue.Int($value)"
-
       case PrimitiveValue.Char(value) =>
         q"_root_.zio.blocks.schema.PrimitiveValue.Char($value)"
-
       case PrimitiveValue.Boolean(value) =>
         q"_root_.zio.blocks.schema.PrimitiveValue.Boolean($value)"
-
       case _ =>
         c.abort(c.enclosingPosition, s"Unsupported PrimitiveValue type: ${pv.getClass.getName}")
     }
@@ -143,37 +133,30 @@ object PathMacros {
     repr match {
       case SchemaRepr.Nominal(name) =>
         q"_root_.zio.blocks.schema.SchemaRepr.Nominal($name)"
-
       case SchemaRepr.Primitive(name) =>
         q"_root_.zio.blocks.schema.SchemaRepr.Primitive($name)"
-
       case SchemaRepr.Record(fields) =>
         val fieldTrees = fields.map { case (name, fieldRepr) =>
           val reprTree = buildSchemaReprExpr(c)(fieldRepr)
           q"($name, $reprTree)"
         }
-        q"_root_.zio.blocks.schema.SchemaRepr.Record(_root_.scala.Vector(..$fieldTrees))"
-
+        q"_root_.zio.blocks.schema.SchemaRepr.Record(_root_.zio.blocks.chunk.Chunk(..$fieldTrees))"
       case SchemaRepr.Variant(cases) =>
         val caseTrees = cases.map { case (name, caseRepr) =>
           val reprTree = buildSchemaReprExpr(c)(caseRepr)
           q"($name, $reprTree)"
         }
-        q"_root_.zio.blocks.schema.SchemaRepr.Variant(_root_.scala.Vector(..$caseTrees))"
-
+        q"_root_.zio.blocks.schema.SchemaRepr.Variant(_root_.zio.blocks.chunk.Chunk(..$caseTrees))"
       case SchemaRepr.Sequence(element) =>
         val elementTree = buildSchemaReprExpr(c)(element)
         q"_root_.zio.blocks.schema.SchemaRepr.Sequence($elementTree)"
-
       case SchemaRepr.Map(key, value) =>
         val keyTree   = buildSchemaReprExpr(c)(key)
         val valueTree = buildSchemaReprExpr(c)(value)
         q"_root_.zio.blocks.schema.SchemaRepr.Map($keyTree, $valueTree)"
-
       case SchemaRepr.Optional(inner) =>
         val innerTree = buildSchemaReprExpr(c)(inner)
         q"_root_.zio.blocks.schema.SchemaRepr.Optional($innerTree)"
-
       case SchemaRepr.Wildcard =>
         q"_root_.zio.blocks.schema.SchemaRepr.Wildcard"
     }

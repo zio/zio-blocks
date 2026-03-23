@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.openapi
 
 import zio.blocks.chunk.{Chunk, ChunkMap}
@@ -32,9 +48,7 @@ object ParameterSpec extends SchemaBaseSpec {
       },
       test("ParameterLocation round-trips through DynamicValue") {
         val location = ParameterLocation.Query
-        val dv       = Schema[ParameterLocation].toDynamicValue(location)
-        val result   = Schema[ParameterLocation].fromDynamicValue(dv)
-
+        val result   = Schema[ParameterLocation].fromDynamicValue(Schema[ParameterLocation].toDynamicValue(location))
         assertTrue(
           result.isRight,
           result.contains(ParameterLocation.Query)
@@ -43,11 +57,7 @@ object ParameterSpec extends SchemaBaseSpec {
     ),
     suite("Parameter")(
       test("can be constructed with required fields only (query)") {
-        val param = Parameter(
-          name = "limit",
-          in = ParameterLocation.Query
-        )
-
+        val param = Parameter(name = "limit", in = ParameterLocation.Query)
         assertTrue(
           param.name == "limit",
           param.in == ParameterLocation.Query,
@@ -66,12 +76,6 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))
-        val example    = Json.Number(10)
-        val examples   = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20)))))
-        val content    = ChunkMap("application/json" -> MediaType())
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-
         val param = Parameter(
           name = "limit",
           in = ParameterLocation.Query,
@@ -82,13 +86,12 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("form"),
           explode = Some(true),
           allowReserved = Some(false),
-          schema = Some(schemaObj),
-          example = Some(example),
-          examples = examples,
-          content = content,
-          extensions = extensions
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("integer"))))),
+          example = Some(Json.Number(10)),
+          examples = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.Number(20))))),
+          content = ChunkMap("application/json" -> MediaType()),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           param.name == "limit",
           param.in == ParameterLocation.Query,
@@ -100,19 +103,14 @@ object ParameterSpec extends SchemaBaseSpec {
           param.explode.contains(true),
           param.allowReserved.contains(false),
           param.schema.isDefined,
-          param.example.contains(example),
+          param.example.contains(Json.Number(10)),
           param.examples.size == 1,
           param.content.size == 1,
           param.extensions.size == 1
         )
       },
       test("path parameter requires required=true") {
-        val param = Parameter(
-          name = "userId",
-          in = ParameterLocation.Path,
-          required = true
-        )
-
+        val param = Parameter(name = "userId", in = ParameterLocation.Path, required = true)
         assertTrue(
           param.name == "userId",
           param.in == ParameterLocation.Path,
@@ -120,12 +118,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("path parameter with required=false is allowed") {
-        val param = Parameter(
-          name = "userId",
-          in = ParameterLocation.Path,
-          required = false
-        )
-
+        val param = Parameter(name = "userId", in = ParameterLocation.Path)
         assertTrue(
           param.name == "userId",
           param.in == ParameterLocation.Path,
@@ -133,12 +126,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("query parameter can have required=false") {
-        val param = Parameter(
-          name = "limit",
-          in = ParameterLocation.Query,
-          required = false
-        )
-
+        val param = Parameter(name = "limit", in = ParameterLocation.Query)
         assertTrue(
           param.name == "limit",
           param.in == ParameterLocation.Query,
@@ -146,12 +134,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("header parameter can have required=false") {
-        val param = Parameter(
-          name = "X-Request-ID",
-          in = ParameterLocation.Header,
-          required = false
-        )
-
+        val param = Parameter(name = "X-Request-ID", in = ParameterLocation.Header)
         assertTrue(
           param.name == "X-Request-ID",
           param.in == ParameterLocation.Header,
@@ -159,12 +142,7 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("cookie parameter can have required=false") {
-        val param = Parameter(
-          name = "sessionId",
-          in = ParameterLocation.Cookie,
-          required = false
-        )
-
+        val param = Parameter(name = "sessionId", in = ParameterLocation.Cookie)
         assertTrue(
           param.name == "sessionId",
           param.in == ParameterLocation.Cookie,
@@ -172,16 +150,11 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-internal"   -> Json.Boolean(true),
-          "x-rate-limit" -> Json.Number(1000)
-        )
         val param = Parameter(
           name = "apiKey",
           in = ParameterLocation.Query,
-          extensions = extensions
+          extensions = ChunkMap("x-internal" -> Json.Boolean(true), "x-rate-limit" -> Json.Number(1000))
         )
-
         assertTrue(
           param.extensions.size == 2,
           param.extensions.get("x-internal").contains(Json.Boolean(true)),
@@ -191,7 +164,6 @@ object ParameterSpec extends SchemaBaseSpec {
       test("Schema[Parameter] can be derived") {
         val param  = Parameter(name = "test", in = ParameterLocation.Query)
         val schema = Schema[Parameter]
-
         assertTrue(schema != null, param != null)
       },
       test("Parameter round-trips through DynamicValue") {
@@ -200,7 +172,6 @@ object ParameterSpec extends SchemaBaseSpec {
           in = ParameterLocation.Query,
           description = Some(doc("Max results")),
           required = true,
-          deprecated = false,
           allowEmptyValue = true,
           style = Some("form"),
           explode = Some(true),
@@ -211,10 +182,7 @@ object ParameterSpec extends SchemaBaseSpec {
           content = ChunkMap("application/json" -> MediaType()),
           extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
-        val dv     = Schema[Parameter].toDynamicValue(param)
-        val result = Schema[Parameter].fromDynamicValue(dv)
-
+        val result = Schema[Parameter].fromDynamicValue(Schema[Parameter].toDynamicValue(param))
         assertTrue(
           result.isRight,
           result.exists(_.name == "limit"),
@@ -240,7 +208,6 @@ object ParameterSpec extends SchemaBaseSpec {
           style = Some("deepObject"),
           explode = Some(true)
         )
-
         assertTrue(
           param.style.contains("deepObject"),
           param.explode.contains(true)
@@ -253,7 +220,6 @@ object ParameterSpec extends SchemaBaseSpec {
           description = Some(doc("Session authentication token")),
           required = true
         )
-
         assertTrue(
           param.name == "sessionToken",
           param.in == ParameterLocation.Cookie,
@@ -262,8 +228,7 @@ object ParameterSpec extends SchemaBaseSpec {
       },
       test("Parameter minimal round-trip exercises private constructor defaults") {
         val param  = Parameter(name = "q", in = ParameterLocation.Query)
-        val dv     = Schema[Parameter].toDynamicValue(param)
-        val result = Schema[Parameter].fromDynamicValue(dv)
+        val result = Schema[Parameter].fromDynamicValue(Schema[Parameter].toDynamicValue(param))
         assertTrue(
           result.isRight,
           result.exists(_.name == "q"),
@@ -285,7 +250,6 @@ object ParameterSpec extends SchemaBaseSpec {
     suite("Header")(
       test("can be constructed with no fields") {
         val header = Header()
-
         assertTrue(
           header.description.isEmpty,
           !header.required,
@@ -302,27 +266,19 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("can be constructed with all fields populated") {
-        val schemaObj  = ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))
-        val example    = Json.String("Bearer token123")
-        val examples   = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer abc")))))
-        val content    = ChunkMap("application/json" -> MediaType())
-        val extensions = ChunkMap("x-custom" -> Json.String("value"))
-
         val header = Header(
           description = Some(doc("Authentication header")),
           required = true,
           deprecated = true,
-          allowEmptyValue = false,
           style = Some("simple"),
           explode = Some(false),
           allowReserved = Some(true),
-          schema = Some(schemaObj),
-          example = Some(example),
-          examples = examples,
-          content = content,
-          extensions = extensions
+          schema = Some(ReferenceOr.Value(SchemaObject(jsonSchema = Json.Object("type" -> Json.String("string"))))),
+          example = Some(Json.String("Bearer token123")),
+          examples = ChunkMap("example1" -> ReferenceOr.Value(Example(value = Some(Json.String("Bearer abc"))))),
+          content = ChunkMap("application/json" -> MediaType()),
+          extensions = ChunkMap("x-custom" -> Json.String("value"))
         )
-
         assertTrue(
           header.description.contains(doc("Authentication header")),
           header.required,
@@ -332,30 +288,26 @@ object ParameterSpec extends SchemaBaseSpec {
           header.explode.contains(false),
           header.allowReserved.contains(true),
           header.schema.isDefined,
-          header.example.contains(example),
+          header.example.contains(Json.String("Bearer token123")),
           header.examples.size == 1,
           header.content.size == 1,
           header.extensions.size == 1
         )
       },
       test("header can have required=false (no path constraint)") {
-        val header = Header(
-          description = Some(doc("Optional header")),
-          required = false
-        )
-
+        val header = Header(description = Some(doc("Optional header")))
         assertTrue(
           header.description.contains(doc("Optional header")),
           !header.required
         )
       },
       test("preserves extensions on construction") {
-        val extensions = ChunkMap(
-          "x-rate-limit" -> Json.Number(100),
-          "x-internal"   -> Json.Boolean(false)
+        val header = Header(extensions =
+          ChunkMap(
+            "x-rate-limit" -> Json.Number(100),
+            "x-internal"   -> Json.Boolean(false)
+          )
         )
-        val header = Header(extensions = extensions)
-
         assertTrue(
           header.extensions.size == 2,
           header.extensions.get("x-rate-limit").contains(Json.Number(100)),
@@ -365,15 +317,12 @@ object ParameterSpec extends SchemaBaseSpec {
       test("Schema[Header] can be derived") {
         val header = Header()
         val schema = Schema[Header]
-
         assertTrue(schema != null, header != null)
       },
       test("Header round-trips through DynamicValue") {
         val header = Header(
           description = Some(doc("API Key")),
           required = true,
-          deprecated = false,
-          allowEmptyValue = false,
           style = Some("simple"),
           explode = Some(false),
           allowReserved = Some(true),
@@ -383,10 +332,7 @@ object ParameterSpec extends SchemaBaseSpec {
           content = ChunkMap("text/plain" -> MediaType()),
           extensions = ChunkMap("x-custom" -> Json.Boolean(true))
         )
-
-        val dv     = Schema[Header].toDynamicValue(header)
-        val result = Schema[Header].fromDynamicValue(dv)
-
+        val result = Schema[Header].fromDynamicValue(Schema[Header].toDynamicValue(header))
         assertTrue(
           result.isRight,
           result.exists(_.description.contains(doc("API Key"))),
@@ -404,20 +350,17 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("Header with schema for array type") {
-        val arraySchema = ReferenceOr.Value(
-          SchemaObject(jsonSchema =
-            Json.Object(
-              "type"  -> Json.String("array"),
-              "items" -> Json.Object("type" -> Json.String("string"))
-            )
-          )
-        )
         val header = Header(
-          schema = Some(arraySchema),
+          schema = Some(
+            ReferenceOr.Value(
+              SchemaObject(jsonSchema =
+                Json.Object("type" -> Json.String("array"), "items" -> Json.Object("type" -> Json.String("string")))
+              )
+            )
+          ),
           style = Some("simple"),
           explode = Some(false)
         )
-
         assertTrue(
           header.schema.isDefined,
           header.style.contains("simple"),
@@ -425,13 +368,13 @@ object ParameterSpec extends SchemaBaseSpec {
         )
       },
       test("Header with multiple examples") {
-        val examples = ChunkMap(
-          "default" -> ReferenceOr.Value(Example(value = Some(Json.String("value1")))),
-          "special" -> ReferenceOr.Value(Example(value = Some(Json.String("value2")))),
-          "extreme" -> ReferenceOr.Value(Example(value = Some(Json.String("value3"))))
+        val header = Header(examples =
+          ChunkMap(
+            "default" -> ReferenceOr.Value(Example(value = Some(Json.String("value1")))),
+            "special" -> ReferenceOr.Value(Example(value = Some(Json.String("value2")))),
+            "extreme" -> ReferenceOr.Value(Example(value = Some(Json.String("value3"))))
+          )
         )
-        val header = Header(examples = examples)
-
         assertTrue(
           header.examples.size == 3,
           header.examples.contains("default"),

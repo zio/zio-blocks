@@ -363,13 +363,13 @@ In the following example, we derive a JSON codec for the `Person` case class usi
 
 ```scala
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{JsonFormat, JsonBinaryCodec}
+import zio.blocks.schema.json.{JsonFormat, JsonCodec}
 
 case class Person(name: String, age: Int)
 
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
-  val codec: JsonBinaryCodec[Person] = schema.derive(JsonFormat)
+  val codec: JsonCodec[Person] = schema.derive(JsonFormat)
 }
 
 val person = Person("John", 42)
