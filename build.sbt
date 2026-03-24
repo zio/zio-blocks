@@ -100,8 +100,6 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test"
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; otelJVM/test"
 )
 
 addCommandAlias(
@@ -152,7 +150,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
-    otel,
+    otel.jvm,
+    otel.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -391,23 +390,17 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     })
   )
 
-lazy val otel = project
-  .dependsOn(context.jvm, chunk.jvm)
+lazy val otel = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
   .settings(stdSettings("zio-blocks-otel"))
+  .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.otel"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
-    Compile / unmanagedSourceDirectories ++= {
-      val base = baseDirectory.value / "src" / "main"
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq(base / "scala-2")
-        case Some((3, _)) => Seq(base / "scala-3")
-        case _            => Seq.empty
-      }
-    },
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -426,6 +419,8 @@ lazy val otel = project
       else Nil
     }
   )
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
