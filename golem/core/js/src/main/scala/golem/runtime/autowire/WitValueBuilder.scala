@@ -43,12 +43,26 @@ private[golem] object WitValueBuilder {
           Right(JsWitNode.primString(v))
         case (DataType.BoolType, BoolValue(v)) =>
           Right(JsWitNode.primBool(v))
+        case (DataType.ByteType, ByteValue(v)) =>
+          Right(JsWitNode.primS8(v))
+        case (DataType.ShortType, ShortValue(v)) =>
+          Right(JsWitNode.primS16(v))
         case (DataType.IntType, IntValue(v)) =>
           Right(JsWitNode.primS32(v))
         case (DataType.LongType, LongValue(v)) =>
           Right(JsWitNode.primS64(js.BigInt(v.toString)))
+        case (DataType.FloatType, FloatValue(v)) =>
+          Right(JsWitNode.primFloat32(v))
         case (DataType.DoubleType, DoubleValue(v)) =>
           Right(JsWitNode.primFloat64(v))
+        case (DataType.UByteType, UByteValue(v)) =>
+          Right(JsWitNode.primU8(v))
+        case (DataType.UShortType, UShortValue(v)) =>
+          Right(JsWitNode.primU16(v))
+        case (DataType.UIntType, UIntValue(v)) =>
+          Right(JsWitNode.primU32(v.toDouble))
+        case (DataType.ULongType, ULongValue(v)) =>
+          Right(JsWitNode.primU64(js.BigInt(v.toString)))
         case (DataType.BigDecimalType, BigDecimalValue(v)) =>
           val stringIndex = newNode()
           nodes(stringIndex) = JsWitNode.primString(v.toString)
@@ -80,7 +94,7 @@ private[golem] object WitValueBuilder {
         case (DataType.SetType(of), SetValue(values)) =>
           encodeSequence(values.toList, of, "list-value")
         case (DataType.MapType(valueType), MapValue(entries)) =>
-          val entryType = DataType.TupleType(List(DataType.StringType, valueType))
+          val entryType   = DataType.TupleType(List(DataType.StringType, valueType))
           val entryValues = entries.toList.map { case (k, v) =>
             TupleValue(List(StringValue(k), v))
           }

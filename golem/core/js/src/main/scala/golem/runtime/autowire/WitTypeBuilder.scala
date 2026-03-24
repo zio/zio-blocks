@@ -43,12 +43,26 @@ private[golem] object WitTypeBuilder {
           JsWitTypeNode.primStringType
         case DataType.BoolType =>
           JsWitTypeNode.primBoolType
+        case DataType.ByteType =>
+          JsWitTypeNode.primS8Type
+        case DataType.ShortType =>
+          JsWitTypeNode.primS16Type
         case DataType.IntType =>
           JsWitTypeNode.primS32Type
         case DataType.LongType =>
           JsWitTypeNode.primS64Type
+        case DataType.FloatType =>
+          JsWitTypeNode.primF32Type
         case DataType.DoubleType =>
           JsWitTypeNode.primF64Type
+        case DataType.UByteType =>
+          JsWitTypeNode.primU8Type
+        case DataType.UShortType =>
+          JsWitTypeNode.primU16Type
+        case DataType.UIntType =>
+          JsWitTypeNode.primU32Type
+        case DataType.ULongType =>
+          JsWitTypeNode.primU64Type
         case DataType.BigDecimalType =>
           val stringIndex = buildNode(DataType.StringType)
           JsWitTypeNode.recordType(js.Array(js.Tuple2("value", stringIndex)))

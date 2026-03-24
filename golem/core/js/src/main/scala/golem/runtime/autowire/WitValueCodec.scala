@@ -43,6 +43,10 @@ private[golem] object WitValueCodec {
           Right(StringValue(node.asInstanceOf[JsWitNodePrimString].value))
         case (BoolType, "prim-bool") =>
           Right(BoolValue(node.asInstanceOf[JsWitNodePrimBool].value))
+        case (ByteType, "prim-s8") =>
+          Right(ByteValue(node.asInstanceOf[JsWitNodePrimS8].value))
+        case (ShortType, "prim-s16") =>
+          Right(ShortValue(node.asInstanceOf[JsWitNodePrimS16].value))
         case (IntType, "prim-s32") =>
           Right(IntValue(node.asInstanceOf[JsWitNodePrimS32].value))
         case (IntType, "prim-float64") =>
@@ -54,7 +58,7 @@ private[golem] object WitValueCodec {
           else
             Right(IntValue(raw.toInt))
         case (LongType, "prim-s64") =>
-          val rawVal = node.asInstanceOf[JsWitNodePrimS64].value
+          val rawVal  = node.asInstanceOf[JsWitNodePrimS64].value
           val longVal = BigInt(rawVal.toString).toLong
           Right(LongValue(longVal))
         case (LongType, "prim-float64") =>
@@ -65,8 +69,18 @@ private[golem] object WitValueCodec {
             Left(s"Value $raw is out of Long range for LongType (prim-float64)")
           else
             Right(LongValue(raw.toLong))
+        case (FloatType, "prim-float32") =>
+          Right(FloatValue(node.asInstanceOf[JsWitNodePrimFloat32].value))
         case (DoubleType, "prim-float64") =>
           Right(DoubleValue(node.asInstanceOf[JsWitNodePrimFloat64].value))
+        case (UByteType, "prim-u8") =>
+          Right(UByteValue(node.asInstanceOf[JsWitNodePrimU8].value))
+        case (UShortType, "prim-u16") =>
+          Right(UShortValue(node.asInstanceOf[JsWitNodePrimU16].value))
+        case (UIntType, "prim-u32") =>
+          Right(UIntValue(node.asInstanceOf[JsWitNodePrimU32].value.toLong))
+        case (ULongType, "prim-u64") =>
+          Right(ULongValue(BigInt(node.asInstanceOf[JsWitNodePrimU64].value.toString)))
         case (BigDecimalType, "record-value") =>
           val refs = node.asInstanceOf[JsWitNodeRecordValue].value
           if (refs.length != 1) Left(s"BigDecimal record expected 1 field, found ${refs.length}")
@@ -89,13 +103,13 @@ private[golem] object WitValueCodec {
             for {
               vec  <- acc
               byte <- {
-                        val child    = nodes(childIdx)
-                        val childTag = child.tag
-                        childTag match {
-                          case "prim-u8" => Right((child.asInstanceOf[JsWitNodePrimU8].value & 0xff).toByte)
-                          case other     => Left(s"Expected prim-u8 byte node, found $other")
-                        }
-                      }
+                val child    = nodes(childIdx)
+                val childTag = child.tag
+                childTag match {
+                  case "prim-u8" => Right((child.asInstanceOf[JsWitNodePrimU8].value & 0xff).toByte)
+                  case other     => Left(s"Expected prim-u8 byte node, found $other")
+                }
+              }
             } yield vec :+ byte
           }
           bytesEither.map(vector => BytesValue(vector.toArray))

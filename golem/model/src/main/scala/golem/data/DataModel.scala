@@ -41,11 +41,25 @@ object DataType {
 
   case object BoolType extends DataType
 
+  case object ByteType extends DataType
+
+  case object ShortType extends DataType
+
   case object IntType extends DataType
 
   case object LongType extends DataType
 
+  case object FloatType extends DataType
+
   case object DoubleType extends DataType
+
+  case object UByteType extends DataType
+
+  case object UShortType extends DataType
+
+  case object UIntType extends DataType
+
+  case object ULongType extends DataType
 
   case object BigDecimalType extends DataType
 
@@ -63,11 +77,25 @@ object DataValue {
 
   final case class BoolValue(value: Boolean) extends DataValue
 
+  final case class ByteValue(value: Byte) extends DataValue
+
+  final case class ShortValue(value: Short) extends DataValue
+
   final case class IntValue(value: Int) extends DataValue
 
   final case class LongValue(value: Long) extends DataValue
 
+  final case class FloatValue(value: Float) extends DataValue
+
   final case class DoubleValue(value: Double) extends DataValue
+
+  final case class UByteValue(value: Short) extends DataValue
+
+  final case class UShortValue(value: Int) extends DataValue
+
+  final case class UIntValue(value: Long) extends DataValue
+
+  final case class ULongValue(value: BigInt) extends DataValue
 
   final case class BigDecimalValue(value: BigDecimal) extends DataValue
 

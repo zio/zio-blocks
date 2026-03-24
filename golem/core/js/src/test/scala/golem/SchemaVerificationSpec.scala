@@ -16,6 +16,7 @@
 
 package golem
 
+import golem.data.{UByte, UShort, UInt, ULong}
 import golem.data.multimodal.Multimodal
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
 import golem.runtime.autowire.{AgentImplementation, MethodBinding}
@@ -60,9 +61,15 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]
     def boolMethod(b: Boolean): Future[Boolean]
+    def byteMethod(b: Byte): Future[Byte]
+    def shortMethod(s: Short): Future[Short]
     def longMethod(l: Long): Future[Long]
     def doubleMethod(d: Double): Future[Double]
     def floatMethod(f: Float): Future[Float]
+    def ubyteMethod(u: UByte): Future[UByte]
+    def ushortMethod(u: UShort): Future[UShort]
+    def uintMethod(u: UInt): Future[UInt]
+    def ulongMethod(u: ULong): Future[ULong]
     def optionMethod(o: Option[String]): Future[Option[String]]
     def listMethod(l: List[Int]): Future[List[Int]]
     def caseClassMethod(p: PersonInfo): Future[PersonInfo]
@@ -78,9 +85,15 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     override def stringMethod(s: String): Future[String]                                   = Future.successful(s)
     override def intMethod(i: Int): Future[Int]                                            = Future.successful(i)
     override def boolMethod(b: Boolean): Future[Boolean]                                   = Future.successful(b)
+    override def byteMethod(b: Byte): Future[Byte]                                         = Future.successful(b)
+    override def shortMethod(s: Short): Future[Short]                                      = Future.successful(s)
     override def longMethod(l: Long): Future[Long]                                         = Future.successful(l)
     override def doubleMethod(d: Double): Future[Double]                                   = Future.successful(d)
     override def floatMethod(f: Float): Future[Float]                                      = Future.successful(f)
+    override def ubyteMethod(u: UByte): Future[UByte]                                      = Future.successful(u)
+    override def ushortMethod(u: UShort): Future[UShort]                                   = Future.successful(u)
+    override def uintMethod(u: UInt): Future[UInt]                                         = Future.successful(u)
+    override def ulongMethod(u: ULong): Future[ULong]                                      = Future.successful(u)
     override def optionMethod(o: Option[String]): Future[Option[String]]                   = Future.successful(o)
     override def listMethod(l: List[Int]): Future[List[Int]]                               = Future.successful(l)
     override def caseClassMethod(p: PersonInfo): Future[PersonInfo]                        = Future.successful(p)
@@ -125,6 +138,22 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     val arr  = m.inputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
     val elem = arr(0)(1).asInstanceOf[js.Dynamic]
     elem.selectDynamic("tag").asInstanceOf[String]
+  }
+
+  /**
+   * For a single-param component-model method, returns the WIT type node tag of
+   * its root type node.
+   */
+  private def firstInputWitTypeTag(methodName: String): String = {
+    val m    = findMethod(methodName)
+    val arr  = m.inputSchema.asInstanceOf[js.Dynamic].selectDynamic("val").asInstanceOf[js.Array[js.Array[js.Any]]]
+    val elem = arr(0)(1).asInstanceOf[js.Dynamic]
+    // elem is { tag: "component-model", val: { nodes: [...] } }
+    val witType = elem.selectDynamic("val").asInstanceOf[js.Dynamic]
+    val nodes   = witType.selectDynamic("nodes").asInstanceOf[js.Array[js.Dynamic]]
+    // Root node is first element; get its "type" field's tag
+    val rootNode = nodes(0)
+    rootNode.selectDynamic("type").selectDynamic("tag").asInstanceOf[String]
   }
 
   def spec = suite("SchemaVerificationSpec")(
@@ -183,8 +212,35 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
       val m = findMethod("multimodalMethod")
       assertTrue(schemaTag(m.inputSchema) == "multimodal")
     },
-    test("schema-verify agent has 14 registered methods") {
-      assertTrue(defn.methodMetadata.size == 14)
+    test("byte method produces prim-s8-type WIT node") {
+      assertTrue(firstInputWitTypeTag("byteMethod") == "prim-s8-type")
+    },
+    test("short method produces prim-s16-type WIT node") {
+      assertTrue(firstInputWitTypeTag("shortMethod") == "prim-s16-type")
+    },
+    test("int method produces prim-s32-type WIT node") {
+      assertTrue(firstInputWitTypeTag("intMethod") == "prim-s32-type")
+    },
+    test("float method produces prim-f32-type WIT node") {
+      assertTrue(firstInputWitTypeTag("floatMethod") == "prim-f32-type")
+    },
+    test("double method produces prim-f64-type WIT node") {
+      assertTrue(firstInputWitTypeTag("doubleMethod") == "prim-f64-type")
+    },
+    test("ubyte method produces prim-u8-type WIT node") {
+      assertTrue(firstInputWitTypeTag("ubyteMethod") == "prim-u8-type")
+    },
+    test("ushort method produces prim-u16-type WIT node") {
+      assertTrue(firstInputWitTypeTag("ushortMethod") == "prim-u16-type")
+    },
+    test("uint method produces prim-u32-type WIT node") {
+      assertTrue(firstInputWitTypeTag("uintMethod") == "prim-u32-type")
+    },
+    test("ulong method produces prim-u64-type WIT node") {
+      assertTrue(firstInputWitTypeTag("ulongMethod") == "prim-u64-type")
+    },
+    test("schema-verify agent has 20 registered methods") {
+      assertTrue(defn.methodMetadata.size == 20)
     }
   )
 }

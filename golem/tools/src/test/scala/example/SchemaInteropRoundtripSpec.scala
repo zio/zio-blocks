@@ -25,7 +25,11 @@ import golem.data.{
   GolemSchema,
   NamedElementValue,
   StructuredSchema,
-  StructuredValue
+  StructuredValue,
+  UByte,
+  UShort,
+  UInt,
+  ULong
 }
 import zio.test._
 import zio.blocks.schema.Schema
@@ -96,6 +100,80 @@ object SchemaInteropRoundtripSpec extends ZIOSpecDefault {
       val in  = Array[Byte](1, 2, 3)
       val out = roundTrip(in)
       assertTrue(out.toSeq == in.toSeq)
+    },
+    test("round-trip: Byte produces ByteType") {
+      final case class ByteWrap(value: Byte)
+      object ByteWrap { implicit val schema: Schema[ByteWrap] = Schema.derived }
+
+      val dt = DataInterop.schemaToDataType(implicitly[Schema[ByteWrap]])
+      dt match {
+        case DataType.StructType(fields) =>
+          assertTrue(fields.head.dataType == DataType.ByteType)
+        case other => throw new RuntimeException(s"Expected StructType, got: $other")
+      }
+    },
+    test("round-trip: Short produces ShortType") {
+      final case class ShortWrap(value: Short)
+      object ShortWrap { implicit val schema: Schema[ShortWrap] = Schema.derived }
+
+      val dt = DataInterop.schemaToDataType(implicitly[Schema[ShortWrap]])
+      dt match {
+        case DataType.StructType(fields) =>
+          assertTrue(fields.head.dataType == DataType.ShortType)
+        case other => throw new RuntimeException(s"Expected StructType, got: $other")
+      }
+    },
+    test("round-trip: Float produces FloatType") {
+      final case class FloatWrap(value: Float)
+      object FloatWrap { implicit val schema: Schema[FloatWrap] = Schema.derived }
+
+      val dt = DataInterop.schemaToDataType(implicitly[Schema[FloatWrap]])
+      dt match {
+        case DataType.StructType(fields) =>
+          assertTrue(fields.head.dataType == DataType.FloatType)
+        case other => throw new RuntimeException(s"Expected StructType, got: $other")
+      }
+    },
+    test("round-trip: Byte value preserves exact width") {
+      val in = roundTrip[Byte](42.toByte)
+      assertTrue(in == 42.toByte)
+    },
+    test("round-trip: Short value preserves exact width") {
+      val in = roundTrip[Short](1000.toShort)
+      assertTrue(in == 1000.toShort)
+    },
+    test("round-trip: Float value preserves exact width") {
+      val in = roundTrip[Float](3.14f)
+      assertTrue(in == 3.14f)
+    },
+    test("DataType for UByte is UByteType") {
+      assertTrue(DataInterop.schemaToDataType(implicitly[Schema[UByte]]) == DataType.UByteType)
+    },
+    test("DataType for UShort is UShortType") {
+      assertTrue(DataInterop.schemaToDataType(implicitly[Schema[UShort]]) == DataType.UShortType)
+    },
+    test("DataType for UInt is UIntType") {
+      assertTrue(DataInterop.schemaToDataType(implicitly[Schema[UInt]]) == DataType.UIntType)
+    },
+    test("DataType for ULong is ULongType") {
+      assertTrue(DataInterop.schemaToDataType(implicitly[Schema[ULong]]) == DataType.ULongType)
+    },
+    test("round-trip: UByte value preserves unsigned range") {
+      val in = roundTrip[UByte](UByte(200))
+      assertTrue(in == UByte(200))
+    },
+    test("round-trip: UShort value preserves unsigned range") {
+      val in = roundTrip[UShort](UShort(50000))
+      assertTrue(in == UShort(50000))
+    },
+    test("round-trip: UInt value preserves unsigned range") {
+      val in = roundTrip[UInt](UInt(3000000000L))
+      assertTrue(in == UInt(3000000000L))
+    },
+    test("round-trip: ULong value preserves unsigned range") {
+      val v  = BigInt("18446744073709551615")
+      val in = roundTrip[ULong](ULong(v))
+      assertTrue(in == ULong(v))
     },
     test("Schema -> DataType shape is stable for common constructs") {
       final case class Rec(a: String, b: Option[Int], c: List[String])

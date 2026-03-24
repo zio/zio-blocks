@@ -26,6 +26,21 @@ import zio.blocks.schema.Reflect
 import scala.collection.immutable.ListMap
 object DataInterop {
 
+  // TypeId constants for unsigned wrapper types
+  private val ubyteTypeId: TypeId[UByte]   = TypeId.of[UByte]
+  private val ushortTypeId: TypeId[UShort] = TypeId.of[UShort]
+  private val uintTypeId: TypeId[UInt]     = TypeId.of[UInt]
+  private val ulongTypeId: TypeId[ULong]   = TypeId.of[ULong]
+
+  private def isUnsignedWrapper[A](reflect: Reflect.Bound[A]): Option[DataType] = {
+    val tid = reflect.typeId
+    if (TypeId.structurallyEqual(tid, ubyteTypeId)) Some(UByteType)
+    else if (TypeId.structurallyEqual(tid, ushortTypeId)) Some(UShortType)
+    else if (TypeId.structurallyEqual(tid, uintTypeId)) Some(UIntType)
+    else if (TypeId.structurallyEqual(tid, ulongTypeId)) Some(ULongType)
+    else None
+  }
+
   def schemaToDataType[A](schema: Schema[A]): DataType =
     reflectToDataType(schema.reflect)
 
@@ -39,7 +54,8 @@ object DataInterop {
     IntoDataType[A].dataType
 
   private def reflectToDataType[A](reflect: Reflect.Bound[A]): DataType =
-    reflectToDataType_wrapper(reflect)
+    isUnsignedWrapper(reflect)
+      .orElse(reflectToDataType_wrapper(reflect))
       .orElse(reflectToDataType_option(reflect))
       .getOrElse(reflectToDataType_core(reflect))
 
@@ -169,23 +185,63 @@ object DataInterop {
       case PrimitiveType.Unit          => UnitType
       case _: PrimitiveType.String     => StringType
       case _: PrimitiveType.Boolean    => BoolType
-      case _: PrimitiveType.Byte       => IntType
-      case _: PrimitiveType.Short      => IntType
+      case _: PrimitiveType.Byte       => ByteType
+      case _: PrimitiveType.Short      => ShortType
       case _: PrimitiveType.Int        => IntType
       case _: PrimitiveType.Long       => LongType
-      case _: PrimitiveType.Float      => DoubleType
+      case _: PrimitiveType.Float      => FloatType
       case _: PrimitiveType.Double     => DoubleType
       case _: PrimitiveType.BigDecimal => BigDecimalType
+      case _: PrimitiveType.BigInt     => BigDecimalType // BigInt mapped via BigDecimal encoding
       case _: PrimitiveType.UUID       => UUIDType
       case other                       =>
         throw new IllegalArgumentException(s"Unsupported primitive: ${other.getClass.getName}")
     }
 
   private def dynamicToDataValue[A](reflect: Reflect.Bound[A], d: DV): DataValue =
-    dynamicToDataValue_wrapper(reflect, d)
+    dynamicToDataValue_unsigned(reflect, d)
+      .orElse(dynamicToDataValue_wrapper(reflect, d))
       .orElse(dynamicToDataValue_option(reflect, d))
       .orElse(dynamicToDataValue_tuple(reflect, d))
       .getOrElse(dynamicToDataValue_core(reflect, d))
+
+  private def dynamicToDataValue_unsigned[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] = {
+    val tid = reflect.typeId
+    if (TypeId.structurallyEqual(tid, ubyteTypeId)) {
+      // Schema.derived for AnyVal produces Record({value: Short})
+      val v = extractSingleRecordPrimitive[Short](d, "UByte") { case PrimitiveValue.Short(v) => v }
+      Some(UByteValue(v))
+    } else if (TypeId.structurallyEqual(tid, ushortTypeId)) {
+      val v = extractSingleRecordPrimitive[Int](d, "UShort") { case PrimitiveValue.Int(v) => v }
+      Some(UShortValue(v))
+    } else if (TypeId.structurallyEqual(tid, uintTypeId)) {
+      val v = extractSingleRecordPrimitive[Long](d, "UInt") { case PrimitiveValue.Long(v) => v }
+      Some(UIntValue(v))
+    } else if (TypeId.structurallyEqual(tid, ulongTypeId)) {
+      val v = extractSingleRecordPrimitive[BigInt](d, "ULong") {
+        case PrimitiveValue.BigDecimal(v) => v.toBigInt
+        case PrimitiveValue.BigInt(v)     => v
+      }
+      Some(ULongValue(v))
+    } else None
+  }
+
+  private def extractSingleRecordPrimitive[T](d: DV, typeName: String)(pf: PartialFunction[PrimitiveValue, T]): T =
+    d match {
+      case DV.Record(fields) =>
+        fields.find(_._1 == "value") match {
+          case Some((_, DV.Primitive(pv))) =>
+            pf.applyOrElse(
+              pv,
+              (pv: PrimitiveValue) =>
+                throw new IllegalArgumentException(s"Unexpected primitive type for $typeName: $pv")
+            )
+          case other =>
+            throw new IllegalArgumentException(s"Expected primitive 'value' field for $typeName, got $other")
+        }
+      case other =>
+        throw new IllegalArgumentException(s"Expected Record for $typeName, got $other")
+    }
 
   private def dynamicToDataValue_wrapper[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] =
     reflect.asWrapperUnknown.map { unknown =>
@@ -351,22 +407,50 @@ object DataInterop {
       case PrimitiveValue.Unit          => NullValue
       case PrimitiveValue.String(v)     => StringValue(v)
       case PrimitiveValue.Boolean(v)    => BoolValue(v)
-      case PrimitiveValue.Byte(v)       => IntValue(v.toInt)
-      case PrimitiveValue.Short(v)      => IntValue(v.toInt)
+      case PrimitiveValue.Byte(v)       => ByteValue(v)
+      case PrimitiveValue.Short(v)      => ShortValue(v)
       case PrimitiveValue.Int(v)        => IntValue(v)
       case PrimitiveValue.Long(v)       => LongValue(v)
-      case PrimitiveValue.Float(v)      => DoubleValue(v.toDouble)
+      case PrimitiveValue.Float(v)      => FloatValue(v)
       case PrimitiveValue.Double(v)     => DoubleValue(v)
       case PrimitiveValue.BigDecimal(v) => BigDecimalValue(v)
+      case PrimitiveValue.BigInt(v)     => BigDecimalValue(BigDecimal(v))
       case PrimitiveValue.UUID(v)       => UUIDValue(v)
       case other                        =>
         throw new IllegalArgumentException(s"Unsupported primitive value: ${other.getClass.getName}")
     }
 
   private def dataValueToDynamic[A](reflect: Reflect.Bound[A], value: DataValue): DV =
-    dataValueToDynamic_wrapper(reflect, value)
+    dataValueToDynamic_unsigned(reflect, value)
+      .orElse(dataValueToDynamic_wrapper(reflect, value))
       .orElse(dataValueToDynamic_option(reflect, value))
       .getOrElse(dataValueToDynamic_tupleOrCore(reflect, value))
+
+  private def dataValueToDynamic_unsigned[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] = {
+    val tid = reflect.typeId
+    if (TypeId.structurallyEqual(tid, ubyteTypeId)) {
+      value match {
+        case UByteValue(v) => Some(DV.Record(Chunk("value" -> DV.Primitive(PrimitiveValue.Short(v)))))
+        case other         => throw new IllegalArgumentException(s"Expected UByteValue for UByte, got $other")
+      }
+    } else if (TypeId.structurallyEqual(tid, ushortTypeId)) {
+      value match {
+        case UShortValue(v) => Some(DV.Record(Chunk("value" -> DV.Primitive(PrimitiveValue.Int(v)))))
+        case other          => throw new IllegalArgumentException(s"Expected UShortValue for UShort, got $other")
+      }
+    } else if (TypeId.structurallyEqual(tid, uintTypeId)) {
+      value match {
+        case UIntValue(v) => Some(DV.Record(Chunk("value" -> DV.Primitive(PrimitiveValue.Long(v)))))
+        case other        => throw new IllegalArgumentException(s"Expected UIntValue for UInt, got $other")
+      }
+    } else if (TypeId.structurallyEqual(tid, ulongTypeId)) {
+      value match {
+        case ULongValue(v) =>
+          Some(DV.Record(Chunk("value" -> DV.Primitive(PrimitiveValue.BigInt(v)))))
+        case other => throw new IllegalArgumentException(s"Expected ULongValue for ULong, got $other")
+      }
+    } else None
+  }
 
   private def dataValueToDynamic_wrapper[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] =
     reflect.asWrapperUnknown.map { unknown =>
@@ -430,8 +514,12 @@ object DataInterop {
             DV.Primitive(PrimitiveValue.String(v))
           case BoolValue(v) =>
             DV.Primitive(PrimitiveValue.Boolean(v))
+          case ByteValue(v) =>
+            DV.Primitive(PrimitiveValue.Byte(v))
+          case ShortValue(v) =>
+            DV.Primitive(PrimitiveValue.Short(v))
           case IntValue(v) =>
-            // Byte and Short widen to IntValue during encoding; narrow back using the schema's primitive type.
+            // Backward compat: IntValue may arrive for Byte/Short schemas from old data
             p.primitiveType match {
               case _: PrimitiveType.Byte  => DV.Primitive(PrimitiveValue.Byte(v.toByte))
               case _: PrimitiveType.Short => DV.Primitive(PrimitiveValue.Short(v.toShort))
@@ -439,8 +527,10 @@ object DataInterop {
             }
           case LongValue(v) =>
             DV.Primitive(PrimitiveValue.Long(v))
+          case FloatValue(v) =>
+            DV.Primitive(PrimitiveValue.Float(v))
           case DoubleValue(v) =>
-            // Float widens to DoubleValue during encoding; narrow back using the schema's primitive type.
+            // Backward compat: DoubleValue may arrive for Float schemas from old data
             p.primitiveType match {
               case _: PrimitiveType.Float => DV.Primitive(PrimitiveValue.Float(v.toFloat))
               case _                      => DV.Primitive(PrimitiveValue.Double(v))

@@ -97,12 +97,26 @@ object SchemaJsonEncoder {
             tagOnly("prim-string-type")
           case DataType.BoolType =>
             tagOnly("prim-bool-type")
+          case DataType.ByteType =>
+            tagOnly("prim-s8-type")
+          case DataType.ShortType =>
+            tagOnly("prim-s16-type")
           case DataType.IntType =>
             tagOnly("prim-s32-type")
           case DataType.LongType =>
             tagOnly("prim-s64-type")
+          case DataType.FloatType =>
+            tagOnly("prim-f32-type")
           case DataType.DoubleType =>
             tagOnly("prim-f64-type")
+          case DataType.UByteType =>
+            tagOnly("prim-u8-type")
+          case DataType.UShortType =>
+            tagOnly("prim-u16-type")
+          case DataType.UIntType =>
+            tagOnly("prim-u32-type")
+          case DataType.ULongType =>
+            tagOnly("prim-u64-type")
           case DataType.BigDecimalType =>
             tagOnly("prim-string-type")
           case DataType.UUIDType =>

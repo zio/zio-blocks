@@ -179,9 +179,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         val bigType   = DataInterop.schemaToDataType(Schema[BigDecimal])
         val uuidType  = DataInterop.schemaToDataType(Schema[java.util.UUID])
 
-        assertTrue(byteType == DataType.IntType) &&
-        assertTrue(shortType == DataType.IntType) &&
-        assertTrue(floatType == DataType.DoubleType) &&
+        assertTrue(byteType == DataType.ByteType) &&
+        assertTrue(shortType == DataType.ShortType) &&
+        assertTrue(floatType == DataType.FloatType) &&
         assertTrue(unitType == DataType.UnitType) &&
         assertTrue(strType == DataType.StringType) &&
         assertTrue(boolType == DataType.BoolType) &&
@@ -248,15 +248,17 @@ object DataInteropSpec extends ZIOSpecDefault {
         assertTrue(recordAttempt.isFailure)
       },
       test("rejects unsupported primitive schemas and values") {
-        val charSchemaAttempt   = scala.util.Try(DataInterop.schemaToDataType(Schema[Char]))
-        val bigIntSchemaAttempt = scala.util.Try(DataInterop.schemaToDataType(Schema[BigInt]))
-        val charValueAttempt    = scala.util.Try(DataInterop.toData[Char]('a'))
-        val bigIntValueAttempt  = scala.util.Try(DataInterop.toData[BigInt](BigInt(1)))
+        val charSchemaAttempt = scala.util.Try(DataInterop.schemaToDataType(Schema[Char]))
+        val charValueAttempt  = scala.util.Try(DataInterop.toData[Char]('a'))
 
         assertTrue(charSchemaAttempt.isFailure) &&
-        assertTrue(bigIntSchemaAttempt.isFailure) &&
-        assertTrue(charValueAttempt.isFailure) &&
-        assertTrue(bigIntValueAttempt.isFailure)
+        assertTrue(charValueAttempt.isFailure)
+      },
+      test("BigInt maps to BigDecimalType") {
+        val bigIntType  = DataInterop.schemaToDataType(Schema[BigInt])
+        val bigIntValue = DataInterop.toData[BigInt](BigInt(1))
+        assertTrue(bigIntType == DataType.BigDecimalType) &&
+        assertTrue(bigIntValue == DataValue.BigDecimalValue(BigDecimal(1)))
       },
       test("rejects non-string map keys at encoding time") {
         val attempt = scala.util.Try(DataInterop.toData(Map(1 -> "a"))(Schema[Map[Int, String]]))
