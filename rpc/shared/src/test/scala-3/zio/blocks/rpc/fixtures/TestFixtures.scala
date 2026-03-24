@@ -16,15 +16,9 @@
 
 package zio.blocks.rpc.fixtures
 
-import zio._
 import zio.blocks.schema.Schema
-import zio.blocks.rpc.{MetaAnnotation, ErrorAnnotation}
+import zio.blocks.rpc.MetaAnnotation
 
-// Test-only stub: this schema is only used to satisfy implicit resolution for
-// Task[_] error types during macro derivation. It is never used for actual
-// serialization/deserialization. A proper Schema[Throwable] would require
-// mapping to/from a concrete error representation.
-implicit val throwableSchema: Schema[Throwable] = Schema.string.asInstanceOf[Schema[Throwable]]
 // === Test Data Types (all with Schema derivation) ===
 
 case class Todo(id: Int, title: String) derives Schema
@@ -41,8 +35,6 @@ case object Degraded extends Status
 
 // === Test Annotations ===
 
-class failsWith[E] extends ErrorAnnotation[E]
-
 class Idempotent extends MetaAnnotation
 
 class Streaming extends MetaAnnotation
@@ -51,45 +43,40 @@ class Deprecated(reason: String) extends MetaAnnotation
 
 // === Service Trait Fixtures ===
 
-// Simple single-method service
+// Simple single-method service — plain return type (no error)
 trait GreeterService {
-  def greet(name: String): UIO[String]
+  def greet(name: String): String
 }
 
-// Multi-method service
+// Multi-method service — Either return types
 trait TodoService {
-  def getTodo(id: Int): Task[Todo]
-
-  def createTodo(title: String, description: String): Task[Todo]
-
-  def listTodos(): Task[List[Todo]]
+  def getTodo(id: Int): Either[ServiceError, Todo]
+  def createTodo(title: String, description: String): Either[ServiceError, Todo]
+  def listTodos(): Either[ServiceError, List[Todo]]
 }
 
 // Empty service (edge case)
 trait EmptyService
 
-// Zero-param method
+// Zero-param method — plain return type
 trait HealthService {
-  def health(): UIO[Status]
+  def health(): Status
 }
 
 // Multi-param method
 trait SearchService {
-  def search(query: String, limit: Int, offset: Int): Task[SearchResult]
+  def search(query: String, limit: Int, offset: Int): Either[ServiceError, SearchResult]
 }
 
-// Service with error type annotation
-@failsWith[ServiceError]
+// Service with error types from Either
 trait ErrorService {
-  def riskyOp(input: String): IO[ServiceError, String]
+  def riskyOp(input: String): Either[ServiceError, String]
 }
 
 // Service with method-level annotations
-@failsWith[BasicError]
 trait AnnotatedService {
   @Idempotent
-  def lookup(id: Long): Task[String]
-
+  def lookup(id: Long): Either[BasicError, String]
   @Streaming
-  def subscribe(topic: String): Task[Unit]
+  def subscribe(topic: String): Either[BasicError, Unit]
 }

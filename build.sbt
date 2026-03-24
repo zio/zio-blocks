@@ -397,7 +397,6 @@ lazy val rpc = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio"          % "2.1.24",
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),

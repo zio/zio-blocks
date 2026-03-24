@@ -23,12 +23,3 @@ import scala.annotation.StaticAnnotation
  * custom annotations for service traits and methods.
  */
 class MetaAnnotation extends StaticAnnotation
-
-/**
- * Trait-level annotation that specifies the error type for all operations in a
- * service that don't specify their own.
- *
- * @tparam E
- *   The error type
- */
-class ErrorAnnotation[E] extends MetaAnnotation

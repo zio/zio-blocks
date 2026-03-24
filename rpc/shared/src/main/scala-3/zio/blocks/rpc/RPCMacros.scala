@@ -52,9 +52,9 @@ object RPCMacros {
         )
     }
 
-    val schemaTpe             = TypeRepr.of[zio.blocks.schema.Schema]
-    val metaAnnotationTR      = TypeRepr.of[MetaAnnotation]
-    val errorAnnotationBaseTR = TypeRepr.of[ErrorAnnotation[?]].typeSymbol
+    val schemaTpe        = TypeRepr.of[zio.blocks.schema.Schema]
+    val metaAnnotationTR = TypeRepr.of[MetaAnnotation]
+    val decomposerTR     = TypeRepr.of[ReturnTypeDecomposer]
 
     def summonSchema(paramType: TypeRepr): Term =
       Implicits.search(schemaTpe.appliedTo(paramType)) match {
@@ -74,31 +74,48 @@ object RPCMacros {
       else '{ zio.blocks.chunk.Chunk(${ Varargs(annExprs) }*) }
     }
 
-    val errorSchemaExpr: Expr[Option[zio.blocks.schema.Schema[?]]] = {
-      val errorAnns = traitAnnotations.filter { ann =>
-        ann.tpe.baseType(errorAnnotationBaseTR) match {
-          case AppliedType(_, _) => true
-          case _                 => false
+    val metadataExpr: Expr[RPC.ServiceMetadata] =
+      '{ RPC.ServiceMetadata($traitAnnotationsExpr) }
+
+    /**
+     * Decompose a return type into (successType, errorType).
+     *   1. Try `Implicits.search(ReturnTypeDecomposer[returnType])` — if found,
+     *      extract Error/Success type members
+     *   2. Otherwise, treat as plain type: success = returnType, error =
+     *      Nothing
+     */
+    def decomposeReturnType(returnType: TypeRepr): (TypeRepr, TypeRepr) = {
+      val dealiased = returnType.dealias
+
+      // Fast path: check if it's Either directly via type symbol
+      if (dealiased.typeSymbol.fullName == "scala.util.Either") {
+        val typeArgs = dealiased.typeArgs
+        if (typeArgs.length == 2) {
+          return (typeArgs(1), typeArgs(0)) // (success, error)
         }
       }
-      errorAnns.headOption match {
-        case Some(ann) =>
-          ann.tpe.baseType(errorAnnotationBaseTR) match {
-            case AppliedType(_, List(errType)) =>
-              val schemaTree = summonSchema(errType)
-              errType.asType match {
-                case '[e] =>
-                  val schemaExpr = schemaTree.asExpr.asInstanceOf[Expr[zio.blocks.schema.Schema[e]]]
-                  '{ Some($schemaExpr) }
-              }
-            case _ => '{ None }
+
+      // General path: try to find a ReturnTypeDecomposer instance
+      val searchType = decomposerTR.appliedTo(returnType)
+      Implicits.search(searchType) match {
+        case s: ImplicitSearchSuccess =>
+          val decompTpe = s.tree.tpe.dealias
+          // Extract the Error and Success type members
+          val errorMember   = decompTpe.typeSymbol.typeMember("Error")
+          val successMember = decompTpe.typeSymbol.typeMember("Success")
+          if (errorMember != Symbol.noSymbol && successMember != Symbol.noSymbol) {
+            val errorType   = decompTpe.memberType(errorMember).dealias
+            val successType = decompTpe.memberType(successMember).dealias
+            (successType, errorType)
+          } else {
+            // Decomposer found but can't extract members — fall back to plain
+            (returnType, TypeRepr.of[Nothing])
           }
-        case None => '{ None }
+        case _ =>
+          // No decomposer found — treat as plain type
+          (returnType, TypeRepr.of[Nothing])
       }
     }
-
-    val metadataExpr: Expr[RPC.ServiceMetadata] =
-      '{ RPC.ServiceMetadata($traitAnnotationsExpr, $errorSchemaExpr) }
 
     val operationExprs: List[Expr[RPC.Operation[?, ?]]] = abstractMethods.map { method =>
       val methodName = method.name
@@ -116,22 +133,7 @@ object RPCMacros {
         case other                => other
       }
 
-      val dealiased    = returnType.dealias
-      val dealiasedSym = dealiased.typeSymbol
-
-      if (dealiasedSym.fullName != "zio.ZIO")
-        report.errorAndAbort(
-          s"Method '${methodName}' must return ZIO[R, E, A] or a type alias thereof, got: ${returnType.show}"
-        )
-
-      val zioTypeArgs = dealiased.typeArgs
-      if (zioTypeArgs.length != 3)
-        report.errorAndAbort(
-          s"Expected ZIO[R, E, A] with 3 type args for method '${methodName}', got ${zioTypeArgs.length}"
-        )
-
-      val eType = zioTypeArgs(1)
-      val aType = zioTypeArgs(2)
+      val (aType, eType) = decomposeReturnType(returnType)
 
       val paramNames: List[String]   = termParams.map(_.name)
       val paramTypes: List[TypeRepr] = termParams.map { p =>

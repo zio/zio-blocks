@@ -56,7 +56,7 @@ object RPC extends RPCCompanionVersionSpecific {
    * @tparam Input
    *   The combined input type (product of all parameters)
    * @tparam Output
-   *   The ZIO success type
+   *   The success type
    */
   final case class Operation[Input, Output](
     name: String,
@@ -72,7 +72,6 @@ object RPC extends RPCCompanionVersionSpecific {
    * Service-level metadata extracted from trait annotations.
    */
   final case class ServiceMetadata(
-    annotations: Chunk[MetaAnnotation],
-    errorType: Option[Schema[?]]
+    annotations: Chunk[MetaAnnotation]
   )
 }

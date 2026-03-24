@@ -60,20 +60,20 @@ object RPCMacroSpec extends ZIOSpecDefault {
           rpc.operations(0).parameterNames(2) == "offset"
         )
       },
-      test("ErrorService - error type annotation") {
+      test("ErrorService - Either return type has error schema") {
         val rpc = RPC.derived[ErrorService]
-        assertTrue(rpc.metadata.errorType.isDefined)
+        assertTrue(rpc.operations(0).errorSchema.isDefined)
       },
       test("AnnotatedService - method annotations") {
         val rpc      = RPC.derived[AnnotatedService]
         val lookupOp = rpc.operations.find(_.name == "lookup").get
         assertTrue(lookupOp.annotations.exists(_.isInstanceOf[Idempotent]))
       },
-      test("GreeterService - UIO has no error schema") {
+      test("GreeterService - plain return type has no error schema") {
         val rpc = RPC.derived[GreeterService]
         assertTrue(rpc.operations(0).errorSchema.isEmpty)
       },
-      test("TodoService - Task has Throwable error schema") {
+      test("TodoService - Either has error schema") {
         val rpc = RPC.derived[TodoService]
         assertTrue(rpc.operations(0).errorSchema.isDefined)
       },
@@ -91,16 +91,13 @@ object RPCMacroSpec extends ZIOSpecDefault {
         val subscribeOp = rpc.operations.find(_.name == "subscribe").get
         assertTrue(subscribeOp.annotations.exists(_.isInstanceOf[Streaming]))
       },
-      test("ErrorService - operation error schema matches service error type") {
+      test("ErrorService - operation error schema from Either") {
         val rpc = RPC.derived[ErrorService]
-        assertTrue(
-          rpc.operations(0).errorSchema.isDefined,
-          rpc.metadata.errorType.isDefined
-        )
+        assertTrue(rpc.operations(0).errorSchema.isDefined)
       },
-      test("AnnotatedService - trait-level failsWith annotation") {
+      test("AnnotatedService - Either methods have error schema") {
         val rpc = RPC.derived[AnnotatedService]
-        assertTrue(rpc.metadata.errorType.isDefined)
+        assertTrue(rpc.operations.forall(_.errorSchema.isDefined))
       }
     ),
     suite("Schema round-trip tests")(
