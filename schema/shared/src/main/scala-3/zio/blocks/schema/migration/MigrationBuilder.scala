@@ -2,19 +2,32 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
-// Phantom type wrapper to preserve literal string types through macro expansion.
-// Direct use of ConstantType with .asType causes literal types to widen to String.
-// By wrapping in FieldName[N], the type argument is preserved when using appliedTo.
-sealed trait FieldName[N <: String & Singleton]
+object Changeset {
 
-sealed trait Added[N <: String & Singleton]
-sealed trait Dropped[N <: String & Singleton]
-sealed trait Renamed[From <: String & Singleton, To <: String & Singleton]
-sealed trait Transformed[From <: String & Singleton, To <: String & Singleton]
-sealed trait Mandated[Source <: String & Singleton, Target <: String & Singleton]
-sealed trait Optionalized[Source <: String & Singleton, Target <: String & Singleton]
-sealed trait TypeChanged[Source <: String & Singleton, Target <: String & Singleton]
-sealed trait Migrated[Name <: String & Singleton]
+  // Phantom type wrapper to preserve literal string types through macro expansion.
+  // Direct use of ConstantType with .asType causes literal types to widen to String.
+  // By wrapping in FieldName[N], the type argument is preserved when using appliedTo.
+  sealed trait FieldName[N <: String & Singleton]
+
+  // Field operations (tracked for validation)
+  sealed trait AddField[N <: String & Singleton]
+  sealed trait DropField[N <: String & Singleton]
+  sealed trait RenameField[From <: String & Singleton, To <: String & Singleton]
+  sealed trait TransformField[From <: String & Singleton, To <: String & Singleton]
+  sealed trait MandateField[Source <: String & Singleton, Target <: String & Singleton]
+  sealed trait OptionalizeField[Source <: String & Singleton, Target <: String & Singleton]
+  sealed trait ChangeFieldType[Source <: String & Singleton, Target <: String & Singleton]
+  sealed trait MigrateField[Name <: String & Singleton]
+
+  // Case operations (tracked but not field-validated)
+  sealed trait RenameCase[From <: String & Singleton, To <: String & Singleton]
+  sealed trait TransformCase[CaseName <: String & Singleton]
+
+  // Collection operations (tracked but not field-validated)
+  sealed trait TransformElements[FieldName <: String & Singleton]
+  sealed trait TransformKeys[FieldName <: String & Singleton]
+  sealed trait TransformValues[FieldName <: String & Singleton]
+}
 
 final class MigrationBuilder[A, B, Changeset](
   val sourceSchema: Schema[A],

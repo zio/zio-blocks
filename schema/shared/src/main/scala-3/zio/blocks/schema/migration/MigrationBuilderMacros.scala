@@ -15,7 +15,7 @@ object MigrationBuilderMacros {
 
     val fieldPath     = extractFieldPathFromTerm(target.asTerm)
     val fieldNameType = ConstantType(StringConstant(fieldPath))
-    val addedWrapped  = TypeRepr.of[Added].appliedTo(fieldNameType)
+    val addedWrapped  = TypeRepr.of[Changeset.AddField].appliedTo(fieldNameType)
     val newCSType     = AndType(TypeRepr.of[CS], addedWrapped)
 
     newCSType.asType match {
@@ -40,7 +40,7 @@ object MigrationBuilderMacros {
 
     val fieldPath      = extractFieldPathFromTerm(source.asTerm)
     val fieldNameType  = ConstantType(StringConstant(fieldPath))
-    val droppedWrapped = TypeRepr.of[Dropped].appliedTo(fieldNameType)
+    val droppedWrapped = TypeRepr.of[Changeset.DropField].appliedTo(fieldNameType)
     val newCSType      = AndType(TypeRepr.of[CS], droppedWrapped)
 
     newCSType.asType match {
@@ -69,7 +69,7 @@ object MigrationBuilderMacros {
     val fromFieldType  = ConstantType(StringConstant(fromFieldPath))
     val toFieldType    = ConstantType(StringConstant(toFieldPath))
     val toNameExpr     = Expr(toLeafName)
-    val renamedWrapped = TypeRepr.of[Renamed].appliedTo(List(fromFieldType, toFieldType))
+    val renamedWrapped = TypeRepr.of[Changeset.RenameField].appliedTo(List(fromFieldType, toFieldType))
     val newCSType      = AndType(TypeRepr.of[CS], renamedWrapped)
 
     newCSType.asType match {
@@ -79,7 +79,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.Rename(fromPath, $toNameExpr)
+            $builder.actions :+ MigrationAction.RenameField(fromPath, $toNameExpr)
           )
         }
     }
@@ -97,7 +97,7 @@ object MigrationBuilderMacros {
     val toFieldPath        = extractFieldPathFromTerm(to.asTerm)
     val fromFieldType      = ConstantType(StringConstant(fromFieldPath))
     val toFieldType        = ConstantType(StringConstant(toFieldPath))
-    val transformedWrapped = TypeRepr.of[Transformed].appliedTo(List(fromFieldType, toFieldType))
+    val transformedWrapped = TypeRepr.of[Changeset.TransformField].appliedTo(List(fromFieldType, toFieldType))
     val newCSType          = AndType(TypeRepr.of[CS], transformedWrapped)
 
     newCSType.asType match {
@@ -107,7 +107,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.TransformValue(fromPath, $transform.toDynamic)
+            $builder.actions :+ MigrationAction.TransformField(fromPath, $transform.toDynamic)
           )
         }
     }
@@ -125,7 +125,7 @@ object MigrationBuilderMacros {
     val targetFieldPath = extractFieldPathFromTerm(target.asTerm)
     val sourceFieldType = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldType = ConstantType(StringConstant(targetFieldPath))
-    val mandatedWrapped = TypeRepr.of[Mandated].appliedTo(List(sourceFieldType, targetFieldType))
+    val mandatedWrapped = TypeRepr.of[Changeset.MandateField].appliedTo(List(sourceFieldType, targetFieldType))
     val newCSType       = AndType(TypeRepr.of[CS], mandatedWrapped)
 
     newCSType.asType match {
@@ -135,7 +135,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.Mandate(sourcePath, $default.toDynamic)
+            $builder.actions :+ MigrationAction.MandateField(sourcePath, $default.toDynamic)
           )
         }
     }
@@ -152,7 +152,7 @@ object MigrationBuilderMacros {
     val targetFieldPath     = extractFieldPathFromTerm(target.asTerm)
     val sourceFieldType     = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldType     = ConstantType(StringConstant(targetFieldPath))
-    val optionalizedWrapped = TypeRepr.of[Optionalized].appliedTo(List(sourceFieldType, targetFieldType))
+    val optionalizedWrapped = TypeRepr.of[Changeset.OptionalizeField].appliedTo(List(sourceFieldType, targetFieldType))
     val newCSType           = AndType(TypeRepr.of[CS], optionalizedWrapped)
 
     newCSType.asType match {
@@ -162,7 +162,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.Optionalize(sourcePath)
+            $builder.actions :+ MigrationAction.OptionalizeField(sourcePath)
           )
         }
     }
@@ -180,7 +180,7 @@ object MigrationBuilderMacros {
     val targetFieldPath    = extractFieldPathFromTerm(target.asTerm)
     val sourceFieldType    = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldType    = ConstantType(StringConstant(targetFieldPath))
-    val typeChangedWrapped = TypeRepr.of[TypeChanged].appliedTo(List(sourceFieldType, targetFieldType))
+    val typeChangedWrapped = TypeRepr.of[Changeset.ChangeFieldType].appliedTo(List(sourceFieldType, targetFieldType))
     val newCSType          = AndType(TypeRepr.of[CS], typeChangedWrapped)
 
     newCSType.asType match {
@@ -190,7 +190,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.ChangeType(sourcePath, $converter.toDynamic)
+            $builder.actions :+ MigrationAction.ChangeFieldType(sourcePath, $converter.toDynamic)
           )
         }
     }
@@ -210,20 +210,20 @@ object MigrationBuilderMacros {
 
     var newCSType           = TypeRepr.of[CS]
     val sourceFieldNameType = ConstantType(StringConstant(sourceFieldPath))
-    val migratedWrapped     = TypeRepr.of[Migrated].appliedTo(sourceFieldNameType)
+    val migratedWrapped     = TypeRepr.of[Changeset.MigrateField].appliedTo(sourceFieldNameType)
     newCSType = AndType(newCSType, migratedWrapped)
 
     for (nestedField <- nestedSourceFields) {
       val dotPath             = s"$sourceFieldPath.$nestedField"
       val dotPathType         = ConstantType(StringConstant(dotPath))
-      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      val dotPathFieldWrapped = TypeRepr.of[Changeset.FieldName].appliedTo(dotPathType)
       newCSType = AndType(newCSType, dotPathFieldWrapped)
     }
 
     for (nestedField <- nestedTargetFields) {
       val dotPath             = s"$sourceFieldPath.$nestedField"
       val dotPathType         = ConstantType(StringConstant(dotPath))
-      val dotPathFieldWrapped = TypeRepr.of[FieldName].appliedTo(dotPathType)
+      val dotPathFieldWrapped = TypeRepr.of[Changeset.FieldName].appliedTo(dotPathType)
       newCSType = AndType(newCSType, dotPathFieldWrapped)
     }
 
@@ -234,7 +234,7 @@ object MigrationBuilderMacros {
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.ApplyMigration(sourcePath, $migration.dynamicMigration)
+            $builder.actions :+ MigrationAction.MigrateField(sourcePath, $migration.dynamicMigration)
           )
         }
     }

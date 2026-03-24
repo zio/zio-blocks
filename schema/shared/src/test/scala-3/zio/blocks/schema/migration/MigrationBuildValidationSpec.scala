@@ -380,7 +380,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
       }
     ),
     suite("Changeset type inference")(
-      test("addField accumulates Added in Changeset") {
+      test("addField accumulates AddField in Changeset") {
         typeCheck {
           """
           import zio.blocks.schema.Schema
@@ -397,11 +397,11 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(_.contains("Added[(\"age\" : String)]"))
+            result.left.exists(_.contains("Changeset.AddField[(\"age\" : String)]"))
           )
         }
       },
-      test("dropField accumulates Dropped in Changeset") {
+      test("dropField accumulates DropField in Changeset") {
         typeCheck {
           """
           import zio.blocks.schema.Schema
@@ -418,11 +418,11 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(_.contains("Dropped[(\"age\" : String)]"))
+            result.left.exists(_.contains("Changeset.DropField[(\"age\" : String)]"))
           )
         }
       },
-      test("renameField accumulates Renamed in Changeset") {
+      test("renameField accumulates RenameField in Changeset") {
         typeCheck {
           """
           import zio.blocks.schema.Schema
@@ -438,11 +438,14 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(_.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]"))
+            result.left.exists(msg =>
+              msg.contains("Changeset.RenameField[(\"name\" : String)") &&
+                msg.contains("(\"fullName\" : String)]")
+            )
           )
         }
       },
-      test("transformField accumulates Transformed in Changeset") {
+      test("transformField accumulates TransformField in Changeset") {
         typeCheck {
           """
           import zio.blocks.schema.Schema
@@ -459,7 +462,10 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(_.contains("Transformed[(\"age\" : String), (\"age\" : String)]"))
+            result.left.exists(msg =>
+              msg.contains("Changeset.TransformField[(\"age\" : String)") &&
+                msg.contains("(\"age\" : String)]")
+            )
           )
         }
       },
@@ -482,8 +488,11 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.left.exists(_.contains("Renamed[(\"name\" : String), (\"fullName\" : String)]")),
-            result.left.exists(_.contains("Added[(\"email\" : String)]"))
+            result.left.exists(msg =>
+              msg.contains("Changeset.RenameField[(\"name\" : String)") &&
+                msg.contains("(\"fullName\" : String)]")
+            ),
+            result.left.exists(_.contains("Changeset.AddField[(\"email\" : String)]"))
           )
         }
       }

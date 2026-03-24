@@ -23,64 +23,64 @@ object MigrationBuilderMacros {
     import c.universe._
 
     val fieldNameLiteral = c.internal.constantType(Constant(fieldName))
-    val fieldNameTpe     = appliedType(typeOf[FieldName[_]].typeConstructor, fieldNameLiteral)
+    val fieldNameTpe     = appliedType(typeOf[Changeset.FieldName[_]].typeConstructor, fieldNameLiteral)
     c.internal.refinedType(List(currentType, fieldNameTpe), c.internal.newScopeWith())
   }
 
   private def addToChangeset(c: whitebox.Context)(currentType: c.Type, opType: c.Type): c.Type =
     c.internal.refinedType(List(currentType, opType), c.internal.newScopeWith())
 
-  private def createAddedType(c: whitebox.Context)(fieldName: String): c.Type = {
+  private def createAddFieldType(c: whitebox.Context)(fieldName: String): c.Type = {
     import c.universe._
     val fieldNameLiteral = c.internal.constantType(Constant(fieldName))
-    appliedType(typeOf[Added[_]].typeConstructor, fieldNameLiteral)
+    appliedType(typeOf[Changeset.AddField[_]].typeConstructor, fieldNameLiteral)
   }
 
-  private def createDroppedType(c: whitebox.Context)(fieldName: String): c.Type = {
+  private def createDropFieldType(c: whitebox.Context)(fieldName: String): c.Type = {
     import c.universe._
     val fieldNameLiteral = c.internal.constantType(Constant(fieldName))
-    appliedType(typeOf[Dropped[_]].typeConstructor, fieldNameLiteral)
+    appliedType(typeOf[Changeset.DropField[_]].typeConstructor, fieldNameLiteral)
   }
 
-  private def createRenamedType(c: whitebox.Context)(from: String, to: String): c.Type = {
+  private def createRenameFieldType(c: whitebox.Context)(from: String, to: String): c.Type = {
     import c.universe._
     val fromLiteral = c.internal.constantType(Constant(from))
     val toLiteral   = c.internal.constantType(Constant(to))
-    appliedType(typeOf[Renamed[_, _]].typeConstructor, fromLiteral, toLiteral)
+    appliedType(typeOf[Changeset.RenameField[_, _]].typeConstructor, fromLiteral, toLiteral)
   }
 
-  private def createTransformedType(c: whitebox.Context)(from: String, to: String): c.Type = {
+  private def createTransformFieldType(c: whitebox.Context)(from: String, to: String): c.Type = {
     import c.universe._
     val fromLiteral = c.internal.constantType(Constant(from))
     val toLiteral   = c.internal.constantType(Constant(to))
-    appliedType(typeOf[Transformed[_, _]].typeConstructor, fromLiteral, toLiteral)
+    appliedType(typeOf[Changeset.TransformField[_, _]].typeConstructor, fromLiteral, toLiteral)
   }
 
-  private def createMandatedType(c: whitebox.Context)(source: String, target: String): c.Type = {
+  private def createMandateFieldType(c: whitebox.Context)(source: String, target: String): c.Type = {
     import c.universe._
     val sourceLiteral = c.internal.constantType(Constant(source))
     val targetLiteral = c.internal.constantType(Constant(target))
-    appliedType(typeOf[Mandated[_, _]].typeConstructor, sourceLiteral, targetLiteral)
+    appliedType(typeOf[Changeset.MandateField[_, _]].typeConstructor, sourceLiteral, targetLiteral)
   }
 
-  private def createOptionalizedType(c: whitebox.Context)(source: String, target: String): c.Type = {
+  private def createOptionalizeFieldType(c: whitebox.Context)(source: String, target: String): c.Type = {
     import c.universe._
     val sourceLiteral = c.internal.constantType(Constant(source))
     val targetLiteral = c.internal.constantType(Constant(target))
-    appliedType(typeOf[Optionalized[_, _]].typeConstructor, sourceLiteral, targetLiteral)
+    appliedType(typeOf[Changeset.OptionalizeField[_, _]].typeConstructor, sourceLiteral, targetLiteral)
   }
 
-  private def createTypeChangedType(c: whitebox.Context)(source: String, target: String): c.Type = {
+  private def createChangeFieldTypeType(c: whitebox.Context)(source: String, target: String): c.Type = {
     import c.universe._
     val sourceLiteral = c.internal.constantType(Constant(source))
     val targetLiteral = c.internal.constantType(Constant(target))
-    appliedType(typeOf[TypeChanged[_, _]].typeConstructor, sourceLiteral, targetLiteral)
+    appliedType(typeOf[Changeset.ChangeFieldType[_, _]].typeConstructor, sourceLiteral, targetLiteral)
   }
 
-  private def createMigratedType(c: whitebox.Context)(name: String): c.Type = {
+  private def createMigrateFieldType(c: whitebox.Context)(name: String): c.Type = {
     import c.universe._
     val nameLiteral = c.internal.constantType(Constant(name))
-    appliedType(typeOf[Migrated[_]].typeConstructor, nameLiteral)
+    appliedType(typeOf[Changeset.MigrateField[_]].typeConstructor, nameLiteral)
   }
 
   def addFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
@@ -93,9 +93,9 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName = extractFieldNameFromSelector(c)(target.tree)
-    val addedType = createAddedType(c)(fieldName)
-    val newCSType = addToChangeset(c)(csType, addedType)
+    val fieldName    = extractFieldNameFromSelector(c)(target.tree)
+    val addFieldType = createAddFieldType(c)(fieldName)
+    val newCSType    = addToChangeset(c)(csType, addFieldType)
 
     val targetPath = SelectorMacros.toPathImpl[B, Any](c)(target.asInstanceOf[c.Expr[B => Any]])
 
@@ -122,9 +122,9 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName   = extractFieldNameFromSelector(c)(source.tree)
-    val droppedType = createDroppedType(c)(fieldName)
-    val newCSType   = addToChangeset(c)(csType, droppedType)
+    val fieldName     = extractFieldNameFromSelector(c)(source.tree)
+    val dropFieldType = createDropFieldType(c)(fieldName)
+    val newCSType     = addToChangeset(c)(csType, dropFieldType)
 
     val sourcePath = SelectorMacros.toPathImpl[A, Any](c)(source.asInstanceOf[c.Expr[A => Any]])
 
@@ -151,10 +151,10 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName = extractFieldNameFromSelector(c)(from.tree)
-    val toFieldName   = extractFieldNameFromSelector(c)(to.tree)
-    val renamedType   = createRenamedType(c)(fromFieldName, toFieldName)
-    val newCSType     = addToChangeset(c)(csType, renamedType)
+    val fromFieldName   = extractFieldNameFromSelector(c)(from.tree)
+    val toFieldName     = extractFieldNameFromSelector(c)(to.tree)
+    val renameFieldType = createRenameFieldType(c)(fromFieldName, toFieldName)
+    val newCSType       = addToChangeset(c)(csType, renameFieldType)
 
     val fromPath = SelectorMacros.toPathImpl[A, Any](c)(from.asInstanceOf[c.Expr[A => Any]])
     val toPath   = SelectorMacros.toPathImpl[B, Any](c)(to.asInstanceOf[c.Expr[B => Any]])
@@ -169,7 +169,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Rename(fromPath, toName)
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.RenameField(fromPath, toName)
       )
     }"""
   }
@@ -185,10 +185,10 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName   = extractFieldNameFromSelector(c)(from.tree)
-    val toFieldName     = extractFieldNameFromSelector(c)(to.tree)
-    val transformedType = createTransformedType(c)(fromFieldName, toFieldName)
-    val newCSType       = addToChangeset(c)(csType, transformedType)
+    val fromFieldName      = extractFieldNameFromSelector(c)(from.tree)
+    val toFieldName        = extractFieldNameFromSelector(c)(to.tree)
+    val transformFieldType = createTransformFieldType(c)(fromFieldName, toFieldName)
+    val newCSType          = addToChangeset(c)(csType, transformFieldType)
 
     val fromPath = SelectorMacros.toPathImpl[A, Any](c)(from.asInstanceOf[c.Expr[A => Any]])
     val toPath   = SelectorMacros.toPathImpl[B, Any](c)(to.asInstanceOf[c.Expr[B => Any]])
@@ -200,7 +200,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformValue(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformField(
           fromPath,
           $transform.toDynamic
         )
@@ -219,10 +219,10 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
-    val mandatedType    = createMandatedType(c)(sourceFieldName, targetFieldName)
-    val newCSType       = addToChangeset(c)(csType, mandatedType)
+    val sourceFieldName  = extractFieldNameFromSelector(c)(source.tree)
+    val targetFieldName  = extractFieldNameFromSelector(c)(target.tree)
+    val mandateFieldType = createMandateFieldType(c)(sourceFieldName, targetFieldName)
+    val newCSType        = addToChangeset(c)(csType, mandateFieldType)
 
     val sourcePath = SelectorMacros.toPathImpl[A, Option[_]](c)(source.asInstanceOf[c.Expr[A => Option[_]]])
     val targetPath = SelectorMacros.toPathImpl[B, Any](c)(target.asInstanceOf[c.Expr[B => Any]])
@@ -234,7 +234,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Mandate(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.MandateField(
           sourcePath,
           $default.toDynamic
         )
@@ -254,10 +254,10 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName  = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName  = extractFieldNameFromSelector(c)(target.tree)
-    val optionalizedType = createOptionalizedType(c)(sourceFieldName, targetFieldName)
-    val newCSType        = addToChangeset(c)(csType, optionalizedType)
+    val sourceFieldName      = extractFieldNameFromSelector(c)(source.tree)
+    val targetFieldName      = extractFieldNameFromSelector(c)(target.tree)
+    val optionalizeFieldType = createOptionalizeFieldType(c)(sourceFieldName, targetFieldName)
+    val newCSType            = addToChangeset(c)(csType, optionalizeFieldType)
 
     val sourcePath = SelectorMacros.toPathImpl[A, Any](c)(source.asInstanceOf[c.Expr[A => Any]])
     val targetPath = SelectorMacros.toPathImpl[B, Option[_]](c)(target.asInstanceOf[c.Expr[B => Option[_]]])
@@ -269,7 +269,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.Optionalize(sourcePath)
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.OptionalizeField(sourcePath)
       )
     }"""
   }
@@ -287,10 +287,10 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName = extractFieldNameFromSelector(c)(target.tree)
-    val typeChangedType = createTypeChangedType(c)(sourceFieldName, targetFieldName)
-    val newCSType       = addToChangeset(c)(csType, typeChangedType)
+    val sourceFieldName     = extractFieldNameFromSelector(c)(source.tree)
+    val targetFieldName     = extractFieldNameFromSelector(c)(target.tree)
+    val changeFieldTypeType = createChangeFieldTypeType(c)(sourceFieldName, targetFieldName)
+    val newCSType           = addToChangeset(c)(csType, changeFieldTypeType)
 
     val sourcePath = SelectorMacros.toPathImpl[A, Any](c)(source.asInstanceOf[c.Expr[A => Any]])
     val targetPath = SelectorMacros.toPathImpl[B, Any](c)(target.asInstanceOf[c.Expr[B => Any]])
@@ -302,7 +302,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeType(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeFieldType(
           sourcePath,
           $converter.toDynamic
         )
@@ -412,8 +412,8 @@ object MigrationBuilderMacros {
     val nestedSourceFields = extractCaseClassFields(c)(f1Type)
     val nestedTargetFields = extractCaseClassFields(c)(f2Type)
 
-    val migratedType = createMigratedType(c)(sourceFieldName)
-    var newCSType    = addToChangeset(c)(csType, migratedType)
+    val migrateFieldType = createMigrateFieldType(c)(sourceFieldName)
+    var newCSType        = addToChangeset(c)(csType, migrateFieldType)
 
     for (nestedField <- nestedSourceFields) {
       val dotPath = s"$sourceFieldName.$nestedField"
@@ -432,7 +432,7 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ApplyMigration(
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.MigrateField(
           sourcePath,
           $migration.dynamicMigration
         )
@@ -534,26 +534,26 @@ object MigrationValidationMacros {
       case t if t =:= typeOf[Any] => ()
       case TypeRef(_, sym, args)  =>
         sym.name.toString match {
-          case "Added" =>
+          case "AddField" =>
             args.headOption.flatMap(extractString).foreach(n => provided += n)
-          case "Dropped" =>
+          case "DropField" =>
             args.headOption.flatMap(extractString).foreach(n => handled += n)
-          case "Renamed" =>
-            args.headOption.flatMap(extractString).foreach(n => handled += n)
-            args.lift(1).flatMap(extractString).foreach(n => provided += n)
-          case "Transformed" =>
+          case "RenameField" =>
             args.headOption.flatMap(extractString).foreach(n => handled += n)
             args.lift(1).flatMap(extractString).foreach(n => provided += n)
-          case "Mandated" =>
+          case "TransformField" =>
             args.headOption.flatMap(extractString).foreach(n => handled += n)
             args.lift(1).flatMap(extractString).foreach(n => provided += n)
-          case "Optionalized" =>
+          case "MandateField" =>
             args.headOption.flatMap(extractString).foreach(n => handled += n)
             args.lift(1).flatMap(extractString).foreach(n => provided += n)
-          case "TypeChanged" =>
+          case "OptionalizeField" =>
             args.headOption.flatMap(extractString).foreach(n => handled += n)
             args.lift(1).flatMap(extractString).foreach(n => provided += n)
-          case "Migrated" =>
+          case "ChangeFieldType" =>
+            args.headOption.flatMap(extractString).foreach(n => handled += n)
+            args.lift(1).flatMap(extractString).foreach(n => provided += n)
+          case "MigrateField" =>
             args.headOption.flatMap(extractString).foreach { n =>
               handled += n
               provided += n
@@ -563,6 +563,8 @@ object MigrationValidationMacros {
               handled += n
               provided += n
             }
+          case "RenameCase" | "TransformCase" | "TransformElements" | "TransformKeys" | "TransformValues" =>
+            ()
           case _ => ()
         }
       case _ => ()

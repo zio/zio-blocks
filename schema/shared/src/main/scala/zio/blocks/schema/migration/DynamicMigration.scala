@@ -142,20 +142,20 @@ private[migration] object ActionExecutor {
           case None            => Left(SchemaError.transformFailed(at, "DropField path must end with a Field node"))
         }
 
-      case Rename(at, to) =>
+      case RenameField(at, to) =>
         executeRename(at, to, value)
 
-      case TransformValue(at, transform) =>
+      case TransformField(at, transform) =>
         evalExpr(transform, value).flatMap { transformValue =>
           executeTransformValueLiteral(at, transformValue, value)
         }
 
-      case Mandate(at, default) =>
+      case MandateField(at, default) =>
         evalExpr(default, value).flatMap { defaultValue =>
           executeMandate(at, defaultValue, value)
         }
 
-      case Optionalize(at) =>
+      case OptionalizeField(at) =>
         executeOptionalize(at, value)
 
       case Join(at, sourcePaths, combiner) =>
@@ -168,7 +168,7 @@ private[migration] object ActionExecutor {
           executeSplit(at, targetPaths, splitValue, value)
         }
 
-      case ChangeType(at, converter) =>
+      case ChangeFieldType(at, converter) =>
         evalExpr(converter, value).flatMap { convertedValue =>
           executeChangeTypeLiteral(at, convertedValue, value)
         }
@@ -179,7 +179,7 @@ private[migration] object ActionExecutor {
       case TransformCase(at, actions) =>
         executeTransformCase(at, actions, value)
 
-      case ApplyMigration(at, migration) =>
+      case MigrateField(at, migration) =>
         executeApplyMigration(at, migration, value)
 
       case TransformElements(at, transform) =>

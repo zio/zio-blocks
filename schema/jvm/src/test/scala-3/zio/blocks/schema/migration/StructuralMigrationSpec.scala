@@ -78,7 +78,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV0, PersonV2](
-          MigrationAction.Rename(
+          MigrationAction.RenameField(
             DynamicOptic.root.field("firstName"),
             "fullName"
           )
@@ -98,7 +98,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV0, PersonV2](
-          MigrationAction.TransformValue(
+          MigrationAction.TransformField(
             DynamicOptic.root.field("age"),
             literal(DynamicValue.Primitive(PrimitiveValue.Long(30L)))
           )
@@ -122,8 +122,8 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV0, PersonV2](
-          MigrationAction.Rename(DynamicOptic.root.field("firstName"), "fullName"),
-          MigrationAction.TransformValue(
+          MigrationAction.RenameField(DynamicOptic.root.field("firstName"), "fullName"),
+          MigrationAction.TransformField(
             DynamicOptic.root.field("age"),
             literal(DynamicValue.Primitive(PrimitiveValue.Long(25L)))
           ),
@@ -190,7 +190,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV1, PersonV2](
-          MigrationAction.Rename(
+          MigrationAction.RenameField(
             DynamicOptic.root.field("firstName"),
             "fullName"
           )
@@ -209,7 +209,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV1, PersonV2](
-          MigrationAction.TransformValue(
+          MigrationAction.TransformField(
             DynamicOptic.root.field("age"),
             literal(DynamicValue.Primitive(PrimitiveValue.Long(35L)))
           )
@@ -274,7 +274,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV0, PersonV2](
-          MigrationAction.Rename(
+          MigrationAction.RenameField(
             DynamicOptic.root.field("firstName"),
             "fullName"
           )
@@ -294,7 +294,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.fromActions[PersonV0, PersonV2](
-          MigrationAction.TransformValue(
+          MigrationAction.TransformField(
             DynamicOptic.root.field("age"),
             literal(DynamicValue.Primitive(PrimitiveValue.Long(50L)))
           )
@@ -335,7 +335,7 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
             DynamicOptic.root.field("fullName"),
             literal(DynamicValue.Primitive(PrimitiveValue.String("Unknown")))
           ),
-          MigrationAction.TransformValue(
+          MigrationAction.TransformField(
             DynamicOptic.root.field("age"),
             literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)))
           ),

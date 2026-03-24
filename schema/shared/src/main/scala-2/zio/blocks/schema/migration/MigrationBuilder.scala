@@ -3,22 +3,35 @@ package zio.blocks.schema.migration
 import scala.language.experimental.macros
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
-/**
- * Phantom type wrapper to preserve literal string types through macro
- * expansion. Direct use of ConstantType causes literal types to widen to
- * String. By wrapping in FieldName[N], the type argument is preserved when
- * using appliedType.
- */
-sealed trait FieldName[N]
+object Changeset {
 
-sealed trait Added[N]
-sealed trait Dropped[N]
-sealed trait Renamed[From, To]
-sealed trait Transformed[From, To]
-sealed trait Mandated[Source, Target]
-sealed trait Optionalized[Source, Target]
-sealed trait TypeChanged[Source, Target]
-sealed trait Migrated[Name]
+  /**
+   * Phantom type wrapper to preserve literal string types through macro
+   * expansion. Direct use of ConstantType causes literal types to widen to
+   * String. By wrapping in FieldName[N], the type argument is preserved when
+   * using appliedType.
+   */
+  sealed trait FieldName[N]
+
+  // Field operations (tracked for validation)
+  sealed trait AddField[N]
+  sealed trait DropField[N]
+  sealed trait RenameField[From, To]
+  sealed trait TransformField[From, To]
+  sealed trait MandateField[Source, Target]
+  sealed trait OptionalizeField[Source, Target]
+  sealed trait ChangeFieldType[Source, Target]
+  sealed trait MigrateField[Name]
+
+  // Case operations (tracked but not field-validated)
+  sealed trait RenameCase[From, To]
+  sealed trait TransformCase[CaseName]
+
+  // Collection operations (tracked but not field-validated)
+  sealed trait TransformElements[FieldName]
+  sealed trait TransformKeys[FieldName]
+  sealed trait TransformValues[FieldName]
+}
 
 /**
  * A builder for constructing migrations from type `A` to type `B`.

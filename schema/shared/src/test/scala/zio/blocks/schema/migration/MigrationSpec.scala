@@ -184,7 +184,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .mandateField(_.age, _.age, literal(0))
           .buildPartial
 
-        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Mandate])
+        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.MandateField])
       },
 
       test("optionalizeField builder creates correct action") {
@@ -199,7 +199,9 @@ object MigrationSpec extends ZIOSpecDefault {
           .optionalizeField(_.age, _.age)
           .buildPartial
 
-        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.Optionalize])
+        assertTrue(
+          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.OptionalizeField]
+        )
       },
 
       test("transformElements builder creates correct action") {
@@ -421,20 +423,20 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(result == Right(OuterV2("test", InnerV2(42, "hello", false))))
       },
 
-      test("ApplyMigration action reverse works correctly") {
+      test("MigrateField action reverse works correctly") {
         val innerMigration = DynamicMigration.single(
           MigrationAction.AddField(
             DynamicOptic.root.field("newField"),
             dynamicLiteral(42)
           )
         )
-        val action   = MigrationAction.ApplyMigration(DynamicOptic.root.field("nested"), innerMigration)
+        val action   = MigrationAction.MigrateField(DynamicOptic.root.field("nested"), innerMigration)
         val reversed = action.reverse
 
         assertTrue(
-          reversed.isInstanceOf[MigrationAction.ApplyMigration] &&
+          reversed.isInstanceOf[MigrationAction.MigrateField] &&
             reversed
-              .asInstanceOf[MigrationAction.ApplyMigration]
+              .asInstanceOf[MigrationAction.MigrateField]
               .migration
               .actions
               .head
@@ -442,7 +444,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
 
-      test("ApplyMigration executes nested migration at path") {
+      test("MigrateField executes nested migration at path") {
         val input = DynamicValue.Record(
           "id"   -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
           "data" -> DynamicValue.Record(
@@ -458,7 +460,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
 
         val migration = DynamicMigration.single(
-          MigrationAction.ApplyMigration(DynamicOptic.root.field("data"), nestedMigration)
+          MigrationAction.MigrateField(DynamicOptic.root.field("data"), nestedMigration)
         )
 
         val expected = DynamicValue.Record(

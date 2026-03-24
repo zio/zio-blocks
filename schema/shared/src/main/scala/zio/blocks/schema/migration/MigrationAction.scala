@@ -78,7 +78,7 @@ object MigrationAction {
    * @param to
    *   The new field name
    */
-  final case class Rename(
+  final case class RenameField(
     at: DynamicOptic,
     to: String
   ) extends MigrationAction {
@@ -86,8 +86,8 @@ object MigrationAction {
       // Extract the old field name from the path and create reverse
       val parentPath = DynamicOptic(at.nodes.dropRight(1))
       from match {
-        case Some(oldName) => Rename(parentPath.field(to), oldName)
-        case None          => Irreversible(at, "Rename")
+        case Some(oldName) => RenameField(parentPath.field(to), oldName)
+        case None          => Irreversible(at, "RenameField")
       }
     }
 
@@ -106,11 +106,11 @@ object MigrationAction {
    * @param transform
    *   The transformation expression
    */
-  final case class TransformValue(
+  final case class TransformField(
     at: DynamicOptic,
     transform: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "TransformValue")
+    override def reverse: MigrationAction = Irreversible(at, "TransformField")
   }
 
   /**
@@ -121,11 +121,11 @@ object MigrationAction {
    * @param default
    *   The default value expression to use if the optional is None
    */
-  final case class Mandate(
+  final case class MandateField(
     at: DynamicOptic,
     default: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Optionalize(at)
+    override def reverse: MigrationAction = OptionalizeField(at)
   }
 
   /**
@@ -134,10 +134,10 @@ object MigrationAction {
    * @param at
    *   The path to the required value
    */
-  final case class Optionalize(
+  final case class OptionalizeField(
     at: DynamicOptic
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "Optionalize")
+    override def reverse: MigrationAction = Irreversible(at, "OptionalizeField")
   }
 
   /**
@@ -184,11 +184,11 @@ object MigrationAction {
    * @param converter
    *   The conversion expression
    */
-  final case class ChangeType(
+  final case class ChangeFieldType(
     at: DynamicOptic,
     converter: DynamicSchemaExpr
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "ChangeType")
+    override def reverse: MigrationAction = Irreversible(at, "ChangeFieldType")
   }
 
   // ==================== Enum Actions ====================
@@ -236,12 +236,12 @@ object MigrationAction {
    * @param migration
    *   The DynamicMigration to apply to the nested value
    */
-  final case class ApplyMigration(
+  final case class MigrateField(
     at: DynamicOptic,
     migration: DynamicMigration
   ) extends MigrationAction {
     override def reverse: MigrationAction =
-      ApplyMigration(at, migration.reverse)
+      MigrateField(at, migration.reverse)
   }
 
   // ==================== Collection Actions ====================

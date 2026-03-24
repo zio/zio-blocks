@@ -64,26 +64,26 @@ object MigrationValidationMacros {
         case t if t =:= TypeRepr.of[Any] => ()
         case AppliedType(tycon, args)    =>
           tycon.typeSymbol.name match {
-            case "Added" =>
+            case "AddField" =>
               extractStringFromType(args.head).foreach(n => provided += n)
-            case "Dropped" =>
+            case "DropField" =>
               extractStringFromType(args.head).foreach(n => handled += n)
-            case "Renamed" =>
-              extractStringFromType(args.head).foreach(n => handled += n)
-              extractStringFromType(args(1)).foreach(n => provided += n)
-            case "Transformed" =>
+            case "RenameField" =>
               extractStringFromType(args.head).foreach(n => handled += n)
               extractStringFromType(args(1)).foreach(n => provided += n)
-            case "Mandated" =>
+            case "TransformField" =>
               extractStringFromType(args.head).foreach(n => handled += n)
               extractStringFromType(args(1)).foreach(n => provided += n)
-            case "Optionalized" =>
+            case "MandateField" =>
               extractStringFromType(args.head).foreach(n => handled += n)
               extractStringFromType(args(1)).foreach(n => provided += n)
-            case "TypeChanged" =>
+            case "OptionalizeField" =>
               extractStringFromType(args.head).foreach(n => handled += n)
               extractStringFromType(args(1)).foreach(n => provided += n)
-            case "Migrated" =>
+            case "ChangeFieldType" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "MigrateField" =>
               extractStringFromType(args.head).foreach { n =>
                 handled += n
                 provided += n
@@ -93,6 +93,8 @@ object MigrationValidationMacros {
                 handled += n
                 provided += n
               }
+            case "RenameCase" | "TransformCase" | "TransformElements" | "TransformKeys" | "TransformValues" =>
+              ()
             case _ => ()
           }
         case _ => ()
