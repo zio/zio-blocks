@@ -166,8 +166,12 @@ object Dom {
    *     escaping)
    *   - [[Dom.Element.Style]] — style tags (children rendered without escaping)
    *
-   * Elements support modifier chaining via `apply(modifier, ...)` and
+   * Elements support modifier chaining via `apply(effect, ...)` and
    * `when(condition)(...)` for fluent construction.
+   *
+   * Import `ModifierEffectConversions._` (or use the `zio.blocks.template`
+   * package object) to enable implicit conversions from `String`, `Dom`,
+   * `Dom.Attribute`, etc. to [[ModifierEffect]].
    */
   sealed trait Element extends Dom with CssSelectable {
     def tag: String
@@ -177,39 +181,17 @@ object Dom {
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
-    def apply(modifier: Modifier, modifiers: Modifier*): Element = {
-      var elem: Element = modifier.applyTo(this)
-      var i             = 0
-      while (i < modifiers.length) {
-        elem = modifiers(i).applyTo(elem)
-        i += 1
-      }
-      elem
-    }
+    def apply(effect: ModifierEffect, effects: ModifierEffect*): Element =
+      ToModifier.buildFromEffects(this, effect +: effects)
 
-    def when(condition: Boolean)(modifiers: Modifier*): Element =
-      if (condition) {
-        var elem: Element = this
-        var i             = 0
-        while (i < modifiers.length) {
-          elem = modifiers(i).applyTo(elem)
-          i += 1
-        }
-        elem
-      } else this
+    def when(condition: Boolean)(effects: ModifierEffect*): Element =
+      if (condition) ToModifier.buildFromEffects(this, effects)
+      else this
 
-    def whenSome[T](option: Option[T])(f: T => Seq[Modifier]): Element =
+    def whenSome[T](option: Option[T])(f: T => Seq[ModifierEffect]): Element =
       option match {
-        case Some(value) =>
-          val mods          = f(value)
-          var elem: Element = this
-          var i             = 0
-          while (i < mods.length) {
-            elem = mods(i).applyTo(elem)
-            i += 1
-          }
-          elem
-        case None => this
+        case Some(value) => ToModifier.buildFromEffects(this, f(value))
+        case None        => this
       }
   }
 
@@ -321,18 +303,9 @@ object Dom {
   sealed trait Attribute extends Product with Serializable
 
   object Attribute {
-    final case class KeyValue(name: String, value: AttributeValue) extends Attribute
-    final case class AppendValue(name: String, value: AttributeValue, separator: AttributeSeparator)
-        extends Attribute
-        with Modifier {
-      def applyTo(element: Element): Element =
-        element.withAttributes(element.attributes :+ this)
-    }
-    final case class BooleanAttribute(name: String, enabled: Boolean = true) extends Attribute with Modifier {
-      def applyTo(element: Element): Element =
-        if (enabled) element.withAttributes(element.attributes :+ this)
-        else element
-    }
+    final case class KeyValue(name: String, value: AttributeValue)                                   extends Attribute
+    final case class AppendValue(name: String, value: AttributeValue, separator: AttributeSeparator) extends Attribute
+    final case class BooleanAttribute(name: String, enabled: Boolean = true)                         extends Attribute
   }
 
   sealed trait AttributeValue extends Product with Serializable

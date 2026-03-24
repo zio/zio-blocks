@@ -329,14 +329,14 @@ object DomSpec extends ZIOSpecDefault {
       test("when true applies modifiers") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val result = el.when(true)(
-          Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main")))
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
         )
         assertTrue(result.render == """<div id="main"></div>""")
       },
       test("when false returns unchanged") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val result = el.when(false)(
-          Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main")))
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
         )
         assertTrue(result.render == "<div></div>")
       },
@@ -344,7 +344,7 @@ object DomSpec extends ZIOSpecDefault {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val result = el.whenSome(Some("highlight")) { cls =>
           Seq(
-            Modifier.attributeToModifier(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(cls)))
+            ToModifier.mod(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(cls)))
           )
         }
         assertTrue(result.render == """<div class="highlight"></div>""")
@@ -353,7 +353,7 @@ object DomSpec extends ZIOSpecDefault {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val result = el.whenSome(Option.empty[String]) { cls =>
           Seq(
-            Modifier.attributeToModifier(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(cls)))
+            ToModifier.mod(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(cls)))
           )
         }
         assertTrue(result.render == "<div></div>")
@@ -458,7 +458,7 @@ object DomSpec extends ZIOSpecDefault {
     suite("Element apply for curried modifiers")(
       test("apply adds modifiers to existing element") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        val result = el(Modifier.stringToModifier("hello"))
+        val result = el("hello")
         assertTrue(result.render == "<div>hello</div>")
       }
     ),
@@ -608,14 +608,14 @@ object DomSpec extends ZIOSpecDefault {
     suite("Element apply with multiple modifiers")(
       test("apply with single modifier") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        val result = el(Modifier.stringToModifier("text"))
+        val result = el("text")
         assertTrue(result.render == "<div>text</div>")
       },
       test("apply with multiple modifiers") {
         val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
         val result = el(
-          Modifier.attributeToModifier(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))),
-          Modifier.stringToModifier("content")
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")),
+          "content"
         )
         assertTrue(result.render == """<div id="x">content</div>""")
       }
@@ -719,16 +719,16 @@ object DomSpec extends ZIOSpecDefault {
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="a b c"></div>""")
       },
-      test("BooleanAttribute as modifier (applyTo)") {
+      test("BooleanAttribute as modifier via ToModifier") {
         val ba      = Dom.Attribute.BooleanAttribute("required")
         val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
-        val updated = ba.applyTo(el)
+        val updated = el(ba)
         assertTrue(updated.render == "<input required/>")
       },
       test("BooleanAttribute disabled=false does not add attribute") {
         val ba      = Dom.Attribute.BooleanAttribute("disabled", enabled = false)
         val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
-        val updated = ba.applyTo(el)
+        val updated = el(ba)
         assertTrue(updated.render == "<input/>")
       }
     ),

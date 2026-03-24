@@ -81,26 +81,23 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("modifiers")(
       test("Dom as modifier adds child") {
-        val child  = Dom.Text("child")
-        val result = div(Modifier.domToModifier(child)).render
+        val child: Dom = Dom.Text("child")
+        val result     = div(child).render
         assertTrue(result == "<div>child</div>")
       },
-      test("Option[Modifier] None is no-op") {
-        val none: Option[Modifier] = None
-        val result                 = div(none).render
+      test("Option[Dom] None is no-op") {
+        val none: Option[Dom] = None
+        val result            = div(none).render
         assertTrue(result == "<div></div>")
       },
-      test("Option[Modifier] Some applies modifier") {
-        val some: Option[Modifier] = Some(Modifier.stringToModifier("text"))
-        val result                 = div(some).render
+      test("Option[String] Some applies modifier") {
+        val some: Option[String] = Some("text")
+        val result               = div(some).render
         assertTrue(result == "<div>text</div>")
       },
-      test("Iterable[Modifier] applies all") {
-        val mods: Iterable[Modifier] = List(
-          Modifier.stringToModifier("a"),
-          Modifier.stringToModifier("b")
-        )
-        val result = div(mods).render
+      test("Iterable[String] applies all") {
+        val mods: Iterable[String] = List("a", "b")
+        val result                 = div(mods).render
         assertTrue(result == "<div>ab</div>")
       }
     ),
@@ -168,14 +165,14 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     ),
     suite("script/style modifier type coercion")(
-      test("script with non-Script modifier preserves as Script") {
-        val genericChild: Modifier = Modifier.domToModifier(Dom.Text("code"))
-        val s                      = script(genericChild)
+      test("script with Dom.Text child preserves as Script") {
+        val genericChild: Dom = Dom.Text("code")
+        val s                 = script(genericChild)
         assertTrue(s.tag == "script", s.render == "<script>code</script>")
       },
-      test("style with non-Style modifier preserves as Style") {
-        val genericChild: Modifier = Modifier.domToModifier(Dom.Text("css"))
-        val s                      = style(genericChild)
+      test("style with Dom.Text child preserves as Style") {
+        val genericChild: Dom = Dom.Text("css")
+        val s                 = style(genericChild)
         assertTrue(s.tag == "style", s.render == "<style>css</style>")
       },
       test("element with no modifiers creates empty element") {
@@ -217,7 +214,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("Element apply for curried modifiers")(
       test("form with apply for additional modifiers") {
         val f        = form(action := "/submit")
-        val result   = f(Modifier.domToModifier(div("content")), Modifier.domToModifier(button("Submit")))
+        val result   = f(div("content"), button("Submit"))
         val rendered = result.render
         assertTrue(
           rendered == """<form action="/submit"><div>content</div><button>Submit</button></form>"""
@@ -577,27 +574,27 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("when and whenSome on elements")(
       test("when true with multiple modifiers applies all") {
         val el = div.when(true)(
-          Modifier.attributeToModifier(id := "x"),
-          Modifier.stringToModifier("text")
+          id := "x",
+          "text"
         )
         assertTrue(el.render == """<div id="x">text</div>""")
       },
       test("when false with multiple modifiers returns unchanged") {
         val el = div.when(false)(
-          Modifier.attributeToModifier(id := "x"),
-          Modifier.stringToModifier("text")
+          id := "x",
+          "text"
         )
         assertTrue(el.render == "<div></div>")
       },
       test("whenSome with Some applies all modifiers from function") {
         val el = div.whenSome(Some(42)) { n =>
-          Seq(Modifier.stringToModifier(n.toString))
+          Seq(ToModifier.mod(n.toString))
         }
         assertTrue(el.render == "<div>42</div>")
       },
       test("whenSome with None returns unchanged element") {
         val el = div.whenSome(Option.empty[Int]) { n =>
-          Seq(Modifier.stringToModifier(n.toString))
+          Seq(ToModifier.mod(n.toString))
         }
         assertTrue(el.render == "<div></div>")
       },
@@ -609,8 +606,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("whenSome with Some and multiple modifiers") {
         val el = span.whenSome(Some("cls")) { cls =>
           Seq(
-            Modifier.attributeToModifier(className := cls),
-            Modifier.stringToModifier("inner")
+            ToModifier.mod(className := cls),
+            ToModifier.mod("inner")
           )
         }
         assertTrue(el.render == """<span class="cls">inner</span>""")
