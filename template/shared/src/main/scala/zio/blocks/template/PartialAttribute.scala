@@ -1,0 +1,37 @@
+package zio.blocks.template
+
+import zio.blocks.chunk.Chunk
+
+final class PartialAttribute(val attrName: String) {
+
+  def :=(value: String): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value))
+
+  def :=(value: Int): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value.toString))
+
+  def :=(value: Long): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value.toString))
+
+  def :=(value: Double): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value.toString))
+
+  def :=(value: Boolean): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.BooleanValue(value))
+
+  def :=(value: Js): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.JsValue(value))
+
+  def :=(values: Chunk[String]): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, Dom.AttributeSeparator.Space))
+
+  def :=(value1: String, value2: String, rest: String*): Dom.Attribute =
+    Dom.Attribute.KeyValue(
+      attrName,
+      Dom.AttributeValue.MultiValue(Chunk.from(value1 +: value2 +: rest), Dom.AttributeSeparator.Space)
+    )
+
+  def withSeparator(values: Chunk[String], separator: Dom.AttributeSeparator): Dom.Attribute =
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.MultiValue(values, separator))
+
+}
