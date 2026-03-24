@@ -1237,7 +1237,22 @@ makeStorage(100, TypeId.double).getClass.getComponentType
 makeStorage(100, TypeId.string).getClass.getComponentType
 ```
 
-Another use case is detecting primitive types without a chain of `isInstanceOf` checks — useful in serializers and code generators that need to choose between primitive and boxed layouts:
+Another use case is detecting primitive types. Without `classTag`, you would need to enumerate every primitive with a chain of `isInstanceOf` checks:
+
+```scala
+// Without classTag: every primitive listed explicitly
+def isPrimitive(value: Any): Boolean =
+  value.isInstanceOf[Int]     ||
+  value.isInstanceOf[Long]    ||
+  value.isInstanceOf[Float]   ||
+  value.isInstanceOf[Double]  ||
+  value.isInstanceOf[Boolean] ||
+  value.isInstanceOf[Byte]    ||
+  value.isInstanceOf[Short]   ||
+  value.isInstanceOf[Char]
+```
+
+This is fragile: if you forget one primitive (e.g. `Unit`) the check silently breaks. With `classTag` the same question reduces to a single comparison that can never miss a case — `ClassTag.AnyRef` is the universal fallback for every reference type, so anything that is not `AnyRef` must be a primitive:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
