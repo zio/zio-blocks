@@ -16,7 +16,7 @@
 
 package example.templates
 
-import golem.runtime.annotations.{agentDefinition, description, prompt}
+import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
@@ -25,21 +25,24 @@ import scala.concurrent.Future
 @description(
   "A counter agent that installs custom snapshot save/load hooks (Scala equivalent of the Rust/TS snapshotting template)."
 )
-trait SnapshotCounter extends BaseAgent[String] {
+trait SnapshotCounter extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
   def increment(): Future[Int]
 }
 
-object SnapshotCounter extends AgentCompanion[SnapshotCounter, String]
+object SnapshotCounter extends AgentCompanion[SnapshotCounter]
 
 @agentDefinition(snapshotting = "every(1)")
 @description("A counter agent using Snapshotted[S] for automatic JSON-based state persistence.")
-trait AutoSnapshotCounter extends BaseAgent[String] {
+trait AutoSnapshotCounter extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
   def increment(): Future[Int]
 }
 
-object AutoSnapshotCounter extends AgentCompanion[AutoSnapshotCounter, String]
+object AutoSnapshotCounter extends AgentCompanion[AutoSnapshotCounter]

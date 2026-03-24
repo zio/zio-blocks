@@ -113,9 +113,24 @@ object AgentClientMacroImpl {
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
-    val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
-    val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
-    baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+    val constructorAnnotationType = typeOf[_root_.golem.runtime.annotations.constructor]
+    val constructorMethod = traitType.members.collectFirst {
+      case m: MethodSymbol if m.isMethod &&
+        m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+        m
+    }
+    constructorMethod match {
+      case None => typeOf[Unit]
+      case Some(method) =>
+        val params = method.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
+        params match {
+          case Nil      => typeOf[Unit]
+          case p :: Nil => p
+          case ps       =>
+            val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
+            appliedType(tupleClass.toType, ps)
+        }
+    }
   }
 
   private def buildMethods(c: blackbox.Context)(

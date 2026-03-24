@@ -67,7 +67,7 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
   implicit val eitherStringIntSchema: Schema[Either[String, Int]] = Schema.derived
 
   @agentDefinition("schema-verify-agent")
-  trait SchemaVerifyAgent extends BaseAgent[Unit] {
+  trait SchemaVerifyAgent extends BaseAgent {
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]
     def boolMethod(b: Boolean): Future[Boolean]
@@ -115,7 +115,7 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     override def textSegmentMethod(t: TextSegment[SvLang]): Future[TextSegment[SvLang]]       = Future.successful(t)
     override def binarySegmentMethod(b: BinarySegment[SvMime]): Future[BinarySegment[SvMime]] = Future.successful(b)
     override def multimodalMethod(m: Multimodal[PersonInfo]): Future[Multimodal[PersonInfo]]  = Future.successful(m)
-    override def pureEnumMethod(c: Color): Future[Color]                                     = Future.successful(c)
+    override def pureEnumMethod(c: Color): Future[Color]                                      = Future.successful(c)
     override def eitherMethod(e: Either[String, Int]): Future[Either[String, Int]]            = Future.successful(e)
   }
 

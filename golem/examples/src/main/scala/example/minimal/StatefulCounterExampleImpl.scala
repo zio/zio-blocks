@@ -21,8 +21,8 @@ import golem.runtime.annotations.agentImplementation
 import scala.concurrent.Future
 
 @agentImplementation()
-final class StatefulCounterImpl(private val state: CounterState) extends StatefulCounter {
-  private var count: Int = state.initialCount
+final class StatefulCounterImpl(private val initialCount: Int) extends StatefulCounter {
+  private var count: Int = initialCount
 
   override def increment(): Future[Int] =
     Future.successful {
@@ -35,8 +35,8 @@ final class StatefulCounterImpl(private val state: CounterState) extends Statefu
 }
 
 @agentImplementation()
-final class StatefulCallerImpl(private val state: CounterState) extends StatefulCaller {
-  private val counter = StatefulCounter.get(state)
+final class StatefulCallerImpl(private val initialCount: Int) extends StatefulCaller {
+  private val counter = StatefulCounter.get(initialCount)
 
   override def remoteIncrement(): Future[Int] =
     counter.increment()

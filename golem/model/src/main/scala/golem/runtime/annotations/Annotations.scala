@@ -34,6 +34,11 @@ final class prompt(val value: String) extends StaticAnnotation
 @Target(Array(ElementType.TYPE))
 final class agentImplementation() extends StaticAnnotation
 
+/** Marks a method on an agent trait as the constructor definition. */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(Array(ElementType.METHOD))
+final class constructor() extends StaticAnnotation
+
 /**
  * Overrides the language code used by multimodal/unstructured text derivation.
  */

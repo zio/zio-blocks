@@ -17,7 +17,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("custom-snapshot-agent", snapshotting = "enabled")
-  trait CustomSnapshotAgent extends BaseAgent[Unit] {
+  trait CustomSnapshotAgent extends BaseAgent {
     def setValue(v: Int): Future[Unit]
     def getValue(): Future[Int]
   }
@@ -59,7 +59,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
   }
 
   @agentDefinition("auto-snapshot-agent", snapshotting = "enabled")
-  trait AutoSnapshotAgent extends BaseAgent[Unit] {
+  trait AutoSnapshotAgent extends BaseAgent {
     def increment(): Future[Int]
   }
 
@@ -81,7 +81,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("no-snapshot-agent")
-  trait NoSnapshotAgent extends BaseAgent[Unit] {
+  trait NoSnapshotAgent extends BaseAgent {
     def ping(): Future[String]
   }
 
@@ -150,8 +150,8 @@ object SnapshottingSpec extends ZIOSpecDefault {
         ZIO.fromFuture { implicit ec =>
           val instance = new AutoSnapshotAgentImpl()
           for {
-            _ <- instance.increment()
-            _ <- instance.increment()
+            _       <- instance.increment()
+            _       <- instance.increment()
             payload <- autoDefn.snapshotHandlers.get.save(instance)
           } yield {
             val json = new String(payload.bytes, "UTF-8")
@@ -166,12 +166,12 @@ object SnapshottingSpec extends ZIOSpecDefault {
         ZIO.fromFuture { implicit ec =>
           val instance = new AutoSnapshotAgentImpl()
           for {
-            _ <- instance.increment()
-            _ <- instance.increment()
+            _       <- instance.increment()
+            _       <- instance.increment()
             payload <- autoDefn.snapshotHandlers.get.save(instance)
             restored = new AutoSnapshotAgentImpl()
-            _ <- autoDefn.snapshotHandlers.get.load(restored, payload.bytes)
-            v <- restored.increment() // counter was 2, now should be 3
+            _       <- autoDefn.snapshotHandlers.get.load(restored, payload.bytes)
+            v       <- restored.increment() // counter was 2, now should be 3
           } yield assertTrue(v == 3)
         }
       }

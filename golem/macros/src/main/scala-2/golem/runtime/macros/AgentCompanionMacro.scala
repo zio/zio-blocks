@@ -53,16 +53,18 @@ object AgentCompanionMacro {
     val (traitTpe, _) = prefixTraitAndInput(c)
     val traitSym      = traitTpe.typeSymbol
 
-    val agentDefinitionType = typeOf[_root_.golem.runtime.annotations.agentDefinition]
+    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    def isAgentDefinitionAnn(ann: Annotation): Boolean =
+      ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     val raw                 = traitSym.annotations.collectFirst {
-      case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+      case ann if isAgentDefinitionAnn(ann) =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
     }.getOrElse("")
 
     val value = raw.trim
     if (value.nonEmpty) c.Expr[String](Literal(Constant(value)))
     else {
-      val hasAnn = traitSym.annotations.exists(a => a.tree.tpe != null && a.tree.tpe =:= agentDefinitionType)
+      val hasAnn = traitSym.annotations.exists(a => isAgentDefinitionAnn(a))
       if (!hasAnn) c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
       c.Expr[String](Literal(Constant(defaultTypeNameFromTrait(traitSym))))
     }
@@ -118,7 +120,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"get() requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"get() requires no @constructor (Unit input) (found: $inTpe)")
     getImpl(c)(q"()")
   }
 
@@ -126,7 +128,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"getPhantom(phantom) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getPhantom(phantom) requires no @constructor (Unit input) (found: $inTpe)")
     getPhantomImpl(c)(q"()", phantom)
   }
 
@@ -138,7 +140,7 @@ object AgentCompanionMacro {
     val (_, inTpe) = prefixTraitAndInput(c)
     val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"get(a1,a2) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"get(a1,a2) requires @constructor matching ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
   }
 
@@ -151,7 +153,7 @@ object AgentCompanionMacro {
     val (_, inTpe) = prefixTraitAndInput(c)
     val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"getPhantom(a1,a2,phantom) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getPhantom(a1,a2,phantom) requires @constructor matching ($expected) (found: $inTpe)")
     getPhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)", phantom.tree)
   }
 
@@ -165,7 +167,7 @@ object AgentCompanionMacro {
     val expected   =
       appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"get(a1,a2,a3) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"get(a1,a2,a3) requires @constructor matching ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)")
   }
 
@@ -182,7 +184,7 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(
         c.enclosingPosition,
-        s"getPhantom(a1,a2,a3,phantom) requires: BaseAgent[($expected)] (found: $inTpe)"
+        s"getPhantom(a1,a2,a3,phantom) requires @constructor matching ($expected) (found: $inTpe)"
       )
     getPhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)", phantom.tree)
   }
@@ -201,7 +203,7 @@ object AgentCompanionMacro {
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4])
       )
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"get(a1,a2,a3,a4) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"get(a1,a2,a3,a4) requires @constructor matching ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple4($a1, $a2, $a3, $a4)")
   }
 
@@ -218,7 +220,7 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(
         c.enclosingPosition,
-        s"getPhantom(a1,a2,a3,a4,phantom) requires: BaseAgent[($expected)] (found: $inTpe)"
+        s"getPhantom(a1,a2,a3,a4,phantom) requires @constructor matching ($expected) (found: $inTpe)"
       )
     getPhantomImpl(c)(q"_root_.scala.Tuple4($a1, $a2, $a3, $a4)", phantom.tree)
   }
@@ -240,7 +242,7 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(
         c.enclosingPosition,
-        s"get(a1,a2,a3,a4,a5) requires: BaseAgent[($expected)] (found: $inTpe)"
+        s"get(a1,a2,a3,a4,a5) requires @constructor matching ($expected) (found: $inTpe)"
       )
     getImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)")
   }
@@ -269,7 +271,7 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(
         c.enclosingPosition,
-        s"getPhantom(a1,a2,a3,a4,a5,phantom) requires: BaseAgent[($expected)] (found: $inTpe)"
+        s"getPhantom(a1,a2,a3,a4,a5,phantom) requires @constructor matching ($expected) (found: $inTpe)"
       )
     getPhantomImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)", phantom.tree)
   }
@@ -296,7 +298,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"newPhantom() requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantom() requires no @constructor (Unit input) (found: $inTpe)")
     newPhantomImpl(c)(q"()")
   }
 
@@ -308,7 +310,7 @@ object AgentCompanionMacro {
     val (_, inTpe) = prefixTraitAndInput(c)
     val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"newPhantom(a1,a2) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2) requires @constructor matching ($expected) (found: $inTpe)")
     newPhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
   }
 
@@ -322,7 +324,7 @@ object AgentCompanionMacro {
     val expected   =
       appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3) requires @constructor matching ($expected) (found: $inTpe)")
     newPhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)")
   }
 
@@ -340,7 +342,7 @@ object AgentCompanionMacro {
         List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3], weakTypeOf[A4])
       )
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3,a4) requires: BaseAgent[($expected)] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantom(a1,a2,a3,a4) requires @constructor matching ($expected) (found: $inTpe)")
     newPhantomImpl(c)(q"_root_.scala.Tuple4($a1, $a2, $a3, $a4)")
   }
 
@@ -361,7 +363,7 @@ object AgentCompanionMacro {
     if (!(inTpe =:= expected))
       c.abort(
         c.enclosingPosition,
-        s"newPhantom(a1,a2,a3,a4,a5) requires: BaseAgent[($expected)] (found: $inTpe)"
+        s"newPhantom(a1,a2,a3,a4,a5) requires @constructor matching ($expected) (found: $inTpe)"
       )
     newPhantomImpl(c)(q"_root_.scala.Tuple5($a1, $a2, $a3, $a4, $a5)")
   }
@@ -389,7 +391,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"getWithConfig(configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getWithConfig(configOverrides) requires no @constructor (Unit input) (found: $inTpe)")
     getWithConfigImpl(c)(q"()", configOverrides)
   }
 
@@ -402,7 +404,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"getWithConfig(config) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getWithConfig(config) requires no @constructor (Unit input) (found: $inTpe)")
     getWithConfigImpl(c)(q"()", q"$config.toOverrides")
   }
 
@@ -430,7 +432,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, configOverrides) requires no @constructor (Unit input) (found: $inTpe)")
     getPhantomWithConfigImpl(c)(q"()", phantom, configOverrides)
   }
 
@@ -443,7 +445,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, config) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"getPhantomWithConfig(phantom, config) requires no @constructor (Unit input) (found: $inTpe)")
     getPhantomWithConfigImpl(c)(q"()", phantom, q"$config.toOverrides")
   }
 
@@ -471,7 +473,7 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"newPhantomWithConfig(configOverrides) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantomWithConfig(configOverrides) requires no @constructor (Unit input) (found: $inTpe)")
     newPhantomWithConfigImpl(c)(q"()", configOverrides)
   }
 
@@ -484,15 +486,30 @@ object AgentCompanionMacro {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
     if (!(inTpe =:= typeOf[Unit]))
-      c.abort(c.enclosingPosition, s"newPhantomWithConfig(config) requires: BaseAgent[Unit] (found: $inTpe)")
+      c.abort(c.enclosingPosition, s"newPhantomWithConfig(config) requires no @constructor (Unit input) (found: $inTpe)")
     newPhantomWithConfigImpl(c)(q"()", q"$config.toOverrides")
   }
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
-    val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
-    val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
-    baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+    val constructorAnnotationType = typeOf[_root_.golem.runtime.annotations.constructor]
+    val constructorMethod = traitType.members.collectFirst {
+      case m: MethodSymbol if m.isMethod &&
+        m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+        m
+    }
+    constructorMethod match {
+      case None => typeOf[Unit]
+      case Some(method) =>
+        val params = method.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
+        params match {
+          case Nil      => typeOf[Unit]
+          case p :: Nil => p
+          case ps       =>
+            val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
+            appliedType(tupleClass.toType, ps)
+        }
+    }
   }
 
   private def attachTriggerSchedule(c: blackbox.Context)(traitTpe: c.universe.Type, resolvedTree: c.Tree): c.Tree = {

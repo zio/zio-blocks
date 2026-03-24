@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 import zio.blocks.schema.Schema
 
@@ -29,7 +29,9 @@ object PromisePayload {
 
 @agentDefinition()
 @description("Demonstrates JSON-typed promises and blocking promise await.")
-trait JsonPromiseDemo extends BaseAgent[String] {
+trait JsonPromiseDemo extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Creates a promise, completes with JSON, and awaits the JSON result.")
   def jsonRoundtrip(): Future[String]
@@ -38,4 +40,4 @@ trait JsonPromiseDemo extends BaseAgent[String] {
   def blockingDemo(): Future[String]
 }
 
-object JsonPromiseDemo extends AgentCompanion[JsonPromiseDemo, String]
+object JsonPromiseDemo extends AgentCompanion[JsonPromiseDemo]

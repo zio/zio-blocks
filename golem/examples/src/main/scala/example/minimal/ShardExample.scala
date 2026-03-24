@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
@@ -28,7 +28,9 @@ import scala.concurrent.Future
  * story.
  */
 @agentDefinition(mode = DurabilityMode.Durable)
-trait Shard extends BaseAgent[(String, Int)] {
+trait Shard extends BaseAgent {
+
+  @constructor def create(tableName: String, shardId: Int): Unit = ()
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]
@@ -38,7 +40,7 @@ trait Shard extends BaseAgent[(String, Int)] {
 }
 
 // Today this one-liner is required by Scala to attach the companion API.
-object Shard extends AgentCompanion[Shard, (String, Int)]
+object Shard extends AgentCompanion[Shard]
 
 @agentImplementation()
 final class ShardImpl(private val tableName: String, private val shardId: Int) extends Shard {

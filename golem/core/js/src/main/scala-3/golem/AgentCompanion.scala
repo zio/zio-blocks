@@ -28,28 +28,28 @@ import golem.runtime.rpc.AgentClient
  *
  * {{{
  * @agentDefinition("my-agent")
- * trait MyAgent extends BaseAgent[MyCtor] { ... }
+ * trait MyAgent extends BaseAgent { ... }
  *
- * object MyAgent extends AgentCompanion[MyAgent, MyCtor]
+ * object MyAgent extends AgentCompanion[MyAgent]
  * }}}
  */
-trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBase[Trait] {
+trait AgentCompanion[Trait <: BaseAgent] extends AgentCompanionBase[Trait] {
 
   /** Golem agent type name, from `@agentDefinition("...")`. */
   transparent inline def typeName: String =
     AgentNameMacro.typeName[Trait]
 
   /** Reflected agent type (schemas + function names). */
-  transparent inline def agentType: AgentType[Trait, Input] =
-    AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Input]]
+  transparent inline def agentType: AgentType[Trait, Any] =
+    AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Any]]
 
   /** Connect to (or create) an agent instance from constructor input. */
-  transparent inline def get(input: Input): Trait =
-    ${ AgentCompanionMacro.getImpl[Trait, Input]('input) }
+  transparent inline def get(input: Any): Trait =
+    ${ AgentCompanionMacro.getImpl[Trait, Any]('input) }
 
   /** Connect to a phantom (pre-provisioned) agent instance. */
-  transparent inline def getPhantom(input: Input, phantom: Uuid): Trait =
-    ${ AgentCompanionMacro.getPhantomImpl[Trait, Input]('input, 'phantom) }
+  transparent inline def getPhantom(input: Any, phantom: Uuid): Trait =
+    ${ AgentCompanionMacro.getPhantomImpl[Trait, Any]('input, 'phantom) }
 
   /** Unit-constructor convenience. */
   transparent inline def get(): Trait =
@@ -109,24 +109,24 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
     }
 
   /** Connect to (or create) an agent instance with config overrides. */
-  transparent inline def getWithConfig(input: Input, configOverrides: List[ConfigOverride]): Trait =
-    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Input]('input, 'configOverrides) }
+  transparent inline def getWithConfig(input: Any, configOverrides: List[ConfigOverride]): Trait =
+    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Any]('input, 'configOverrides) }
 
   /** Unit-constructor + config overrides convenience. */
   transparent inline def getWithConfig(configOverrides: List[ConfigOverride]): Trait =
     ${ AgentCompanionMacro.getWithConfigUnitImpl[Trait]('configOverrides) }
 
   /** Connect to (or create) an agent instance with typed config overrides. */
-  transparent inline def getWithConfig[C](input: Input, config: RpcConfig[C]): Trait =
-    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Input]('input, '{ config.toOverrides }) }
+  transparent inline def getWithConfig[C](input: Any, config: RpcConfig[C]): Trait =
+    ${ AgentCompanionMacro.getWithConfigImpl[Trait, Any]('input, '{ config.toOverrides }) }
 
   /** Unit-constructor + typed config overrides convenience. */
   transparent inline def getWithConfig[C](config: RpcConfig[C]): Trait =
     ${ AgentCompanionMacro.getWithConfigUnitImpl[Trait]('{ config.toOverrides }) }
 
   /** Connect to a new phantom agent with a freshly generated UUID. */
-  transparent inline def newPhantom(input: Input): Trait =
-    ${ AgentCompanionMacro.newPhantomImpl[Trait, Input]('input) }
+  transparent inline def newPhantom(input: Any): Trait =
+    ${ AgentCompanionMacro.newPhantomImpl[Trait, Any]('input) }
 
   /** Unit-constructor new phantom convenience. */
   transparent inline def newPhantom(): Trait =
@@ -155,32 +155,32 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
     ${ AgentCompanionMacro.newPhantomTuple5Impl[Trait, A1, A2, A3, A4, A5]('a1, 'a2, 'a3, 'a4, 'a5) }
 
   /** Connect to a phantom agent with config overrides. */
-  transparent inline def getPhantomWithConfig(input: Input, phantom: Uuid, configOverrides: List[ConfigOverride]): Trait =
-    ${ AgentCompanionMacro.getPhantomWithConfigImpl[Trait, Input]('input, 'phantom, 'configOverrides) }
+  transparent inline def getPhantomWithConfig(input: Any, phantom: Uuid, configOverrides: List[ConfigOverride]): Trait =
+    ${ AgentCompanionMacro.getPhantomWithConfigImpl[Trait, Any]('input, 'phantom, 'configOverrides) }
 
   /** Unit-constructor phantom + config overrides convenience. */
   transparent inline def getPhantomWithConfig(phantom: Uuid, configOverrides: List[ConfigOverride]): Trait =
     ${ AgentCompanionMacro.getPhantomWithConfigUnitImpl[Trait]('phantom, 'configOverrides) }
 
   /** Connect to a phantom agent with typed config. */
-  transparent inline def getPhantomWithConfig[C](input: Input, phantom: Uuid, config: RpcConfig[C]): Trait =
-    ${ AgentCompanionMacro.getPhantomWithConfigImpl[Trait, Input]('input, 'phantom, '{ config.toOverrides }) }
+  transparent inline def getPhantomWithConfig[C](input: Any, phantom: Uuid, config: RpcConfig[C]): Trait =
+    ${ AgentCompanionMacro.getPhantomWithConfigImpl[Trait, Any]('input, 'phantom, '{ config.toOverrides }) }
 
   /** Unit-constructor phantom + typed config convenience. */
   transparent inline def getPhantomWithConfig[C](phantom: Uuid, config: RpcConfig[C]): Trait =
     ${ AgentCompanionMacro.getPhantomWithConfigUnitImpl[Trait]('phantom, '{ config.toOverrides }) }
 
   /** Connect to a new phantom agent (fresh UUID) with config overrides. */
-  transparent inline def newPhantomWithConfig(input: Input, configOverrides: List[ConfigOverride]): Trait =
-    ${ AgentCompanionMacro.newPhantomWithConfigImpl[Trait, Input]('input, 'configOverrides) }
+  transparent inline def newPhantomWithConfig(input: Any, configOverrides: List[ConfigOverride]): Trait =
+    ${ AgentCompanionMacro.newPhantomWithConfigImpl[Trait, Any]('input, 'configOverrides) }
 
   /** Unit-constructor new phantom + config overrides convenience. */
   transparent inline def newPhantomWithConfig(configOverrides: List[ConfigOverride]): Trait =
     ${ AgentCompanionMacro.newPhantomWithConfigUnitImpl[Trait]('configOverrides) }
 
   /** Connect to a new phantom agent (fresh UUID) with typed config. */
-  transparent inline def newPhantomWithConfig[C](input: Input, config: RpcConfig[C]): Trait =
-    ${ AgentCompanionMacro.newPhantomWithConfigImpl[Trait, Input]('input, '{ config.toOverrides }) }
+  transparent inline def newPhantomWithConfig[C](input: Any, config: RpcConfig[C]): Trait =
+    ${ AgentCompanionMacro.newPhantomWithConfigImpl[Trait, Any]('input, '{ config.toOverrides }) }
 
   /** Unit-constructor new phantom + typed config convenience. */
   transparent inline def newPhantomWithConfig[C](config: RpcConfig[C]): Trait =

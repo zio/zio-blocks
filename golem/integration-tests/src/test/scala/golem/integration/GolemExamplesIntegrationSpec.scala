@@ -32,22 +32,27 @@ object GolemServer {
       cwd.resolve("../golem/examples")
     ).map(_.normalize.toFile)
 
-    candidates.find(d => new File(d, "golem.yaml").isFile)
+    candidates
+      .find(d => new File(d, "golem.yaml").isFile)
       .getOrElse(sys.error(s"Could not locate examples dir (with golem.yaml) from user.dir=$cwd"))
   }
 
   private val tsPackagesPath: Option[String] =
-    sys.props.get("golem.tsPackagesPath")
+    sys.props
+      .get("golem.tsPackagesPath")
       .orElse(sys.env.get("GOLEM_TS_PACKAGES_PATH"))
 
   private def canConnect(port: Int): UIO[Boolean] =
-    ZIO.acquireReleaseWith(
-      ZIO.attemptBlockingIO(AsynchronousSocketChannel.open())
-    )(ch => ZIO.succeed(ch.close())) { client =>
-      ZIO.fromFutureJava(client.connect(new InetSocketAddress("localhost", port)))
-        .as(true)
-        .catchAll(_ => ZIO.succeed(false))
-    }.catchAll(_ => ZIO.succeed(false))
+    ZIO
+      .acquireReleaseWith(
+        ZIO.attemptBlockingIO(AsynchronousSocketChannel.open())
+      )(ch => ZIO.succeed(ch.close())) { client =>
+        ZIO
+          .fromFutureJava(client.connect(new InetSocketAddress("localhost", port)))
+          .as(true)
+          .catchAll(_ => ZIO.succeed(false))
+      }
+      .catchAll(_ => ZIO.succeed(false))
 
   private def golemOnPath: ZIO[Any, Throwable, Unit] =
     Cmd("golem", "--version")
@@ -116,9 +121,12 @@ object GolemServer {
         ZIO.sleep(2.seconds) *>
           runGolemCmd(dir, deployTimeoutSec, "deploy").flatMap { retry =>
             if (retry.exitCode == 0) ZIO.unit
-            else ZIO.fail(new RuntimeException(
-              s"golem deploy failed after retry (exit=${retry.exitCode}):\n${retry.output}"
-            ))
+            else
+              ZIO.fail(
+                new RuntimeException(
+                  s"golem deploy failed after retry (exit=${retry.exitCode}):\n${retry.output}"
+                )
+              )
           }
     }
 
@@ -134,32 +142,41 @@ object GolemServer {
       else {
         import scala.util.matching.Regex
 
-        val idPattern: Regex = """"id"\s*:\s*"([^"]+)"""".r
+        val idPattern: Regex   = """"id"\s*:\s*"([^"]+)"""".r
         val pathPattern: Regex = """"path"\s*:\s*\[([^\]]*)\]""".r
-        val revPattern: Regex = """"revision"\s*:\s*(\d+)""".r
+        val revPattern: Regex  = """"revision"\s*:\s*(\d+)""".r
 
         // Parse each secret block from the JSON array
         val secretBlocks = listResult.output.split("""\{""").tail.map("{" + _)
         ZIO.foreachDiscard(secretBlocks) { block =>
-          val idOpt = idPattern.findFirstMatchIn(block).map(_.group(1))
+          val idOpt   = idPattern.findFirstMatchIn(block).map(_.group(1))
           val pathOpt = pathPattern.findFirstMatchIn(block).map(_.group(1))
-          val revOpt = revPattern.findFirstMatchIn(block).map(_.group(1))
+          val revOpt  = revPattern.findFirstMatchIn(block).map(_.group(1))
 
           (idOpt, pathOpt, revOpt) match {
             case (Some(id), Some(pathStr), Some(rev)) =>
               val normalizedPath = pathStr.replaceAll(""""|\s""", "").split(",").mkString(".")
               secretValues.get(normalizedPath) match {
                 case Some(value) =>
-                  runGolemCmd(dir, 30L,
-                    "agent-secret", "update-value",
-                    "--id", id,
-                    "--current-revision", rev,
-                    "--secret-value", value
+                  runGolemCmd(
+                    dir,
+                    30L,
+                    "agent-secret",
+                    "update-value",
+                    "--id",
+                    id,
+                    "--current-revision",
+                    rev,
+                    "--secret-value",
+                    value
                   ).flatMap { result =>
                     if (result.exitCode == 0) ZIO.unit
-                    else ZIO.fail(new RuntimeException(
-                      s"Failed to update secret '$normalizedPath' (exit=${result.exitCode}):\n${result.output}"
-                    ))
+                    else
+                      ZIO.fail(
+                        new RuntimeException(
+                          s"Failed to update secret '$normalizedPath' (exit=${result.exitCode}):\n${result.output}"
+                        )
+                      )
                   }
                 case None => ZIO.unit
               }
@@ -175,9 +192,11 @@ object GolemServer {
       for {
         _ <- golemOnPath
         _ <- ZIO.when(tsPackagesPath.isEmpty)(
-               ZIO.fail(new RuntimeException(
-                 "GOLEM_TS_PACKAGES_PATH env var or golem.tsPackagesPath system property must be set"
-               ))
+               ZIO.fail(
+                 new RuntimeException(
+                   "GOLEM_TS_PACKAGES_PATH env var or golem.tsPackagesPath system property must be set"
+                 )
+               )
              )
         _ <- canConnect(golemPort).flatMap {
                case false => ZIO.unit
@@ -212,13 +231,11 @@ object GolemServer {
                        .stdout(ProcessOutput.FileRedirect(logFile))
                        .run
                        .mapError(e => new RuntimeException(s"Failed to start golem server: $e"))
-                   )(process =>
-                     process.killTree.orElse(process.killTreeForcibly).ignore
-                   )
-        _       <- waitUntilReady(process)
-        server   = GolemServer(process, examplesDir, tsPackagesPath)
-        _       <- deploy(examplesDir)
-        _       <- provisionSecrets(examplesDir)
+                   )(process => process.killTree.orElse(process.killTreeForcibly).ignore)
+        _     <- waitUntilReady(process)
+        server = GolemServer(process, examplesDir, tsPackagesPath)
+        _     <- deploy(examplesDir)
+        _     <- provisionSecrets(examplesDir)
       } yield server
     }
 }
@@ -244,7 +261,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   )
 
   private sealed trait Assertion
-  private case class Contains(fragments: String*)           extends Assertion
+  private case class Contains(fragments: String*)        extends Assertion
   private case class Custom(check: String => TestResult) extends Assertion
 
   private val samples: Seq[Sample] = Seq(
@@ -554,10 +571,14 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
   private def runRepl(server: GolemServer, scriptFile: String): ZIO[Any, Nothing, GolemResult] =
     runGolem(
-      server, replTimeoutSec,
-      "repl", "scala:examples",
-      "--language", "typescript",
-      "--script-file", scriptFile
+      server,
+      replTimeoutSec,
+      "repl",
+      "scala:examples",
+      "--language",
+      "typescript",
+      "--script-file",
+      scriptFile
     )
 
   private def normalizeOutput(raw: String): String =
@@ -570,8 +591,8 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     if (!dir.exists()) Seq.empty
     else {
       val files: Array[File] = Option(dir.listFiles()).getOrElse(Array.empty[File])
-      val tsFiles = files.filter(f => f.isFile && f.getName.endsWith(".ts"))
-      val subdirs = files.filter(_.isDirectory).flatMap(findTsFiles)
+      val tsFiles            = files.filter(f => f.isFile && f.getName.endsWith(".ts"))
+      val subdirs            = files.filter(_.isDirectory).flatMap(findTsFiles)
       tsFiles.toSeq ++ subdirs
     }
 
@@ -628,8 +649,9 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
   private def httpGet(path: String): ZIO[Any, Throwable, (Int, String)] =
     ZIO.attemptBlocking {
-      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
-      val request = HttpRequest.newBuilder()
+      val client  = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest
+        .newBuilder()
         .uri(URI.create(s"http://localhost:$httpPort$path"))
         .GET()
         .timeout(JDuration.ofSeconds(30))
@@ -640,8 +662,9 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
   private def httpPost(path: String, body: String): ZIO[Any, Throwable, (Int, String)] =
     ZIO.attemptBlocking {
-      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
-      val request = HttpRequest.newBuilder()
+      val client  = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest
+        .newBuilder()
         .uri(URI.create(s"http://localhost:$httpPort$path"))
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .header("Content-Type", "application/json")
@@ -651,10 +674,15 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       (response.statusCode(), response.body())
     }
 
-  private def httpPostWithHeaders(path: String, body: String, headers: Map[String, String]): ZIO[Any, Throwable, (Int, String)] =
+  private def httpPostWithHeaders(
+    path: String,
+    body: String,
+    headers: Map[String, String]
+  ): ZIO[Any, Throwable, (Int, String)] =
     ZIO.attemptBlocking {
-      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
-      val builder = HttpRequest.newBuilder()
+      val client  = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val builder = HttpRequest
+        .newBuilder()
         .uri(URI.create(s"http://localhost:$httpPort$path"))
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .header("Content-Type", "application/json")
@@ -666,8 +694,9 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
 
   private def httpPostAbsolute(url: String, body: String): ZIO[Any, Throwable, (Int, String)] =
     ZIO.attemptBlocking {
-      val client = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
-      val request = HttpRequest.newBuilder()
+      val client  = HttpClient.newBuilder().connectTimeout(JDuration.ofSeconds(10)).build()
+      val request = HttpRequest
+        .newBuilder()
         .uri(URI.create(url))
         .POST(HttpRequest.BodyPublishers.ofString(body))
         .header("Content-Type", "application/json")
@@ -678,7 +707,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     }
 
   // ---------------------------------------------------------------------------
-  // WeatherAgent: single-element constructor (BaseAgent[String])
+  // WeatherAgent: single-param @constructor (value: String)
   // Mount: /api/weather/{value}  — {value} is the default name for single-element types
   // ---------------------------------------------------------------------------
   private val weatherTests: Seq[Spec[GolemServer, Throwable]] = Seq(
@@ -730,7 +759,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
   // ---------------------------------------------------------------------------
-  // InventoryAgent: tuple constructor (BaseAgent[(String, Int)])
+  // InventoryAgent: multi-param @constructor (arg0: String, arg1: Int)
   // Mount: /api/inventory/{arg0}/{arg1}  — positional names for tuple elements
   // ---------------------------------------------------------------------------
   private val inventoryTests: Seq[Spec[GolemServer, Throwable]] = Seq(
@@ -750,7 +779,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
   // ---------------------------------------------------------------------------
-  // CatalogAgent: case class constructor (BaseAgent[CatalogParams])
+  // CatalogAgent: multi-param @constructor (region: String, catalog: String)
   // Mount: /api/catalog/{region}/{catalog}  — field names from case class
   // ---------------------------------------------------------------------------
   private val catalogTests: Seq[Spec[GolemServer, Throwable]] = Seq(
@@ -758,14 +787,18 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
       for {
         _              <- ZIO.service[GolemServer]
         (status, body) <- httpGet("/api/catalog/us-east/electronics/search?q=laptop")
-      } yield assertTrue(status == 200) && assertTrue(body.contains("electronics") && body.contains("us-east") && body.contains("laptop"))
+      } yield assertTrue(status == 200) && assertTrue(
+        body.contains("electronics") && body.contains("us-east") && body.contains("laptop")
+      )
     },
 
     test("http-catalog-item") {
       for {
         _              <- ZIO.service[GolemServer]
         (status, body) <- httpGet("/api/catalog/us-east/electronics/item/prod-123")
-      } yield assertTrue(status == 200) && assertTrue(body.contains("prod-123") && body.contains("electronics") && body.contains("us-east"))
+      } yield assertTrue(status == 200) && assertTrue(
+        body.contains("prod-123") && body.contains("electronics") && body.contains("us-east")
+      )
     }
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
@@ -776,16 +809,16 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   private val webhookTests: Seq[Spec[GolemServer, Throwable]] = Seq(
     test("http-webhook-create-and-await") {
       for {
-        _                    <- ZIO.service[GolemServer]
+        _                             <- ZIO.service[GolemServer]
         (createStatus, rawWebhookUrl) <- httpGet("/api/webhook-demo/test-key/create")
-        webhookUrl = rawWebhookUrl.trim.stripPrefix("\"").stripSuffix("\"")
-        _                    <- ZIO.succeed(assertTrue(createStatus == 200))
-        _                    <- ZIO.succeed(assertTrue(webhookUrl.contains("/incoming")))
+        webhookUrl                     = rawWebhookUrl.trim.stripPrefix("\"").stripSuffix("\"")
+        _                             <- ZIO.succeed(assertTrue(createStatus == 200))
+        _                             <- ZIO.succeed(assertTrue(webhookUrl.contains("/incoming")))
         // POST JSON payload to the webhook URL — run concurrently with await
-        awaitFiber           <- httpGet("/api/webhook-demo/test-key/await").fork
-        _                    <- ZIO.sleep(1.second)
-        (postStatus, _)      <- httpPostAbsolute(webhookUrl, """{"message":"hello","count":42}""")
-        _                    <- ZIO.succeed(assertTrue(postStatus >= 200 && postStatus < 300))
+        awaitFiber               <- httpGet("/api/webhook-demo/test-key/await").fork
+        _                        <- ZIO.sleep(1.second)
+        (postStatus, _)          <- httpPostAbsolute(webhookUrl, """{"message":"hello","count":42}""")
+        _                        <- ZIO.succeed(assertTrue(postStatus >= 200 && postStatus < 300))
         (awaitStatus, awaitBody) <- awaitFiber.join
       } yield assertTrue(awaitStatus == 200) &&
         assertTrue(awaitBody.contains("message=hello")) &&
@@ -797,13 +830,18 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   // FetchAgent: outgoing HTTP requests via global fetch
   // ---------------------------------------------------------------------------
 
-  private def withTestHttpServer[A](handler: HttpExchange => Unit)(body: Int => ZIO[Any, Throwable, A]): ZIO[Any, Throwable, A] =
+  private def withTestHttpServer[A](
+    handler: HttpExchange => Unit
+  )(body: Int => ZIO[Any, Throwable, A]): ZIO[Any, Throwable, A] =
     ZIO.acquireReleaseWith(
       ZIO.attemptBlocking {
         val server = JHttpServer.create(new InetSocketAddress("0.0.0.0", 0), 0)
-        server.createContext("/test", (exchange: HttpExchange) => {
-          handler(exchange)
-        })
+        server.createContext(
+          "/test",
+          (exchange: HttpExchange) => {
+            handler(exchange)
+          }
+        )
         server.setExecutor(null)
         server.start()
         server
@@ -815,17 +853,17 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   private val fetchTests: Seq[Spec[GolemServer, Throwable]] = Seq(
     test("http-fetch-outgoing") {
       for {
-        _              <- ZIO.service[GolemServer]
-        result         <- withTestHttpServer { exchange =>
-                            val response = "hello from test server"
-                            exchange.sendResponseHeaders(200, response.length.toLong)
-                            val os = exchange.getResponseBody
-                            os.write(response.getBytes("UTF-8"))
-                            os.close()
-                          } { port =>
-                            httpGet(s"/api/fetch/test-key/call?port=$port")
-                          }
-        (status, body)  = result
+        _      <- ZIO.service[GolemServer]
+        result <- withTestHttpServer { exchange =>
+                    val response = "hello from test server"
+                    exchange.sendResponseHeaders(200, response.length.toLong)
+                    val os = exchange.getResponseBody
+                    os.write(response.getBytes("UTF-8"))
+                    os.close()
+                  } { port =>
+                    httpGet(s"/api/fetch/test-key/call?port=$port")
+                  }
+        (status, body) = result
       } yield assertTrue(status == 200) && assertTrue(body.contains("hello from test server"))
     }
   ).map(_ @@ TestAspect.timeout(60.seconds))
@@ -843,7 +881,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   private val snapshotOplogTests: Seq[Spec[GolemServer, Throwable]] = Seq(
     test("snapshot-oplog-custom: custom saveSnapshot/loadSnapshot produces snapshot entries in oplog") {
       for {
-        server <- ZIO.service[GolemServer]
+        server      <- ZIO.service[GolemServer]
         oplogResult <- queryOplog(server, "SnapshotCounter(\"custom-demo\")")
       } yield {
         val output = normalizeOutput(oplogResult.output)
@@ -853,7 +891,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     },
     test("snapshot-oplog-auto: Snapshotted[S] produces JSON snapshot entries in oplog") {
       for {
-        server <- ZIO.service[GolemServer]
+        server      <- ZIO.service[GolemServer]
         oplogResult <- queryOplog(server, "AutoSnapshotCounter(\"auto-demo\")")
       } yield {
         val output = normalizeOutput(oplogResult.output)

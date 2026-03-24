@@ -41,13 +41,16 @@ final class InventoryAgentImpl(
 }
 
 @agentImplementation()
-final class CatalogAgentImpl(@unused private val params: CatalogParams) extends CatalogAgent {
+final class CatalogAgentImpl(
+  @unused private val region: String,
+  @unused private val catalog: String
+) extends CatalogAgent {
 
   override def search(query: String): Future[String] =
-    Future.successful(s"Searching ${params.catalog} in ${params.region} for '$query'")
+    Future.successful(s"Searching $catalog in $region for '$query'")
 
   override def getItem(itemId: String): Future[String] =
-    Future.successful(s"Item $itemId from ${params.catalog} in ${params.region}")
+    Future.successful(s"Item $itemId from $catalog in $region")
 }
 
 @agentImplementation()

@@ -88,7 +88,14 @@ object AgentImplementationMacro {
     val configFullName    = "golem.config.Config"
     val principalFullName = "golem.Principal"
 
-    case class ParamInfo(name: String, tpe: TypeRepr, index: Int, isConfig: Boolean, isPrincipal: Boolean, configInnerType: Option[TypeRepr])
+    case class ParamInfo(
+      name: String,
+      tpe: TypeRepr,
+      index: Int,
+      isConfig: Boolean,
+      isPrincipal: Boolean,
+      configInnerType: Option[TypeRepr]
+    )
 
     val paramInfos: List[ParamInfo] = params.zipWithIndex.map { case ((name, tpe), idx) =>
       tpe.dealias match {
@@ -101,9 +108,9 @@ object AgentImplementationMacro {
       }
     }
 
-    val configParams     = paramInfos.filter(_.isConfig)
-    val principalParams  = paramInfos.filter(_.isPrincipal)
-    val identityParams   = paramInfos.filter(pi => !pi.isConfig && !pi.isPrincipal)
+    val configParams    = paramInfos.filter(_.isConfig)
+    val principalParams = paramInfos.filter(_.isPrincipal)
+    val identityParams  = paramInfos.filter(pi => !pi.isConfig && !pi.isPrincipal)
 
     if configParams.length > 1 then
       report.errorAndAbort(
@@ -120,7 +127,7 @@ object AgentImplementationMacro {
     if expectedCtor =:= TypeRepr.of[Unit] then {
       if identityParams.nonEmpty then
         report.errorAndAbort(
-          s"Trait ${traitSymbol.fullName} extends BaseAgent[Unit] (or no BaseAgent), " +
+          s"Trait ${traitSymbol.fullName} has no @constructor method (Unit constructor), " +
             s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
             s"${identityParams.map(_.name).mkString(", ")}"
         )
@@ -129,7 +136,7 @@ object AgentImplementationMacro {
         if !(identityParams.head.tpe =:= expectedCtor) then
           report.errorAndAbort(
             s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe.show}, " +
-              s"but BaseAgent[${expectedCtor.show}] expects ${expectedCtor.show}"
+              s"but @constructor expects ${expectedCtor.show}"
           )
       } else if identityParams.length > 1 then {
         expectedCtor match {
@@ -137,23 +144,23 @@ object AgentImplementationMacro {
             if tupleArgs.length != identityParams.length then
               report.errorAndAbort(
                 s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                  s"BaseAgent expects a ${tupleArgs.length}-element tuple"
+                  s"@constructor expects a ${tupleArgs.length}-element tuple"
               )
             identityParams.zip(tupleArgs).foreach { case (param, expected) =>
               if !(param.tpe =:= expected) then
                 report.errorAndAbort(
                   s"Constructor parameter '${param.name}' has type ${param.tpe.show}, " +
-                    s"expected ${expected.show} (from tuple element of BaseAgent[${expectedCtor.show}])"
+                    s"expected ${expected.show} (from @constructor parameters)"
                 )
             }
           case _ =>
             report.errorAndAbort(
               s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                s"BaseAgent[${expectedCtor.show}] is not a tuple type"
+                s"@constructor type ${expectedCtor.show} is not a tuple type"
             )
         }
       }
-      // identityParams.isEmpty is valid (config-only constructor on a non-Unit BaseAgent)
+      // identityParams.isEmpty is valid (config-only constructor on a non-Unit @constructor)
     }
 
     // Determine the Ctor type based on identity params
@@ -161,16 +168,26 @@ object AgentImplementationMacro {
       case Nil      => expectedCtor
       case p :: Nil => p.tpe
       case ps       =>
-        val types = ps.map(_.tpe)
+        val types      = ps.map(_.tpe)
         val tupleClass = Symbol.requiredClass(s"scala.Tuple${types.length}")
         tupleClass.typeRef.appliedTo(types)
     }
 
     ctorTypeRepr.asType match {
       case '[ctor] =>
-        val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
+        val metadataExpr                               = '{ AgentDefinitionMacro.generate[Trait] }
+        val constructorAnnotationName                  = "golem.runtime.annotations.constructor"
+        def hasCtorAnnotation(method: Symbol): Boolean =
+          method.annotations.exists {
+            case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+            case _                             => false
+          }
         val methodSymbols = traitSymbol.methodMembers.collect {
-          case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef => method
+          case method
+              if method.owner == traitSymbol && method.flags.is(
+                Flags.Deferred
+              ) && method.isDefDef && !hasCtorAnnotation(method) =>
+            method
         }
         val methodsExpr = buildImplementationMethodsExpr[Trait](methodSymbols, metadataExpr)
 
@@ -186,7 +203,7 @@ object AgentImplementationMacro {
         // Validate config param against AgentConfig[X] on the trait
         val configBuilderExpr: Expr[Option[ConfigBuilder[_]]] = configParam match {
           case Some(cp) =>
-            val configInner = cp.configInnerType.get
+            val configInner      = cp.configInnerType.get
             val agentConfigBases = traitRepr.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
             if agentConfigBases.isEmpty then
               report.errorAndAbort(
@@ -237,14 +254,17 @@ object AgentImplementationMacro {
           case None =>
             // No config param - straightforward construction
             val lambdaType =
-              MethodType(List("input", "principal"))(_ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Trait])
+              MethodType(List("input", "principal"))(
+                _ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]),
+                _ => TypeRepr.of[Trait]
+              )
 
             Lambda(
               Symbol.spliceOwner,
               lambdaType,
               { (_, lambdaParams) =>
-                val inputTerm     = lambdaParams.head.asInstanceOf[Term]
-                val principalTerm = lambdaParams(1).asInstanceOf[Term]
+                val inputTerm            = lambdaParams.head.asInstanceOf[Term]
+                val principalTerm        = lambdaParams(1).asInstanceOf[Term]
                 val argTerms: List[Term] = paramInfos.map { pi =>
                   if pi.isPrincipal then principalTerm
                   else {
@@ -266,8 +286,11 @@ object AgentImplementationMacro {
             configInner.asType match {
               case '[configT] =>
                 val builderExpr = Expr.summon[ConfigBuilder[configT]].get
-                val lambdaType =
-                  MethodType(List("input", "principal"))(_ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Trait])
+                val lambdaType  =
+                  MethodType(List("input", "principal"))(
+                    _ => List(ctorTypeRepr, TypeRepr.of[golem.Principal]),
+                    _ => TypeRepr.of[Trait]
+                  )
 
                 Lambda(
                   Symbol.spliceOwner,
@@ -278,9 +301,9 @@ object AgentImplementationMacro {
 
                     // Generate: _root_.golem.config.ConfigLoader.createLazyConfig(builder)
                     // ConfigLoader is in core/js, not available in macros, so we construct the call via reflection
-                    val configLoaderModule = Symbol.requiredModule("golem.config.ConfigLoader")
+                    val configLoaderModule     = Symbol.requiredModule("golem.config.ConfigLoader")
                     val createLazyConfigMethod = configLoaderModule.methodMember("createLazyConfig").head
-                    val configTerm = Apply(
+                    val configTerm             = Apply(
                       TypeApply(
                         Select(Ref(configLoaderModule), createLazyConfigMethod),
                         List(TypeTree.of[configT])
@@ -309,12 +332,12 @@ object AgentImplementationMacro {
         }
 
         val snapshotHandlersExpr: Expr[Option[SnapshotHandlers[Trait]]] = {
-          val customHooks    = detectCustomSnapshotHooks(implSymbol)
-          val snapshottedState = detectSnapshottedStateType(implRepr)
-          val snapshotting    = extractSnapshottingFromTrait(traitSymbol)
+          val customHooks         = detectCustomSnapshotHooks(implSymbol)
+          val snapshottedState    = detectSnapshottedStateType(implRepr)
+          val snapshotting        = extractSnapshottingFromTrait(traitSymbol)
           val snapshottingEnabled = snapshotting match {
             case Snapshotting.Enabled(_) => true
-            case _                      => false
+            case _                       => false
           }
 
           customHooks match {
@@ -324,14 +347,16 @@ object AgentImplementationMacro {
 
               // Build raw save: (Trait) => Future[Array[Byte]]
               val rawSaveLambdaExpr: Expr[Trait => scala.concurrent.Future[Array[Byte]]] = {
-                val lambdaType = MethodType(List("instance"))(_ => List(TypeRepr.of[Trait]),
-                  _ => TypeRepr.of[scala.concurrent.Future[Array[Byte]]])
+                val lambdaType = MethodType(List("instance"))(
+                  _ => List(TypeRepr.of[Trait]),
+                  _ => TypeRepr.of[scala.concurrent.Future[Array[Byte]]]
+                )
                 Lambda(
                   Symbol.spliceOwner,
                   lambdaType,
                   { (_, params) =>
                     val instanceTerm = params.head.asInstanceOf[Term]
-                    val implTerm = TypeApply(
+                    val implTerm     = TypeApply(
                       Select.unique(instanceTerm, "asInstanceOf"),
                       List(TypeTree.of[Impl])
                     )
@@ -342,15 +367,17 @@ object AgentImplementationMacro {
 
               // Build raw load: (Trait, Array[Byte]) => Future[Unit]
               val rawLoadLambdaExpr: Expr[(Trait, Array[Byte]) => scala.concurrent.Future[Unit]] = {
-                val lambdaType = MethodType(List("instance", "bytes"))(_ => List(TypeRepr.of[Trait], TypeRepr.of[Array[Byte]]),
-                  _ => TypeRepr.of[scala.concurrent.Future[Unit]])
+                val lambdaType = MethodType(List("instance", "bytes"))(
+                  _ => List(TypeRepr.of[Trait], TypeRepr.of[Array[Byte]]),
+                  _ => TypeRepr.of[scala.concurrent.Future[Unit]]
+                )
                 Lambda(
                   Symbol.spliceOwner,
                   lambdaType,
                   { (_, params) =>
                     val instanceTerm = params.head.asInstanceOf[Term]
-                    val bytesTerm = params(1).asInstanceOf[Term]
-                    val implTerm = TypeApply(
+                    val bytesTerm    = params(1).asInstanceOf[Term]
+                    val implTerm     = TypeApply(
                       Select.unique(instanceTerm, "asInstanceOf"),
                       List(TypeTree.of[Impl])
                     )
@@ -378,7 +405,7 @@ object AgentImplementationMacro {
                       val schemaExpr = Expr.summon[zio.blocks.schema.Schema[s]].getOrElse {
                         report.errorAndAbort(
                           s"Unable to summon zio.blocks.schema.Schema[${Type.show[s]}] required by Snapshotted on ${implSymbol.fullName}.\n" +
-                          "Hint: Add `derives zio.blocks.schema.Schema` to your state case class."
+                            "Hint: Add `derives zio.blocks.schema.Schema` to your state case class."
                         )
                       }
                       '{
@@ -402,7 +429,7 @@ object AgentImplementationMacro {
                                 case Left(err) =>
                                   scala.concurrent.Future.failed(
                                     new IllegalArgumentException(
-                                      s"Failed to decode JSON snapshot for ${${Expr(implSymbol.fullName)}}: " + err
+                                      s"Failed to decode JSON snapshot for ${${ Expr(implSymbol.fullName) }}: " + err
                                     )
                                   )
                               }
@@ -415,9 +442,9 @@ object AgentImplementationMacro {
                   if (snapshottingEnabled) {
                     report.errorAndAbort(
                       s"Snapshotting is enabled for ${traitSymbol.fullName}, but ${implSymbol.fullName} " +
-                      s"provides no snapshot support. Either:\n" +
-                      s"  (1) Mix in Snapshotted[S] with a case class S that has `derives zio.blocks.schema.Schema`\n" +
-                      s"  (2) Implement `def saveSnapshot(): Future[Array[Byte]]` and `def loadSnapshot(bytes: Array[Byte]): Future[Unit]`"
+                        s"provides no snapshot support. Either:\n" +
+                        s"  (1) Mix in Snapshotted[S] with a case class S that has `derives zio.blocks.schema.Schema`\n" +
+                        s"  (2) Implement `def saveSnapshot(): Future[Array[Byte]]` and `def loadSnapshot(bytes: Array[Byte]): Future[Unit]`"
                     )
                   }
                   '{ None }
@@ -452,8 +479,14 @@ object AgentImplementationMacro {
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"@agentImplementation target must be a trait, found: ${traitSymbol.fullName}")
 
-    val methodSymbols = traitSymbol.methodMembers.collect {
-      case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef =>
+    val constructorAnnotationName2 = "golem.runtime.annotations.constructor"
+    val methodSymbols              = traitSymbol.methodMembers.collect {
+      case method
+          if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef &&
+            !method.annotations.exists {
+              case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName2
+              case _                             => false
+            } =>
         method
     }
 
@@ -496,13 +529,20 @@ object AgentImplementationMacro {
     val gotCtor      = TypeRepr.of[Ctor]
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"Constructor function must have input type matching BaseAgent[${expectedCtor.show}] on ${traitSymbol.fullName} (found: ${gotCtor.show})"
+        s"Constructor function must have input type matching @constructor parameters (${expectedCtor.show}) on ${traitSymbol.fullName} (found: ${gotCtor.show})"
       )
 
-    val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
-    val methodsExpr  = buildImplementationMethodsExpr[Trait](
+    val constructorAnnotationName3 = "golem.runtime.annotations.constructor"
+    val metadataExpr               = '{ AgentDefinitionMacro.generate[Trait] }
+    val methodsExpr                = buildImplementationMethodsExpr[Trait](
       traitSymbol.methodMembers.collect {
-        case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef => method
+        case method
+            if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef &&
+              !method.annotations.exists {
+                case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName3
+                case _                             => false
+              } =>
+          method
       },
       metadataExpr
     )
@@ -536,8 +576,8 @@ object AgentImplementationMacro {
     val snapStr = traitSymbol.annotations.collectFirst {
       case Apply(Select(New(tpt), _), args)
           if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
-        args.collectFirst {
-          case NamedArg("snapshotting", Literal(StringConstant(v))) => v
+        args.collectFirst { case NamedArg("snapshotting", Literal(StringConstant(v))) =>
+          v
         }.orElse {
           args.lift(7).collect { case Literal(StringConstant(v)) => v }
         }
@@ -546,7 +586,9 @@ object AgentImplementationMacro {
     Snapshotting.parse(snapStr).getOrElse(Snapshotting.Disabled)
   }
 
-  private def detectCustomSnapshotHooks(using Quotes)(
+  private def detectCustomSnapshotHooks(using
+    Quotes
+  )(
     implSymbol: quotes.reflect.Symbol
   ): Option[(quotes.reflect.Symbol, quotes.reflect.Symbol)] = {
     import quotes.reflect.*
@@ -600,7 +642,9 @@ object AgentImplementationMacro {
     saveMatches.headOption.zip(loadMatches.headOption).headOption
   }
 
-  private def detectSnapshottedStateType(using Quotes)(
+  private def detectSnapshottedStateType(using
+    Quotes
+  )(
     implRepr: quotes.reflect.TypeRepr
   ): Option[quotes.reflect.TypeRepr] = {
     import quotes.reflect.*
@@ -611,20 +655,42 @@ object AgentImplementationMacro {
     else
       implRepr.baseType(snapSym).dealias match {
         case AppliedType(_, List(stateTpe)) => Some(stateTpe)
-        case _                             => None
+        case _                              => None
       }
   }
 
   private def agentInputTypeRepr[Trait: Type](using Quotes): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val traitRepr = TypeRepr.of[Trait]
-    val baseSym   = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-    else
-      traitRepr.baseType(baseSym) match {
-        case AppliedType(_, List(arg)) => arg
-        case _                         => TypeRepr.of[Unit]
+    val traitRepr                 = TypeRepr.of[Trait]
+    val traitSymbol               = traitRepr.typeSymbol
+    val constructorAnnotationName = "golem.runtime.annotations.constructor"
+
+    val constructorMethod = traitSymbol.methodMembers.find { method =>
+      method.isDefDef &&
+      method.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+        case _                             => false
       }
+    }
+
+    constructorMethod match {
+      case None         => TypeRepr.of[Unit]
+      case Some(method) =>
+        val params = method.paramSymss.flatten.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => v.tpt.tpe
+              case _         => TypeRepr.of[Nothing]
+            }
+        }
+        params match {
+          case Nil      => TypeRepr.of[Unit]
+          case p :: Nil => p
+          case ps       =>
+            val tupleClass = Symbol.requiredClass(s"scala.Tuple${ps.length}")
+            tupleClass.typeRef.appliedTo(ps)
+        }
+    }
   }
 
   private def detectConfigBuilder[Trait: Type](using Quotes): Expr[Option[ConfigBuilder[_]]] = {
@@ -675,7 +741,9 @@ object AgentImplementationMacro {
       val methodName       = methodSymbol.name
       val methodMetadata   = methodMetadataExpr(metadataExpr, methodName)
       val allParameters    = extractParameters(methodSymbol)
-      val parameterDetails = allParameters.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != principalFullName }
+      val parameterDetails = allParameters.filter { case (_, tpe) =>
+        tpe.dealias.typeSymbol.fullName != principalFullName
+      }
 
       val accessMode: MethodParamAccess =
         parameterDetails match {
@@ -708,7 +776,8 @@ object AgentImplementationMacro {
                 val outputSchemaExpr = summonSchema[out](methodName, "output")
 
                 if !isAsync then {
-                  val handlerExpr = handlerLambda[Trait, in, out](methodSymbol, accessMode, parameterDetails, allParameters)
+                  val handlerExpr =
+                    handlerLambda[Trait, in, out](methodSymbol, accessMode, parameterDetails, allParameters)
                   '{
                     val metadataEntry = $methodMetadata
                     SyncImplementationMethod[Trait, in, out](
@@ -722,7 +791,12 @@ object AgentImplementationMacro {
                   handlerTpe.asType match {
                     case '[handlerReturn] =>
                       val handlerExpr =
-                        handlerLambda[Trait, in, handlerReturn](methodSymbol, accessMode, parameterDetails, allParameters)
+                        handlerLambda[Trait, in, handlerReturn](
+                          methodSymbol,
+                          accessMode,
+                          parameterDetails,
+                          allParameters
+                        )
                       val normalized =
                         handlerExpr.asExprOf[(Trait, in, golem.Principal) => scala.concurrent.Future[out]]
                       '{
@@ -947,7 +1021,10 @@ object AgentImplementationMacro {
     val principalFullName = "golem.Principal"
 
     val lambdaType =
-      MethodType(List("instance", "input", "principal"))(_ => List(TypeRepr.of[Trait], TypeRepr.of[In], TypeRepr.of[golem.Principal]), _ => TypeRepr.of[Out])
+      MethodType(List("instance", "input", "principal"))(
+        _ => List(TypeRepr.of[Trait], TypeRepr.of[In], TypeRepr.of[golem.Principal]),
+        _ => TypeRepr.of[Out]
+      )
 
     Lambda(
       Symbol.spliceOwner,
@@ -989,7 +1066,7 @@ object AgentImplementationMacro {
                 }
               checkExpr.asTerm
             }
-            var nonPrincipalIdx = 0
+            var nonPrincipalIdx      = 0
             val argTerms: List[Term] = allParameters.map { case (_, paramType) =>
               if paramType.dealias.typeSymbol.fullName == principalFullName then principalTerm
               else {

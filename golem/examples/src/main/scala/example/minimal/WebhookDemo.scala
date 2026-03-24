@@ -1,6 +1,6 @@
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description, endpoint}
+import golem.runtime.annotations.{agentDefinition, constructor, description, endpoint}
 import golem.{AgentCompanion, BaseAgent}
 import zio.blocks.schema.Schema
 
@@ -17,7 +17,8 @@ object WebhookEvent {
   cors = Array("*")
 )
 @description("Demonstrates webhook creation and awaiting webhook payloads")
-trait WebhookDemo extends BaseAgent[String] {
+trait WebhookDemo extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
 
   @endpoint(method = "GET", path = "/create")
   @description("Creates a webhook and returns the webhook URL")
@@ -28,4 +29,4 @@ trait WebhookDemo extends BaseAgent[String] {
   def awaitWebhookJson(): Future[String]
 }
 
-object WebhookDemo extends AgentCompanion[WebhookDemo, String]
+object WebhookDemo extends AgentCompanion[WebhookDemo]

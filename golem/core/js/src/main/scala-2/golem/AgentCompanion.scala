@@ -34,14 +34,14 @@ trait TriggerSchedule {
  *
  * {{{
  * @agentDefinition("my-agent")
- * trait MyAgent extends BaseAgent[Ctor] { ... }
+ * trait MyAgent extends BaseAgent { ... }
  *
- * object MyAgent extends AgentCompanion[MyAgent, Ctor]
+ * object MyAgent extends AgentCompanion[MyAgent]
  * }}}
  */
 // format: off
-trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBase[Trait] {
-  implicit final val implicitAgentCompanion: AgentCompanion[Trait, Input] = this
+trait AgentCompanion[Trait <: BaseAgent] extends AgentCompanionBase[Trait] {
+  implicit final val implicitAgentCompanion: AgentCompanion[Trait] = this
 
   def typeName: String =
     macro golem.runtime.macros.AgentCompanionMacro.typeNameImpl
@@ -49,10 +49,10 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
   def agentType: AgentType[Trait, _] =
     macro golem.runtime.macros.AgentCompanionMacro.agentTypeImpl
 
-  def get(input: Input): Trait with TriggerSchedule =
+  def get(input: Any): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getImpl
 
-  def getPhantom(input: Input, phantom: Uuid): Trait with TriggerSchedule =
+  def getPhantom(input: Any, phantom: Uuid): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomImpl
 
   def get(): Trait with TriggerSchedule =
@@ -92,19 +92,19 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
   ): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomTuple5Impl[A1, A2, A3, A4, A5]
 
-  def getWithConfig(input: Input, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
+  def getWithConfig(input: Any, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getWithConfigImpl
 
   def getWithConfig(configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getWithConfigUnitImpl
 
-  def getWithConfig[C](input: Input, config: RpcConfig[C]): Trait with TriggerSchedule =
+  def getWithConfig[C](input: Any, config: RpcConfig[C]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getWithConfigTypedImpl
 
   def getWithConfig[C](config: RpcConfig[C]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getWithConfigTypedUnitImpl
 
-  def newPhantom(input: Input): Trait with TriggerSchedule =
+  def newPhantom(input: Any): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.newPhantomImpl
 
   def newPhantom(): Trait with TriggerSchedule =
@@ -128,25 +128,25 @@ trait AgentCompanion[Trait <: BaseAgent[Input], Input] extends AgentCompanionBas
   ): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.newPhantomTuple5Impl[A1, A2, A3, A4, A5]
 
-  def getPhantomWithConfig(input: Input, phantom: Uuid, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
+  def getPhantomWithConfig(input: Any, phantom: Uuid, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomWithConfigImpl
 
   def getPhantomWithConfig(phantom: Uuid, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomWithConfigUnitImpl
 
-  def getPhantomWithConfig[C](input: Input, phantom: Uuid, config: RpcConfig[C]): Trait with TriggerSchedule =
+  def getPhantomWithConfig[C](input: Any, phantom: Uuid, config: RpcConfig[C]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomWithConfigTypedImpl
 
   def getPhantomWithConfig[C](phantom: Uuid, config: RpcConfig[C]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.getPhantomWithConfigTypedUnitImpl
 
-  def newPhantomWithConfig(input: Input, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
+  def newPhantomWithConfig(input: Any, configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.newPhantomWithConfigImpl
 
   def newPhantomWithConfig(configOverrides: List[ConfigOverride]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.newPhantomWithConfigUnitImpl
 
-  def newPhantomWithConfig[C](input: Input, config: RpcConfig[C]): Trait with TriggerSchedule =
+  def newPhantomWithConfig[C](input: Any, config: RpcConfig[C]): Trait with TriggerSchedule =
     macro golem.runtime.macros.AgentCompanionMacro.newPhantomWithConfigTypedImpl
 
   def newPhantomWithConfig[C](config: RpcConfig[C]): Trait with TriggerSchedule =

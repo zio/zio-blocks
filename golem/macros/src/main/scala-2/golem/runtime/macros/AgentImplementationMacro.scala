@@ -85,16 +85,31 @@ object AgentImplementationMacroImpl {
     }
 
     val ctorType: Type = {
-      val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
-      val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
-      baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+      val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
+      val constructorMethod = traitType.members.collectFirst {
+        case m: MethodSymbol if m.isMethod &&
+          m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+          m
+      }
+      constructorMethod match {
+        case None => typeOf[Unit]
+        case Some(method) =>
+          val params = method.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
+          params match {
+            case Nil      => typeOf[Unit]
+            case p :: Nil => p
+            case ps       =>
+              val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
+              appliedType(tupleClass.toType, ps)
+          }
+      }
     }
 
     val gotCtor = weakTypeOf[Ctor].dealias
     if (!(gotCtor =:= ctorType)) {
       c.abort(
         c.enclosingPosition,
-        s"Constructor function must have input type matching BaseAgent[$ctorType] on ${traitSymbol.fullName} (found: $gotCtor)"
+        s"Constructor function must have input type matching @constructor parameters ($ctorType) on ${traitSymbol.fullName} (found: $gotCtor)"
       )
     }
 
@@ -129,8 +144,11 @@ object AgentImplementationMacroImpl {
   ): c.Tree = {
     import c.universe._
 
+    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
+
     val methods = traitType.decls.collect {
-      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
+      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" &&
+        !method.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
         method
     }.toList
 
@@ -509,18 +527,33 @@ object AgentImplementationMacroImpl {
 
     val principalParam = principalParams.headOption
 
-    // Extract BaseAgent[Input] type from the trait
+    // Extract constructor type from @constructor method on the trait
     val expectedCtor: Type = {
-      val baseSymOpt = traitType.baseClasses.find(_.fullName == "golem.BaseAgent")
-      val baseArgs   = baseSymOpt.toList.flatMap(sym => traitType.baseType(sym).typeArgs)
-      baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
+      val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
+      val constructorMethod = traitType.members.collectFirst {
+        case m: MethodSymbol if m.isMethod &&
+          m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+          m
+      }
+      constructorMethod match {
+        case None => typeOf[Unit]
+        case Some(method) =>
+          val params = method.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
+          params match {
+            case Nil      => typeOf[Unit]
+            case p :: Nil => p
+            case ps       =>
+              val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
+              appliedType(tupleClass.toType, ps)
+          }
+      }
     }
 
     if (expectedCtor =:= typeOf[Unit]) {
       if (identityParams.nonEmpty) {
         c.abort(
           c.enclosingPosition,
-          s"Trait ${traitSymbol.fullName} extends BaseAgent[Unit] (or no BaseAgent), " +
+          s"Trait ${traitSymbol.fullName} has no @constructor method (Unit constructor), " +
             s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
             s"${identityParams.map(_.name.toString).mkString(", ")}"
         )
@@ -531,7 +564,7 @@ object AgentImplementationMacroImpl {
           c.abort(
             c.enclosingPosition,
             s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe}, " +
-              s"but BaseAgent[$expectedCtor] expects $expectedCtor"
+              s"but @constructor expects $expectedCtor"
           )
         }
       } else if (identityParams.length > 1) {
@@ -542,7 +575,7 @@ object AgentImplementationMacroImpl {
             c.abort(
               c.enclosingPosition,
               s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                s"BaseAgent expects a ${tupleArgs.length}-element tuple"
+                s"@constructor expects a ${tupleArgs.length}-element tuple"
             )
           }
           identityParams.zip(tupleArgs).foreach { case (param, expected) =>
@@ -550,7 +583,7 @@ object AgentImplementationMacroImpl {
               c.abort(
                 c.enclosingPosition,
                 s"Constructor parameter '${param.name}' has type ${param.tpe}, " +
-                  s"expected $expected (from tuple element of BaseAgent[$expectedCtor])"
+                  s"expected $expected (from @constructor parameters)"
               )
             }
           }
@@ -558,7 +591,7 @@ object AgentImplementationMacroImpl {
           c.abort(
             c.enclosingPosition,
             s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-              s"BaseAgent[$expectedCtor] is not a tuple type"
+              s"@constructor type $expectedCtor is not a tuple type"
           )
         }
       }
@@ -817,11 +850,13 @@ object AgentImplementationMacroImpl {
   ): Boolean = {
     import c.universe._
 
-    val agentDefinitionType = typeOf[golem.runtime.annotations.agentDefinition]
+    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    def isAgentDefinitionAnn(ann: Annotation): Boolean =
+      ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     val traitSymbol = traitType.typeSymbol
 
     val snapStr = traitSymbol.annotations.collectFirst {
-      case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+      case ann if isAgentDefinitionAnn(ann) =>
         val args = ann.tree.children.tail
         args.collectFirst {
           case NamedArg(Ident(TermName("snapshotting")), Literal(Constant(v: String))) => v

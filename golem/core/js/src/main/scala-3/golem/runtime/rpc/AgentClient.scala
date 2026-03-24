@@ -34,7 +34,7 @@ object AgentClient {
    * This exists because Scala.js cannot safely cast a plain JS object to a
    * Scala trait at runtime. When you need to operate at the "agent type +
    * resolved client" level (e.g. in internal wiring), use this API to keep
-   * examples cast-free.
+   * examples cast-free. Constructor type is always Unit (temporary).
    */
   transparent inline def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
     ${ AgentTypeMacro.agentTypeWithCtorImpl[Trait, Constructor] }
@@ -71,23 +71,6 @@ private object AgentTypeMacro {
 
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
-
-    val expectedCtor: TypeRepr = {
-      val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-      if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-      else
-        traitRepr.baseType(baseSym) match {
-          case AppliedType(_, List(arg)) => arg
-          case _                         => TypeRepr.of[Unit]
-        }
-    }.dealias.widen
-
-    val gotCtor = TypeRepr.of[Constructor].dealias.widen
-
-    if !(gotCtor =:= expectedCtor) then
-      report.errorAndAbort(
-        s"AgentClient.agentTypeWithCtor requires: BaseAgent[${expectedCtor.show}] (found: ${gotCtor.show})"
-      )
 
     '{ AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Constructor]] }
   }

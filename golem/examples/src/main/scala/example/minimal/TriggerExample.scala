@@ -16,14 +16,15 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Target agent whose methods are called via trigger (fire-and-forget).")
-trait TriggerTarget extends BaseAgent[String] {
+trait TriggerTarget extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
 
   @description("Multi-param method exercising trigger dispatch.")
   def process(x: Int, label: String): Future[Int]
@@ -32,11 +33,12 @@ trait TriggerTarget extends BaseAgent[String] {
   def ping(): Future[String]
 }
 
-object TriggerTarget extends AgentCompanion[TriggerTarget, String]
+object TriggerTarget extends AgentCompanion[TriggerTarget]
 
 @agentDefinition()
 @description("Calls TriggerTarget methods via trigger (fire-and-forget) and schedule.")
-trait TriggerCaller extends BaseAgent[String] {
+trait TriggerCaller extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
 
   @description("Fires TriggerTarget.process via trigger and returns confirmation.")
   def fireProcess(): Future[String]
@@ -45,4 +47,4 @@ trait TriggerCaller extends BaseAgent[String] {
   def firePing(): Future[String]
 }
 
-object TriggerCaller extends AgentCompanion[TriggerCaller, String]
+object TriggerCaller extends AgentCompanion[TriggerCaller]

@@ -21,7 +21,7 @@ import zio.test._
 import scala.util.Try
 
 object BaseAgentSpec extends ZIOSpecDefault {
-  final class DummyAgent extends BaseAgent[Unit]
+  final class DummyAgent extends BaseAgent
 
   def spec = suite("BaseAgentSpec")(
     test("BaseAgent delegates to platform accessors") {

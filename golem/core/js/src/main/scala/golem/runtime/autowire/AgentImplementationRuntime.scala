@@ -46,7 +46,36 @@ private[autowire] object AgentImplementationRuntime {
             prompt = None
           )((principal: Principal) => effectiveBuild(().asInstanceOf[Ctor], principal))
         case _ =>
-          implicit val ctorSchema: GolemSchema[Ctor] = implType.constructorSchema
+          // Use the metadata constructor schema (from @constructor) for param names,
+          // but delegate to the GolemSchema for encoding/decoding.
+          // The metadata schema has named params (e.g. "region", "catalog") while
+          // the GolemSchema may use tuple names (e.g. "_1", "_2"). We need to
+          // translate between them during decoding.
+          val baseSchema: GolemSchema[Ctor]          = implType.constructorSchema
+          val metadataSchema                         = implType.metadata.constructor
+          implicit val ctorSchema: GolemSchema[Ctor] = new GolemSchema[Ctor] {
+            override val schema: StructuredSchema                  = metadataSchema
+            override def encode(value: Ctor)                       = baseSchema.encode(value)
+            override def decode(value: golem.data.StructuredValue) = {
+              // Translate named params from metadata schema names back to base schema names
+              val translated = (value, baseSchema.schema, metadataSchema) match {
+                case (
+                      golem.data.StructuredValue.Tuple(metaElems),
+                      StructuredSchema.Tuple(baseFields),
+                      StructuredSchema.Tuple(metaFields)
+                    ) if metaElems.length == baseFields.length && baseFields.length == metaFields.length =>
+                  val renamed = metaElems.zip(baseFields).map { case (elem, baseField) =>
+                    golem.data.NamedElementValue(baseField.name, elem.value)
+                  }
+                  golem.data.StructuredValue.Tuple(renamed)
+                case _ => value
+              }
+              baseSchema.decode(translated)
+            }
+            override def elementSchema                                 = baseSchema.elementSchema
+            override def encodeElement(value: Ctor)                    = baseSchema.encodeElement(value)
+            override def decodeElement(value: golem.data.ElementValue) = baseSchema.decodeElement(value)
+          }
           AgentConstructor.sync[Ctor, Trait](
             ConstructorMetadata(
               name = None,

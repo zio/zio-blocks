@@ -16,14 +16,16 @@
 
 package example.templates
 
-import golem.runtime.annotations.{agentDefinition, description, prompt}
+import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Human-in-the-loop workflow using Golem promises (Scala equivalent of the Rust/TS HITL template).")
-trait ApprovalWorkflow extends BaseAgent[String] {
+trait ApprovalWorkflow extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @prompt("Start approval process")
   @description("Starts a workflow that requires human approval before continuing")
@@ -36,15 +38,17 @@ trait ApprovalWorkflow extends BaseAgent[String] {
   def complete(decision: String): Future[Boolean]
 }
 
-object ApprovalWorkflow extends AgentCompanion[ApprovalWorkflow, String]
+object ApprovalWorkflow extends AgentCompanion[ApprovalWorkflow]
 
 @agentDefinition(typeName = "Human")
 @description("A minimal 'human' agent that can approve/reject workflows (used by ApprovalWorkflow examples).")
-trait HumanAgent extends BaseAgent[String] {
+trait HumanAgent extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @prompt("Approve or reject a workflow")
   @description("Makes a decision on a workflow approval request")
   def decide(workflowId: String, decision: String): Future[String]
 }
 
-object HumanAgent extends AgentCompanion[HumanAgent, String]
+object HumanAgent extends AgentCompanion[HumanAgent]

@@ -997,6 +997,13 @@ lazy val zioGolemExamples = project
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil,
+    Compile / unmanagedSourceDirectories ++= {
+      val base = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) => Seq(base / "scala-3")
+        case _            => Seq.empty
+      }
+    },
     Compile / scalacOptions ++= {
       if (scalaVersion.value.startsWith("2."))
         Seq("-Wconf:cat=unused-imports:s")

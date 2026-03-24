@@ -16,14 +16,16 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Demonstrates agent type registry, metadata queries, resolution, lifecycle, and phantom RPC.")
-trait AgentRegistryDemo extends BaseAgent[String] {
+trait AgentRegistryDemo extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Explores registeredAgentType, getAllAgentTypes, parseAgentId, resolveComponentId, resolveAgentId.")
   def exploreRegistry(): Future[String]
@@ -38,4 +40,4 @@ trait AgentRegistryDemo extends BaseAgent[String] {
   def phantomDemo(): Future[String]
 }
 
-object AgentRegistryDemo extends AgentCompanion[AgentRegistryDemo, String]
+object AgentRegistryDemo extends AgentCompanion[AgentRegistryDemo]

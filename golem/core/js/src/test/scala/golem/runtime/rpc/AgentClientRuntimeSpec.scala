@@ -18,7 +18,7 @@ package golem.runtime.rpc
 
 import golem.data.GolemSchema
 import golem.host.js._
-import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, constructor}
 import golem.BaseAgent
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.rpc.AgentClientRuntime.TestHooks
@@ -60,7 +60,7 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
       val triggerF  = resolved.trigger(method, "event")
       val scheduleF = resolved.schedule(method, golem.Datetime.fromEpochMillis(42), "event")
 
-      ZIO.fromFuture { implicit ec => triggerF.flatMap(_ => scheduleF) }.map { _ =>
+      ZIO.fromFuture(implicit ec => triggerF.flatMap(_ => scheduleF)).map { _ =>
         assertTrue(
           invoker.triggerCalls.headOption.exists(_._1 == method.functionName),
           invoker.scheduleCalls.nonEmpty
@@ -148,20 +148,20 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
     }
   )
 
-  private def rpcAgentType: AgentType[RpcParityAgent, RpcCtor] =
-    AgentClient.agentType[RpcParityAgent].asInstanceOf[AgentType[RpcParityAgent, RpcCtor]]
+  private def rpcAgentType: AgentType[RpcParityAgent, Any] =
+    AgentClient.agentType[RpcParityAgent].asInstanceOf[AgentType[RpcParityAgent, Any]]
 
   private def resolvedAgent(
     invoker: RecordingRpcInvoker,
-    agentType: AgentType[RpcParityAgent, RpcCtor] = rpcAgentType
+    agentType: AgentType[RpcParityAgent, Any] = rpcAgentType
   ) =
     AgentClientRuntime.ResolvedAgent(
-      agentType.asInstanceOf[AgentType[RpcParityAgent, Any]],
+      agentType,
       stubRemote(agentType, invoker)
     )
 
   private def stubRemote(
-    agentType: AgentType[RpcParityAgent, RpcCtor],
+    agentType: AgentType[RpcParityAgent, Any],
     invoker: RpcInvoker
   ): RemoteAgentClient = {
     val metadata = js.Dynamic
@@ -179,11 +179,11 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
     RpcValueCodec.encodeValue(value).map(wv => JsDataValue.tuple(js.Array(JsElementValue.componentModel(wv))))
 
   private def manualBinder(
-    rpcAgentType: AgentType[RpcParityAgent, RpcCtor]
+    rpcAgentType: AgentType[RpcParityAgent, Any]
   ): AgentClientRuntime.ResolvedAgent[RpcParityAgent] => RpcParityAgent =
     resolved =>
       new RpcParityAgent {
-        override def `new`(config: RpcCtor): RpcParityAgent =
+        override def `new`(token: String): RpcParityAgent =
           this
 
         override def rpcCall(input: SampleInput): Future[SampleOutput] = {
@@ -198,15 +198,18 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
 
         override def fireAndForget(event: String): Unit = {
           val method = findMethod[RpcParityAgent, String, Unit](rpcAgentType, "fireAndForget")
-          resolved.trigger(method, event).failed.foreach { err =>
-            js.Dynamic.global.console.error("fire-and-forget trigger failed", err.asInstanceOf[js.Any])
-          }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
+          resolved
+            .trigger(method, event)
+            .failed
+            .foreach { err =>
+              js.Dynamic.global.console.error("fire-and-forget trigger failed", err.asInstanceOf[js.Any])
+            }(scala.scalajs.concurrent.JSExecutionContext.Implicits.queue)
           ()
         }
       }
 
   private def findMethod[Trait, In, Out](
-    agentType: AgentType[Trait, RpcCtor],
+    agentType: AgentType[Trait, Any],
     name: String
   ): AgentMethod[Trait, In, Out] =
     agentType.methods.collectFirst {
@@ -248,8 +251,10 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
 
 private object AgentClientRuntimeSpecFixtures {
   @agentDefinition(mode = DurabilityMode.Durable)
-  trait RpcParityAgent extends BaseAgent[RpcCtor] {
-    def `new`(config: RpcCtor): RpcParityAgent
+  trait RpcParityAgent extends BaseAgent {
+    @constructor def create(token: String): Unit = ()
+
+    def `new`(token: String): RpcParityAgent
 
     def rpcCall(input: SampleInput): Future[SampleOutput]
 

@@ -16,14 +16,16 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Demonstrates the full span/context and durability APIs with typed responses.")
-trait ObservabilityDemo extends BaseAgent[String] {
+trait ObservabilityDemo extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Create nested spans with attributes and read the invocation context.")
   def traceDemo(): Future[String]
@@ -32,4 +34,4 @@ trait ObservabilityDemo extends BaseAgent[String] {
   def durabilityDemo(): Future[String]
 }
 
-object ObservabilityDemo extends AgentCompanion[ObservabilityDemo, String]
+object ObservabilityDemo extends AgentCompanion[ObservabilityDemo]

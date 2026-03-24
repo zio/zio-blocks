@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
@@ -29,7 +29,9 @@ object CounterState {
 
 @agentDefinition()
 @description("Counter whose constructor takes a custom case class (CounterState) instead of String.")
-trait StatefulCounter extends BaseAgent[CounterState] {
+trait StatefulCounter extends BaseAgent {
+
+  @constructor def create(initialCount: Int): Unit = ()
 
   @description("Increments the counter and returns the new value.")
   def increment(): Future[Int]
@@ -38,14 +40,16 @@ trait StatefulCounter extends BaseAgent[CounterState] {
   def current(): Future[Int]
 }
 
-object StatefulCounter extends AgentCompanion[StatefulCounter, CounterState]
+object StatefulCounter extends AgentCompanion[StatefulCounter]
 
 @agentDefinition()
 @description("Calls StatefulCounter remotely to exercise agent-to-agent RPC with a custom state type.")
-trait StatefulCaller extends BaseAgent[CounterState] {
+trait StatefulCaller extends BaseAgent {
+
+  @constructor def create(initialCount: Int): Unit = ()
 
   @description("Increments the remote stateful counter and returns its new value.")
   def remoteIncrement(): Future[Int]
 }
 
-object StatefulCaller extends AgentCompanion[StatefulCaller, CounterState]
+object StatefulCaller extends AgentCompanion[StatefulCaller]

@@ -1,7 +1,7 @@
 package golem.runtime
 
 import golem.{BaseAgent, Principal}
-import golem.runtime.annotations.{agentDefinition, agentImplementation}
+import golem.runtime.annotations.{agentDefinition, agentImplementation, constructor}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.util.FutureInterop
 import zio._
@@ -31,16 +31,17 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition()
-  trait CtorPrincipalAgent extends BaseAgent[String] {
+  trait CtorPrincipalAgent extends BaseAgent {
+    @constructor def create(value: String): Unit = ()
     def getCreator(): Future[String]
   }
 
   @agentImplementation()
   final class CtorPrincipalAgentImpl(input: String, principal: Principal) extends CtorPrincipalAgent {
     override def getCreator(): Future[String] = principal match {
-      case Principal.Anonymous          => Future.successful(s"anonymous:$input")
+      case Principal.Anonymous                            => Future.successful(s"anonymous:$input")
       case Principal.Oidc(sub, _, _, _, _, _, _, _, _, _) => Future.successful(s"oidc:$sub:$input")
-      case _                            => Future.successful(s"other:$input")
+      case _                                              => Future.successful(s"other:$input")
     }
   }
 
@@ -52,16 +53,16 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition()
-  trait MethodPrincipalAgent extends BaseAgent[Unit] {
+  trait MethodPrincipalAgent extends BaseAgent {
     def identify(name: String, principal: Principal): Future[String]
   }
 
   @agentImplementation()
   final class MethodPrincipalAgentImpl() extends MethodPrincipalAgent {
     override def identify(name: String, principal: Principal): Future[String] = principal match {
-      case Principal.Anonymous          => Future.successful(s"$name:anonymous")
+      case Principal.Anonymous                            => Future.successful(s"$name:anonymous")
       case Principal.Oidc(sub, _, _, _, _, _, _, _, _, _) => Future.successful(s"$name:oidc:$sub")
-      case _                            => Future.successful(s"$name:other")
+      case _                                              => Future.successful(s"$name:other")
     }
   }
 
@@ -75,7 +76,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition()
-  trait SchemaCheckAgent extends BaseAgent[Unit] {
+  trait SchemaCheckAgent extends BaseAgent {
     def greet(name: String, principal: Principal): Future[String]
     def multi(a: String, b: Int, principal: Principal): Future[String]
   }
@@ -107,13 +108,13 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
   }
 
   @agentDefinition()
-  trait MixedParamsAgent extends BaseAgent[String] {
+  trait MixedParamsAgent extends BaseAgent {
+    @constructor def create(value: String): Unit = ()
     def info(): Future[String]
   }
 
   @agentImplementation()
-  final class MixedParamsAgentImpl(input: String, principal: Principal)
-      extends MixedParamsAgent {
+  final class MixedParamsAgentImpl(input: String, principal: Principal) extends MixedParamsAgent {
     override def info(): Future[String] =
       Future.successful(s"$input:$principal")
   }
@@ -147,7 +148,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
       test("constructor agent initializes with Anonymous principal") {
         ZIO.fromFuture { implicit ec =>
           for {
-            payload <- liftEither(HostPayload.encode[String]("hello"))
+            payload  <- liftEither(HostPayload.encode[String]("hello"))
             instance <- FutureInterop.fromPromise(ctorDefn.initialize(payload, anonymousPrincipal))
             result   <- instance.getCreator()
           } yield result

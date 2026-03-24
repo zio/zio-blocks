@@ -134,13 +134,35 @@ object AgentClientMacro {
     traitRepr: quotes.reflect.TypeRepr
   ): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-    else
-      traitRepr.baseType(baseSym) match {
-        case AppliedType(_, List(arg)) => arg
-        case _                         => TypeRepr.of[Unit]
+    val constructorAnnotationName = "golem.runtime.annotations.constructor"
+    val typeSymbol                = traitRepr.typeSymbol
+
+    val constructorMethod = typeSymbol.methodMembers.find { method =>
+      method.isDefDef &&
+      method.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+        case _                             => false
       }
+    }
+
+    constructorMethod match {
+      case None         => TypeRepr.of[Unit]
+      case Some(method) =>
+        val params = method.paramSymss.flatten.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => v.tpt.tpe
+              case _         => TypeRepr.of[Nothing]
+            }
+        }
+        params match {
+          case Nil      => TypeRepr.of[Unit]
+          case p :: Nil => p
+          case ps       =>
+            val tupleClass = Symbol.requiredClass(s"scala.Tuple${ps.length}")
+            tupleClass.typeRef.appliedTo(ps)
+        }
+    }
   }
 
   private def buildMethod[Trait: Type](using
@@ -230,7 +252,9 @@ object AgentClientMacro {
     }
   }
 
-  private def elementSchemaExpr(using Quotes)(@scala.annotation.unused paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
+  private def elementSchemaExpr(using
+    Quotes
+  )(@scala.annotation.unused paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
     import quotes.reflect.*
 
     tpe.asType match {

@@ -16,16 +16,17 @@
 
 package example.templates
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Demonstrates agent-to-agent RPC by calling Counter remotely.")
-trait RpcClient extends BaseAgent[String] {
+trait RpcClient extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
   @description("Invoke Counter.increment remotely and return the result.")
   def callCounter(counterId: String): Future[Int]
 }
 
-object RpcClient extends AgentCompanion[RpcClient, String]
+object RpcClient extends AgentCompanion[RpcClient]

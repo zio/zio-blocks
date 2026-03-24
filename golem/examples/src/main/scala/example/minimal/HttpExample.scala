@@ -1,19 +1,21 @@
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description, endpoint, header}
+import golem.runtime.annotations.{agentDefinition, constructor, description, endpoint, header}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 // ---------------------------------------------------------------------------
-// Single-element constructor: BaseAgent[String]
+// Single-element constructor: @constructor def create(value: String)
 //
-// The mount path variable must be named {value} — this is the default name
-// assigned by GolemSchema for single-element types.
+// The mount path variable must be named {value} — matching the @constructor
+// parameter name.
 // ---------------------------------------------------------------------------
 @agentDefinition(mount = "/api/weather/{value}", cors = Array("*"))
 @description("A weather agent demonstrating code-first HTTP routes with a single constructor parameter")
-trait WeatherAgent extends BaseAgent[String] {
+trait WeatherAgent extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @endpoint(method = "GET", path = "/current/{city}")
   @description("Returns current weather for a city")
@@ -40,17 +42,19 @@ trait WeatherAgent extends BaseAgent[String] {
   def publicEndpoint(): Future[String]
 }
 
-object WeatherAgent extends AgentCompanion[WeatherAgent, String]
+object WeatherAgent extends AgentCompanion[WeatherAgent]
 
 // ---------------------------------------------------------------------------
-// Tuple constructor: BaseAgent[(String, Int)]
+// Tuple constructor: @constructor def create(arg0: String, arg1: Int)
 //
 // Mount path variables must be named {arg0}, {arg1}, etc., matching the
-// positional names assigned by GolemSchema for tuple types.
+// @constructor parameter names.
 // ---------------------------------------------------------------------------
 @agentDefinition(mount = "/api/inventory/{arg0}/{arg1}")
 @description("An inventory agent demonstrating tuple constructor parameters")
-trait InventoryAgent extends BaseAgent[(String, Int)] {
+trait InventoryAgent extends BaseAgent {
+
+  @constructor def create(arg0: String, arg1: Int): Unit = ()
 
   @endpoint(method = "GET", path = "/stock")
   @description("Get stock level for this warehouse/zone")
@@ -61,13 +65,12 @@ trait InventoryAgent extends BaseAgent[(String, Int)] {
   def getItem(itemId: String): Future[String]
 }
 
-object InventoryAgent extends AgentCompanion[InventoryAgent, (String, Int)]
+object InventoryAgent extends AgentCompanion[InventoryAgent]
 
 // ---------------------------------------------------------------------------
-// Case class constructor: BaseAgent[CatalogParams]
+// Case class constructor: @constructor def create(region: String, catalog: String)
 //
-// Mount path variables match the case class field names: {region}, {catalog}.
-// GolemSchema flattens case class fields into individual constructor elements.
+// Mount path variables match the @constructor parameter names: {region}, {catalog}.
 // ---------------------------------------------------------------------------
 final case class CatalogParams(region: String, catalog: String)
 object CatalogParams {
@@ -76,7 +79,9 @@ object CatalogParams {
 
 @agentDefinition(mount = "/api/catalog/{region}/{catalog}")
 @description("A catalog agent demonstrating case-class constructor parameters")
-trait CatalogAgent extends BaseAgent[CatalogParams] {
+trait CatalogAgent extends BaseAgent {
+
+  @constructor def create(region: String, catalog: String): Unit = ()
 
   @endpoint(method = "GET", path = "/search?q={query}")
   @description("Search the catalog")
@@ -87,7 +92,7 @@ trait CatalogAgent extends BaseAgent[CatalogParams] {
   def getItem(itemId: String): Future[String]
 }
 
-object CatalogAgent extends AgentCompanion[CatalogAgent, CatalogParams]
+object CatalogAgent extends AgentCompanion[CatalogAgent]
 
 // ---------------------------------------------------------------------------
 // Phantom agent with webhook suffix
@@ -98,9 +103,10 @@ object CatalogAgent extends AgentCompanion[CatalogAgent, CatalogParams]
   webhookSuffix = "/{agent-type}/events"
 )
 @description("Demonstrates phantom agent with webhook suffix")
-trait WebhookAgent extends BaseAgent[String] {
+trait WebhookAgent extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
   @endpoint(method = "POST", path = "/receive")
   def receive(payload: String): Future[String]
 }
 
-object WebhookAgent extends AgentCompanion[WebhookAgent, String]
+object WebhookAgent extends AgentCompanion[WebhookAgent]

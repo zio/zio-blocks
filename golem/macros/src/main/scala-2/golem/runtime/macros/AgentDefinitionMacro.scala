@@ -53,13 +53,15 @@ object AgentDefinitionMacroImpl {
       c.abort(c.enclosingPosition, s"@agent target must be a trait, found: ${typeSymbol.fullName}")
     }
 
-    val agentDefinitionType                           = typeOf[golem.runtime.annotations.agentDefinition]
+    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    def isAgentDefinitionAnn(ann: Annotation): Boolean =
+      ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name.decodedName.toString
 
     val rawTypeName: String =
       typeSymbol.annotations.collectFirst {
-        case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+        case ann if isAgentDefinitionAnn(ann) =>
           ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
       }
         .getOrElse("")
@@ -69,7 +71,7 @@ object AgentDefinitionMacroImpl {
       val resolved =
         if (trimmed.nonEmpty) trimmed
         else {
-          val hasAnn = typeSymbol.annotations.exists(a => a.tree.tpe != null && a.tree.tpe =:= agentDefinitionType)
+          val hasAnn = typeSymbol.annotations.exists(a => isAgentDefinitionAnn(a))
           if (!hasAnn)
             c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${typeSymbol.fullName}")
           defaultTypeNameFromTrait(typeSymbol)
@@ -84,13 +86,16 @@ object AgentDefinitionMacroImpl {
 
     val traitDescription = annotationString(c)(typeSymbol, descriptionType)
     val traitMode        =
-      agentDefinitionModeWireValueExpr(c)(typeSymbol, agentDefinitionType)
+      agentDefinitionModeWireValueExpr(c)(typeSymbol, agentDefinitionFQN)
 
-    val httpMountOpt = extractHttpMount(c)(typeSymbol, agentTypeName, agentDefinitionType)
+    val httpMountOpt = extractHttpMount(c)(typeSymbol, agentTypeName, agentDefinitionFQN)
     val hasMount     = httpMountOpt.isDefined
 
+    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
+
     val methods = tpe.decls.collect {
-      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
+      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" &&
+        !method.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
         methodMetadata(c)(method, descriptionType, promptType, endpointType, headerType, agentTypeName, hasMount)
     }.toList
 
@@ -109,7 +114,7 @@ object AgentDefinitionMacroImpl {
       case None       => q"_root_.scala.Nil"
     }
 
-    val snapshottingExpr = extractSnapshottingExpr(c)(typeSymbol, agentDefinitionType)
+    val snapshottingExpr = extractSnapshottingExpr(c)(typeSymbol, agentDefinitionFQN)
 
     c.Expr[AgentMetadata](q"""
       _root_.golem.runtime.AgentMetadata(
@@ -221,11 +226,28 @@ object AgentDefinitionMacroImpl {
   private def inferConstructorSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
-    val baseSymOpt = tpe.baseClasses.find(_.fullName == "golem.BaseAgent")
-    val baseArgs   = baseSymOpt.toList.flatMap(sym => tpe.baseType(sym).typeArgs)
-    val inputTpe   = baseArgs.headOption.getOrElse(typeOf[Unit]).dealias
-    if (inputTpe =:= typeOf[Unit]) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
-    else structuredSchemaExpr(c)(inputTpe)
+    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
+    val constructorMethod = tpe.members.collectFirst {
+      case m: MethodSymbol if m.isMethod &&
+        m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+        m
+    }
+
+    constructorMethod match {
+      case None => q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
+      case Some(method) =>
+        val params = method.paramLists.flatten.collect {
+          case param if param.isTerm => (param.name.toString, param.typeSignature)
+        }
+        if (params.isEmpty) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
+        else {
+          val elements = params.map { case (name, paramTpe) =>
+            val schemaExpr = elementSchemaExpr(c)(name, paramTpe)
+            q"_root_.golem.data.NamedElementSchema($name, $schemaExpr)"
+          }
+          q"_root_.golem.data.StructuredSchema.Tuple(List(..$elements))"
+        }
+    }
   }
 
   private def detectAgentConfig(c: blackbox.Context)(tpe: c.universe.Type): Option[c.Tree] = {
@@ -260,11 +282,11 @@ object AgentDefinitionMacroImpl {
 
   private def extractSnapshottingExpr(c: blackbox.Context)(
     typeSymbol: c.universe.Symbol,
-    agentDefinitionType: c.universe.Type
+    agentDefinitionFQN: String
   ): c.Tree = {
     import c.universe._
 
-    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType)
+    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
     val snapStr = annOpt.flatMap { ann =>
       val args = ann.tree.children.tail
       extractNamedStringArg(c)(args, "snapshotting", 7)
@@ -289,11 +311,11 @@ object AgentDefinitionMacroImpl {
   private def extractHttpMount(c: blackbox.Context)(
     typeSymbol: c.universe.Symbol,
     agentName: String,
-    agentDefinitionType: c.universe.Type
+    agentDefinitionFQN: String
   ): Option[c.Tree] = {
     import c.universe._
 
-    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType)
+    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
     annOpt.flatMap { ann =>
       val args = ann.tree.children.tail
       val mountStr        = extractNamedStringArg(c)(args, "mount", 2).getOrElse("")
@@ -544,10 +566,10 @@ object AgentDefinitionMacroImpl {
 
   private def agentDefinitionModeWireValueExpr(
     c: blackbox.Context
-  )(symbol: c.universe.Symbol, annType: c.universe.Type): Option[c.Tree] = {
+  )(symbol: c.universe.Symbol, annFQN: String): Option[c.Tree] = {
     import c.universe._
     symbol.annotations.collectFirst {
-      case ann if ann.tree.tpe =:= annType =>
+      case ann if ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == annFQN =>
         // agentDefinition(typeName: String = "", mode: DurabilityMode = null)
         ann.tree.children.tail.drop(1).headOption.map {
           case Literal(Constant(value: String)) =>

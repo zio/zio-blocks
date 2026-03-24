@@ -56,7 +56,7 @@ object Name {
 // Define your agent trait (typeName is optional; when omitted, it is derived from the trait name)
 @agentDefinition(mode = DurabilityMode.Durable)
 @description("A simple name-processing agent")
-trait NameAgent extends BaseAgent[Unit] {
+trait NameAgent extends BaseAgent {
 
   @description("Reverse the provided name")
   def reverse(input: Name): Future[Name]
@@ -124,7 +124,7 @@ Notes:
 
 ### Custom data types (Schemas)
 
-If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
+If you use custom Scala types as **constructor inputs** (via `@constructor`) or **method parameters/return values**,
 the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
 
 You normally **do not** define `GolemSchema` directly -- instead, derive/provide a `zio.blocks.schema.Schema[T]`,
@@ -144,14 +144,16 @@ If you want `Shard.get(...)` / `Shard.getPhantom(...)` style ergonomics, Scala r
 Today this is a one-liner:
 
 ```scala
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, constructor, description}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.{AgentCompanion, BaseAgent, Uuid}
 
 import scala.concurrent.Future
 
 @agentDefinition(mode = DurabilityMode.Durable)
-trait Shard extends BaseAgent[(String, Int)] {
+trait Shard extends BaseAgent {
+
+  @constructor def create(arg0: String, arg1: Int): Unit = ()
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]
@@ -160,7 +162,7 @@ trait Shard extends BaseAgent[(String, Int)] {
   def set(key: String, value: String): Unit
 }
 
-object Shard extends AgentCompanion[Shard, (String, Int)]
+object Shard extends AgentCompanion[Shard]
 
 @agentImplementation()
 final class ShardImpl(input: (String, Int)) extends Shard {

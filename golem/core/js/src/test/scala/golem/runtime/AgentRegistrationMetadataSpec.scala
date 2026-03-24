@@ -17,7 +17,14 @@
 package golem.runtime
 
 import golem.BaseAgent
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description, prompt}
+import golem.runtime.annotations.{
+  DurabilityMode,
+  agentDefinition,
+  agentImplementation,
+  constructor,
+  description,
+  prompt
+}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, AgentMode}
 import zio.test._
 import zio.blocks.schema.Schema
@@ -28,7 +35,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("meta-agent")
   @description("An agent used for metadata tests.")
-  trait MetaAgent extends BaseAgent[Unit] {
+  trait MetaAgent extends BaseAgent {
     @description("Echoes input.")
     @prompt("Say hello.")
     def echo(s: String): Future[String]
@@ -54,7 +61,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
-  trait EphemeralMetaAgent extends BaseAgent[Unit] {
+  trait EphemeralMetaAgent extends BaseAgent {
     def ping(): Future[String]
   }
 
@@ -75,13 +82,14 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
-  trait CtorMetaAgent extends BaseAgent[MetaConfig] {
+  trait CtorMetaAgent extends BaseAgent {
+    @constructor def create(host: String, port: Int): Unit = ()
     def info(): Future[String]
   }
 
   @agentImplementation()
-  final class CtorMetaAgentImpl(private val config: MetaConfig) extends CtorMetaAgent {
-    override def info(): Future[String] = Future.successful(s"${config.host}:${config.port}")
+  final class CtorMetaAgentImpl(private val host: String, private val port: Int) extends CtorMetaAgent {
+    override def info(): Future[String] = Future.successful(s"$host:$port")
   }
 
   private lazy val ctorDefn: AgentDefinition[CtorMetaAgent] =
@@ -92,7 +100,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
-  trait ExplicitDurableAgent extends BaseAgent[Unit] {
+  trait ExplicitDurableAgent extends BaseAgent {
     def ping(): Future[String]
   }
 

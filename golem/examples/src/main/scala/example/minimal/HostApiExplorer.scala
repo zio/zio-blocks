@@ -16,14 +16,16 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Explores raw host APIs to discover their JS shape for typing.")
-trait HostApiExplorer extends BaseAgent[String] {
+trait HostApiExplorer extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Explore the WASI config store module")
   def exploreConfig(): Future[String]
@@ -50,4 +52,4 @@ trait HostApiExplorer extends BaseAgent[String] {
   def exploreAll(): Future[String]
 }
 
-object HostApiExplorer extends AgentCompanion[HostApiExplorer, String]
+object HostApiExplorer extends AgentCompanion[HostApiExplorer]

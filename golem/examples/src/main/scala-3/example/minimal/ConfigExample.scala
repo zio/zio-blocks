@@ -2,7 +2,7 @@ package example.minimal
 
 import golem.{AgentCompanion, BaseAgent}
 import golem.config.{AgentConfig, ConfigBuilder, ConfigBuilderDerived, ConfigSchema, ConfigSchemaDerived, RpcConfig, RpcConfigFieldsDerived, RpcFields, Secret}
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 
 import scala.concurrent.Future
 
@@ -32,21 +32,25 @@ object MyAppConfig {
 
 @agentDefinition()
 @description("Example agent with configuration")
-trait ConfigAgent extends BaseAgent[String] with AgentConfig[MyAppConfig] {
+trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
+  @constructor def create(value: String): Unit = ()
+
   @description("Returns a greeting using config values")
   def greet(): Future[String]
 }
 
-object ConfigAgent extends AgentCompanion[ConfigAgent, String]
+object ConfigAgent extends AgentCompanion[ConfigAgent]
 
 @agentDefinition()
 @description("Example agent that calls ConfigAgent with config overrides")
-trait ConfigCallerAgent extends BaseAgent[String] {
+trait ConfigCallerAgent extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
+
   @description("Calls ConfigAgent with overridden config values")
   def callWithOverride(): Future[String]
 }
 
-object ConfigCallerAgent extends AgentCompanion[ConfigCallerAgent, String]
+object ConfigCallerAgent extends AgentCompanion[ConfigCallerAgent]
 
 /**
  * Demonstrates using the type-safe RPC config override API.

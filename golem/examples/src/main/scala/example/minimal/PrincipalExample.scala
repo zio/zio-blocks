@@ -1,13 +1,15 @@
 package example.minimal
 
 import golem.{AgentCompanion, BaseAgent, Principal}
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Example agent with Principal injection in constructor")
-trait PrincipalAgent extends BaseAgent[String] {
+trait PrincipalAgent extends BaseAgent {
+  @constructor def create(value: String): Unit = ()
+
   @description("Returns who created this agent")
   def whoCreated(): Future[String]
 
@@ -15,4 +17,4 @@ trait PrincipalAgent extends BaseAgent[String] {
   def currentCaller(principal: Principal): Future[String]
 }
 
-object PrincipalAgent extends AgentCompanion[PrincipalAgent, String]
+object PrincipalAgent extends AgentCompanion[PrincipalAgent]

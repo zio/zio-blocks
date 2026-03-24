@@ -106,20 +106,22 @@ Create `src/main/scala/demo/CounterAgent.scala`:
 ```scala
 package demo
 
-import golem.runtime.annotations.{agentDefinition, description, prompt}
+import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
-trait CounterAgent extends BaseAgent[String] {
+trait CounterAgent extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
   def increment(): Future[Int]
 }
 
-object CounterAgent extends AgentCompanion[CounterAgent, String]
+object CounterAgent extends AgentCompanion[CounterAgent]
 ```
 
 For RPC invocation variants and custom schema derivation, see `golem/README.md`.

@@ -17,7 +17,7 @@
 package golem.runtime.macros
 
 import golem.config.{AgentConfigDeclaration, ConfigSchema}
-import golem.data.{DataType, ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
+import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.annotations.{description, prompt}
 import golem.runtime.{
   AgentMetadata,
@@ -78,25 +78,34 @@ object AgentDefinitionMacro {
 
     // --- HTTP mount extraction from @agentDefinition ---
     val httpMountExpr: Expr[Option[HttpMountDetails]] = extractHttpMount(typeSymbol, agentTypeName)
-    val hasMount = extractAgentDefinitionStringArg(typeSymbol, "mount", positionalIndex = 2).exists(_.nonEmpty)
+    val hasMount                                      = extractAgentDefinitionStringArg(typeSymbol, "mount", positionalIndex = 2).exists(_.nonEmpty)
+
+    val constructorAnnotationName = "golem.runtime.annotations.constructor"
+
+    def hasConstructorAnnotation(method: Symbol): Boolean =
+      method.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+        case _                             => false
+      }
 
     val methods = typeSymbol.methodMembers.collect {
-      case method if method.flags.is(Flags.Deferred) && method.isDefDef =>
+      case method if method.flags.is(Flags.Deferred) && method.isDefDef && !hasConstructorAnnotation(method) =>
         methodMetadata(method, agentTypeName, hasMount)
     }
 
-    val constructorSchema = inferConstructorSchema(typeRepr)
+    val constructorSchema                              = inferConstructorSchema(typeRepr)
     val configExpr: Expr[List[AgentConfigDeclaration]] = detectAgentConfig(typeRepr).getOrElse('{ Nil })
 
     val snapshottingStr =
       extractAgentDefinitionStringArg(typeSymbol, "snapshotting", positionalIndex = 7).getOrElse("disabled")
     val snapshottingValue: Snapshotting = Snapshotting.parse(snapshottingStr) match {
       case Right(v)  => v
-      case Left(err) => report.errorAndAbort(s"Invalid snapshotting on @agentDefinition for ${typeSymbol.fullName}: $err")
+      case Left(err) =>
+        report.errorAndAbort(s"Invalid snapshotting on @agentDefinition for ${typeSymbol.fullName}: $err")
     }
     val snapshottingExpr: Expr[Snapshotting] = snapshottingValue match {
-      case Snapshotting.Disabled                                  => '{ Snapshotting.Disabled }
-      case Snapshotting.Enabled(SnapshottingConfig.Default)       => '{ Snapshotting.Enabled(SnapshottingConfig.Default) }
+      case Snapshotting.Disabled                                    => '{ Snapshotting.Disabled }
+      case Snapshotting.Enabled(SnapshottingConfig.Default)         => '{ Snapshotting.Enabled(SnapshottingConfig.Default) }
       case Snapshotting.Enabled(SnapshottingConfig.Periodic(nanos)) =>
         '{ Snapshotting.Enabled(SnapshottingConfig.Periodic(${ Expr(nanos) })) }
       case Snapshotting.Enabled(SnapshottingConfig.EveryN(count)) =>
@@ -184,9 +193,9 @@ object AgentDefinitionMacro {
     val outputSchema = methodOutputSchema(method)
 
     // --- HTTP endpoint extraction ---
-    val headerVars        = extractHeaderVars(method)
-    val endpointDetails   = extractEndpoints(method, headerVars)
-    val endpointListExpr  = Expr.ofList(endpointDetails)
+    val headerVars       = extractHeaderVars(method)
+    val endpointDetails  = extractEndpoints(method, headerVars)
+    val endpointListExpr = Expr.ofList(endpointDetails)
 
     // --- Compile-time validation ---
     val methodParamNames = method.paramSymss.flatten.collect {
@@ -284,7 +293,9 @@ object AgentDefinitionMacro {
     }
   }
 
-  private def detectAgentConfig(using Quotes)(traitRepr: quotes.reflect.TypeRepr): Option[Expr[List[AgentConfigDeclaration]]] = {
+  private def detectAgentConfig(using
+    Quotes
+  )(traitRepr: quotes.reflect.TypeRepr): Option[Expr[List[AgentConfigDeclaration]]] = {
     import quotes.reflect.*
 
     val agentConfigBases = traitRepr.baseClasses.filter(_.fullName == "golem.config.AgentConfig")
@@ -294,7 +305,7 @@ object AgentDefinitionMacro {
       val configTypes = agentConfigBases.flatMap { sym =>
         traitRepr.baseType(sym) match {
           case AppliedType(_, List(arg)) => Some(arg)
-          case _                        => None
+          case _                         => None
         }
       }
 
@@ -324,37 +335,42 @@ object AgentDefinitionMacro {
     traitRepr: quotes.reflect.TypeRepr
   ): Expr[StructuredSchema] = {
     import quotes.reflect.*
-    val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-    if (baseSym == Symbol.noSymbol) '{ StructuredSchema.Tuple(Nil) }
-    else
-      traitRepr.baseType(baseSym) match {
-        case AppliedType(_, List(arg)) =>
-          val tpe = arg.dealias
-          if (tpe =:= TypeRepr.of[Unit]) '{ StructuredSchema.Tuple(Nil) } else flattenedConstructorSchemaExpr(tpe)
-        case _ =>
-          '{ StructuredSchema.Tuple(Nil) }
+
+    val constructorAnnotationName = "golem.runtime.annotations.constructor"
+    val typeSymbol                = traitRepr.typeSymbol
+
+    val constructorMethod = typeSymbol.methodMembers.find { method =>
+      method.isDefDef &&
+      method.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+        case _                             => false
       }
-  }
+    }
 
-  private def flattenedConstructorSchemaExpr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[StructuredSchema] = {
-    import quotes.reflect.*
-
-    tpe.asType match {
-      case '[t] =>
-        Expr.summon[GolemSchema[t]] match {
-          case Some(codecExpr) =>
-            '{
-              $codecExpr.elementSchema match {
-                case ElementSchema.Component(DataType.StructType(fields)) if fields.nonEmpty =>
-                  StructuredSchema.Tuple(
-                    fields.map(f => NamedElementSchema(f.name, ElementSchema.Component(f.dataType)))
-                  )
-                case _ =>
-                  $codecExpr.schema
-              }
+    constructorMethod match {
+      case None         => '{ StructuredSchema.Tuple(Nil) }
+      case Some(method) =>
+        val params = method.paramSymss.flatten.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => (sym.name, v.tpt.tpe)
+              case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
             }
-          case None =>
-            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
+        }
+
+        if params.isEmpty then '{ StructuredSchema.Tuple(Nil) }
+        else {
+          val elements = params.map { case (name, tpe) =>
+            val elementExpr = elementSchemaExpr(name, tpe)
+            '{
+              NamedElementSchema(
+                ${ Expr(name) },
+                $elementExpr
+              )
+            }
+          }
+          val listExpr = Expr.ofList(elements)
+          '{ StructuredSchema.Tuple($listExpr) }
         }
     }
   }
@@ -420,7 +436,10 @@ object AgentDefinitionMacro {
   // HTTP support helpers
   // ---------------------------------------------------------------------------
 
-  /** Extract a named String argument from the @agentDefinition annotation, with positional fallback. */
+  /**
+   * Extract a named String argument from the @agentDefinition annotation, with
+   * positional fallback.
+   */
   private def extractAgentDefinitionStringArg(using
     Quotes
   )(symbol: quotes.reflect.Symbol, argName: String, positionalIndex: Int): Option[String] = {
@@ -437,7 +456,10 @@ object AgentDefinitionMacro {
     }.flatten.map(_.trim).filter(_.nonEmpty)
   }
 
-  /** Extract a named Boolean argument from @agentDefinition, with positional fallback. */
+  /**
+   * Extract a named Boolean argument from @agentDefinition, with positional
+   * fallback.
+   */
   private def extractAgentDefinitionBoolArg(using
     Quotes
   )(symbol: quotes.reflect.Symbol, argName: String, positionalIndex: Int): Option[Boolean] = {
@@ -445,8 +467,8 @@ object AgentDefinitionMacro {
     symbol.annotations.collectFirst {
       case Apply(Select(New(tpt), _), args)
           if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
-        args.collectFirst {
-          case NamedArg(`argName`, Literal(BooleanConstant(value))) => value
+        args.collectFirst { case NamedArg(`argName`, Literal(BooleanConstant(value))) =>
+          value
         }.orElse {
           if (positionalIndex >= 0) args.lift(positionalIndex).collect { case Literal(BooleanConstant(v)) => v }
           else None
@@ -454,7 +476,10 @@ object AgentDefinitionMacro {
     }.flatten
   }
 
-  /** Extract the cors Array[String] argument from @agentDefinition, with positional fallback. */
+  /**
+   * Extract the cors Array[String] argument from @agentDefinition, with
+   * positional fallback.
+   */
   private def extractAgentDefinitionCorsArg(using
     Quotes
   )(symbol: quotes.reflect.Symbol, positionalIndex: Int): List[String] = {
@@ -475,8 +500,8 @@ object AgentDefinitionMacro {
   private def extractStringArray(using Quotes)(term: quotes.reflect.Term): List[String] = {
     import quotes.reflect.*
     term match {
-      case Inlined(_, _, inner)            => extractStringArray(inner)
-      case Typed(inner, _)                 => extractStringArray(inner)
+      case Inlined(_, _, inner)                         => extractStringArray(inner)
+      case Typed(inner, _)                              => extractStringArray(inner)
       case Apply(_, List(Typed(Repeated(elems, _), _))) =>
         elems.collect { case Literal(StringConstant(s)) => s }
       case Apply(_, args) =>
@@ -490,7 +515,10 @@ object AgentDefinitionMacro {
     }
   }
 
-  /** Build an Expr[Option[HttpMountDetails]] from the @agentDefinition annotation. */
+  /**
+   * Build an Expr[Option[HttpMountDetails]] from the @agentDefinition
+   * annotation.
+   */
   private def extractHttpMount(using
     Quotes
   )(symbol: quotes.reflect.Symbol, agentName: String): Expr[Option[HttpMountDetails]] = {
@@ -498,7 +526,7 @@ object AgentDefinitionMacro {
 
     val mountPath = extractAgentDefinitionStringArg(symbol, "mount", positionalIndex = 2)
     mountPath match {
-      case None => '{ None }
+      case None     => '{ None }
       case Some(mp) =>
         val pathSegments = HttpRouteParser.parsePathOnly(mp, "mount") match {
           case Left(err)       => report.errorAndAbort(s"Invalid mount path in @agentDefinition for '$agentName': $err")
@@ -509,14 +537,15 @@ object AgentDefinitionMacro {
           case None     => Nil
           case Some(ws) =>
             HttpRouteParser.parsePathOnly(ws, "webhookSuffix") match {
-              case Left(err)       => report.errorAndAbort(s"Invalid webhookSuffix in @agentDefinition for '$agentName': $err")
+              case Left(err) =>
+                report.errorAndAbort(s"Invalid webhookSuffix in @agentDefinition for '$agentName': $err")
               case Right(segments) => segments
             }
         }
 
-        val authRequired     = extractAgentDefinitionBoolArg(symbol, "auth", positionalIndex = 3).getOrElse(false)
-        val phantomAgent     = extractAgentDefinitionBoolArg(symbol, "phantomAgent", positionalIndex = 5).getOrElse(false)
-        val corsPatterns     = extractAgentDefinitionCorsArg(symbol, positionalIndex = 4)
+        val authRequired = extractAgentDefinitionBoolArg(symbol, "auth", positionalIndex = 3).getOrElse(false)
+        val phantomAgent = extractAgentDefinitionBoolArg(symbol, "phantomAgent", positionalIndex = 5).getOrElse(false)
+        val corsPatterns = extractAgentDefinitionCorsArg(symbol, positionalIndex = 4)
 
         val pathExpr    = pathSegmentsExpr(pathSegments)
         val webhookExpr = pathSegmentsExpr(webhookSuffix)
@@ -550,7 +579,9 @@ object AgentDefinitionMacro {
     }
   }
 
-  /** Convert a compile-time List[PathSegment] into an Expr[List[PathSegment]]. */
+  /**
+   * Convert a compile-time List[PathSegment] into an Expr[List[PathSegment]].
+   */
   private def pathSegmentsExpr(using Quotes)(segments: List[PathSegment]): Expr[List[PathSegment]] = {
     val exprs = segments.map {
       case PathSegment.Literal(v)               => '{ PathSegment.Literal(${ Expr(v) }) }
@@ -574,17 +605,22 @@ object AgentDefinitionMacro {
           case Apply(Select(New(tpt), _), args)
               if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.header" =>
             val name = args.collectFirst {
-              case Literal(StringConstant(n))                  => n
+              case Literal(StringConstant(n))                   => n
               case NamedArg("name", Literal(StringConstant(n))) => n
             }.getOrElse(
-              report.errorAndAbort(s"@header annotation on parameter '${sym.name}' of method '${method.name}' must have a name argument")
+              report.errorAndAbort(
+                s"@header annotation on parameter '${sym.name}' of method '${method.name}' must have a name argument"
+              )
             )
             HeaderVariable(name, sym.name)
         }
     }.flatten
   }
 
-  /** Extract @endpoint annotations from a method and build Expr[HttpEndpointDetails] for each. */
+  /**
+   * Extract @endpoint annotations from a method and build
+   * Expr[HttpEndpointDetails] for each.
+   */
   private def extractEndpoints(using
     Quotes
   )(method: quotes.reflect.Symbol, headerVars: List[HeaderVariable]): List[Expr[HttpEndpointDetails]] = {
@@ -599,14 +635,14 @@ object AgentDefinitionMacro {
           if tpt.tpe.dealias.typeSymbol.fullName == "golem.runtime.annotations.endpoint" =>
 
         val methodStr = args.collectFirst {
-          case Literal(StringConstant(v))                       => v
-          case NamedArg("method", Literal(StringConstant(v)))   => v
+          case Literal(StringConstant(v))                     => v
+          case NamedArg("method", Literal(StringConstant(v))) => v
         }.getOrElse(
           report.errorAndAbort(s"@endpoint on method '${method.name}' must specify 'method'")
         )
 
-        val pathStr = args.collectFirst {
-          case NamedArg("path", Literal(StringConstant(v)))     => v
+        val pathStr = args.collectFirst { case NamedArg("path", Literal(StringConstant(v))) =>
+          v
         }.orElse {
           // Second positional arg
           args.lift(1).collect { case Literal(StringConstant(v)) => v }
@@ -614,8 +650,8 @@ object AgentDefinitionMacro {
           report.errorAndAbort(s"@endpoint on method '${method.name}' must specify 'path'")
         )
 
-        val authOverride: Option[Boolean] = args.collectFirst {
-          case NamedArg("auth", Literal(ByteConstant(v))) => v
+        val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(ByteConstant(v))) =>
+          v
         }.orElse {
           args.lift(2).collect { case Literal(ByteConstant(v)) => v }
         }.flatMap {
@@ -625,10 +661,9 @@ object AgentDefinitionMacro {
           case v  => report.errorAndAbort(s"@endpoint auth must be -1, 0, or 1, got $v")
         }
 
-        val corsOverride: Option[List[String]] = args.collectFirst {
-          case NamedArg("cors", arrayTerm) =>
-            val strs = extractStringArray(arrayTerm)
-            if (strs.isEmpty) None else Some(strs)
+        val corsOverride: Option[List[String]] = args.collectFirst { case NamedArg("cors", arrayTerm) =>
+          val strs = extractStringArray(arrayTerm)
+          if (strs.isEmpty) None else Some(strs)
         }.orElse {
           args.lift(3).map { arrayTerm =>
             val strs = extractStringArray(arrayTerm)
@@ -647,20 +682,20 @@ object AgentDefinitionMacro {
           case Right(p)  => p
         }
 
-        val pathExpr = pathSegmentsExpr(parsed.pathSegments)
+        val pathExpr  = pathSegmentsExpr(parsed.pathSegments)
         val queryExpr = Expr.ofList(parsed.queryVars.map { qv =>
           '{ QueryVariable(${ Expr(qv.queryParamName) }, ${ Expr(qv.variableName) }) }
         })
         val httpMethodExpr = httpMethod match {
-          case HttpMethod.Get     => '{ HttpMethod.Get }
-          case HttpMethod.Post    => '{ HttpMethod.Post }
-          case HttpMethod.Put     => '{ HttpMethod.Put }
-          case HttpMethod.Delete  => '{ HttpMethod.Delete }
-          case HttpMethod.Patch   => '{ HttpMethod.Patch }
-          case HttpMethod.Head    => '{ HttpMethod.Head }
-          case HttpMethod.Options => '{ HttpMethod.Options }
-          case HttpMethod.Connect => '{ HttpMethod.Connect }
-          case HttpMethod.Trace   => '{ HttpMethod.Trace }
+          case HttpMethod.Get       => '{ HttpMethod.Get }
+          case HttpMethod.Post      => '{ HttpMethod.Post }
+          case HttpMethod.Put       => '{ HttpMethod.Put }
+          case HttpMethod.Delete    => '{ HttpMethod.Delete }
+          case HttpMethod.Patch     => '{ HttpMethod.Patch }
+          case HttpMethod.Head      => '{ HttpMethod.Head }
+          case HttpMethod.Options   => '{ HttpMethod.Options }
+          case HttpMethod.Connect   => '{ HttpMethod.Connect }
+          case HttpMethod.Trace     => '{ HttpMethod.Trace }
           case HttpMethod.Custom(m) => '{ HttpMethod.Custom(${ Expr(m) }) }
         }
         val authExpr = authOverride match {
@@ -685,8 +720,13 @@ object AgentDefinitionMacro {
     }
   }
 
-  /** Run compile-time validation of endpoint variables against method parameters. */
-  private def validateEndpoints(using Quotes)(
+  /**
+   * Run compile-time validation of endpoint variables against method
+   * parameters.
+   */
+  private def validateEndpoints(using
+    Quotes
+  )(
     method: quotes.reflect.Symbol,
     agentName: String,
     hasMount: Boolean,
@@ -704,8 +744,8 @@ object AgentDefinitionMacro {
           case NamedArg("method", Literal(StringConstant(v))) => v
         }
 
-        val pathStrOpt = args.collectFirst {
-          case NamedArg("path", Literal(StringConstant(v))) => v
+        val pathStrOpt = args.collectFirst { case NamedArg("path", Literal(StringConstant(v))) =>
+          v
         }.orElse {
           args.lift(1).collect { case Literal(StringConstant(v)) => v }
         }
@@ -716,8 +756,8 @@ object AgentDefinitionMacro {
           httpMethod <- HttpMethod.fromString(methodStr).toOption
           parsed     <- HttpRouteParser.parse(pathStr).toOption
         } {
-          val authOverride: Option[Boolean] = args.collectFirst {
-            case NamedArg("auth", Literal(ByteConstant(v))) => v
+          val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(ByteConstant(v))) =>
+            v
           }.flatMap {
             case -1 => None
             case 0  => Some(false)
@@ -725,10 +765,9 @@ object AgentDefinitionMacro {
             case _  => None
           }
 
-          val corsOverride: Option[List[String]] = args.collectFirst {
-            case NamedArg("cors", arrayTerm) =>
-              val strs = extractStringArray(arrayTerm)
-              if (strs.isEmpty) None else Some(strs)
+          val corsOverride: Option[List[String]] = args.collectFirst { case NamedArg("cors", arrayTerm) =>
+            val strs = extractStringArray(arrayTerm)
+            if (strs.isEmpty) None else Some(strs)
           }.flatten
 
           val endpoint = HttpEndpointDetails(

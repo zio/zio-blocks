@@ -147,6 +147,8 @@ final class OplogInspectorImpl(@unused private val name: String) extends OplogIn
       case OplogApi.OplogEntry.PreRollbackRemoteTransaction(p) => s"PRE_ROLLBACK_TX @ $ts begin=${p.beginIndex}"
       case OplogApi.OplogEntry.CommittedRemoteTransaction(p)   => s"COMMITTED_TX @ $ts begin=${p.beginIndex}"
       case OplogApi.OplogEntry.RolledBackRemoteTransaction(p)  => s"ROLLED_BACK_TX @ $ts begin=${p.beginIndex}"
+      case OplogApi.OplogEntry.Snapshot(t, data, mime)         => s"SNAPSHOT @ ${t.seconds}s ${data.length}B mime=$mime"
+      case OplogApi.OplogEntry.OplogProcessorCheckpoint(p)     => s"OPLOG_CHECKPOINT @ $ts plugin=${p.plugin.name} confirmed=${p.confirmedUpTo}"
     }
   }
 

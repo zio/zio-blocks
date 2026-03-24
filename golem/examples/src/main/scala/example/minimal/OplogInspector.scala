@@ -16,14 +16,16 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Reads and inspects oplog entries with full type-safe pattern matching.")
-trait OplogInspector extends BaseAgent[String] {
+trait OplogInspector extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Read the last N oplog entries and format a typed summary.")
   def inspectRecent(): Future[String]
@@ -32,4 +34,4 @@ trait OplogInspector extends BaseAgent[String] {
   def searchOplog(text: String): Future[String]
 }
 
-object OplogInspector extends AgentCompanion[OplogInspector, String]
+object OplogInspector extends AgentCompanion[OplogInspector]

@@ -26,20 +26,13 @@ import scala.scalajs.js
 
 /**
  * Scala 3 implementation for `AgentCompanion` methods that need to be checked
- * against `BaseAgent[Input]` on the agent trait.
+ * against `BaseAgent` on the agent trait.
  *
  * This lives in `core` (not `macros`) to avoid introducing a cyclic project
  * dependency.
  */
 private[golem] object AgentCompanionMacro {
-  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"get(input) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  def getImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolve[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -51,16 +44,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
-  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"getPhantom(input, phantom) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  def getPhantomImpl[Trait: Type, In: Type](input: Expr[In], phantom: Expr[Uuid])(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -73,13 +58,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
-  def getUnitImpl[Trait: Type](using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"get() requires: BaseAgent[Unit] (found: ${expected.show})")
+  def getUnitImpl[Trait: Type](using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolve[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -91,13 +71,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
-  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"getPhantom(phantom) requires: BaseAgent[Unit] (found: ${expected.show})")
+  def getPhantomUnitImpl[Trait: Type](phantom: Expr[Uuid])(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -110,14 +85,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def getTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple2[A1, A2]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"get(a1, a2) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple2($a1, $a2) }
     '{
       AgentClientRuntime.resolve[Trait, Tuple2[A1, A2]](
@@ -137,13 +106,6 @@ private[golem] object AgentCompanionMacro {
     a2: Expr[A2],
     phantom: Expr[Uuid]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple2[A1, A2]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getPhantom(a1, a2, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple2($a1, $a2) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple2[A1, A2]](
@@ -162,11 +124,6 @@ private[golem] object AgentCompanionMacro {
   def getTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
     Quotes
   ): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"get(a1, a2, a3) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
       AgentClientRuntime.resolve[Trait, Tuple3[A1, A2, A3]](
@@ -187,13 +144,6 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     phantom: Expr[Uuid]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getPhantom(a1, a2, a3, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple3[A1, A2, A3]](
@@ -215,11 +165,6 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"get(a1, a2, a3, a4) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
     '{
       AgentClientRuntime.resolve[Trait, Tuple4[A1, A2, A3, A4]](
@@ -241,13 +186,6 @@ private[golem] object AgentCompanionMacro {
     a4: Expr[A4],
     phantom: Expr[Uuid]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getPhantom(a1, a2, a3, a4, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple4[A1, A2, A3, A4]](
@@ -270,13 +208,6 @@ private[golem] object AgentCompanionMacro {
     a4: Expr[A4],
     a5: Expr[A5]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"get(a1, a2, a3, a4, a5) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
     '{
       AgentClientRuntime.resolve[Trait, Tuple5[A1, A2, A3, A4, A5]](
@@ -299,13 +230,6 @@ private[golem] object AgentCompanionMacro {
     a5: Expr[A5],
     phantom: Expr[Uuid]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"getPhantom(a1, a2, a3, a4, a5, phantom) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
@@ -321,14 +245,7 @@ private[golem] object AgentCompanionMacro {
     }
   }
 
-  def newPhantomImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"newPhantom(input) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  def newPhantomImpl[Trait: Type, In: Type](input: Expr[In])(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -341,13 +258,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
-  def newPhantomUnitImpl[Trait: Type](using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"newPhantom() requires: BaseAgent[Unit] (found: ${expected.show})")
+  def newPhantomUnitImpl[Trait: Type](using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -360,14 +272,8 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def newPhantomTuple2Impl[Trait: Type, A1: Type, A2: Type](a1: Expr[A1], a2: Expr[A2])(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple2[A1, A2]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"newPhantom(a1, a2) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple2($a1, $a2) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple2[A1, A2]](
@@ -386,11 +292,6 @@ private[golem] object AgentCompanionMacro {
   def newPhantomTuple3Impl[Trait: Type, A1: Type, A2: Type, A3: Type](a1: Expr[A1], a2: Expr[A2], a3: Expr[A3])(using
     Quotes
   ): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple3[A1, A2, A3]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"newPhantom(a1, a2, a3) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple3($a1, $a2, $a3) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple3[A1, A2, A3]](
@@ -412,11 +313,6 @@ private[golem] object AgentCompanionMacro {
     a3: Expr[A3],
     a4: Expr[A4]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple4[A1, A2, A3, A4]]
-    if !(expected =:= want) then
-      report.errorAndAbort(s"newPhantom(a1, a2, a3, a4) requires: BaseAgent[${want.show}] (found: ${expected.show})")
     val tup = '{ Tuple4($a1, $a2, $a3, $a4) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple4[A1, A2, A3, A4]](
@@ -439,13 +335,6 @@ private[golem] object AgentCompanionMacro {
     a4: Expr[A4],
     a5: Expr[A5]
   )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val want     = TypeRepr.of[Tuple5[A1, A2, A3, A4, A5]]
-    if !(expected =:= want) then
-      report.errorAndAbort(
-        s"newPhantom(a1, a2, a3, a4, a5) requires: BaseAgent[${want.show}] (found: ${expected.show})"
-      )
     val tup = '{ Tuple5($a1, $a2, $a3, $a4, $a5) }
     '{
       AgentClientRuntime.resolveWithPhantom[Trait, Tuple5[A1, A2, A3, A4, A5]](
@@ -464,14 +353,7 @@ private[golem] object AgentCompanionMacro {
   def getWithConfigImpl[Trait: Type, In: Type](
     input: Expr[In],
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"getWithConfig(input, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithConfig[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -484,15 +366,10 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def getWithConfigUnitImpl[Trait: Type](
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"getWithConfig(configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithConfig[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -505,20 +382,12 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def getPhantomWithConfigImpl[Trait: Type, In: Type](
     input: Expr[In],
     phantom: Expr[Uuid],
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"getPhantomWithConfig(input, phantom, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantomAndConfig[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -532,16 +401,11 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def getPhantomWithConfigUnitImpl[Trait: Type](
     phantom: Expr[Uuid],
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"getPhantomWithConfig(phantom, configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantomAndConfig[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -555,19 +419,11 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def newPhantomWithConfigImpl[Trait: Type, In: Type](
     input: Expr[In],
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    val got      = TypeRepr.of[In]
-    if !(got =:= expected) then
-      report.errorAndAbort(
-        s"newPhantomWithConfig(input, configOverrides) requires: BaseAgent[${expected.show}] (found argument type: ${got.show})"
-      )
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantomAndConfig[Trait, In](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, In]],
@@ -581,15 +437,10 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
 
   def newPhantomWithConfigUnitImpl[Trait: Type](
     configOverrides: Expr[List[ConfigOverride]]
-  )(using Quotes): Expr[Trait] = {
-    import quotes.reflect.*
-    val expected = agentInputTypeRepr[Trait]
-    if !(expected =:= TypeRepr.of[Unit]) then
-      report.errorAndAbort(s"newPhantomWithConfig(configOverrides) requires: BaseAgent[Unit] (found: ${expected.show})")
+  )(using Quotes): Expr[Trait] =
     '{
       AgentClientRuntime.resolveWithPhantomAndConfig[Trait, Unit](
         AgentClient.agentType[Trait].asInstanceOf[AgentType[Trait, Unit]],
@@ -603,19 +454,6 @@ private[golem] object AgentCompanionMacro {
           ${ attachTriggerSchedule[Trait]('resolved) }
       }
     }
-  }
-
-  private def agentInputTypeRepr[Trait: Type](using Quotes): quotes.reflect.TypeRepr = {
-    import quotes.reflect.*
-    val traitRepr = TypeRepr.of[Trait]
-    val baseSym   = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-    else
-      traitRepr.baseType(baseSym) match {
-        case AppliedType(_, List(arg)) => arg.dealias
-        case _                         => TypeRepr.of[Unit]
-      }
-  }
 
   private def attachTriggerSchedule[Trait: Type](
     resolvedExpr: Expr[AgentClientRuntime.ResolvedAgent[Trait]]

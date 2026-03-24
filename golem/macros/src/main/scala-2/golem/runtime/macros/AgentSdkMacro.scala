@@ -32,16 +32,18 @@ object AgentSdkMacroImpl {
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name.decodedName.toString
 
-    val agentDefinitionType = typeOf[_root_.golem.runtime.annotations.agentDefinition]
+    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    def isAgentDefinitionAnn(ann: Annotation): Boolean =
+      ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     val rawTypeName: String =
       traitSym.annotations.collectFirst {
-        case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+        case ann if isAgentDefinitionAnn(ann) =>
           ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
       }
         .map(_.trim)
         .filter(_.nonEmpty)
         .getOrElse {
-          val hasAnn = traitSym.annotations.exists(a => a.tree.tpe != null && a.tree.tpe =:= agentDefinitionType)
+          val hasAnn = traitSym.annotations.exists(a => isAgentDefinitionAnn(a))
           if (!hasAnn)
             c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
           defaultTypeNameFromTrait(traitSym)

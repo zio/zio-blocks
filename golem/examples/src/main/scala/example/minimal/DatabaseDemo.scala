@@ -16,14 +16,16 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description}
+import golem.runtime.annotations.{agentDefinition, constructor, description}
 import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
 @agentDefinition()
 @description("Demonstrates typed Postgres and MySQL queries with fully typed parameters and results.")
-trait DatabaseDemo extends BaseAgent[String] {
+trait DatabaseDemo extends BaseAgent {
+
+  @constructor def create(value: String): Unit = ()
 
   @description("Run typed Postgres queries with PostgresDbValue params and result reading.")
   def postgresDemo(): Future[String]
@@ -35,4 +37,4 @@ trait DatabaseDemo extends BaseAgent[String] {
   def typeShowcase(): Future[String]
 }
 
-object DatabaseDemo extends AgentCompanion[DatabaseDemo, String]
+object DatabaseDemo extends AgentCompanion[DatabaseDemo]

@@ -45,7 +45,7 @@ object AgentEndToEndSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("E2eBroad", mode = DurabilityMode.Durable)
-  trait BroadAgent extends BaseAgent[Unit] {
+  trait BroadAgent extends BaseAgent {
     def echo(in: String): Future[String]
     def add(in: Sum): Future[Int]
     def echoInt(in: Int): Future[Int]

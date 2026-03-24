@@ -32,7 +32,7 @@ import scala.scalajs.js
 object AgentClientTypeEndToEndSpec extends ZIOSpecDefault {
 
   @agentDefinition("E2eClientAsync", mode = DurabilityMode.Durable)
-  trait AsyncEchoAgent extends BaseAgent[Unit] {
+  trait AsyncEchoAgent extends BaseAgent {
     def echo(in: String): Future[String]
   }
 

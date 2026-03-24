@@ -33,24 +33,24 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
   // ---------------------------------------------------------------------------
 
   @agentDefinition()
-  trait ConfigTestAgent extends BaseAgent[Unit] with AgentConfig[TestDbConfig] {
+  trait ConfigTestAgent extends BaseAgent with AgentConfig[TestDbConfig] {
     def ping(): Future[String]
   }
 
   @agentDefinition()
-  trait NestedConfigAgent extends BaseAgent[Unit] with AgentConfig[NestedAppConfig] {
+  trait NestedConfigAgent extends BaseAgent with AgentConfig[NestedAppConfig] {
     def info(): Future[String]
   }
 
   @agentDefinition()
-  trait NoConfigAgent extends BaseAgent[Unit] {
+  trait NoConfigAgent extends BaseAgent {
     def ping(): Future[String]
   }
 
   // Generate metadata via macro without full agent registration
   private lazy val configMeta: AgentMetadata   = AgentMacros.agentMetadata[ConfigTestAgent]
-  private lazy val nestedMeta: AgentMetadata    = AgentMacros.agentMetadata[NestedConfigAgent]
-  private lazy val noConfigMeta: AgentMetadata  = AgentMacros.agentMetadata[NoConfigAgent]
+  private lazy val nestedMeta: AgentMetadata   = AgentMacros.agentMetadata[NestedConfigAgent]
+  private lazy val noConfigMeta: AgentMetadata = AgentMacros.agentMetadata[NoConfigAgent]
 
   // ---------------------------------------------------------------------------
   // Tests
@@ -116,7 +116,8 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
     ),
     suite("JsAgentConfigDeclaration encoding")(
       test("local declaration encodes to JS correctly") {
-        val decl = AgentConfigDeclaration(AgentConfigSource.Local, List("host"), ElementSchema.Component(DataType.StringType))
+        val decl =
+          AgentConfigDeclaration(AgentConfigSource.Local, List("host"), ElementSchema.Component(DataType.StringType))
         val jsDecl = encodeDeclaration(decl)
         assertTrue(
           jsDecl.source == ("local": JsAgentConfigSource),
@@ -125,7 +126,8 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
         )
       },
       test("secret declaration encodes to JS correctly") {
-        val decl = AgentConfigDeclaration(AgentConfigSource.Secret, List("apiKey"), ElementSchema.Component(DataType.StringType))
+        val decl =
+          AgentConfigDeclaration(AgentConfigSource.Secret, List("apiKey"), ElementSchema.Component(DataType.StringType))
         val jsDecl = encodeDeclaration(decl)
         assertTrue(
           jsDecl.source == ("secret": JsAgentConfigSource),
@@ -134,7 +136,11 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
         )
       },
       test("multi-segment path encodes correctly") {
-        val decl = AgentConfigDeclaration(AgentConfigSource.Local, List("db", "host"), ElementSchema.Component(DataType.StringType))
+        val decl = AgentConfigDeclaration(
+          AgentConfigSource.Local,
+          List("db", "host"),
+          ElementSchema.Component(DataType.StringType)
+        )
         val jsDecl = encodeDeclaration(decl)
         assertTrue(
           jsDecl.path.length == 2,
@@ -167,10 +173,10 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
       case AgentConfigSource.Local  => "local"
       case AgentConfigSource.Secret => "secret"
     }
-    val path = js.Array(decl.path: _*)
+    val path    = js.Array(decl.path: _*)
     val witType = decl.valueType match {
       case ElementSchema.Component(dataType) => WitTypeBuilder.build(dataType)
-      case _ => throw new UnsupportedOperationException("Only component schemas supported")
+      case _                                 => throw new UnsupportedOperationException("Only component schemas supported")
     }
     JsAgentConfigDeclaration(source, path, witType)
   }

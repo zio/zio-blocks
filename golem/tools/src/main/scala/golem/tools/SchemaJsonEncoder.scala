@@ -158,6 +158,19 @@ object SchemaJsonEncoder {
               Arr(Str(enumCase.name), payloadValue)
             }
             variantType(variantEntries)
+          case DataType.PureEnumType(cases) =>
+            val variantEntries = cases.map { name =>
+              Arr(Str(name), Null)
+            }
+            variantType(variantEntries)
+          case DataType.ResultType(ok, err) =>
+            val okIndex  = ok.map(buildNode)
+            val errIndex = err.map(buildNode)
+            Obj(
+              "tag"   -> Str("result-type"),
+              "ok"    -> okIndex.fold[Value](Null)(i => Num(i)),
+              "error" -> errIndex.fold[Value](Null)(i => Num(i))
+            )
         }
 
         nodes(index) = node

@@ -10,14 +10,16 @@ package golem.runtime
  */
 object HttpValidation {
 
-  /** Validates an HTTP endpoint at the trait level (method params are known). */
+  /**
+   * Validates an HTTP endpoint at the trait level (method params are known).
+   */
   def validateEndpointVars(
     agentName: String,
     methodName: String,
     endpoint: HttpEndpointDetails,
     methodParamNames: Set[String],
     hasMount: Boolean
-  ): Either[String, Unit] = {
+  ): Either[String, Unit] =
     if (!hasMount)
       Left(
         s"Agent method '$methodName' of '$agentName' defines HTTP endpoints " +
@@ -29,7 +31,6 @@ object HttpValidation {
         _ <- validateHeaderVars(methodName, endpoint.headerVars, methodParamNames)
         _ <- validateQueryVars(methodName, endpoint.queryVars, methodParamNames)
       } yield ()
-  }
 
   private def validatePathVars(
     methodName: String,
@@ -51,7 +52,7 @@ object HttpValidation {
     methodName: String,
     headerVars: List[HeaderVariable],
     methodParamNames: Set[String]
-  ): Either[String, Unit] = {
+  ): Either[String, Unit] =
     headerVars.find(hv => !methodParamNames.contains(hv.variableName)) match {
       case Some(hv) =>
         Left(
@@ -59,13 +60,12 @@ object HttpValidation {
         )
       case None => Right(())
     }
-  }
 
   private def validateQueryVars(
     methodName: String,
     queryVars: List[QueryVariable],
     methodParamNames: Set[String]
-  ): Either[String, Unit] = {
+  ): Either[String, Unit] =
     queryVars.find(qv => !methodParamNames.contains(qv.variableName)) match {
       case Some(qv) =>
         Left(
@@ -73,22 +73,22 @@ object HttpValidation {
         )
       case None => Right(())
     }
-  }
 
-  /** Validates that the mount path has no catch-all (remaining path) variables. */
+  /**
+   * Validates that the mount path has no catch-all (remaining path) variables.
+   */
   def validateNoCatchAllInMount(
     agentName: String,
     mount: HttpMountDetails
-  ): Either[String, Unit] = {
-    mount.pathPrefix.collectFirst {
-      case PathSegment.RemainingPathVariable(name) => name
+  ): Either[String, Unit] =
+    mount.pathPrefix.collectFirst { case PathSegment.RemainingPathVariable(name) =>
+      name
     } match {
       case Some(name) =>
         Left(s"HTTP mount for agent '$agentName' cannot contain catch-all path variable '{*$name}'")
       case None =>
         Right(())
     }
-  }
 
   /** Validates mount path variables exist in constructor param names. */
   def validateMountVarsExistInConstructor(
@@ -113,8 +113,8 @@ object HttpValidation {
     mount: HttpMountDetails,
     constructorParamNames: Set[String]
   ): Either[String, Unit] = {
-    val providedVars = mount.pathPrefix.collect {
-      case PathSegment.PathVariable(name) => name
+    val providedVars = mount.pathPrefix.collect { case PathSegment.PathVariable(name) =>
+      name
     }.toSet
 
     constructorParamNames.find(param => !providedVars.contains(param)) match {
@@ -125,7 +125,9 @@ object HttpValidation {
     }
   }
 
-  /** Runs all mount-level validations (called from implementation-level macro). */
+  /**
+   * Runs all mount-level validations (called from implementation-level macro).
+   */
   def validateHttpMount(
     agentName: String,
     mount: HttpMountDetails,
@@ -142,7 +144,8 @@ object HttpValidation {
    * the agent's constructor schema. Called from generated code in the
    * `@agentImplementation` macro.
    *
-   * @throws IllegalArgumentException if validation fails
+   * @throws IllegalArgumentException
+   *   if validation fails
    */
   def validateHttpMountFromMetadata(metadata: AgentMetadata): Unit =
     metadata.httpMount.foreach { mount =>
@@ -156,15 +159,18 @@ object HttpValidation {
   /**
    * Extracts constructor parameter names from the agent's constructor schema.
    *
-   * The parameter names depend on how the agent's `BaseAgent[S]` type parameter `S` is defined:
+   * The parameter names depend on how the agent's `@constructor` method is
+   * defined:
    *
-   *   - '''Single element''' (e.g. `BaseAgent[String]`): produces one parameter named `"value"`.
-   *     The mount path must use `{value}` to refer to it.
-   *
-   *   - '''Tuple''' (e.g. `BaseAgent[(String, Int)]`): produces parameters named `"arg0"`, `"arg1"`, etc.
-   *     The mount path must use `{arg0}`, `{arg1}`, etc.
-   *
-   *   - '''Unit''' (`BaseAgent[Unit]`): produces no parameters. Mount paths must not contain variables.
+   *   - '''Single parameter''' (e.g.
+   *     `@constructor def create(value: String): Unit`): produces one parameter
+   *     named `"value"`. The mount path must use `{value}` to refer to it.
+   *   - '''Multiple parameters''' (e.g.
+   *     `@constructor def create(arg0: String, arg1: Int): Unit`): produces
+   *     parameters named `"arg0"`, `"arg1"`, etc. The mount path must use
+   *     `{arg0}`, `{arg1}`, etc.
+   *   - '''No constructor''': produces no parameters. Mount paths must not
+   *     contain variables.
    */
   private def extractConstructorParamNames(schema: golem.data.StructuredSchema): Set[String] =
     schema match {

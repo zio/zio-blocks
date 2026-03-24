@@ -1,6 +1,6 @@
 import org.scalajs.linker.interface.ModuleKind
 
-ThisBuild / scalaVersion := "3.3.7"
+ThisBuild / scalaVersion := "3.8.2"
 
 lazy val root = project
   .in(file("."))
@@ -8,6 +8,7 @@ lazy val root = project
   .settings(
     name := "scala-demo",
     scalaJSUseMainModuleInitializer := false,
+    scalacOptions += "-experimental",
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     golemAgentGuestWasmFile := {
       val appRoot = (ThisProject / baseDirectory).value

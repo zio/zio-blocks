@@ -206,6 +206,7 @@ object BuildHelper {
             "11",
             "-language:existentials",
             "-opt:l:method",
+            "-Ymacro-annotations",
             "-Ywarn-unused",
             "-Wconf:cat=unused&src=.*/test/.*:s",
             "-Wconf:msg=outer reference.*cannot be checked&src=.*/test/.*:s",

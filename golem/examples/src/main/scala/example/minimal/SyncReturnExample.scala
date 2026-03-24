@@ -21,7 +21,7 @@ import golem.{AgentCompanion, BaseAgent}
 
 @agentDefinition()
 @description("Demonstrates agent methods with synchronous return types.")
-trait SyncReturnAgent extends BaseAgent[Unit] {
+trait SyncReturnAgent extends BaseAgent {
   @description("Returns a greeting synchronously.")
   def greet(name: String): String
 
@@ -35,4 +35,4 @@ trait SyncReturnAgent extends BaseAgent[Unit] {
   def lastTag(): String
 }
 
-object SyncReturnAgent extends AgentCompanion[SyncReturnAgent, Unit]
+object SyncReturnAgent extends AgentCompanion[SyncReturnAgent]
