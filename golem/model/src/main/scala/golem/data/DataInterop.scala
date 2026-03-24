@@ -57,6 +57,7 @@ object DataInterop {
     isUnsignedWrapper(reflect)
       .orElse(reflectToDataType_wrapper(reflect))
       .orElse(reflectToDataType_option(reflect))
+      .orElse(reflectToDataType_either(reflect))
       .getOrElse(reflectToDataType_core(reflect))
 
   private def reflectToDataType_wrapper[A](reflect: Reflect.Bound[A]): Option[DataType] =
@@ -111,21 +112,23 @@ object DataInterop {
                   case None =>
                     reflect.asVariant match {
                       case Some(variant) =>
-                        EnumType(
-                          variant.cases.map { c =>
-                            val payloadDt =
-                              c.value.asRecord match {
-                                case Some(r) if r.fields.isEmpty                                      => None
-                                case Some(r) if r.fields.length == 1 && r.fields.head.name == "value" =>
-                                  Some(reflectToDataType(r.fields.head.value.asInstanceOf[Reflect.Bound[Any]]))
-                                case Some(r) =>
-                                  Some(reflectToDataType(r.asInstanceOf[Reflect.Bound[Any]]))
-                                case None =>
-                                  Some(reflectToDataType(c.value.asInstanceOf[Reflect.Bound[Any]]))
-                              }
-                            EnumCase(c.name, payloadDt)
-                          }.toList
-                        )
+                        val cases = variant.cases.map { c =>
+                          val payloadDt =
+                            c.value.asRecord match {
+                              case Some(r) if r.fields.isEmpty                                      => None
+                              case Some(r) if r.fields.length == 1 && r.fields.head.name == "value" =>
+                                Some(reflectToDataType(r.fields.head.value.asInstanceOf[Reflect.Bound[Any]]))
+                              case Some(r) =>
+                                Some(reflectToDataType(r.asInstanceOf[Reflect.Bound[Any]]))
+                              case None =>
+                                Some(reflectToDataType(c.value.asInstanceOf[Reflect.Bound[Any]]))
+                            }
+                          EnumCase(c.name, payloadDt)
+                        }.toList
+                        if (cases.forall(_.payload.isEmpty))
+                          PureEnumType(cases.map(_.name))
+                        else
+                          EnumType(cases)
 
                       case None =>
                         if (reflect.isDynamic) StructType(Nil)
@@ -180,6 +183,57 @@ object DataInterop {
       }
     }
 
+  private def reflectToDataType_either[A](reflect: Reflect.Bound[A]): Option[DataType] =
+    eitherInfo(reflect).map { case (leftRef, rightRef) =>
+      val errType = leftRef match {
+        case Some(r) => Some(reflectToDataType(r))
+        case None    => None
+      }
+      val okType = rightRef match {
+        case Some(r) => Some(reflectToDataType(r))
+        case None    => None
+      }
+      ResultType(ok = okType, err = errType)
+    }
+
+  /**
+   * Detects an Either-like schema (Variant(Left(value), Right(value))) and returns
+   * the inner `value` field reflects for Left (err) and Right (ok).
+   */
+  private def eitherInfo(
+    reflect: Reflect.Bound[?]
+  ): Option[(Option[Reflect.Bound[Any]], Option[Reflect.Bound[Any]])] =
+    reflect.asVariant.flatMap { variant =>
+      def simpleCaseName(name: String): String = {
+        val afterDot =
+          name.lastIndexOf('.') match {
+            case -1 => name
+            case i  => name.substring(i + 1)
+          }
+        if (afterDot.endsWith("$")) afterDot.dropRight(1) else afterDot
+      }
+
+      val leftCase  = variant.cases.find(t => simpleCaseName(t.name) == "Left")
+      val rightCase = variant.cases.find(t => simpleCaseName(t.name) == "Right")
+
+      if (leftCase.isEmpty || rightCase.isEmpty || variant.cases.length != 2) None
+      else {
+        def extractValueRef(caseReflect: Reflect.Bound[Any]): Option[Reflect.Bound[Any]] =
+          caseReflect.asRecord match {
+            case Some(r) if r.fields.isEmpty                                      => None
+            case Some(r) if r.fields.length == 1 && r.fields.head.name == "value" =>
+              Some(r.fields.head.value.asInstanceOf[Reflect.Bound[Any]])
+            case _ => Some(caseReflect)
+          }
+        Some(
+          (
+            extractValueRef(leftCase.get.value.asInstanceOf[Reflect.Bound[Any]]),
+            extractValueRef(rightCase.get.value.asInstanceOf[Reflect.Bound[Any]])
+          )
+        )
+      }
+    }
+
   private def primitiveToDataType(pt: PrimitiveType[?]): DataType =
     pt match {
       case PrimitiveType.Unit          => UnitType
@@ -202,6 +256,7 @@ object DataInterop {
     dynamicToDataValue_unsigned(reflect, d)
       .orElse(dynamicToDataValue_wrapper(reflect, d))
       .orElse(dynamicToDataValue_option(reflect, d))
+      .orElse(dynamicToDataValue_either(reflect, d))
       .orElse(dynamicToDataValue_tuple(reflect, d))
       .getOrElse(dynamicToDataValue_core(reflect, d))
 
@@ -268,6 +323,40 @@ object DataInterop {
           }
         case other =>
           throw new IllegalArgumentException(s"Option dynamic value expected Variant, got $other")
+      }
+    }
+
+  private def dynamicToDataValue_either[A](reflect: Reflect.Bound[A], d: DV): Option[DataValue] =
+    eitherInfo(reflect).map { case (leftRef, rightRef) =>
+      d match {
+        case DV.Variant("Left", payload) =>
+          leftRef match {
+            case Some(innerRef) =>
+              payload match {
+                case DV.Record(fields) =>
+                  fields.find(_._1 == "value") match {
+                    case Some((_, inner)) => ResultValue(Left(dynamicToDataValue(innerRef, inner)))
+                    case None             => throw new IllegalArgumentException("Either(Left) payload missing value field")
+                  }
+                case other => ResultValue(Left(dynamicToDataValue(innerRef, other)))
+              }
+            case None => ResultValue(Left(NullValue))
+          }
+        case DV.Variant("Right", payload) =>
+          rightRef match {
+            case Some(innerRef) =>
+              payload match {
+                case DV.Record(fields) =>
+                  fields.find(_._1 == "value") match {
+                    case Some((_, inner)) => ResultValue(Right(dynamicToDataValue(innerRef, inner)))
+                    case None => throw new IllegalArgumentException("Either(Right) payload missing value field")
+                  }
+                case other => ResultValue(Right(dynamicToDataValue(innerRef, other)))
+              }
+            case None => ResultValue(Right(NullValue))
+          }
+        case other =>
+          throw new IllegalArgumentException(s"Either dynamic value expected Variant(Left/Right), got $other")
       }
     }
 
@@ -359,6 +448,9 @@ object DataInterop {
                   case None =>
                     reflect.asVariant match {
                       case Some(variant) =>
+                        val isPure = variant.cases.forall { c =>
+                          c.value.asRecord.exists(_.fields.isEmpty)
+                        }
                         d match {
                           case DV.Variant(name, payload) =>
                             val caseTerm = variant
@@ -366,29 +458,32 @@ object DataInterop {
                               .getOrElse(
                                 throw new IllegalArgumentException(s"Unknown variant case '$name'")
                               )
-                            val payloadRef = caseTerm.value.asInstanceOf[Reflect.Bound[Any]]
-                            // Convention: cases are often Record(value = X); flatten to payload X.
-                            payloadRef.asRecord match {
-                              case Some(r) if r.fields.isEmpty =>
-                                EnumValue(name, None)
-                              case Some(r) if r.fields.length == 1 && r.fields.head.name == "value" =>
-                                payload match {
-                                  case DV.Record(fields) =>
-                                    val inner = fields
-                                      .find(_._1 == "value")
-                                      .map(_._2)
-                                      .getOrElse(
-                                        throw new IllegalArgumentException(
-                                          s"Variant case '$name' missing 'value' field"
+                            if (isPure)
+                              PureEnumValue(name)
+                            else {
+                              val payloadRef = caseTerm.value.asInstanceOf[Reflect.Bound[Any]]
+                              payloadRef.asRecord match {
+                                case Some(r) if r.fields.isEmpty =>
+                                  EnumValue(name, None)
+                                case Some(r) if r.fields.length == 1 && r.fields.head.name == "value" =>
+                                  payload match {
+                                    case DV.Record(fields) =>
+                                      val inner = fields
+                                        .find(_._1 == "value")
+                                        .map(_._2)
+                                        .getOrElse(
+                                          throw new IllegalArgumentException(
+                                            s"Variant case '$name' missing 'value' field"
+                                          )
                                         )
-                                      )
-                                    val innerRef = r.fields.head.value.asInstanceOf[Reflect.Bound[Any]]
-                                    EnumValue(name, Some(dynamicToDataValue(innerRef, inner)))
-                                  case other =>
-                                    EnumValue(name, Some(dynamicToDataValue(payloadRef, other)))
-                                }
-                              case _ =>
-                                EnumValue(name, Some(dynamicToDataValue(payloadRef, payload)))
+                                      val innerRef = r.fields.head.value.asInstanceOf[Reflect.Bound[Any]]
+                                      EnumValue(name, Some(dynamicToDataValue(innerRef, inner)))
+                                    case other =>
+                                      EnumValue(name, Some(dynamicToDataValue(payloadRef, other)))
+                                  }
+                                case _ =>
+                                  EnumValue(name, Some(dynamicToDataValue(payloadRef, payload)))
+                              }
                             }
                           case other =>
                             throw new IllegalArgumentException(s"Expected variant dynamic value, found: $other")
@@ -424,6 +519,7 @@ object DataInterop {
     dataValueToDynamic_unsigned(reflect, value)
       .orElse(dataValueToDynamic_wrapper(reflect, value))
       .orElse(dataValueToDynamic_option(reflect, value))
+      .orElse(dataValueToDynamic_either(reflect, value))
       .getOrElse(dataValueToDynamic_tupleOrCore(reflect, value))
 
   private def dataValueToDynamic_unsigned[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] = {
@@ -470,6 +566,26 @@ object DataInterop {
           DV.Variant("Some", payload)
         case other =>
           throw new IllegalArgumentException(s"Expected OptionalValue for Option, got $other")
+      }
+    }
+
+  private def dataValueToDynamic_either[A](reflect: Reflect.Bound[A], value: DataValue): Option[DV] =
+    eitherInfo(reflect).map { case (leftRef, rightRef) =>
+      value match {
+        case ResultValue(Left(errVal)) =>
+          val dynPayload = leftRef match {
+            case Some(innerRef) => DV.Record(Chunk("value" -> dataValueToDynamic(innerRef, errVal)))
+            case None           => DV.Record(Chunk.empty)
+          }
+          DV.Variant("Left", dynPayload)
+        case ResultValue(Right(okVal)) =>
+          val dynPayload = rightRef match {
+            case Some(innerRef) => DV.Record(Chunk("value" -> dataValueToDynamic(innerRef, okVal)))
+            case None           => DV.Record(Chunk.empty)
+          }
+          DV.Variant("Right", dynPayload)
+        case other =>
+          throw new IllegalArgumentException(s"Expected ResultValue for Either, got $other")
       }
     }
 
@@ -607,6 +723,8 @@ object DataInterop {
                     reflect.asVariant match {
                       case Some(_) =>
                         value match {
+                          case PureEnumValue(caseName) =>
+                            DV.Variant(caseName, DV.Record(Chunk.empty))
                           case EnumValue(caseName, maybePayload) =>
                             val payloadDyn = maybePayload match {
                               case None     => DV.Record(Chunk.empty)

@@ -26,7 +26,9 @@ import golem.runtime.{
   HttpMountDetails,
   HttpRouteParser,
   HttpValidation,
-  PathSegment
+  PathSegment,
+  Snapshotting,
+  SnapshottingConfig
 }
 
 import scala.reflect.macros.blackbox
@@ -107,6 +109,8 @@ object AgentDefinitionMacroImpl {
       case None       => q"_root_.scala.Nil"
     }
 
+    val snapshottingExpr = extractSnapshottingExpr(c)(typeSymbol, agentDefinitionType)
+
     c.Expr[AgentMetadata](q"""
       _root_.golem.runtime.AgentMetadata(
         name = $typeName,
@@ -115,7 +119,8 @@ object AgentDefinitionMacroImpl {
         methods = List(..$methods),
         constructor = $constructorSchema,
         httpMount = $httpMountExpr,
-        config = $configExpr
+        config = $configExpr,
+        snapshotting = $snapshottingExpr
       )
     """)
   }
@@ -250,6 +255,34 @@ object AgentDefinitionMacroImpl {
 
         q"$configSchemaInstance.describe(_root_.scala.Nil)"
       }
+    }
+  }
+
+  private def extractSnapshottingExpr(c: blackbox.Context)(
+    typeSymbol: c.universe.Symbol,
+    agentDefinitionType: c.universe.Type
+  ): c.Tree = {
+    import c.universe._
+
+    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType)
+    val snapStr = annOpt.flatMap { ann =>
+      val args = ann.tree.children.tail
+      extractNamedStringArg(c)(args, "snapshotting", 7)
+    }.getOrElse("disabled")
+
+    Snapshotting.parse(snapStr) match {
+      case Right(Snapshotting.Disabled) =>
+        q"_root_.golem.runtime.Snapshotting.Disabled"
+      case Right(Snapshotting.Enabled(SnapshottingConfig.Default)) =>
+        q"_root_.golem.runtime.Snapshotting.Enabled(_root_.golem.runtime.SnapshottingConfig.Default)"
+      case Right(Snapshotting.Enabled(SnapshottingConfig.Periodic(nanos))) =>
+        val nanosLit = Literal(Constant(nanos))
+        q"_root_.golem.runtime.Snapshotting.Enabled(_root_.golem.runtime.SnapshottingConfig.Periodic($nanosLit))"
+      case Right(Snapshotting.Enabled(SnapshottingConfig.EveryN(count))) =>
+        val countLit = Literal(Constant(count))
+        q"_root_.golem.runtime.Snapshotting.Enabled(_root_.golem.runtime.SnapshottingConfig.EveryN($countLit))"
+      case Left(err) =>
+        c.abort(c.enclosingPosition, s"Invalid snapshotting on @agentDefinition for ${typeSymbol.fullName}: $err")
     }
   }
 

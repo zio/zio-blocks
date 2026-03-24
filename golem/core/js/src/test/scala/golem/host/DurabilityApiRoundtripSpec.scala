@@ -25,47 +25,60 @@ import scala.scalajs.js
 object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
   import DurabilityApi._
 
+  private def jsTag(v: JsWrappedFunctionType): String =
+    v.asInstanceOf[js.Dynamic].tag.asInstanceOf[String]
+
   def spec = suite("DurabilityApiRoundtripSpec")(
     // --- DurableFunctionType round-trips ---
 
     test("ReadLocal round-trip") {
-      val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadLocal)
+      val jsVal     = DurableFunctionType.toJs(DurableFunctionType.ReadLocal)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "read-local",
-        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.ReadLocal
+        tag == "read-local",
+        roundTrip == DurableFunctionType.ReadLocal
       )
     },
 
     test("WriteLocal round-trip") {
-      val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteLocal)
+      val jsVal     = DurableFunctionType.toJs(DurableFunctionType.WriteLocal)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-local",
-        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.WriteLocal
+        tag == "write-local",
+        roundTrip == DurableFunctionType.WriteLocal
       )
     },
 
     test("ReadRemote round-trip") {
-      val jsVal = DurableFunctionType.toJs(DurableFunctionType.ReadRemote)
+      val jsVal     = DurableFunctionType.toJs(DurableFunctionType.ReadRemote)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "read-remote",
-        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.ReadRemote
+        tag == "read-remote",
+        roundTrip == DurableFunctionType.ReadRemote
       )
     },
 
     test("WriteRemote round-trip") {
-      val jsVal = DurableFunctionType.toJs(DurableFunctionType.WriteRemote)
+      val jsVal     = DurableFunctionType.toJs(DurableFunctionType.WriteRemote)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote",
-        DurableFunctionType.fromJs(jsVal) == DurableFunctionType.WriteRemote
+        tag == "write-remote",
+        roundTrip == DurableFunctionType.WriteRemote
       )
     },
 
     test("WriteRemoteBatched with None round-trip") {
-      val ft    = DurableFunctionType.WriteRemoteBatched(None)
-      val jsVal = DurableFunctionType.toJs(ft)
+      val ft        = DurableFunctionType.WriteRemoteBatched(None)
+      val jsVal     = DurableFunctionType.toJs(ft)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote-batched",
-        DurableFunctionType.fromJs(jsVal) == ft
+        tag == "write-remote-batched",
+        roundTrip == ft
       )
     },
 
@@ -73,18 +86,25 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
       val ft     = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
       val jsVal  = DurableFunctionType.toJs(ft)
       val parsed = DurableFunctionType.fromJs(jsVal)
+      val isBatched = parsed match {
+        case _: DurableFunctionType.WriteRemoteBatched => true
+        case _                                        => false
+      }
+      val begin = parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin
       assertTrue(
-        parsed.isInstanceOf[DurableFunctionType.WriteRemoteBatched],
-        parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin == Some(BigInt(42))
+        isBatched,
+        begin == Some(BigInt(42))
       )
     },
 
     test("WriteRemoteTransaction with None round-trip") {
-      val ft    = DurableFunctionType.WriteRemoteTransaction(None)
-      val jsVal = DurableFunctionType.toJs(ft)
+      val ft        = DurableFunctionType.WriteRemoteTransaction(None)
+      val jsVal     = DurableFunctionType.toJs(ft)
+      val tag       = jsTag(jsVal)
+      val roundTrip = DurableFunctionType.fromJs(jsVal)
       assertTrue(
-        jsVal.asInstanceOf[js.Dynamic].tag.asInstanceOf[String] == "write-remote-transaction",
-        DurableFunctionType.fromJs(jsVal) == ft
+        tag == "write-remote-transaction",
+        roundTrip == ft
       )
     },
 
@@ -92,9 +112,14 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
       val ft     = DurableFunctionType.WriteRemoteTransaction(Some(BigInt(100)))
       val jsVal  = DurableFunctionType.toJs(ft)
       val parsed = DurableFunctionType.fromJs(jsVal)
+      val isTxn = parsed match {
+        case _: DurableFunctionType.WriteRemoteTransaction => true
+        case _                                             => false
+      }
+      val begin = parsed.asInstanceOf[DurableFunctionType.WriteRemoteTransaction].begin
       assertTrue(
-        parsed.isInstanceOf[DurableFunctionType.WriteRemoteTransaction],
-        parsed.asInstanceOf[DurableFunctionType.WriteRemoteTransaction].begin == Some(BigInt(100))
+        isTxn,
+        begin == Some(BigInt(100))
       )
     },
 

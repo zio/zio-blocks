@@ -20,6 +20,7 @@ import golem.data.DataType._
 import golem.data.DataValue._
 import golem.data.{DataType, DataValue}
 import golem.host.js._
+import golem.host.js.{JsOk, JsErr}
 
 import scala.scalajs.js
 
@@ -166,6 +167,47 @@ private[golem] object WitValueCodec {
                 case None =>
                   Left(s"Variant ${selected.name} does not expect payload")
               }
+          }
+        case (enumType: EnumType, "enum-value") =>
+          val caseIndex = node.asInstanceOf[JsWitNodeEnumValue].value
+          if (caseIndex < 0 || caseIndex >= enumType.cases.length)
+            Left(s"Enum index $caseIndex out of range")
+          else
+            Right(EnumValue(enumType.cases(caseIndex).name, None))
+        case (pureEnum: PureEnumType, "enum-value") =>
+          val caseIndex = node.asInstanceOf[JsWitNodeEnumValue].value
+          if (caseIndex < 0 || caseIndex >= pureEnum.cases.length)
+            Left(s"Enum index $caseIndex out of range")
+          else
+            Right(PureEnumValue(pureEnum.cases(caseIndex)))
+        case (resultType: ResultType, "result-value") =>
+          val resultVal = node.asInstanceOf[JsWitNodeResultValue].value
+          val resultTag = resultVal.tag
+          resultTag match {
+            case "ok" =>
+              val okRef = resultVal.asInstanceOf[JsOk[js.UndefOr[JsNodeIndex]]].value
+              if (okRef.isEmpty)
+                Right(ResultValue(Right(NullValue)))
+              else
+                resultType.ok match {
+                  case Some(okType) =>
+                    decodeNode(okType, nodes, okRef.get).map(v => ResultValue(Right(v)))
+                  case None =>
+                    Left("Result ok has payload but type declares none")
+                }
+            case "err" =>
+              val errRef = resultVal.asInstanceOf[JsErr[js.UndefOr[JsNodeIndex]]].value
+              if (errRef.isEmpty)
+                Right(ResultValue(Left(NullValue)))
+              else
+                resultType.err match {
+                  case Some(errType) =>
+                    decodeNode(errType, nodes, errRef.get).map(v => ResultValue(Left(v)))
+                  case None =>
+                    Left("Result err has payload but type declares none")
+                }
+            case other =>
+              Left(s"Unknown result tag: $other")
           }
         case other =>
           Left(s"Unsupported decoding for $other with node tag $tag")

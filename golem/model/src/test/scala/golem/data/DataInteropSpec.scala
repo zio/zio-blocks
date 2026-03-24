@@ -61,6 +61,12 @@ object DataInteropSpec extends ZIOSpecDefault {
   )
   implicit val primitivesSchema: Schema[Primitives] = Schema.derived
 
+  sealed trait Color
+  case object Red   extends Color
+  case object Green extends Color
+  case object Blue  extends Color
+  implicit val colorSchema: Schema[Color] = Schema.derived
+
   final case class NarrowPrimitives(byte: Byte, short: Short, float: Float)
   implicit val narrowPrimitivesSchema: Schema[NarrowPrimitives] = Schema.derived
 
@@ -321,6 +327,22 @@ object DataInteropSpec extends ZIOSpecDefault {
       test("exposes derived data types") {
         val dt = DataInterop.dataTypeOf[Person]
         assertTrue(dt.isInstanceOf[DataType.StructType])
+      },
+      test("maps all-unit sealed trait to PureEnumType") {
+        val dt = DataInterop.schemaToDataType(Schema[Color])
+        assertTrue(dt == DataType.PureEnumType(List("Red", "Green", "Blue")))
+      },
+      test("round trips pure enum values") {
+        val red: Color   = Red
+        val green: Color = Green
+        val encoded      = DataInterop.toData(red)
+        assertTrue(encoded == DataValue.PureEnumValue("Red")) &&
+        assert(DataInterop.fromData[Color](encoded))(isRight(equalTo(Red))) &&
+        assert(DataInterop.fromData[Color](DataInterop.toData(green)))(isRight(equalTo(Green)))
+      },
+      test("maps mixed sealed trait (with payloads) to EnumType") {
+        val dt = DataInterop.schemaToDataType(Schema[Choice])
+        assertTrue(dt.isInstanceOf[DataType.EnumType])
       }
     )
 }

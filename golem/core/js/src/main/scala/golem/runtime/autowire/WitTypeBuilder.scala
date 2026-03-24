@@ -101,6 +101,12 @@ private[golem] object WitTypeBuilder {
             )
           }
           JsWitTypeNode.variantType(variantEntries)
+        case DataType.PureEnumType(cases) =>
+          JsWitTypeNode.enumType(js.Array(cases: _*))
+        case DataType.ResultType(ok, err) =>
+          val okIdx  = ok.map(buildNode).fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          val errIdx = err.map(buildNode).fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          JsWitTypeNode.resultType(okIdx, errIdx)
       }
 
       nodes(index) = JsNamedWitTypeNode(typeVariant)

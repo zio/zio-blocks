@@ -19,6 +19,7 @@ package golem.runtime.autowire
 import golem.data.DataValue._
 import golem.data.{DataType, DataValue}
 import golem.host.js._
+import golem.host.js.JsResult
 
 import scala.scalajs.js
 
@@ -131,6 +132,31 @@ private[golem] object WitValueBuilder {
               case None =>
                 Right(JsWitNode.variantValue(index, js.undefined))
             }
+        case (pureEnum: DataType.PureEnumType, PureEnumValue(caseName)) =>
+          val index = pureEnum.cases.indexOf(caseName)
+          if (index < 0) Left(s"Unknown pure enum case $caseName")
+          else Right(JsWitNode.enumValue(index))
+        case (resultType: DataType.ResultType, ResultValue(either)) =>
+          either match {
+            case Right(okVal) =>
+              resultType.ok match {
+                case Some(okType) =>
+                  build(okType, okVal).map { child =>
+                    JsWitNode.resultValue(JsResult.okOptional[JsNodeIndex](child: js.UndefOr[JsNodeIndex]))
+                  }
+                case None =>
+                  Right(JsWitNode.resultValue(JsResult.okOptional[JsNodeIndex](js.undefined)))
+              }
+            case Left(errVal) =>
+              resultType.err match {
+                case Some(errType) =>
+                  build(errType, errVal).map { child =>
+                    JsWitNode.resultValue(JsResult.errOptional[JsNodeIndex](child: js.UndefOr[JsNodeIndex]))
+                  }
+                case None =>
+                  Right(JsWitNode.resultValue(JsResult.errOptional[JsNodeIndex](js.undefined)))
+              }
+          }
         case other =>
           Left(s"Unsupported value encoding for $other")
       }

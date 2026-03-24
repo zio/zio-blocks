@@ -134,9 +134,8 @@ object AgentClientMacroImpl {
   )(traitType: c.universe.Type, method: c.universe.MethodSymbol): c.Tree = {
     import c.universe._
 
-    val methodName    = method.name.toString
-    val agentTypeName = agentTypeNameOrDefault(c)(traitType.typeSymbol)
-    val functionName  = s"$agentTypeName.{$methodName}"
+    val methodName   = method.name.toString
+    val functionName = methodName
     val metadataExpr  = methodMetadata(c)(method)
 
     val params                       = extractParameters(c)(method)

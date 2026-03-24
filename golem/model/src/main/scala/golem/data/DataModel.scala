@@ -33,6 +33,10 @@ object DataType {
 
   final case class EnumType(cases: List[EnumCase]) extends DataType
 
+  final case class PureEnumType(cases: List[String]) extends DataType
+
+  final case class ResultType(ok: Option[DataType], err: Option[DataType]) extends DataType
+
   final case class Field(name: String, dataType: DataType, optional: Boolean)
 
   final case class EnumCase(name: String, payload: Option[DataType])
@@ -116,6 +120,10 @@ object DataValue {
   final case class StructValue(fields: Map[String, DataValue]) extends DataValue
 
   final case class EnumValue(caseName: String, payload: Option[DataValue]) extends DataValue
+
+  final case class PureEnumValue(caseName: String) extends DataValue
+
+  final case class ResultValue(value: Either[DataValue, DataValue]) extends DataValue
 
   case object NullValue extends DataValue
 }

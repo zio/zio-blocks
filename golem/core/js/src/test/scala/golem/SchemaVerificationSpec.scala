@@ -56,6 +56,16 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
   // Agent with many parameter/return type combinations
   // ---------------------------------------------------------------------------
 
+  sealed trait Color
+  object Color {
+    case object Red   extends Color
+    case object Green extends Color
+    case object Blue  extends Color
+    implicit val schema: Schema[Color] = Schema.derived
+  }
+
+  implicit val eitherStringIntSchema: Schema[Either[String, Int]] = Schema.derived
+
   @agentDefinition("schema-verify-agent")
   trait SchemaVerifyAgent extends BaseAgent[Unit] {
     def stringMethod(s: String): Future[String]
@@ -78,6 +88,8 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     def textSegmentMethod(t: TextSegment[SvLang]): Future[TextSegment[SvLang]]
     def binarySegmentMethod(b: BinarySegment[SvMime]): Future[BinarySegment[SvMime]]
     def multimodalMethod(m: Multimodal[PersonInfo]): Future[Multimodal[PersonInfo]]
+    def pureEnumMethod(c: Color): Future[Color]
+    def eitherMethod(e: Either[String, Int]): Future[Either[String, Int]]
   }
 
   @agentImplementation()
@@ -103,6 +115,8 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     override def textSegmentMethod(t: TextSegment[SvLang]): Future[TextSegment[SvLang]]       = Future.successful(t)
     override def binarySegmentMethod(b: BinarySegment[SvMime]): Future[BinarySegment[SvMime]] = Future.successful(b)
     override def multimodalMethod(m: Multimodal[PersonInfo]): Future[Multimodal[PersonInfo]]  = Future.successful(m)
+    override def pureEnumMethod(c: Color): Future[Color]                                     = Future.successful(c)
+    override def eitherMethod(e: Either[String, Int]): Future[Either[String, Int]]            = Future.successful(e)
   }
 
   private lazy val defn = AgentImplementation.registerClass[SchemaVerifyAgent, SchemaVerifyAgentImpl]
@@ -239,8 +253,14 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
     test("ulong method produces prim-u64-type WIT node") {
       assertTrue(firstInputWitTypeTag("ulongMethod") == "prim-u64-type")
     },
-    test("schema-verify agent has 20 registered methods") {
-      assertTrue(defn.methodMetadata.size == 20)
+    test("schema-verify agent has 22 registered methods") {
+      assertTrue(defn.methodMetadata.size == 22)
+    },
+    test("pure enum method produces enum-type WIT node") {
+      assertTrue(firstInputWitTypeTag("pureEnumMethod") == "enum-type")
+    },
+    test("either method produces result-type WIT node") {
+      assertTrue(firstInputWitTypeTag("eitherMethod") == "result-type")
     }
   )
 }

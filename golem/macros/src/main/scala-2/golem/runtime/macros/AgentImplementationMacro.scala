@@ -18,6 +18,7 @@ package golem.runtime.macros
 
 import golem.config.ConfigBuilder
 import golem.data.GolemSchema
+import golem.runtime.Snapshotting
 import golem.runtime.agenttype.AgentImplementationType
 
 import scala.reflect.macros.blackbox
@@ -718,11 +719,179 @@ object AgentImplementationMacroImpl {
           configBuilder = $configBuilderExpr,
           configInjectedViaConstructor = ${if (configParam.isDefined) q"true" else q"false"},
           principalInjectedViaConstructor = ${if (principalParam.isDefined) q"true" else q"false"},
-          snapshotHandlers = None
+          snapshotHandlers = ${buildSnapshotHandlersExpr(c)(traitType, implType)}
         ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, Any]]
       }
       """
     )
+  }
+
+  private def buildSnapshotHandlersExpr(c: blackbox.Context)(
+    traitType: c.universe.Type,
+    implType: c.universe.Type
+  ): c.Tree = {
+    import c.universe._
+
+    val customHooks      = detectCustomSnapshotHooks(c)(implType)
+    val snapshottedState = detectSnapshottedStateType(c)(implType)
+    val snapshottingEnabled = extractSnapshottingEnabled(c)(traitType)
+
+    customHooks match {
+      case Some((saveSym, loadSym)) =>
+        // Custom saveSnapshot/loadSnapshot hooks
+        q"""
+        {
+          val rawSave: ($traitType => _root_.scala.concurrent.Future[Array[Byte]]) =
+            (instance: $traitType) => instance.asInstanceOf[$implType].${saveSym.name.toTermName}()
+          val rawLoad: (($traitType, Array[Byte]) => _root_.scala.concurrent.Future[Unit]) =
+            (instance: $traitType, bytes: Array[Byte]) => instance.asInstanceOf[$implType].${loadSym.name.toTermName}(bytes)
+          _root_.scala.Some(
+            _root_.golem.runtime.agenttype.SnapshotHandlers[$traitType](
+              save = _root_.golem.runtime.agenttype.SnapshotHandlers.wrapSave[$traitType](rawSave),
+              load = _root_.golem.runtime.agenttype.SnapshotHandlers.wrapLoad[$traitType](rawLoad)
+            )
+          )
+        }
+        """
+      case None =>
+        snapshottedState match {
+          case Some(stateTpe) =>
+            // Snapshotted[S] mixin — summon Schema[S], derive JSON codec
+            val schemaTpe = appliedType(typeOf[zio.blocks.schema.Schema[_]].typeConstructor, stateTpe)
+            val schemaInstance = c.inferImplicitValue(schemaTpe)
+            if (schemaInstance.isEmpty) {
+              c.abort(
+                c.enclosingPosition,
+                s"Unable to summon zio.blocks.schema.Schema[$stateTpe] required by Snapshotted on ${implType.typeSymbol.fullName}.\n" +
+                "Hint: Add an implicit `Schema[$stateTpe] = Schema.derived` for your state case class."
+              )
+            }
+            q"""
+            {
+              val codec = $schemaInstance.derive(_root_.zio.blocks.schema.json.JsonCodecDeriver)
+              _root_.scala.Some(
+                _root_.golem.runtime.agenttype.SnapshotHandlers[$traitType](
+                  save = (instance: $traitType) => {
+                    val snap = instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]]
+                    _root_.scala.concurrent.Future.successful(
+                      _root_.golem.runtime.agenttype.SnapshotPayload(
+                        bytes = codec.encode(snap.state),
+                        mimeType = "application/json"
+                      )
+                    )
+                  },
+                  load = (instance: $traitType, bytes: Array[Byte]) => {
+                    codec.decode(bytes) match {
+                      case Right(restored) =>
+                        instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]].state = restored
+                        _root_.scala.concurrent.Future.successful(instance)
+                      case Left(err) =>
+                        _root_.scala.concurrent.Future.failed(
+                          new IllegalArgumentException(
+                            "Failed to decode JSON snapshot for " + ${Literal(Constant(implType.typeSymbol.fullName))} + ": " + err
+                          )
+                        )
+                    }
+                  }
+                )
+              )
+            }
+            """
+          case None =>
+            if (snapshottingEnabled) {
+              c.abort(
+                c.enclosingPosition,
+                s"Snapshotting is enabled for ${traitType.typeSymbol.fullName}, but ${implType.typeSymbol.fullName} " +
+                s"provides no snapshot support. Either:\n" +
+                s"  (1) Mix in Snapshotted[S] with a case class S that has an implicit zio.blocks.schema.Schema\n" +
+                s"  (2) Implement `def saveSnapshot(): Future[Array[Byte]]` and `def loadSnapshot(bytes: Array[Byte]): Future[Unit]`"
+              )
+            }
+            q"_root_.scala.None"
+        }
+    }
+  }
+
+  private def extractSnapshottingEnabled(c: blackbox.Context)(
+    traitType: c.universe.Type
+  ): Boolean = {
+    import c.universe._
+
+    val agentDefinitionType = typeOf[golem.runtime.annotations.agentDefinition]
+    val traitSymbol = traitType.typeSymbol
+
+    val snapStr = traitSymbol.annotations.collectFirst {
+      case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+        val args = ann.tree.children.tail
+        args.collectFirst {
+          case NamedArg(Ident(TermName("snapshotting")), Literal(Constant(v: String))) => v
+        }.orElse {
+          args.lift(7).collect {
+            case Literal(Constant(v: String)) => v
+            case NamedArg(_, Literal(Constant(v: String))) => v
+          }
+        }
+    }.flatten.getOrElse("disabled")
+
+    Snapshotting.parse(snapStr) match {
+      case Right(Snapshotting.Enabled(_)) => true
+      case _                             => false
+    }
+  }
+
+  private def detectCustomSnapshotHooks(c: blackbox.Context)(
+    implType: c.universe.Type
+  ): Option[(c.universe.MethodSymbol, c.universe.MethodSymbol)] = {
+    import c.universe._
+
+    val futureSymbol = typeOf[scala.concurrent.Future[_]].typeSymbol
+
+    val saveMatches = implType.decls.collect {
+      case m: MethodSymbol
+        if m.name.decodedName.toString == "saveSnapshot" &&
+           !m.isPrivate && !m.isProtected &&
+           m.paramLists.flatten.filter(_.isTerm).isEmpty &&
+           m.returnType.typeSymbol == futureSymbol =>
+        m
+    }.toList
+
+    val loadMatches = implType.decls.collect {
+      case m: MethodSymbol
+        if m.name.decodedName.toString == "loadSnapshot" &&
+           !m.isPrivate && !m.isProtected && {
+             val termParams = m.paramLists.flatten.filter(_.isTerm)
+             termParams.length == 1 && termParams.head.typeSignature =:= typeOf[Array[Byte]]
+           } &&
+           m.returnType.typeSymbol == futureSymbol =>
+        m
+    }.toList
+
+    if (saveMatches.nonEmpty != loadMatches.nonEmpty)
+      c.abort(
+        c.enclosingPosition,
+        s"${implType.typeSymbol.fullName} must declare both saveSnapshot and loadSnapshot, or neither"
+      )
+
+    for {
+      save <- saveMatches.headOption
+      load <- loadMatches.headOption
+    } yield (save, load)
+  }
+
+  private def detectSnapshottedStateType(c: blackbox.Context)(
+    implType: c.universe.Type
+  ): Option[c.universe.Type] = {
+    import c.universe._
+
+    val snapSymName = "golem.Snapshotted"
+    val snapBaseOpt = implType.baseClasses.find(_.fullName == snapSymName)
+
+    snapBaseOpt.flatMap { snapSym =>
+      implType.baseType(snapSym) match {
+        case TypeRef(_, _, List(stateTpe)) => Some(stateTpe)
+        case _                            => None
+      }
+    }
   }
 
   private sealed trait ParamAccessMode
