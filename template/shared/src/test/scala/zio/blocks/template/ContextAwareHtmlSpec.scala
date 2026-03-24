@@ -56,62 +56,62 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("boolean attributes are Modifiers")(
-      test("disabled is a Modifier (BooleanAttribute)") {
+    suite("boolean attributes have ToModifier instances")(
+      test("disabled is usable via ToModifier (BooleanAttribute)") {
         val result = div(disabled)
         assertTrue(result.render == "<div disabled></div>")
       },
-      test("checked is a Modifier (BooleanAttribute)") {
+      test("checked is usable via ToModifier (BooleanAttribute)") {
         val result = input(checked)
         assertTrue(result.render == "<input checked/>")
       },
-      test("required is a Modifier (BooleanAttribute)") {
+      test("required is usable via ToModifier (BooleanAttribute)") {
         val result = input(required)
         assertTrue(result.render == "<input required/>")
       },
-      test("hidden is a Modifier (BooleanAttribute)") {
+      test("hidden is usable via ToModifier (BooleanAttribute)") {
         val result = div(hidden)
         assertTrue(result.render == "<div hidden></div>")
       },
-      test("readonly is a Modifier (BooleanAttribute)") {
+      test("readonly is usable via ToModifier (BooleanAttribute)") {
         val result = input(readonly)
         assertTrue(result.render == "<input readonly/>")
       },
-      test("selected is a Modifier (BooleanAttribute)") {
+      test("selected is usable via ToModifier (BooleanAttribute)") {
         val result = option(selected)
         assertTrue(result.render == "<option selected></option>")
       },
-      test("multiple is a Modifier (BooleanAttribute)") {
+      test("multiple is usable via ToModifier (BooleanAttribute)") {
         val result = select(multiple)
         assertTrue(result.render == "<select multiple></select>")
       },
-      test("autofocus is a Modifier (BooleanAttribute)") {
+      test("autofocus is usable via ToModifier (BooleanAttribute)") {
         val result = input(autofocus)
         assertTrue(result.render == "<input autofocus/>")
       },
-      test("open is a Modifier (BooleanAttribute)") {
+      test("open is usable via ToModifier (BooleanAttribute)") {
         val result = details(open)
         assertTrue(result.render == "<details open></details>")
       },
-      test("reversed is a Modifier (BooleanAttribute)") {
+      test("reversed is usable via ToModifier (BooleanAttribute)") {
         val result = ol(reversed)
         assertTrue(result.render == "<ol reversed></ol>")
       },
-      test("defer is a Modifier (BooleanAttribute)") {
+      test("defer is usable via ToModifier (BooleanAttribute)") {
         val result = script(defer)
         assertTrue(result.render == "<script defer></script>")
       },
-      test("async is a Modifier (BooleanAttribute)") {
+      test("async is usable via ToModifier (BooleanAttribute)") {
         val result = script(async)
         assertTrue(result.render == "<script async></script>")
       }
     ),
     suite("key-value attributes via :=")(
-      test("id := produces Modifier via implicit") {
+      test("id := produces Attribute via ToModifier") {
         val result = div(id := "main")
         assertTrue(result.render == """<div id="main"></div>""")
       },
-      test("className := produces Modifier via implicit") {
+      test("className := produces Attribute via ToModifier") {
         val result = div(className := "container")
         assertTrue(result.render == """<div class="container"></div>""")
       },
