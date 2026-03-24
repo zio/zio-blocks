@@ -44,6 +44,8 @@ private[golem] object WitValueBuilder {
           Right(JsWitNode.primString(v))
         case (DataType.BoolType, BoolValue(v)) =>
           Right(JsWitNode.primBool(v))
+        case (DataType.CharType, CharValue(v)) =>
+          Right(JsWitNode.primChar(v.toString))
         case (DataType.ByteType, ByteValue(v)) =>
           Right(JsWitNode.primS8(v))
         case (DataType.ShortType, ShortValue(v)) =>
@@ -94,10 +96,10 @@ private[golem] object WitValueBuilder {
           encodeSequence(values, of, "list-value")
         case (DataType.SetType(of), SetValue(values)) =>
           encodeSequence(values.toList, of, "list-value")
-        case (DataType.MapType(valueType), MapValue(entries)) =>
-          val entryType   = DataType.TupleType(List(DataType.StringType, valueType))
-          val entryValues = entries.toList.map { case (k, v) =>
-            TupleValue(List(StringValue(k), v))
+        case (DataType.MapType(keyType, valueType), MapValue(entries)) =>
+          val entryType   = DataType.TupleType(List(keyType, valueType))
+          val entryValues = entries.map { case (k, v) =>
+            TupleValue(List(k, v))
           }
           encodeSequence(entryValues, entryType, "list-value")
         case (DataType.TupleType(elements), TupleValue(values)) =>

@@ -101,13 +101,10 @@ object DataInterop {
               case None =>
                 reflect.asMapUnknown match {
                   case Some(mapUnknown) =>
-                    val keyDt = reflectToDataType(mapUnknown.map.key.asInstanceOf[Reflect.Bound[Any]])
-                    keyDt match {
-                      case StringType =>
-                        MapType(reflectToDataType(mapUnknown.map.value.asInstanceOf[Reflect.Bound[Any]]))
-                      case other =>
-                        throw new IllegalArgumentException(s"Only string map keys are supported, found: $other")
-                    }
+                    MapType(
+                      reflectToDataType(mapUnknown.map.key.asInstanceOf[Reflect.Bound[Any]]),
+                      reflectToDataType(mapUnknown.map.value.asInstanceOf[Reflect.Bound[Any]])
+                    )
 
                   case None =>
                     reflect.asVariant match {
@@ -248,6 +245,7 @@ object DataInterop {
       case _: PrimitiveType.BigDecimal => BigDecimalType
       case _: PrimitiveType.BigInt     => BigDecimalType // BigInt mapped via BigDecimal encoding
       case _: PrimitiveType.UUID       => UUIDType
+      case _: PrimitiveType.Char      => CharType
       case other                       =>
         throw new IllegalArgumentException(s"Unsupported primitive: ${other.getClass.getName}")
     }
@@ -435,11 +433,8 @@ object DataInterop {
                         val keyRef   = mapUnknown.map.key.asInstanceOf[Reflect.Bound[Any]]
                         val valueRef = mapUnknown.map.value.asInstanceOf[Reflect.Bound[Any]]
                         val out      = entries.map { case (k, v) =>
-                          dynamicToDataValue(keyRef, k) match {
-                            case StringValue(str) => str -> dynamicToDataValue(valueRef, v)
-                            case other            => throw new IllegalArgumentException(s"Map keys must be strings, got $other")
-                          }
-                        }.toMap
+                          (dynamicToDataValue(keyRef, k), dynamicToDataValue(valueRef, v))
+                        }.toList
                         MapValue(out)
                       case other =>
                         throw new IllegalArgumentException(s"Expected map dynamic value, found: $other")
@@ -511,6 +506,7 @@ object DataInterop {
       case PrimitiveValue.BigDecimal(v) => BigDecimalValue(v)
       case PrimitiveValue.BigInt(v)     => BigDecimalValue(BigDecimal(v))
       case PrimitiveValue.UUID(v)       => UUIDValue(v)
+      case PrimitiveValue.Char(v)       => CharValue(v)
       case other                        =>
         throw new IllegalArgumentException(s"Unsupported primitive value: ${other.getClass.getName}")
     }
@@ -630,6 +626,8 @@ object DataInterop {
             DV.Primitive(PrimitiveValue.String(v))
           case BoolValue(v) =>
             DV.Primitive(PrimitiveValue.Boolean(v))
+          case CharValue(v) =>
+            DV.Primitive(PrimitiveValue.Char(v))
           case ByteValue(v) =>
             DV.Primitive(PrimitiveValue.Byte(v))
           case ShortValue(v) =>
@@ -709,8 +707,8 @@ object DataInterop {
                     val valueRef = mapUnknown.map.value.asInstanceOf[Reflect.Bound[Any]]
                     value match {
                       case MapValue(entries) =>
-                        val dynEntries = entries.toVector.map { case (k, v) =>
-                          val dk = dataValueToDynamic(keyRef, StringValue(k))
+                        val dynEntries = entries.map { case (k, v) =>
+                          val dk = dataValueToDynamic(keyRef, k)
                           val dv = dataValueToDynamic(valueRef, v)
                           (dk, dv)
                         }

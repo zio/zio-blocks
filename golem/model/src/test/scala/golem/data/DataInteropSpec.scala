@@ -224,9 +224,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         val dt = DataInterop.schemaToDataType(Schema[UserId])
         assertTrue(dt == DataType.LongType)
       },
-      test("rejects non-string map keys") {
-        val attempt = scala.util.Try(DataInterop.schemaToDataType(Schema[Map[Int, String]]))
-        assertTrue(attempt.isFailure)
+      test("supports arbitrary map key types") {
+        val dt = DataInterop.schemaToDataType(Schema[Map[Int, String]])
+        assertTrue(dt == DataType.MapType(DataType.IntType, DataType.StringType))
       },
       test("rejects invalid data values for option and tuple schemas") {
         val optionAttempt = scala.util.Try(DataInterop.fromData[Option[Int]](DataValue.StringValue("oops")))
@@ -253,12 +253,12 @@ object DataInteropSpec extends ZIOSpecDefault {
         assertTrue(arityAttempt.isFailure) &&
         assertTrue(recordAttempt.isFailure)
       },
-      test("rejects unsupported primitive schemas and values") {
-        val charSchemaAttempt = scala.util.Try(DataInterop.schemaToDataType(Schema[Char]))
-        val charValueAttempt  = scala.util.Try(DataInterop.toData[Char]('a'))
+      test("char primitive schema and value") {
+        val charType  = DataInterop.schemaToDataType(Schema[Char])
+        val charValue = DataInterop.toData[Char]('a')
 
-        assertTrue(charSchemaAttempt.isFailure) &&
-        assertTrue(charValueAttempt.isFailure)
+        assertTrue(charType == DataType.CharType) &&
+        assertTrue(charValue == DataValue.CharValue('a'))
       },
       test("BigInt maps to BigDecimalType") {
         val bigIntType  = DataInterop.schemaToDataType(Schema[BigInt])
@@ -266,9 +266,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         assertTrue(bigIntType == DataType.BigDecimalType) &&
         assertTrue(bigIntValue == DataValue.BigDecimalValue(BigDecimal(1)))
       },
-      test("rejects non-string map keys at encoding time") {
-        val attempt = scala.util.Try(DataInterop.toData(Map(1 -> "a"))(Schema[Map[Int, String]]))
-        assertTrue(attempt.isFailure)
+      test("encodes non-string map keys") {
+        val data = DataInterop.toData(Map(1 -> "a"))(Schema[Map[Int, String]])
+        assertTrue(data == DataValue.MapValue(List((DataValue.IntValue(1), DataValue.StringValue("a")))))
       },
       test("rejects invalid data values for record, map, and variant schemas") {
         val recordAttempt =

@@ -133,7 +133,7 @@ object SchemaJsonEncoderSpec extends ZIOSpecDefault {
       },
       test("encodes map types as list of key/value entries") {
         val schema = StructuredSchema.single(
-          ElementSchema.Component(DataType.MapType(DataType.StringType))
+          ElementSchema.Component(DataType.MapType(DataType.StringType, DataType.StringType))
         )
         val encoded = SchemaJsonEncoder.encode(schema)
         val nodes   = encoded

@@ -25,7 +25,7 @@ object DataType {
 
   final case class SetType(of: DataType) extends DataType
 
-  final case class MapType(valueType: DataType) extends DataType // string keys
+  final case class MapType(keyType: DataType, valueType: DataType) extends DataType
 
   final case class TupleType(elements: List[DataType]) extends DataType
 
@@ -44,6 +44,8 @@ object DataType {
   case object StringType extends DataType
 
   case object BoolType extends DataType
+
+  case object CharType extends DataType
 
   case object ByteType extends DataType
 
@@ -81,6 +83,8 @@ object DataValue {
 
   final case class BoolValue(value: Boolean) extends DataValue
 
+  final case class CharValue(value: Char) extends DataValue
+
   final case class ByteValue(value: Byte) extends DataValue
 
   final case class ShortValue(value: Short) extends DataValue
@@ -113,7 +117,7 @@ object DataValue {
 
   final case class SetValue(values: Set[DataValue]) extends DataValue
 
-  final case class MapValue(entries: Map[String, DataValue]) extends DataValue
+  final case class MapValue(entries: List[(DataValue, DataValue)]) extends DataValue
 
   final case class TupleValue(values: List[DataValue]) extends DataValue
 

@@ -44,6 +44,8 @@ private[golem] object WitValueCodec {
           Right(StringValue(node.asInstanceOf[JsWitNodePrimString].value))
         case (BoolType, "prim-bool") =>
           Right(BoolValue(node.asInstanceOf[JsWitNodePrimBool].value))
+        case (CharType, "prim-char") =>
+          Right(CharValue(node.asInstanceOf[JsWitNodePrimChar].value.charAt(0)))
         case (ByteType, "prim-s8") =>
           Right(ByteValue(node.asInstanceOf[JsWitNodePrimS8].value))
         case (ShortType, "prim-s16") =>
@@ -123,14 +125,16 @@ private[golem] object WitValueCodec {
           decodeIndexed(of, nodes, node).map(values => ListValue(values))
         case (SetType(of), "list-value") =>
           decodeIndexed(of, nodes, node).map(values => SetValue(values.toSet))
-        case (MapType(valueType), "list-value") =>
-          val entryType = TupleType(List(StringType, valueType))
+        case (MapType(keyType, valueType), "list-value") =>
+          val entryType = TupleType(List(keyType, valueType))
           decodeIndexed(entryType, nodes, node).flatMap { entries =>
-            entries.foldLeft[Either[String, Map[String, DataValue]]](Right(Map.empty)) {
-              case (acc, TupleValue(List(StringValue(key), value))) =>
-                acc.map(map => map.updated(key, value))
-              case (_, other) =>
-                Left(s"Invalid map entry payload: $other")
+            val pairs = entries.map {
+              case TupleValue(List(key, value)) => Right((key, value))
+              case other                        => Left(s"Invalid map entry payload: $other")
+            }
+            pairs.foldLeft[Either[String, List[(DataValue, DataValue)]]](Right(Nil)) {
+              case (acc, Right(pair)) => acc.map(_ :+ pair)
+              case (_, Left(err))    => Left(err)
             }
           }.map(MapValue(_))
         case (TupleType(elements), "tuple-value") =>

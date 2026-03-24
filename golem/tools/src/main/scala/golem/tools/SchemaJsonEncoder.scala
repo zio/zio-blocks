@@ -97,6 +97,8 @@ object SchemaJsonEncoder {
             tagOnly("prim-string-type")
           case DataType.BoolType =>
             tagOnly("prim-bool-type")
+          case DataType.CharType =>
+            tagOnly("prim-char-type")
           case DataType.ByteType =>
             tagOnly("prim-s8-type")
           case DataType.ShortType =>
@@ -129,10 +131,10 @@ object SchemaJsonEncoder {
             listType(buildNode(of))
           case DataType.SetType(of) =>
             listType(buildNode(of))
-          case DataType.MapType(valueType) =>
+          case DataType.MapType(keyType, valueType) =>
             val entryStruct = DataType.StructType(
               List(
-                DataType.Field("key", DataType.StringType, optional = false),
+                DataType.Field("key", keyType, optional = false),
                 DataType.Field("value", valueType, optional = false)
               )
             )

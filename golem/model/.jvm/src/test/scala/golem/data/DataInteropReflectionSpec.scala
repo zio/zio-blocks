@@ -149,9 +149,9 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
         assertTrue(invokeDynamicToDataValue(listSchema, nonSeq).isLeft) &&
         assertTrue(invokeDynamicToDataValue(mapSchema, nonMap).isLeft)
       },
-      test("dynamicToDataValue rejects non-string map keys") {
-        val mapSchema = Schema[Map[String, Int]]
-        val badMap    =
+      test("dynamicToDataValue supports non-string map keys") {
+        val mapSchema = Schema[Map[Int, Int]]
+        val intMap    =
           DynamicValue.Map(
             Chunk(
               DynamicValue.Primitive(PrimitiveValue.Int(1)) ->
@@ -159,7 +159,11 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
             )
           )
 
-        assertTrue(invokeDynamicToDataValue(mapSchema, badMap).isLeft)
+        assertTrue(
+          invokeDynamicToDataValue(mapSchema, intMap) == Right(
+            DataValue.MapValue(List((DataValue.IntValue(1), DataValue.IntValue(2))))
+          )
+        )
       },
       test("dynamicToDataValue converts option variants") {
         val optionSchema = Schema[Option[Int]]
@@ -232,7 +236,7 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
           )
 
         assertTrue(
-          invokeDynamicToDataValue(mapSchema, okMap) == Right(DataValue.MapValue(Map("k" -> DataValue.IntValue(1))))
+          invokeDynamicToDataValue(mapSchema, okMap) == Right(DataValue.MapValue(List((DataValue.StringValue("k"), DataValue.IntValue(1)))))
         )
       },
       test("dynamicToDataValue converts sequences to list/set values") {

@@ -43,6 +43,8 @@ private[golem] object WitTypeBuilder {
           JsWitTypeNode.primStringType
         case DataType.BoolType =>
           JsWitTypeNode.primBoolType
+        case DataType.CharType =>
+          JsWitTypeNode.primCharType
         case DataType.ByteType =>
           JsWitTypeNode.primS8Type
         case DataType.ShortType =>
@@ -79,8 +81,8 @@ private[golem] object WitTypeBuilder {
           JsWitTypeNode.listType(buildNode(of))
         case DataType.SetType(of) =>
           JsWitTypeNode.listType(buildNode(of))
-        case DataType.MapType(valueType) =>
-          val entryTuple = DataType.TupleType(List(DataType.StringType, valueType))
+        case DataType.MapType(keyType, valueType) =>
+          val entryTuple = DataType.TupleType(List(keyType, valueType))
           val entryIndex = buildNode(entryTuple)
           JsWitTypeNode.listType(entryIndex)
         case DataType.TupleType(elements) =>
