@@ -1283,14 +1283,20 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-```scala
-// JVM only
-TypeId.of[String].clazz   // Some(class java.lang.String)
-TypeId.of[Int].clazz      // Some(int)
-TypeId.of[List[Int]].clazz // Some(class scala.collection.immutable.List)
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
 
 type Age = Int
-TypeId.of[Age].clazz      // None — aliases have no runtime class
+```
+
+```scala mdoc
+// Nominal and applied types return Some on the JVM
+TypeId.of[String].clazz
+TypeId.of[Int].clazz
+TypeId.of[List[Int]].clazz
+
+// Alias types return None — the alias has no class of its own
+TypeId.of[Age].clazz
 ```
 
 :::note
