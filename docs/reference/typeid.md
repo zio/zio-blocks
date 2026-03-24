@@ -1275,7 +1275,7 @@ isPrimitive(TypeId.of[List[Int]])
 
 #### `clazz` — Runtime Class
 
-Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque `TypeId`s. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries.
+Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque types. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries.
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
