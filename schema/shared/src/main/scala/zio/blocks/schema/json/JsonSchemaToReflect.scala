@@ -82,11 +82,11 @@ private[schema] object JsonSchemaToReflect {
     case _: JsonSchema.False.type => Shape.Dynamic
     case obj: JsonSchema.Object   =>
       analyzeEnum(obj)
+        .orElse(analyzeSequence(obj))
+        .orElse(analyzeMapOrRecord(obj))
         .orElse(analyzeOption(obj))
         .orElse(analyzeVariant(obj))
         .orElse(analyzeTuple(obj))
-        .orElse(analyzeSequence(obj))
-        .orElse(analyzeMapOrRecord(obj))
         .orElse(analyzePrimitive(obj))
         .getOrElse(Shape.Dynamic)
   }

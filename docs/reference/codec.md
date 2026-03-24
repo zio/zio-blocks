@@ -32,8 +32,8 @@ case class Person(name: String, age: Int)
 object Person {
   // Derive a schema for Person (required for codec derivation)
   implicit val schema: Schema[Person] = Schema.derived
-   // Derive a JSON codec from the schema
-   implicit val codec: JsonCodec[Person] = schema.derive(JsonFormat)
+   // Derive a JSON codec from the schema 
+  val codec: JsonCodec[Person] = schema.derive(JsonFormat)
 }
 
 // Encode
@@ -365,11 +365,13 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 case class Address(street: String, city: String)
-case class Person(name: String, address: Address)
 
 object Address {
   implicit val schema: Schema[Address] = Schema.derived
 }
+
+case class Person(name: String, address: Address)
+
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }

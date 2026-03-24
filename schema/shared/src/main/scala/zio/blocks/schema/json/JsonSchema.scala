@@ -533,9 +533,7 @@ sealed trait JsonSchema extends Product with Serializable {
 
   /** Make this schema nullable (accepts null in addition to current types). */
   def withNullable: JsonSchema = this match {
-    case _: JsonSchema.True.type  => JsonSchema.True
-    case _: JsonSchema.False.type => JsonSchema.ofType(JsonSchemaType.Null)
-    case s: JsonSchema.Object     =>
+    case s: JsonSchema.Object =>
       s.`type` match {
         case Some(st) =>
           st match {
@@ -551,6 +549,29 @@ sealed trait JsonSchema extends Product with Serializable {
         case _ =>
           new JsonSchema.Object(anyOf = new Some(NonEmptyChunk(JsonSchema.ofType(JsonSchemaType.Null), s)))
       }
+    case _: JsonSchema.False.type => JsonSchema.ofType(JsonSchemaType.Null)
+    case _                        => this
+  }
+
+  /** Add a required property for the provided discriminator field. */
+  def withDiscriminatorField(name: String, value: String): JsonSchema = this match {
+    case s: JsonSchema.Object =>
+      s.copy(
+        properties = new Some({
+          s.properties match {
+            case Some(m: ChunkMap[String @unchecked, JsonSchema @unchecked]) =>
+              ChunkMap.fromChunks(name +: m.keysChunk, JsonSchema.constOf(new Json.String(value)) +: m.valuesChunk)
+            case _ => ChunkMap.fromChunks(Chunk.single(name), Chunk.single(JsonSchema.constOf(new Json.String(value))))
+          }
+        }),
+        required = new Some({
+          s.required match {
+            case Some(required) => required + name
+            case _              => Set(name)
+          }
+        })
+      )
+    case _ => this
   }
 }
 

@@ -1703,7 +1703,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
               def encodeValue(x: BigInt, out: JsonWriter): Unit = out.writeValAsString(x)
 
               override def decodeValue(json: Json): BigInt = json match {
-                case s: Json.String => BigInt(s.value)
+                case s: Json.String => BigInt(s.value) // unsafe, use for trusted input only
                 case _              => error("expected Json.String")
               }
 
@@ -1719,7 +1719,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
               def encodeValue(x: BigDecimal, out: JsonWriter): Unit = out.writeValAsString(x)
 
               override def decodeValue(json: Json): BigDecimal = json match {
-                case s: Json.String => BigDecimal(s.value)
+                case s: Json.String => BigDecimal(s.value) // unsafe, use for trusted input only
                 case _              => error("expected Json.String")
               }
 

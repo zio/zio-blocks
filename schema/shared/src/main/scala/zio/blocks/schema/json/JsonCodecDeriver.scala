@@ -549,15 +549,17 @@ class JsonCodecDeriver private[json] (
             new Json.Array(builder.result())
           }
 
-          override lazy val toJsonSchema: JsonSchema =
-            NonEmptyChunk.fromChunk(Chunk.from(fieldCodecs.map(_.toJsonSchema))) match {
-              case Some(schemas) =>
-                JsonSchema.array(
-                  prefixItems = new Some(schemas),
-                  items = new Some(JsonSchema.False)
-                )
-              case _ => JsonSchema.False
-            }
+          override lazy val toJsonSchema: JsonSchema = {
+            val items = NonNegativeInt(fieldCodecs.length)
+            new JsonSchema.Object(
+              title = new Some(typeId.toString),
+              `type` = new Some(new SchemaType.Single(JsonSchemaType.Array)),
+              prefixItems = NonEmptyChunk.fromChunk(Chunk.from(fieldCodecs.map(_.toJsonSchema))),
+              items = new Some(JsonSchema.False),
+              minItems = items,
+              maxItems = items
+            )
+          }
         }
       }
       else
@@ -596,13 +598,13 @@ class JsonCodecDeriver private[json] (
                    () => constructor.emptyObject
                  } else null).asInstanceOf[() => AnyRef]
               infos(idx) = new FieldInfo(
-                new DynamicOptic.Node.Field(field.name),
-                defaultValue,
-                emptyCollectionConstructor,
-                offset,
-                typeTag(fieldReflect),
-                idx,
-                !requireOptionFields && fieldReflect.isOption
+                span = new DynamicOptic.Node.Field(field.name),
+                defaultValue = defaultValue,
+                emptyCollectionConstructor = emptyCollectionConstructor,
+                offset = offset,
+                typeTag = typeTag(fieldReflect),
+                idx = idx,
+                isOptional = !requireOptionFields && fieldReflect.isOption
               )
               offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
               idx += 1
@@ -629,7 +631,6 @@ class JsonCodecDeriver private[json] (
             idx += 1
           }
           if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
-          val typeName = typeId.name
           new JsonCodec[A]() {
             private[this] val deconstructor       = recordBinding.deconstructor
             private[this] val constructor         = recordBinding.constructor
@@ -873,10 +874,10 @@ class JsonCodecDeriver private[json] (
               }
               val required = reqs.result()
               JsonSchema.obj(
+                title = new Some(typeId.toString),
                 properties = new Some(properties.result()),
                 required = if (required.nonEmpty) new Some(required) else None,
                 additionalProperties = if (doReject) new Some(JsonSchema.False) else None,
-                title = new Some(typeName),
                 allOf = NonEmptyChunk.fromChunk(allOf.result()),
                 dependentSchemas = if (dependentSchemas.knownSize > 0) Some(dependentSchemas.result()) else None
               )
@@ -886,20 +887,18 @@ class JsonCodecDeriver private[json] (
               nameWithAliases: Chunk[String],
               nameOrAlias: String,
               isRequired: Boolean
-            ): JsonSchema.Object =
-              new JsonSchema.Object(
-                required = if (isRequired) new Some(Set(nameOrAlias)) else None,
-                not = new Some({
-                  val required = nameWithAliases.filter(_ != nameOrAlias)
-                  if (required.length == 1) new JsonSchema.Object(required = new Some(required.toSet))
-                  else {
-                    new JsonSchema.Object(anyOf = NonEmptyChunk.fromChunk(required.map { n =>
-                      new JsonSchema.Object(required = new Some(Set(n)))
-                    }))
-                  }
-                })
-              )
-
+            ): JsonSchema.Object = new JsonSchema.Object(
+              required = if (isRequired) new Some(Set(nameOrAlias)) else None,
+              not = new Some({
+                val required = nameWithAliases.filter(_ != nameOrAlias)
+                if (required.length == 1) new JsonSchema.Object(required = new Some(required.toSet))
+                else {
+                  new JsonSchema.Object(anyOf = NonEmptyChunk.fromChunk(required.map { n =>
+                    new JsonSchema.Object(required = new Some(Set(n)))
+                  }))
+                }
+              })
+            )
           }
         }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
@@ -956,8 +955,7 @@ class JsonCodecDeriver private[json] (
           }
         }
       } else {
-        val discr           = binding.asInstanceOf[Binding.Variant[A]].discriminator
-        val variantTypeName = typeId.name
+        val discr = binding.asInstanceOf[Binding.Variant[A]].discriminator
         if (isEnumeration(cases)) Lazy {
           val map = new StringMap[Constructor[?]](cases.length)
 
@@ -1020,28 +1018,10 @@ class JsonCodecDeriver private[json] (
 
             override def encodeValue(x: A): Json = new Json.String(root.discriminate(x).enumName)
 
-            override lazy val toJsonSchema: JsonSchema =
-              NonEmptyChunk.fromChunk(collectEnumNames(enumInfos, ChunkBuilder.make()).result()) match {
-                case Some(enumNames) =>
-                  new JsonSchema.Object(`enum` = new Some(enumNames), title = new Some(variantTypeName))
-                case _ => JsonSchema.False
-              }
-
-            private[this] def collectEnumNames(
-              infos: Array[EnumInfo],
-              acc: ChunkBuilder[Json.String]
-            ): ChunkBuilder[Json.String] = {
-              val len = infos.length
-              var idx = 0
-              while (idx < len) {
-                infos(idx) match {
-                  case leaf: EnumLeafInfo    => acc.addOne(new Json.String(leaf.enumName))
-                  case node: EnumNodeInfo[?] => collectEnumNames(node.enumInfos, acc)
-                }
-                idx += 1
-              }
-              acc
-            }
+            override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+              title = new Some(typeId.toString),
+              `enum` = NonEmptyChunk.fromChunk(map.keys.map(new Json.String(_)))
+            )
           }
         }
         else {
@@ -1073,6 +1053,7 @@ class JsonCodecDeriver private[json] (
                         case _                  =>
                       }
                       if (name eq null) name = caseNameMapper(case_.name)
+                      caseLeafInfo.setName(name)
                       map.put(name, caseLeafInfo)
                       discriminatorFields.set(new DiscriminatorFieldInfo(fieldName, name) :: discriminatorFields.get)
                       caseLeafInfo.codec = D.instance(caseReflect.metadata).force
@@ -1137,14 +1118,12 @@ class JsonCodecDeriver private[json] (
                   override def encodeValue(x: A): Json =
                     root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x)
 
-                  override lazy val toJsonSchema: JsonSchema = {
-                    val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
-                    NonEmptyChunk.fromChunk(chunk) match {
-                      case Some(caseSchemas) =>
-                        new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
-                      case _ => JsonSchema.False
-                    }
-                  }
+                  override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                    title = new Some(typeId.toString),
+                    oneOf = NonEmptyChunk.fromChunk(
+                      collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
+                    )
+                  )
 
                   private[this] def collectCaseSchemas(
                     infos: Array[CaseInfo],
@@ -1154,7 +1133,10 @@ class JsonCodecDeriver private[json] (
                     var idx = 0
                     while (idx < len) {
                       infos(idx) match {
-                        case leaf: CaseLeafInfo    => acc.addOne(leaf.codec.toJsonSchema)
+                        case leaf: CaseLeafInfo =>
+                          acc.addOne(
+                            leaf.codec.toJsonSchema.withDiscriminatorField(discriminatorFieldName, leaf.getName)
+                          )
                         case node: CaseNodeInfo[?] => collectCaseSchemas(node.caseInfos, acc)
                       }
                       idx += 1
@@ -1224,12 +1206,10 @@ class JsonCodecDeriver private[json] (
                   override def encodeValue(x: A): Json =
                     root.discriminate(x).codec.asInstanceOf[JsonCodec[A]].encodeValue(x)
 
-                  override lazy val toJsonSchema: JsonSchema =
-                    NonEmptyChunk.fromChunk(Chunk.fromArray(caseLeafCodecs.map(_.toJsonSchema))) match {
-                      case Some(caseSchemas) =>
-                        new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
-                      case _ => JsonSchema.False
-                    }
+                  override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                    title = new Some(typeId.toString),
+                    oneOf = NonEmptyChunk.fromIterableOption(caseLeafCodecs.map(_.toJsonSchema))
+                  )
                 }
               }
             case _ =>
@@ -1246,21 +1226,26 @@ class JsonCodecDeriver private[json] (
                   while (idx < len) {
                     val case_       = cases(idx)
                     val caseReflect = case_.value
-                    val span        = new DynamicOptic.Node.Case(case_.name)
+                    val span_       = new DynamicOptic.Node.Case(case_.name) :: spans
                     infos(idx) = if (caseReflect.isVariant) {
                       val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
-                      new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
+                      new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span_))
                     } else {
-                      val caseLeafInfo = new CaseLeafInfo(D.instance(caseReflect.metadata).force, span :: spans)
+                      val caseLeafInfo = new CaseLeafInfo(D.instance(caseReflect.metadata).force, span_)
+                      val aliases      = mutable.ArrayBuilder.make[String]
                       var name: String = null
                       case_.modifiers.foreach {
                         case m: Modifier.rename => if (name eq null) name = m.name
-                        case m: Modifier.alias  => map.put(m.name, caseLeafInfo)
-                        case _                  =>
+                        case m: Modifier.alias  =>
+                          val alias = m.name
+                          map.put(alias, caseLeafInfo)
+                          aliases.addOne(alias)
+                        case _ =>
                       }
                       if (name eq null) name = caseNameMapper(case_.name)
                       map.put(name, caseLeafInfo)
                       caseLeafInfo.setName(name)
+                      caseLeafInfo.setAliases(aliases.result())
                       caseLeafInfo
                     }
                     idx += 1
@@ -1322,14 +1307,12 @@ class JsonCodecDeriver private[json] (
                     )
                   }
 
-                  override lazy val toJsonSchema: JsonSchema = {
-                    val chunk = collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
-                    NonEmptyChunk.fromChunk(chunk) match {
-                      case Some(caseSchemas) =>
-                        new JsonSchema.Object(oneOf = new Some(caseSchemas), title = new Some(variantTypeName))
-                      case _ => JsonSchema.False
-                    }
-                  }
+                  override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                    title = new Some(typeId.toString),
+                    oneOf = NonEmptyChunk.fromChunk(
+                      collectCaseSchemas(root.caseInfos, ChunkBuilder.make[JsonSchema]()).result()
+                    )
+                  )
 
                   private[this] def collectCaseSchemas(
                     infos: Array[CaseInfo],
@@ -1340,16 +1323,17 @@ class JsonCodecDeriver private[json] (
                     while (idx < len) {
                       infos(idx) match {
                         case leaf: CaseLeafInfo =>
-                          var innerSchema = leaf.codec.toJsonSchema
-                          val name        = leaf.getName
-                          if (name ne null) {
-                            innerSchema = JsonSchema.obj(
-                              properties = new Some(ChunkMap((name, innerSchema))),
-                              required = new Some(Set(name)),
-                              additionalProperties = new Some(JsonSchema.False)
+                          val name   = leaf.getName
+                          val schema = leaf.codec.toJsonSchema
+                          (name +: leaf.getAliases).foreach { nameOrAlias =>
+                            acc.addOne(
+                              JsonSchema.obj(
+                                properties = new Some(ChunkMap((nameOrAlias, schema))),
+                                required = new Some(Set(nameOrAlias)),
+                                additionalProperties = new Some(JsonSchema.False)
+                              )
                             )
                           }
-                          acc.addOne(innerSchema)
                         case node: CaseNodeInfo[?] => collectCaseSchemas(node.caseInfos, acc)
                       }
                       idx += 1
@@ -1445,6 +1429,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(intCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Int]]() {
@@ -1514,6 +1504,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 2 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1584,6 +1580,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(longCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Long]]() {
@@ -1653,6 +1655,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 3 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1723,6 +1731,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(floatCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Float]]() {
@@ -1792,6 +1806,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 4 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1862,6 +1882,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(doubleCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Double]]() {
@@ -1931,6 +1957,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 5 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -2001,6 +2033,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(booleanCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Boolean]]() {
@@ -2070,6 +2108,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 6 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -2140,6 +2184,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(byteCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Byte]]() {
@@ -2209,6 +2259,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 7 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -2279,6 +2335,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(charCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Char]]() {
@@ -2348,6 +2410,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case 8 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -2418,6 +2486,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(shortCodec.toJsonSchema)
+                )
               }
             } else {
               new JsonCodec[Col[Short]]() {
@@ -2487,6 +2561,12 @@ class JsonCodecDeriver private[json] (
                   }
                   new Json.Array(builder.result())
                 }
+
+                override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                  title = new Some(typeId.toString),
+                  `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                  items = new Some(elementCodec.toJsonSchema)
+                )
               }
             }
           case _ =>
@@ -2551,7 +2631,11 @@ class JsonCodecDeriver private[json] (
                 new Json.Array(builder.result())
               }
 
-              override lazy val toJsonSchema: JsonSchema = JsonSchema.array(items = new Some(elementCodec.toJsonSchema))
+              override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+                title = new Some(typeId.toString),
+                `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Array, JsonSchemaType.Null))),
+                items = new Some(elementCodec.toJsonSchema)
+              )
             }
         }
       }
@@ -2655,8 +2739,11 @@ class JsonCodecDeriver private[json] (
             new Json.Object(builder.result())
           }
 
-          override lazy val toJsonSchema: JsonSchema =
-            JsonSchema.obj(additionalProperties = new Some(valueCodec.toJsonSchema))
+          override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
+            title = new Some(typeId.toString),
+            `type` = new Some(new SchemaType.Union(NonEmptyChunk(JsonSchemaType.Object, JsonSchemaType.Null))),
+            additionalProperties = new Some(valueCodec.toJsonSchema)
+          )
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
@@ -3245,6 +3332,7 @@ private class CaseLeafInfo(
 ) extends CaseInfo {
   private[this] var name: String                   = null
   private[this] var isNonEscapedAsciiName: Boolean = false
+  private[this] var aliases: Array[String]         = null
 
   def setName(name: String): Unit = {
     isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
@@ -3253,6 +3341,11 @@ private class CaseLeafInfo(
 
   @inline
   def getName: String = name
+
+  def setAliases(aliases: Array[String]): Unit =
+    this.aliases = aliases
+
+  def getAliases: Array[String] = aliases
 
   @inline
   def writeKey(out: JsonWriter): Unit =
@@ -3347,6 +3440,17 @@ private class StringMap[A <: AnyRef](initCapacity: Int) {
       idx = (idx + 2) & mask
     }
     null.asInstanceOf[A] // unreachable
+  }
+
+  def keys: Chunk[String] = {
+    val builder = ChunkBuilder.make[String](size)
+    var idx     = 0
+    while (idx <= mask) {
+      val k = kvs(idx)
+      if (k != null) builder.addOne(k.asInstanceOf[String])
+      idx += 2
+    }
+    builder.result()
   }
 
   private[this] def grow(): Unit = {
