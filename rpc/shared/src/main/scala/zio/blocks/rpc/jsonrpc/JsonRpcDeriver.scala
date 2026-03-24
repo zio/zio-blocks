@@ -16,7 +16,6 @@
 
 package zio.blocks.rpc.jsonrpc
 
-import zio._
 import zio.blocks.rpc._
 import zio.blocks.schema.json.Json
 
@@ -34,8 +33,8 @@ object JsonRpcDeriver extends RpcDeriver[JsonRpcCodec] {
 
   private def createHandler(op: RPC.Operation[?, ?]): JsonRpcCodec.OperationHandler =
     new JsonRpcCodec.OperationHandler {
-      def handle(params: Json): ZIO[Any, Throwable, Json] =
-        ZIO.fail(
+      def handle(params: Json): Either[Throwable, Json] =
+        Left(
           new UnsupportedOperationException(
             s"Operation '${op.name}' handler not bound to a service implementation"
           )

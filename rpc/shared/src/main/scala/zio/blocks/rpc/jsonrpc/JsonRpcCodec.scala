@@ -16,13 +16,12 @@
 
 package zio.blocks.rpc.jsonrpc
 
-import zio._
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.Json
 
 /**
  * A JSON-RPC 2.0 handler derived from an RPC service descriptor.
- * Transport-agnostic: operates on `String => ZIO[Any, Nothing, String]`.
+ * Transport-agnostic: operates on `String => String`.
  */
 final class JsonRpcCodec[T](
   private val operationHandlers: Map[String, JsonRpcCodec.OperationHandler]
@@ -33,10 +32,10 @@ final class JsonRpcCodec[T](
    * JSON-RPC 2.0 notifications (requests without an `id` field) are not
    * supported; they are treated as requests with `id: null`.
    */
-  def handleRequest(request: String): ZIO[Any, Nothing, String] =
+  def handleRequest(request: String): String =
     Json.parse(request) match {
       case Left(_) =>
-        ZIO.succeed(JsonRpcCodec.errorResponse(Json.Null, -32700, "Parse error"))
+        JsonRpcCodec.errorResponse(Json.Null, -32700, "Parse error")
       case Right(parsed) =>
         val rawId  = parsed.get("id").values.flatMap(_.headOption).getOrElse(Json.Null)
         val idJson = rawId match {
@@ -45,37 +44,37 @@ final class JsonRpcCodec[T](
         }
         parsed.get("method").values.flatMap(_.headOption) match {
           case None =>
-            ZIO.succeed(
-              JsonRpcCodec.errorResponse(idJson, -32600, "Invalid Request: missing 'method'")
-            )
+            JsonRpcCodec.errorResponse(idJson, -32600, "Invalid Request: missing 'method'")
           case Some(methodJson) =>
             methodJson match {
               case str: Json.String =>
                 val methodName = str.value
                 operationHandlers.get(methodName) match {
                   case None =>
-                    ZIO.succeed(
-                      JsonRpcCodec.errorResponse(idJson, -32601, s"Method not found: $methodName")
-                    )
+                    JsonRpcCodec.errorResponse(idJson, -32601, s"Method not found: $methodName")
                   case Some(handler) =>
                     val params = parsed.get("params").values.flatMap(_.headOption).getOrElse(Json.Null)
-                    handler
-                      .handle(params)
-                      .map(result => JsonRpcCodec.successResponse(idJson, result))
-                      .catchAll(error =>
-                        ZIO.succeed(
+                    try {
+                      handler.handle(params) match {
+                        case Right(result) => JsonRpcCodec.successResponse(idJson, result)
+                        case Left(error)   =>
                           JsonRpcCodec.errorResponse(
                             idJson,
                             -32603,
                             Option(error.getMessage).getOrElse("Internal error")
                           )
+                      }
+                    } catch {
+                      case e: Throwable =>
+                        JsonRpcCodec.errorResponse(
+                          idJson,
+                          -32603,
+                          Option(e.getMessage).getOrElse("Internal error")
                         )
-                      )
+                    }
                 }
               case _ =>
-                ZIO.succeed(
-                  JsonRpcCodec.errorResponse(idJson, -32600, "Invalid Request: 'method' must be a string")
-                )
+                JsonRpcCodec.errorResponse(idJson, -32600, "Invalid Request: 'method' must be a string")
             }
         }
     }
@@ -84,7 +83,7 @@ final class JsonRpcCodec[T](
 object JsonRpcCodec {
 
   trait OperationHandler {
-    def handle(params: Json): ZIO[Any, Throwable, Json]
+    def handle(params: Json): Either[Throwable, Json]
   }
 
   def successResponse(id: Json, result: Json): String =
