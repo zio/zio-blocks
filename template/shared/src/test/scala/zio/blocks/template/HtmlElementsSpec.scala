@@ -99,8 +99,42 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val mods: Iterable[String] = List("a", "b")
         val result                 = div(mods).render
         assertTrue(result == "<div>ab</div>")
+      },
+      test("Iterable[Dom] applies all children") {
+        val mods: Iterable[Dom] = List(Dom.Text("x"), Dom.Text("y"))
+        val result              = div(mods).render
+        assertTrue(result == "<div>xy</div>")
+      },
+      test("Int as modifier renders as text") {
+        assertTrue(div(42).render == "<div>42</div>")
+      },
+      test("Long as modifier renders as text") {
+        assertTrue(div(123L).render == "<div>123</div>")
+      },
+      test("Double as modifier renders as text") {
+        assertTrue(div(3.14).render == "<div>3.14</div>")
+      },
+      test("Float as modifier renders as text") {
+        assertTrue(div(2.5f).render == "<div>2.5</div>")
+      },
+      test("Boolean as modifier renders as text") {
+        assertTrue(div(true).render == "<div>true</div>")
+      },
+      test("Char as modifier renders as text") {
+        assertTrue(div('x').render == "<div>x</div>")
+      },
+      test("Array as modifier renders children") {
+        val items = Array("a", "b", "c")
+        assertTrue(ul(items.map(i => li(i))).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
+      },
+      test("empty iterable renders nothing") {
+        assertTrue(div(List.empty[String]).render == "<div></div>")
+      },
+      test("single-element list delegates to element") {
+        assertTrue(div(List("hello")).render == "<div>hello</div>")
       }
     ),
+
     suite("various elements")(
       test("h1 through h6") {
         val r1 = h1("Title").render
