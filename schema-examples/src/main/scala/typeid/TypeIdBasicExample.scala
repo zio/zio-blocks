@@ -113,7 +113,6 @@ object TypeIdBasicExample extends App {
     TypeId.of[Either[String, Int]].isSum
   )
 
-
   show(
     TypeId.of[(Int, String)].isProduct
   )
@@ -130,7 +129,6 @@ object TypeIdBasicExample extends App {
     TypeId.of[(Int, String, Boolean)].isTuple
   )
 
-
   import zio.blocks.typeid._
 
   sealed trait Animal
@@ -143,11 +141,10 @@ object TypeIdBasicExample extends App {
 
   case class Fish(species: String) extends Animal
 
-
-  val dogId = TypeId.of[Dog]
+  val dogId    = TypeId.of[Dog]
   val mammalId = TypeId.of[Mammal]
   val animalId = TypeId.of[Animal]
-  val fishId = TypeId.of[Fish]
+  val fishId   = TypeId.of[Fish]
 
   // Direct inheritance: Dog extends Mammal
   dogId.isSubtypeOf(mammalId)
@@ -162,12 +159,9 @@ object TypeIdBasicExample extends App {
   TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Mammal]])
   TypeId.of[List[Dog]].isSubtypeOf(TypeId.of[List[Animal]])
 
-
   show(
     TypeId.of[Mammal => String].isSupertypeOf(TypeId.of[Dog => String])
   )
-
-
 
   // A generic parent type with concrete type arguments
   case class StringList() extends scala.collection.mutable.ListBuffer[String]
@@ -183,7 +177,6 @@ object TypeIdBasicExample extends App {
     override def -(key1: K, key2: K, keys: K*): collection.Map[K, V] = ???
   }
 
-
   val stringListId = TypeId.of[StringList]
   // StringList extends ListBuffer[String] - the type argument is captured
   show(
@@ -196,7 +189,6 @@ object TypeIdBasicExample extends App {
   show(
     entryId.parents
   )
-
 
   import zio.blocks.typeid._
 
@@ -214,11 +206,9 @@ object TypeIdBasicExample extends App {
   // A case class can extend a trait
   case class MallardDuck() extends Duck
 
-
   show(
     TypeId.of[MallardDuck].parents
   )
-
 
   def isPrimitive(id: TypeId[?]): Boolean =
     id.classTag != scala.reflect.ClassTag.AnyRef
@@ -231,5 +221,13 @@ object TypeIdBasicExample extends App {
     isPrimitive(TypeId.of[List[Int]])
   }
 
+  def makeStorage(size: Int, id: TypeId[?]): Array[?] =
+    id.classTag.newArray(size)
+
+  show {
+    makeStorage(100, TypeId.int).getClass.getComponentType
+    makeStorage(100, TypeId.double).getClass.getComponentType
+    makeStorage(100, TypeId.string).getClass.getComponentType
+  }
 
 }

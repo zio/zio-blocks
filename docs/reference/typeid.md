@@ -1203,19 +1203,41 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-Primitive types get their dedicated `ClassTag`; reference types get `AnyRef`:
+On the JVM, arrays are reified — the element type is part of the array object at runtime, not erased like generics. To create an array of a generic type `T`, Scala requires a `ClassTag[T]` so the runtime knows whether to allocate a primitive array (`int[]`, `double[]`) or an object array (`Object[]`). This matters for memory efficiency: a primitive `int[]` stores 4 bytes per element unboxed, while an `Integer[]` stores heap references plus the cost of boxing each value.
+
+`classTag` returns the correct `ClassTag` for each type:
 
 ```scala mdoc
 // Primitive types have dedicated ClassTags
 TypeId.of[Int].classTag
-TypeId.of[Boolean].classTag
+TypeId.of[Double].classTag
 
 // Reference types use ClassTag.AnyRef
 TypeId.of[String].classTag
 TypeId.of[List[Int]].classTag
 ```
 
-A practical use case is detecting JVM primitive types at runtime. `classTag` returns a distinct `ClassTag` for each primitive (`Int`, `Long`, `Double`, etc.) but returns `ClassTag.AnyRef` for all reference types. This lets you distinguish primitives from reference types without a long chain of `isInstanceOf` checks — useful in serializers and code generators that need to decide between primitive and boxed array layouts:
+A concrete use case is a generic storage allocator that creates the right array type from a `TypeId`:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+def makeStorage(size: Int, id: TypeId[?]): Array[?] =
+  id.classTag.newArray(size)
+```
+
+```scala mdoc
+// Creates int[] (primitive, unboxed)
+makeStorage(100, TypeId.int).getClass.getComponentType
+
+// Creates double[] (primitive, unboxed)
+makeStorage(100, TypeId.double).getClass.getComponentType
+
+// Creates Object[] (reference)
+makeStorage(100, TypeId.string).getClass.getComponentType
+```
+
+Another use case is detecting primitive types without a chain of `isInstanceOf` checks — useful in serializers and code generators that need to choose between primitive and boxed layouts:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
