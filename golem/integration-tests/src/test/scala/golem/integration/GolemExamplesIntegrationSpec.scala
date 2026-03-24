@@ -4,6 +4,8 @@ import zio._
 import zio.process.{Command as Cmd, Process as ZProcess, ProcessOutput}
 import zio.test._
 
+import com.sun.net.httpserver.{HttpExchange, HttpServer as JHttpServer}
+
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.URI
@@ -791,8 +793,45 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     }
   ).map(_ @@ TestAspect.timeout(120.seconds))
 
+  // ---------------------------------------------------------------------------
+  // FetchAgent: outgoing HTTP requests via global fetch
+  // ---------------------------------------------------------------------------
+
+  private def withTestHttpServer[A](handler: HttpExchange => Unit)(body: Int => ZIO[Any, Throwable, A]): ZIO[Any, Throwable, A] =
+    ZIO.acquireReleaseWith(
+      ZIO.attemptBlocking {
+        val server = JHttpServer.create(new InetSocketAddress("0.0.0.0", 0), 0)
+        server.createContext("/test", (exchange: HttpExchange) => {
+          handler(exchange)
+        })
+        server.setExecutor(null)
+        server.start()
+        server
+      }
+    )(server => ZIO.succeed(server.stop(0))) { server =>
+      body(server.getAddress.getPort)
+    }
+
+  private val fetchTests: Seq[Spec[GolemServer, Throwable]] = Seq(
+    test("http-fetch-outgoing") {
+      for {
+        _              <- ZIO.service[GolemServer]
+        result         <- withTestHttpServer { exchange =>
+                            val response = "hello from test server"
+                            exchange.sendResponseHeaders(200, response.length.toLong)
+                            val os = exchange.getResponseBody
+                            os.write(response.getBytes("UTF-8"))
+                            os.close()
+                          } { port =>
+                            httpGet(s"/api/fetch/test-key/call?port=$port")
+                          }
+        (status, body)  = result
+      } yield assertTrue(status == 200) && assertTrue(body.contains("hello from test server"))
+    }
+  ).map(_ @@ TestAspect.timeout(60.seconds))
+
   private val httpTests: Seq[Spec[GolemServer, Throwable]] =
-    weatherTests ++ inventoryTests ++ catalogTests ++ webhookTests
+    weatherTests ++ inventoryTests ++ catalogTests ++ webhookTests ++ fetchTests
 
   // ---------------------------------------------------------------------------
   // Snapshotting oplog tests

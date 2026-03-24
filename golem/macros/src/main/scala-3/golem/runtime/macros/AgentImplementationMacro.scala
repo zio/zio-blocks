@@ -382,7 +382,7 @@ object AgentImplementationMacro {
                         )
                       }
                       '{
-                        val codec = $schemaExpr.derive(zio.blocks.schema.json.JsonBinaryCodecDeriver)
+                        val codec = $schemaExpr.derive(zio.blocks.schema.json.JsonCodecDeriver)
                         Some(
                           SnapshotHandlers[Trait](
                             save = (instance: Trait) => {

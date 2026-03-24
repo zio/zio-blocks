@@ -974,7 +974,8 @@ lazy val zioGolemExamples = project
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0"
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
+      "dev.zio"           %%% "zio-http"                    % "3.0.1"
     ),
     Test / test := {
       Keys.streams.value.log.info(

@@ -41,3 +41,4 @@ httpApi:
         InventoryAgent: {}
         CatalogAgent: {}
         WebhookDemo: {}
+        FetchAgent: {}
