@@ -182,7 +182,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val json       = jsonSchema.toJson
         assertTrue(
           json.get("type").one == Right(Json.String("object")),
-          json.get("additionalProperties").one == Right(Json.Boolean(false))
+          json.get("maxProperties").one == Right(Json.Number(0))
         )
       }
     ),
@@ -292,7 +292,9 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
           json.get("properties").get("address").get("properties").get("street").get("type").one == Right(
             Json.String("string")
           ),
-          json.get("properties").get("employees").get("type").one == Right(Json.String("array"))
+          json.get("properties").get("employees").get("type").one == Right(
+            Json.Array(Json.String("array"), Json.String("null"))
+          )
         )
       },
       test("optional fields are not in required array") {
@@ -325,7 +327,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[List[Int]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("array")),
+          json.get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
           json.get("items").get("type").one == Right(Json.String("integer"))
         )
       },
@@ -333,7 +335,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Set[String]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("array")),
+          json.get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
           json.get("items").get("type").one == Right(Json.String("string"))
         )
       },
@@ -341,7 +343,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Vector[Double]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("array")),
+          json.get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
           json.get("items").get("type").one == Right(Json.String("number"))
         )
       },
@@ -349,7 +351,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[List[Person]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("array")),
+          json.get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
           json.get("items").get("type").one == Right(Json.String("object")),
           json.get("items").get("properties").get("name").get("type").one == Right(Json.String("string"))
         )
@@ -358,8 +360,8 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[List[List[Int]]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("array")),
-          json.get("items").get("type").one == Right(Json.String("array")),
+          json.get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
+          json.get("items").get("type").one == Right(Json.Array(Json.String("array"), Json.String("null"))),
           json.get("items").get("items").get("type").one == Right(Json.String("integer"))
         )
       }
@@ -369,7 +371,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Map[String, Int]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("object")),
+          json.get("type").one == Right(Json.Array(Json.String("object"), Json.String("null"))),
           json.get("additionalProperties").get("type").one == Right(Json.String("integer"))
         )
       },
@@ -377,7 +379,7 @@ object JsonCodecToJsonSchemaSpec extends SchemaBaseSpec {
         val jsonSchema = Schema[Map[String, Person]].toJsonSchema
         val json       = jsonSchema.toJson
         assertTrue(
-          json.get("type").one == Right(Json.String("object")),
+          json.get("type").one == Right(Json.Array(Json.String("object"), Json.String("null"))),
           json.get("additionalProperties").get("type").one == Right(Json.String("object")),
           json.get("additionalProperties").get("properties").get("name").get("type").one == Right(Json.String("string"))
         )

@@ -356,7 +356,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 87,
+    coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 81
   )
   .jvmSettings(

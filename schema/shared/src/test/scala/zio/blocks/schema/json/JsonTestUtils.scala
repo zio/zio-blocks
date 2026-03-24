@@ -74,9 +74,9 @@ object JsonTestUtils {
     assert(codec.decode(toHeapByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema1), readerConfig))(isRight(equalTo(value))) &&
     assert(codec.decode(new String(encodedBySchema1, UTF_8), readerConfig))(isRight(equalTo(value))) && {
-      val jsonResult = Json.jsonCodec.decode(encodedBySchema6, readerConfig)
-      assert(jsonResult.flatMap(codec.decode))(isRight(equalTo(value))) /*&&
-      assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isNone))*/
+      val result = Json.jsonCodec.decode(encodedBySchema6, readerConfig)
+      assert(result.flatMap(codec.decode))(isRight(equalTo(value))) /*&&
+      assert(result.map(codec.toJsonSchema.check))(isRight(isNone))*/
     }
   }
 
@@ -98,9 +98,9 @@ object JsonTestUtils {
     assert(codec.decode(toHeapByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toDirectByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(json, readerConfig))(isRight(equalTo(expectedValue))) && {
-      val jsonResult = Json.jsonCodec.decode(json, readerConfig)
-      assert(jsonResult.flatMap(codec.decode))(isRight(equalTo(expectedValue))) /*&&
-      assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isNone))*/
+      val result = Json.jsonCodec.decode(json, readerConfig)
+      assert(result.flatMap(codec.decode))(isRight(equalTo(expectedValue))) /*&&
+      assert(result.map(codec.toJsonSchema.check))(isRight(isNone))*/
     }
   }
 
@@ -138,9 +138,9 @@ object JsonTestUtils {
         if (error.startsWith("malformed byte(s)") || error.startsWith("illegal surrogate")) assertTrue(true)
         else assert(codec.decode(new String(invalidJson, UTF_8), readerConfig))(isLeft(hasError(error)))
       } && {
-        val jsonResult = Json.jsonCodec.decode(invalidJson, readerConfig)
-        assertTrue(jsonResult.flatMap(codec.decode).isLeft) /*&&
-        assert(jsonResult.map(codec.toJsonSchema.check))(isRight(isSome))*/
+        val result = Json.jsonCodec.decode(invalidJson, readerConfig)
+        assertTrue(result.flatMap(codec.decode).isLeft) /*&&
+        assertTrue(result.map(codec.toJsonSchema.check).fold(_ => true, _.isDefined))*/
       }
 
   def encode[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
