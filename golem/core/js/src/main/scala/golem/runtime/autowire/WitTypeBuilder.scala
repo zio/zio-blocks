@@ -50,11 +50,15 @@ private[golem] object WitTypeBuilder {
         case DataType.DoubleType =>
           JsWitTypeNode.primF64Type
         case DataType.BigDecimalType =>
-          JsWitTypeNode.primStringType
+          val stringIndex = buildNode(DataType.StringType)
+          JsWitTypeNode.recordType(js.Array(js.Tuple2("value", stringIndex)))
         case DataType.UUIDType =>
-          JsWitTypeNode.primStringType
+          val stringIndex = buildNode(DataType.StringType)
+          JsWitTypeNode.recordType(js.Array(js.Tuple2("value", stringIndex)))
         case DataType.BytesType =>
-          JsWitTypeNode.listType(buildNode(DataType.IntType))
+          val u8Index = newNode()
+          nodes(u8Index) = JsNamedWitTypeNode(JsWitTypeNode.primU8Type)
+          JsWitTypeNode.listType(u8Index)
         case DataType.Optional(of) =>
           JsWitTypeNode.optionType(buildNode(of))
         case DataType.ListType(of) =>
@@ -62,13 +66,8 @@ private[golem] object WitTypeBuilder {
         case DataType.SetType(of) =>
           JsWitTypeNode.listType(buildNode(of))
         case DataType.MapType(valueType) =>
-          val entryStruct = DataType.StructType(
-            List(
-              DataType.Field("key", DataType.StringType, optional = false),
-              DataType.Field("value", valueType, optional = false)
-            )
-          )
-          val entryIndex = buildNode(entryStruct)
+          val entryTuple = DataType.TupleType(List(DataType.StringType, valueType))
+          val entryIndex = buildNode(entryTuple)
           JsWitTypeNode.listType(entryIndex)
         case DataType.TupleType(elements) =>
           JsWitTypeNode.tupleType(js.Array(elements.map(buildNode): _*))

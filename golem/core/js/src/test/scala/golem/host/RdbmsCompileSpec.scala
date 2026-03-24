@@ -209,6 +209,9 @@ object RdbmsCompileSpec extends ZIOSpecDefault {
     case PostgresDbValue.Domain(d)       => s"domain(${d.name})"
     case PostgresDbValue.PgArray(a)      => s"array(${a.size})"
     case PostgresDbValue.Range(r)        => s"range(${r.name})"
+    case PostgresDbValue.Vector(v)       => s"vector(${v.size})"
+    case PostgresDbValue.HalfVec(v)      => s"halfvec(${v.size})"
+    case PostgresDbValue.SparseVec(v)    => s"sparsevec(${v.dim})"
     case PostgresDbValue.Null            => "null"
   }
 

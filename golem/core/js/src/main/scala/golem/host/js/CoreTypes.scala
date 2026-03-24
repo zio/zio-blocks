@@ -73,12 +73,6 @@ object JsUri {
     js.Dynamic.literal("value" -> value).asInstanceOf[JsUri]
 }
 
-// --- Type aliases ---
-
-type JsNodeIndex  = Int
-type JsResourceId = js.BigInt
-type JsResourceMode = String // "owned" | "borrowed"
-
 // ---------------------------------------------------------------------------
 // WitTypeNode  –  tagged union (22 cases)
 // ---------------------------------------------------------------------------

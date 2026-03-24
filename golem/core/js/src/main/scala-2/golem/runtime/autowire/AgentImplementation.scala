@@ -26,9 +26,9 @@ private[golem] object AgentImplementation {
   def registerAnyCtorType[Trait](
     typeName: String,
     mode: AgentMode,
-    implType: _root_.golem.runtime.agenttype.AgentImplementationType[Trait, _]
+    implType: _root_.golem.runtime.agenttype.AgentImplementationType[Trait, Any]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.register(typeName, mode, implType.asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[Trait, Any]])
+    AgentImplementationRuntime.register(typeName, mode, implType)
 
   /**
    * Registers an agent implementation by class type.
@@ -57,9 +57,10 @@ private[golem] object AgentImplementationMacroFacade {
       q"""
       {
         val implType = _root_.golem.runtime.macros.AgentImplementationMacro.implementationTypeFromClass[$traitType, ${weakTypeOf[Impl]}]
+          .asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, Any]]
         val metadataMode = implType.metadata.mode.flatMap(_root_.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = metadataMode.getOrElse(_root_.golem.runtime.autowire.AgentMode.Durable)
-        _root_.golem.runtime.autowire.AgentImplementation.registerAnyCtorType($typeNameExpr, effectiveMode, implType)
+        _root_.golem.runtime.autowire.AgentImplementation.registerAnyCtorType[$traitType]($typeNameExpr, effectiveMode, implType)
       }
       """
     )

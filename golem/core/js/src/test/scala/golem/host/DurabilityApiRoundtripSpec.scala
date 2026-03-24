@@ -134,7 +134,7 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
         HostApi.PersistenceLevel.Smart
       ).foreach { pl =>
         val state = DurableExecutionState(isLive = false, persistenceLevel = pl)
-        assert(state.persistenceLevel == pl)
+        assertTrue(state.persistenceLevel == pl)
       }
       assertCompletes
     },

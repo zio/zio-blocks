@@ -147,7 +147,7 @@ object WitValueTypesCompileSpec extends ZIOSpecDefault {
     },
 
     test("exhaustive WitNode match compiles") {
-      allWitNodes.foreach(n => assert(describeWitNode(n).nonEmpty))
+      allWitNodes.foreach(n => assertTrue(describeWitNode(n).nonEmpty))
       assertCompletes
     },
 
@@ -156,7 +156,7 @@ object WitValueTypesCompileSpec extends ZIOSpecDefault {
     },
 
     test("exhaustive WitTypeNode match compiles") {
-      allWitTypeNodes.foreach(n => assert(describeWitTypeNode(n).nonEmpty))
+      allWitTypeNodes.foreach(n => assertTrue(describeWitTypeNode(n).nonEmpty))
       assertCompletes
     },
 

@@ -7,12 +7,6 @@ import scala.scalajs.js.annotation.JSName
 // golem:agent/common@1.5.0  –  JS facade traits
 // ---------------------------------------------------------------------------
 
-// --- String literal unions (type aliases) ---
-
-type JsAgentMode = String         // "durable" | "ephemeral"
-type JsAgentConfigSource = String // "local" | "secret"
-type JsSystemVariable = String    // "agent-type" | "agent-version"
-
 // ---------------------------------------------------------------------------
 // Principal  –  tagged union
 // ---------------------------------------------------------------------------

@@ -67,19 +67,34 @@ private[golem] object WitValueCodec {
             Right(LongValue(raw.toLong))
         case (DoubleType, "prim-float64") =>
           Right(DoubleValue(node.asInstanceOf[JsWitNodePrimFloat64].value))
-        case (BigDecimalType, "prim-string") =>
-          Right(BigDecimalValue(BigDecimal(node.asInstanceOf[JsWitNodePrimString].value)))
-        case (UUIDType, "prim-string") =>
-          Right(UUIDValue(java.util.UUID.fromString(node.asInstanceOf[JsWitNodePrimString].value)))
+        case (BigDecimalType, "record-value") =>
+          val refs = node.asInstanceOf[JsWitNodeRecordValue].value
+          if (refs.length != 1) Left(s"BigDecimal record expected 1 field, found ${refs.length}")
+          else
+            decodeNode(StringType, nodes, refs(0)).flatMap {
+              case StringValue(s) => Right(BigDecimalValue(BigDecimal(s)))
+              case other          => Left(s"Expected string inside BigDecimal record, found $other")
+            }
+        case (UUIDType, "record-value") =>
+          val refs = node.asInstanceOf[JsWitNodeRecordValue].value
+          if (refs.length != 1) Left(s"UUID record expected 1 field, found ${refs.length}")
+          else
+            decodeNode(StringType, nodes, refs(0)).flatMap {
+              case StringValue(s) => Right(UUIDValue(java.util.UUID.fromString(s)))
+              case other          => Left(s"Expected string inside UUID record, found $other")
+            }
         case (BytesType, "list-value") =>
           val refs        = node.asInstanceOf[JsWitNodeListValue].value
           val bytesEither = refs.foldLeft[Either[String, Vector[Byte]]](Right(Vector.empty)) { case (acc, childIdx) =>
             for {
-              vec        <- acc
-              childValue <- decodeNode(IntType, nodes, childIdx)
-              byte       <- childValue match {
-                        case IntValue(v) => Right(v.toByte)
-                        case other       => Left(s"Expected byte value, found $other")
+              vec  <- acc
+              byte <- {
+                        val child    = nodes(childIdx)
+                        val childTag = child.tag
+                        childTag match {
+                          case "prim-u8" => Right((child.asInstanceOf[JsWitNodePrimU8].value & 0xff).toByte)
+                          case other     => Left(s"Expected prim-u8 byte node, found $other")
+                        }
                       }
             } yield vec :+ byte
           }
@@ -94,23 +109,11 @@ private[golem] object WitValueCodec {
         case (SetType(of), "list-value") =>
           decodeIndexed(of, nodes, node).map(values => SetValue(values.toSet))
         case (MapType(valueType), "list-value") =>
-          val entryType = StructType(
-            List(
-              Field("key", StringType, optional = false),
-              Field("value", valueType, optional = false)
-            )
-          )
+          val entryType = TupleType(List(StringType, valueType))
           decodeIndexed(entryType, nodes, node).flatMap { entries =>
             entries.foldLeft[Either[String, Map[String, DataValue]]](Right(Map.empty)) {
-              case (acc, StructValue(fields)) =>
-                for {
-                  map      <- acc
-                  keyValue <- fields.get("key") match {
-                                case Some(StringValue(key)) => Right(key)
-                                case other                  => Left(s"Expected string map key, found $other")
-                              }
-                  value <- fields.get("value").toRight("Missing map value field")
-                } yield map.updated(keyValue, value)
+              case (acc, TupleValue(List(StringValue(key), value))) =>
+                acc.map(map => map.updated(key, value))
               case (_, other) =>
                 Left(s"Invalid map entry payload: $other")
             }

@@ -50,15 +50,22 @@ private[golem] object WitValueBuilder {
         case (DataType.DoubleType, DoubleValue(v)) =>
           Right(JsWitNode.primFloat64(v))
         case (DataType.BigDecimalType, BigDecimalValue(v)) =>
-          Right(JsWitNode.primString(v.toString))
+          val stringIndex = newNode()
+          nodes(stringIndex) = JsWitNode.primString(v.toString)
+          Right(JsWitNode.recordValue(js.Array(stringIndex)))
         case (DataType.UUIDType, UUIDValue(v)) =>
-          Right(JsWitNode.primString(v.toString))
+          val stringIndex = newNode()
+          nodes(stringIndex) = JsWitNode.primString(v.toString)
+          Right(JsWitNode.recordValue(js.Array(stringIndex)))
         case (DataType.BytesType, BytesValue(bytes)) =>
-          encodeSequence(
-            bytes.toList.map(b => IntValue(b & 0xff)),
-            DataType.IntType,
-            "list-value"
-          )
+          val indicesEither = bytes.toList.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, b) =>
+            acc.map { collected =>
+              val idx = newNode()
+              nodes(idx) = JsWitNode.primU8((b & 0xff).toShort)
+              collected :+ idx
+            }
+          }
+          indicesEither.map(indices => JsWitNode.listValue(js.Array(indices: _*)))
         case (DataType.Optional(of), OptionalValue(maybeValue)) =>
           maybeValue match {
             case Some(inner) =>
@@ -73,14 +80,9 @@ private[golem] object WitValueBuilder {
         case (DataType.SetType(of), SetValue(values)) =>
           encodeSequence(values.toList, of, "list-value")
         case (DataType.MapType(valueType), MapValue(entries)) =>
-          val entryType = DataType.StructType(
-            List(
-              DataType.Field("key", DataType.StringType, optional = false),
-              DataType.Field("value", valueType, optional = false)
-            )
-          )
+          val entryType = DataType.TupleType(List(DataType.StringType, valueType))
           val entryValues = entries.toList.map { case (k, v) =>
-            StructValue(Map("key" -> StringValue(k), "value" -> v))
+            TupleValue(List(StringValue(k), v))
           }
           encodeSequence(entryValues, entryType, "list-value")
         case (DataType.TupleType(elements), TupleValue(values)) =>

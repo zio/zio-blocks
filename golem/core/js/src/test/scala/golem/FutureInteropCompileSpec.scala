@@ -28,7 +28,7 @@ object FutureInteropCompileSpec extends ZIOSpecDefault {
       ZIO.fromFuture { _ =>
         val promise: js.Promise[Int] = js.Promise.resolve[Int](42)
         val future: Future[Int]      = FutureInterop.fromPromise(promise)
-        future.map(v => v)(scala.concurrent.ExecutionContext.global)
+        future.map(v => v)(scala.scalajs.concurrent.JSExecutionContext.queue)
       }.map(v => assertTrue(v == 42))
     },
     test("toPromise converts Future to js.Promise") {

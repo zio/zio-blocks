@@ -70,13 +70,13 @@ object Multimodal {
         }
 
       override def elementSchema: ElementSchema =
-        throw new UnsupportedOperationException("Multimodal types cannot be used as a single element parameter")
+        base.elementSchema
 
       override def encodeElement(value: Multimodal[A]): Either[String, ElementValue] =
-        Left("Multimodal types cannot be encoded as a single element")
+        base.encodeElement(value.value)
 
       override def decodeElement(value: ElementValue): Either[String, Multimodal[A]] =
-        Left("Multimodal types cannot be decoded from a single element")
+        base.decodeElement(value).map(Multimodal(_))
     }
 
   private def schemaAsModality(structured: StructuredSchema): List[NamedElementSchema] =

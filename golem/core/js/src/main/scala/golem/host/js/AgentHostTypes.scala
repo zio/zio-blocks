@@ -116,13 +116,6 @@ object JsPersistenceLevel {
     JsShape.tagOnly[JsPersistenceLevel]("smart")
 }
 
-// --- String literal unions ---
-
-type JsUpdateMode = String   // "automatic" | "snapshot-based"
-type JsAgentStatus = String  // "running" | "idle" | "suspended" | "interrupted" | "retrying" | "failed" | "exited"
-type JsFilterComparator = String       // "equal" | "not-equal" | "greater-equal" | "greater" | "less-equal" | "less"
-type JsStringFilterComparator = String // "equal" | "not-equal" | "like" | "not-like" | "starts-with"
-
 // --- EnvironmentId ---
 
 @js.native

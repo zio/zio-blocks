@@ -53,7 +53,7 @@ object AgentClientTypeEndToEndSpec extends ZIOSpecDefault {
 
         val rpc = new RpcInvoker {
           override def invokeAndAwait(functionName: String, input: JsDataValue): Either[String, JsDataValue] =
-            if (functionName != "E2eClientAsync.{echo}") Left(s"unexpected method: $functionName")
+            if (functionName != "echo") Left(s"unexpected method: $functionName")
             else {
               import golem.GolemSchema._
               val witValue = RpcValueCodec.encodeValue("hello world")

@@ -37,8 +37,6 @@ object JsWrappedFunctionType {
     JsShape.taggedOptional[JsWrappedFunctionType]("write-remote-transaction", beginIndex.map(_.asInstanceOf[js.Any]))
 }
 
-type JsDurableFunctionType = JsWrappedFunctionType
-
 // --- DurableExecutionState ---
 
 @js.native
@@ -51,10 +49,6 @@ object JsDurableExecutionState {
   def apply(isLive: Boolean, persistenceLevel: JsPersistenceLevel): JsDurableExecutionState =
     js.Dynamic.literal("isLive" -> isLive, "persistenceLevel" -> persistenceLevel).asInstanceOf[JsDurableExecutionState]
 }
-
-// --- OplogEntryVersion (plain string) ---
-
-type JsOplogEntryVersion = String // "v1" | "v2"
 
 // --- PersistedDurableFunctionInvocation ---
 

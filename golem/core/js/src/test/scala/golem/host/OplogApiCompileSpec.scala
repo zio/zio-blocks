@@ -120,6 +120,8 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     case OplogEntry.PreRollbackRemoteTransaction(p) => s"pre-rollback(${p.beginIndex})"
     case OplogEntry.CommittedRemoteTransaction(p)   => s"committed(${p.beginIndex})"
     case OplogEntry.RolledBackRemoteTransaction(p)  => s"rolled-back(${p.beginIndex})"
+    case OplogEntry.Snapshot(ts, _, mime)             => s"snapshot($ts,$mime)"
+    case OplogEntry.OplogProcessorCheckpoint(p)      => s"checkpoint(${p.confirmedUpTo})"
   }
 
   private val mockUuid    = AgentHostApi.UuidLiteral(js.BigInt("0"), js.BigInt("0"))
@@ -228,8 +230,12 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     },
     test("AgentInvocation exhaustive match") {
       agentInvocations.foreach {
-        case AgentInvocation.ExportedFunction(p) => Predef.assert(p.functionName.nonEmpty)
-        case AgentInvocation.ManualUpdate(rev)   => Predef.assert(rev > 0)
+        case AgentInvocation.ExportedFunction(p)     => Predef.assert(p.functionName.nonEmpty)
+        case AgentInvocation.ManualUpdate(rev)       => Predef.assert(rev > 0)
+        case AgentInvocation.AgentInitialization(k)  => Predef.assert(k.nonEmpty)
+        case AgentInvocation.SaveSnapshot            => ()
+        case AgentInvocation.LoadSnapshot            => ()
+        case AgentInvocation.ProcessOplogEntries(k)  => Predef.assert(k.nonEmpty)
       }
       assertCompletes
     },

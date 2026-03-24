@@ -70,7 +70,7 @@ object DurabilityApiCompileSpec extends ZIOSpecDefault {
       assertTrue(allFunctionTypes.size == 8)
     },
     test("exhaustive DurableFunctionType match compiles") {
-      allFunctionTypes.foreach(ft => assert(describeFunctionType(ft).nonEmpty))
+      allFunctionTypes.foreach(ft => assertTrue(describeFunctionType(ft).nonEmpty))
       assertTrue(true)
     },
     test("DurableExecutionState construction") {

@@ -32,7 +32,7 @@ object AgentImplementationMacro {
   ): AgentImplementationType[Trait, Ctor] =
     macro AgentImplementationMacroImpl.implementationTypeWithCtorImpl[Trait, Ctor]
 
-  def implementationTypeFromClass[Trait, Impl <: Trait]: AgentImplementationType[Trait, _] =
+  def implementationTypeFromClass[Trait, Impl <: Trait]: AgentImplementationType[Trait, Any] =
     macro AgentImplementationMacroImpl.implementationTypeFromClassImpl[Trait, Impl]
 }
 
@@ -426,7 +426,7 @@ object AgentImplementationMacroImpl {
     }
   }
 
-  def implementationTypeFromClassImpl[Trait: c.WeakTypeTag, Impl: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentImplementationType[Trait, _]] = {
+  def implementationTypeFromClassImpl[Trait: c.WeakTypeTag, Impl: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentImplementationType[Trait, Any]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait]
@@ -706,7 +706,7 @@ object AgentImplementationMacroImpl {
         q"($inputTermName: $ctorType, $principalArgName: _root_.golem.Principal) => new $implType(..$argTerms)"
     }
 
-    c.Expr[AgentImplementationType[Trait, _]](
+    c.Expr[AgentImplementationType[Trait, Any]](
       q"""
       {
         val metadata = $metadataExpr
@@ -717,8 +717,9 @@ object AgentImplementationMacroImpl {
           methods = $methodsExpr,
           configBuilder = $configBuilderExpr,
           configInjectedViaConstructor = ${if (configParam.isDefined) q"true" else q"false"},
-          principalInjectedViaConstructor = ${if (principalParam.isDefined) q"true" else q"false"}
-        )
+          principalInjectedViaConstructor = ${if (principalParam.isDefined) q"true" else q"false"},
+          snapshotHandlers = None
+        ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, Any]]
       }
       """
     )

@@ -33,7 +33,7 @@ object ConfigCompileSpec extends ZIOSpecDefault {
 
   def spec = suite("ConfigCompileSpec")(
     test("ConfigError exhaustive match") {
-      errors.foreach(e => assert(describeError(e).nonEmpty))
+      errors.foreach(e => assertTrue(describeError(e).nonEmpty))
       assertTrue(true)
     },
     test("ConfigError field access") {

@@ -86,6 +86,18 @@ addCommandAlias(
   }
 )
 addCommandAlias(
+  "golemTest3",
+  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTools/test; zioGolemExamples/fastLinkJS; zioGolemIntegrationTests/test"
+)
+addCommandAlias(
+  "golemTest2",
+  "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTools/test; zioGolemExamples/fastLinkJS"
+)
+addCommandAlias(
+  "golemTestAll",
+  "golemTest3; golemTest2"
+)
+addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +

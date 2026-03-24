@@ -21,6 +21,7 @@ import golem.host.js._
 import zio.test._
 import zio.blocks.schema.Schema
 
+import java.util.UUID
 import scala.util.Random
 
 private[rpc] object ValueMappingFuzzSpecTypes {
@@ -93,6 +94,7 @@ object ValueMappingFuzzSpec extends ZIOSpecDefault {
       (0 until rng.nextInt(6)).map(_ => genString(6) -> rng.nextInt(100)).toMap
     ),
     rpcRoundTripTests[TinyProduct]("product", 150)(genTinyProduct()),
-    rpcRoundTripTests[TinySum]("sum", 150)(genTinySum())
+    rpcRoundTripTests[TinySum]("sum", 150)(genTinySum()),
+    rpcRoundTripTests[UUID]("uuid", 100)(new UUID(rng.nextLong(), rng.nextLong()))
   )
 }
