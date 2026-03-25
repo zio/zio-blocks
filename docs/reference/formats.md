@@ -49,7 +49,7 @@ Here's a summary of the formats currently supported by ZIO Blocks. Each format p
 | `JsonFormat`        | `JsonCodec[A]`              | `application/json`    | `zio-blocks-schema`             |
 | `ToonFormat`        | `ToonBinaryCodec[A]`        | `text/toon`           | `zio-blocks-schema-toon`        |
 | `MessagePackFormat` | `MessagePackBinaryCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` |
-| `AvroFormat`        | `AvroBinaryCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        |
+| `AvroFormat`        | `AvroCodec[A]`              | `application/avro`    | `zio-blocks-schema-avro`        |
 | `ThriftFormat`      | `ThriftBinaryCodec[A]`      | `application/thrift`  | `zio-blocks-schema-thrift`      |
 
 ## Defining a Custom Format
@@ -162,7 +162,7 @@ val decoded: Either[SchemaError, Person] = codec.decode(bytes)
 
 ### Avro Schema Generation
 
-Each `AvroBinaryCodec` exposes an `avroSchema` property containing the Apache Avro schema:
+Each `AvroCodec` exposes an `avroSchema` property containing the Apache Avro schema:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._

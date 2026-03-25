@@ -19,7 +19,7 @@ package zio.blocks.schema.avro
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.{Schema, SchemaError}
-import zio.blocks.schema.avro.{AvroBinaryCodec, AvroFormat}
+import zio.blocks.schema.avro.{AvroCodec, AvroFormat}
 import scala.compiletime.uninitialized
 
 class AvroNestedRecordsBenchmark extends BaseBenchmark {
@@ -55,5 +55,5 @@ class AvroNestedRecordsBenchmark extends BaseBenchmark {
 object AvroNestedRecordsBenchmark {
   case class Nested(value: Int, next: Option[Nested])
 
-  val zioBlocksCodec: AvroBinaryCodec[Nested] = Schema.derived.deriving(AvroFormat.deriver).derive
+  val zioBlocksCodec: AvroCodec[Nested] = Schema.derived.deriving(AvroFormat.deriver).derive
 }
