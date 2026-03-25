@@ -1044,7 +1044,11 @@ lazy val zioGolemBuildCodegen = project
     organization       := "dev.zio",
     crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
     scalaVersion       := BuildHelper.Scala33,
-    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "scalameta" % "4.14.7",
+      "com.lihaoyi"   %% "ujson"     % "3.1.0",
+      "org.scalameta" %% "munit"     % "1.1.0" % Test
+    ),
     mimaPreviousArtifacts := Set()
   )
 

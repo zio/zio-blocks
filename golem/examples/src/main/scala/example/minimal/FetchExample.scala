@@ -1,7 +1,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, endpoint}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -15,4 +15,3 @@ trait FetchAgent extends BaseAgent {
   def fetchFromPort(port: Int): Future[String]
 }
 
-object FetchAgent extends AgentCompanion[FetchAgent]

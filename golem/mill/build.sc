@@ -20,7 +20,8 @@ object golemCodegen extends ScalaModule {
   )
 
   def ivyDeps = Agg(
-    ivy"org.scalameta::scalameta:4.14.7"
+    ivy"org.scalameta::scalameta:4.14.7",
+    ivy"com.lihaoyi::ujson:3.1.0"
   )
 }
 

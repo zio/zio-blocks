@@ -17,7 +17,7 @@
 package example.templates
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -32,4 +32,3 @@ trait Counter extends BaseAgent {
   def increment(): Future[Int]
 }
 
-object Counter extends AgentCompanion[Counter]

@@ -1,6 +1,6 @@
 package example.minimal
 
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 import golem.config.{AgentConfig, ConfigBuilder, ConfigBuilderDerived, ConfigSchema, ConfigSchemaDerived, RpcConfig, RpcConfigFieldsDerived, RpcFields, Secret}
 import golem.runtime.annotations.{agentDefinition, constructor, description}
 
@@ -39,8 +39,6 @@ trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
   def greet(): Future[String]
 }
 
-object ConfigAgent extends AgentCompanion[ConfigAgent]
-
 @agentDefinition()
 @description("Example agent that calls ConfigAgent with config overrides")
 trait ConfigCallerAgent extends BaseAgent {
@@ -50,14 +48,12 @@ trait ConfigCallerAgent extends BaseAgent {
   def callWithOverride(): Future[String]
 }
 
-object ConfigCallerAgent extends AgentCompanion[ConfigCallerAgent]
-
 /**
  * Demonstrates using the type-safe RPC config override API.
  *
  * Before (untyped):
  * {{{
- * ConfigAgent.getWithConfig("hello", List(
+ * ConfigAgentClient.getWithConfig("hello", List(
  *   ConfigOverride[String](List("appName"), "overridden"),
  *   ConfigOverride[String](List("db", "host"), "new-host")
  * ))
@@ -71,7 +67,7 @@ object ConfigCallerAgent extends AgentCompanion[ConfigCallerAgent]
  *   .set(f.nested("db")[String]("host"), "new-host")
  *   // f[String]("apiKey")     — runtime error: secret field excluded
  *   // f[Int]("appName")       — compile error: wrong type
- * ConfigAgent.getWithConfig("hello", config)
+ * ConfigAgentClient.getWithConfig("hello", config.toOverrides)
  * }}}
  */
 object ConfigRpcUsageExample {
@@ -83,6 +79,6 @@ object ConfigRpcUsageExample {
       .set(f.nested("db")[Int]("port"), 5433)
 
     // Type-safe: this connects with config overrides
-    ConfigAgent.getWithConfig("hello", config)
+    ConfigAgentClient.getWithConfig("hello", config.toOverrides)
   }
 }

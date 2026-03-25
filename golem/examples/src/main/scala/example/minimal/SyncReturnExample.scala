@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 @agentDefinition()
 @description("Demonstrates agent methods with synchronous return types.")
@@ -35,4 +35,3 @@ trait SyncReturnAgent extends BaseAgent {
   def lastTag(): String
 }
 
-object SyncReturnAgent extends AgentCompanion[SyncReturnAgent]

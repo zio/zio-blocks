@@ -17,7 +17,7 @@
 package example.templates
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
@@ -50,4 +50,3 @@ trait Tasks extends BaseAgent {
   def completeTask(id: Int): Future[Option[Task]]
 }
 
-object Tasks extends AgentCompanion[Tasks]

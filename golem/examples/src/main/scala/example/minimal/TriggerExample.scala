@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -33,8 +33,6 @@ trait TriggerTarget extends BaseAgent {
   def ping(): Future[String]
 }
 
-object TriggerTarget extends AgentCompanion[TriggerTarget]
-
 @agentDefinition()
 @description("Calls TriggerTarget methods via trigger (fire-and-forget) and schedule.")
 trait TriggerCaller extends BaseAgent {
@@ -47,4 +45,3 @@ trait TriggerCaller extends BaseAgent {
   def firePing(): Future[String]
 }
 
-object TriggerCaller extends AgentCompanion[TriggerCaller]

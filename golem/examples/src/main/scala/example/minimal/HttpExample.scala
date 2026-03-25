@@ -1,7 +1,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, endpoint, header}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -42,8 +42,6 @@ trait WeatherAgent extends BaseAgent {
   def publicEndpoint(): Future[String]
 }
 
-object WeatherAgent extends AgentCompanion[WeatherAgent]
-
 // ---------------------------------------------------------------------------
 // Tuple constructor: @constructor def create(arg0: String, arg1: Int)
 //
@@ -64,8 +62,6 @@ trait InventoryAgent extends BaseAgent {
   @description("Get a specific item")
   def getItem(itemId: String): Future[String]
 }
-
-object InventoryAgent extends AgentCompanion[InventoryAgent]
 
 // ---------------------------------------------------------------------------
 // Case class constructor: @constructor def create(region: String, catalog: String)
@@ -92,8 +88,6 @@ trait CatalogAgent extends BaseAgent {
   def getItem(itemId: String): Future[String]
 }
 
-object CatalogAgent extends AgentCompanion[CatalogAgent]
-
 // ---------------------------------------------------------------------------
 // Phantom agent with webhook suffix
 // ---------------------------------------------------------------------------
@@ -109,4 +103,3 @@ trait WebhookAgent extends BaseAgent {
   def receive(payload: String): Future[String]
 }
 
-object WebhookAgent extends AgentCompanion[WebhookAgent]

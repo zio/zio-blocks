@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -36,8 +36,7 @@ trait AgentRegistryDemo extends BaseAgent {
   @description("Exercises agent lifecycle: updateAgent, forkAgent, revertAgent (best-effort, may fail locally).")
   def exploreLifecycle(): Future[String]
 
-  @description("Exercises AgentCompanion.getPhantom to create a deterministic agent instance.")
+  @description("Exercises getPhantom to create a deterministic agent instance.")
   def phantomDemo(): Future[String]
 }
 
-object AgentRegistryDemo extends AgentCompanion[AgentRegistryDemo]

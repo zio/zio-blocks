@@ -17,7 +17,7 @@
 package example.templates
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -29,4 +29,3 @@ trait RpcClient extends BaseAgent {
   def callCounter(counterId: String): Future[Int]
 }
 
-object RpcClient extends AgentCompanion[RpcClient]

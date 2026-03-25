@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -37,4 +37,3 @@ trait StorageDemo extends BaseAgent {
   def configDemo(): Future[String]
 }
 
-object StorageDemo extends AgentCompanion[StorageDemo]

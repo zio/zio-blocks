@@ -36,7 +36,7 @@ final class StatefulCounterImpl(private val initialCount: Int) extends StatefulC
 
 @agentImplementation()
 final class StatefulCallerImpl(private val initialCount: Int) extends StatefulCaller {
-  private val counter = StatefulCounter.get(initialCount)
+  private val counter = StatefulCounterClient.get(initialCount)
 
   override def remoteIncrement(): Future[Int] =
     counter.increment()

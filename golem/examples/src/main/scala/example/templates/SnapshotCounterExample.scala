@@ -17,7 +17,7 @@
 package example.templates
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -34,8 +34,6 @@ trait SnapshotCounter extends BaseAgent {
   def increment(): Future[Int]
 }
 
-object SnapshotCounter extends AgentCompanion[SnapshotCounter]
-
 @agentDefinition(snapshotting = "every(1)")
 @description("A counter agent using Snapshotted[S] for automatic JSON-based state persistence.")
 trait AutoSnapshotCounter extends BaseAgent {
@@ -45,4 +43,3 @@ trait AutoSnapshotCounter extends BaseAgent {
   def increment(): Future[Int]
 }
 
-object AutoSnapshotCounter extends AgentCompanion[AutoSnapshotCounter]

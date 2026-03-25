@@ -9,6 +9,8 @@ import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 
 import golem.codegen.autoregister.AutoRegisterCodegen
+import golem.codegen.discovery.SourceDiscovery
+import golem.codegen.pipeline.CodegenPipeline
 
 /**
  * Mill mixin that provides Golem Scala.js agent build wiring.
@@ -165,40 +167,55 @@ trait GolemAutoRegister extends ScalaJSModule {
 
   /** Generates Scala sources under `T.dest` and returns them as generated sources. */
   def golemGeneratedAutoRegisterSources: T[Seq[PathRef]] = T {
-    golemBasePackage() match {
-      case None =>
-        Seq.empty
-      case Some(basePackage) =>
-        val managedRoot = T.dest / "golem" / "generated" / "autoregister"
+    val basePackageOpt = golemBasePackage()
 
-        val scalaSources: Seq[os.Path] =
-          os.walk(millSourcePath / "src")
-            .filter(p => os.isFile(p) && p.ext == "scala")
+    {
+      val scalaSources: Seq[os.Path] =
+        os.walk(millSourcePath / "src")
+          .filter(p => os.isFile(p) && p.ext == "scala")
 
-        val inputs = scalaSources.map { p =>
-          AutoRegisterCodegen.SourceInput(p.toString, os.read(p))
+      val discoveryInputs = scalaSources.map { p =>
+        SourceDiscovery.SourceInput(p.toString, os.read(p))
+      }
+      val discovered = SourceDiscovery.discover(discoveryInputs)
+
+      def writePipelineFiles(files: Seq[CodegenPipeline.GeneratedFile], root: os.Path): Seq[os.Path] =
+        files.map { gf =>
+          val out = root / os.SubPath(gf.relativePath)
+          os.makeDir.all(out / os.up)
+          os.write.over(out, gf.content)
+          out
         }
 
-        val result = AutoRegisterCodegen.generate(basePackage, inputs)
+      val pipeline = CodegenPipeline.run(discovered, basePackageOpt, rpcEnabled = true)
 
-        result.warnings.foreach { w =>
-          T.log.error(s"[golem] ${w.message}")
-        }
-
-        if (result.files.isEmpty) Seq.empty
-        else {
-          val written = result.files.map { gf =>
-            val out = managedRoot / os.SubPath(gf.relativePath)
-            os.makeDir.all(out / os.up)
-            os.write.over(out, gf.content)
-            out
+      // Auto-register generation
+      val autoRegPaths: Seq[os.Path] = pipeline.autoRegister match {
+        case None => Seq.empty
+        case Some(ar) =>
+          ar.warnings.foreach(w => T.log.error(s"[golem] $w"))
+          if (ar.files.isEmpty) Seq.empty
+          else {
+            val written = writePipelineFiles(ar.files, T.dest / "golem" / "generated" / "autoregister")
+            T.log.info(
+              s"[golem] Generated Scala.js agent registration for ${basePackageOpt.get} into ${ar.generatedPackage} (${ar.implCount} impls, ${ar.packageCount} pkgs)."
+            )
+            written
           }
+      }
 
-          T.log.info(
-            s"[golem] Generated Scala.js agent registration for $basePackage into ${result.generatedPackage} (${result.implCount} impls, ${result.packageCount} pkgs)."
-          )
-          written.map(PathRef(_))
+      // RPC companion generation
+      val rpcPaths: Seq[os.Path] = {
+        pipeline.rpc.warnings.foreach(w => T.log.error(s"[golem] $w"))
+        if (pipeline.rpc.files.isEmpty) Seq.empty
+        else {
+          val written = writePipelineFiles(pipeline.rpc.files, T.dest / "golem" / "generated" / "rpc")
+          T.log.info(s"[golem] Generated ${pipeline.rpc.files.size} RPC client object(s).")
+          written
         }
+      }
+
+      (autoRegPaths ++ rpcPaths).map(PathRef(_))
     }
   }
 

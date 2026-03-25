@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import example.templates.Counter
+import example.templates.CounterClient
 import golem.{HostApi, Uuid}
 import golem.runtime.annotations.agentImplementation
 
@@ -179,11 +179,11 @@ final class AgentRegistryDemoImpl(@unused private val name: String) extends Agen
     sb.append(s"creating phantom counter with Uuid(42,99)\n")
 
     try {
-      val counter = Counter.getPhantom("phantom-counter-instance", phantomId)
-      sb.append(s"phantom counter proxy created\n")
+      val counter = CounterClient.getPhantom("phantom-counter-instance", phantomId)
+      sb.append(s"counter proxy created via getPhantom\n")
 
       counter.increment().map { result =>
-        sb.append(s"phantom counter.increment() = $result\n")
+        sb.append(s"counter.increment() = $result\n")
         sb.result()
       }
     } catch {

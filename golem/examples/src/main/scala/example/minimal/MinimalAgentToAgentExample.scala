@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, DurabilityMode}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
@@ -48,7 +48,6 @@ trait Worker extends BaseAgent {
   def reverse(input: String): Future[String]
   def handle(payload: TypedPayload): Future[TypedReply]
 }
-object Worker extends AgentCompanion[Worker]
 
 @agentDefinition(mode = DurabilityMode.Ephemeral)
 @description("A minimal coordinator agent that calls Worker via agent RPC inside Golem.")
@@ -57,4 +56,3 @@ trait Coordinator extends BaseAgent {
   def route(shardName: String, shardIndex: Int, input: String): Future[String]
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }
-object Coordinator extends AgentCompanion[Coordinator]

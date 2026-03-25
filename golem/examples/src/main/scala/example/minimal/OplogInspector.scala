@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -34,4 +34,3 @@ trait OplogInspector extends BaseAgent {
   def searchOplog(text: String): Future[String]
 }
 
-object OplogInspector extends AgentCompanion[OplogInspector]

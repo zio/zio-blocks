@@ -30,6 +30,8 @@ import org.scalajs.sbtplugin.ScalaJSPlugin
 import org.scalafmt.interfaces.Scalafmt
 
 import golem.codegen.autoregister.AutoRegisterCodegen
+import golem.codegen.discovery.SourceDiscovery
+import golem.codegen.pipeline.CodegenPipeline
 
 /**
  * sbt plugin for Golem-related build wiring.
@@ -105,6 +107,7 @@ object GolemPlugin extends AutoPlugin {
       inputKey[File](
         "Builds the Scala.js bundle and writes it to the provided output path for golem-cli."
       )
+
   }
 
   import autoImport._
@@ -222,59 +225,92 @@ object GolemPlugin extends AutoPlugin {
         }
       },
       Compile / sourceGenerators += Def.task {
-        val basePackageOpt = golemBasePackage.value
-        basePackageOpt match {
-          case None =>
-            Nil
-          case Some(basePackage) =>
-            val log         = streams.value.log
-            val managedRoot = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
-            val scalaSources =
-              (Compile / unmanagedSourceDirectories).value
-                .flatMap(dir => (dir ** "*.scala").get)
-                .distinct
+        val basePackageOpt   = golemBasePackage.value
+        val log              = streams.value.log
+        val managedBase      = (Compile / sourceManaged).value / "golem" / "generated"
 
-            val inputs = scalaSources.map { f =>
-              AutoRegisterCodegen.SourceInput(f.getAbsolutePath, IO.read(f))
+        {
+          // Shared discovery: scan sources once for both auto-register and RPC codegen
+          val scalaSources =
+            (Compile / unmanagedSourceDirectories).value
+              .flatMap(dir => (dir ** "*.scala").get)
+              .distinct
+
+          val discoveryInputs = scalaSources.map { f =>
+            SourceDiscovery.SourceInput(f.getAbsolutePath, IO.read(f))
+          }
+          val discovered = SourceDiscovery.discover(discoveryInputs)
+
+          val scalafmtConfig = {
+            @annotation.tailrec
+            def findConfig(dir: File): File =
+              if (dir == null) (LocalRootProject / baseDirectory).value / ".scalafmt.conf"
+              else {
+                val candidate = dir / ".scalafmt.conf"
+                if (candidate.exists()) candidate else findConfig(dir.getParentFile)
+              }
+            findConfig((ThisProject / baseDirectory).value)
+          }
+
+          def writeIfChanged(out: File, content: String): Unit =
+            if (!out.exists() || IO.read(out) != content) IO.write(out, content)
+
+          def cleanStale(root: File, validPaths: Set[File]): Unit =
+            if (root.exists()) {
+              val existing = (root ** "*.scala").get.toSet
+              (existing -- validPaths).foreach { stale =>
+                IO.delete(stale)
+                log.debug(s"[golem] Removed stale generated file: ${stale.getAbsolutePath}")
+              }
             }
 
-            val result = AutoRegisterCodegen.generate(basePackage, inputs)
-
-            result.warnings.foreach { w =>
-              log.warn(s"[golem] ${w.message}")
+          def writePipelineFiles(files: Seq[CodegenPipeline.GeneratedFile], root: File): Seq[File] =
+            files.map { gf =>
+              val out       = root / gf.relativePath
+              val formatted =
+                try formatCode(gf.content, scalafmtConfig, out.getAbsolutePath)
+                catch {
+                  case e: Exception =>
+                    log.warn(s"[golem] scalafmt failed for ${gf.relativePath}: ${e.getMessage}; using unformatted output")
+                    gf.content
+                }
+              writeIfChanged(out, formatted)
+              out
             }
 
-            if (result.files.isEmpty) Nil
+          val pipeline = CodegenPipeline.run(discovered, basePackageOpt, rpcEnabled = true)
+
+          // Auto-register generation
+          val autoRegFiles: Seq[File] = pipeline.autoRegister match {
+            case None => Nil
+            case Some(ar) =>
+              ar.warnings.foreach(w => log.warn(s"[golem] $w"))
+              val autoRegRoot = managedBase / "autoregister"
+              if (ar.files.isEmpty) { cleanStale(autoRegRoot, Set.empty); Nil }
+              else {
+                val written = writePipelineFiles(ar.files, autoRegRoot)
+                cleanStale(autoRegRoot, written.toSet)
+                log.info(
+                  s"[golem] Generated Scala.js agent registration for ${basePackageOpt.get} into ${ar.generatedPackage} (${ar.implCount} impls, ${ar.packageCount} pkgs)."
+                )
+                written
+              }
+          }
+
+          // RPC companion generation
+          val rpcFiles: Seq[File] = {
+            pipeline.rpc.warnings.foreach(w => log.warn(s"[golem] $w"))
+            val rpcRoot = managedBase / "rpc"
+            if (pipeline.rpc.files.isEmpty) { cleanStale(rpcRoot, Set.empty); Nil }
             else {
-              val scalafmtConfig = {
-                @annotation.tailrec
-                def findConfig(dir: File): File =
-                  if (dir == null) (LocalRootProject / baseDirectory).value / ".scalafmt.conf"
-                  else {
-                    val candidate = dir / ".scalafmt.conf"
-                    if (candidate.exists()) candidate else findConfig(dir.getParentFile)
-                  }
-                findConfig((ThisProject / baseDirectory).value)
-              }
-
-              val written = result.files.map { gf =>
-                val out       = managedRoot / gf.relativePath
-                val formatted =
-                  try formatCode(gf.content, scalafmtConfig, out.getAbsolutePath)
-                  catch {
-                    case e: Exception =>
-                      log.warn(s"[golem] scalafmt failed for ${gf.relativePath}: ${e.getMessage}; using unformatted output")
-                      gf.content
-                  }
-                IO.write(out, formatted)
-                out
-              }
-
-              log.info(
-                s"[golem] Generated Scala.js agent registration for $basePackage into ${result.generatedPackage} (${result.implCount} impls, ${result.packageCount} pkgs)."
-              )
+              val written = writePipelineFiles(pipeline.rpc.files, rpcRoot)
+              cleanStale(rpcRoot, written.toSet)
+              log.info(s"[golem] Generated ${pipeline.rpc.files.size} RPC client object(s).")
               written
             }
+          }
+
+          autoRegFiles ++ rpcFiles
         }
       }.taskValue
     )

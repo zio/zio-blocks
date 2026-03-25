@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
@@ -40,4 +40,3 @@ trait JsonPromiseDemo extends BaseAgent {
   def blockingDemo(): Future[String]
 }
 
-object JsonPromiseDemo extends AgentCompanion[JsonPromiseDemo]

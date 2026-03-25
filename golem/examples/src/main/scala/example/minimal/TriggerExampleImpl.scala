@@ -16,7 +16,6 @@
 
 package example.minimal
 
-import golem._
 import golem.runtime.annotations.agentImplementation
 
 import scala.annotation.unused
@@ -38,15 +37,15 @@ final class TriggerTargetImpl(@unused private val name: String) extends TriggerT
 
 @agentImplementation()
 final class TriggerCallerImpl(@unused private val name: String) extends TriggerCaller {
-  private val target = TriggerTarget.get("target-instance")
+  private val target = TriggerTargetClient.get("target-instance")
 
   override def fireProcess(): Future[String] = {
-    target.trigger.process(42, "hello")
+    target.process.trigger(42, "hello")
     Future.successful("triggered process(42, \"hello\") on target-instance")
   }
 
   override def firePing(): Future[String] = {
-    target.trigger.ping()
+    target.ping.trigger()
     Future.successful("triggered ping() on target-instance")
   }
 }

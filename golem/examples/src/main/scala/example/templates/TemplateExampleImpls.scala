@@ -38,7 +38,7 @@ final class CounterImpl(@unused private val name: String) extends Counter {
 @agentImplementation()
 final class RpcClientImpl(@unused private val name: String) extends RpcClient {
   override def callCounter(counterId: String): Future[Int] =
-    Counter.get(counterId).increment()
+    CounterClient.get(counterId).increment()
 }
 
 @agentImplementation()
@@ -174,7 +174,7 @@ final class ApprovalWorkflowImpl(private val workflowId: String) extends Approva
 @agentImplementation()
 final class HumanAgentImpl(private val username: String) extends HumanAgent {
   override def decide(workflowId: String, decision: String): Future[String] =
-    ApprovalWorkflow
+    ApprovalWorkflowClient
       .get(workflowId)
       .complete(decision)
       .map { ok =>

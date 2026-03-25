@@ -1,7 +1,7 @@
 package demo
 
 import golem.runtime.annotations.{agentDefinition, agentImplementation, constructor, description, prompt}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -15,8 +15,6 @@ trait CounterAgent extends BaseAgent {
   def increment(): Future[Int]
 }
 
-object CounterAgent extends AgentCompanion[CounterAgent]
-
 @agentDefinition()
 trait Example1 extends BaseAgent {
   @constructor def create(name: String, count: Int): Unit = ()
@@ -27,9 +25,11 @@ trait Example1 extends BaseAgent {
 
 @agentImplementation()
 final case class Example1Impl(name: String, count: Int) extends Example1 {
+  import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+
   override def run(): Future[String] = {
-    val client = CounterAgent.get(s"x-${name}")
-    client.increment().map { n => 
+    val client = CounterAgentClient.get(s"x-${name}")
+    client.increment().map { n =>
       s"Result: ${n}"
     }
   }

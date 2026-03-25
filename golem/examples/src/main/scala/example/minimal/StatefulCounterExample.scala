@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -40,8 +40,6 @@ trait StatefulCounter extends BaseAgent {
   def current(): Future[Int]
 }
 
-object StatefulCounter extends AgentCompanion[StatefulCounter]
-
 @agentDefinition()
 @description("Calls StatefulCounter remotely to exercise agent-to-agent RPC with a custom state type.")
 trait StatefulCaller extends BaseAgent {
@@ -52,4 +50,3 @@ trait StatefulCaller extends BaseAgent {
   def remoteIncrement(): Future[Int]
 }
 
-object StatefulCaller extends AgentCompanion[StatefulCaller]

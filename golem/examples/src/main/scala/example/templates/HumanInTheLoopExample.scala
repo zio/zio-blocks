@@ -17,7 +17,7 @@
 package example.templates
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, prompt}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -38,8 +38,6 @@ trait ApprovalWorkflow extends BaseAgent {
   def complete(decision: String): Future[Boolean]
 }
 
-object ApprovalWorkflow extends AgentCompanion[ApprovalWorkflow]
-
 @agentDefinition(typeName = "Human")
 @description("A minimal 'human' agent that can approve/reject workflows (used by ApprovalWorkflow examples).")
 trait HumanAgent extends BaseAgent {
@@ -51,4 +49,3 @@ trait HumanAgent extends BaseAgent {
   def decide(workflowId: String, decision: String): Future[String]
 }
 
-object HumanAgent extends AgentCompanion[HumanAgent]

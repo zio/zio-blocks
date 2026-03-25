@@ -24,7 +24,7 @@ final class ConfigCallerAgentImpl(input: String) extends ConfigCallerAgent {
       ConfigOverride[String](List("db", "host"), "overridden-host.example.com"),
       ConfigOverride[Int](List("db", "port"), 9999)
     )
-    val configAgent = ConfigAgent.getWithConfig(input, overrides)
+    val configAgent = ConfigAgentClient.getWithConfig(input, overrides)
     configAgent.greet()
   }
 }

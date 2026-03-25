@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -52,4 +52,3 @@ trait HostApiExplorer extends BaseAgent {
   def exploreAll(): Future[String]
 }
 
-object HostApiExplorer extends AgentCompanion[HostApiExplorer]

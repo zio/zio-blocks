@@ -16,6 +16,8 @@
 
 package golem.codegen.autoregister
 
+import golem.codegen.discovery.SourceDiscovery
+
 import scala.meta._
 import scala.meta.dialects.Scala213
 import scala.meta.parsers._
@@ -62,14 +64,26 @@ object AutoRegisterCodegen {
    *   a [[Result]] with generated files (relative paths) and any warnings
    */
   def generate(basePackage: String, sources: Seq[SourceInput]): Result = {
+    val discoveryInputs = sources.map(s => SourceDiscovery.SourceInput(s.path, s.content))
+    val discovered      = SourceDiscovery.discover(discoveryInputs)
+    generateFromDiscovery(basePackage, discovered)
+  }
+
+  /**
+   * Generates auto-registration source files from pre-computed discovery output.
+   *
+   * This is the preferred entry point when discovery has already been performed
+   * (e.g. when shared between auto-register and RPC codegen).
+   */
+  def generateFromDiscovery(basePackage: String, discovered: SourceDiscovery.Result): Result = {
     val genBasePkg = generatedPackage(basePackage)
-    val warnings   = List.newBuilder[Warning]
+
+    val warnings: Seq[Warning] = discovered.warnings.map(w => Warning(w.path, w.message))
 
     val impls: List[AgentImpl] =
-      sources.toList
-        .flatMap { src =>
-          parseAgentImpls(src.content, src.path, warnings)
-        }
+      discovered.implementations
+        .map(di => AgentImpl(di.pkg, di.implClass, di.traitType, di.ctorTypes))
+        .toList
         .distinct
         .sortBy(ai => (ai.pkg, ai.traitType, ai.implClass))
 
@@ -77,7 +91,7 @@ object AutoRegisterCodegen {
       Result(
         generatedPackage = genBasePkg,
         files = Seq.empty,
-        warnings = warnings.result(),
+        warnings = warnings,
         implCount = 0,
         packageCount = 0
       )
@@ -115,7 +129,7 @@ object AutoRegisterCodegen {
       Result(
         generatedPackage = genBasePkg,
         files = perPkgFiles :+ baseFile,
-        warnings = warnings.result(),
+        warnings = warnings,
         implCount = impls.length,
         packageCount = byPkg.size
       )
@@ -237,66 +251,4 @@ object AutoRegisterCodegen {
     if (tpeOrTerm.contains(".") || scalaBuiltins.contains(tpeOrTerm)) tpeOrTerm
     else s"$ownerPkg.$tpeOrTerm"
 
-  private def parseSource(source: String): Option[Source] =
-    dialects.Scala3(source).parse[Source].toOption
-      .orElse(Scala213(source).parse[Source].toOption)
-
-  private def hasAgentImplementation(mods: List[Mod]): Boolean =
-    mods.exists {
-      case Mod.Annot(init) =>
-        val full = init.tpe.syntax
-        full == "agentImplementation" || full.endsWith(".agentImplementation")
-      case _ => false
-    }
-
-  private def appendPkg(prefix: String, name: String): String =
-    if (prefix.isEmpty) name else s"$prefix.$name"
-
-  private def collect(
-    tree: Tree,
-    pkg: String,
-    sourcePath: String,
-    warnings: scala.collection.mutable.Builder[Warning, List[Warning]]
-  ): List[AgentImpl] =
-    tree match {
-      case source: Source =>
-        source.stats.flatMap(collect(_, pkg, sourcePath, warnings))
-      case pkgNode: Pkg =>
-        val nextPkg = appendPkg(pkg, pkgNode.ref.syntax)
-        pkgNode.stats.flatMap(collect(_, nextPkg, sourcePath, warnings))
-      case Pkg.Object(_, name, templ) =>
-        val nextPkg = appendPkg(pkg, name.value)
-        templ.stats.flatMap(collect(_, nextPkg, sourcePath, warnings))
-      case cls: Defn.Class if hasAgentImplementation(cls.mods) =>
-        val traitTypeOpt: Option[String] = cls.templ.inits.headOption.map(_.tpe.syntax)
-        val ctorParams                   = cls.ctor.paramss.flatten
-        val ctorTypes: List[String]      = ctorParams.map(_.decltpe.map(_.syntax).getOrElse("")).toList
-        traitTypeOpt match {
-          case Some(traitType) if pkg.nonEmpty && !ctorTypes.exists(_.isEmpty) =>
-            List(
-              AgentImpl(
-                pkg = pkg,
-                implClass = cls.name.value,
-                traitType = traitType,
-                ctorTypes = ctorTypes
-              )
-            )
-          case _ =>
-            if (ctorTypes.exists(_.isEmpty))
-              warnings += Warning(
-                Some(sourcePath),
-                s"Skipping @agentImplementation ${cls.name.value} (missing constructor type annotations)."
-              )
-            Nil
-        }
-      case _ =>
-        Nil
-    }
-
-  private def parseAgentImpls(
-    source: String,
-    sourcePath: String,
-    warnings: scala.collection.mutable.Builder[Warning, List[Warning]]
-  ): List[AgentImpl] =
-    parseSource(source).toList.flatMap(tree => collect(tree, "", sourcePath, warnings))
 }

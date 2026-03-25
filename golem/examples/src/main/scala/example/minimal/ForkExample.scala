@@ -17,7 +17,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 
 import scala.concurrent.Future
 
@@ -34,4 +34,3 @@ trait ForkDemo extends BaseAgent {
   def runForkJson(): Future[String]
 }
 
-object ForkDemo extends AgentCompanion[ForkDemo]

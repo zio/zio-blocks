@@ -1,6 +1,6 @@
 package example.minimal
 
-import golem.{AgentCompanion, BaseAgent, Principal}
+import golem.{BaseAgent, Principal}
 import golem.runtime.annotations.{agentDefinition, constructor, description}
 
 import scala.concurrent.Future
@@ -17,4 +17,3 @@ trait PrincipalAgent extends BaseAgent {
   def currentCaller(principal: Principal): Future[String]
 }
 
-object PrincipalAgent extends AgentCompanion[PrincipalAgent]

@@ -1,7 +1,7 @@
 package example.minimal
 
 import golem.runtime.annotations.{agentDefinition, constructor, description, endpoint}
-import golem.{AgentCompanion, BaseAgent}
+import golem.BaseAgent
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
@@ -29,4 +29,3 @@ trait WebhookDemo extends BaseAgent {
   def awaitWebhookJson(): Future[String]
 }
 
-object WebhookDemo extends AgentCompanion[WebhookDemo]
