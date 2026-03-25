@@ -11,8 +11,23 @@ import mill.scalalib._
  * GolemAutoRegister trait extends ScalaJSModule and references scalajslib API
  * types.
  */
+
+object golemCodegen extends ScalaModule {
+  def scalaVersion = "3.3.7"
+
+  def sources = T.sources(
+    millSourcePath / os.up / "codegen" / "src" / "main" / "scala"
+  )
+
+  def ivyDeps = Agg(
+    ivy"org.scalameta::scalameta:4.14.7"
+  )
+}
+
 object zioGolemMill extends ScalaModule {
   def scalaVersion = "3.3.7"
+
+  override def moduleDeps = Seq(golemCodegen)
 
   // Publishing coordinates (match the runtime modules)
   def artifactName = "zio-golem-mill"
@@ -20,8 +35,4 @@ object zioGolemMill extends ScalaModule {
   def sources = T.sources(millSourcePath / "src")
 
   def resources = T.sources(millSourcePath / "resources")
-
-  def ivyDeps = Agg(
-    ivy"org.scalameta::scalameta:4.14.7"
-  )
 }

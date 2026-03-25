@@ -10,11 +10,17 @@ lazy val root = (project in file("."))
   .settings(
     Compile / unmanagedSources ++= {
       val repoRoot = baseDirectory.value.getParentFile
-      Seq(repoRoot / "golem" / "sbt" / "src" / "main" / "scala" / "golem" / "sbt" / "GolemPlugin.scala")
+      Seq(
+        repoRoot / "golem" / "sbt" / "src" / "main" / "scala" / "golem" / "sbt" / "GolemPlugin.scala",
+        repoRoot / "golem" / "codegen" / "src" / "main" / "scala" / "golem" / "codegen" / "autoregister" / "AutoRegisterCodegen.scala"
+      )
     },
     Compile / unmanagedResourceDirectories += {
       val repoRoot = baseDirectory.value.getParentFile
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
     },
-    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7"
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "scalameta"         % "4.14.7",
+      "org.scalameta" %% "scalafmt-dynamic"  % "3.10.4"
+    )
   )

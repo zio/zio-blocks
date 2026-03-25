@@ -16,18 +16,20 @@
 
 package golem.sbt
 
-import sbt.*
-import sbt.Keys.*
+import sbt._
+import sbt.Keys._
 import sbt.complete.Parsers.spaceDelimited
 
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
+import java.nio.file.Paths
 import java.security.MessageDigest
-import scala.meta.*
-import scala.meta.parsers.*
 
 import org.scalajs.linker.interface.ModuleInitializer
 import org.scalajs.sbtplugin.ScalaJSPlugin
+import org.scalafmt.interfaces.Scalafmt
+
+import golem.codegen.autoregister.AutoRegisterCodegen
 
 /**
  * sbt plugin for Golem-related build wiring.
@@ -41,17 +43,10 @@ import org.scalajs.sbtplugin.ScalaJSPlugin
  */
 object GolemPlugin extends AutoPlugin {
 
-  private def autoRegisterSuffix(basePackage: String): String =
-    basePackage
-      .replaceAll("[^a-zA-Z0-9_]", "_")
-      .stripPrefix("_")
-      .stripSuffix("_") match {
-      case ""  => "app"
-      case out => out
-    }
+  private lazy val scalafmt: Scalafmt = Scalafmt.create(getClass.getClassLoader)
 
-  private def autoRegisterPackage(basePackage: String): String =
-    s"golem.runtime.__generated.autoregister.${autoRegisterSuffix(basePackage)}"
+  private def formatCode(content: String, configFile: File, fileName: String): String =
+    scalafmt.format(configFile.toPath, Paths.get(fileName), content)
 
   private def sha256(bytes: Array[Byte]): Array[Byte] = {
     val md = MessageDigest.getInstance("SHA-256")
@@ -112,23 +107,15 @@ object GolemPlugin extends AutoPlugin {
       )
   }
 
-  import autoImport.*
+  import autoImport._
 
   override def requires: Plugins      = plugins.JvmPlugin && ScalaJSPlugin
   override def trigger: PluginTrigger = noTrigger
 
-  override def projectSettings: Seq[Def.Setting[?]] =
+  override def projectSettings: Seq[Def.Setting[_]] =
     Seq(
       golemBasePackage        := None,
       golemAgentGuestWasmFile := {
-        // Prefer `.generated/agent_guest.wasm` at the golem *app root* (directory containing `golem.yaml`).
-        // This matches the path referenced in golem.yaml manifests (sourceWit, injectToPrebuiltQuickjs).
-        //
-        // Fallback: `.generated/agent_guest.wasm` adjacent to the *project* being compiled.
-        //
-        // This supports common layouts:
-        // - standalone getting-started: <root> has both build.sbt and golem.yaml
-        // - monorepo/crossProject: <root>/golem/examples (manifest) with build at repo root
         val projectRoot = (ThisProject / baseDirectory).value
         val buildRoot   = (ThisBuild / baseDirectory).value
 
@@ -145,7 +132,6 @@ object GolemPlugin extends AutoPlugin {
         findAppRoot(projectRoot)
           .map(appRoot => appRoot / ".generated" / "agent_guest.wasm")
           .getOrElse {
-            // build-local fallback
             projectRoot / ".generated" / "agent_guest.wasm"
           }
       },
@@ -169,7 +155,6 @@ object GolemPlugin extends AutoPlugin {
         out
       },
       golemEnsureAgentGuestWasm := {
-        // Use dynamic tasks so we don't depend on `golemWriteAgentGuestWasm` unless needed.
         Def.taskDyn {
           val out              = golemAgentGuestWasmFile.value
           val repoRootFallback = (LocalRootProject / baseDirectory).value
@@ -226,7 +211,6 @@ object GolemPlugin extends AutoPlugin {
         log.info(s"[golem] Wrote Scala.js bundle to ${out.getAbsolutePath}")
         out
       },
-      // Make golemPrepare automatic: run before compile/link to ensure .generated/ artifacts exist.
       Compile / compile                             := (Compile / compile).dependsOn(golemPrepare).value,
       Compile / ScalaJSPlugin.autoImport.fastLinkJS :=
         (Compile / ScalaJSPlugin.autoImport.fastLinkJS).dependsOn(golemPrepare).value,
@@ -234,7 +218,7 @@ object GolemPlugin extends AutoPlugin {
         (Compile / ScalaJSPlugin.autoImport.fullLinkJS).dependsOn(golemPrepare).value,
       Compile / ScalaJSPlugin.autoImport.scalaJSModuleInitializers ++= {
         golemBasePackage.value.toList.map { basePackage =>
-          ModuleInitializer.mainMethod(s"${autoRegisterPackage(basePackage)}.RegisterAgents", "main")
+          ModuleInitializer.mainMethod(s"${AutoRegisterCodegen.generatedPackage(basePackage)}.RegisterAgents", "main")
         }
       },
       Compile / sourceGenerators += Def.task {
@@ -243,182 +227,53 @@ object GolemPlugin extends AutoPlugin {
           case None =>
             Nil
           case Some(basePackage) =>
-            val log          = streams.value.log
-            val managedRoot  = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
+            val log         = streams.value.log
+            val managedRoot = (Compile / sourceManaged).value / "golem" / "generated" / "autoregister"
             val scalaSources =
               (Compile / unmanagedSourceDirectories).value
                 .flatMap(dir => (dir ** "*.scala").get)
                 .distinct
 
-            final case class AgentImpl(pkg: String, implClass: String, traitType: String, ctorTypes: List[String])
-
-            def parseWithDialect(input: Input.String, dialect: Dialect): Option[Source] = {
-              implicit val d: Dialect = dialect
-              input.parse[Source].toOption
+            val inputs = scalaSources.map { f =>
+              AutoRegisterCodegen.SourceInput(f.getAbsolutePath, IO.read(f))
             }
 
-            def parseSource(source: String): Option[Source] = {
-              val input = Input.String(source)
-              parseWithDialect(input, dialects.Scala3).orElse(parseWithDialect(input, dialects.Scala213))
+            val result = AutoRegisterCodegen.generate(basePackage, inputs)
+
+            result.warnings.foreach { w =>
+              log.warn(s"[golem] ${w.message}")
             }
 
-            def hasAgentImplementation(mods: List[Mod]): Boolean =
-              mods.exists {
-                case Mod.Annot(init) =>
-                  val full = init.tpe.syntax
-                  full == "agentImplementation" || full.endsWith(".agentImplementation")
-                case _ => false
-              }
-
-            def appendPkg(prefix: String, name: String): String =
-              if (prefix.isEmpty) name else s"$prefix.$name"
-
-            def collect(tree: Tree, pkg: String): List[AgentImpl] =
-              tree match {
-                case source: Source =>
-                  source.stats.flatMap(collect(_, pkg))
-                case Pkg.After_4_9_9(ref, stats) =>
-                  val nextPkg = appendPkg(pkg, ref.syntax)
-                  stats.flatMap(collect(_, nextPkg))
-                case Pkg.Object(_, name, templ) =>
-                  val nextPkg = appendPkg(pkg, name.value)
-                  templ.stats.flatMap(collect(_, nextPkg))
-                case cls: Defn.Class if hasAgentImplementation(cls.mods) =>
-                  val traitTypeOpt: Option[String] = cls.templ.inits.headOption.map(_.tpe.syntax)
-                  val ctorParams                   = cls.ctor.paramss.flatten
-                  val ctorTypes: List[String]      = ctorParams.map(_.decltpe.map(_.syntax).getOrElse("")).toList
-                  traitTypeOpt match {
-                    case Some(traitType) if pkg.nonEmpty && !ctorTypes.exists(_.isEmpty) =>
-                      List(
-                        AgentImpl(
-                          pkg = pkg,
-                          implClass = cls.name.value,
-                          traitType = traitType,
-                          ctorTypes = ctorTypes
-                        )
-                      )
-                    case _ =>
-                      if (ctorTypes.exists(_.isEmpty))
-                        log.warn(
-                          s"[golem] Skipping @agentImplementation ${cls.name.value} (missing constructor type annotations)."
-                        )
-                      Nil
-                  }
-                case _ =>
-                  Nil
-              }
-
-            def parseAgentImpls(source: String): List[AgentImpl] =
-              parseSource(source).toList.flatMap(tree => collect(tree, ""))
-
-            val impls: List[AgentImpl] =
-              scalaSources
-                .flatMap(f => parseAgentImpls(IO.read(f)))
-                .toList
-                .distinct
-                .sortBy(ai => (ai.pkg, ai.traitType, ai.implClass))
-
-            if (impls.isEmpty) Nil
+            if (result.files.isEmpty) Nil
             else {
-              val genBasePkg = autoRegisterPackage(basePackage)
-
-              val byPkg: Map[String, List[AgentImpl]] =
-                impls
-                  .groupBy(_.pkg)
-                  .map { case (pkg, pkgImpls) =>
-                    pkg -> pkgImpls.sortBy(ai => (ai.traitType, ai.implClass))
+              val scalafmtConfig = {
+                @annotation.tailrec
+                def findConfig(dir: File): File =
+                  if (dir == null) (LocalRootProject / baseDirectory).value / ".scalafmt.conf"
+                  else {
+                    val candidate = dir / ".scalafmt.conf"
+                    if (candidate.exists()) candidate else findConfig(dir.getParentFile)
                   }
-
-              def fileFor(pkg: String, name: String): File =
-                managedRoot / pkg.split('.').toList.mkString("/") / name
-
-              val scalaBuiltins: Set[String] = Set(
-                "String",
-                "Int",
-                "Long",
-                "Double",
-                "Float",
-                "Boolean",
-                "Byte",
-                "Short",
-                "Char",
-                "Unit",
-                "BigInt",
-                "BigDecimal",
-                "Any",
-                "AnyRef",
-                "AnyVal",
-                "Nothing",
-                "Null"
-              )
-
-              def fqn(ownerPkg: String, tpeOrTerm: String): String =
-                if (tpeOrTerm.contains(".") || scalaBuiltins.contains(tpeOrTerm)) tpeOrTerm
-                else s"$ownerPkg.$tpeOrTerm"
-
-              def registrationExpr(ai: AgentImpl): String = {
-                val traitFqn = fqn(ai.pkg, ai.traitType)
-                val implFqn  = fqn(ai.pkg, ai.implClass)
-                s"AgentImplementation.registerClass[$traitFqn, $implFqn]"
+                findConfig((ThisProject / baseDirectory).value)
               }
 
-              val perPkgFiles: Seq[File] =
-                byPkg.toSeq.sortBy(_._1).map { case (pkg, pkgImpls) =>
-                  val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-                  val out       = fileFor(genBasePkg, s"__GolemAutoRegister_$objSuffix.scala")
-                  val body      = pkgImpls.map(ai => s"    ${registrationExpr(ai)}").mkString("\n")
-                  val content   =
-                    s"""|package $genBasePkg
-                        |
-                        |import golem.runtime.autowire.AgentImplementation
-                        |
-                        |/** Generated. Do not edit. */
-                        |private[golem] object __GolemAutoRegister_$objSuffix {
-                        |  def register(): Unit = {
-                        |$body
-                        |    ()
-                        |  }
-                        |}
-                        |""".stripMargin
-                  IO.write(out, content)
-                  out
-                }
-
-              val baseOut = fileFor(genBasePkg, "RegisterAgents.scala")
-              val touches =
-                byPkg.keys.toSeq.sorted.map { pkg =>
-                  val objSuffix = pkg.replaceAll("[^a-zA-Z0-9_]", "_")
-                  s"      __GolemAutoRegister_$objSuffix.register()"
-                }.mkString("\n")
-              val baseContent =
-                s"""|package $genBasePkg
-                    |
-                    |import scala.scalajs.js.annotation.JSExportTopLevel
-                    |
-                    |/** Generated. Do not edit. */
-                    |private[golem] object RegisterAgents {
-                    |  private var registered = false
-                    |
-                    |  private def registerAll(): Unit =
-                    |    if (!registered) {
-                    |      registered = true
-                    |$touches
-                    |      ()
-                    |    }
-                    |
-                    |  def main(): Unit = registerAll()
-                    |
-                    |  @JSExportTopLevel("__golemRegisterAgents")
-                    |  val __golemRegisterAgents: Unit =
-                    |    registerAll()
-                    |}
-                    |""".stripMargin
-              IO.write(baseOut, baseContent)
+              val written = result.files.map { gf =>
+                val out       = managedRoot / gf.relativePath
+                val formatted =
+                  try formatCode(gf.content, scalafmtConfig, out.getAbsolutePath)
+                  catch {
+                    case e: Exception =>
+                      log.warn(s"[golem] scalafmt failed for ${gf.relativePath}: ${e.getMessage}; using unformatted output")
+                      gf.content
+                  }
+                IO.write(out, formatted)
+                out
+              }
 
               log.info(
-                s"[golem] Generated Scala.js agent registration for $basePackage into $genBasePkg (${impls.length} impls, ${byPkg.size} pkgs)."
+                s"[golem] Generated Scala.js agent registration for $basePackage into ${result.generatedPackage} (${result.implCount} impls, ${result.packageCount} pkgs)."
               )
-              perPkgFiles :+ baseOut
+              written
             }
         }
       }.taskValue

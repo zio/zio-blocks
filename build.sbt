@@ -81,7 +81,7 @@ addCommandAlias(
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
       // Scala 2.12 for sbt plugin
-      List("++2.12.20!", setVersion, noDoc, "zioGolemSbt/publishLocal")
+      List("++2.12.21!", setVersion, noDoc, "zioGolemSbt/publishLocal")
     ).flatten.mkString("; ")
   }
 )
@@ -188,6 +188,7 @@ lazy val root = project
     zioGolemTools,
     zioGolemExamples,
     zioGolemIntegrationTests,
+    zioGolemBuildCodegen,
     zioGolemSbt,
     scalaNextTests.jvm,
     scalaNextTests.js,
@@ -1032,12 +1033,29 @@ lazy val zioGolemIntegrationTests = project
   )
 
 // ---------------------------------------------------------------------------
+// Shared codegen library (consumed by sbt + mill plugins)
+// ---------------------------------------------------------------------------
+
+lazy val zioGolemBuildCodegen = project
+  .in(file("golem/codegen"))
+  .settings(
+    publish / skip     := true,
+    name               := "zio-golem-build-codegen",
+    organization       := "dev.zio",
+    crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
+    scalaVersion       := BuildHelper.Scala33,
+    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7",
+    mimaPreviousArtifacts := Set()
+  )
+
+// ---------------------------------------------------------------------------
 // Tooling plugins (publishable)
 // ---------------------------------------------------------------------------
 
 lazy val zioGolemSbt = project
   .in(file("golem/sbt"))
   .enablePlugins(SbtPlugin)
+  .dependsOn(zioGolemBuildCodegen)
   .settings(
     publish / skip := true,
     name           := "zio-golem-sbt",
@@ -1047,8 +1065,8 @@ lazy val zioGolemSbt = project
     scalaVersion := "2.12.21",
     sbtVersion   := "1.12.0",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2"),
-    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7",
-    mimaPreviousArtifacts                  := Set()
+    libraryDependencies += "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
+    mimaPreviousArtifacts := Set()
   )
 lazy val ringbufferBenchmarks = project
   .in(file("ringbuffer-benchmarks"))
