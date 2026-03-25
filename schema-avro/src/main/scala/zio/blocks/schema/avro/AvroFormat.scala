@@ -94,8 +94,8 @@ object AvroFormat
             var fieldInfosWithAvroSchema =
               if (isRecursive) recursiveRecordCache.get.get(typeId)
               else null
-            var offset = 0L
             if (fieldInfosWithAvroSchema eq null) {
+              var offset     = 0L
               val namespace  = typeId.owner.asString
               val avroSchema = createAvroRecord(namespace, typeId.name)
               val len        = fields.length
