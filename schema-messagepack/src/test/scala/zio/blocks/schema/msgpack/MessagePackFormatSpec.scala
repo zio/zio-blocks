@@ -340,7 +340,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
         roundTrip(())
       },
       test("Boolean - direct codec") {
-        val codec        = MessagePackBinaryCodec.booleanCodec
+        val codec        = MessagePackCodec.booleanCodec
         val encodedTrue  = codec.encode(true)
         val encodedFalse = codec.encode(false)
         assert(encodedTrue.toSeq)(equalTo(Seq(0xc3.toByte))) &&
@@ -389,7 +389,7 @@ object MessagePackFormatSpec extends SchemaBaseSpec {
       },
       test("binary (Array[Byte])") {
         check(Gen.listOf(Gen.byte).map(_.toArray)) { bytes =>
-          val codec   = MessagePackBinaryCodec.binaryCodec
+          val codec   = MessagePackCodec.binaryCodec
           val encoded = codec.encode(bytes)
           val decoded = codec.decode(encoded)
           assert(decoded.map(_.toSeq))(isRight(equalTo(bytes.toSeq)))

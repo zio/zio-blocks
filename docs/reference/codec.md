@@ -80,7 +80,7 @@ Codec[DecodeInput, EncodeOutput, Value]
 │   ├── AvroCodec[A]                   
 │   ├── ToonBinaryCodec[A]                  
 │   ├── ThriftBinaryCodec[A]               
-│   └── MessagePackBinaryCodec[A]         
+│   └── MessagePackCodec[A]         
 └── TextCodec[A] = Codec[CharBuffer, CharBuffer, A]      (CharBuffer ↔ A)
 ```
 

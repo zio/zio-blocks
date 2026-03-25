@@ -74,7 +74,7 @@ These are core public API types that users interact with directly. Each needs a 
 
 **Format codec modules:**
 - [ ] **`BsonEncoder` / `BsonDecoder` / `BsonCodec`** (schema-bson) — Core encoding/decoding types for BSON. **Scope: expand formats.md BSON section**. Source: `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala`
-- [ ] **`MessagePackBinaryCodec`** (schema-messagepack) — Public codec for MessagePack. **Scope: expand formats.md MessagePack section**. Source: `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackBinaryCodec.scala`
+- [ ] **`MessagePackCodec`** (schema-messagepack) — Public codec for MessagePack. **Scope: expand formats.md MessagePack section**. Source: `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala`
 - [ ] **`ThriftBinaryCodec`** (schema-thrift) — Public codec for Thrift. **Scope: expand formats.md Thrift section**. Source: `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftBinaryCodec.scala`
 - [ ] **`ToonReader` / `ToonWriter`** (schema-toon) — Public codec for TOON. Referenced in 9-10 files. **Scope: expand formats.md TOON section**. Source: `schema-toon/src/main/scala/zio/blocks/schema/toon/`
 
@@ -244,7 +244,7 @@ Internal types that don't need documentation.
 | `Registry` / `Registry.Entry` | schema | Internal binding resolver storage |
 | `ObjectIdSupport` | schema-bson | Internal BSON ObjectId helper |
 | `BsonBuilder` / `BsonTrace` / `EncoderContext` / `BsonDecoderContext` | schema-bson | Internal codec implementation |
-| `MessagePackBinaryCodecDeriver` | schema-messagepack | Internal deriver |
+| `MessagePackCodecDeriver` | schema-messagepack | Internal deriver |
 | `MessagePackReader` / `MessagePackWriter` | schema-messagepack | Internal binary readers/writers |
 | `Mixed` / `UniformRecords` | schema-toon | Internal codec strategy types |
 | `ArrayHeader` | schema-toon | Internal reader state |
@@ -313,7 +313,7 @@ Ordered TODO checklist grouped by module, with estimated scope.
 ### Format modules (expand `formats.md`)
 
 26. - [ ] Expand **BSON section** in `formats.md` with BsonEncoder/BsonDecoder API — *update existing*
-27. - [ ] Expand **MessagePack section** in `formats.md` with MessagePackBinaryCodec API — *update existing*
+27. - [ ] Expand **MessagePack section** in `formats.md` with MessagePackCodec API — *update existing*
 28. - [ ] Expand **Thrift section** in `formats.md` with ThriftBinaryCodec API — *update existing*
 29. - [ ] Expand **TOON section** in `formats.md` with ToonReader/ToonWriter, Delimiter, config — *update existing*
 

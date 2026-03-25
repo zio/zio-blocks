@@ -32,9 +32,13 @@ import scala.util.control.NonFatal
 abstract class AvroCodec[A] extends BinaryCodec[A] {
   def avroSchema: AvroSchema
 
-  def decodeError(expectation: String): Nothing = throw new AvroCodecError(Nil, expectation)
+  def decodeValue(decoder: BinaryDecoder): A
 
-  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+  def encodeValue(value: A, encoder: BinaryEncoder): Unit
+
+  def error(expectation: String): Nothing = throw new AvroCodecError(Nil, expectation)
+
+  def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: AvroCodecError =>
       e.spans = new ::(span, e.spans)
       throw e
@@ -42,17 +46,13 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
       throw new AvroCodecError(new ::(span, Nil), getMessage(error))
   }
 
-  def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
+  def error(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: AvroCodecError =>
       e.spans = new ::(span1, new ::(span2, e.spans))
       throw e
     case _ =>
       throw new AvroCodecError(new ::(span1, new ::(span2, Nil)), getMessage(error))
   }
-
-  def decodeUnsafe(decoder: BinaryDecoder): A
-
-  def encode(value: A, encoder: BinaryEncoder): Unit
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     var pos             = input.position
@@ -64,7 +64,10 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
       bs = new Array[Byte](len)
       input.get(bs)
     }
-    decode(DecoderFactory.get().binaryDecoder(bs, pos, len, null))
+    try new Right(decodeValue(DecoderFactory.get().binaryDecoder(bs, pos, len, null)))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
   }
 
   override def encode(value: A, output: ByteBuffer): Unit = encode(
@@ -77,7 +80,10 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
   )
 
   def decode(input: Array[Byte]): Either[SchemaError, A] =
-    decode(DecoderFactory.get().binaryDecoder(input, 0, input.length, null))
+    try new Right(decodeValue(DecoderFactory.get().binaryDecoder(input, 0, input.length, null)))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
 
   def encode(value: A): Array[Byte] = {
     val output = new ByteArrayOutputStream
@@ -86,15 +92,12 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
   }
 
   def decode(input: java.io.InputStream): Either[SchemaError, A] =
-    decode(DecoderFactory.get().directBinaryDecoder(input, null))
-
-  def encode(value: A, output: java.io.OutputStream): Unit = encode(value, new DirectBinaryEncoder(output) {})
-
-  private[this] def decode(decoder: BinaryDecoder): Either[SchemaError, A] =
-    try new Right(decodeUnsafe(decoder))
+    try new Right(decodeValue(DecoderFactory.get().directBinaryDecoder(input, null)))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
+
+  def encode(value: A, output: java.io.OutputStream): Unit = encodeValue(value, new DirectBinaryEncoder(output) {})
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
@@ -130,101 +133,101 @@ object AvroCodec {
   val unitCodec: AvroCodec[Unit] = new AvroCodec[Unit] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.NULL)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Unit = ()
+    def decodeValue(decoder: BinaryDecoder): Unit = ()
 
-    def encode(value: Unit, encoder: BinaryEncoder): Unit = ()
+    def encodeValue(value: Unit, encoder: BinaryEncoder): Unit = ()
   }
 
   val booleanCodec: AvroCodec[Boolean] = new AvroCodec[Boolean] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BOOLEAN)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Boolean = decoder.readBoolean()
+    def decodeValue(decoder: BinaryDecoder): Boolean = decoder.readBoolean()
 
-    def encode(value: Boolean, encoder: BinaryEncoder): Unit = encoder.writeBoolean(value)
+    def encodeValue(value: Boolean, encoder: BinaryEncoder): Unit = encoder.writeBoolean(value)
   }
 
   val byteCodec: AvroCodec[Byte] = new AvroCodec[Byte] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.INT)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Byte = {
+    def decodeValue(decoder: BinaryDecoder): Byte = {
       val x = decoder.readInt()
       if (x >= Byte.MinValue && x <= Byte.MaxValue) x.toByte
-      else decodeError("Expected Byte")
+      else error("Expected Byte")
     }
 
-    def encode(value: Byte, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
+    def encodeValue(value: Byte, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
 
   val shortCodec: AvroCodec[Short] = new AvroCodec[Short] {
     val avroSchema: AvroSchema = byteCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): Short = {
+    def decodeValue(decoder: BinaryDecoder): Short = {
       val x = decoder.readInt()
       if (x >= Short.MinValue && x <= Short.MaxValue) x.toShort
-      else decodeError("Expected Short")
+      else error("Expected Short")
     }
 
-    def encode(value: Short, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
+    def encodeValue(value: Short, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
 
   val intCodec: AvroCodec[Int] = new AvroCodec[Int] {
     val avroSchema: AvroSchema = shortCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readInt()
+    def decodeValue(decoder: BinaryDecoder): Int = decoder.readInt()
 
-    def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
+    def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
 
   val longCodec: AvroCodec[Long] = new AvroCodec[Long] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.LONG)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Long = decoder.readLong()
+    def decodeValue(decoder: BinaryDecoder): Long = decoder.readLong()
 
-    def encode(value: Long, encoder: BinaryEncoder): Unit = encoder.writeLong(value)
+    def encodeValue(value: Long, encoder: BinaryEncoder): Unit = encoder.writeLong(value)
   }
 
   val floatCodec: AvroCodec[Float] = new AvroCodec[Float] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.FLOAT)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Float = decoder.readFloat()
+    def decodeValue(decoder: BinaryDecoder): Float = decoder.readFloat()
 
-    def encode(value: Float, encoder: BinaryEncoder): Unit = encoder.writeFloat(value)
+    def encodeValue(value: Float, encoder: BinaryEncoder): Unit = encoder.writeFloat(value)
   }
 
   val doubleCodec: AvroCodec[Double] = new AvroCodec[Double] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
 
-    def decodeUnsafe(decoder: BinaryDecoder): Double = decoder.readDouble()
+    def decodeValue(decoder: BinaryDecoder): Double = decoder.readDouble()
 
-    def encode(value: Double, encoder: BinaryEncoder): Unit = encoder.writeDouble(value)
+    def encodeValue(value: Double, encoder: BinaryEncoder): Unit = encoder.writeDouble(value)
   }
 
   val charCodec: AvroCodec[Char] = new AvroCodec[Char] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): Char = {
+    def decodeValue(decoder: BinaryDecoder): Char = {
       val x = decoder.readInt()
       if (x >= Char.MinValue && x <= Char.MaxValue) x.toChar
-      else decodeError("Expected Char")
+      else error("Expected Char")
     }
 
-    def encode(value: Char, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
+    def encodeValue(value: Char, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
 
   val stringCodec: AvroCodec[String] = new AvroCodec[String] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-    def decodeUnsafe(decoder: BinaryDecoder): String = decoder.readString()
+    def decodeValue(decoder: BinaryDecoder): String = decoder.readString()
 
-    def encode(value: String, encoder: BinaryEncoder): Unit = encoder.writeString(value)
+    def encodeValue(value: String, encoder: BinaryEncoder): Unit = encoder.writeString(value)
   }
 
   val bigIntCodec: AvroCodec[BigInt] = new AvroCodec[BigInt] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BYTES)
 
-    def decodeUnsafe(decoder: BinaryDecoder): BigInt = BigInt(decoder.readBytes(null).array())
+    def decodeValue(decoder: BinaryDecoder): BigInt = BigInt(decoder.readBytes(null).array())
 
-    def encode(value: BigInt, encoder: BinaryEncoder): Unit = encoder.writeBytes(value.toByteArray)
+    def encodeValue(value: BigInt, encoder: BinaryEncoder): Unit = encoder.writeBytes(value.toByteArray)
   }
 
   val bigDecimalCodec: AvroCodec[BigDecimal] = new AvroCodec[BigDecimal] {
@@ -238,7 +241,7 @@ object AvroCodec {
       createAvroRecord("scala", "BigDecimal", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): BigDecimal = {
+    def decodeValue(decoder: BinaryDecoder): BigDecimal = {
       val mantissa     = decoder.readBytes(null).array()
       val scale        = decoder.readInt()
       val precision    = decoder.readInt()
@@ -247,7 +250,7 @@ object AvroCodec {
       new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
     }
 
-    def encode(value: BigDecimal, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: BigDecimal, encoder: BinaryEncoder): Unit = {
       val bd = value.underlying
       val mc = value.mc
       encoder.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
@@ -260,9 +263,9 @@ object AvroCodec {
   val dayOfWeekCodec: AvroCodec[DayOfWeek] = new AvroCodec[DayOfWeek] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): DayOfWeek = DayOfWeek.of(decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): DayOfWeek = DayOfWeek.of(decoder.readInt())
 
-    def encode(value: DayOfWeek, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
+    def encodeValue(value: DayOfWeek, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
 
   val durationCodec: AvroCodec[Duration] = new AvroCodec[Duration] {
@@ -273,9 +276,9 @@ object AvroCodec {
       createAvroRecord("java.time", "Duration", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): Duration = Duration.ofSeconds(decoder.readLong(), decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): Duration = Duration.ofSeconds(decoder.readLong(), decoder.readInt())
 
-    def encode(value: Duration, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: Duration, encoder: BinaryEncoder): Unit = {
       encoder.writeLong(value.getSeconds)
       encoder.writeInt(value.getNano)
     }
@@ -289,9 +292,9 @@ object AvroCodec {
       createAvroRecord("java.time", "Instant", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): Instant = Instant.ofEpochSecond(decoder.readLong(), decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): Instant = Instant.ofEpochSecond(decoder.readLong(), decoder.readInt())
 
-    def encode(value: Instant, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: Instant, encoder: BinaryEncoder): Unit = {
       encoder.writeLong(value.getEpochSecond)
       encoder.writeInt(value.getNano)
     }
@@ -307,10 +310,10 @@ object AvroCodec {
       createAvroRecord("java.time", "LocalDate", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): LocalDate =
+    def decodeValue(decoder: BinaryDecoder): LocalDate =
       LocalDate.of(decoder.readInt(), decoder.readInt(), decoder.readInt())
 
-    def encode(value: LocalDate, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: LocalDate, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYear)
       encoder.writeInt(value.getMonthValue)
       encoder.writeInt(value.getDayOfMonth)
@@ -331,7 +334,7 @@ object AvroCodec {
       createAvroRecord("java.time", "LocalDateTime", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): LocalDateTime =
+    def decodeValue(decoder: BinaryDecoder): LocalDateTime =
       LocalDateTime
         .of(
           decoder.readInt(),
@@ -343,7 +346,7 @@ object AvroCodec {
           decoder.readInt()
         )
 
-    def encode(value: LocalDateTime, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: LocalDateTime, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYear)
       encoder.writeInt(value.getMonthValue)
       encoder.writeInt(value.getDayOfMonth)
@@ -365,10 +368,10 @@ object AvroCodec {
       createAvroRecord("java.time", "LocalTime", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): LocalTime =
+    def decodeValue(decoder: BinaryDecoder): LocalTime =
       LocalTime.of(decoder.readInt(), decoder.readInt(), decoder.readInt(), decoder.readInt())
 
-    def encode(value: LocalTime, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: LocalTime, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getHour)
       encoder.writeInt(value.getMinute)
       encoder.writeInt(value.getSecond)
@@ -379,9 +382,9 @@ object AvroCodec {
   val monthCodec: AvroCodec[Month] = new AvroCodec[Month] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): Month = Month.of(decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): Month = Month.of(decoder.readInt())
 
-    def encode(value: Month, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
+    def encodeValue(value: Month, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
 
   val monthDayCodec: AvroCodec[MonthDay] = new AvroCodec[MonthDay] {
@@ -393,9 +396,9 @@ object AvroCodec {
       createAvroRecord("java.time", "MonthDay", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): MonthDay = MonthDay.of(decoder.readInt(), decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): MonthDay = MonthDay.of(decoder.readInt(), decoder.readInt())
 
-    def encode(value: MonthDay, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: MonthDay, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getMonthValue)
       encoder.writeInt(value.getDayOfMonth)
     }
@@ -416,7 +419,7 @@ object AvroCodec {
       createAvroRecord("java.time", "OffsetDateTime", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): OffsetDateTime =
+    def decodeValue(decoder: BinaryDecoder): OffsetDateTime =
       OffsetDateTime.of(
         decoder.readInt(),
         decoder.readInt(),
@@ -428,7 +431,7 @@ object AvroCodec {
         ZoneOffset.ofTotalSeconds(decoder.readInt())
       )
 
-    def encode(value: OffsetDateTime, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: OffsetDateTime, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYear)
       encoder.writeInt(value.getMonthValue)
       encoder.writeInt(value.getDayOfMonth)
@@ -452,7 +455,7 @@ object AvroCodec {
       createAvroRecord("java.time", "OffsetTime", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): OffsetTime =
+    def decodeValue(decoder: BinaryDecoder): OffsetTime =
       OffsetTime.of(
         decoder.readInt(),
         decoder.readInt(),
@@ -461,7 +464,7 @@ object AvroCodec {
         ZoneOffset.ofTotalSeconds(decoder.readInt())
       )
 
-    def encode(value: OffsetTime, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: OffsetTime, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getHour)
       encoder.writeInt(value.getMinute)
       encoder.writeInt(value.getSecond)
@@ -480,10 +483,9 @@ object AvroCodec {
       createAvroRecord("java.time", "Period", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): Period =
-      Period.of(decoder.readInt(), decoder.readInt(), decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): Period = Period.of(decoder.readInt(), decoder.readInt(), decoder.readInt())
 
-    def encode(value: Period, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: Period, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYears)
       encoder.writeInt(value.getMonths)
       encoder.writeInt(value.getDays)
@@ -493,9 +495,9 @@ object AvroCodec {
   val yearCodec: AvroCodec[Year] = new AvroCodec[Year] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): Year = Year.of(decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): Year = Year.of(decoder.readInt())
 
-    def encode(value: Year, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
+    def encodeValue(value: Year, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
 
   val yearMonthCodec: AvroCodec[YearMonth] = new AvroCodec[YearMonth] {
@@ -507,9 +509,9 @@ object AvroCodec {
       createAvroRecord("java.time", "YearMonth", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): YearMonth = YearMonth.of(decoder.readInt(), decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): YearMonth = YearMonth.of(decoder.readInt(), decoder.readInt())
 
-    def encode(value: YearMonth, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: YearMonth, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYear)
       encoder.writeInt(value.getMonthValue)
     }
@@ -518,19 +520,17 @@ object AvroCodec {
   val zoneIdCodec: AvroCodec[ZoneId] = new AvroCodec[ZoneId] {
     val avroSchema: AvroSchema = stringCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): ZoneId = ZoneId.of(decoder.readString())
+    def decodeValue(decoder: BinaryDecoder): ZoneId = ZoneId.of(decoder.readString())
 
-    def encode(value: ZoneId, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+    def encodeValue(value: ZoneId, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
   }
 
   val zoneOffsetCodec: AvroCodec[ZoneOffset] = new AvroCodec[ZoneOffset] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
-    def decodeUnsafe(decoder: BinaryDecoder): ZoneOffset =
-      ZoneOffset.ofTotalSeconds(decoder.readInt())
+    def decodeValue(decoder: BinaryDecoder): ZoneOffset = ZoneOffset.ofTotalSeconds(decoder.readInt())
 
-    def encode(value: ZoneOffset, encoder: BinaryEncoder): Unit =
-      encoder.writeInt(value.getTotalSeconds)
+    def encodeValue(value: ZoneOffset, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getTotalSeconds)
   }
 
   val zonedDateTimeCodec: AvroCodec[ZonedDateTime] = new AvroCodec[ZonedDateTime] {
@@ -549,7 +549,7 @@ object AvroCodec {
       createAvroRecord("java.time", "ZonedDateTime", fields)
     }
 
-    def decodeUnsafe(decoder: BinaryDecoder): ZonedDateTime =
+    def decodeValue(decoder: BinaryDecoder): ZonedDateTime =
       ZonedDateTime.ofInstant(
         LocalDateTime.of(
           decoder.readInt(),
@@ -564,7 +564,7 @@ object AvroCodec {
         ZoneId.of(decoder.readString())
       )
 
-    def encode(value: ZonedDateTime, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: ZonedDateTime, encoder: BinaryEncoder): Unit = {
       encoder.writeInt(value.getYear)
       encoder.writeInt(value.getMonthValue)
       encoder.writeInt(value.getDayOfMonth)
@@ -580,13 +580,13 @@ object AvroCodec {
   val currencyCodec: AvroCodec[Currency] = new AvroCodec[java.util.Currency] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("Currency", null, "java.util", 3)
 
-    def decodeUnsafe(decoder: BinaryDecoder): java.util.Currency = {
+    def decodeValue(decoder: BinaryDecoder): java.util.Currency = {
       val bs = new Array[Byte](3)
       decoder.readFixed(bs, 0, 3)
       java.util.Currency.getInstance(new String(bs))
     }
 
-    def encode(value: java.util.Currency, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: java.util.Currency, encoder: BinaryEncoder): Unit = {
       val s = value.toString
       encoder.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
     }
@@ -595,7 +595,7 @@ object AvroCodec {
   val uuidCodec: AvroCodec[UUID] = new AvroCodec[java.util.UUID] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("UUID", null, "java.util", 16)
 
-    def decodeUnsafe(decoder: BinaryDecoder): java.util.UUID = {
+    def decodeValue(decoder: BinaryDecoder): java.util.UUID = {
       val bs = new Array[Byte](16)
       decoder.readFixed(bs)
       val hi =
@@ -619,7 +619,7 @@ object AvroCodec {
       new java.util.UUID(hi, lo)
     }
 
-    def encode(value: java.util.UUID, encoder: BinaryEncoder): Unit = {
+    def encodeValue(value: java.util.UUID, encoder: BinaryEncoder): Unit = {
       val hi = value.getMostSignificantBits
       val lo = value.getLeastSignificantBits
       val bs = Array(

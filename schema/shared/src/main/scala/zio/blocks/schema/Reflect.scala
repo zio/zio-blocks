@@ -1757,6 +1757,42 @@ object Reflect {
       reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
     } else reflect.asPrimitive.map(_.primitiveType)
 
+  private[schema] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
+    unwrapToPrimitiveTypeOption(reflect) match {
+      case Some(primitiveType) =>
+        primitiveType match {
+          case _: PrimitiveType.Unit.type => 0L
+          case _: PrimitiveType.Boolean   => RegisterOffset.incrementBooleansAndBytes(0L)
+          case _: PrimitiveType.Byte      => RegisterOffset.incrementBooleansAndBytes(0L)
+          case _: PrimitiveType.Char      => RegisterOffset.incrementCharsAndShorts(0L)
+          case _: PrimitiveType.Short     => RegisterOffset.incrementCharsAndShorts(0L)
+          case _: PrimitiveType.Float     => RegisterOffset.incrementFloatsAndInts(0L)
+          case _: PrimitiveType.Int       => RegisterOffset.incrementFloatsAndInts(0L)
+          case _: PrimitiveType.Double    => RegisterOffset.incrementDoublesAndLongs(0L)
+          case _: PrimitiveType.Long      => RegisterOffset.incrementDoublesAndLongs(0L)
+          case _                          => RegisterOffset.incrementObjects(0L)
+        }
+      case _ => RegisterOffset.incrementObjects(0L)
+    }
+
+  private[schema] def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
+    unwrapToPrimitiveTypeOption(reflect) match {
+      case Some(primitiveType) =>
+        primitiveType match {
+          case _: PrimitiveType.Unit.type => 9
+          case _: PrimitiveType.Boolean   => 5
+          case _: PrimitiveType.Byte      => 6
+          case _: PrimitiveType.Char      => 7
+          case _: PrimitiveType.Short     => 8
+          case _: PrimitiveType.Float     => 3
+          case _: PrimitiveType.Int       => 1
+          case _: PrimitiveType.Double    => 4
+          case _: PrimitiveType.Long      => 2
+          case _                          => 0
+        }
+      case _ => 0
+    }
+
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
     private[this] val keys   = new Array[String](mask + 1)
