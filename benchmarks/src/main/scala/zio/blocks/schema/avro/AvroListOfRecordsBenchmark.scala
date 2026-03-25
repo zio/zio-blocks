@@ -20,8 +20,7 @@ import org.openjdk.jmh.annotations._
 import zio.Chunk
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.Schema
-import zio.blocks.schema.avro.{AvroBinaryCodec, AvroFormat}
-import zio.schema.codec.AvroCodec
+import zio.blocks.schema.avro.{AvroCodec, AvroFormat}
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
@@ -78,7 +77,8 @@ object AvroListOfRecordsDomain {
 
   implicit val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
-  val zioSchemaCodec: AvroCodec.ExtendedBinaryCodec[List[Person]] = AvroCodec.schemaBasedBinaryCodec[List[Person]]
+  val zioSchemaCodec: zio.schema.codec.AvroCodec.ExtendedBinaryCodec[List[Person]] =
+    zio.schema.codec.AvroCodec.schemaBasedBinaryCodec[List[Person]]
 
-  val zioBlocksCodec: AvroBinaryCodec[List[Person]] = Schema.derived.deriving(AvroFormat.deriver).derive
+  val zioBlocksCodec: AvroCodec[List[Person]] = Schema.derived.deriving(AvroFormat.deriver).derive
 }

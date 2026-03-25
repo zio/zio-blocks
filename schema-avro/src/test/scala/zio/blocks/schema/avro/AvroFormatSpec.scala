@@ -262,7 +262,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
@@ -282,7 +282,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             TypeId.int,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
@@ -302,7 +302,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.hidden,
-            new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
+            new AvroCodec[Unit] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): Unit = decoder.readString()
@@ -322,7 +322,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.optKey_None,
-            new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
+            new AvroCodec[None.type] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): None.type = {
@@ -342,7 +342,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip(Record4((), None), 5, codec)
       },
       test("record with a custom codec for nested record injected by optic") {
-        val codec1 = new AvroBinaryCodec[Record1]() {
+        val codec1 = new AvroCodec[Record1]() {
           private val codec = Record1.schema.derive(AvroFormat)
 
           val avroSchema: AvroSchema =
@@ -385,7 +385,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             TypeId.int,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
@@ -395,7 +395,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           )
           .instance(
             Record2.r1_2_i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
 
               def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
@@ -422,7 +422,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.schema.reflect.typeId,
-            new AvroBinaryCodec[Record1]() {
+            new AvroCodec[Record1]() {
               private val codec = Record1.schema.derive(AvroFormat)
 
               val avroSchema: AvroSchema =
@@ -462,7 +462,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Recursive.i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
               def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
@@ -932,7 +932,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
             )
           )
         )
-        val codec1 = new AvroBinaryCodec[DynamicValue]() {
+        val codec1 = new AvroCodec[DynamicValue]() {
           private val codec = Schema[DynamicValue].derive(AvroFormat)
 
           val avroSchema: AvroSchema =

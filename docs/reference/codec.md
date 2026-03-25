@@ -77,7 +77,7 @@ The codec system in ZIO Blocks is organized as a layered hierarchy:
 Codec[DecodeInput, EncodeOutput, Value]        
 ├── BinaryCodec[A] =  Codec[ByteBuffer, ByteBuffer, A]   (ByteBuffer ↔ A)
 │   ├── JsonCodec[A]                    
-│   ├── AvroBinaryCodec[A]                   
+│   ├── AvroCodec[A]                   
 │   ├── ToonBinaryCodec[A]                  
 │   ├── ThriftBinaryCodec[A]               
 │   └── MessagePackBinaryCodec[A]         
