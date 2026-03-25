@@ -504,7 +504,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
           if (len < 0) in.decodeError("Array length exceeds maximum (2GB)")
-          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](Math.min(len, 1000000))
+          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](len)
           var idx     = 0
           while (idx < len) {
             builder.addOne(decodeDynamic(in))

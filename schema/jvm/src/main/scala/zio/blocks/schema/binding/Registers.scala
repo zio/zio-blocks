@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.binding
 
+import zio.blocks.schema.ByteArrayAccess
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import java.util
 
@@ -34,72 +35,90 @@ class Registers private (userRegister: RegisterOffset) {
     if (objects == 0) Array.emptyObjectArray else new Array[AnyRef](objects)
   }
 
+  @inline
   def getBoolean(offset: RegisterOffset): Boolean = bytes(RegisterOffset.getBytes(offset)) != 0
 
+  @inline
   def getByte(offset: RegisterOffset): Byte = bytes(RegisterOffset.getBytes(offset))
 
+  @inline
   def getShort(offset: RegisterOffset): Short = ByteArrayAccess.getShort(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getInt(offset: RegisterOffset): Int = ByteArrayAccess.getInt(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getLong(offset: RegisterOffset): Long = ByteArrayAccess.getLong(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getFloat(offset: RegisterOffset): Float = ByteArrayAccess.getFloat(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getDouble(offset: RegisterOffset): Double = ByteArrayAccess.getDouble(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getChar(offset: RegisterOffset): Char = ByteArrayAccess.getChar(bytes, RegisterOffset.getBytes(offset))
 
+  @inline
   def getObject(offset: RegisterOffset): AnyRef = objects(RegisterOffset.getObjects(offset))
 
+  @inline
   def setBoolean(offset: RegisterOffset, value: Boolean): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx >= bytes.length) growBytes(idx)
     bytes(idx) = if (value) (1: Byte) else (0: Byte)
   }
 
+  @inline
   def setByte(offset: RegisterOffset, value: Byte): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx >= bytes.length) growBytes(idx)
     bytes(idx) = value
   }
 
+  @inline
   def setShort(offset: RegisterOffset, value: Short): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 1 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setShort(bytes, idx, value)
   }
 
+  @inline
   def setInt(offset: RegisterOffset, value: Int): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 3 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setInt(bytes, idx, value)
   }
 
+  @inline
   def setLong(offset: RegisterOffset, value: Long): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 7 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setLong(bytes, idx, value)
   }
 
+  @inline
   def setFloat(offset: RegisterOffset, value: Float): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 3 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setFloat(bytes, idx, value)
   }
 
+  @inline
   def setDouble(offset: RegisterOffset, value: Double): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 7 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setDouble(bytes, idx, value)
   }
 
+  @inline
   def setChar(offset: RegisterOffset, value: Char): Unit = {
     val idx = RegisterOffset.getBytes(offset)
     if (idx + 1 >= bytes.length) growBytes(idx)
     ByteArrayAccess.setChar(bytes, idx, value)
   }
 
+  @inline
   def setObject(offset: RegisterOffset, value: AnyRef): Unit = {
     val idx = RegisterOffset.getObjects(offset)
     if (idx >= objects.length) growObjects(idx)
@@ -119,20 +138,26 @@ class Registers private (userRegister: RegisterOffset) {
     System.arraycopy(objects, 0, this.objects, objectIdx, objectsLen)
   }
 
+  @inline
   def clearObjects(offset: RegisterOffset): Unit =
     java.util.Arrays.fill(objects, 0, Math.min(RegisterOffset.getObjects(offset), objects.length), null)
 
+  @inline
   private def getBytes: Array[Byte] = bytes
 
+  @inline
   private def getObjects: Array[AnyRef] = objects
 
+  @noinline
   private[this] def growBytes(idx: Int): Unit =
     bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, idx + 8))
 
+  @noinline
   private[this] def growObjects(idx: Int): Unit =
     objects = util.Arrays.copyOf(objects, Math.max(objects.length << 1, idx + 1))
 }
 
 object Registers {
+  @inline
   def apply(usedRegisters: RegisterOffset): Registers = new Registers(usedRegisters)
 }

@@ -21,9 +21,9 @@ import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
-import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.schema.ByteArrayAccess
+import zio.blocks.schema.binding.{Registers, RegisterOffset}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
 import scala.annotation.{nowarn, tailrec}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -472,6 +472,7 @@ final class JsonWriter private[json] (
    * @throws JsonCodecError
    *   always
    */
+  @noinline
   def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
@@ -1240,6 +1241,7 @@ final class JsonWriter private[json] (
       top = -1
     }
 
+  @inline
   private[this] def writeNestedStart(b: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes(b)
@@ -1250,6 +1252,7 @@ final class JsonWriter private[json] (
     }
   }
 
+  @inline
   private[this] def writeNestedEnd(b: Byte): Unit = {
     comma = true
     if (indention != 0) {
@@ -1311,6 +1314,7 @@ final class JsonWriter private[json] (
     count = pos + 1
   }
 
+  @inline
   private[this] def writeRawBytes(bs: Array[Byte]): Unit = {
     var pos       = count
     var step      = Math.max(config.preferredBufSize, limit - pos)
@@ -1548,6 +1552,7 @@ final class JsonWriter private[json] (
     count = pos
   }
 
+  @inline
   private[this] def writeEscapedUnicode(ch: Int, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     ByteArrayAccess.setShort(buf, pos, 0x755c)
     val d1 = ds(ch >> 8)
@@ -1556,12 +1561,14 @@ final class JsonWriter private[json] (
     pos + 6
   }
 
+  @inline
   private[this] def writeEscapedUnicode(b: Byte, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     ByteArrayAccess.setInt(buf, pos, 0x3030755c)
     ByteArrayAccess.setShort(buf, pos + 4, ds(b & 0xff))
     pos + 6
   }
 
+  @noinline
   private[this] def illegalSurrogateError(): Nothing = encodeError("illegal char sequence of surrogate pair")
 
   private[this] def writeBigInteger(x: BigInteger, ss: Array[BigInteger]): Unit = {
@@ -1661,6 +1668,7 @@ final class JsonWriter private[json] (
       writeBigDecimalRemainder(qr(1), scale, blockScale, n - 1, ss)
     }
 
+  @inline
   private[this] def calculateTenPow18SquareNumber(bitLen: Int): Int = {
     val m = Math.max(
       (bitLen * 71828554L >> 32).toInt - 1,
@@ -1873,6 +1881,7 @@ final class JsonWriter private[json] (
     writeInstant(year, month, day, (epochSecond - epochDay * 86400).toInt, nano, isRaw)
   }
 
+  @inline
   private[this] def writeInstant(year: Int, month: Int, day: Int, secsOfDay: Int, nano: Int, isRaw: Boolean): Unit = {
     var pos = ensureBufCapacity(39) // 39 == Instant.MAX.toString.length + 2
     val buf = this.buf
@@ -2144,6 +2153,7 @@ final class JsonWriter private[json] (
     pos + 7
   }
 
+  @inline
   private[this] def writeYear(year: Int, pos: Int, buf: Array[Byte], ds: Array[Short]): Int =
     if (year >= 0 && year < 10000) write4Digits(year, pos, buf, ds)
     else writeYearWithSign(year, pos, buf, ds)
@@ -2230,12 +2240,14 @@ final class JsonWriter private[json] (
     }
   }
 
+  @inline
   private[this] def write3Digits(x: Int, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     val q1 = x * 1311 >> 17 // divide a small positive int by 100
     ByteArrayAccess.setInt(buf, pos, ds(x - q1 * 100) << 8 | q1 | '0')
     pos + 3
   }
 
+  @inline
   private[this] def write4Digits(x: Int, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     val q1 = x * 5243 >> 19 // divide a small positive int by 100
     val d1 = ds(x - q1 * 100) << 16
@@ -2244,6 +2256,7 @@ final class JsonWriter private[json] (
     pos + 4
   }
 
+  @inline
   private[this] def write8Digits(x: Long, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     val y1 =
       x * 140737489 // Based on James Anhalt's algorithm for 8 digits: https://jk-jeon.github.io/posts/2022/02/jeaiii-algorithm/
@@ -2260,6 +2273,7 @@ final class JsonWriter private[json] (
     pos + 8
   }
 
+  @inline
   private[this] def write18Digits(x: Long, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
     val m1 = 6189700196426901375L
     val q1 = Math.multiplyHigh(x, m1) >>> 25  // divide a positive long by 100000000
@@ -2329,6 +2343,7 @@ final class JsonWriter private[json] (
     count = pos
   }
 
+  @inline
   private[this] def writeLong(x: Long): Unit =
     count = writeLong(x, ensureBufCapacity(20), buf) // Long.MinValue.toString.length
 
@@ -2578,6 +2593,11 @@ final class JsonWriter private[json] (
     count = pos
   }
 
+  @inline
+  private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
+    Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
+
+  @inline
   private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
     (hi * 10L + unsignedMultiplyHigh2(
       lo,
@@ -2587,13 +2607,12 @@ final class JsonWriter private[json] (
       else 0x20L
     }) >>> 6
 
-  private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
-    Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
-
   // Adoption of a nice trick from Daniel Lemire's blog that works for numbers up to 10^18:
   // https://lemire.me/blog/2021/06/03/computing-the-number-of-digits-of-an-integer-even-faster/
+  @inline
   private[this] def digitCount(x: Long): Int = (offsets(java.lang.Long.numberOfLeadingZeros(x)) + x >> 58).toInt
 
+  @inline
   private[this] def writeSignificantFractionDigits(
     x: Long,
     p: Int,
@@ -2620,6 +2639,7 @@ final class JsonWriter private[json] (
     writeSignificantFractionDigits(q0, pos, posLim, buf, ds)
   }
 
+  @inline
   private[this] def writeSignificantFractionDigits(
     x: Int,
     p: Int,
@@ -2644,6 +2664,7 @@ final class JsonWriter private[json] (
     pos + ((0x3039 - d) >>> 31)
   }
 
+  @inline
   private[this] def writeFractionDigits(x: Int, p: Int, posLim: Int, buf: Array[Byte], ds: Array[Short]): Unit = {
     var q0  = x
     var pos = p
@@ -2655,6 +2676,7 @@ final class JsonWriter private[json] (
     }
   }
 
+  @inline
   private[this] def writePositiveIntDigits(x: Int, p: Int, buf: Array[Byte], ds: Array[Short]): Unit = {
     var q0  = x
     var pos = p
@@ -2670,16 +2692,20 @@ final class JsonWriter private[json] (
     else ByteArrayAccess.setShort(buf, pos, ds(q0))
   }
 
+  @noinline
   private[this] def illegalNumberError(x: Float): Nothing = encodeError("illegal number: " + x)
 
+  @noinline
   private[this] def illegalNumberError(x: Double): Nothing = encodeError("illegal number: " + x)
 
+  @inline
   private[this] def ensureBufCapacity(required: Int): Int = {
     val pos = count
     if (pos + required <= limit) pos
     else flushAndGrowBuf(required, pos)
   }
 
+  @noinline
   private[this] def flushAndGrowBuf(required: Int, pos: Int): Int =
     if (bbuf ne null) {
       bbuf.put(buf, 0, pos)
@@ -2695,11 +2721,14 @@ final class JsonWriter private[json] (
       pos
     }
 
+  @noinline
   private[this] def growBuf(required: Int): Unit =
     setBuf(java.util.Arrays.copyOf(buf, (-1 >>> Integer.numberOfLeadingZeros(limit | required)) + 1))
 
+  @inline
   private[this] def reallocateBufToPreferredSize(): Unit = setBuf(new Array[Byte](config.preferredBufSize))
 
+  @inline
   private[this] def setBuf(buf: Array[Byte]): Unit = {
     this.buf = buf
     limit = buf.length
@@ -3636,6 +3665,15 @@ object JsonWriter {
     }
   }
 
+  @inline
+  private[this] def unsignedMultiplyHigh1(x: Long, y: Long): Long =
+    Math.multiplyHigh(x, y) + y // Use implementation that works only when x is negative and y is positive
+
+  @inline
+  private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
+    Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
+
+  @inline
   private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
     (hi * 10L + unsignedMultiplyHigh2(
       lo,
@@ -3644,10 +3682,4 @@ object JsonWriter {
       if (dotOne == 0x4000000000000000L) 0x1fL
       else 0x20L
     }) >>> 6
-
-  private[this] def unsignedMultiplyHigh1(x: Long, y: Long): Long =
-    Math.multiplyHigh(x, y) + y // Use implementation that works only when x is negative and y is positive
-
-  private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
-    Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
 }
