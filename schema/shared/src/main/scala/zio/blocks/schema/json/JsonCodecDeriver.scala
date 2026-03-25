@@ -1046,14 +1046,19 @@ class JsonCodecDeriver private[json] (
                       new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant.cases, span :: spans))
                     } else {
                       val caseLeafInfo = new CaseLeafInfo(null, span :: spans)
+                      val aliases      = mutable.ArrayBuilder.make[String]
                       var name: String = null
                       case_.modifiers.foreach {
                         case m: Modifier.rename => if (name eq null) name = m.name
-                        case m: Modifier.alias  => map.put(m.name, caseLeafInfo)
-                        case _                  =>
+                        case m: Modifier.alias  =>
+                          val alias = m.name
+                          map.put(alias, caseLeafInfo)
+                          aliases.addOne(alias)
+                        case _ =>
                       }
                       if (name eq null) name = caseNameMapper(case_.name)
                       caseLeafInfo.setName(name)
+                      caseLeafInfo.setAliases(aliases.result())
                       map.put(name, caseLeafInfo)
                       discriminatorFields.set(new DiscriminatorFieldInfo(fieldName, name) :: discriminatorFields.get)
                       caseLeafInfo.codec = D.instance(caseReflect.metadata).force
@@ -1134,9 +1139,10 @@ class JsonCodecDeriver private[json] (
                     while (idx < len) {
                       infos(idx) match {
                         case leaf: CaseLeafInfo =>
-                          acc.addOne(
-                            leaf.codec.toJsonSchema.withDiscriminatorField(discriminatorFieldName, leaf.getName)
-                          )
+                          val schema = leaf.codec.toJsonSchema
+                          (leaf.getName +: leaf.getAliases).foreach { nameOrAlias =>
+                            acc.addOne(schema.withDiscriminatorField(discriminatorFieldName, nameOrAlias))
+                          }
                         case node: CaseNodeInfo[?] => collectCaseSchemas(node.caseInfos, acc)
                       }
                       idx += 1
