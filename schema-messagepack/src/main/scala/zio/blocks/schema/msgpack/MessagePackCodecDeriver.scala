@@ -22,11 +22,12 @@ import zio.blocks.schema.binding.{Binding, HasBinding, Registers, RegisterOffset
 import zio.blocks.schema._
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
+import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
-  import MessagePackBinaryCodec._
+object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
+  import MessagePackCodec._
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -36,7 +37,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[MessagePackBinaryCodec[A]] = {
+  ): Lazy[MessagePackCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       Lazy(primitiveType match {
         case _: PrimitiveType.Unit.type      => unitCodec
@@ -70,8 +71,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         case _: PrimitiveType.Currency       => currencyCodec
         case _: PrimitiveType.UUID           => uuidCodec
       })
-    } else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance
-  }.asInstanceOf[Lazy[MessagePackBinaryCodec[A]]]
+    } else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, A]].instance
+  }.asInstanceOf[Lazy[MessagePackCodec[A]]]
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -81,7 +82,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val len           = fields.length
@@ -94,8 +95,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         infos = new Array[MessagePackFieldInfo](len)
         var idx = 0
         while (idx < len) {
-          val fieldName = fields(idx).name
-          val info      = new MessagePackFieldInfo(DynamicOptic.Node.Field(fieldName), idx)
+          val field        = fields(idx)
+          val fieldName    = field.name
+          val fieldReflect = field.value
+          val info         = new MessagePackFieldInfo(DynamicOptic.Node.Field(fieldName), idx, Reflect.typeTag(fieldReflect))
           info.setName(fieldName)
           infos(idx) = info
           idx += 1
@@ -108,10 +111,11 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         val field     = fields(idx)
         val fieldInfo = infos(idx)
         if (deriveCodecs) {
-          val codec = D.instance(field.value.metadata).force
+          val fieldReflect = field.value
+          val codec        = D.instance(fieldReflect.metadata).force
           fieldInfo.setCodec(codec)
           fieldInfo.setOffset(offset)
-          offset = RegisterOffset.add(codec.valueOffset, offset)
+          offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
         }
         idx += 1
       }
@@ -124,18 +128,17 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         }
         map
       } else null
-      new MessagePackBinaryCodec[A]() {
+      new MessagePackCodec[A] {
         private[this] val deconstructor = recordBinding.deconstructor
         private[this] val constructor   = recordBinding.constructor
         private[this] val fieldInfos    = infos
         private[this] val fieldLookup   = fieldNameMap
-        private[this] var usedRegisters = offset
+        private[this] val usedRegisters = constructor.usedRegisters
 
         def decodeValue(in: MessagePackReader): A = {
           val fieldLen = fieldInfos.length
-          if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-          val regs    = Registers(usedRegisters)
-          val mapSize = in.readMapHeader()
+          val regs     = Registers(usedRegisters)
+          val mapSize  = in.readMapHeader()
           if (mapSize != fieldLen) in.decodeError(s"Expected $fieldLen fields, got: $mapSize")
           var idx = 0
           while (idx < mapSize) {
@@ -157,7 +160,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             val fieldInfo = fieldInfos(fieldIdx)
             try fieldInfo.readValue(in, regs, 0)
             catch {
-              case error if NonFatal(error) => decodeError(fieldInfo.span, error)
+              case err if NonFatal(err) => error(fieldInfo.span, err)
             }
             idx += 1
           }
@@ -166,8 +169,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
 
         def encodeValue(value: A, out: MessagePackWriter): Unit = {
           val fieldLen = fieldInfos.length
-          if (fieldLen > 0 && usedRegisters == 0) usedRegisters = fieldInfos(fieldLen - 1).usedRegisters
-          val regs = Registers(usedRegisters)
+          val regs     = Registers(usedRegisters)
           deconstructor.deconstruct(regs, 0, value)
           out.writeMapHeader(fieldLen)
           var idx = 0
@@ -180,7 +182,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         }
       }
     }
-    else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance
+    else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, A]].instance
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
@@ -190,7 +192,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
       if (typeId.isOption) {
@@ -201,12 +203,13 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           .asInstanceOf[Binding.Record[A]]
         val valueReflect = someRecord.fields(0).value
         D.instance(valueReflect.metadata).map { valueCodec =>
-          new MessagePackBinaryCodec[A]() {
+          new MessagePackCodec[A] {
             private[this] val discriminator = variantBinding.discriminator
             private[this] val constructor   = someBinding.constructor
             private[this] val deconstructor = someBinding.deconstructor
             private[this] val codec         = valueCodec
-            private[this] val usedRegisters = someBinding.constructor.usedRegisters
+            private[this] val typeTag       = Reflect.typeTag(valueReflect)
+            private[this] val usedRegisters = constructor.usedRegisters
 
             def decodeValue(in: MessagePackReader): A = {
               val arrLen = in.readArrayHeader()
@@ -215,7 +218,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
                 val regs = Registers(usedRegisters)
                 try {
                   val innerValue = codec.decodeValue(in)
-                  codec.valueType match {
+                  (typeTag: @switch) match {
                     case 0 => regs.setObject(0, innerValue.asInstanceOf[AnyRef])
                     case 1 => regs.setInt(0, innerValue.asInstanceOf[Int])
                     case 2 => regs.setLong(0, innerValue.asInstanceOf[Long])
@@ -229,7 +232,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
                   }
                   constructor.construct(regs, 0)
                 } catch {
-                  case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Case("Some"), error)
+                  case err if NonFatal(err) => error(new DynamicOptic.Node.Case("Some"), err)
                 }
               } else in.decodeError(s"Expected Option array of 0 or 1, got: $arrLen")
             }.asInstanceOf[A]
@@ -241,17 +244,17 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
                 out.writeArrayHeader(1)
                 val regs = Registers(usedRegisters)
                 deconstructor.deconstruct(regs, 0, value)
-                codec.valueType match {
-                  case 0 => codec.asInstanceOf[MessagePackBinaryCodec[AnyRef]].encodeValue(regs.getObject(0), out)
-                  case 1 => codec.asInstanceOf[MessagePackBinaryCodec[Int]].encodeValue(regs.getInt(0), out)
-                  case 2 => codec.asInstanceOf[MessagePackBinaryCodec[Long]].encodeValue(regs.getLong(0), out)
-                  case 3 => codec.asInstanceOf[MessagePackBinaryCodec[Float]].encodeValue(regs.getFloat(0), out)
-                  case 4 => codec.asInstanceOf[MessagePackBinaryCodec[Double]].encodeValue(regs.getDouble(0), out)
-                  case 5 => codec.asInstanceOf[MessagePackBinaryCodec[Boolean]].encodeValue(regs.getBoolean(0), out)
-                  case 6 => codec.asInstanceOf[MessagePackBinaryCodec[Byte]].encodeValue(regs.getByte(0), out)
-                  case 7 => codec.asInstanceOf[MessagePackBinaryCodec[Char]].encodeValue(regs.getChar(0), out)
-                  case 8 => codec.asInstanceOf[MessagePackBinaryCodec[Short]].encodeValue(regs.getShort(0), out)
-                  case _ => codec.asInstanceOf[MessagePackBinaryCodec[Unit]].encodeValue((), out)
+                (typeTag: @switch) match {
+                  case 0 => codec.asInstanceOf[MessagePackCodec[AnyRef]].encodeValue(regs.getObject(0), out)
+                  case 1 => codec.asInstanceOf[MessagePackCodec[Int]].encodeValue(regs.getInt(0), out)
+                  case 2 => codec.asInstanceOf[MessagePackCodec[Long]].encodeValue(regs.getLong(0), out)
+                  case 3 => codec.asInstanceOf[MessagePackCodec[Float]].encodeValue(regs.getFloat(0), out)
+                  case 4 => codec.asInstanceOf[MessagePackCodec[Double]].encodeValue(regs.getDouble(0), out)
+                  case 5 => codec.asInstanceOf[MessagePackCodec[Boolean]].encodeValue(regs.getBoolean(0), out)
+                  case 6 => codec.asInstanceOf[MessagePackCodec[Byte]].encodeValue(regs.getByte(0), out)
+                  case 7 => codec.asInstanceOf[MessagePackCodec[Char]].encodeValue(regs.getChar(0), out)
+                  case 8 => codec.asInstanceOf[MessagePackCodec[Short]].encodeValue(regs.getShort(0), out)
+                  case _ => codec.asInstanceOf[MessagePackCodec[Unit]].encodeValue((), out)
                 }
               }
             }
@@ -262,10 +265,10 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         val rightValueReflect = cases(1).value.asRecord.get.fields(0).value
         D.instance(leftValueReflect.metadata).zip(D.instance(rightValueReflect.metadata)).map {
           case (leftValueCodec, rightValueCodec) =>
-            new MessagePackBinaryCodec[A]() {
+            new MessagePackCodec[A] {
               private[this] val discriminator = variantBinding.discriminator
-              private[this] val leftCodec     = leftValueCodec.asInstanceOf[MessagePackBinaryCodec[Any]]
-              private[this] val rightCodec    = rightValueCodec.asInstanceOf[MessagePackBinaryCodec[Any]]
+              private[this] val leftCodec     = leftValueCodec.asInstanceOf[MessagePackCodec[Any]]
+              private[this] val rightCodec    = rightValueCodec.asInstanceOf[MessagePackCodec[Any]]
 
               def decodeValue(in: MessagePackReader): A = {
                 val mapSize = in.readMapHeader()
@@ -274,12 +277,12 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
                 if (key == "left") {
                   try new Left(leftCodec.decodeValue(in)).asInstanceOf[A]
                   catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Case("Left"), error)
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.Case("Left"), err)
                   }
                 } else if (key == "right") {
                   try new Right(rightCodec.decodeValue(in)).asInstanceOf[A]
                   catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Case("Right"), error)
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.Case("Right"), err)
                   }
                 } else in.decodeError(s"Expected 'left' or 'right', got: $key")
               }
@@ -300,22 +303,22 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
       } else
         Lazy {
           val len    = cases.length
-          val codecs = new Array[MessagePackBinaryCodec[?]](len)
+          val codecs = new Array[MessagePackCodec[?]](len)
           var idx    = 0
           while (idx < len) {
             codecs(idx) = D.instance(cases(idx).value.metadata).force
             idx += 1
           }
-          new MessagePackBinaryCodec[A]() {
+          new MessagePackCodec[A] {
             private[this] val discriminator = variantBinding.discriminator
             private[this] val caseCodecs    = codecs
 
             def decodeValue(in: MessagePackReader): A = {
               val idx = in.readIntValue()
               if (idx >= 0 && idx < caseCodecs.length) {
-                try caseCodecs(idx).asInstanceOf[MessagePackBinaryCodec[A]].decodeValue(in)
+                try caseCodecs(idx).asInstanceOf[MessagePackCodec[A]].decodeValue(in)
                 catch {
-                  case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
+                  case err if NonFatal(err) => error(new DynamicOptic.Node.Case(cases(idx).name), err)
                 }
               } else in.decodeError(s"Expected variant index from 0 to ${caseCodecs.length - 1}, got $idx")
             }
@@ -323,12 +326,12 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             def encodeValue(value: A, out: MessagePackWriter): Unit = {
               val idx = discriminator.discriminate(value)
               out.writeInt(idx)
-              caseCodecs(idx).asInstanceOf[MessagePackBinaryCodec[A]].encodeValue(value, out)
+              caseCodecs(idx).asInstanceOf[MessagePackCodec[A]].encodeValue(value, out)
             }
           }
         }
-    } else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance
-  }.asInstanceOf[Lazy[MessagePackBinaryCodec[A]]]
+    } else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, A]].instance
+  }.asInstanceOf[Lazy[MessagePackCodec[A]]]
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -338,14 +341,14 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[C[A]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[C[A]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { codec =>
-        new MessagePackBinaryCodec[Col[Elem]]() {
+        new MessagePackCodec[Col[Elem]] {
           private[this] val deconstructor                     = seqBinding.deconstructor
           private[this] val constructor                       = seqBinding.constructor
-          private[this] val elementCodec                      = codec.asInstanceOf[MessagePackBinaryCodec[Elem]]
+          private[this] val elementCodec                      = codec.asInstanceOf[MessagePackCodec[Elem]]
           private[this] implicit val classTag: ClassTag[Elem] = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
           def decodeValue(in: MessagePackReader): Col[Elem] = {
@@ -355,8 +358,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
             while (idx < size) {
               try constructor.add(builder, elementCodec.decodeValue(in))
               catch {
-                case error if NonFatal(error) =>
-                  decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
               }
               idx += 1
             }
@@ -371,8 +373,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           }
         }
       }
-    } else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, C[A]]].instance
-  }.asInstanceOf[Lazy[MessagePackBinaryCodec[C[A]]]]
+    } else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, C[A]]].instance
+  }.asInstanceOf[Lazy[MessagePackCodec[C[A]]]]
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -383,15 +385,15 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[M[K, V]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[M[K, V]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (codec1, codec2) =>
-        new MessagePackBinaryCodec[Map[Key, Value]]() {
+        new MessagePackCodec[Map[Key, Value]] {
           private[this] val deconstructor = mapBinding.deconstructor
           private[this] val constructor   = mapBinding.constructor
-          private[this] val keyCodec      = codec1.asInstanceOf[MessagePackBinaryCodec[Key]]
-          private[this] val valueCodec    = codec2.asInstanceOf[MessagePackBinaryCodec[Value]]
+          private[this] val keyCodec      = codec1.asInstanceOf[MessagePackCodec[Key]]
+          private[this] val valueCodec    = codec2.asInstanceOf[MessagePackCodec[Value]]
           private[this] val keyReflect    = key.asInstanceOf[Reflect.Bound[Key]]
 
           def decodeValue(in: MessagePackReader): Map[Key, Value] = {
@@ -402,13 +404,13 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
               val k =
                 try keyCodec.decodeValue(in)
                 catch {
-                  case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
+                  case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                 }
               val v =
                 try valueCodec.decodeValue(in)
                 catch {
-                  case error if NonFatal(error) =>
-                    decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
+                  case err if NonFatal(err) =>
+                    error(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
                 }
               constructor.addObject(builder, k, v)
               idx += 1
@@ -428,8 +430,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           }
         }
       }
-    } else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, M[K, V]]].instance
-  }.asInstanceOf[Lazy[MessagePackBinaryCodec[M[K, V]]]]
+    } else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, M[K, V]]].instance
+  }.asInstanceOf[Lazy[MessagePackCodec[M[K, V]]]]
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -437,9 +439,9 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[DynamicValue]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[DynamicValue]] =
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
-    else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, DynamicValue]].instance
+    else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, DynamicValue]].instance
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -449,22 +451,11 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackBinaryCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[MessagePackCodec[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
       D.instance(wrapped.metadata).map { codec =>
-        new MessagePackBinaryCodec[A](PrimitiveType.fromTypeId(typeId).fold(objectType) {
-          case _: PrimitiveType.Boolean   => booleanType
-          case _: PrimitiveType.Byte      => byteType
-          case _: PrimitiveType.Char      => charType
-          case _: PrimitiveType.Short     => shortType
-          case _: PrimitiveType.Float     => floatType
-          case _: PrimitiveType.Int       => intType
-          case _: PrimitiveType.Double    => doubleType
-          case _: PrimitiveType.Long      => longType
-          case _: PrimitiveType.Unit.type => unitType
-          case _                          => objectType
-        }) {
+        new MessagePackCodec[A] {
           private[this] val wrap         = wrapperBinding.wrap
           private[this] val unwrap       = wrapperBinding.unwrap
           private[this] val wrappedCodec = codec
@@ -472,13 +463,13 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
           def decodeValue(in: MessagePackReader): A =
             try wrap(wrappedCodec.decodeValue(in))
             catch {
-              case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
             }
 
           def encodeValue(value: A, out: MessagePackWriter): Unit = wrappedCodec.encodeValue(unwrap(value), out)
         }
       }
-    } else binding.asInstanceOf[BindingInstance[MessagePackBinaryCodec, ?, A]].instance
+    } else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, A]].instance
 
   override def instanceOverrides: IndexedSeq[InstanceOverride] = {
     recursiveRecordCache.remove()
@@ -498,8 +489,8 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         new java.util.HashMap
     }
 
-  private[this] val dynamicValueCodec: MessagePackBinaryCodec[DynamicValue] =
-    new MessagePackBinaryCodec[DynamicValue]() {
+  private[this] val dynamicValueCodec: MessagePackCodec[DynamicValue] =
+    new MessagePackCodec[DynamicValue] {
       def decodeValue(in: MessagePackReader): DynamicValue = decodeDynamic(in)
 
       def encodeValue(value: DynamicValue, out: MessagePackWriter): Unit = encodeDynamic(value, out)
@@ -513,7 +504,7 @@ object MessagePackBinaryCodecDeriver extends Deriver[MessagePackBinaryCodec] {
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
           if (len < 0) in.decodeError("Array length exceeds maximum (2GB)")
-          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](Math.min(len, 1000000))
+          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](len)
           var idx     = 0
           while (idx < len) {
             builder.addOne(decodeDynamic(in))

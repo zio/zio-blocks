@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
+import zio.blocks.chunk.{Chunk, ChunkBuilder, NonEmptyChunk}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import zio.blocks.schema.binding.Registers
@@ -567,10 +567,7 @@ object JsonCodec {
 
     override def encodeValue(x: Unit): Json = Json.Object.empty
 
-    override val toJsonSchema: JsonSchema = JsonSchema.obj(
-      properties = new Some(ChunkMap.empty),
-      additionalProperties = new Some(JsonSchema.False)
-    )
+    override val toJsonSchema: JsonSchema = JsonSchema.obj(maxProperties = NonNegativeInt(0))
   }
   val booleanCodec: JsonCodec[Boolean] = new JsonCodec[Boolean] {
     def decodeValue(in: JsonReader): Boolean = in.readBoolean()

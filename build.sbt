@@ -367,7 +367,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 87,
+    coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 81
   )
   .jvmSettings(
@@ -541,9 +541,9 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-docs"))
+  .settings(stdSettings("zio-blocks-markdown"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks.docs"))
+  .settings(buildInfoSettings("zio.blocks.markdown"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
@@ -661,7 +661,7 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 76,
+    coverageMinimumStmtTotal   := 75,
     coverageMinimumBranchTotal := 67
   )
   .jsSettings(

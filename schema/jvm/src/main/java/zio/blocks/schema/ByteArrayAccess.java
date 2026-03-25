@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema.binding;
+package zio.blocks.schema;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -33,6 +33,8 @@ public class ByteArrayAccess {
             MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.LITTLE_ENDIAN);
     private static final VarHandle VH_CHAR =
             MethodHandles.byteArrayViewVarHandle(char[].class, ByteOrder.LITTLE_ENDIAN);
+    private static final VarHandle VH_LONG_REVERSED =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     public static void setLong(byte[] buf, int pos, long value) {
         VH_LONG.set(buf, pos, value);
@@ -80,5 +82,9 @@ public class ByteArrayAccess {
 
     public static char getChar(byte[] buf, int pos) {
         return (char) VH_CHAR.get(buf, pos);
+    }
+    
+    public static void setLongReversed(byte[] buf, int pos, long value) {
+        VH_LONG_REVERSED.set(buf, pos, value);
     }
 }

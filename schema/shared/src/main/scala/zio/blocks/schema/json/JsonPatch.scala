@@ -114,19 +114,19 @@ object JsonPatch {
    *   Either an error for unsupported operations, or the equivalent JsonPatch
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[SchemaError, JsonPatch] = {
-    val builder = ChunkBuilder.make[JsonPatchOp]()
     val ops     = patch.ops
     val len     = ops.length
+    val results = new Array[JsonPatchOp](len)
     var idx     = 0
     while (idx < len) {
       val dynOp = ops(idx)
       operationFromDynamic(dynOp.operation) match {
-        case Right(op) => builder.addOne(new JsonPatchOp(dynOp.path, op))
+        case Right(op) => results(idx) = new JsonPatchOp(dynOp.path, op)
         case l         => return l.asInstanceOf[Either[SchemaError, JsonPatch]]
       }
       idx += 1
     }
-    new Right(new JsonPatch(builder.result()))
+    new Right(new JsonPatch(Chunk.fromArray(results)))
   }
 
   /**
@@ -244,16 +244,12 @@ object JsonPatch {
       case _: DynamicOptic.Node.MapValues.type =>
         new Left(SchemaError.expectationMismatch(trace, "MapValues not supported in patches"))
       case _: DynamicOptic.Node.TypeSearch =>
-        new Left(
-          SchemaError.expectationMismatch(trace, "TypeSearch requires Schema context, not supported for JSON patches")
-        )
+        val msg = "TypeSearch requires Schema context, not supported for JSON patches"
+        new Left(SchemaError.expectationMismatch(trace, msg))
       case DynamicOptic.Node.SchemaSearch(pattern) =>
-        val newTrace = node :: trace
-        if (isLast) {
-          schemaSearchApplyOperationJson(value, pattern, operation, mode, newTrace)
-        } else {
-          schemaSearchNavigateJson(value, pattern, path, pathIdx + 1, operation, mode, newTrace)
-        }
+        val trace_ = node :: trace
+        if (isLast) schemaSearchApplyOperationJson(value, pattern, operation, mode, trace_)
+        else schemaSearchNavigateJson(value, pattern, path, pathIdx + 1, operation, mode, trace_)
     }
   }
 
