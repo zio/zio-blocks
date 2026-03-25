@@ -343,8 +343,8 @@ class JsonCodecDeriver private[json] (
         var idx                  = 0
         while (idx < len) {
           val fieldReflect = fields(idx).value
-          fieldRegisterOffsets(idx) = registerOffset(fieldReflect)
-          fieldTypeTags(idx) = typeTag(fieldReflect)
+          fieldRegisterOffsets(idx) = Reflect.registerOffset(fieldReflect)
+          fieldTypeTags(idx) = Reflect.typeTag(fieldReflect)
           codecs(idx) = D.instance(fieldReflect.metadata).force
           idx += 1
         }
@@ -602,11 +602,11 @@ class JsonCodecDeriver private[json] (
                 defaultValue = defaultValue,
                 emptyCollectionConstructor = emptyCollectionConstructor,
                 offset = offset,
-                typeTag = typeTag(fieldReflect),
+                typeTag = Reflect.typeTag(fieldReflect),
                 idx = idx,
                 isOptional = !requireOptionFields && fieldReflect.isOption
               )
-              offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
+              offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
               idx += 1
             }
             if (isRecursive) recursiveRecordCache.get.put(typeId, infos)
@@ -1366,7 +1366,7 @@ class JsonCodecDeriver private[json] (
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { codec =>
-        typeTag(element) match {
+        Reflect.typeTag(element) match {
           case 1 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
             if (codec eq intCodec) {
               new JsonCodec[Col[Int]]() {
@@ -2882,42 +2882,6 @@ class JsonCodecDeriver private[json] (
       .binding
       .asInstanceOf[Binding.Variant[A]]
       .discriminator
-
-  private def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset =
-    Reflect.unwrapToPrimitiveTypeOption(reflect) match {
-      case Some(primitiveType) =>
-        primitiveType match {
-          case _: PrimitiveType.Unit.type => 0L
-          case _: PrimitiveType.Boolean   => RegisterOffset.incrementBooleansAndBytes(0L)
-          case _: PrimitiveType.Byte      => RegisterOffset.incrementBooleansAndBytes(0L)
-          case _: PrimitiveType.Char      => RegisterOffset.incrementCharsAndShorts(0L)
-          case _: PrimitiveType.Short     => RegisterOffset.incrementCharsAndShorts(0L)
-          case _: PrimitiveType.Float     => RegisterOffset.incrementFloatsAndInts(0L)
-          case _: PrimitiveType.Int       => RegisterOffset.incrementFloatsAndInts(0L)
-          case _: PrimitiveType.Double    => RegisterOffset.incrementDoublesAndLongs(0L)
-          case _: PrimitiveType.Long      => RegisterOffset.incrementDoublesAndLongs(0L)
-          case _                          => RegisterOffset.incrementObjects(0L)
-        }
-      case _ => RegisterOffset.incrementObjects(0L)
-    }
-
-  private def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
-    Reflect.unwrapToPrimitiveTypeOption(reflect) match {
-      case Some(primitiveType) =>
-        primitiveType match {
-          case _: PrimitiveType.Unit.type => 9
-          case _: PrimitiveType.Boolean   => 5
-          case _: PrimitiveType.Byte      => 6
-          case _: PrimitiveType.Char      => 7
-          case _: PrimitiveType.Short     => 8
-          case _: PrimitiveType.Float     => 3
-          case _: PrimitiveType.Int       => 1
-          case _: PrimitiveType.Double    => 4
-          case _: PrimitiveType.Long      => 2
-          case _                          => 0
-        }
-      case _ => 0
-    }
 }
 
 private class FieldInfo(

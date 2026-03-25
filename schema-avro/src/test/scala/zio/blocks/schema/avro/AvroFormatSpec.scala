@@ -265,9 +265,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -285,9 +285,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -305,9 +305,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Unit] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Unit = decoder.readString()
+              def decodeValue(decoder: BinaryDecoder): Unit = decoder.readString()
 
-              def encode(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
+              def encodeValue(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -325,12 +325,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[None.type] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): None.type = {
+              def decodeValue(decoder: BinaryDecoder): None.type = {
                 val _ = decoder.readString()
                 None
               }
 
-              def encode(value: None.type, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
+              def encodeValue(value: None.type, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -348,17 +348,17 @@ object AvroFormatSpec extends SchemaBaseSpec {
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-          def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
+          def decodeValue(decoder: BinaryDecoder): Record1 = {
             val idx = decoder.readInt()
             if (idx == 0) null
-            else codec.decodeUnsafe(decoder)
+            else codec.decodeValue(decoder)
           }
 
-          def encode(value: Record1, encoder: BinaryEncoder): Unit =
+          def encodeValue(value: Record1, encoder: BinaryEncoder): Unit =
             if (value eq null) encoder.writeInt(0)
             else {
               encoder.writeInt(1)
-              codec.encode(value, encoder)
+              codec.encodeValue(value, encoder)
             }
         }
         val codec2 = Record2.schema
@@ -388,9 +388,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .instance(
@@ -398,9 +398,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
+              def decodeValue(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
             }
           )
           .derive
@@ -428,17 +428,17 @@ object AvroFormatSpec extends SchemaBaseSpec {
               val avroSchema: AvroSchema =
                 AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
+              def decodeValue(decoder: BinaryDecoder): Record1 = {
                 val idx = decoder.readInt()
                 if (idx == 0) null
-                else codec.decodeUnsafe(decoder)
+                else codec.decodeValue(decoder)
               }
 
-              def encode(value: Record1, encoder: BinaryEncoder): Unit =
+              def encodeValue(value: Record1, encoder: BinaryEncoder): Unit =
                 if (value eq null) encoder.writeInt(0)
                 else {
                   encoder.writeInt(1)
-                  codec.encode(value, encoder)
+                  codec.encodeValue(value, encoder)
                 }
             }
           )
@@ -465,9 +465,9 @@ object AvroFormatSpec extends SchemaBaseSpec {
             new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -938,17 +938,17 @@ object AvroFormatSpec extends SchemaBaseSpec {
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-          def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = {
+          def decodeValue(decoder: BinaryDecoder): DynamicValue = {
             val idx = decoder.readInt()
             if (idx == 0) null
-            else codec.decodeUnsafe(decoder)
+            else codec.decodeValue(decoder)
           }
 
-          def encode(value: DynamicValue, encoder: BinaryEncoder): Unit =
+          def encodeValue(value: DynamicValue, encoder: BinaryEncoder): Unit =
             if (value eq null) encoder.writeInt(0)
             else {
               encoder.writeInt(1)
-              codec.encode(value, encoder)
+              codec.encodeValue(value, encoder)
             }
         }
         val codec2 = Schema[Dynamic]

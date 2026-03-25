@@ -108,9 +108,9 @@ object AvroFormat
                 val field        = fields(idx)
                 val fieldReflect = field.value
                 val codec        = D.instance(fieldReflect.metadata).force.asInstanceOf[AvroCodec[?]]
-                fieldInfos(idx) = new FieldInfo(codec, typeTag(fieldReflect), offset)
+                fieldInfos(idx) = new FieldInfo(codec, Reflect.typeTag(fieldReflect), offset)
                 avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
-                offset = RegisterOffset.add(registerOffset(fieldReflect), offset)
+                offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
                 idx += 1
               }
               avroSchema.setFields(avroSchemaFields)
@@ -118,12 +118,12 @@ object AvroFormat
             Lazy(new AvroCodec[A]() {
               private[this] val deconstructor = recordBinding.deconstructor
               private[this] val constructor   = recordBinding.constructor
-              private[this] val usedRegisters = offset
+              private[this] val usedRegisters = constructor.usedRegisters
               private[this] val fieldInfos    = fieldInfosWithAvroSchema._1
 
               val avroSchema: AvroSchema = fieldInfosWithAvroSchema._2
 
-              def decodeUnsafe(decoder: BinaryDecoder): A = {
+              def decodeValue(decoder: BinaryDecoder): A = {
                 val regs = Registers(usedRegisters)
                 val len  = fieldInfos.length
                 var idx  = 0
@@ -133,26 +133,26 @@ object AvroFormat
                     val codec     = fieldInfo.codec
                     val offset    = fieldInfo.offset
                     (fieldInfo.typeTag: @switch) match {
-                      case 0 => regs.setObject(offset, codec.asInstanceOf[AvroCodec[AnyRef]].decodeUnsafe(decoder))
-                      case 1 => regs.setInt(offset, codec.asInstanceOf[AvroCodec[Int]].decodeUnsafe(decoder))
-                      case 2 => regs.setLong(offset, codec.asInstanceOf[AvroCodec[Long]].decodeUnsafe(decoder))
-                      case 3 => regs.setFloat(offset, codec.asInstanceOf[AvroCodec[Float]].decodeUnsafe(decoder))
-                      case 4 => regs.setDouble(offset, codec.asInstanceOf[AvroCodec[Double]].decodeUnsafe(decoder))
-                      case 5 => regs.setBoolean(offset, codec.asInstanceOf[AvroCodec[Boolean]].decodeUnsafe(decoder))
-                      case 6 => regs.setByte(offset, codec.asInstanceOf[AvroCodec[Byte]].decodeUnsafe(decoder))
-                      case 7 => regs.setChar(offset, codec.asInstanceOf[AvroCodec[Char]].decodeUnsafe(decoder))
-                      case 8 => regs.setShort(offset, codec.asInstanceOf[AvroCodec[Short]].decodeUnsafe(decoder))
-                      case _ => codec.asInstanceOf[AvroCodec[Unit]].decodeUnsafe(decoder)
+                      case 0 => regs.setObject(offset, codec.asInstanceOf[AvroCodec[AnyRef]].decodeValue(decoder))
+                      case 1 => regs.setInt(offset, codec.asInstanceOf[AvroCodec[Int]].decodeValue(decoder))
+                      case 2 => regs.setLong(offset, codec.asInstanceOf[AvroCodec[Long]].decodeValue(decoder))
+                      case 3 => regs.setFloat(offset, codec.asInstanceOf[AvroCodec[Float]].decodeValue(decoder))
+                      case 4 => regs.setDouble(offset, codec.asInstanceOf[AvroCodec[Double]].decodeValue(decoder))
+                      case 5 => regs.setBoolean(offset, codec.asInstanceOf[AvroCodec[Boolean]].decodeValue(decoder))
+                      case 6 => regs.setByte(offset, codec.asInstanceOf[AvroCodec[Byte]].decodeValue(decoder))
+                      case 7 => regs.setChar(offset, codec.asInstanceOf[AvroCodec[Char]].decodeValue(decoder))
+                      case 8 => regs.setShort(offset, codec.asInstanceOf[AvroCodec[Short]].decodeValue(decoder))
+                      case _ => codec.asInstanceOf[AvroCodec[Unit]].decodeValue(decoder)
                     }
                     idx += 1
                   }
                   constructor.construct(regs, 0L)
                 } catch {
-                  case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
+                  case err if NonFatal(err) => error(new DynamicOptic.Node.Field(fields(idx).name), err)
                 }
               }
 
-              def encode(value: A, encoder: BinaryEncoder): Unit = {
+              def encodeValue(value: A, encoder: BinaryEncoder): Unit = {
                 val regs = Registers(usedRegisters)
                 deconstructor.deconstruct(regs, 0L, value)
                 val len = fieldInfos.length
@@ -162,16 +162,16 @@ object AvroFormat
                   val codec     = fieldInfo.codec
                   val offset    = fieldInfo.offset
                   (fieldInfo.typeTag: @switch) match {
-                    case 0 => codec.asInstanceOf[AvroCodec[AnyRef]].encode(regs.getObject(offset), encoder)
-                    case 1 => codec.asInstanceOf[AvroCodec[Int]].encode(regs.getInt(offset), encoder)
-                    case 2 => codec.asInstanceOf[AvroCodec[Long]].encode(regs.getLong(offset), encoder)
-                    case 3 => codec.asInstanceOf[AvroCodec[Float]].encode(regs.getFloat(offset), encoder)
-                    case 4 => codec.asInstanceOf[AvroCodec[Double]].encode(regs.getDouble(offset), encoder)
-                    case 5 => codec.asInstanceOf[AvroCodec[Boolean]].encode(regs.getBoolean(offset), encoder)
-                    case 6 => codec.asInstanceOf[AvroCodec[Byte]].encode(regs.getByte(offset), encoder)
-                    case 7 => codec.asInstanceOf[AvroCodec[Char]].encode(regs.getChar(offset), encoder)
-                    case 8 => codec.asInstanceOf[AvroCodec[Short]].encode(regs.getShort(offset), encoder)
-                    case _ => codec.asInstanceOf[AvroCodec[Unit]].encode((), encoder)
+                    case 0 => codec.asInstanceOf[AvroCodec[AnyRef]].encodeValue(regs.getObject(offset), encoder)
+                    case 1 => codec.asInstanceOf[AvroCodec[Int]].encodeValue(regs.getInt(offset), encoder)
+                    case 2 => codec.asInstanceOf[AvroCodec[Long]].encodeValue(regs.getLong(offset), encoder)
+                    case 3 => codec.asInstanceOf[AvroCodec[Float]].encodeValue(regs.getFloat(offset), encoder)
+                    case 4 => codec.asInstanceOf[AvroCodec[Double]].encodeValue(regs.getDouble(offset), encoder)
+                    case 5 => codec.asInstanceOf[AvroCodec[Boolean]].encodeValue(regs.getBoolean(offset), encoder)
+                    case 6 => codec.asInstanceOf[AvroCodec[Byte]].encodeValue(regs.getByte(offset), encoder)
+                    case 7 => codec.asInstanceOf[AvroCodec[Char]].encodeValue(regs.getChar(offset), encoder)
+                    case 8 => codec.asInstanceOf[AvroCodec[Short]].encodeValue(regs.getShort(offset), encoder)
+                    case _ => codec.asInstanceOf[AvroCodec[Unit]].encodeValue((), encoder)
                   }
                   idx += 1
                 }
@@ -213,20 +213,20 @@ object AvroFormat
                 AvroSchema.createUnion(caseAvroSchemas)
               }
 
-              def decodeUnsafe(decoder: BinaryDecoder): A = {
+              def decodeValue(decoder: BinaryDecoder): A = {
                 val idx = decoder.readInt()
                 if (idx >= 0 && idx < caseCodecs.length) {
-                  try caseCodecs(idx).asInstanceOf[AvroCodec[A]].decodeUnsafe(decoder)
+                  try caseCodecs(idx).asInstanceOf[AvroCodec[A]].decodeValue(decoder)
                   catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.Case(cases(idx).name), err)
                   }
-                } else decodeError(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got $idx")
+                } else error(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got $idx")
               }
 
-              def encode(value: A, encoder: BinaryEncoder): Unit = {
+              def encodeValue(value: A, encoder: BinaryEncoder): Unit = {
                 val idx = discriminator.discriminate(value)
                 encoder.writeInt(idx)
-                caseCodecs(idx).asInstanceOf[AvroCodec[A]].encode(value, encoder)
+                caseCodecs(idx).asInstanceOf[AvroCodec[A]].encodeValue(value, encoder)
               }
             })
           } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
@@ -244,7 +244,7 @@ object AvroFormat
           if (binding.isInstanceOf[Binding[?, ?]]) {
             val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
             D.instance(element.metadata).map { codec =>
-              typeTag(element) match {
+              Reflect.typeTag(element) match {
                 case 5 if seqBinding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
                   new AvroCodec[Col[Boolean]]() {
                     private[this] val deconstructor = seqBinding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
@@ -253,7 +253,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Boolean] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Boolean] = {
                       val builder = constructor.newBuilder[Boolean](8)(ClassTag.Boolean)
                       var count   = 0L
                       var size    = 0
@@ -262,31 +262,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addBoolean(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addBoolean(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Boolean], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Boolean], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -299,7 +298,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Byte] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Byte] = {
                       val builder = constructor.newBuilder[Byte](8)(ClassTag.Byte)
                       var count   = 0L
                       var size    = 0
@@ -308,31 +307,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addByte(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addByte(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Byte], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Byte], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -345,7 +343,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Char] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Char] = {
                       val builder = constructor.newBuilder[Char](8)(ClassTag.Char)
                       var count   = 0L
                       var size    = 0
@@ -354,31 +352,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addChar(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addChar(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Char], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Char], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -391,7 +388,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Short] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Short] = {
                       val builder = constructor.newBuilder[Short](8)(ClassTag.Short)
                       var count   = 0L
                       var size    = 0
@@ -400,31 +397,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addShort(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addShort(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Short], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Short], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -437,7 +433,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Float] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Float] = {
                       val builder = constructor.newBuilder[Float](8)(ClassTag.Float)
                       var count   = 0L
                       var size    = 0
@@ -446,31 +442,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addFloat(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addFloat(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Float], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Float], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -483,7 +478,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Int] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Int] = {
                       val builder = constructor.newBuilder[Int](8)(ClassTag.Int)
                       var count   = 0L
                       var size    = 0
@@ -492,31 +487,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addInt(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addInt(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Int], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Int], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -529,7 +523,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Double] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Double] = {
                       val builder = constructor.newBuilder[Double](8)(ClassTag.Double)
                       var count   = 0L
                       var size    = 0
@@ -538,31 +532,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addDouble(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addDouble(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Double], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Double], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -575,7 +568,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Long] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Long] = {
                       val builder = constructor.newBuilder[Long](8)(ClassTag.Long)
                       var count   = 0L
                       var size    = 0
@@ -584,31 +577,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.addLong(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.addLong(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Long], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Long], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -622,7 +614,7 @@ object AvroFormat
 
                     val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                    def decodeUnsafe(decoder: BinaryDecoder): Col[Elem] = {
+                    def decodeValue(decoder: BinaryDecoder): Col[Elem] = {
                       val builder = constructor.newBuilder[Elem](8)(elemClassTag)
                       var count   = 0L
                       var size    = 0
@@ -631,31 +623,30 @@ object AvroFormat
                         size > 0
                       }) {
                         if (count + size > AvroCodec.maxCollectionSize) {
-                          decodeError(
+                          error(
                             s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                           )
                         }
                         try {
                           while (size > 0) {
-                            constructor.add(builder, elementCodec.decodeUnsafe(decoder))
+                            constructor.add(builder, elementCodec.decodeValue(decoder))
                             count += 1
                             size -= 1
                           }
                         } catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       }
-                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      if (size < 0) error(s"Expected positive collection part size, got $size")
                       constructor.result(builder)
                     }
 
-                    def encode(value: Col[Elem], encoder: BinaryEncoder): Unit = {
+                    def encodeValue(value: Col[Elem], encoder: BinaryEncoder): Unit = {
                       val size = deconstructor.size(value)
                       if (size > 0) {
                         encoder.writeInt(size)
                         val it = deconstructor.deconstruct(value)
-                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                        while (it.hasNext) elementCodec.encodeValue(it.next(), encoder)
                       }
                       encoder.writeInt(0)
                     }
@@ -695,7 +686,7 @@ object AvroFormat
                     AvroSchema.createArray(createAvroRecord("scala", "Tuple2", fields))
                 }
 
-                def decodeUnsafe(decoder: BinaryDecoder): Map[Key, Value] = {
+                def decodeValue(decoder: BinaryDecoder): Map[Key, Value] = {
                   val builder = constructor.newObjectBuilder[Key, Value](8)
                   var count   = 0L
                   var size    = 0
@@ -704,41 +695,38 @@ object AvroFormat
                     size > 0
                   }) {
                     if (count + size > AvroCodec.maxCollectionSize) {
-                      decodeError(
-                        s"Expected map size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
-                      )
+                      error(s"Expected map size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}")
                     }
                     while (size > 0) {
                       val k =
-                        try keyCodec.decodeUnsafe(decoder)
+                        try keyCodec.decodeValue(decoder)
                         catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                         }
                       val v =
-                        try valueCodec.decodeUnsafe(decoder)
+                        try valueCodec.decodeValue(decoder)
                         catch {
-                          case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), error)
+                          case err if NonFatal(err) =>
+                            error(new DynamicOptic.Node.AtMapKey(keyReflect.toDynamicValue(k)), err)
                         }
                       constructor.addObject(builder, k, v)
                       count += 1
                       size -= 1
                     }
                   }
-                  if (size < 0) decodeError(s"Expected positive map part size, got $size")
+                  if (size < 0) error(s"Expected positive map part size, got $size")
                   constructor.resultObject[Key, Value](builder)
                 }
 
-                def encode(value: Map[Key, Value], encoder: BinaryEncoder): Unit = {
+                def encodeValue(value: Map[Key, Value], encoder: BinaryEncoder): Unit = {
                   val size = deconstructor.size(value)
                   if (size > 0) {
                     encoder.writeInt(size)
                     val it = deconstructor.deconstruct(value)
                     while (it.hasNext) {
                       val kv = it.next()
-                      keyCodec.encode(deconstructor.getKey(kv), encoder)
-                      valueCodec.encode(deconstructor.getValue(kv), encoder)
+                      keyCodec.encodeValue(deconstructor.getKey(kv), encoder)
+                      valueCodec.encodeValue(deconstructor.getValue(kv), encoder)
                     }
                   }
                   encoder.writeInt(0)
@@ -778,13 +766,14 @@ object AvroFormat
 
                 val avroSchema: AvroSchema = wrappedCodec.avroSchema
 
-                def decodeUnsafe(decoder: BinaryDecoder): A =
-                  try wrap(wrappedCodec.decodeUnsafe(decoder))
+                def decodeValue(decoder: BinaryDecoder): A =
+                  try wrap(wrappedCodec.decodeValue(decoder))
                   catch {
-                    case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
+                    case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
                   }
 
-                def encode(value: A, encoder: BinaryEncoder): Unit = wrappedCodec.encode(unwrap(value), encoder)
+                def encodeValue(value: A, encoder: BinaryEncoder): Unit =
+                  wrappedCodec.encodeValue(unwrap(value), encoder)
               }
             }
           } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
@@ -929,52 +918,52 @@ object AvroFormat
             dynamicValue
           }
 
-          def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = decoder.readInt() match {
+          def decodeValue(decoder: BinaryDecoder): DynamicValue = decoder.readInt() match {
             case 0 =>
               try {
                 val idx = decoder.readInt()
-                if (idx < 0 || idx > 29) decodeError(s"Expected enum index from 0 to 29, got $idx")
+                if (idx < 0 || idx > 29) error(s"Expected enum index from 0 to 29, got $idx")
                 try {
                   new DynamicValue.Primitive((idx: @scala.annotation.switch) match {
                     case 0  => PrimitiveValue.Unit
-                    case 1  => new PrimitiveValue.Boolean(AvroCodec.booleanCodec.decodeUnsafe(decoder))
-                    case 2  => new PrimitiveValue.Byte(AvroCodec.byteCodec.decodeUnsafe(decoder))
-                    case 3  => new PrimitiveValue.Short(AvroCodec.shortCodec.decodeUnsafe(decoder))
-                    case 4  => new PrimitiveValue.Int(AvroCodec.intCodec.decodeUnsafe(decoder))
-                    case 5  => new PrimitiveValue.Long(AvroCodec.longCodec.decodeUnsafe(decoder))
-                    case 6  => new PrimitiveValue.Float(AvroCodec.floatCodec.decodeUnsafe(decoder))
-                    case 7  => new PrimitiveValue.Double(AvroCodec.doubleCodec.decodeUnsafe(decoder))
-                    case 8  => new PrimitiveValue.Char(AvroCodec.charCodec.decodeUnsafe(decoder))
-                    case 9  => new PrimitiveValue.String(AvroCodec.stringCodec.decodeUnsafe(decoder))
-                    case 10 => new PrimitiveValue.BigInt(AvroCodec.bigIntCodec.decodeUnsafe(decoder))
-                    case 11 => new PrimitiveValue.BigDecimal(AvroCodec.bigDecimalCodec.decodeUnsafe(decoder))
-                    case 12 => new PrimitiveValue.DayOfWeek(AvroCodec.dayOfWeekCodec.decodeUnsafe(decoder))
-                    case 13 => new PrimitiveValue.Duration(AvroCodec.durationCodec.decodeUnsafe(decoder))
-                    case 14 => new PrimitiveValue.Instant(AvroCodec.instantCodec.decodeUnsafe(decoder))
-                    case 15 => new PrimitiveValue.LocalDate(AvroCodec.localDateCodec.decodeUnsafe(decoder))
+                    case 1  => new PrimitiveValue.Boolean(AvroCodec.booleanCodec.decodeValue(decoder))
+                    case 2  => new PrimitiveValue.Byte(AvroCodec.byteCodec.decodeValue(decoder))
+                    case 3  => new PrimitiveValue.Short(AvroCodec.shortCodec.decodeValue(decoder))
+                    case 4  => new PrimitiveValue.Int(AvroCodec.intCodec.decodeValue(decoder))
+                    case 5  => new PrimitiveValue.Long(AvroCodec.longCodec.decodeValue(decoder))
+                    case 6  => new PrimitiveValue.Float(AvroCodec.floatCodec.decodeValue(decoder))
+                    case 7  => new PrimitiveValue.Double(AvroCodec.doubleCodec.decodeValue(decoder))
+                    case 8  => new PrimitiveValue.Char(AvroCodec.charCodec.decodeValue(decoder))
+                    case 9  => new PrimitiveValue.String(AvroCodec.stringCodec.decodeValue(decoder))
+                    case 10 => new PrimitiveValue.BigInt(AvroCodec.bigIntCodec.decodeValue(decoder))
+                    case 11 => new PrimitiveValue.BigDecimal(AvroCodec.bigDecimalCodec.decodeValue(decoder))
+                    case 12 => new PrimitiveValue.DayOfWeek(AvroCodec.dayOfWeekCodec.decodeValue(decoder))
+                    case 13 => new PrimitiveValue.Duration(AvroCodec.durationCodec.decodeValue(decoder))
+                    case 14 => new PrimitiveValue.Instant(AvroCodec.instantCodec.decodeValue(decoder))
+                    case 15 => new PrimitiveValue.LocalDate(AvroCodec.localDateCodec.decodeValue(decoder))
                     case 16 =>
-                      new PrimitiveValue.LocalDateTime(AvroCodec.localDateTimeCodec.decodeUnsafe(decoder))
-                    case 17 => new PrimitiveValue.LocalTime(AvroCodec.localTimeCodec.decodeUnsafe(decoder))
-                    case 18 => new PrimitiveValue.Month(AvroCodec.monthCodec.decodeUnsafe(decoder))
-                    case 19 => new PrimitiveValue.MonthDay(AvroCodec.monthDayCodec.decodeUnsafe(decoder))
+                      new PrimitiveValue.LocalDateTime(AvroCodec.localDateTimeCodec.decodeValue(decoder))
+                    case 17 => new PrimitiveValue.LocalTime(AvroCodec.localTimeCodec.decodeValue(decoder))
+                    case 18 => new PrimitiveValue.Month(AvroCodec.monthCodec.decodeValue(decoder))
+                    case 19 => new PrimitiveValue.MonthDay(AvroCodec.monthDayCodec.decodeValue(decoder))
                     case 20 =>
-                      new PrimitiveValue.OffsetDateTime(AvroCodec.offsetDateTimeCodec.decodeUnsafe(decoder))
-                    case 21 => new PrimitiveValue.OffsetTime(AvroCodec.offsetTimeCodec.decodeUnsafe(decoder))
-                    case 22 => new PrimitiveValue.Period(AvroCodec.periodCodec.decodeUnsafe(decoder))
-                    case 23 => new PrimitiveValue.Year(AvroCodec.yearCodec.decodeUnsafe(decoder))
-                    case 24 => new PrimitiveValue.YearMonth(AvroCodec.yearMonthCodec.decodeUnsafe(decoder))
-                    case 25 => new PrimitiveValue.ZoneId(AvroCodec.zoneIdCodec.decodeUnsafe(decoder))
-                    case 26 => new PrimitiveValue.ZoneOffset(AvroCodec.zoneOffsetCodec.decodeUnsafe(decoder))
+                      new PrimitiveValue.OffsetDateTime(AvroCodec.offsetDateTimeCodec.decodeValue(decoder))
+                    case 21 => new PrimitiveValue.OffsetTime(AvroCodec.offsetTimeCodec.decodeValue(decoder))
+                    case 22 => new PrimitiveValue.Period(AvroCodec.periodCodec.decodeValue(decoder))
+                    case 23 => new PrimitiveValue.Year(AvroCodec.yearCodec.decodeValue(decoder))
+                    case 24 => new PrimitiveValue.YearMonth(AvroCodec.yearMonthCodec.decodeValue(decoder))
+                    case 25 => new PrimitiveValue.ZoneId(AvroCodec.zoneIdCodec.decodeValue(decoder))
+                    case 26 => new PrimitiveValue.ZoneOffset(AvroCodec.zoneOffsetCodec.decodeValue(decoder))
                     case 27 =>
-                      new PrimitiveValue.ZonedDateTime(AvroCodec.zonedDateTimeCodec.decodeUnsafe(decoder))
-                    case 28 => new PrimitiveValue.Currency(AvroCodec.currencyCodec.decodeUnsafe(decoder))
-                    case _  => new PrimitiveValue.UUID(AvroCodec.uuidCodec.decodeUnsafe(decoder))
+                      new PrimitiveValue.ZonedDateTime(AvroCodec.zonedDateTimeCodec.decodeValue(decoder))
+                    case 28 => new PrimitiveValue.Currency(AvroCodec.currencyCodec.decodeValue(decoder))
+                    case _  => new PrimitiveValue.UUID(AvroCodec.uuidCodec.decodeValue(decoder))
                   })
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanValue, error)
+                  case err if NonFatal(err) => error(spanValue, err)
                 }
               } catch {
-                case error if NonFatal(error) => decodeError(spanPrimitive, error)
+                case err if NonFatal(err) => error(spanPrimitive, err)
               }
             case 1 =>
               try {
@@ -986,7 +975,7 @@ object AvroFormat
                   size > 0
                 }) {
                   if (count + size > AvroCodec.maxCollectionSize) {
-                    decodeError(
+                    error(
                       s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                     )
                   }
@@ -994,35 +983,33 @@ object AvroFormat
                     val k =
                       try decoder.readString()
                       catch {
-                        case error if NonFatal(error) =>
-                          decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_1, error)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), span_1, err)
                       }
                     val v =
-                      try decodeUnsafe(decoder)
+                      try decodeValue(decoder)
                       catch {
-                        case error if NonFatal(error) =>
-                          decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_2, error)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), span_2, err)
                       }
                     builder.addOne((k, v))
                     count += 1
                     size -= 1
                   }
                 }
-                if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                if (size < 0) error(s"Expected positive collection part size, got $size")
                 new DynamicValue.Record(builder.result())
               } catch {
-                case error if NonFatal(error) => decodeError(spanRecord, spanFields, error)
+                case err if NonFatal(err) => error(spanRecord, spanFields, err)
               }
             case 2 =>
               val caseName =
                 try decoder.readString()
                 catch {
-                  case error if NonFatal(error) => decodeError(spanVariant, spanCaseName, error)
+                  case err if NonFatal(err) => error(spanVariant, spanCaseName, err)
                 }
               val value =
-                try decodeUnsafe(decoder)
+                try decodeValue(decoder)
                 catch {
-                  case error if NonFatal(error) => decodeError(spanVariant, spanValue, error)
+                  case err if NonFatal(err) => error(spanVariant, spanValue, err)
                 }
               new DynamicValue.Variant(caseName, value)
             case 3 =>
@@ -1035,24 +1022,24 @@ object AvroFormat
                   size > 0
                 }) {
                   if (count + size > AvroCodec.maxCollectionSize) {
-                    decodeError(
+                    error(
                       s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                     )
                   }
                   try {
                     while (size > 0) {
-                      builder.addOne(decodeUnsafe(decoder))
+                      builder.addOne(decodeValue(decoder))
                       count += 1
                       size -= 1
                     }
                   } catch {
-                    case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                    case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), err)
                   }
                 }
-                if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                if (size < 0) error(s"Expected positive collection part size, got $size")
                 new DynamicValue.Sequence(builder.result())
               } catch {
-                case error if NonFatal(error) => decodeError(spanSequence, spanElements, error)
+                case err if NonFatal(err) => error(spanSequence, spanElements, err)
               }
             case 4 =>
               try {
@@ -1064,39 +1051,37 @@ object AvroFormat
                   size > 0
                 }) {
                   if (count + size > AvroCodec.maxCollectionSize) {
-                    decodeError(
+                    error(
                       s"Expected collection size not greater than ${AvroCodec.maxCollectionSize}, got ${count + size}"
                     )
                   }
                   while (size > 0) {
                     val k =
-                      try decodeUnsafe(decoder)
+                      try decodeValue(decoder)
                       catch {
-                        case error if NonFatal(error) =>
-                          decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_1, error)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), span_1, err)
                       }
                     val v =
-                      try decodeUnsafe(decoder)
+                      try decodeValue(decoder)
                       catch {
-                        case error if NonFatal(error) =>
-                          decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_2, error)
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(count.toInt), span_2, err)
                       }
                     builder.addOne((k, v))
                     count += 1
                     size -= 1
                   }
                 }
-                if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                if (size < 0) error(s"Expected positive collection part size, got $size")
                 new DynamicValue.Map(builder.result())
               } catch {
-                case error if NonFatal(error) => decodeError(spanMap, spanEntries, error)
+                case err if NonFatal(err) => error(spanMap, spanEntries, err)
               }
             case 5 =>
               DynamicValue.Null
-            case idx => decodeError(s"Expected enum index from 0 to 5, got $idx")
+            case idx => error(s"Expected enum index from 0 to 5, got $idx")
           }
 
-          def encode(value: DynamicValue, encoder: BinaryEncoder): Unit = value match {
+          def encodeValue(value: DynamicValue, encoder: BinaryEncoder): Unit = value match {
             case primitive: DynamicValue.Primitive =>
               encoder.writeInt(0)
               primitive.value match {
@@ -1104,91 +1089,91 @@ object AvroFormat
                   encoder.writeInt(0)
                 case v: PrimitiveValue.Boolean =>
                   encoder.writeInt(1)
-                  AvroCodec.booleanCodec.encode(v.value, encoder)
+                  AvroCodec.booleanCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Byte =>
                   encoder.writeInt(2)
-                  AvroCodec.byteCodec.encode(v.value, encoder)
+                  AvroCodec.byteCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Short =>
                   encoder.writeInt(3)
-                  AvroCodec.shortCodec.encode(v.value, encoder)
+                  AvroCodec.shortCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Int =>
                   encoder.writeInt(4)
-                  AvroCodec.intCodec.encode(v.value, encoder)
+                  AvroCodec.intCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Long =>
                   encoder.writeInt(5)
-                  AvroCodec.longCodec.encode(v.value, encoder)
+                  AvroCodec.longCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Float =>
                   encoder.writeInt(6)
-                  AvroCodec.floatCodec.encode(v.value, encoder)
+                  AvroCodec.floatCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Double =>
                   encoder.writeInt(7)
-                  AvroCodec.doubleCodec.encode(v.value, encoder)
+                  AvroCodec.doubleCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Char =>
                   encoder.writeInt(8)
-                  AvroCodec.charCodec.encode(v.value, encoder)
+                  AvroCodec.charCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.String =>
                   encoder.writeInt(9)
-                  AvroCodec.stringCodec.encode(v.value, encoder)
+                  AvroCodec.stringCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.BigInt =>
                   encoder.writeInt(10)
-                  AvroCodec.bigIntCodec.encode(v.value, encoder)
+                  AvroCodec.bigIntCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.BigDecimal =>
                   encoder.writeInt(11)
-                  AvroCodec.bigDecimalCodec.encode(v.value, encoder)
+                  AvroCodec.bigDecimalCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.DayOfWeek =>
                   encoder.writeInt(12)
-                  AvroCodec.dayOfWeekCodec.encode(v.value, encoder)
+                  AvroCodec.dayOfWeekCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Duration =>
                   encoder.writeInt(13)
-                  AvroCodec.durationCodec.encode(v.value, encoder)
+                  AvroCodec.durationCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Instant =>
                   encoder.writeInt(14)
-                  AvroCodec.instantCodec.encode(v.value, encoder)
+                  AvroCodec.instantCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.LocalDate =>
                   encoder.writeInt(15)
-                  AvroCodec.localDateCodec.encode(v.value, encoder)
+                  AvroCodec.localDateCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.LocalDateTime =>
                   encoder.writeInt(16)
-                  AvroCodec.localDateTimeCodec.encode(v.value, encoder)
+                  AvroCodec.localDateTimeCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.LocalTime =>
                   encoder.writeInt(17)
-                  AvroCodec.localTimeCodec.encode(v.value, encoder)
+                  AvroCodec.localTimeCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Month =>
                   encoder.writeInt(18)
-                  AvroCodec.monthCodec.encode(v.value, encoder)
+                  AvroCodec.monthCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.MonthDay =>
                   encoder.writeInt(19)
-                  AvroCodec.monthDayCodec.encode(v.value, encoder)
+                  AvroCodec.monthDayCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.OffsetDateTime =>
                   encoder.writeInt(20)
-                  AvroCodec.offsetDateTimeCodec.encode(v.value, encoder)
+                  AvroCodec.offsetDateTimeCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.OffsetTime =>
                   encoder.writeInt(21)
-                  AvroCodec.offsetTimeCodec.encode(v.value, encoder)
+                  AvroCodec.offsetTimeCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Period =>
                   encoder.writeInt(22)
-                  AvroCodec.periodCodec.encode(v.value, encoder)
+                  AvroCodec.periodCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Year =>
                   encoder.writeInt(23)
-                  AvroCodec.yearCodec.encode(v.value, encoder)
+                  AvroCodec.yearCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.YearMonth =>
                   encoder.writeInt(24)
-                  AvroCodec.yearMonthCodec.encode(v.value, encoder)
+                  AvroCodec.yearMonthCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.ZoneId =>
                   encoder.writeInt(25)
-                  AvroCodec.zoneIdCodec.encode(v.value, encoder)
+                  AvroCodec.zoneIdCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.ZoneOffset =>
                   encoder.writeInt(26)
-                  AvroCodec.zoneOffsetCodec.encode(v.value, encoder)
+                  AvroCodec.zoneOffsetCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.ZonedDateTime =>
                   encoder.writeInt(27)
-                  AvroCodec.zonedDateTimeCodec.encode(v.value, encoder)
+                  AvroCodec.zonedDateTimeCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.Currency =>
                   encoder.writeInt(28)
-                  AvroCodec.currencyCodec.encode(v.value, encoder)
+                  AvroCodec.currencyCodec.encodeValue(v.value, encoder)
                 case v: PrimitiveValue.UUID =>
                   encoder.writeInt(29)
-                  AvroCodec.uuidCodec.encode(v.value, encoder)
+                  AvroCodec.uuidCodec.encodeValue(v.value, encoder)
               }
             case record: DynamicValue.Record =>
               encoder.writeInt(1)
@@ -1200,14 +1185,14 @@ object AvroFormat
                 while (it.hasNext) {
                   val kv = it.next()
                   encoder.writeString(kv._1)
-                  encode(kv._2, encoder)
+                  encodeValue(kv._2, encoder)
                 }
               }
               encoder.writeInt(0)
             case variant: DynamicValue.Variant =>
               encoder.writeInt(2)
               encoder.writeString(variant.caseNameValue)
-              encode(variant.value, encoder)
+              encodeValue(variant.value, encoder)
             case sequence: DynamicValue.Sequence =>
               encoder.writeInt(3)
               val elements = sequence.elements
@@ -1216,7 +1201,7 @@ object AvroFormat
                 encoder.writeInt(size)
                 val it = elements.iterator
                 while (it.hasNext) {
-                  encode(it.next(), encoder)
+                  encodeValue(it.next(), encoder)
                 }
               }
               encoder.writeInt(0)
@@ -1229,8 +1214,8 @@ object AvroFormat
                 val it = entries.iterator
                 while (it.hasNext) {
                   val kv = it.next()
-                  encode(kv._1, encoder)
-                  encode(kv._2, encoder)
+                  encodeValue(kv._1, encoder)
+                  encodeValue(kv._2, encoder)
                 }
               }
               encoder.writeInt(0)
@@ -1258,42 +1243,6 @@ object AvroFormat
           if (fields eq null) AvroSchema.createRecord(recordName, null, namespace, false)
           else AvroSchema.createRecord(recordName, null, namespace, false, fields)
         }
-
-        private def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
-          Reflect.unwrapToPrimitiveTypeOption(reflect) match {
-            case Some(primitiveType) =>
-              primitiveType match {
-                case _: PrimitiveType.Unit.type => 0L
-                case _: PrimitiveType.Boolean   => RegisterOffset.incrementBooleansAndBytes(0L)
-                case _: PrimitiveType.Byte      => RegisterOffset.incrementBooleansAndBytes(0L)
-                case _: PrimitiveType.Char      => RegisterOffset.incrementCharsAndShorts(0L)
-                case _: PrimitiveType.Short     => RegisterOffset.incrementCharsAndShorts(0L)
-                case _: PrimitiveType.Float     => RegisterOffset.incrementFloatsAndInts(0L)
-                case _: PrimitiveType.Int       => RegisterOffset.incrementFloatsAndInts(0L)
-                case _: PrimitiveType.Double    => RegisterOffset.incrementDoublesAndLongs(0L)
-                case _: PrimitiveType.Long      => RegisterOffset.incrementDoublesAndLongs(0L)
-                case _                          => RegisterOffset.incrementObjects(0L)
-              }
-            case _ => RegisterOffset.incrementObjects(0L)
-          }
-
-        private def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
-          Reflect.unwrapToPrimitiveTypeOption(reflect) match {
-            case Some(primitiveType) =>
-              primitiveType match {
-                case _: PrimitiveType.Unit.type => 9
-                case _: PrimitiveType.Boolean   => 5
-                case _: PrimitiveType.Byte      => 6
-                case _: PrimitiveType.Char      => 7
-                case _: PrimitiveType.Short     => 8
-                case _: PrimitiveType.Float     => 3
-                case _: PrimitiveType.Int       => 1
-                case _: PrimitiveType.Double    => 4
-                case _: PrimitiveType.Long      => 2
-                case _                          => 0
-              }
-            case _ => 0
-          }
       }
     )
 
