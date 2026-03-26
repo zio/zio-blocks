@@ -1666,33 +1666,68 @@ runnableId.typeParams.head.kind.arity
 
 ## Subtype Relationships
 
-TypeId can determine inheritance relationships at runtime, handling direct inheritance, sealed trait subtypes, transitive inheritance, and variance-aware subtyping for applied types.
+**Subtype relationships** determine if one type is a subtype of another, enabling type-safe polymorphism and dispatch at runtime. This is essential for checking if a value of one type can be used where another type is expected. TypeId handles direct inheritance, transitive inheritance chains, sealed trait cases, and variance-aware subtyping for generic types.
+
+Three key methods work together to express the full range of type relationships:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
 sealed trait Animal
-case class Dog(name: String) extends Animal
-case class Cat(name: String) extends Animal
+sealed trait Mammal extends Animal
+case class Dog(name: String) extends Mammal
+case class Cat(name: String) extends Mammal
+case class Fish(species: String) extends Animal
 ```
+
+**`isSubtypeOf`** checks if this type is a subtype of another (direct or transitive):
 
 ```scala mdoc
-val dogId    = TypeId.of[Dog]
-val animalId = TypeId.of[Animal]
+val dogId     = TypeId.of[Dog]
+val mammalId  = TypeId.of[Mammal]
+val animalId  = TypeId.of[Animal]
+val fishId    = TypeId.of[Fish]
 
+// Direct inheritance: Dog extends Mammal
+dogId.isSubtypeOf(mammalId)
+
+// Transitive inheritance: Dog extends Mammal extends Animal
 dogId.isSubtypeOf(animalId)
-animalId.isSupertypeOf(dogId)
-dogId.isEquivalentTo(dogId)
-dogId.isEquivalentTo(animalId)
+
+// Not a subtype relationship
+dogId.isSubtypeOf(fishId)
+fishId.isSubtypeOf(mammalId)
 ```
 
-Covariant type constructors preserve subtyping:
+**`isSupertypeOf`** is the reverse—checks if this type is a supertype (parent) of another:
+
+```scala mdoc
+mammalId.isSupertypeOf(dogId)
+animalId.isSupertypeOf(dogId)
+dogId.isSupertypeOf(animalId)
+```
+
+**`isEquivalentTo`** checks if two types are exactly the same:
+
+```scala mdoc
+dogId.isEquivalentTo(dogId)
+dogId.isEquivalentTo(mammalId)
+animalId.isEquivalentTo(animalId)
+```
+
+**Variance-aware subtyping** for generic types respects covariance and contravariance. Covariant type constructors like `List[+A]` preserve subtyping relationships:
 
 ```scala mdoc
 val listDogId    = TypeId.of[List[Dog]]
+val listMammalId = TypeId.of[List[Mammal]]
 val listAnimalId = TypeId.of[List[Animal]]
+
+listDogId.isSubtypeOf(listMammalId)
 listDogId.isSubtypeOf(listAnimalId)
+listMammalId.isSubtypeOf(listAnimalId)
 ```
+
+These methods are essential for building type-safe registries, implementing generic serializers that dispatch based on type hierarchy, and validating API contracts that require specific type relationships.
 
 ## Annotations
 
