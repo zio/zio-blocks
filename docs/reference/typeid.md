@@ -1779,7 +1779,7 @@ userV2Id.annotations
 userV2Id.annotations.head.args
 ```
 
-Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values representing the arguments:
+Annotations are represented internally as instances of the `Annotation` data class. The `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values representing the arguments:
 
 | Type                                           | Description                                        |
 |------------------------------------------------|----------------------------------------------------|
