@@ -1923,9 +1923,7 @@ Here is a reference of the different `TypeRepr` variants you may encounter when 
 |              | `Constant.*`                                     | `42`, `"foo"`, `true` (literal types)       |
 | **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types                               |
 
-## Erased TypeId and Registries
-
-### Erased TypeId
+## Erased TypeId
 
 For type-indexed collections where the type parameter doesn't matter, erase it:
 
@@ -1949,6 +1947,22 @@ val registry: Map[TypeId.Erased, String] = Map(
 registry.get(TypeId.of[Int].erased)
 registry.get(TypeId.of[Double].erased)
 ```
+
+## Predefined TypeIds
+
+TypeId provides instances for common types:
+
+**Core Interfaces:** `TypeId.charSequence` (`java.lang`), `comparable` (`java.lang`), `serializable` (`java.io`)
+
+**Primitives:** `TypeId.unit`, `boolean`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`, `string`, `bigInt`, `bigDecimal`
+
+**Collections:** `TypeId.option`, `some`, `none`, `list`, `vector`, `set`, `seq`, `indexedSeq`, `map`, `either`, `array`, `arraySeq`, `chunk`
+
+**java.time:** `TypeId.dayOfWeek`, `duration`, `instant`, `localDate`, `localDateTime`, `localTime`, `month`, `monthDay`, `offsetDateTime`, `offsetTime`, `period`, `year`, `yearMonth`, `zoneId`, `zoneOffset`, `zonedDateTime`
+
+**java.util:** `TypeId.currency`, `uuid`
+
+**Scala 3 only:** `TypeId.iarray` — `IArray[T]`, the immutable array type.
 
 ## Integration with Schema
 
@@ -1993,22 +2007,6 @@ The `Deriver` trait receives a `TypeId` for each node in the schema. Methods lik
 
 For details on the full `Deriver` API and how to implement custom derivers, see the [Type Class Derivation](./type-class-derivation.md) reference.
 
-## Predefined TypeIds
-
-TypeId provides instances for common types:
-
-**Core Interfaces:** `TypeId.charSequence` (`java.lang`), `comparable` (`java.lang`), `serializable` (`java.io`)
-
-**Primitives:** `TypeId.unit`, `boolean`, `byte`, `short`, `int`, `long`, `float`, `double`, `char`, `string`, `bigInt`, `bigDecimal`
-
-**Collections:** `TypeId.option`, `some`, `none`, `list`, `vector`, `set`, `seq`, `indexedSeq`, `map`, `either`, `array`, `arraySeq`, `chunk`
-
-**java.time:** `TypeId.dayOfWeek`, `duration`, `instant`, `localDate`, `localDateTime`, `localTime`, `month`, `monthDay`, `offsetDateTime`, `offsetTime`, `period`, `year`, `yearMonth`, `zoneId`, `zoneOffset`, `zonedDateTime`
-
-**java.util:** `TypeId.currency`, `uuid`
-
-**Scala 3 only:** `TypeId.iarray` — `IArray[T]`, the immutable array type.
-
 ## Comparison with Alternatives
 
 TypeId occupies a different niche from the reflection and type-tagging mechanisms in the Scala ecosystem:
@@ -2031,162 +2029,6 @@ TypeId occupies a different niche from the reflection and type-tagging mechanism
 **When to migrate from `TypeTest`:** `TypeTest` is a Scala 3 mechanism for safe pattern matching on types. It answers "is this value an instance of T?" but does not expose type structure, annotations, or generic arguments. Use TypeId when you need to inspect or serialize type metadata, not just test membership.
 
 **When to migrate from `Mirror`:** `Mirror` provides structural information about products and sums for derivation in Scala 3. TypeId complements `Mirror` by adding namespace information (owner/package), annotations, opaque type support, and cross-version compatibility. In ZIO Blocks, the schema derivation system uses TypeId rather than `Mirror`.
-
-## Advanced — Manual Construction
-
-For testing, code generation, or manual type registration, TypeId provides smart constructors that bypass macro derivation.
-
-### Nominal Types
-
-The `TypeId.of` macro expands into `TypeId.nominal(...)` calls for classes, traits, and objects. When the type has no type parameters, type arguments, self-type, or annotations, the macro uses the three-parameter overload (`name`, `owner`, `kind`). For example, `TypeId.of[Int]` generates the equivalent of:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-TypeId.nominal[Int](
-  name = "Int",
-  owner = Owner.fromPackagePath("scala"),
-  kind = TypeDefKind.Unknown
-)
-```
-
-When the type has type parameters, self-types, or annotations, the macro uses the full overload. Note that this overload names the parameter `defKind` (not `kind`). For example, for a sealed trait with a covariant type parameter like `sealed trait Container[+A]`, the macro generates the equivalent of:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-TypeId.nominal[Any](
-  name = "Container",
-  owner = Owner.fromPackagePath("com.example"),
-  typeParams = List(TypeParam.covariant("A", 0)),
-  typeArgs = Nil,
-  defKind = TypeDefKind.Trait(isSealed = true),
-  selfType = None,
-  annotations = Nil
-)
-```
-
-### Type Aliases and Opaque Types
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-val aliasId = TypeId.alias[Any](
-  name = "Age",
-  owner = Owner.fromPackagePath("com.example"),
-  aliased = TypeRepr.Ref(TypeId.int)
-)
-
-val opaqueId = TypeId.opaque[Any](
-  name = "Email",
-  owner = Owner.fromPackagePath("com.example"),
-  representation = TypeRepr.Ref(TypeId.string)
-)
-```
-
-### Applied Types
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// List[Int]
-val listIntId = TypeId.applied[List[Int]](
-  TypeId.list,
-  TypeRepr.Ref(TypeId.int)
-)
-
-// Map[String, Int]
-val mapId = TypeId.applied[Map[String, Int]](
-  TypeId.map,
-  TypeRepr.Ref(TypeId.string),
-  TypeRepr.Ref(TypeId.int)
-)
-```
-
-### TypeRepr Construction
-
-For building type expressions programmatically (e.g., in code generators):
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// Basic references
-TypeRepr.Ref(TypeId.int)
-TypeRepr.ParamRef(TypeParam("A", 0))
-
-// Applied: List[Int]
-TypeRepr.Applied(
-  TypeRepr.Ref(TypeId.list),
-  List(TypeRepr.Ref(TypeId.int))
-)
-
-// Compound types
-TypeRepr.Intersection(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
-TypeRepr.Union(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
-TypeRepr.Function(List(TypeRepr.Ref(TypeId.int)), TypeRepr.Ref(TypeId.string))
-TypeRepr.tuple(List(TypeRepr.Ref(TypeId.int), TypeRepr.Ref(TypeId.string)))
-
-// Special types
-TypeRepr.AnyType
-TypeRepr.NothingType
-TypeRepr.Wildcard(TypeBounds.upper(TypeRepr.Ref(TypeId.int)))
-TypeRepr.ByName(TypeRepr.Ref(TypeId.int))
-TypeRepr.Repeated(TypeRepr.Ref(TypeId.int))
-
-// Literal types
-TypeRepr.Constant.IntConst(42)
-TypeRepr.Constant.StringConst("foo")
-```
-
-### TypeParam Construction
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-TypeParam("A", index = 0)                                  // Invariant A
-TypeParam.covariant("A", 0)                                // +A
-TypeParam.contravariant("A", 0)                            // -A
-TypeParam.bounded("A", 0, upper = TypeRepr.Ref(TypeId.int)) // A <: Int
-TypeParam.higherKinded("F", 0, arity = 1)                  // F[_]
-```
-
-### Annotation Construction
-
-For testing annotation-based dispatch without actual annotated types:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-Annotation(
-  typeId = TypeId.int, // Simplified — would normally be the annotation's TypeId
-  args = List(
-    AnnotationArg.Named("message", AnnotationArg.Const("use newMethod")),
-    AnnotationArg.Named("since", AnnotationArg.Const("1.0"))
-  )
-)
-```
-
-### Members (Structural Types)
-
-For constructing structural type representations:
-
-```scala mdoc:compile-only
-import zio.blocks.typeid._
-
-// { val x: Int; def foo(y: String): Boolean }
-TypeRepr.Structural(
-  parents = Nil,
-  members = List(
-    Member.Val("x", TypeRepr.Ref(TypeId.int)),
-    Member.Def(
-      name = "foo",
-      typeParams = Nil,
-      paramLists = List(List(Param("y", TypeRepr.Ref(TypeId.string)))),
-      result = TypeRepr.Ref(TypeId.boolean)
-    )
-  )
-)
-```
 
 ## Running the Examples
 
