@@ -1584,7 +1584,19 @@ cacheStringIntId.typeArgs
 
 ### Variance
 
-Variance values are `Covariant` (+), `Contravariant` (-), and `Invariant`:
+**Variance** describes how a type parameter's subtyping relationships are preserved. **Covariant** types (`+`) preserve subtyping (if `B <: A` then `Container[B] <: Container[A]`), **contravariant** types (`-`) reverse it, and **invariant** types preserve neither. For example, `Container[+A]` is covariant—a `Container[String]` can be used where `Container[Any]` is expected. In contrast, `Cache[K, V]` where `K` is invariant means `Cache[String, Int]` cannot substitute for `Cache[Any, Int]` even if `String <: Any`.
+
+Variance matters for type safety, polymorphism, and API design. TypeId captures variance information, enabling runtime inspection and validation:
+
+```scala mdoc
+val containerParams = TypeId.of[Container].typeParams
+containerParams.map(p => (p.name, p.variance))
+
+val cacheParams = TypeId.of[Cache].typeParams
+cacheParams.map(p => (p.name, p.variance))
+```
+
+You can also work with variance values directly:
 
 ```scala mdoc
 Variance.Covariant.symbol
