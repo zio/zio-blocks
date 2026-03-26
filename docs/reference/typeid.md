@@ -1501,9 +1501,26 @@ The `defKind` property (documented in [Core Operations](#type-classification)) r
 
 When you derive a TypeId for a generic type, the macro captures its type parameters (variance, bounds, kind) and any applied type arguments.
 
-:::warning
-Passing a raw type constructor (e.g. `TypeId.of[Container]`) requires Scala 3. In Scala 2, the `TypeId.of[A]` signature has bound `A` rather than `A <: AnyKind`, so raw type constructors like `Container` (a `* -> *` kind) are not valid Scala 2 syntax. On Scala 2, use `TypeId.of[Container[_]]` or retrieve the TypeId through implicit derivation instead.
-:::
+A **raw type constructor** is a generic type without any type arguments filled in. For example, `List` by itself (without `[Int]` or `[String]`) is a raw type constructor. Scala 3 supports deriving TypeIds directly for raw type constructors, but Scala 2 has restrictions due to its type system:
+
+**Scala 3** allows you to work with raw type constructors directly:
+
+```scala
+// Scala 3 only
+val listId = TypeId.of[List]  // Works: raw type constructor
+```
+
+**Scala 2** requires you to use a wildcard placeholder or implicit derivation since raw type constructors are not valid syntax:
+
+```scala
+// Scala 2 alternatives
+val listId = TypeId.of[List[_]]  // Use wildcard type argument
+
+// Or retrieve via implicit derivation
+implicit val derived: TypeId[List[_]] = TypeId.of[List[_]]
+```
+
+This distinction matters when you need to capture the type constructor itself (for higher-kinded type operations) rather than concrete types like `List[Int]`.
 
 ### Inspecting Type Parameters
 
