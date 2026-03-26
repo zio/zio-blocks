@@ -261,7 +261,7 @@ final class MessagePackReader private[msgpack] (
       i += 1
     }
     if (unscaled eq null) decodeError("Missing 'unscaled' field in BigDecimal")
-    BigDecimal(new java.math.BigDecimal(unscaled.bigInteger, scale, new java.math.MathContext(precision)))
+    new BigDecimal(new java.math.BigDecimal(unscaled.bigInteger, scale, new java.math.MathContext(precision)))
   }
 
   def skipValue(): Unit = {

@@ -16,7 +16,6 @@
 
 package zio.blocks.schema.toon
 
-import zio.blocks.schema.DynamicOptic
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.switch
 
@@ -360,15 +359,7 @@ final class ToonReader private[toon] (
     else if (looksLikeNumber(token)) parseNumber(token)
     else token
 
-  def decodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
-
-  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: ToonCodecError =>
-      e.spans = new ::(span, e.spans)
-      throw e
-    case _ =>
-      throw new ToonCodecError(new ::(span, Nil), error.getMessage)
-  }
+  private[this] def decodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
   private[this] def readPrimitiveToken(): String = {
     skipWhitespace()
@@ -613,6 +604,38 @@ object ToonReader {
       reader
     }
   }
+
+  private[toon] def createReaderForValue(value: String): ToonReader = {
+    val reader = ToonReader(ReaderConfig.withDelimiter(Delimiter.None))
+    reader.reset(value)
+    reader
+  }
+
+  private[toon] def unescapeQuoted(s: String): String = {
+    if (!s.startsWith("\"") || !s.endsWith("\"")) return s
+    val inner = s.substring(1, s.length - 1)
+    if (inner.indexOf('\\') < 0) return inner
+    val sb = new java.lang.StringBuilder(inner.length)
+    var i  = 0
+    while (i < inner.length) {
+      val c = inner.charAt(i)
+      if (c == '\\' && i + 1 < inner.length) {
+        inner.charAt(i + 1) match {
+          case '"'   => sb.append('"')
+          case '\\'  => sb.append('\\')
+          case 'n'   => sb.append('\n')
+          case 'r'   => sb.append('\r')
+          case 't'   => sb.append('\t')
+          case other => sb.append('\\').append(other)
+        }
+        i += 2
+      } else {
+        sb.append(c)
+        i += 1
+      }
+    }
+    sb.toString
+  }
 }
 
 final case class ArrayHeader(
@@ -622,7 +645,5 @@ final case class ArrayHeader(
   delimiter: Delimiter
 )
 
-private[toon] class ToonCodecError(var spans: List[zio.blocks.schema.DynamicOptic.Node], message: String)
-    extends Throwable(message, null, false, false) {
-  override def getMessage: String = message
-}
+private class ToonCodecError(var spans: List[zio.blocks.schema.DynamicOptic.Node], message: String)
+    extends Throwable(message, null, false, false)

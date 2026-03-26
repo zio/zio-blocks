@@ -90,7 +90,7 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ThriftCodec[A]] = {
-    if (binding.isInstanceOf[Binding[?, ?]]) {
+    if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
       var fieldInfos    =
@@ -116,7 +116,7 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
           idx += 1
         }
       }
-      Lazy(new ThriftCodec[A]() {
+      new ThriftCodec[A]() {
         private[this] val fields        = fieldInfos
         private[this] val constructor   = recordBinding.constructor
         private[this] val deconstruct   = recordBinding.deconstructor
@@ -183,8 +183,9 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
           }
           protocol.writeFieldStop()
         }
-      })
-    } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
+      }
+    }
+    else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[ThriftCodec[A]]]
 
   override def deriveVariant[F[_, _], A](

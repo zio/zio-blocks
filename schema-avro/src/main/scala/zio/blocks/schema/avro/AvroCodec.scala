@@ -128,8 +128,7 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
 }
 
 object AvroCodec {
-  val maxCollectionSize: Int = Integer.MAX_VALUE - 8
-
+  val maxCollectionSize: Int     = Integer.MAX_VALUE - 8
   val unitCodec: AvroCodec[Unit] = new AvroCodec[Unit] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.NULL)
 
@@ -137,7 +136,6 @@ object AvroCodec {
 
     def encodeValue(value: Unit, encoder: BinaryEncoder): Unit = ()
   }
-
   val booleanCodec: AvroCodec[Boolean] = new AvroCodec[Boolean] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BOOLEAN)
 
@@ -145,7 +143,6 @@ object AvroCodec {
 
     def encodeValue(value: Boolean, encoder: BinaryEncoder): Unit = encoder.writeBoolean(value)
   }
-
   val byteCodec: AvroCodec[Byte] = new AvroCodec[Byte] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.INT)
 
@@ -157,7 +154,6 @@ object AvroCodec {
 
     def encodeValue(value: Byte, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-
   val shortCodec: AvroCodec[Short] = new AvroCodec[Short] {
     val avroSchema: AvroSchema = byteCodec.avroSchema
 
@@ -169,7 +165,6 @@ object AvroCodec {
 
     def encodeValue(value: Short, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-
   val intCodec: AvroCodec[Int] = new AvroCodec[Int] {
     val avroSchema: AvroSchema = shortCodec.avroSchema
 
@@ -177,7 +172,6 @@ object AvroCodec {
 
     def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-
   val longCodec: AvroCodec[Long] = new AvroCodec[Long] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.LONG)
 
@@ -185,7 +179,6 @@ object AvroCodec {
 
     def encodeValue(value: Long, encoder: BinaryEncoder): Unit = encoder.writeLong(value)
   }
-
   val floatCodec: AvroCodec[Float] = new AvroCodec[Float] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.FLOAT)
 
@@ -193,7 +186,6 @@ object AvroCodec {
 
     def encodeValue(value: Float, encoder: BinaryEncoder): Unit = encoder.writeFloat(value)
   }
-
   val doubleCodec: AvroCodec[Double] = new AvroCodec[Double] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
 
@@ -201,7 +193,6 @@ object AvroCodec {
 
     def encodeValue(value: Double, encoder: BinaryEncoder): Unit = encoder.writeDouble(value)
   }
-
   val charCodec: AvroCodec[Char] = new AvroCodec[Char] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
@@ -213,7 +204,6 @@ object AvroCodec {
 
     def encodeValue(value: Char, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-
   val stringCodec: AvroCodec[String] = new AvroCodec[String] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -221,7 +211,6 @@ object AvroCodec {
 
     def encodeValue(value: String, encoder: BinaryEncoder): Unit = encoder.writeString(value)
   }
-
   val bigIntCodec: AvroCodec[BigInt] = new AvroCodec[BigInt] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BYTES)
 
@@ -229,7 +218,6 @@ object AvroCodec {
 
     def encodeValue(value: BigInt, encoder: BinaryEncoder): Unit = encoder.writeBytes(value.toByteArray)
   }
-
   val bigDecimalCodec: AvroCodec[BigDecimal] = new AvroCodec[BigDecimal] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -259,7 +247,6 @@ object AvroCodec {
       encoder.writeInt(mc.getRoundingMode.ordinal)
     }
   }
-
   val dayOfWeekCodec: AvroCodec[DayOfWeek] = new AvroCodec[DayOfWeek] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
@@ -267,7 +254,6 @@ object AvroCodec {
 
     def encodeValue(value: DayOfWeek, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-
   val durationCodec: AvroCodec[Duration] = new AvroCodec[Duration] {
     val avroSchema: AvroSchema = {
       val fields = new java.util.ArrayList[AvroSchema.Field](2)
@@ -283,7 +269,6 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-
   val instantCodec: AvroCodec[Instant] = new AvroCodec[Instant] {
     val avroSchema: AvroSchema = {
       val fields = new java.util.ArrayList[AvroSchema.Field](2)
@@ -299,7 +284,6 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-
   val localDateCodec: AvroCodec[LocalDate] = new AvroCodec[LocalDate] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -319,7 +303,6 @@ object AvroCodec {
       encoder.writeInt(value.getDayOfMonth)
     }
   }
-
   val localDateTimeCodec: AvroCodec[LocalDateTime] = new AvroCodec[LocalDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -356,7 +339,6 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-
   val localTimeCodec: AvroCodec[LocalTime] = new AvroCodec[LocalTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -378,7 +360,6 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-
   val monthCodec: AvroCodec[Month] = new AvroCodec[Month] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
@@ -386,7 +367,6 @@ object AvroCodec {
 
     def encodeValue(value: Month, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-
   val monthDayCodec: AvroCodec[MonthDay] = new AvroCodec[MonthDay] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -403,7 +383,6 @@ object AvroCodec {
       encoder.writeInt(value.getDayOfMonth)
     }
   }
-
   val offsetDateTimeCodec: AvroCodec[OffsetDateTime] = new AvroCodec[OffsetDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -442,7 +421,6 @@ object AvroCodec {
       encoder.writeInt(value.getOffset.getTotalSeconds)
     }
   }
-
   val offsetTimeCodec: AvroCodec[OffsetTime] = new AvroCodec[OffsetTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -472,7 +450,6 @@ object AvroCodec {
       encoder.writeInt(value.getOffset.getTotalSeconds)
     }
   }
-
   val periodCodec: AvroCodec[Period] = new AvroCodec[Period] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -491,7 +468,6 @@ object AvroCodec {
       encoder.writeInt(value.getDays)
     }
   }
-
   val yearCodec: AvroCodec[Year] = new AvroCodec[Year] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
@@ -499,7 +475,6 @@ object AvroCodec {
 
     def encodeValue(value: Year, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-
   val yearMonthCodec: AvroCodec[YearMonth] = new AvroCodec[YearMonth] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -516,7 +491,6 @@ object AvroCodec {
       encoder.writeInt(value.getMonthValue)
     }
   }
-
   val zoneIdCodec: AvroCodec[ZoneId] = new AvroCodec[ZoneId] {
     val avroSchema: AvroSchema = stringCodec.avroSchema
 
@@ -532,7 +506,6 @@ object AvroCodec {
 
     def encodeValue(value: ZoneOffset, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getTotalSeconds)
   }
-
   val zonedDateTimeCodec: AvroCodec[ZonedDateTime] = new AvroCodec[ZonedDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -576,7 +549,6 @@ object AvroCodec {
       encoder.writeString(value.getZone.toString)
     }
   }
-
   val currencyCodec: AvroCodec[Currency] = new AvroCodec[java.util.Currency] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("Currency", null, "java.util", 3)
 
@@ -591,7 +563,6 @@ object AvroCodec {
       encoder.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
     }
   }
-
   val uuidCodec: AvroCodec[UUID] = new AvroCodec[java.util.UUID] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("UUID", null, "java.util", 16)
 
