@@ -83,7 +83,7 @@ For most users and most types, automatic derivation via `TypeId.of` or implicit 
 
 #### `TypeId.of` — Macro Derivation
 
-The primary way to obtain a `TypeId` is through the `TypeId.of[A]` macro, which extracts complete type metadata at compile time.
+The primary way to obtain a `TypeId` is through the `TypeId.of[A]` macro, which extracts complete type metadata at compile time:
 
 ```scala
 object TypeId {
@@ -254,7 +254,7 @@ These methods provide the type's name and fully qualified path.
 
 #### `name` — Simple Type Name
 
-Returns the unqualified name of the type.
+Returns the unqualified name of the type:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -277,7 +277,7 @@ TypeId.list.name
 
 #### `fullName` — Fully Qualified Name
 
-Returns `owner.asString + "." + name`, or just `name` if the owner is root.
+Returns `owner.asString + "." + name`, or just `name` if the owner is root:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -293,7 +293,7 @@ TypeId.string.fullName
 
 #### `owner` — Enclosing Namespace
 
-The `TypeId#owner` method returns the `Owner` — the hierarchical path showing exactly where a type is defined. This includes the complete package chain and any enclosing objects or types. `Owner` solves a critical problem: multiple types can have the same name (e.g., `User` in `com.api` and `User` in `com.admin`), and the owner uniquely distinguishes them by their definition location.
+The `TypeId#owner` method returns the `Owner` — the hierarchical path showing exactly where a type is defined. This includes the complete package chain and any enclosing objects or types. `Owner` solves a critical problem: multiple types can have the same name (e.g., `User` in `com.api` and `User` in `com.admin`), and the owner uniquely distinguishes them by their definition location:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -338,7 +338,7 @@ This distinction enables type-indexed registries where you can safely store type
 
 #### `toString` — Idiomatic Scala Rendering
 
-Renders the TypeId as idiomatic Scala syntax using `TypeIdPrinter`.
+Renders the TypeId as idiomatic Scala syntax using `TypeIdPrinter`:
 
 ```scala mdoc
 TypeId.of[List[Int]].toString
@@ -461,7 +461,7 @@ v.isCovariant
 
 **Applied types** are generic types instantiated with concrete type arguments. For example, `List[Int]` is the generic `List` type constructor applied to the `Int` type argument, and `Map[String, Int]` applies two arguments to `Map`. When you derive a `TypeId` for an applied type, the `typeArgs` method returns the concrete type arguments as a list of `TypeRepr` values — allowing you to inspect what types were plugged into the type constructor.
 
-The `typeArgs` method is essential for schema systems and code generators that need to understand the full type structure. For instance, a serializer might need to know that `List[Int]` has `Int` as its element type, or a validator might need to distinguish between `Map[String, Int]` and `Map[String, String]`.
+The `typeArgs` method is essential for schema systems and code generators that need to understand the full type structure. For instance, a serializer might need to know that `List[Int]` has `Int` as its element type, or a validator might need to distinguish between `Map[String, Int]` and `Map[String, String]`:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -555,7 +555,7 @@ multiValueId.typeArgs
 
 #### `arity` — Number of Type Parameters
 
-The **arity** of a type is the number of formal type parameters it declares. A type with arity 0 is fully applied (a "proper type"), while arity > 0 means it's a type constructor that needs to be instantiated with type arguments. Arity is useful for generic programming and type-indexed registries where you need to distinguish between different levels of type abstraction.
+The **arity** of a type is the number of formal type parameters it declares. A type with arity 0 is fully applied (a "proper type"), while arity > 0 means it's a type constructor that needs to be instantiated with type arguments. Arity is useful for generic programming and type-indexed registries where you need to distinguish between different levels of type abstraction:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -589,7 +589,7 @@ TypeId.of[Pair[String, Int]].arity
 
 #### `isProperType` — Has No Type Parameters
 
-A **proper type** (also called a ground type or monomorphic type) is a fully instantiated type with no unresolved type parameters. It's the opposite of a type constructor — you can directly instantiate values of a proper type, whereas a type constructor needs type arguments before it's usable. The `isProperType` predicate returns `true` when `arity == 0`, helping distinguish concrete types from abstract type constructors.
+A **proper type** (also called a ground type or monomorphic type) is a fully instantiated type with no unresolved type parameters. It's the opposite of a type constructor — you can directly instantiate values of a proper type, whereas a type constructor needs type arguments before it's usable. The `isProperType` predicate returns `true` when `arity == 0`, helping distinguish concrete types from abstract type constructors:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -616,7 +616,7 @@ TypeId.of[List].isProperType
 
 #### `isTypeConstructor` — Has Type Parameters
 
-A **type constructor** is a parameterized type that cannot be instantiated directly — it requires concrete type arguments first. For example, `List` is a type constructor (you can't have a value of type `List`, only `List[Int]` or `List[String]`). The `isTypeConstructor` predicate returns `true` when `arity > 0`, indicating the type needs to be applied with arguments before use. This is useful for generic programming where you work with families of related types.
+A **type constructor** is a parameterized type that cannot be instantiated directly — it requires concrete type arguments first. For example, `List` is a type constructor (you can't have a value of type `List`, only `List[Int]` or `List[String]`). The `isTypeConstructor` predicate returns `true` when `arity > 0`, indicating the type needs to be applied with arguments before use. This is useful for generic programming where you work with families of related types:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -643,7 +643,7 @@ TypeId.of[Int].isTypeConstructor
 
 #### `isApplied` — Has Type Arguments
 
-An **applied type** is a generic type that has been instantiated with concrete type arguments. For example, `List[Int]` is an applied type (`List` applied to `Int`), while `List` by itself is a type constructor with no arguments applied. The `isApplied` predicate returns `true` when `typeArgs.nonEmpty`, helping distinguish between abstract type constructors and concrete instantiated types. This is useful for code generators that need to know whether a type is ready for use.
+An **applied type** is a generic type that has been instantiated with concrete type arguments. For example, `List[Int]` is an applied type (`List` applied to `Int`), while `List` by itself is a type constructor with no arguments applied. The `isApplied` predicate returns `true` when `typeArgs.nonEmpty`, helping distinguish between abstract type constructors and concrete instantiated types. This is useful for code generators that need to know whether a type is ready for use:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -674,7 +674,7 @@ TypeId.of[Map].isApplied
 
 #### `defKind` — Type Definition Kind
 
-Returns the `TypeDefKind` classifying this type (class, trait, object, enum, alias, opaque, etc.).
+Returns the `TypeDefKind` classifying this type (class, trait, object, enum, alias, opaque, etc.):
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -812,7 +812,7 @@ TypeId.of[Either[String, Int]].isSum
 
 #### `isSubtypeOf` — Check Subtyping
 
-Checks if this type is a subtype of another type. A type is a subtype if it extends or implements the other type, either directly or transitively. This method handles direct inheritance, sealed trait subtypes, enum cases, transitive inheritance chains, and variance-aware subtyping for applied generic types.
+Checks if this type is a subtype of another type. A type is a subtype if it extends or implements the other type, either directly or transitively. This method handles direct inheritance, sealed trait subtypes, enum cases, transitive inheritance chains, and variance-aware subtyping for applied generic types:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -901,7 +901,7 @@ In Scala 2, `isSubtypeOf` does not handle `EnumCase` subtypes, types aliased to 
 
 #### `isSupertypeOf` — Check Supertyping
 
-The mirror of `isSubtypeOf` — returns `true` if the other type is a subtype of this type. This is useful when you need to check if a type can accept instances of another type, or when validating that a container type can hold values of a more specific type.
+The mirror of `isSubtypeOf` — returns `true` if the other type is a subtype of this type. This is useful when you need to check if a type can accept instances of another type, or when validating that a container type can hold values of a more specific type:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -952,7 +952,7 @@ fishId.isSupertypeOf(mammalId)
 
 #### `isEquivalentTo` — Check Type Equivalence
 
-Returns `true` when two types are structurally equivalent — meaning they are **mutual subtypes** of each other. In other words, both `A.isSubtypeOf(B)` and `B.isSubtypeOf(A)` must be true. Two types are equivalent when they represent the same type through different paths, or when they normalize to the same underlying type (important for type aliases and opaque types).
+Returns `true` when two types are structurally equivalent — meaning they are **mutual subtypes** of each other. In other words, both `A.isSubtypeOf(B)` and `B.isSubtypeOf(A)` must be true. Two types are equivalent when they represent the same type through different paths, or when they normalize to the same underlying type (important for type aliases and opaque types):
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1020,7 +1020,7 @@ usernameType.isEquivalentTo(stringType)
 
 #### `parents` — Parent Types
 
-Returns the list of parent type representations as `TypeRepr` values, flattened across the full inheritance hierarchy. Each parent is represented as a `TypeRepr` that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type.
+Returns the list of parent type representations as `TypeRepr` values, flattened across the full inheritance hierarchy. Each parent is represented as a `TypeRepr` that captures the parent type, including any type arguments it might have. This is useful for code generators, serializers, and frameworks that need to understand the inheritance structure of a type:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1053,7 +1053,7 @@ Methods for accessing annotations, self-type, alias target, and opaque represent
 
 #### `annotations` — Type Annotations
 
-Returns the list of annotations attached to this type at compile time. Each `Annotation` carries the annotation's name and its argument values, making this useful for frameworks that drive behaviour from annotations (e.g. serialization hints, validation rules, or access-control markers).
+Returns the list of annotations attached to this type at compile time. Each `Annotation` carries the annotation's name and its argument values, making this useful for frameworks that drive behaviour from annotations (e.g. serialization hints, validation rules, or access-control markers):
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1082,7 +1082,7 @@ TypeId.of[Plain].annotations
 
 #### `selfType` — Self-Type Annotation
 
-Returns `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` otherwise. Self-types express a dependency requirement: a trait that declares `self: Logger =>` can only be mixed into a class that also mixes in `Logger`. This method lets frameworks detect and validate those requirements at runtime.
+Returns `Some(typeRepr)` when the trait declares a self-type (e.g., `trait Foo { self: Bar => ... }`), and `None` otherwise. Self-types express a dependency requirement: a trait that declares `self: Logger =>` can only be mixed into a class that also mixes in `Logger`. This method lets frameworks detect and validate those requirements at runtime:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1109,7 +1109,7 @@ TypeId.of[Logger].selfType
 
 #### `aliasedTo` — Alias Target
 
-Returns `Some(typeRepr)` for type aliases pointing to their underlying type, and `None` for nominal and opaque types. This lets you inspect what a type alias expands to without evaluating expressions at runtime.
+Returns `Some(typeRepr)` for type aliases pointing to their underlying type, and `None` for nominal and opaque types. This lets you inspect what a type alias expands to without evaluating expressions at runtime:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1139,7 +1139,7 @@ TypeId.of[Int].aliasedTo
 
 #### `representation` — Opaque Type Representation
 
-Returns `Some(typeRepr)` for opaque types revealing their underlying representation type, and `None` for all other types. Opaque types hide their implementation behind a new name, but `representation` lets frameworks such as serializers discover what the type is actually stored as.
+Returns `Some(typeRepr)` for opaque types revealing their underlying representation type, and `None` for all other types. Opaque types hide their implementation behind a new name, but `representation` lets frameworks such as serializers discover what the type is actually stored as:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1173,7 +1173,7 @@ Methods for type erasure, runtime class lookup, and reflective construction.
 
 #### `erased` — Erase Type Parameter
 
-Erases the phantom type parameter, returning a `TypeId.Erased` (alias for `TypeId[TypeId.Unknown]`). This is useful when you need to store heterogeneous `TypeId` values in a collection or a type-indexed map, where the exact type parameter is unknown or irrelevant at the storage site.
+Erases the phantom type parameter, returning a `TypeId.Erased` (alias for `TypeId[TypeId.Unknown]`). This is useful when you need to store heterogeneous `TypeId` values in a collection or a type-indexed map, where the exact type parameter is unknown or irrelevant at the storage site:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1195,7 +1195,7 @@ ids.map(_.name)
 
 #### `classTag` — Runtime ClassTag
 
-Returns a `ClassTag` for this type. Returns the correct primitive `ClassTag` for Scala primitive types (`Int`, `Long`, `Boolean`, etc.) and `ClassTag.AnyRef` for all reference types. This is useful when you need to create properly-typed arrays or work with generic collections that require implicit `ClassTag` evidence at runtime.
+Returns a `ClassTag` for this type. Returns the correct primitive `ClassTag` for Scala primitive types (`Int`, `Long`, `Boolean`, etc.) and `ClassTag.AnyRef` for all reference types. This is useful when you need to create properly-typed arrays or work with generic collections that require implicit `ClassTag` evidence at runtime:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1275,7 +1275,7 @@ isPrimitive(TypeId.of[List[Int]])
 
 #### `clazz` — Runtime Class
 
-Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque types. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries.
+Returns the runtime `Class[_]` for this type. On the JVM it returns `Some(Class[_])` for nominal and applied types, and `None` for alias and opaque types. On Scala.js it always returns `None` since JVM reflection is unavailable. This is the entry point for reflective operations such as instantiation, field access, or integration with Java libraries:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1305,7 +1305,7 @@ On Scala.js, `clazz` always returns `None`. Use `classTag` instead when you need
 
 #### `construct` — Reflective Construction
 
-Constructs an instance using the primary constructor on the JVM by passing constructor arguments as a `Chunk[AnyRef]`. Returns `Left` with an error message on Scala.js or when construction fails (wrong argument count, wrong types, or abstract types). Primitive values must be explicitly boxed since the argument type is `AnyRef`.
+Constructs an instance using the primary constructor on the JVM by passing constructor arguments as a `Chunk[AnyRef]`. Returns `Left` with an error message on Scala.js or when construction fails (wrong argument count, wrong types, or abstract types). Primitive values must be explicitly boxed since the argument type is `AnyRef`:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1375,7 +1375,7 @@ These concepts are essential for building type-indexed registries that recognize
 
 #### `TypeId.normalize` — Resolve Aliases
 
-Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`.
+Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`:
 
 ```scala
 object TypeId {
@@ -1397,7 +1397,7 @@ norm.fullName
 
 #### `TypeId.structurallyEqual` — Structural Equality
 
-Checks if two TypeIds are structurally equal after normalization. Semantically equivalent to `==` on TypeId instances; `==` additionally short-circuits on hash mismatch for performance.
+Checks if two TypeIds are structurally equal after normalization. Semantically equivalent to `==` on TypeId instances; `==` additionally short-circuits on hash mismatch for performance:
 
 ```scala
 object TypeId {
@@ -1420,7 +1420,7 @@ a == b
 
 #### `TypeId.structuralHash` — Structural Hash Code
 
-Computes a hash code based on the normalized structural representation.
+Computes a hash code based on the normalized structural representation:
 
 ```scala
 object TypeId {
@@ -1430,7 +1430,7 @@ object TypeId {
 
 #### `TypeId.unapplied` — Strip Type Arguments
 
-Returns the type constructor by stripping all type arguments. For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`.
+Returns the type constructor by stripping all type arguments. For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`:
 
 ```scala
 object TypeId {
@@ -1447,7 +1447,7 @@ unapplied.name
 
 ### Pattern Matching Extractors
 
-The companion object provides extractors for pattern matching on TypeId classification.
+The companion object provides extractors for pattern matching on TypeId classification:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1733,7 +1733,7 @@ These methods are essential for building type-safe registries, implementing gene
 
 **Annotations** are metadata attached to types at compile time. TypeId captures them at runtime, making this metadata available for introspection, validation, and dispatch logic. Annotations enable building smart serializers, validators, and code generators that adjust their behavior based on type-level metadata.
 
-TypeId exposes each annotation as an `Annotation` object containing the annotation's type and its arguments. This is essential for frameworks that need to read compile-time metadata (like JPA, validation libraries, or custom serialization frameworks) but want to remain generic and support multiple annotation schemes.
+TypeId exposes each annotation as an `Annotation` object containing the annotation's type and its arguments. This is essential for frameworks that need to read compile-time metadata (like JPA, validation libraries, or custom serialization frameworks) but want to remain generic and support multiple annotation schemes:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -2045,7 +2045,7 @@ cd zio-blocks
 
 ### Basic Usage
 
-Demonstrates deriving TypeIds for case classes, accessing their properties (name, fullName, owner, arity), using predefined TypeIds for built-in types, and implicit derivation.
+Demonstrates deriving TypeIds for case classes, accessing their properties (name, fullName, owner, arity), using predefined TypeIds for built-in types, and implicit derivation:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -2061,7 +2061,7 @@ sbt "schema-examples/runMain typeid.TypeIdBasicExample"
 
 ### Subtype Relationships
 
-Demonstrates subtype checking with `isSubtypeOf`, `isSupertypeOf`, and `isEquivalentTo`, including direct inheritance, transitive inheritance, sealed trait cases, and variance-aware subtyping for applied types like `List[Dog] <: List[Animal]`.
+Demonstrates subtype checking with `isSubtypeOf`, `isSupertypeOf`, and `isEquivalentTo`, including direct inheritance, transitive inheritance, sealed trait cases, and variance-aware subtyping for applied types like `List[Dog] <: List[Animal]`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -2077,7 +2077,7 @@ sbt "schema-examples/runMain typeid.TypeIdSubtypingExample"
 
 ### Normalization and Registries
 
-Demonstrates type alias handling, normalization to underlying types, structural equality, and building type-indexed registries using erased TypeIds.
+Demonstrates type alias handling, normalization to underlying types, structural equality, and building type-indexed registries using erased TypeIds:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -2093,7 +2093,7 @@ sbt "schema-examples/runMain typeid.TypeIdNormalizationExample"
 
 ### Opaque Types
 
-Demonstrates how TypeId preserves the semantic distinction of opaque types, enabling runtime type safety that pure Scala reflection cannot provide. Shows building type-indexed validator registries keyed by opaque type identity.
+Demonstrates how TypeId preserves the semantic distinction of opaque types, enabling runtime type safety that pure Scala reflection cannot provide. Shows building type-indexed validator registries keyed by opaque type identity:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
