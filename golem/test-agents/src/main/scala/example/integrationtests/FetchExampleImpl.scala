@@ -14,8 +14,8 @@ final class FetchAgentImpl(@unused private val key: String) extends FetchAgent {
     val effect =
       (for {
         response <- ZIO.serviceWithZIO[Client] { client =>
-          client.url(url"http://localhost").port(port).batched.get("/test")
-        }
+                      client.url(url"http://localhost").port(port).batched.get("/test")
+                    }
         body <- response.body.asString
       } yield body).provide(ZClient.default)
 

@@ -128,16 +128,16 @@ private[golem] sealed trait JsDbConnection extends js.Object {
 private[golem] sealed trait JsDbTransaction extends js.Object {
   def query(statement: String, params: js.Array[js.Any]): js.Any   = js.native
   def execute(statement: String, params: js.Array[js.Any]): js.Any = js.native
-  def commit(): Unit                                                = js.native
-  def rollback(): Unit                                              = js.native
+  def commit(): Unit                                               = js.native
+  def rollback(): Unit                                             = js.native
 }
 
 // --- DbResult / DbColumn / DbRow ---
 
 @js.native
 private[golem] sealed trait JsDbColumn extends js.Object {
-  def ordinal: Double  = js.native
-  def name: String     = js.native
+  def ordinal: Double    = js.native
+  def name: String       = js.native
   def dbTypeName: String = js.native
 }
 

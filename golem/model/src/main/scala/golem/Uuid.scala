@@ -29,11 +29,11 @@ object Uuid {
   def toStandardString(uuid: Uuid): String = {
     val hi = uuid.highBits
     val lo = uuid.lowBits
-    val p1 = ((hi >> 32) & 0xFFFFFFFFL).toLong
-    val p2 = ((hi >> 16) & 0xFFFFL).toLong
-    val p3 = (hi & 0xFFFFL).toLong
-    val p4 = ((lo >> 48) & 0xFFFFL).toLong
-    val p5 = lo & 0xFFFFFFFFFFFFL
+    val p1 = ((hi >> 32) & 0xffffffffL).toLong
+    val p2 = ((hi >> 16) & 0xffffL).toLong
+    val p3 = (hi & 0xffffL).toLong
+    val p4 = ((lo >> 48) & 0xffffL).toLong
+    val p5 = lo & 0xffffffffffffL
     f"$p1%08x-$p2%04x-$p3%04x-$p4%04x-$p5%012x"
   }
 

@@ -16,9 +16,9 @@ sealed trait JsInt4Bound extends js.Object { def tag: String = js.native }
 sealed trait JsInt4BoundWithValue extends JsInt4Bound { @JSName("val") def value: Int = js.native }
 
 object JsInt4Bound {
-  def included(v: Int): JsInt4Bound   = JsShape.tagged[JsInt4Bound]("included", v.asInstanceOf[js.Any])
-  def excluded(v: Int): JsInt4Bound   = JsShape.tagged[JsInt4Bound]("excluded", v.asInstanceOf[js.Any])
-  def unbounded: JsInt4Bound          = JsShape.tagOnly[JsInt4Bound]("unbounded")
+  def included(v: Int): JsInt4Bound = JsShape.tagged[JsInt4Bound]("included", v.asInstanceOf[js.Any])
+  def excluded(v: Int): JsInt4Bound = JsShape.tagged[JsInt4Bound]("excluded", v.asInstanceOf[js.Any])
+  def unbounded: JsInt4Bound        = JsShape.tagOnly[JsInt4Bound]("unbounded")
 }
 
 @js.native
@@ -148,8 +148,8 @@ object JsDateRange {
 
 @js.native
 sealed trait JsPgInterval extends js.Object {
-  def months: Int            = js.native
-  def days: Int              = js.native
+  def months: Int             = js.native
+  def days: Int               = js.native
   def microseconds: js.BigInt = js.native
 }
 
@@ -181,8 +181,8 @@ object JsPgEnumeration {
 
 @js.native
 sealed trait JsPgSparseVec extends js.Object {
-  def dim: Int                = js.native
-  def indices: js.Array[Int]  = js.native
+  def dim: Int                 = js.native
+  def indices: js.Array[Int]   = js.native
   def values: js.Array[Double] = js.native
 }
 
@@ -242,7 +242,7 @@ object JsValuesRange {
 
 @js.native
 sealed trait JsPgRange extends js.Object {
-  def name: String        = js.native
+  def name: String         = js.native
   def value: JsValuesRange = js.native
 }
 
@@ -264,49 +264,63 @@ sealed trait JsPostgresDbValueWithValue extends JsPostgresDbValue {
 }
 
 object JsPostgresDbValue {
-  def character(v: Int): JsPostgresDbValue                  = JsShape.tagged[JsPostgresDbValue]("character", v.asInstanceOf[js.Any])
-  def int2(v: Int): JsPostgresDbValue                      = JsShape.tagged[JsPostgresDbValue]("int2", v.asInstanceOf[js.Any])
-  def int4(v: Int): JsPostgresDbValue                      = JsShape.tagged[JsPostgresDbValue]("int4", v.asInstanceOf[js.Any])
-  def int8(v: js.BigInt): JsPostgresDbValue                = JsShape.tagged[JsPostgresDbValue]("int8", v.asInstanceOf[js.Any])
-  def float4(v: Double): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("float4", v.asInstanceOf[js.Any])
-  def float8(v: Double): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("float8", v.asInstanceOf[js.Any])
-  def numeric(v: String): JsPostgresDbValue                = JsShape.tagged[JsPostgresDbValue]("numeric", v.asInstanceOf[js.Any])
-  def boolean(v: Boolean): JsPostgresDbValue               = JsShape.tagged[JsPostgresDbValue]("boolean", v.asInstanceOf[js.Any])
-  def text(v: String): JsPostgresDbValue                   = JsShape.tagged[JsPostgresDbValue]("text", v.asInstanceOf[js.Any])
-  def varchar(v: String): JsPostgresDbValue                = JsShape.tagged[JsPostgresDbValue]("varchar", v.asInstanceOf[js.Any])
-  def bpchar(v: String): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("bpchar", v.asInstanceOf[js.Any])
-  def timestamp(v: JsDbTimestamp): JsPostgresDbValue       = JsShape.tagged[JsPostgresDbValue]("timestamp", v.asInstanceOf[js.Any])
-  def timestamptz(v: JsDbTimestampTz): JsPostgresDbValue   = JsShape.tagged[JsPostgresDbValue]("timestamptz", v.asInstanceOf[js.Any])
-  def date(v: JsDbDate): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("date", v.asInstanceOf[js.Any])
-  def time(v: JsDbTime): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("time", v.asInstanceOf[js.Any])
-  def timetz(v: JsDbTimeTz): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("timetz", v.asInstanceOf[js.Any])
-  def interval(v: JsPgInterval): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("interval", v.asInstanceOf[js.Any])
-  def bytea(v: Uint8Array): JsPostgresDbValue              = JsShape.tagged[JsPostgresDbValue]("bytea", v.asInstanceOf[js.Any])
-  def json(v: String): JsPostgresDbValue                   = JsShape.tagged[JsPostgresDbValue]("json", v.asInstanceOf[js.Any])
-  def jsonb(v: String): JsPostgresDbValue                  = JsShape.tagged[JsPostgresDbValue]("jsonb", v.asInstanceOf[js.Any])
-  def jsonpath(v: String): JsPostgresDbValue               = JsShape.tagged[JsPostgresDbValue]("jsonpath", v.asInstanceOf[js.Any])
-  def xml(v: String): JsPostgresDbValue                    = JsShape.tagged[JsPostgresDbValue]("xml", v.asInstanceOf[js.Any])
-  def uuid(v: JsDbUuid): JsPostgresDbValue                 = JsShape.tagged[JsPostgresDbValue]("uuid", v.asInstanceOf[js.Any])
-  def inet(v: JsIpAddress): JsPostgresDbValue              = JsShape.tagged[JsPostgresDbValue]("inet", v.asInstanceOf[js.Any])
-  def cidr(v: JsIpAddress): JsPostgresDbValue              = JsShape.tagged[JsPostgresDbValue]("cidr", v.asInstanceOf[js.Any])
-  def macaddr(v: JsMacAddress): JsPostgresDbValue          = JsShape.tagged[JsPostgresDbValue]("macaddr", v.asInstanceOf[js.Any])
-  def bit(v: js.Array[Boolean]): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("bit", v.asInstanceOf[js.Any])
-  def varbit(v: js.Array[Boolean]): JsPostgresDbValue      = JsShape.tagged[JsPostgresDbValue]("varbit", v.asInstanceOf[js.Any])
-  def int4range(v: JsInt4Range): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("int4range", v.asInstanceOf[js.Any])
-  def int8range(v: JsInt8Range): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("int8range", v.asInstanceOf[js.Any])
-  def numrange(v: JsNumRange): JsPostgresDbValue           = JsShape.tagged[JsPostgresDbValue]("numrange", v.asInstanceOf[js.Any])
-  def tsrange(v: JsTsRange): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("tsrange", v.asInstanceOf[js.Any])
-  def tstzrange(v: JsTsTzRange): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("tstzrange", v.asInstanceOf[js.Any])
-  def daterange(v: JsDateRange): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("daterange", v.asInstanceOf[js.Any])
-  def money(v: js.BigInt): JsPostgresDbValue               = JsShape.tagged[JsPostgresDbValue]("money", v.asInstanceOf[js.Any])
-  def oid(v: Int): JsPostgresDbValue                       = JsShape.tagged[JsPostgresDbValue]("oid", v.asInstanceOf[js.Any])
-  def enumeration(v: JsPgEnumeration): JsPostgresDbValue   = JsShape.tagged[JsPostgresDbValue]("enumeration", v.asInstanceOf[js.Any])
-  def composite(v: JsPgComposite): JsPostgresDbValue       = JsShape.tagged[JsPostgresDbValue]("composite", v.asInstanceOf[js.Any])
+  def character(v: Int): JsPostgresDbValue           = JsShape.tagged[JsPostgresDbValue]("character", v.asInstanceOf[js.Any])
+  def int2(v: Int): JsPostgresDbValue                = JsShape.tagged[JsPostgresDbValue]("int2", v.asInstanceOf[js.Any])
+  def int4(v: Int): JsPostgresDbValue                = JsShape.tagged[JsPostgresDbValue]("int4", v.asInstanceOf[js.Any])
+  def int8(v: js.BigInt): JsPostgresDbValue          = JsShape.tagged[JsPostgresDbValue]("int8", v.asInstanceOf[js.Any])
+  def float4(v: Double): JsPostgresDbValue           = JsShape.tagged[JsPostgresDbValue]("float4", v.asInstanceOf[js.Any])
+  def float8(v: Double): JsPostgresDbValue           = JsShape.tagged[JsPostgresDbValue]("float8", v.asInstanceOf[js.Any])
+  def numeric(v: String): JsPostgresDbValue          = JsShape.tagged[JsPostgresDbValue]("numeric", v.asInstanceOf[js.Any])
+  def boolean(v: Boolean): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("boolean", v.asInstanceOf[js.Any])
+  def text(v: String): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("text", v.asInstanceOf[js.Any])
+  def varchar(v: String): JsPostgresDbValue          = JsShape.tagged[JsPostgresDbValue]("varchar", v.asInstanceOf[js.Any])
+  def bpchar(v: String): JsPostgresDbValue           = JsShape.tagged[JsPostgresDbValue]("bpchar", v.asInstanceOf[js.Any])
+  def timestamp(v: JsDbTimestamp): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("timestamp", v.asInstanceOf[js.Any])
+  def timestamptz(v: JsDbTimestampTz): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("timestamptz", v.asInstanceOf[js.Any])
+  def date(v: JsDbDate): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("date", v.asInstanceOf[js.Any])
+  def time(v: JsDbTime): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("time", v.asInstanceOf[js.Any])
+  def timetz(v: JsDbTimeTz): JsPostgresDbValue     = JsShape.tagged[JsPostgresDbValue]("timetz", v.asInstanceOf[js.Any])
+  def interval(v: JsPgInterval): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("interval", v.asInstanceOf[js.Any])
+  def bytea(v: Uint8Array): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("bytea", v.asInstanceOf[js.Any])
+  def json(v: String): JsPostgresDbValue              = JsShape.tagged[JsPostgresDbValue]("json", v.asInstanceOf[js.Any])
+  def jsonb(v: String): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("jsonb", v.asInstanceOf[js.Any])
+  def jsonpath(v: String): JsPostgresDbValue          = JsShape.tagged[JsPostgresDbValue]("jsonpath", v.asInstanceOf[js.Any])
+  def xml(v: String): JsPostgresDbValue               = JsShape.tagged[JsPostgresDbValue]("xml", v.asInstanceOf[js.Any])
+  def uuid(v: JsDbUuid): JsPostgresDbValue            = JsShape.tagged[JsPostgresDbValue]("uuid", v.asInstanceOf[js.Any])
+  def inet(v: JsIpAddress): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("inet", v.asInstanceOf[js.Any])
+  def cidr(v: JsIpAddress): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("cidr", v.asInstanceOf[js.Any])
+  def macaddr(v: JsMacAddress): JsPostgresDbValue     = JsShape.tagged[JsPostgresDbValue]("macaddr", v.asInstanceOf[js.Any])
+  def bit(v: js.Array[Boolean]): JsPostgresDbValue    = JsShape.tagged[JsPostgresDbValue]("bit", v.asInstanceOf[js.Any])
+  def varbit(v: js.Array[Boolean]): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("varbit", v.asInstanceOf[js.Any])
+  def int4range(v: JsInt4Range): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("int4range", v.asInstanceOf[js.Any])
+  def int8range(v: JsInt8Range): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("int8range", v.asInstanceOf[js.Any])
+  def numrange(v: JsNumRange): JsPostgresDbValue   = JsShape.tagged[JsPostgresDbValue]("numrange", v.asInstanceOf[js.Any])
+  def tsrange(v: JsTsRange): JsPostgresDbValue     = JsShape.tagged[JsPostgresDbValue]("tsrange", v.asInstanceOf[js.Any])
+  def tstzrange(v: JsTsTzRange): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("tstzrange", v.asInstanceOf[js.Any])
+  def daterange(v: JsDateRange): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("daterange", v.asInstanceOf[js.Any])
+  def money(v: js.BigInt): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("money", v.asInstanceOf[js.Any])
+  def oid(v: Int): JsPostgresDbValue                     = JsShape.tagged[JsPostgresDbValue]("oid", v.asInstanceOf[js.Any])
+  def enumeration(v: JsPgEnumeration): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("enumeration", v.asInstanceOf[js.Any])
+  def composite(v: JsPgComposite): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("composite", v.asInstanceOf[js.Any])
   def domain(v: JsPgDomain): JsPostgresDbValue             = JsShape.tagged[JsPostgresDbValue]("domain", v.asInstanceOf[js.Any])
-  def array(v: js.Array[JsLazyDbValue]): JsPostgresDbValue = JsShape.tagged[JsPostgresDbValue]("array", v.asInstanceOf[js.Any])
-  def range(v: JsPgRange): JsPostgresDbValue               = JsShape.tagged[JsPostgresDbValue]("range", v.asInstanceOf[js.Any])
-  def `null`: JsPostgresDbValue                            = JsShape.tagOnly[JsPostgresDbValue]("null")
-  def vector(v: js.Array[Double]): JsPostgresDbValue       = JsShape.tagged[JsPostgresDbValue]("vector", v.asInstanceOf[js.Any])
-  def halfvec(v: js.Array[Double]): JsPostgresDbValue      = JsShape.tagged[JsPostgresDbValue]("halfvec", v.asInstanceOf[js.Any])
-  def sparsevec(v: JsPgSparseVec): JsPostgresDbValue       = JsShape.tagged[JsPostgresDbValue]("sparsevec", v.asInstanceOf[js.Any])
+  def array(v: js.Array[JsLazyDbValue]): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("array", v.asInstanceOf[js.Any])
+  def range(v: JsPgRange): JsPostgresDbValue         = JsShape.tagged[JsPostgresDbValue]("range", v.asInstanceOf[js.Any])
+  def `null`: JsPostgresDbValue                      = JsShape.tagOnly[JsPostgresDbValue]("null")
+  def vector(v: js.Array[Double]): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("vector", v.asInstanceOf[js.Any])
+  def halfvec(v: js.Array[Double]): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("halfvec", v.asInstanceOf[js.Any])
+  def sparsevec(v: JsPgSparseVec): JsPostgresDbValue =
+    JsShape.tagged[JsPostgresDbValue]("sparsevec", v.asInstanceOf[js.Any])
 }

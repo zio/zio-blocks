@@ -84,9 +84,9 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
   @SuppressWarnings(Array("all"))
   private def describeEntry(e: OplogEntry): String = e match {
     case OplogEntry.Create(p)                       => s"create(${p.componentRevision})"
-    case OplogEntry.HostCall(p)      => s"import(${p.functionName})"
-    case OplogEntry.AgentInvocationStarted(p)      => s"export(${p.functionName})"
-    case OplogEntry.AgentInvocationFinished(p)    => s"completed(${p.consumedFuel})"
+    case OplogEntry.HostCall(p)                     => s"import(${p.functionName})"
+    case OplogEntry.AgentInvocationStarted(p)       => s"export(${p.functionName})"
+    case OplogEntry.AgentInvocationFinished(p)      => s"completed(${p.consumedFuel})"
     case OplogEntry.Suspend(t)                      => s"suspend(${t.seconds})"
     case OplogEntry.Error(p)                        => s"error(${p.error})"
     case OplogEntry.NoOp(t)                         => s"noop(${t.seconds})"
@@ -110,7 +110,7 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     case OplogEntry.ActivatePlugin(p)               => s"activate(${p.plugin.name})"
     case OplogEntry.DeactivatePlugin(p)             => s"deactivate(${p.plugin.name})"
     case OplogEntry.Revert(p)                       => s"revert(${p.start})"
-    case OplogEntry.CancelPendingInvocation(p)             => s"cancel(${p.idempotencyKey})"
+    case OplogEntry.CancelPendingInvocation(p)      => s"cancel(${p.idempotencyKey})"
     case OplogEntry.StartSpan(p)                    => s"start-span(${p.spanId})"
     case OplogEntry.FinishSpan(p)                   => s"finish-span(${p.spanId})"
     case OplogEntry.SetSpanAttribute(p)             => s"set-attr(${p.key})"
@@ -120,8 +120,8 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     case OplogEntry.PreRollbackRemoteTransaction(p) => s"pre-rollback(${p.beginIndex})"
     case OplogEntry.CommittedRemoteTransaction(p)   => s"committed(${p.beginIndex})"
     case OplogEntry.RolledBackRemoteTransaction(p)  => s"rolled-back(${p.beginIndex})"
-    case OplogEntry.Snapshot(ts, _, mime)             => s"snapshot($ts,$mime)"
-    case OplogEntry.OplogProcessorCheckpoint(p)      => s"checkpoint(${p.confirmedUpTo})"
+    case OplogEntry.Snapshot(ts, _, mime)           => s"snapshot($ts,$mime)"
+    case OplogEntry.OplogProcessorCheckpoint(p)     => s"checkpoint(${p.confirmedUpTo})"
   }
 
   private val mockUuid    = AgentHostApi.UuidLiteral(js.BigInt("0"), js.BigInt("0"))
@@ -230,12 +230,12 @@ object OplogApiCompileSpec extends ZIOSpecDefault {
     },
     test("AgentInvocation exhaustive match") {
       agentInvocations.foreach {
-        case AgentInvocation.ExportedFunction(p)     => Predef.assert(p.functionName.nonEmpty)
-        case AgentInvocation.ManualUpdate(rev)       => Predef.assert(rev > 0)
-        case AgentInvocation.AgentInitialization(k)  => Predef.assert(k.nonEmpty)
-        case AgentInvocation.SaveSnapshot            => ()
-        case AgentInvocation.LoadSnapshot            => ()
-        case AgentInvocation.ProcessOplogEntries(k)  => Predef.assert(k.nonEmpty)
+        case AgentInvocation.ExportedFunction(p)    => Predef.assert(p.functionName.nonEmpty)
+        case AgentInvocation.ManualUpdate(rev)      => Predef.assert(rev > 0)
+        case AgentInvocation.AgentInitialization(k) => Predef.assert(k.nonEmpty)
+        case AgentInvocation.SaveSnapshot           => ()
+        case AgentInvocation.LoadSnapshot           => ()
+        case AgentInvocation.ProcessOplogEntries(k) => Predef.assert(k.nonEmpty)
       }
       assertCompletes
     },

@@ -26,24 +26,31 @@ private[golem] object AgentImplementation {
     mode: AgentMode,
     implType: golem.runtime.AgentImplementationType[Trait, _]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.register(typeName, mode, implType.asInstanceOf[golem.runtime.AgentImplementationType[Trait, Any]])
+    AgentImplementationRuntime.register(
+      typeName,
+      mode,
+      implType.asInstanceOf[golem.runtime.AgentImplementationType[Trait, Any]]
+    )
 
   /**
    * Registers an agent implementation by class type.
    *
-   * The macro inspects the Impl class Id, separates identity params
-   * from Config[T] params, and generates the registration automatically.
-   * Config[T] params are excluded from agent identity and lazily loaded at runtime.
+   * The macro inspects the Impl class Id, separates identity params from
+   * Config[T] params, and generates the registration automatically. Config[T]
+   * params are excluded from agent identity and lazily loaded at runtime.
    *
-   * @tparam Trait The agent trait type
-   * @tparam Impl  The implementation class type
-   * @return The registered agent definition
+   * @tparam Trait
+   *   The agent trait type
+   * @tparam Impl
+   *   The implementation class type
+   * @return
+   *   The registered agent definition
    */
   inline def registerClass[Trait, Impl <: Trait]: AgentDefinition[Trait] = {
-    val implType = AgentImplementationMacro.implementationTypeFromClass[Trait, Impl]
-    val metadataMode = implType.metadata.mode.flatMap(AgentMode.fromString)
+    val implType      = AgentImplementationMacro.implementationTypeFromClass[Trait, Impl]
+    val metadataMode  = implType.metadata.mode.flatMap(AgentMode.fromString)
     val effectiveMode = metadataMode.getOrElse(AgentMode.Durable)
-    val typeName = AgentNameMacro.typeName[Trait]
+    val typeName      = AgentNameMacro.typeName[Trait]
     registerAnyCtorType(typeName, effectiveMode, implType)
   }
 }

@@ -17,7 +17,7 @@ object SecretSchemaSpec extends ZIOSpecDefault {
           assertTrue(Schema[Secret[String]].reflect.asWrapperUnknown.isDefined)
         },
         test("wrapped reflect corresponds to String") {
-          val wrapper = Schema[Secret[String]].reflect.asWrapperUnknown.get
+          val wrapper       = Schema[Secret[String]].reflect.asWrapperUnknown.get
           val wrappedTypeId = TypeId.normalize(wrapper.wrapper.wrapped.typeId)
           assertTrue(wrappedTypeId.fullName.contains("String"))
         }
@@ -31,7 +31,7 @@ object SecretSchemaSpec extends ZIOSpecDefault {
           assertTrue(Schema[Secret[Int]].reflect.asWrapperUnknown.isDefined)
         },
         test("wrapped reflect corresponds to Int") {
-          val wrapper = Schema[Secret[Int]].reflect.asWrapperUnknown.get
+          val wrapper       = Schema[Secret[Int]].reflect.asWrapperUnknown.get
           val wrappedTypeId = TypeId.normalize(wrapper.wrapper.wrapped.typeId)
           assertTrue(wrappedTypeId.fullName.contains("Int"))
         }

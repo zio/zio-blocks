@@ -19,8 +19,8 @@ package golem
 /**
  * Base trait for Scala agent interfaces.
  *
- * Constructor parameters are defined by declaring an inner `class Id`
- * on the agent trait:
+ * Constructor parameters are defined by declaring an inner `class Id` on the
+ * agent trait:
  *
  * {{{
  * @agentDefinition()

@@ -46,7 +46,7 @@ object MultimodalItemsSpec extends ZIOSpecDefault {
         },
         test("encode/decode roundtrip for basic items") {
           val schema = implicitly[GolemSchema[MultimodalItems.Basic]]
-          val value = MultimodalItems.basic(
+          val value  = MultimodalItems.basic(
             Modality.text("hello"),
             Modality.binary(Array[Byte](1, 2, 3), "image/png"),
             Modality.textUrl("https://example.com/text")
@@ -96,7 +96,7 @@ object MultimodalItemsSpec extends ZIOSpecDefault {
         },
         test("encode/decode roundtrip for custom items") {
           val schema = implicitly[GolemSchema[MultimodalItems.WithCustom[MyData]]]
-          val value = MultimodalItems.withCustom[MyData](
+          val value  = MultimodalItems.withCustom[MyData](
             Modality.text("hello"),
             Modality.custom(MyData("world", 42)),
             Modality.binary(Array[Byte](10, 20), "audio/wav")

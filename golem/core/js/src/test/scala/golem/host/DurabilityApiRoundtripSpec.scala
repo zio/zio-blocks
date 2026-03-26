@@ -83,12 +83,12 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
     },
 
     test("WriteRemoteBatched with Some round-trip") {
-      val ft     = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
-      val jsVal  = DurableFunctionType.toJs(ft)
-      val parsed = DurableFunctionType.fromJs(jsVal)
+      val ft        = DurableFunctionType.WriteRemoteBatched(Some(BigInt(42)))
+      val jsVal     = DurableFunctionType.toJs(ft)
+      val parsed    = DurableFunctionType.fromJs(jsVal)
       val isBatched = parsed match {
         case _: DurableFunctionType.WriteRemoteBatched => true
-        case _                                        => false
+        case _                                         => false
       }
       val begin = parsed.asInstanceOf[DurableFunctionType.WriteRemoteBatched].begin
       assertTrue(
@@ -112,7 +112,7 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
       val ft     = DurableFunctionType.WriteRemoteTransaction(Some(BigInt(100)))
       val jsVal  = DurableFunctionType.toJs(ft)
       val parsed = DurableFunctionType.fromJs(jsVal)
-      val isTxn = parsed match {
+      val isTxn  = parsed match {
         case _: DurableFunctionType.WriteRemoteTransaction => true
         case _                                             => false
       }
@@ -169,7 +169,9 @@ object DurabilityApiRoundtripSpec extends ZIOSpecDefault {
     test("PersistedDurableFunctionInvocation construction") {
       val vat = WitValueTypes.ValueAndType(
         WitValueTypes.WitValue(List(WitValueTypes.WitNode.PrimString("test"))),
-        WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
+        WitValueTypes.WitType(
+          List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType))
+        )
       )
       val inv = PersistedDurableFunctionInvocation(
         timestamp = Datetime(BigInt(1700000000L), 500000000),

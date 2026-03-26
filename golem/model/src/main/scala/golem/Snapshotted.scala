@@ -39,8 +39,8 @@ package golem
  * }}}
  *
  * @tparam S
- *   The state type. Must have a `zio.blocks.schema.Schema[S]` instance
- *   provided via `stateSchema`.
+ *   The state type. Must have a `zio.blocks.schema.Schema[S]` instance provided
+ *   via `stateSchema`.
  */
 trait Snapshotted[S] {
   var state: S

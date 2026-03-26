@@ -401,9 +401,13 @@ object Rdbms {
   private def parsePgValueBound(raw: JsValueBound): PgValueBound =
     raw.tag match {
       case "included" =>
-        PgValueBound.Included(PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue]))
+        PgValueBound.Included(
+          PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue])
+        )
       case "excluded" =>
-        PgValueBound.Excluded(PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue]))
+        PgValueBound.Excluded(
+          PostgresDbValue.fromJs(raw.asInstanceOf[JsValueBoundWithValue].value.get().asInstanceOf[JsPostgresDbValue])
+        )
       case "unbounded" => PgValueBound.Unbounded
       case other       => throw new IllegalArgumentException(s"Unknown PgValueBound tag: $other")
     }
@@ -576,7 +580,11 @@ object Rdbms {
             case "composite"   => Composite(parsePgComposite(v.asInstanceOf[JsPgComposite]))
             case "domain"      => Domain(parsePgDomain(v.asInstanceOf[JsPgDomain]))
             case "array"       =>
-              PgArray(v.asInstanceOf[js.Array[JsLazyDbValue]].toList.map(lazy_ => fromJs(lazy_.get().asInstanceOf[JsPostgresDbValue])))
+              PgArray(
+                v.asInstanceOf[js.Array[JsLazyDbValue]]
+                  .toList
+                  .map(lazy_ => fromJs(lazy_.get().asInstanceOf[JsPostgresDbValue]))
+              )
             case "range" =>
               val r = v.asInstanceOf[JsPgRange]
               Range(PgRange(r.name, PgValuesRange(parsePgValueBound(r.value.start), parsePgValueBound(r.value.end))))
@@ -632,8 +640,9 @@ object Rdbms {
       case Enumeration(e)    => JsPostgresDbValue.enumeration(JsPgEnumeration(e.name, e.value))
       case Vector(v)         => JsPostgresDbValue.vector(js.Array(v: _*))
       case HalfVec(v)        => JsPostgresDbValue.halfvec(js.Array(v: _*))
-      case SparseVec(sv)     => JsPostgresDbValue.sparsevec(JsPgSparseVec(sv.dim, js.Array(sv.indices: _*), js.Array(sv.values: _*)))
-      case _                 => throw new UnsupportedOperationException(s"toJs not yet implemented for: $v")
+      case SparseVec(sv)     =>
+        JsPostgresDbValue.sparsevec(JsPgSparseVec(sv.dim, js.Array(sv.indices: _*), js.Array(sv.values: _*)))
+      case _ => throw new UnsupportedOperationException(s"toJs not yet implemented for: $v")
     }
 
     def toDynamic(v: PostgresDbValue): js.Dynamic = toJs(v).asInstanceOf[js.Dynamic]

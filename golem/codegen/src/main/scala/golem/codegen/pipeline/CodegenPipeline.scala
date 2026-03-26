@@ -24,8 +24,9 @@ import golem.codegen.rpc.RpcCodegen
 /**
  * Shared codegen pipeline consumed by both sbt and mill plugins.
  *
- * Encapsulates the flow: discovery → IR conversion → auto-register + RPC generation.
- * Build plugins only need to handle file I/O, logging, and formatting.
+ * Encapsulates the flow: discovery → IR conversion → auto-register + RPC
+ * generation. Build plugins only need to handle file I/O, logging, and
+ * formatting.
  */
 object CodegenPipeline {
 
@@ -52,10 +53,14 @@ object CodegenPipeline {
   /**
    * Run the full codegen pipeline from discovery results.
    *
-   * @param discovered  the discovery results from scanning source files
-   * @param basePackageOpt  base package for auto-register generation (None to skip)
-   * @param rpcEnabled  whether to generate RPC client objects
-   * @return pipeline results with generated files and warnings
+   * @param discovered
+   *   the discovery results from scanning source files
+   * @param basePackageOpt
+   *   base package for auto-register generation (None to skip)
+   * @param rpcEnabled
+   *   whether to generate RPC client objects
+   * @return
+   *   pipeline results with generated files and warnings
    */
   def run(
     discovered: SourceDiscovery.Result,
@@ -73,15 +78,16 @@ object CodegenPipeline {
       )
     }
 
-    val rpc = if (!rpcEnabled) RpcResult(Nil, Nil)
-    else {
-      val agents = discoveredToIR(discovered)
-      val result = RpcCodegen.generate(agents, discovered.objects)
-      RpcResult(
-        files = result.files.map(f => GeneratedFile(f.relativePath, f.content)),
-        warnings = result.warnings.map(_.message)
-      )
-    }
+    val rpc =
+      if (!rpcEnabled) RpcResult(Nil, Nil)
+      else {
+        val agents = discoveredToIR(discovered)
+        val result = RpcCodegen.generate(agents, discovered.objects)
+        RpcResult(
+          files = result.files.map(f => GeneratedFile(f.relativePath, f.content)),
+          warnings = result.warnings.map(_.message)
+        )
+      }
 
     PipelineResult(autoRegister = autoReg, rpc = rpc)
   }
@@ -103,15 +109,16 @@ object CodegenPipeline {
           mode = t.mode.getOrElse("durable"),
           snapshotting = "disabled"
         ),
-        methods = t.methods.map(m => AgentSurfaceIR.MethodSurface(
-          name = m.name,
-          params = m.params.map(p => AgentSurfaceIR.ParamSurface(p.name, p.typeExpr)),
-          returnTypeExpr = m.returnTypeExpr,
-          principalParams = m.principalParams
-        )),
-        configFields = t.configFields.map(cf =>
-          AgentSurfaceIR.ConfigFieldSurface(path = cf.path, typeExpr = cf.typeExpr)
-        )
+        methods = t.methods.map(m =>
+          AgentSurfaceIR.MethodSurface(
+            name = m.name,
+            params = m.params.map(p => AgentSurfaceIR.ParamSurface(p.name, p.typeExpr)),
+            returnTypeExpr = m.returnTypeExpr,
+            principalParams = m.principalParams
+          )
+        ),
+        configFields =
+          t.configFields.map(cf => AgentSurfaceIR.ConfigFieldSurface(path = cf.path, typeExpr = cf.typeExpr))
       )
     }.toList
 }

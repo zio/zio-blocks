@@ -134,7 +134,7 @@ private[golem] object WitValueCodec {
             }
             pairs.foldLeft[Either[String, List[(DataValue, DataValue)]]](Right(Nil)) {
               case (acc, Right(pair)) => acc.map(_ :+ pair)
-              case (_, Left(err))    => Left(err)
+              case (_, Left(err))     => Left(err)
             }
           }.map(MapValue(_))
         case (TupleType(elements), "tuple-value") =>

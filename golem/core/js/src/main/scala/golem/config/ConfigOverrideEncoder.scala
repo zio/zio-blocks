@@ -14,9 +14,10 @@ private[golem] object ConfigOverrideEncoder {
         case ElementSchema.Component(dataType) =>
           val witValue = WitValueBuilder.build(dataType, co.value) match {
             case Right(v)  => v
-            case Left(err) => throw new IllegalArgumentException(
-              s"Failed to encode config override at ${co.path.mkString(".")}: $err"
-            )
+            case Left(err) =>
+              throw new IllegalArgumentException(
+                s"Failed to encode config override at ${co.path.mkString(".")}: $err"
+              )
           }
           val witType = WitTypeBuilder.build(dataType)
           result.push(JsTypedAgentConfigValue(js.Array(co.path: _*), JsValueAndType(witValue, witType)))

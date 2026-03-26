@@ -9,7 +9,7 @@ import sbt.Keys.*
 lazy val root = (project in file("."))
   .settings(
     Compile / unmanagedSources ++= {
-      val repoRoot  = baseDirectory.value.getParentFile
+      val repoRoot   = baseDirectory.value.getParentFile
       val codegenDir = repoRoot / "golem" / "codegen" / "src" / "main" / "scala" / "golem" / "codegen"
       Seq(
         repoRoot / "golem" / "sbt" / "src" / "main" / "scala" / "golem" / "sbt" / "GolemPlugin.scala",
@@ -26,8 +26,8 @@ lazy val root = (project in file("."))
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
     },
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta"         % "4.14.7",
-      "org.scalameta" %% "scalafmt-dynamic"  % "3.10.4",
-      "com.lihaoyi"   %% "ujson"             % "3.1.0"
+      "org.scalameta" %% "scalameta"        % "4.14.7",
+      "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
+      "com.lihaoyi"   %% "ujson"            % "3.1.0"
     )
   )

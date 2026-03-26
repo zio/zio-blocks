@@ -40,13 +40,15 @@ object MethodBinding {
   def sync[Instance, In, Out](methodMetadata: MethodMetadata)(
     handler: (Instance, In, Principal) => Out
   )(implicit inSchema: GolemSchema[In], outSchema: GolemSchema[Out]): MethodBinding[Instance] =
-    async[Instance, In, Out](methodMetadata)((instance, input, principal) => Future.successful(handler(instance, input, principal)))
+    async[Instance, In, Out](methodMetadata)((instance, input, principal) =>
+      Future.successful(handler(instance, input, principal))
+    )
 
   def async[Instance, In, Out](methodMetadata: MethodMetadata)(
     handler: (Instance, In, Principal) => Future[Out]
   )(implicit inSchema: GolemSchema[In], outSchema: GolemSchema[Out]): MethodBinding[Instance] =
     new MethodBinding[Instance] {
-      override val metadata: MethodMetadata  = methodMetadata
+      override val metadata: MethodMetadata   = methodMetadata
       override val inputSchema: JsDataSchema  = HostPayload.schema[In]
       override val outputSchema: JsDataSchema = HostPayload.schema[Out]
 

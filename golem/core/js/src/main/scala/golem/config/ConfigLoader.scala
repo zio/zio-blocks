@@ -26,12 +26,14 @@ private[golem] object ConfigLoader extends ConfigFieldLoader {
         val witType  = WitTypeBuilder.build(dataType)
         val witValue = AgentHostApi.getConfigValue(path, witType)
         val decoded  = WitValueCodec.decode(dataType, witValue) match {
-          case Right(dv)  => dv
-          case Left(err)  => throw new RuntimeException(s"Failed to decode config value at path ${path.mkString(".")}: $err")
+          case Right(dv) => dv
+          case Left(err) =>
+            throw new RuntimeException(s"Failed to decode config value at path ${path.mkString(".")}: $err")
         }
         DataInterop.fromData[A](decoded) match {
-          case Right(a)   => a
-          case Left(err)  => throw new RuntimeException(s"Failed to convert config value at path ${path.mkString(".")}: $err")
+          case Right(a)  => a
+          case Left(err) =>
+            throw new RuntimeException(s"Failed to convert config value at path ${path.mkString(".")}: $err")
         }
       case _ =>
         throw new UnsupportedOperationException(

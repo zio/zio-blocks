@@ -236,7 +236,9 @@ object DataInteropReflectionSpec extends ZIOSpecDefault {
           )
 
         assertTrue(
-          invokeDynamicToDataValue(mapSchema, okMap) == Right(DataValue.MapValue(List((DataValue.StringValue("k"), DataValue.IntValue(1)))))
+          invokeDynamicToDataValue(mapSchema, okMap) == Right(
+            DataValue.MapValue(List((DataValue.StringValue("k"), DataValue.IntValue(1))))
+          )
         )
       },
       test("dynamicToDataValue converts sequences to list/set values") {

@@ -57,7 +57,7 @@ object WitValueTypes {
     final case class PrimString(value: String)                                  extends WitNode
     final case class Handle(uri: String, resourceId: BigInt)                    extends WitNode
 
-    def fromJs(raw: JsWitNode): WitNode = {
+    def fromJs(raw: JsWitNode): WitNode =
       raw.tag match {
         case "record-value" =>
           val arr = raw.asInstanceOf[JsWitNodeRecordValue].value
@@ -120,7 +120,6 @@ object WitValueTypes {
           Handle(tup._1.value, BigInt(tup._2.toString))
         case other => throw new IllegalArgumentException(s"Unknown WitNode tag: $other")
       }
-    }
 
     def toJs(node: WitNode): JsWitNode = node match {
       case RecordValue(fields) =>
@@ -132,7 +131,7 @@ object WitValueTypes {
       case FlagsValue(flags) => JsWitNode.flagsValue(js.Array(flags: _*))
       case TupleValue(elems) => JsWitNode.tupleValue(js.Array(elems: _*))
       case ListValue(elems)  => JsWitNode.listValue(js.Array(elems: _*))
-      case OptionValue(v) =>
+      case OptionValue(v)    =>
         val optIdx: js.UndefOr[JsNodeIndex] = v.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
         JsWitNode.optionValue(optIdx)
       case ResultValue(ok, err) =>
@@ -166,9 +165,8 @@ object WitValueTypes {
   final case class WitValue(nodes: List[WitNode])
 
   object WitValue {
-    def fromJs(raw: JsWitValue): WitValue = {
+    def fromJs(raw: JsWitValue): WitValue =
       WitValue(raw.nodes.toList.map(WitNode.fromJs))
-    }
 
     def toJs(wv: WitValue): JsWitValue = {
       val arr = js.Array[JsWitNode]()
@@ -219,7 +217,7 @@ object WitValueTypes {
     case object PrimStringType                                                 extends WitTypeNode
     final case class HandleType(resourceId: BigInt, mode: ResourceMode)        extends WitTypeNode
 
-    def fromJs(raw: JsWitTypeNode): WitTypeNode = {
+    def fromJs(raw: JsWitTypeNode): WitTypeNode =
       raw.tag match {
         case "record-type" =>
           val arr = raw.asInstanceOf[JsWitTypeNodeRecordType].value
@@ -258,14 +256,13 @@ object WitValueTypes {
         case "prim-char-type"   => PrimCharType
         case "prim-bool-type"   => PrimBoolType
         case "prim-string-type" => PrimStringType
-        case "handle-type" =>
+        case "handle-type"      =>
           val tup  = raw.asInstanceOf[JsWitTypeNodeHandleType].value
           val rid  = BigInt(tup._1.toString)
           val mode = ResourceMode.fromString(tup._2)
           HandleType(rid, mode)
         case other => throw new IllegalArgumentException(s"Unknown WitTypeNode tag: $other")
       }
-    }
 
     def toJs(node: WitTypeNode): JsWitTypeNode = node match {
       case RecordType(fields) =>
@@ -340,9 +337,8 @@ object WitValueTypes {
   final case class WitType(nodes: List[NamedWitTypeNode])
 
   object WitType {
-    def fromJs(raw: JsWitType): WitType = {
+    def fromJs(raw: JsWitType): WitType =
       WitType(raw.nodes.toList.map(NamedWitTypeNode.fromJs))
-    }
 
     def toJs(wt: WitType): JsWitType = {
       val arr = js.Array[JsNamedWitTypeNode]()

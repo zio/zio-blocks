@@ -18,7 +18,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller", "name"), principalParams, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller", "name"),
+          principalParams,
+          hasMount = true
         )
         assertTrue(
           result.isLeft,
@@ -35,7 +40,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller", "name"), principalParams, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller", "name"),
+          principalParams,
+          hasMount = true
         )
         assertTrue(
           result.isLeft,
@@ -52,7 +62,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller", "name"), principalParams, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller", "name"),
+          principalParams,
+          hasMount = true
         )
         assertTrue(
           result.isLeft,
@@ -69,7 +84,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller", "name"), principalParams, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller", "name"),
+          principalParams,
+          hasMount = true
         )
         assertTrue(result.isRight)
       },
@@ -83,7 +103,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller"), Set.empty, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller"),
+          Set.empty,
+          hasMount = true
         )
         assertTrue(result.isRight)
       },
@@ -97,7 +122,12 @@ object HttpValidationPrincipalSpec extends ZIOSpecDefault {
           corsOverride = None
         )
         val result = HttpValidation.validateEndpointVars(
-          "TestAgent", "myMethod", endpoint, Set("caller"), principalParams, hasMount = true
+          "TestAgent",
+          "myMethod",
+          endpoint,
+          Set("caller"),
+          principalParams,
+          hasMount = true
         )
         assertTrue(
           result.isLeft,

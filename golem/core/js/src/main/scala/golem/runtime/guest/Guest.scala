@@ -32,12 +32,12 @@ import scala.scalajs.js.typedarray.Uint8Array
  *
  * The Scala application code is responsible for registering agent definitions
  * into AgentRegistry at module initialization time (typically via
- * `AgentImplementation.registerClass[...]` calls in a small exported value whose
- * initializer runs on module load).
+ * `AgentImplementation.registerClass[...]` calls in a small exported value
+ * whose initializer runs on module load).
  */
 object Guest {
-  private var resolved: js.UndefOr[Resolved]                    = js.undefined
-  private var initializationPrincipal: Option[golem.Principal]  = None
+  private var resolved: js.UndefOr[Resolved]                   = js.undefined
+  private var initializationPrincipal: Option[golem.Principal] = None
   private final case class Resolved(defn: golem.runtime.autowire.AgentDefinition[Any], instance: Any)
 
   private def invalidType(message: String): JsAgentError =
@@ -55,9 +55,11 @@ object Guest {
       case Right(v) => v
     }
 
-    val witType: JsWitType = JsWitType(js.Array(
-      JsNamedWitTypeNode(JsWitTypeNode.primStringType)
-    ))
+    val witType: JsWitType = JsWitType(
+      js.Array(
+        JsNamedWitTypeNode(JsWitTypeNode.primStringType)
+      )
+    )
 
     JsAgentError.customError(JsValueAndType(witValue, witType))
   }
@@ -99,7 +101,7 @@ object Guest {
         case None =>
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
-          val scalaPrincipal           = PrincipalConverter.fromJs(principal)
+          val scalaPrincipal = PrincipalConverter.fromJs(principal)
           initializationPrincipal = Some(scalaPrincipal)
           // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
           val initPromise              = defnAny.initializeAny(input.asInstanceOf[JsDataValue], scalaPrincipal)
@@ -174,8 +176,12 @@ object Guest {
   @JSExportTopLevel("guest")
   val guest: js.Dynamic =
     js.Dynamic.literal(
-      "initialize"         -> ((agentTypeName: String, input: js.Dynamic, principal: js.Dynamic) => initialize(agentTypeName, input, principal)),
-      "invoke"             -> ((methodName: String, input: js.Dynamic, principal: js.Dynamic) => invoke(methodName, input, principal)),
+      "initialize" -> ((agentTypeName: String, input: js.Dynamic, principal: js.Dynamic) =>
+        initialize(agentTypeName, input, principal)
+      ),
+      "invoke" -> ((methodName: String, input: js.Dynamic, principal: js.Dynamic) =>
+        invoke(methodName, input, principal)
+      ),
       "getDefinition"      -> (() => getDefinition()),
       "discoverAgentTypes" -> (() => discoverAgentTypes())
     )
@@ -183,7 +189,7 @@ object Guest {
   @JSExportTopLevel("saveSnapshot")
   object SaveSnapshot {
     @JSExport
-    def save(): js.Promise[JsSnapshot] = {
+    def save(): js.Promise[JsSnapshot] =
       if (js.isUndefined(resolved)) {
         FutureInterop.toPromise(Future.successful(JsSnapshot(new Uint8Array(0), "application/octet-stream")))
       } else {
@@ -192,7 +198,7 @@ object Guest {
           case Some(handlers) =>
             FutureInterop.toPromise(
               handlers.save(r.instance).map { payload =>
-                val principal = initializationPrincipal.getOrElse(golem.Principal.Anonymous)
+                val principal      = initializationPrincipal.getOrElse(golem.Principal.Anonymous)
                 val principalBytes = PrincipalConverter.toJson(principal)
                 if (payload.mimeType == "application/json") {
                   val stateJson        = new String(payload.bytes, "UTF-8")
@@ -200,8 +206,8 @@ object Guest {
                   val envelope         = s"""{"version":1,"principal":$principalJsonStr,"state":$stateJson}"""
                   JsSnapshot(toUint8Array(envelope.getBytes("UTF-8")), "application/json")
                 } else {
-                  val totalLength    = 1 + 4 + principalBytes.length + payload.bytes.length
-                  val fullSnapshot   = new Array[Byte](totalLength)
+                  val totalLength  = 1 + 4 + principalBytes.length + payload.bytes.length
+                  val fullSnapshot = new Array[Byte](totalLength)
                   fullSnapshot(0) = 2.toByte
                   fullSnapshot(1) = ((principalBytes.length >>> 24) & 0xff).toByte
                   fullSnapshot(2) = ((principalBytes.length >>> 16) & 0xff).toByte
@@ -217,28 +223,33 @@ object Guest {
             FutureInterop.toPromise(Future.successful(JsSnapshot(new Uint8Array(0), "application/octet-stream")))
         }
       }
-    }
   }
 
   @JSExportTopLevel("loadSnapshot")
   object LoadSnapshot {
     @JSExport
-    def load(snapshot: JsSnapshot): js.Promise[Unit] = {
+    def load(snapshot: JsSnapshot): js.Promise[Unit] =
       if (js.isUndefined(resolved)) {
         FutureInterop.toPromise(Future.successful(()))
       } else {
         val r = resolved.asInstanceOf[Resolved]
         r.defn.snapshotHandlers match {
           case Some(handlers) =>
-            val bytes = fromUint8Array(snapshot.data)
+            val bytes                   = fromUint8Array(snapshot.data)
             val (principal, agentState) =
               if (snapshot.mimeType == "application/json") {
                 Json.parse(bytes) match {
                   case Right(envelope) =>
-                    val p = envelope.get("principal").one.toOption
+                    val p = envelope
+                      .get("principal")
+                      .one
+                      .toOption
                       .flatMap(pJson => PrincipalConverter.fromJson(pJson.printBytes).toOption)
                       .getOrElse(initializationPrincipal.getOrElse(golem.Principal.Anonymous))
-                    val stateBytes = envelope.get("state").one.toOption
+                    val stateBytes = envelope
+                      .get("state")
+                      .one
+                      .toOption
                       .map(_.printBytes)
                       .getOrElse(bytes)
                     (p, stateBytes)
@@ -256,12 +267,12 @@ object Guest {
                       throw new RuntimeException("Version 2 snapshot too short for principal length")
                     val principalLen =
                       ((bytes(1) & 0xff) << 24) | ((bytes(2) & 0xff) << 16) |
-                      ((bytes(3) & 0xff) << 8) | (bytes(4) & 0xff)
+                        ((bytes(3) & 0xff) << 8) | (bytes(4) & 0xff)
                     val principalEnd = 5 + principalLen
                     if (bytes.length < principalEnd)
                       throw new RuntimeException("Version 2 snapshot too short for principal data")
                     val principalBytes = java.util.Arrays.copyOfRange(bytes, 5, principalEnd)
-                    val p = PrincipalConverter.fromJson(principalBytes) match {
+                    val p              = PrincipalConverter.fromJson(principalBytes) match {
                       case Right(v)  => v
                       case Left(err) => throw new RuntimeException(s"Failed to deserialize principal: $err")
                     }
@@ -282,6 +293,5 @@ object Guest {
             FutureInterop.toPromise(Future.successful(()))
         }
       }
-    }
   }
 }

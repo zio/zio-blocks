@@ -26,9 +26,9 @@ import scala.concurrent.Future
  *
  * Centralises the lazy method lookup by name, plus typed delegation to
  * [[AgentClientRuntime.ResolvedAgent]]'s `await`, `trigger`, and `schedule`
- * methods. Generated subclasses only need to provide typed `apply`,
- * `trigger`, and `scheduleAt` methods that pack their parameters and
- * delegate to the `protected` helpers below.
+ * methods. Generated subclasses only need to provide typed `apply`, `trigger`,
+ * and `scheduleAt` methods that pack their parameters and delegate to the
+ * `protected` helpers below.
  */
 abstract class AbstractRemoteMethod[Trait, In, Out] protected (
   resolved: AgentClientRuntime.ResolvedAgent[Trait],

@@ -13,16 +13,16 @@ import scala.scalajs.js.annotation.JSName
 
 @js.native
 sealed trait JsOidcPrincipal extends js.Object {
-  def sub: String                             = js.native
-  def issuer: String                          = js.native
-  def email: js.UndefOr[String]               = js.native
-  def name: js.UndefOr[String]                = js.native
-  def emailVerified: js.UndefOr[Boolean]      = js.native
-  def givenName: js.UndefOr[String]           = js.native
-  def familyName: js.UndefOr[String]          = js.native
-  def picture: js.UndefOr[String]             = js.native
-  def preferredUsername: js.UndefOr[String]    = js.native
-  def claims: String                          = js.native
+  def sub: String                           = js.native
+  def issuer: String                        = js.native
+  def email: js.UndefOr[String]             = js.native
+  def name: js.UndefOr[String]              = js.native
+  def emailVerified: js.UndefOr[Boolean]    = js.native
+  def givenName: js.UndefOr[String]         = js.native
+  def familyName: js.UndefOr[String]        = js.native
+  def picture: js.UndefOr[String]           = js.native
+  def preferredUsername: js.UndefOr[String] = js.native
+  def claims: String                        = js.native
 }
 
 object JsOidcPrincipal {
@@ -146,10 +146,10 @@ object JsAgentError {
 
 @js.native
 sealed trait JsAgentConstructorDef extends js.Object {
-  def name: js.UndefOr[String]        = js.native
-  def description: String             = js.native
-  def promptHint: js.UndefOr[String]  = js.native
-  def inputSchema: JsDataSchema       = js.native
+  def name: js.UndefOr[String]       = js.native
+  def description: String            = js.native
+  def promptHint: js.UndefOr[String] = js.native
+  def inputSchema: JsDataSchema      = js.native
 }
 
 object JsAgentConstructorDef {
@@ -288,11 +288,11 @@ object JsCorsOptions {
 
 @js.native
 sealed trait JsHttpMountDetails extends js.Object {
-  def pathPrefix: js.Array[JsPathSegment]      = js.native
-  def authDetails: js.UndefOr[JsAuthDetails]   = js.native
-  def phantomAgent: Boolean                     = js.native
-  def corsOptions: JsCorsOptions                = js.native
-  def webhookSuffix: js.Array[JsPathSegment]    = js.native
+  def pathPrefix: js.Array[JsPathSegment]    = js.native
+  def authDetails: js.UndefOr[JsAuthDetails] = js.native
+  def phantomAgent: Boolean                  = js.native
+  def corsOptions: JsCorsOptions             = js.native
+  def webhookSuffix: js.Array[JsPathSegment] = js.native
 }
 
 object JsHttpMountDetails {
@@ -316,12 +316,12 @@ object JsHttpMountDetails {
 
 @js.native
 sealed trait JsHttpEndpointDetails extends js.Object {
-  def httpMethod: JsHttpMethod                   = js.native
-  def pathSuffix: js.Array[JsPathSegment]        = js.native
-  def headerVars: js.Array[JsHeaderVariable]     = js.native
-  def queryVars: js.Array[JsQueryVariable]       = js.native
-  def authDetails: js.UndefOr[JsAuthDetails]     = js.native
-  def corsOptions: JsCorsOptions                 = js.native
+  def httpMethod: JsHttpMethod               = js.native
+  def pathSuffix: js.Array[JsPathSegment]    = js.native
+  def headerVars: js.Array[JsHeaderVariable] = js.native
+  def queryVars: js.Array[JsQueryVariable]   = js.native
+  def authDetails: js.UndefOr[JsAuthDetails] = js.native
+  def corsOptions: JsCorsOptions             = js.native
 }
 
 object JsHttpEndpointDetails {
@@ -351,12 +351,12 @@ object JsHttpEndpointDetails {
 
 @js.native
 sealed trait JsAgentMethod extends js.Object {
-  def name: String                                    = js.native
-  def description: String                             = js.native
-  def httpEndpoint: js.Array[JsHttpEndpointDetails]   = js.native
-  def promptHint: js.UndefOr[String]                  = js.native
-  def inputSchema: JsDataSchema                       = js.native
-  def outputSchema: JsDataSchema                      = js.native
+  def name: String                                  = js.native
+  def description: String                           = js.native
+  def httpEndpoint: js.Array[JsHttpEndpointDetails] = js.native
+  def promptHint: js.UndefOr[String]                = js.native
+  def inputSchema: JsDataSchema                     = js.native
+  def outputSchema: JsDataSchema                    = js.native
 }
 
 object JsAgentMethod {
@@ -382,10 +382,10 @@ object JsAgentMethod {
 
 @js.native
 sealed trait JsAgentDependency extends js.Object {
-  def typeName: String                          = js.native
-  def description: js.UndefOr[String]           = js.native
-  def constructor: JsAgentConstructorDef        = js.native
-  def methods: js.Array[JsAgentMethod]          = js.native
+  def typeName: String                   = js.native
+  def description: js.UndefOr[String]    = js.native
+  def constructor: JsAgentConstructorDef = js.native
+  def methods: js.Array[JsAgentMethod]   = js.native
 }
 
 object JsAgentDependency {
@@ -459,14 +459,16 @@ object JsSnapshotting {
 
 @js.native
 sealed trait JsAgentConfigDeclaration extends js.Object {
-  def source: JsAgentConfigSource    = js.native
-  def path: js.Array[String]         = js.native
-  def valueType: JsWitType           = js.native
+  def source: JsAgentConfigSource = js.native
+  def path: js.Array[String]      = js.native
+  def valueType: JsWitType        = js.native
 }
 
 object JsAgentConfigDeclaration {
   def apply(source: JsAgentConfigSource, path: js.Array[String], valueType: JsWitType): JsAgentConfigDeclaration =
-    js.Dynamic.literal("source" -> source, "path" -> path, "valueType" -> valueType).asInstanceOf[JsAgentConfigDeclaration]
+    js.Dynamic
+      .literal("source" -> source, "path" -> path, "valueType" -> valueType)
+      .asInstanceOf[JsAgentConfigDeclaration]
 }
 
 // ---------------------------------------------------------------------------
@@ -475,16 +477,16 @@ object JsAgentConfigDeclaration {
 
 @js.native
 sealed trait JsAgentType extends js.Object {
-  def typeName: String                                 = js.native
-  def description: String                              = js.native
-  def sourceLanguage: String                           = js.native
-  def constructor: JsAgentConstructorDef               = js.native
-  def methods: js.Array[JsAgentMethod]                 = js.native
-  def dependencies: js.Array[JsAgentDependency]        = js.native
-  def mode: JsAgentMode                                = js.native
-  def httpMount: js.UndefOr[JsHttpMountDetails]        = js.native
-  def snapshotting: JsSnapshotting                     = js.native
-  def config: js.Array[JsAgentConfigDeclaration]       = js.native
+  def typeName: String                           = js.native
+  def description: String                        = js.native
+  def sourceLanguage: String                     = js.native
+  def constructor: JsAgentConstructorDef         = js.native
+  def methods: js.Array[JsAgentMethod]           = js.native
+  def dependencies: js.Array[JsAgentDependency]  = js.native
+  def mode: JsAgentMode                          = js.native
+  def httpMount: js.UndefOr[JsHttpMountDetails]  = js.native
+  def snapshotting: JsSnapshotting               = js.native
+  def config: js.Array[JsAgentConfigDeclaration] = js.native
 }
 
 object JsAgentType {
@@ -518,8 +520,8 @@ object JsAgentType {
 
 @js.native
 sealed trait JsRegisteredAgentType extends js.Object {
-  def agentType: JsAgentType          = js.native
-  def implementedBy: JsComponentId    = js.native
+  def agentType: JsAgentType       = js.native
+  def implementedBy: JsComponentId = js.native
 }
 
 object JsRegisteredAgentType {
@@ -529,8 +531,8 @@ object JsRegisteredAgentType {
 
 @js.native
 sealed trait JsTypedAgentConfigValue extends js.Object {
-  def path: js.Array[String]       = js.native
-  def value: JsValueAndType        = js.native
+  def path: js.Array[String] = js.native
+  def value: JsValueAndType  = js.native
 }
 
 object JsTypedAgentConfigValue {

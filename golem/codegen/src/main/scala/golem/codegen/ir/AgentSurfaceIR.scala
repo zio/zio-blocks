@@ -19,9 +19,9 @@ package golem.codegen.ir
 /**
  * Surface IR model for agent-level metadata.
  *
- * This is the interchange format between the macro-export prepass
- * and the RPC code generator. It captures trait-level surface information
- * sufficient for generating RPC helper objects.
+ * This is the interchange format between the macro-export prepass and the RPC
+ * code generator. It captures trait-level surface information sufficient for
+ * generating RPC helper objects.
  */
 object AgentSurfaceIR {
 

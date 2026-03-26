@@ -45,8 +45,7 @@ object AgentImplementationMacro {
   ): AgentImplementationType[Trait, Ctor] =
     ${ implementationTypeWithCtorImpl[Trait, Ctor]('build) }
 
-  inline def implementationTypeFromClass[Trait, Impl <: Trait]
-    : golem.runtime.AgentImplementationType[Trait, ?] =
+  inline def implementationTypeFromClass[Trait, Impl <: Trait]: golem.runtime.AgentImplementationType[Trait, ?] =
     ${ implementationTypeFromClassImpl[Trait, Impl] }
 
   private def implementationTypeFromClassImpl[Trait: Type, Impl: Type](using
@@ -402,7 +401,7 @@ object AgentImplementationMacro {
                         Some(
                           SnapshotHandlers[Trait](
                             save = (instance: Trait) => {
-                              val snap = instance.asInstanceOf[golem.Snapshotted[s]]
+                              val snap  = instance.asInstanceOf[golem.Snapshotted[s]]
                               val codec = snap.stateSchema.derive(zio.blocks.schema.json.JsonCodecDeriver)
                               scala.concurrent.Future.successful(
                                 SnapshotPayload(
@@ -412,7 +411,7 @@ object AgentImplementationMacro {
                               )
                             },
                             load = (instance: Trait, bytes: Array[Byte]) => {
-                              val snap = instance.asInstanceOf[golem.Snapshotted[s]]
+                              val snap  = instance.asInstanceOf[golem.Snapshotted[s]]
                               val codec = snap.stateSchema.derive(zio.blocks.schema.json.JsonCodecDeriver)
                               codec.decode(bytes) match {
                                 case Right(restored) =>

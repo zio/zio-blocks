@@ -63,8 +63,9 @@ object RemoteAgentClient {
               js.BigInt(uuid.lowBits.toString)
             )
           }
-          val jsConfig = if (configOverrides.isEmpty) js.Array[JsTypedAgentConfigValue]()
-                         else ConfigOverrideEncoder.encode(configOverrides)
+          val jsConfig =
+            if (configOverrides.isEmpty) js.Array[JsTypedAgentConfigValue]()
+            else ConfigOverrideEncoder.encode(configOverrides)
           val rpcClient = WasmRpcApi.newClient(displayTypeName, constructorPayload, phantomArg, jsConfig)
           RemoteAgentClient(displayTypeName, id, agentType, new WasmRpcInvoker(rpcClient))
         }

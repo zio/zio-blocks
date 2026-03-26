@@ -32,28 +32,28 @@ object AgentHostApi {
   type ComponentVersion = BigInt
 
   // --- Type aliases pointing to golem.host.js facades ---
-  type AgentMetadata         = JsAgentMetadata
-  type RetryPolicy           = JsRetryPolicy
-  type PersistenceLevel      = JsPersistenceLevel
-  type AgentStatus           = JsAgentStatus
-  type UpdateMode            = JsUpdateMode
-  type FilterComparator      = JsFilterComparator
+  type AgentMetadata          = JsAgentMetadata
+  type RetryPolicy            = JsRetryPolicy
+  type PersistenceLevel       = JsPersistenceLevel
+  type AgentStatus            = JsAgentStatus
+  type UpdateMode             = JsUpdateMode
+  type FilterComparator       = JsFilterComparator
   type StringFilterComparator = JsStringFilterComparator
-  type AgentPropertyFilter   = JsAgentPropertyFilter
-  type RevertAgentTarget     = JsRevertAgentTarget
-  type RegisteredAgentType   = JsRegisteredAgentType
-  type ComponentIdLiteral    = JsComponentId
-  type AgentIdLiteral        = JsAgentId
-  type UuidLiteral           = JsUuid
-  type PromiseIdLiteral      = JsPromiseId
-  type AgentNameFilter       = JsAgentNameFilter
-  type AgentStatusFilter     = JsAgentStatusFilter
-  type AgentVersionFilter    = JsAgentVersionFilter
-  type AgentCreatedAtFilter  = JsAgentCreatedAtFilter
-  type AgentEnvFilter        = JsAgentEnvFilter
-  type AgentConfigVarsFilter = JsAgentConfigVarsFilter
-  type AgentAllFilter        = JsAgentAllFilter
-  type AgentAnyFilter        = JsAgentAnyFilter
+  type AgentPropertyFilter    = JsAgentPropertyFilter
+  type RevertAgentTarget      = JsRevertAgentTarget
+  type RegisteredAgentType    = JsRegisteredAgentType
+  type ComponentIdLiteral     = JsComponentId
+  type AgentIdLiteral         = JsAgentId
+  type UuidLiteral            = JsUuid
+  type PromiseIdLiteral       = JsPromiseId
+  type AgentNameFilter        = JsAgentNameFilter
+  type AgentStatusFilter      = JsAgentStatusFilter
+  type AgentVersionFilter     = JsAgentVersionFilter
+  type AgentCreatedAtFilter   = JsAgentCreatedAtFilter
+  type AgentEnvFilter         = JsAgentEnvFilter
+  type AgentConfigVarsFilter  = JsAgentConfigVarsFilter
+  type AgentAllFilter         = JsAgentAllFilter
+  type AgentAnyFilter         = JsAgentAnyFilter
 
   @js.native
   @JSImport("golem:api/host@1.5.0", "GetAgents")
@@ -226,7 +226,13 @@ object AgentHostApi {
     )
 
   object RetryPolicy {
-    def apply(maxAttempts: Int, minDelay: BigInt, maxDelay: BigInt, multiplier: Double, maxJitterFactor: js.UndefOr[Double] = js.undefined): RetryPolicy =
+    def apply(
+      maxAttempts: Int,
+      minDelay: BigInt,
+      maxDelay: BigInt,
+      multiplier: Double,
+      maxJitterFactor: js.UndefOr[Double] = js.undefined
+    ): RetryPolicy =
       JsRetryPolicy(maxAttempts, minDelay, maxDelay, multiplier, maxJitterFactor)
   }
 

@@ -67,7 +67,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
 
   @agentImplementation()
   final class AutoSnapshotAgentImpl() extends AutoSnapshotAgent with Snapshotted[TestState] {
-    var state: TestState = TestState(0, "initial")
+    var state: TestState               = TestState(0, "initial")
     val stateSchema: Schema[TestState] = TestState.schema
 
     override def increment(): Future[Int] = Future.successful {

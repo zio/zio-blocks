@@ -46,8 +46,8 @@ object JsRpcError {
 
 @js.native
 sealed trait JsDatetime extends js.Object {
-  def seconds: js.BigInt   = js.native
-  def nanoseconds: Int     = js.native
+  def seconds: js.BigInt = js.native
+  def nanoseconds: Int   = js.native
 }
 
 object JsDatetime {
@@ -59,8 +59,8 @@ object JsDatetime {
 
 @js.native
 sealed trait JsSnapshot extends js.Object {
-  def data: Uint8Array  = js.native
-  def mimeType: String  = js.native
+  def data: Uint8Array = js.native
+  def mimeType: String = js.native
 }
 
 object JsSnapshot {
@@ -72,11 +72,11 @@ object JsSnapshot {
 
 @js.native
 sealed trait JsRetryPolicy extends js.Object {
-  def maxAttempts: Int                        = js.native
-  def minDelay: js.BigInt                     = js.native
-  def maxDelay: js.BigInt                     = js.native
-  def multiplier: Double                      = js.native
-  def maxJitterFactor: js.UndefOr[Double]     = js.native
+  def maxAttempts: Int                    = js.native
+  def minDelay: js.BigInt                 = js.native
+  def maxDelay: js.BigInt                 = js.native
+  def multiplier: Double                  = js.native
+  def maxJitterFactor: js.UndefOr[Double] = js.native
 }
 
 object JsRetryPolicy {
@@ -133,13 +133,13 @@ object JsEnvironmentId {
 @js.native
 sealed trait JsAgentMetadata extends js.Object {
   def agentId: JsAgentId                              = js.native
-  def args: js.Array[String]                           = js.native
-  def env: js.Array[js.Tuple2[String, String]]         = js.native
-  def configVars: js.Array[js.Tuple2[String, String]]  = js.native
-  def status: JsAgentStatus                            = js.native
-  def componentRevision: js.BigInt                     = js.native
-  def retryCount: js.BigInt                            = js.native
-  def environmentId: JsEnvironmentId                   = js.native
+  def args: js.Array[String]                          = js.native
+  def env: js.Array[js.Tuple2[String, String]]        = js.native
+  def configVars: js.Array[js.Tuple2[String, String]] = js.native
+  def status: JsAgentStatus                           = js.native
+  def componentRevision: js.BigInt                    = js.native
+  def retryCount: js.BigInt                           = js.native
+  def environmentId: JsEnvironmentId                  = js.native
 }
 
 @js.native
@@ -160,16 +160,18 @@ object JsAgentMetadata {
     retryCount: js.BigInt,
     environmentId: JsEnvironmentId
   ): JsAgentMetadata =
-    js.Dynamic.literal(
-      "agentId"           -> agentId,
-      "args"              -> args,
-      "env"               -> env,
-      "configVars"        -> configVars,
-      "status"            -> status,
-      "componentRevision" -> componentRevision,
-      "retryCount"        -> retryCount,
-      "environmentId"     -> environmentId
-    ).asInstanceOf[JsAgentMetadata]
+    js.Dynamic
+      .literal(
+        "agentId"           -> agentId,
+        "args"              -> args,
+        "env"               -> env,
+        "configVars"        -> configVars,
+        "status"            -> status,
+        "componentRevision" -> componentRevision,
+        "retryCount"        -> retryCount,
+        "environmentId"     -> environmentId
+      )
+      .asInstanceOf[JsAgentMetadata]
 }
 
 // --- ForkResult, ForkDetails ---
@@ -282,9 +284,9 @@ object JsAgentCreatedAtFilter {
 
 @js.native
 sealed trait JsAgentEnvFilter extends js.Object {
-  def name: String                          = js.native
-  def comparator: JsStringFilterComparator  = js.native
-  def value: String                         = js.native
+  def name: String                         = js.native
+  def comparator: JsStringFilterComparator = js.native
+  def value: String                        = js.native
 }
 
 object JsAgentEnvFilter {
@@ -294,14 +296,16 @@ object JsAgentEnvFilter {
 
 @js.native
 sealed trait JsAgentConfigVarsFilter extends js.Object {
-  def name: String                          = js.native
-  def comparator: JsStringFilterComparator  = js.native
-  def value: String                         = js.native
+  def name: String                         = js.native
+  def comparator: JsStringFilterComparator = js.native
+  def value: String                        = js.native
 }
 
 object JsAgentConfigVarsFilter {
   def apply(name: String, comparator: JsStringFilterComparator, value: String): JsAgentConfigVarsFilter =
-    js.Dynamic.literal("name" -> name, "comparator" -> comparator, "value" -> value).asInstanceOf[JsAgentConfigVarsFilter]
+    js.Dynamic
+      .literal("name" -> name, "comparator" -> comparator, "value" -> value)
+      .asInstanceOf[JsAgentConfigVarsFilter]
 }
 
 // --- AgentPropertyFilter  –  tagged union ---

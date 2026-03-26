@@ -55,7 +55,7 @@ object AgentTypeEncoder {
         val metadata          = binding.metadata
         val methodDescription = Option(metadata.description).flatten.getOrElse(metadata.name)
         val endpoints         = encodeHttpEndpoints(metadata.httpEndpoints)
-        val methodInfo = JsAgentMethod(
+        val methodInfo        = JsAgentMethod(
           name = metadata.name,
           description = methodDescription,
           httpEndpoint = endpoints,
@@ -100,7 +100,7 @@ object AgentTypeEncoder {
         case AgentConfigSource.Local  => "local"
         case AgentConfigSource.Secret => "secret"
       }
-      val path = js.Array(decl.path: _*)
+      val path    = js.Array(decl.path: _*)
       val witType = decl.valueType match {
         case golem.data.ElementSchema.Component(dataType) =>
           WitTypeBuilder.build(dataType)
@@ -159,19 +159,21 @@ object AgentTypeEncoder {
     segments.foreach {
       case PathSegment.Literal(value)              => arr.push(JsPathSegment.literal(value))
       case PathSegment.PathVariable(name)          => arr.push(JsPathSegment.pathVariable(JsPathVariable(name)))
-      case PathSegment.RemainingPathVariable(name) => arr.push(JsPathSegment.remainingPathVariable(JsPathVariable(name)))
-      case PathSegment.SystemVariable(name)        => arr.push(JsPathSegment.systemVariable(name.asInstanceOf[JsSystemVariable]))
+      case PathSegment.RemainingPathVariable(name) =>
+        arr.push(JsPathSegment.remainingPathVariable(JsPathVariable(name)))
+      case PathSegment.SystemVariable(name) =>
+        arr.push(JsPathSegment.systemVariable(name.asInstanceOf[JsSystemVariable]))
     }
     arr
   }
 
   private def encodeSnapshotting(snapshotting: Snapshotting): JsSnapshotting = snapshotting match {
-    case Snapshotting.Disabled => JsSnapshotting.disabled
+    case Snapshotting.Disabled        => JsSnapshotting.disabled
     case Snapshotting.Enabled(config) =>
       val jsConfig = config match {
-        case SnapshottingConfig.Default        => JsSnapshottingConfig.default
+        case SnapshottingConfig.Default         => JsSnapshottingConfig.default
         case SnapshottingConfig.Periodic(nanos) => JsSnapshottingConfig.periodic(js.BigInt(nanos.toString))
-        case SnapshottingConfig.EveryN(count)  => JsSnapshottingConfig.everyNInvocation(count)
+        case SnapshottingConfig.EveryN(count)   => JsSnapshottingConfig.everyNInvocation(count)
       }
       JsSnapshotting.enabled(jsConfig)
   }

@@ -4,21 +4,21 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 
 sealed trait Snapshotting
 object Snapshotting {
-  case object Disabled extends Snapshotting
+  case object Disabled                                 extends Snapshotting
   final case class Enabled(config: SnapshottingConfig) extends Snapshotting
 
   // String constants for use in @agentDefinition(snapshotting = ...) annotations.
   // These provide IDE completion and avoid typos in stringly-typed annotation parameters.
-  final val disabled: String = "disabled"
-  final val enabled: String  = "enabled"
+  final val disabled: String             = "disabled"
+  final val enabled: String              = "enabled"
   def periodic(duration: String): String = s"periodic($duration)"
   def everyN(count: Int): String         = s"every($count)"
 
   def parse(value: String): Either[String, Snapshotting] = {
     val trimmed = value.trim.toLowerCase
     trimmed match {
-      case "disabled" => Right(Disabled)
-      case "enabled"  => Right(Enabled(SnapshottingConfig.Default))
+      case "disabled"                                        => Right(Disabled)
+      case "enabled"                                         => Right(Enabled(SnapshottingConfig.Default))
       case s if s.startsWith("periodic(") && s.endsWith(")") =>
         val inner = s.substring("periodic(".length, s.length - 1).trim
         try {
@@ -43,14 +43,16 @@ object Snapshotting {
           case _: NumberFormatException => Left(s"invalid count in every('$inner'), expected a positive integer")
         }
       case other =>
-        Left(s"invalid snapshotting value '$other'. Valid values: disabled, enabled, periodic(<duration>), every(<count>)")
+        Left(
+          s"invalid snapshotting value '$other'. Valid values: disabled, enabled, periodic(<duration>), every(<count>)"
+        )
     }
   }
 }
 
 sealed trait SnapshottingConfig
 object SnapshottingConfig {
-  case object Default extends SnapshottingConfig
+  case object Default                    extends SnapshottingConfig
   final case class Periodic(nanos: Long) extends SnapshottingConfig
-  final case class EveryN(count: Int) extends SnapshottingConfig
+  final case class EveryN(count: Int)    extends SnapshottingConfig
 }

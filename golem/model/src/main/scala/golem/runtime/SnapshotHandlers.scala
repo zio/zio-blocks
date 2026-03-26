@@ -21,9 +21,9 @@ final case class SnapshotPayload(bytes: Array[Byte], mimeType: String)
  * @param save
  *   Serializes the current agent state into a [[SnapshotPayload]]
  * @param load
- *   Deserializes bytes into state and applies them to the agent instance.
- *   Takes the current instance and snapshot bytes, returns the (possibly
- *   new) instance to use going forward.
+ *   Deserializes bytes into state and applies them to the agent instance. Takes
+ *   the current instance and snapshot bytes, returns the (possibly new)
+ *   instance to use going forward.
  */
 final case class SnapshotHandlers[Instance](
   save: Instance => Future[SnapshotPayload],
@@ -34,7 +34,8 @@ object SnapshotHandlers {
 
   /**
    * Wraps a raw `Instance => Future[Array[Byte]]` save function into the
-   * `Instance => Future[SnapshotPayload]` form expected by [[SnapshotHandlers]].
+   * `Instance => Future[SnapshotPayload]` form expected by
+   * [[SnapshotHandlers]].
    */
   def wrapSave[Instance](
     raw: Instance => Future[Array[Byte]]

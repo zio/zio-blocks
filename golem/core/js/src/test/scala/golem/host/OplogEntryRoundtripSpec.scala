@@ -564,7 +564,7 @@ object OplogEntryRoundtripSpec extends ZIOSpecDefault {
     },
     test("PendingUpdate snapshot-based from dynamic") {
       val snapshotData = new scala.scalajs.js.typedarray.Uint8Array(js.Array[Short](1, 2, 3))
-      val raw = wrapEntry(
+      val raw          = wrapEntry(
         "pending-update",
         js.Dynamic.literal(
           timestamp = ts(),

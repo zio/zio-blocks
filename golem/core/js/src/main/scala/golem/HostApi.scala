@@ -542,8 +542,8 @@ object HostApi {
     /**
      * Decodes the payload as JSON using `zio.blocks.schema.json`.
      *
-     * By default, decoding is lenient (extra JSON fields are ignored).
-     * Set `rejectExtraFields = true` for strict decoding.
+     * By default, decoding is lenient (extra JSON fields are ignored). Set
+     * `rejectExtraFields = true` for strict decoding.
      */
     def json[A](rejectExtraFields: Boolean = false)(implicit schema: Schema[A]): A = {
       val codec = jsonCodec[A](rejectExtraFields)
@@ -608,11 +608,11 @@ object HostApi {
     val configVars = tuplesToMap(m.configVars)
     val compRev    =
       if (js.isUndefined(m.componentRevision.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.componentRevision)
-    val retry     = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
-    val agentType = rt.agentType.getOrElse("")
-    val agentName = rt.agentName.getOrElse("")
+    val retry                      = if (js.isUndefined(m.retryCount.asInstanceOf[js.Any])) BigInt(0) else fromJsBigInt(m.retryCount)
+    val agentType                  = rt.agentType.getOrElse("")
+    val agentName                  = rt.agentName.getOrElse("")
     val componentId: JsComponentId = rt.componentId.getOrElse(m.agentId.componentId)
-    val envId = m.environmentId
+    val envId                      = m.environmentId
     AgentMetadata(
       agentId = m.agentId,
       args = args,

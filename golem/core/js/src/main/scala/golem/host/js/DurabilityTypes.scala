@@ -25,9 +25,9 @@ sealed trait JsWrappedFunctionTypeTransaction extends JsWrappedFunctionType {
 }
 
 object JsWrappedFunctionType {
-  def readLocal: JsWrappedFunctionType  = JsShape.tagOnly[JsWrappedFunctionType]("read-local")
-  def writeLocal: JsWrappedFunctionType = JsShape.tagOnly[JsWrappedFunctionType]("write-local")
-  def readRemote: JsWrappedFunctionType = JsShape.tagOnly[JsWrappedFunctionType]("read-remote")
+  def readLocal: JsWrappedFunctionType   = JsShape.tagOnly[JsWrappedFunctionType]("read-local")
+  def writeLocal: JsWrappedFunctionType  = JsShape.tagOnly[JsWrappedFunctionType]("write-local")
+  def readRemote: JsWrappedFunctionType  = JsShape.tagOnly[JsWrappedFunctionType]("read-remote")
   def writeRemote: JsWrappedFunctionType = JsShape.tagOnly[JsWrappedFunctionType]("write-remote")
 
   def writeRemoteBatched(beginIndex: js.UndefOr[js.BigInt]): JsWrappedFunctionType =
@@ -41,7 +41,7 @@ object JsWrappedFunctionType {
 
 @js.native
 sealed trait JsDurableExecutionState extends js.Object {
-  def isLive: Boolean                    = js.native
+  def isLive: Boolean                      = js.native
   def persistenceLevel: JsPersistenceLevel = js.native
 }
 
@@ -54,11 +54,11 @@ object JsDurableExecutionState {
 
 @js.native
 sealed trait JsPersistedDurableFunctionInvocation extends js.Object {
-  def timestamp: JsDatetime              = js.native
-  def functionName: String               = js.native
-  def response: JsValueAndType          = js.native
+  def timestamp: JsDatetime               = js.native
+  def functionName: String                = js.native
+  def response: JsValueAndType            = js.native
   def functionType: JsDurableFunctionType = js.native
-  def entryVersion: JsOplogEntryVersion  = js.native
+  def entryVersion: JsOplogEntryVersion   = js.native
 }
 
 object JsPersistedDurableFunctionInvocation {

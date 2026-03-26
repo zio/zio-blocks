@@ -37,8 +37,8 @@ import scala.meta.parsers._
  *   - `remote.process.trigger(1, "hello")` — fire-and-forget
  *   - `remote.process.scheduleAt(1, "hello", when)` — schedule at a time
  *
- * Generated clients extend `golem.AgentCompanionBase[Trait]` so the
- * existing macro infrastructure can locate the trait type parameter.
+ * Generated clients extend `golem.AgentCompanionBase[Trait]` so the existing
+ * macro infrastructure can locate the trait type parameter.
  */
 object RpcCodegen {
 
@@ -64,8 +64,9 @@ object RpcCodegen {
 
     agents.foreach { agent =>
       val clientName = s"${agent.simpleName}Client"
-      val clientFqn = if (agent.packageName.isEmpty) clientName
-                      else s"${agent.packageName}.$clientName"
+      val clientFqn  =
+        if (agent.packageName.isEmpty) clientName
+        else s"${agent.packageName}.$clientName"
 
       if (existingByFqn.contains(clientFqn)) {
         warnings += Warning(
@@ -73,10 +74,11 @@ object RpcCodegen {
             s"object $clientFqn already exists. Remove the handwritten client to enable codegen."
         )
       } else {
-        val content = generateCompanion(agent)
-        val packagePath = if (agent.packageName.isEmpty) ""
-                          else agent.packageName.replace('.', '/') + "/"
-        val path    = s"$packagePath${clientName}.scala"
+        val content     = generateCompanion(agent)
+        val packagePath =
+          if (agent.packageName.isEmpty) ""
+          else agent.packageName.replace('.', '/') + "/"
+        val path = s"$packagePath${clientName}.scala"
         files += GeneratedFile(relativePath = path, content = content)
       }
     }
@@ -86,15 +88,18 @@ object RpcCodegen {
 
   /** Filter out Principal parameters from a method surface. */
   private def remoteParams(method: MethodSurface): List[ParamSurface] =
-    method.params.zip(method.principalParams).collect {
-      case (p, false) => p
+    method.params.zip(method.principalParams).collect { case (p, false) =>
+      p
     }
 
   /** Capitalize the first character of a string. */
   private def capitalize(s: String): String =
     if (s.isEmpty) s else s.head.toUpper.toString + s.tail
 
-  /** Unwrap `Future[T]` to get `T`. Returns the original type if not a Future wrapper. */
+  /**
+   * Unwrap `Future[T]` to get `T`. Returns the original type if not a Future
+   * wrapper.
+   */
   private[rpc] def unwrapFutureType(returnTypeExpr: String): String = {
     val tpe =
       try {
@@ -111,9 +116,11 @@ object RpcCodegen {
     tpe match {
       case Type.Apply(name, args) if args.size == 1 =>
         val nameStr = name.syntax
-        if (nameStr == "Future" ||
-            nameStr == "scala.concurrent.Future" ||
-            nameStr == "_root_.scala.concurrent.Future") {
+        if (
+          nameStr == "Future" ||
+          nameStr == "scala.concurrent.Future" ||
+          nameStr == "_root_.scala.concurrent.Future"
+        ) {
           args.head.syntax
         } else {
           returnTypeExpr
@@ -170,8 +177,8 @@ object RpcCodegen {
     agent: AgentSurface,
     remoteMethods: List[MethodSurface]
   ): Unit = {
-    val simpleName  = agent.simpleName
-    val remoteName  = s"${simpleName}Remote"
+    val simpleName = agent.simpleName
+    val remoteName = s"${simpleName}Remote"
 
     // Per-method wrapper classes
     remoteMethods.foreach { method =>
@@ -222,7 +229,9 @@ object RpcCodegen {
     sb.append(s"  final class $className private[$simpleName" + "Client] (\n")
     sb.append(s"    resolved: _root_.golem.runtime.rpc.AgentClientRuntime.ResolvedAgent[$simpleName]\n")
     val methodNameLit = "\"" + method.name + "\""
-    sb.append(s"  ) extends _root_.golem.runtime.rpc.AbstractRemoteMethod[$simpleName, $packedInputType, $outputType](resolved, $methodNameLit) {\n")
+    sb.append(
+      s"  ) extends _root_.golem.runtime.rpc.AbstractRemoteMethod[$simpleName, $packedInputType, $outputType](resolved, $methodNameLit) {\n"
+    )
 
     val packExpr = rParams match {
       case Nil      => "()"
@@ -237,15 +246,18 @@ object RpcCodegen {
     sb.append(s"    def trigger($paramDecls): _root_.scala.concurrent.Future[_root_.scala.Unit] =\n")
     sb.append(s"      triggerWith($packExpr)\n\n")
 
-    val scheduleParamDecls = if (paramDecls.isEmpty) "when: _root_.golem.Datetime"
-                              else s"$paramDecls, when: _root_.golem.Datetime"
+    val scheduleParamDecls =
+      if (paramDecls.isEmpty) "when: _root_.golem.Datetime"
+      else s"$paramDecls, when: _root_.golem.Datetime"
     sb.append(s"    def scheduleAt($scheduleParamDecls): _root_.scala.concurrent.Future[_root_.scala.Unit] =\n")
     sb.append(s"      scheduleWith($packExpr, when)\n\n")
 
     sb.append(s"  }\n\n")
   }
 
-  /** Build the packed constructor input expression from unpacked param names. */
+  /**
+   * Build the packed constructor input expression from unpacked param names.
+   */
   private def constructorPackExpr(ctorParams: List[ParamSurface]): String =
     ctorParams match {
       case Nil      => "()"
@@ -253,7 +265,10 @@ object RpcCodegen {
       case ps       => "(" + ps.map(_.name).mkString(", ") + ")"
     }
 
-  /** Build a camelCase parameter name from a config field path, e.g. List("db", "host") → "dbHost". */
+  /**
+   * Build a camelCase parameter name from a config field path, e.g. List("db",
+   * "host") → "dbHost".
+   */
   private def configParamName(path: List[String]): String =
     path match {
       case Nil      => ""
@@ -266,10 +281,10 @@ object RpcCodegen {
     agent: AgentSurface,
     remoteName: String
   ): Unit = {
-    val simpleName    = agent.simpleName
-    val ctorParams    = agent.constructor.params
-    val mode          = agent.metadata.mode
-    val configFields  = agent.configFields
+    val simpleName   = agent.simpleName
+    val ctorParams   = agent.constructor.params
+    val mode         = agent.metadata.mode
+    val configFields = agent.configFields
 
     val paramDecls = ctorParams.map(p => s"${p.name}: ${p.typeExpr}").mkString(", ")
     val packExpr   = constructorPackExpr(ctorParams)
@@ -311,12 +326,14 @@ object RpcCodegen {
         s"$pName: _root_.scala.Option[${cf.typeExpr}] = _root_.scala.None"
       }.mkString(", ")
 
-    /** Generate the body that builds a List[ConfigOverride] from non-None params */
+    /**
+     * Generate the body that builds a List[ConfigOverride] from non-None params
+     */
     def configOverrideListExpr: String = {
       val builders = configFields.map { cf =>
-        val pName = configParamName(cf.path)
+        val pName   = configParamName(cf.path)
         val pathLit = cf.path.map(p => s""""$p"""").mkString(", ")
-        s"$pName.map(v => _root_.golem.config.ConfigOverride[${ cf.typeExpr }](_root_.scala.List($pathLit), v))"
+        s"$pName.map(v => _root_.golem.config.ConfigOverride[${cf.typeExpr}](_root_.scala.List($pathLit), v))"
       }
       "_root_.scala.List(" + builders.mkString(", ") + ").flatten"
     }
@@ -327,11 +344,11 @@ object RpcCodegen {
       extraParamsAfter: String,
       phantom: Option[String]
     ): Unit = {
-      val configParams = configParamDecls
-      val allExtra = Seq(extraParamsAfter, configParams).filter(_.nonEmpty).mkString(", ")
-      val allParams = Seq(extraParamsBefore, paramDecls, allExtra).filter(_.nonEmpty).mkString(", ")
+      val configParams  = configParamDecls
+      val allExtra      = Seq(extraParamsAfter, configParams).filter(_.nonEmpty).mkString(", ")
+      val allParams     = Seq(extraParamsBefore, paramDecls, allExtra).filter(_.nonEmpty).mkString(", ")
       val overridesExpr = configOverrideListExpr
-      val resolveExpr = (phantom) match {
+      val resolveExpr   = (phantom) match {
         case None =>
           s"_root_.golem.runtime.rpc.AgentClientRuntime.resolveWithConfig[$simpleName, Id](\n" +
             s"      agentType, $packExpr, $overridesExpr\n    )"
@@ -358,7 +375,7 @@ object RpcCodegen {
 
     // Both durable and ephemeral get phantom constructors
     emitConstructor("getPhantom", "", "phantom: _root_.golem.Uuid", phantom = Some("phantom"), config = None)
-    val ctorRefs = if (ctorParams.isEmpty) "" else ctorParams.map(_.name).mkString(", ") + ", "
+    val ctorRefs         = if (ctorParams.isEmpty) "" else ctorParams.map(_.name).mkString(", ") + ", "
     val newPhantomParams = if (paramDecls.isEmpty) "" else paramDecls
     sb.append(s"  def newPhantom($newPhantomParams): $remoteName =\n")
     sb.append(s"    getPhantom(${ctorRefs}_root_.golem.HostApi.generateIdempotencyKey())\n\n")
@@ -366,15 +383,17 @@ object RpcCodegen {
       emitWithConfigConstructor("getPhantomWithConfig", "", "phantom: _root_.golem.Uuid", phantom = Some("phantom"))
       val newPhantomWithConfigParams = {
         val configParams = configParamDecls
-        val extra = Seq("phantom: _root_.golem.Uuid" +: Nil, configParams +: Nil).flatten.filter(_.nonEmpty).mkString(", ")
+        val extra        =
+          Seq("phantom: _root_.golem.Uuid" +: Nil, configParams +: Nil).flatten.filter(_.nonEmpty).mkString(", ")
         Seq(paramDecls, extra).filter(_.nonEmpty).mkString(", ")
       }
       // newPhantomWithConfig delegates, need to forward config params
       val configParamNames = configFields.map(cf => configParamName(cf.path))
-      val forwardArgs = configParamNames.map(n => s"$n = $n").mkString(", ")
+      val forwardArgs      = configParamNames.map(n => s"$n = $n").mkString(", ")
       val phantomAndConfig = s"_root_.golem.HostApi.generateIdempotencyKey(), $forwardArgs"
-      val delegateArgs = if (ctorParams.isEmpty) phantomAndConfig
-                         else ctorParams.map(_.name).mkString(", ") + ", " + phantomAndConfig
+      val delegateArgs     =
+        if (ctorParams.isEmpty) phantomAndConfig
+        else ctorParams.map(_.name).mkString(", ") + ", " + phantomAndConfig
       val npcParams = {
         val configParams = configParamDecls
         Seq(paramDecls, configParams).filter(_.nonEmpty).mkString(", ")
@@ -386,8 +405,8 @@ object RpcCodegen {
 
   private def constructorTypeExpr(ctor: ConstructorSurface): String =
     ctor.params match {
-      case Nil         => "_root_.scala.Unit"
-      case p :: Nil    => p.typeExpr
-      case ps          => ps.map(_.typeExpr).mkString("(", ", ", ")")
+      case Nil      => "_root_.scala.Unit"
+      case p :: Nil => p.typeExpr
+      case ps       => ps.map(_.typeExpr).mkString("(", ", ", ")")
     }
 }

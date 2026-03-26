@@ -28,7 +28,7 @@ object JsAttributeValue {
 
 @js.native
 sealed trait JsAttribute extends js.Object {
-  def key: String            = js.native
+  def key: String             = js.native
   def value: JsAttributeValue = js.native
 }
 
@@ -41,7 +41,7 @@ object JsAttribute {
 
 @js.native
 sealed trait JsAttributeChain extends js.Object {
-  def key: String                       = js.native
+  def key: String                        = js.native
   def values: js.Array[JsAttributeValue] = js.native
 }
 
@@ -64,12 +64,12 @@ sealed trait JsSpan extends js.Object {
 
 @js.native
 sealed trait JsInvocationContext extends js.Object {
-  def traceId(): String                                                        = js.native
-  def spanId(): String                                                         = js.native
-  def parent(): js.UndefOr[JsInvocationContext]                                = js.native
+  def traceId(): String                                                           = js.native
+  def spanId(): String                                                            = js.native
+  def parent(): js.UndefOr[JsInvocationContext]                                   = js.native
   def getAttribute(key: String, inherited: Boolean): js.UndefOr[JsAttributeValue] = js.native
-  def getAttributes(inherited: Boolean): js.Array[JsAttribute]                 = js.native
-  def getAttributeChain(key: String): js.Array[JsAttributeValue]               = js.native
-  def getAttributeChains(): js.Array[JsAttributeChain]                         = js.native
-  def traceContextHeaders(): js.Array[js.Tuple2[String, String]]               = js.native
+  def getAttributes(inherited: Boolean): js.Array[JsAttribute]                    = js.native
+  def getAttributeChain(key: String): js.Array[JsAttributeValue]                  = js.native
+  def getAttributeChains(): js.Array[JsAttributeChain]                            = js.native
+  def traceContextHeaders(): js.Array[js.Tuple2[String, String]]                  = js.native
 }

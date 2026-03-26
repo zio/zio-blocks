@@ -40,8 +40,8 @@ trait GolemSchema[A] {
    * The schema describing this type's top-level structure.
    *
    * For multi-field types (tuples, case classes), this is a
-   * [[StructuredSchema.Tuple]] with one [[NamedElementSchema]] per field.
-   * For single-value types, this is a single-element tuple.
+   * [[StructuredSchema.Tuple]] with one [[NamedElementSchema]] per field. For
+   * single-value types, this is a single-element tuple.
    */
   def schema: StructuredSchema
 
@@ -70,15 +70,15 @@ trait GolemSchema[A] {
    * inside a multi-parameter method or constructor.
    *
    * Unlike [[schema]] which describes the top-level payload structure,
-   * `elementSchema` describes the type as a single element — analogous
-   * to Rust SDK's `Schema::get_type().get_element_schema()`.
+   * `elementSchema` describes the type as a single element — analogous to Rust
+   * SDK's `Schema::get_type().get_element_schema()`.
    *
    * Default: extracts the single element from a 1-element tuple schema.
    */
   def elementSchema: ElementSchema =
     schema match {
       case StructuredSchema.Tuple(elem :: Nil) => elem.schema
-      case other =>
+      case other                               =>
         throw new UnsupportedOperationException(s"Type cannot be used as a single element parameter: $other")
     }
 
@@ -90,7 +90,7 @@ trait GolemSchema[A] {
   def encodeElement(value: A): Either[String, ElementValue] =
     encode(value).flatMap {
       case StructuredValue.Tuple(NamedElementValue(_, elem) :: Nil) => Right(elem)
-      case other => Left(s"Expected single-element structured value, found: $other")
+      case other                                                    => Left(s"Expected single-element structured value, found: $other")
     }
 
   /**

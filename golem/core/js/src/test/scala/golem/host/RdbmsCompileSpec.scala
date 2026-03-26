@@ -320,7 +320,8 @@ object RdbmsCompileSpec extends ZIOSpecDefault {
 
     test("result types construction") {
       val cols     = List(DbColumn(0L, "id", "int4"), DbColumn(1L, "name", "text"))
-      val pgResult = PostgresDbResult(cols, List(PostgresDbRow(List(PostgresDbValue.Int4(1), PostgresDbValue.Text("a")))))
+      val pgResult =
+        PostgresDbResult(cols, List(PostgresDbRow(List(PostgresDbValue.Int4(1), PostgresDbValue.Text("a")))))
       val myResult = MysqlDbResult(cols, List(MysqlDbRow(List(MysqlDbValue.IntVal(1), MysqlDbValue.VarChar("a")))))
       assertTrue(
         pgResult.columns.size == 2 && pgResult.rows.size == 1,

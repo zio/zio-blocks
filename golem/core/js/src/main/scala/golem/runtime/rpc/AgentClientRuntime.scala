@@ -28,8 +28,9 @@ import scala.concurrent.Future
 import scala.scalajs.js
 
 object AgentClientRuntime {
-  @volatile private var remoteResolverOverride: Option[(String, JsDataValue) => Either[String, RemoteAgentClient]] = None
-  @volatile private var clientBinderOverride: Option[Any => Any]                                                  = None
+  @volatile private var remoteResolverOverride: Option[(String, JsDataValue) => Either[String, RemoteAgentClient]] =
+    None
+  @volatile private var clientBinderOverride: Option[Any => Any] = None
 
   def resolve[Trait, Constructor](
     agentType: AgentType[Trait, Constructor],

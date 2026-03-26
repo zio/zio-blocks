@@ -150,11 +150,11 @@ object OplogApi {
   sealed trait AgentInvocation extends Product with Serializable
   object AgentInvocation {
     final case class ExportedFunction(params: AgentMethodInvocationParameters) extends AgentInvocation
-    final case class AgentInitialization(idempotencyKey: String)                    extends AgentInvocation
-    case object SaveSnapshot                                                       extends AgentInvocation
-    case object LoadSnapshot                                                       extends AgentInvocation
-    final case class ProcessOplogEntries(idempotencyKey: String)                   extends AgentInvocation
-    final case class ManualUpdate(componentRevision: BigInt)                        extends AgentInvocation
+    final case class AgentInitialization(idempotencyKey: String)               extends AgentInvocation
+    case object SaveSnapshot                                                   extends AgentInvocation
+    case object LoadSnapshot                                                   extends AgentInvocation
+    final case class ProcessOplogEntries(idempotencyKey: String)               extends AgentInvocation
+    final case class ManualUpdate(componentRevision: BigInt)                   extends AgentInvocation
   }
 
   final case class PendingAgentInvocationParameters(
@@ -436,61 +436,94 @@ object OplogApi {
       val tag   = entry.tag
       def v     = entry.asInstanceOf[JsPublicOplogEntryWithValue].value
       tag match {
-        case "create"                                                  => Create(parseCreateParameters(v.asInstanceOf[JsCreateParameters]))
-        case "host-call" | "imported-function-invoked"                 => HostCall(parseHostCallParameters(v.asInstanceOf[JsHostCallParameters]))
-        case "agent-invocation-started" | "exported-function-invoked"  => AgentInvocationStarted(parseAgentInvocationStartedParameters(v.asInstanceOf[JsAgentInvocationStartedParameters]))
-        case "agent-invocation-finished" | "exported-function-completed" => AgentInvocationFinished(parseAgentInvocationFinishedParameters(v.asInstanceOf[JsAgentInvocationFinishedParameters]))
-        case "suspend"                                                 => Suspend(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "error"                                                   => Error(parseErrorParameters(v.asInstanceOf[JsErrorParameters]))
-        case "no-op"                                                   => NoOp(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "jump"                                                    => Jump(parseJumpParameters(v.asInstanceOf[JsJumpParameters]))
-        case "interrupted"                                             => Interrupted(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "exited"                                                  => Exited(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "change-retry-policy"                                     => ChangeRetryPolicy(parseChangeRetryPolicyParameters(v.asInstanceOf[JsChangeRetryPolicyParameters]))
-        case "begin-atomic-region"                                     => BeginAtomicRegion(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "end-atomic-region"                                       => EndAtomicRegion(parseEndAtomicRegionParameters(v.asInstanceOf[JsEndAtomicRegionParameters]))
-        case "begin-remote-write"                                      => BeginRemoteWrite(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "end-remote-write"                                        => EndRemoteWrite(parseEndRemoteWriteParameters(v.asInstanceOf[JsEndRemoteWriteParameters]))
-        case "pending-agent-invocation"                                => PendingAgentInvocation(parsePendingAgentInvocationParameters(v.asInstanceOf[JsPendingAgentInvocationParameters]))
-        case "pending-update"                                          => PendingUpdate(parsePendingUpdateParameters(v.asInstanceOf[JsPendingUpdateParameters]))
-        case "successful-update"                                       => SuccessfulUpdate(parseSuccessfulUpdateParameters(v.asInstanceOf[JsSuccessfulUpdateParameters]))
-        case "failed-update"                                           => FailedUpdate(parseFailedUpdateParameters(v.asInstanceOf[JsFailedUpdateParameters]))
-        case "grow-memory"                                             => GrowMemory(parseGrowMemoryParameters(v.asInstanceOf[JsGrowMemoryParameters]))
-        case "create-resource"                                         => CreateResource(parseCreateResourceParameters(v.asInstanceOf[JsCreateResourceParameters]))
-        case "drop-resource"                                           => DropResource(parseDropResourceParameters(v.asInstanceOf[JsDropResourceParameters]))
-        case "log"                                                     => Log(parseLogParameters(v.asInstanceOf[JsLogParameters]))
-        case "restart"                                                 => Restart(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
-        case "activate-plugin"                                         => ActivatePlugin(parseActivatePluginParameters(v.asInstanceOf[JsActivatePluginParameters]))
-        case "deactivate-plugin"                                       => DeactivatePlugin(parseDeactivatePluginParameters(v.asInstanceOf[JsDeactivatePluginParameters]))
-        case "revert"                                                  => Revert(parseRevertParameters(v.asInstanceOf[JsRevertParameters]))
-        case "cancel-pending-invocation" | "cancel-invocation"         => CancelPendingInvocation(parseCancelPendingInvocationParameters(v.asInstanceOf[JsCancelPendingInvocationParameters]))
-        case "start-span"                                              => StartSpan(parseStartSpanParameters(v.asInstanceOf[JsStartSpanParameters]))
-        case "finish-span"                                             => FinishSpan(parseFinishSpanParameters(v.asInstanceOf[JsFinishSpanParameters]))
-        case "set-span-attribute"                                      => SetSpanAttribute(parseSetSpanAttributeParameters(v.asInstanceOf[JsSetSpanAttributeParameters]))
-        case "change-persistence-level"                                => ChangePersistenceLevel(parseChangePersistenceLevelParameters(v.asInstanceOf[JsChangePersistenceLevelParameters]))
-        case "begin-remote-transaction"                                => BeginRemoteTransaction(parseBeginRemoteTransactionParameters(v.asInstanceOf[JsBeginRemoteTransactionParameters]))
-        case "pre-commit-remote-transaction"                           => PreCommitRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
-        case "pre-rollback-remote-transaction"                         => PreRollbackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
-        case "committed-remote-transaction"                            => CommittedRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
-        case "rolled-back-remote-transaction"                          => RolledBackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
-        case "snapshot"                                                =>
+        case "create"                                  => Create(parseCreateParameters(v.asInstanceOf[JsCreateParameters]))
+        case "host-call" | "imported-function-invoked" =>
+          HostCall(parseHostCallParameters(v.asInstanceOf[JsHostCallParameters]))
+        case "agent-invocation-started" | "exported-function-invoked" =>
+          AgentInvocationStarted(
+            parseAgentInvocationStartedParameters(v.asInstanceOf[JsAgentInvocationStartedParameters])
+          )
+        case "agent-invocation-finished" | "exported-function-completed" =>
+          AgentInvocationFinished(
+            parseAgentInvocationFinishedParameters(v.asInstanceOf[JsAgentInvocationFinishedParameters])
+          )
+        case "suspend"             => Suspend(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "error"               => Error(parseErrorParameters(v.asInstanceOf[JsErrorParameters]))
+        case "no-op"               => NoOp(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "jump"                => Jump(parseJumpParameters(v.asInstanceOf[JsJumpParameters]))
+        case "interrupted"         => Interrupted(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "exited"              => Exited(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "change-retry-policy" =>
+          ChangeRetryPolicy(parseChangeRetryPolicyParameters(v.asInstanceOf[JsChangeRetryPolicyParameters]))
+        case "begin-atomic-region" => BeginAtomicRegion(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "end-atomic-region"   =>
+          EndAtomicRegion(parseEndAtomicRegionParameters(v.asInstanceOf[JsEndAtomicRegionParameters]))
+        case "begin-remote-write" => BeginRemoteWrite(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "end-remote-write"   =>
+          EndRemoteWrite(parseEndRemoteWriteParameters(v.asInstanceOf[JsEndRemoteWriteParameters]))
+        case "pending-agent-invocation" =>
+          PendingAgentInvocation(
+            parsePendingAgentInvocationParameters(v.asInstanceOf[JsPendingAgentInvocationParameters])
+          )
+        case "pending-update"    => PendingUpdate(parsePendingUpdateParameters(v.asInstanceOf[JsPendingUpdateParameters]))
+        case "successful-update" =>
+          SuccessfulUpdate(parseSuccessfulUpdateParameters(v.asInstanceOf[JsSuccessfulUpdateParameters]))
+        case "failed-update"   => FailedUpdate(parseFailedUpdateParameters(v.asInstanceOf[JsFailedUpdateParameters]))
+        case "grow-memory"     => GrowMemory(parseGrowMemoryParameters(v.asInstanceOf[JsGrowMemoryParameters]))
+        case "create-resource" =>
+          CreateResource(parseCreateResourceParameters(v.asInstanceOf[JsCreateResourceParameters]))
+        case "drop-resource"   => DropResource(parseDropResourceParameters(v.asInstanceOf[JsDropResourceParameters]))
+        case "log"             => Log(parseLogParameters(v.asInstanceOf[JsLogParameters]))
+        case "restart"         => Restart(parseTimestamp(v.asInstanceOf[JsOplogTimestamp]))
+        case "activate-plugin" =>
+          ActivatePlugin(parseActivatePluginParameters(v.asInstanceOf[JsActivatePluginParameters]))
+        case "deactivate-plugin" =>
+          DeactivatePlugin(parseDeactivatePluginParameters(v.asInstanceOf[JsDeactivatePluginParameters]))
+        case "revert"                                          => Revert(parseRevertParameters(v.asInstanceOf[JsRevertParameters]))
+        case "cancel-pending-invocation" | "cancel-invocation" =>
+          CancelPendingInvocation(
+            parseCancelPendingInvocationParameters(v.asInstanceOf[JsCancelPendingInvocationParameters])
+          )
+        case "start-span"         => StartSpan(parseStartSpanParameters(v.asInstanceOf[JsStartSpanParameters]))
+        case "finish-span"        => FinishSpan(parseFinishSpanParameters(v.asInstanceOf[JsFinishSpanParameters]))
+        case "set-span-attribute" =>
+          SetSpanAttribute(parseSetSpanAttributeParameters(v.asInstanceOf[JsSetSpanAttributeParameters]))
+        case "change-persistence-level" =>
+          ChangePersistenceLevel(
+            parseChangePersistenceLevelParameters(v.asInstanceOf[JsChangePersistenceLevelParameters])
+          )
+        case "begin-remote-transaction" =>
+          BeginRemoteTransaction(
+            parseBeginRemoteTransactionParameters(v.asInstanceOf[JsBeginRemoteTransactionParameters])
+          )
+        case "pre-commit-remote-transaction" =>
+          PreCommitRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "pre-rollback-remote-transaction" =>
+          PreRollbackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "committed-remote-transaction" =>
+          CommittedRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "rolled-back-remote-transaction" =>
+          RolledBackRemoteTransaction(parseRemoteTransactionParameters(v.asInstanceOf[JsRemoteTransactionParameters]))
+        case "snapshot" =>
           val sp = v.asInstanceOf[JsSnapshotParameters]
           Snapshot(
             ts = parseDateTime(sp.timestamp),
             data = new scala.scalajs.js.typedarray.Int8Array(sp.data.buffer).toArray,
             mimeType = sp.mimeType
           )
-        case "oplog-processor-checkpoint"                              =>
+        case "oplog-processor-checkpoint" =>
           val cp = v.asInstanceOf[JsOplogProcessorCheckpointParameters]
-          OplogProcessorCheckpoint(OplogProcessorCheckpointParameters(
-            timestamp = parseDateTime(cp.timestamp),
-            plugin = parsePluginInstallationDescription(cp.plugin),
-            targetAgentId = parseAgentId(cp.targetAgentId),
-            confirmedUpTo = BigInt(cp.confirmedUpTo.toString),
-            sendingUpTo = BigInt(cp.sendingUpTo.toString),
-            lastBatchStart = BigInt(cp.lastBatchStart.toString)
-          ))
-        case other                                                     =>
+          OplogProcessorCheckpoint(
+            OplogProcessorCheckpointParameters(
+              timestamp = parseDateTime(cp.timestamp),
+              plugin = parsePluginInstallationDescription(cp.plugin),
+              targetAgentId = parseAgentId(cp.targetAgentId),
+              confirmedUpTo = BigInt(cp.confirmedUpTo.toString),
+              sendingUpTo = BigInt(cp.sendingUpTo.toString),
+              lastBatchStart = BigInt(cp.lastBatchStart.toString)
+            )
+          )
+        case other =>
           throw new IllegalArgumentException(s"Unknown oplog entry tag: $other")
       }
     }
@@ -570,7 +603,9 @@ object OplogApi {
   private def parseSpanDataLists(raw: js.Array[js.Array[JsSpanData]]): List[List[SpanData]] =
     raw.toList.map(_.toList.map(parseSpanData))
 
-  private def parseAgentInvocationStartedParameters(raw: JsAgentInvocationStartedParameters): AgentInvocationStartedParameters = {
+  private def parseAgentInvocationStartedParameters(
+    raw: JsAgentInvocationStartedParameters
+  ): AgentInvocationStartedParameters = {
     val inv = raw.invocation
     inv.tag match {
       case "agent-method-invocation" | "exported-function" =>
@@ -643,11 +678,14 @@ object OplogApi {
     }
   }
 
-  private def parseAgentInvocationFinishedParameters(raw: JsAgentInvocationFinishedParameters): AgentInvocationFinishedParameters = {
+  private def parseAgentInvocationFinishedParameters(
+    raw: JsAgentInvocationFinishedParameters
+  ): AgentInvocationFinishedParameters = {
     val result   = raw.invocationResult
     val response = result.tag match {
       case "agent-initialization" | "agent-method" =>
-        val p = result.asInstanceOf[JsAgentInvocationResultWithValue].value.asInstanceOf[JsAgentInvocationOutputParameters]
+        val p =
+          result.asInstanceOf[JsAgentInvocationResultWithValue].value.asInstanceOf[JsAgentInvocationOutputParameters]
         Some(TypedDataValue.fromJs(p.output))
       case _ => None
     }
@@ -697,8 +735,10 @@ object OplogApi {
       beginIndex = BigInt(raw.beginIndex.toString)
     )
 
-  private def parsePendingAgentInvocationParameters(raw: JsPendingAgentInvocationParameters): PendingAgentInvocationParameters = {
-    val inv = raw.invocation
+  private def parsePendingAgentInvocationParameters(
+    raw: JsPendingAgentInvocationParameters
+  ): PendingAgentInvocationParameters = {
+    val inv      = raw.invocation
     val agentInv = inv.tag match {
       case "agent-method-invocation" | "exported-function" =>
         val p = inv.asInstanceOf[JsAgentInvocationWithValue].value.asInstanceOf[JsAgentMethodInvocationParameters]
@@ -733,7 +773,7 @@ object OplogApi {
 
   private def parsePendingUpdateParameters(raw: JsPendingUpdateParameters): PendingUpdateParameters = {
     val desc = raw.updateDescription
-    val ud = desc.tag match {
+    val ud   = desc.tag match {
       case "auto-update"    => UpdateDescription.AutoUpdate
       case "snapshot-based" =>
         val snapshot = desc.asInstanceOf[JsUpdateDescriptionSnapshotBased].value
@@ -812,7 +852,9 @@ object OplogApi {
       end = BigInt(raw.droppedRegion.end.toString)
     )
 
-  private def parseCancelPendingInvocationParameters(raw: JsCancelPendingInvocationParameters): CancelPendingInvocationParameters =
+  private def parseCancelPendingInvocationParameters(
+    raw: JsCancelPendingInvocationParameters
+  ): CancelPendingInvocationParameters =
     CancelPendingInvocationParameters(
       timestamp = parseDateTime(raw.timestamp),
       idempotencyKey = raw.idempotencyKey
@@ -843,13 +885,17 @@ object OplogApi {
       value = ContextApi.AttributeValue.fromJs(raw.value)
     )
 
-  private def parseChangePersistenceLevelParameters(raw: JsChangePersistenceLevelParameters): ChangePersistenceLevelParameters =
+  private def parseChangePersistenceLevelParameters(
+    raw: JsChangePersistenceLevelParameters
+  ): ChangePersistenceLevelParameters =
     ChangePersistenceLevelParameters(
       timestamp = parseDateTime(raw.timestamp),
       persistenceLevel = HostApi.PersistenceLevel.fromTag(raw.persistenceLevel.tag)
     )
 
-  private def parseBeginRemoteTransactionParameters(raw: JsBeginRemoteTransactionParameters): BeginRemoteTransactionParameters =
+  private def parseBeginRemoteTransactionParameters(
+    raw: JsBeginRemoteTransactionParameters
+  ): BeginRemoteTransactionParameters =
     BeginRemoteTransactionParameters(
       timestamp = parseDateTime(raw.timestamp),
       transactionId = raw.transactionId

@@ -54,7 +54,7 @@ private[autowire] object HostValueDecoder {
       var idx                     = 0
       var failure: Option[String] = None
       while (idx < schemaElements.length && failure.isEmpty) {
-        val schemaElem = schemaElements(idx)
+        val schemaElem   = schemaElements(idx)
         val elementValue = payload(idx)
 
         decodeElement(schemaElem.schema, elementValue) match {

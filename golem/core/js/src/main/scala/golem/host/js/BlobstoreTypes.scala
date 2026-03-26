@@ -29,8 +29,9 @@ sealed trait JsObjectMetadata extends js.Object {
 
 @js.native
 sealed trait JsObjectId extends js.Object {
-  def container: String                                   = js.native
-  @js.annotation.JSName("object") def objectName: String = js.native
+  def container: String = js.native
+  @js.annotation.JSName("object")
+  def objectName: String = js.native
 }
 
 object JsObjectId {
@@ -42,16 +43,16 @@ object JsObjectId {
 
 @js.native
 sealed trait JsBlobstoreContainer extends js.Object {
-  def name(): String                                                             = js.native
-  def info(): JsContainerMetadata                                                = js.native
+  def name(): String                                                                    = js.native
+  def info(): JsContainerMetadata                                                       = js.native
   def getData(name: String, start: js.BigInt, end: js.BigInt): JsBlobstoreIncomingValue = js.native
-  def writeData(name: String, data: JsBlobstoreOutgoingValue): Unit              = js.native
-  def listObjects(): JsStreamObjectNames                                         = js.native
-  def deleteObject(name: String): Unit                                           = js.native
-  def deleteObjects(names: js.Array[String]): Unit                               = js.native
-  def hasObject(name: String): Boolean                                           = js.native
-  def objectInfo(name: String): JsObjectMetadata                                 = js.native
-  def clear(): Unit                                                              = js.native
+  def writeData(name: String, data: JsBlobstoreOutgoingValue): Unit                     = js.native
+  def listObjects(): JsStreamObjectNames                                                = js.native
+  def deleteObject(name: String): Unit                                                  = js.native
+  def deleteObjects(names: js.Array[String]): Unit                                      = js.native
+  def hasObject(name: String): Boolean                                                  = js.native
+  def objectInfo(name: String): JsObjectMetadata                                        = js.native
+  def clear(): Unit                                                                     = js.native
 }
 
 @js.native

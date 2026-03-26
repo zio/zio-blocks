@@ -37,26 +37,22 @@ object AgentSurfaceIRCodec {
       "simpleName"  -> a.simpleName,
       "typeName"    -> a.typeName,
       "constructor" -> ujson.Obj(
-        "params" -> ujson.Arr.from(a.constructor.params.map(p =>
-          ujson.Obj("name" -> p.name, "typeExpr" -> p.typeExpr)
-        ))
+        "params" -> ujson.Arr.from(a.constructor.params.map(p => ujson.Obj("name" -> p.name, "typeExpr" -> p.typeExpr)))
       ),
       "metadata" -> ujson.Obj(
         "description"  -> a.metadata.description.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
         "mode"         -> a.metadata.mode,
         "snapshotting" -> a.metadata.snapshotting
       ),
-      "methods" -> ujson.Arr.from(a.methods.map(methodToJson)),
+      "methods"      -> ujson.Arr.from(a.methods.map(methodToJson)),
       "configFields" -> ujson.Arr.from(a.configFields.map(configFieldToJson))
     )
 
   private def methodToJson(m: MethodSurface): ujson.Value =
     ujson.Obj(
-      "name"           -> m.name,
-      "params"         -> ujson.Arr.from(m.params.map(p =>
-        ujson.Obj("name" -> p.name, "typeExpr" -> p.typeExpr)
-      )),
-      "returnTypeExpr" -> m.returnTypeExpr,
+      "name"            -> m.name,
+      "params"          -> ujson.Arr.from(m.params.map(p => ujson.Obj("name" -> p.name, "typeExpr" -> p.typeExpr))),
+      "returnTypeExpr"  -> m.returnTypeExpr,
       "principalParams" -> ujson.Arr.from(m.principalParams.map(ujson.Bool(_)))
     )
 
@@ -72,10 +68,10 @@ object AgentSurfaceIRCodec {
   private def agentFromJson(v: ujson.Value): AgentSurface = {
     val obj = v.obj
     AgentSurface(
-      traitFqn    = obj("traitFqn").str,
+      traitFqn = obj("traitFqn").str,
       packageName = obj("packageName").str,
-      simpleName  = obj("simpleName").str,
-      typeName    = obj("typeName").str,
+      simpleName = obj("simpleName").str,
+      typeName = obj("typeName").str,
       constructor = ConstructorSurface(
         params = obj("constructor")("params").arr.toList.map { p =>
           ParamSurface(name = p("name").str, typeExpr = p("typeExpr").str)
@@ -88,7 +84,7 @@ object AgentSurfaceIRCodec {
             case ujson.Null => None
             case s          => Some(s.str)
           },
-          mode         = mo("mode").str,
+          mode = mo("mode").str,
           snapshotting = mo("snapshotting").str
         )
       },
@@ -99,19 +95,18 @@ object AgentSurfaceIRCodec {
 
   private def configFieldFromJson(v: ujson.Value): ConfigFieldSurface =
     ConfigFieldSurface(
-      path     = v("path").arr.toList.map(_.str),
+      path = v("path").arr.toList.map(_.str),
       typeExpr = v("typeExpr").str
     )
 
   private def methodFromJson(v: ujson.Value): MethodSurface = {
-    val params = v("params").arr.toList.map(p =>
-      ParamSurface(name = p("name").str, typeExpr = p("typeExpr").str)
-    )
+    val params = v("params").arr.toList.map(p => ParamSurface(name = p("name").str, typeExpr = p("typeExpr").str))
     MethodSurface(
-      name           = v("name").str,
-      params         = params,
+      name = v("name").str,
+      params = params,
       returnTypeExpr = v("returnTypeExpr").str,
-      principalParams = v.obj.get("principalParams")
+      principalParams = v.obj
+        .get("principalParams")
         .map(_.arr.toList.map(_.bool))
         .getOrElse(List.fill(params.length)(false))
     )

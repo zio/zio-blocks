@@ -35,9 +35,9 @@ private[golem] object WasmRpcApi {
   }
 
   private def datetimeToJs(datetime: Datetime): JsDatetime = {
-    val totalMs  = datetime.epochMillis
-    val seconds  = js.BigInt((totalMs / 1000.0).toLong.toString)
-    val nanos    = ((totalMs % 1000.0) * 1e6).toInt
+    val totalMs = datetime.epochMillis
+    val seconds = js.BigInt((totalMs / 1000.0).toLong.toString)
+    val nanos   = ((totalMs % 1000.0) * 1e6).toInt
     JsDatetime(seconds, nanos)
   }
 
@@ -135,10 +135,11 @@ private[golem] object WasmRpcApi {
     @unused phantomId: js.Any,
     @unused agentConfig: js.Array[JsTypedAgentConfigValue]
   ) extends js.Object {
-    def invokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                        = js.native
-    def invoke(methodName: String, input: JsDataValue): Unit                                                       = js.native
-    def asyncInvokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                   = js.native
-    def scheduleInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): Unit                = js.native
-    def scheduleCancelableInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): js.Any = js.native
+    def invokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                     = js.native
+    def invoke(methodName: String, input: JsDataValue): Unit                                                    = js.native
+    def asyncInvokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                = js.native
+    def scheduleInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): Unit             = js.native
+    def scheduleCancelableInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): js.Any =
+      js.native
   }
 }

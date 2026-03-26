@@ -152,18 +152,18 @@ object JsWitTypeNode {
   def resultType(ok: js.UndefOr[JsNodeIndex], err: js.UndefOr[JsNodeIndex]): JsWitTypeNode =
     JsShape.tagged[JsWitTypeNode]("result-type", js.Tuple2(ok, err))
 
-  def primU8Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-u8-type")
-  def primU16Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-u16-type")
-  def primU32Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-u32-type")
-  def primU64Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-u64-type")
-  def primS8Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-s8-type")
-  def primS16Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-s16-type")
-  def primS32Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-s32-type")
-  def primS64Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-s64-type")
-  def primF32Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-f32-type")
-  def primF64Type: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-f64-type")
-  def primCharType: JsWitTypeNode  = JsShape.tagOnly[JsWitTypeNode]("prim-char-type")
-  def primBoolType: JsWitTypeNode  = JsShape.tagOnly[JsWitTypeNode]("prim-bool-type")
+  def primU8Type: JsWitTypeNode     = JsShape.tagOnly[JsWitTypeNode]("prim-u8-type")
+  def primU16Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-u16-type")
+  def primU32Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-u32-type")
+  def primU64Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-u64-type")
+  def primS8Type: JsWitTypeNode     = JsShape.tagOnly[JsWitTypeNode]("prim-s8-type")
+  def primS16Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-s16-type")
+  def primS32Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-s32-type")
+  def primS64Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-s64-type")
+  def primF32Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-f32-type")
+  def primF64Type: JsWitTypeNode    = JsShape.tagOnly[JsWitTypeNode]("prim-f64-type")
+  def primCharType: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-char-type")
+  def primBoolType: JsWitTypeNode   = JsShape.tagOnly[JsWitTypeNode]("prim-bool-type")
   def primStringType: JsWitTypeNode = JsShape.tagOnly[JsWitTypeNode]("prim-string-type")
 
   def handleType(resourceId: JsResourceId, mode: JsResourceMode): JsWitTypeNode =
@@ -176,13 +176,17 @@ object JsWitTypeNode {
 
 @js.native
 sealed trait JsNamedWitTypeNode extends js.Object {
-  def name: js.UndefOr[String]       = js.native
-  def owner: js.UndefOr[String]      = js.native
+  def name: js.UndefOr[String]           = js.native
+  def owner: js.UndefOr[String]          = js.native
   @JSName("type") def typ: JsWitTypeNode = js.native
 }
 
 object JsNamedWitTypeNode {
-  def apply(typ: JsWitTypeNode, name: js.UndefOr[String] = js.undefined, owner: js.UndefOr[String] = js.undefined): JsNamedWitTypeNode = {
+  def apply(
+    typ: JsWitTypeNode,
+    name: js.UndefOr[String] = js.undefined,
+    owner: js.UndefOr[String] = js.undefined
+  ): JsNamedWitTypeNode = {
     val obj = js.Dynamic.literal("type" -> typ.asInstanceOf[js.Any])
     name.foreach(n => obj.updateDynamic("name")(n))
     owner.foreach(o => obj.updateDynamic("owner")(o))
@@ -344,15 +348,15 @@ object JsWitNode {
   def resultValue(result: JsResult[js.UndefOr[JsNodeIndex], js.UndefOr[JsNodeIndex]]): JsWitNode =
     JsShape.tagged[JsWitNode]("result-value", result)
 
-  def primU8(value: Short): JsWitNode      = JsShape.tagged[JsWitNode]("prim-u8", value.asInstanceOf[js.Any])
-  def primU16(value: Int): JsWitNode       = JsShape.tagged[JsWitNode]("prim-u16", value.asInstanceOf[js.Any])
-  def primU32(value: Double): JsWitNode    = JsShape.tagged[JsWitNode]("prim-u32", value.asInstanceOf[js.Any])
-  def primU64(value: js.BigInt): JsWitNode = JsShape.tagged[JsWitNode]("prim-u64", value)
-  def primS8(value: Byte): JsWitNode       = JsShape.tagged[JsWitNode]("prim-s8", value.asInstanceOf[js.Any])
-  def primS16(value: Short): JsWitNode     = JsShape.tagged[JsWitNode]("prim-s16", value.asInstanceOf[js.Any])
-  def primS32(value: Int): JsWitNode       = JsShape.tagged[JsWitNode]("prim-s32", value.asInstanceOf[js.Any])
-  def primS64(value: js.BigInt): JsWitNode = JsShape.tagged[JsWitNode]("prim-s64", value)
-  def primFloat32(value: Float): JsWitNode = JsShape.tagged[JsWitNode]("prim-float32", value.asInstanceOf[js.Any])
+  def primU8(value: Short): JsWitNode       = JsShape.tagged[JsWitNode]("prim-u8", value.asInstanceOf[js.Any])
+  def primU16(value: Int): JsWitNode        = JsShape.tagged[JsWitNode]("prim-u16", value.asInstanceOf[js.Any])
+  def primU32(value: Double): JsWitNode     = JsShape.tagged[JsWitNode]("prim-u32", value.asInstanceOf[js.Any])
+  def primU64(value: js.BigInt): JsWitNode  = JsShape.tagged[JsWitNode]("prim-u64", value)
+  def primS8(value: Byte): JsWitNode        = JsShape.tagged[JsWitNode]("prim-s8", value.asInstanceOf[js.Any])
+  def primS16(value: Short): JsWitNode      = JsShape.tagged[JsWitNode]("prim-s16", value.asInstanceOf[js.Any])
+  def primS32(value: Int): JsWitNode        = JsShape.tagged[JsWitNode]("prim-s32", value.asInstanceOf[js.Any])
+  def primS64(value: js.BigInt): JsWitNode  = JsShape.tagged[JsWitNode]("prim-s64", value)
+  def primFloat32(value: Float): JsWitNode  = JsShape.tagged[JsWitNode]("prim-float32", value.asInstanceOf[js.Any])
   def primFloat64(value: Double): JsWitNode = JsShape.tagged[JsWitNode]("prim-float64", value.asInstanceOf[js.Any])
   def primChar(value: String): JsWitNode    = JsShape.tagged[JsWitNode]("prim-char", value.asInstanceOf[js.Any])
   def primBool(value: Boolean): JsWitNode   = JsShape.tagged[JsWitNode]("prim-bool", value.asInstanceOf[js.Any])
@@ -436,7 +440,7 @@ object JsTextType {
 
 @js.native
 sealed trait JsTextSource extends js.Object {
-  def data: String                      = js.native
+  def data: String                     = js.native
   def textType: js.UndefOr[JsTextType] = js.native
 }
 
@@ -483,7 +487,7 @@ object JsBinaryType {
 
 @js.native
 sealed trait JsBinarySource extends js.Object {
-  def data: Uint8Array          = js.native
+  def data: Uint8Array         = js.native
   def binaryType: JsBinaryType = js.native
 }
 

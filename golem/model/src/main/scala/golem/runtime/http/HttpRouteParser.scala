@@ -1,7 +1,8 @@
 package golem.runtime.http
 
 /**
- * Parser for HTTP route templates like "/api/{city}/weather?q={query}&limit={n}"
+ * Parser for HTTP route templates like
+ * "/api/{city}/weather?q={query}&limit={n}"
  */
 object HttpRouteParser {
 
@@ -94,7 +95,10 @@ object HttpRouteParser {
     Right(result.toList)
   }
 
-  /** Parse a path-only template, rejecting any query parameters. Used for mount paths and webhook suffixes. */
+  /**
+   * Parse a path-only template, rejecting any query parameters. Used for mount
+   * paths and webhook suffixes.
+   */
   def parsePathOnly(template: String, entityName: String): Either[String, List[PathSegment]] =
     if (template.contains("?"))
       Left(s"$entityName must not contain query parameters")

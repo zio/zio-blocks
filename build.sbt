@@ -874,8 +874,8 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema)
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "com.lihaoyi"   %% "ujson"                 % "3.1.0",
-      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
+      "com.lihaoyi" %% "ujson"                 % "3.1.0",
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.3" % Test
     )
   )
   .jsSettings(jsSettings)
@@ -971,9 +971,9 @@ lazy val zioGolemTestAgents = project
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
-      "dev.zio"           %%% "zio-http"                    % "3.0.1"
+      "io.github.cquiroz" %%% "scala-java-time"      % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb" % "2.6.0",
+      "dev.zio"           %%% "zio-http"             % "3.0.1"
     ),
     Test / test := {
       Keys.streams.value.log.info(
@@ -994,11 +994,11 @@ lazy val zioGolemTestAgents = project
       if (scalaVersion.value.startsWith("2."))
         Seq(
           "-Wconf:cat=unused-imports:s",
-          "-Wconf:msg=private method create .* is never used:s"     // @constructor methods are read by macros
+          "-Wconf:msg=private method create .* is never used:s" // @constructor methods are read by macros
         )
       else
         Seq(
-          "-Wconf:msg=unused private member:s"                      // @constructor methods are read by macros
+          "-Wconf:msg=unused private member:s" // @constructor methods are read by macros
         )
     }
   )
@@ -1009,13 +1009,17 @@ lazy val zioGolemIntegrationTests = project
   .in(file("golem/integration-tests"))
   .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3Golem)))
   .settings(
-    publish / skip            := true,
-    Test / fork               := true,
-    Test / parallelExecution  := false,
-    Test / javaOptions ++= sys.env.get("GOLEM_TS_PACKAGES_PATH")
-      .map(v => s"-Dgolem.tsPackagesPath=$v").toSeq,
-    Test / envVars ++= sys.env.get("GOLEM_TS_PACKAGES_PATH")
-      .map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v)).getOrElse(Map.empty),
+    publish / skip           := true,
+    Test / fork              := true,
+    Test / parallelExecution := false,
+    Test / javaOptions ++= sys.env
+      .get("GOLEM_TS_PACKAGES_PATH")
+      .map(v => s"-Dgolem.tsPackagesPath=$v")
+      .toSeq,
+    Test / envVars ++= sys.env
+      .get("GOLEM_TS_PACKAGES_PATH")
+      .map(v => Map("GOLEM_TS_PACKAGES_PATH" -> v))
+      .getOrElse(Map.empty),
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test,
@@ -1061,7 +1065,7 @@ lazy val zioGolemSbt = project
     sbtVersion   := "1.12.0",
     addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.2"),
     libraryDependencies += "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
-    mimaPreviousArtifacts := Set()
+    mimaPreviousArtifacts                  := Set()
   )
 lazy val ringbufferBenchmarks = project
   .in(file("ringbuffer-benchmarks"))

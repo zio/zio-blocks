@@ -99,35 +99,29 @@ object ContextApi {
     def spanId(): String =
       underlying.spanId()
 
-    def parent(): Option[InvocationContext] = {
+    def parent(): Option[InvocationContext] =
       underlying.parent().toOption.map(p => new InvocationContext(p))
-    }
 
-    def getAttribute(key: String, inherited: Boolean): Option[AttributeValue] = {
+    def getAttribute(key: String, inherited: Boolean): Option[AttributeValue] =
       underlying.getAttribute(key, inherited).toOption.map(AttributeValue.fromJs)
-    }
 
-    def getAttributes(inherited: Boolean): List[Attribute] = {
+    def getAttributes(inherited: Boolean): List[Attribute] =
       underlying.getAttributes(inherited).toList.map { a =>
         Attribute(a.key, AttributeValue.fromJs(a.value))
       }
-    }
 
-    def getAttributeChain(key: String): List[AttributeValue] = {
+    def getAttributeChain(key: String): List[AttributeValue] =
       underlying.getAttributeChain(key).toList.map(AttributeValue.fromJs)
-    }
 
-    def getAttributeChains(): List[AttributeChain] = {
+    def getAttributeChains(): List[AttributeChain] =
       underlying.getAttributeChains().toList.map { c =>
         val key    = c.key
         val values = c.values.toList.map(AttributeValue.fromJs)
         AttributeChain(key, values)
       }
-    }
 
-    def traceContextHeaders(): List[(String, String)] = {
+    def traceContextHeaders(): List[(String, String)] =
       underlying.traceContextHeaders().toList.map(kv => (kv._1, kv._2))
-    }
   }
 
   // --- Native bindings ---
@@ -135,8 +129,8 @@ object ContextApi {
   @js.native
   @JSImport("golem:api/context@1.5.0", JSImport.Namespace)
   private object ContextModule extends js.Object {
-    def startSpan(name: String): JsSpan                         = js.native
-    def currentContext(): JsInvocationContext                    = js.native
+    def startSpan(name: String): JsSpan                             = js.native
+    def currentContext(): JsInvocationContext                       = js.native
     def allowForwardingTraceContextHeaders(allow: Boolean): Boolean = js.native
   }
 

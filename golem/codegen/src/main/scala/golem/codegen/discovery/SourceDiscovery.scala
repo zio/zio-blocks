@@ -227,9 +227,9 @@ object SourceDiscovery {
     }
 
   /**
-   * Extract constructor parameters from the id schema class in a trait
-   * body. Looks first for a class annotated with `@id`, then
-   * falls back to a class named `Id`.
+   * Extract constructor parameters from the id schema class in a trait body.
+   * Looks first for a class annotated with `@id`, then falls back to a class
+   * named `Id`.
    */
   private def extractConstructorParams(templ: Template): List[ConstructorParam] = {
     def paramsFromClass(d: Defn.Class): List[ConstructorParam] =

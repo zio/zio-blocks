@@ -30,8 +30,8 @@ object PrincipalConverter {
             preferredUsername = p.preferredUsername.toOption
           )
         case "agent" =>
-          val p         = dynamic.asInstanceOf[JsPrincipalAgent].value
-          val jsUuid    = p.agentId.componentId.uuid
+          val p           = dynamic.asInstanceOf[JsPrincipalAgent].value
+          val jsUuid      = p.agentId.componentId.uuid
           val componentId = Uuid(
             highBits = BigInt(jsUuid.highBits.toString),
             lowBits = BigInt(jsUuid.lowBits.toString)
@@ -41,8 +41,8 @@ object PrincipalConverter {
             agentId = p.agentId.agentId
           )
         case "golem-user" =>
-          val p      = dynamic.asInstanceOf[JsPrincipalGolemUser].value
-          val jsUuid = p.accountId.uuid
+          val p         = dynamic.asInstanceOf[JsPrincipalGolemUser].value
+          val jsUuid    = p.accountId.uuid
           val accountId = Uuid(
             highBits = BigInt(jsUuid.highBits.toString),
             lowBits = BigInt(jsUuid.lowBits.toString)

@@ -62,7 +62,7 @@ object ConfigBuilder {
   ): A = {
     val constructor = record.constructor
     val registers   = Registers(constructor.usedRegisters)
-    var idx = 0
+    var idx         = 0
     while (idx < record.fields.length) {
       val field = record.fields(idx)
       val value = buildFromReflect(
@@ -82,7 +82,7 @@ object ConfigBuilder {
     loader: ConfigFieldLoader
   ): A = {
     implicit val schemaA: Schema[A] = new Schema(reflect)
-    val elem = ElementSchema.Component(DataInterop.reflectToDataType(reflect))
+    val elem                        = ElementSchema.Component(DataInterop.reflectToDataType(reflect))
     loader.loadLocal[A](path, elem)
   }
 
@@ -92,7 +92,7 @@ object ConfigBuilder {
     loader: ConfigFieldLoader
   ): Secret[A] = {
     implicit val schemaA: Schema[A] = new Schema(innerReflect)
-    val elem = ElementSchema.Component(DataInterop.reflectToDataType(innerReflect))
+    val elem                        = ElementSchema.Component(DataInterop.reflectToDataType(innerReflect))
     loader.loadSecret[A](path, elem)
   }
 

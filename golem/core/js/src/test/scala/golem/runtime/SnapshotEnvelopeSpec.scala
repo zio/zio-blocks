@@ -28,10 +28,16 @@ object SnapshotEnvelopeSpec extends ZIOSpecDefault {
   private def parseJsonEnvelope(bytes: Array[Byte]): (Principal, String) =
     Json.parse(bytes) match {
       case Right(envelope) =>
-        val p = envelope.get("principal").one.toOption
+        val p = envelope
+          .get("principal")
+          .one
+          .toOption
           .flatMap(pJson => PrincipalConverter.fromJson(pJson.printBytes).toOption)
           .getOrElse(Principal.Anonymous)
-        val stateStr = envelope.get("state").one.toOption
+        val stateStr = envelope
+          .get("state")
+          .one
+          .toOption
           .map(_.print)
           .getOrElse("{}")
         (p, stateStr)
@@ -58,10 +64,10 @@ object SnapshotEnvelopeSpec extends ZIOSpecDefault {
     if (version != 2) throw new RuntimeException(s"Expected version 2, got $version")
     val principalLen =
       ((bytes(1) & 0xff) << 24) | ((bytes(2) & 0xff) << 16) |
-      ((bytes(3) & 0xff) << 8) | (bytes(4) & 0xff)
+        ((bytes(3) & 0xff) << 8) | (bytes(4) & 0xff)
     val principalEnd  = 5 + principalLen
     val principalData = java.util.Arrays.copyOfRange(bytes, 5, principalEnd)
-    val p = PrincipalConverter.fromJson(principalData) match {
+    val p             = PrincipalConverter.fromJson(principalData) match {
       case Right(v)  => v
       case Left(err) => throw new RuntimeException(s"Failed to parse principal: $err")
     }

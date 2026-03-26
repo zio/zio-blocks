@@ -76,8 +76,9 @@ object ValueMappingFuzzSpec extends ZIOSpecDefault {
       while (i < iterations) {
         val in        = gen
         val dataValue = RpcValueCodec.encodeArgs(in).fold(err => throw new RuntimeException(err), identity)
-        val witValue  = dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
-        val out       = RpcValueCodec.decodeValue[A](witValue).fold(err => throw new RuntimeException(err), identity)
+        val witValue  =
+          dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
+        val out = RpcValueCodec.decodeValue[A](witValue).fold(err => throw new RuntimeException(err), identity)
         Predef.assert(out == in)
         i += 1
       }

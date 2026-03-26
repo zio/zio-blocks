@@ -225,9 +225,9 @@ object GolemPlugin extends AutoPlugin {
         }
       },
       Compile / sourceGenerators += Def.task {
-        val basePackageOpt   = golemBasePackage.value
-        val log              = streams.value.log
-        val managedBase      = (Compile / sourceManaged).value / "golem" / "generated"
+        val basePackageOpt = golemBasePackage.value
+        val log            = streams.value.log
+        val managedBase    = (Compile / sourceManaged).value / "golem" / "generated"
 
         {
           // Shared discovery: scan sources once for both auto-register and RPC codegen
@@ -271,7 +271,9 @@ object GolemPlugin extends AutoPlugin {
                 try formatCode(gf.content, scalafmtConfig, out.getAbsolutePath)
                 catch {
                   case e: Exception =>
-                    log.warn(s"[golem] scalafmt failed for ${gf.relativePath}: ${e.getMessage}; using unformatted output")
+                    log.warn(
+                      s"[golem] scalafmt failed for ${gf.relativePath}: ${e.getMessage}; using unformatted output"
+                    )
                     gf.content
                 }
               writeIfChanged(out, formatted)
@@ -282,7 +284,7 @@ object GolemPlugin extends AutoPlugin {
 
           // Auto-register generation
           val autoRegFiles: Seq[File] = pipeline.autoRegister match {
-            case None => Nil
+            case None     => Nil
             case Some(ar) =>
               ar.warnings.foreach(w => log.warn(s"[golem] $w"))
               val autoRegRoot = managedBase / "autoregister"

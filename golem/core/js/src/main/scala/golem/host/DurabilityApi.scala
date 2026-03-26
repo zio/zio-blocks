@@ -87,9 +87,13 @@ object DurabilityApi {
       case ReadRemote              => JsWrappedFunctionType.readRemote
       case WriteRemote             => JsWrappedFunctionType.writeRemote
       case WriteRemoteBatched(idx) =>
-        JsWrappedFunctionType.writeRemoteBatched(idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString)))
+        JsWrappedFunctionType.writeRemoteBatched(
+          idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString))
+        )
       case WriteRemoteTransaction(idx) =>
-        JsWrappedFunctionType.writeRemoteTransaction(idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString)))
+        JsWrappedFunctionType.writeRemoteTransaction(
+          idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString))
+        )
     }
 
   }
@@ -181,7 +185,8 @@ object DurabilityApi {
     )
 
   def readPersistedDurableFunctionInvocation(): PersistedDurableFunctionInvocation = {
-    val raw       = DurabilityModule.readPersistedDurableFunctionInvocation().asInstanceOf[JsPersistedDurableFunctionInvocation]
+    val raw =
+      DurabilityModule.readPersistedDurableFunctionInvocation().asInstanceOf[JsPersistedDurableFunctionInvocation]
     val ts        = raw.timestamp
     val timestamp = Datetime(BigInt(ts.seconds.toString), ts.nanoseconds)
     val funcName  = raw.functionName

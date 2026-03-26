@@ -18,7 +18,7 @@ final class WebhookDemoImpl(@unused private val key: String) extends WebhookDemo
     webhook.url
   }
 
-  override def awaitWebhookJson(): Future[String] = {
+  override def awaitWebhookJson(): Future[String] =
     pending match {
       case Some(handler) =>
         pending = None
@@ -29,5 +29,4 @@ final class WebhookDemoImpl(@unused private val key: String) extends WebhookDemo
       case None =>
         Future.successful("no pending webhook")
     }
-  }
 }

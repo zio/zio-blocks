@@ -162,9 +162,9 @@ object MultimodalItems {
         StructuredSchema.Multimodal(codec.schemas)
 
       override def encode(value: MultimodalItems[A]): Either[String, StructuredValue] = {
-        val builder = List.newBuilder[NamedElementValue]
+        val builder               = List.newBuilder[NamedElementValue]
         var error: Option[String] = None
-        val iter = value.items.iterator
+        val iter                  = value.items.iterator
         while (iter.hasNext && error.isEmpty) {
           codec.encodeItem(iter.next()) match {
             case Left(err)  => error = Some(err)
@@ -180,9 +180,9 @@ object MultimodalItems {
       override def decode(structured: StructuredValue): Either[String, MultimodalItems[A]] =
         structured match {
           case StructuredValue.Multimodal(elements) =>
-            val builder = List.newBuilder[A]
+            val builder               = List.newBuilder[A]
             var error: Option[String] = None
-            val iter = elements.iterator
+            val iter                  = elements.iterator
             while (iter.hasNext && error.isEmpty) {
               codec.decodeItem(iter.next()) match {
                 case Left(err) => error = Some(err)

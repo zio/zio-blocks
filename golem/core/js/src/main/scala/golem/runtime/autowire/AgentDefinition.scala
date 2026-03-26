@@ -101,7 +101,12 @@ final class AgentDefinition[Instance](
   /**
    * Invokes a method with type-erased instance for dynamic dispatch.
    */
-  def invokeAny(instance: Any, methodName: String, payload: JsDataValue, principal: Principal): js.Promise[JsDataValue] =
+  def invokeAny(
+    instance: Any,
+    methodName: String,
+    payload: JsDataValue,
+    principal: Principal
+  ): js.Promise[JsDataValue] =
     invoke(instance.asInstanceOf[Instance], methodName, payload, principal)
 
   /**
@@ -118,7 +123,12 @@ final class AgentDefinition[Instance](
    * @return
    *   A Promise resolving to the method result
    */
-  def invoke(instance: Instance, methodName: String, payload: JsDataValue, principal: Principal): js.Promise[JsDataValue] = {
+  def invoke(
+    instance: Instance,
+    methodName: String,
+    payload: JsDataValue,
+    principal: Principal
+  ): js.Promise[JsDataValue] = {
     if (!methodsByName.contains(methodName)) {
       scala.scalajs.js.Dynamic.global.console.log(
         s"[AgentDefinition] Unknown method: $methodName, available: ${methodsByName.keySet.mkString(",")}"

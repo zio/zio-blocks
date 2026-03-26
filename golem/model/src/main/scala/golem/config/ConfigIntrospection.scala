@@ -28,7 +28,13 @@ private[golem] object ConfigIntrospection {
         case Some(u) => u.wrapper.wrapped.asInstanceOf[Reflect.Bound[Any]]
         case None    => reflect.asInstanceOf[Reflect.Bound[Any]]
       }
-      List(AgentConfigDeclaration(AgentConfigSource.Secret, path, ElementSchema.Component(DataInterop.reflectToDataType(inner))))
+      List(
+        AgentConfigDeclaration(
+          AgentConfigSource.Secret,
+          path,
+          ElementSchema.Component(DataInterop.reflectToDataType(inner))
+        )
+      )
     } else {
       reflect.asWrapperUnknown match {
         case Some(u) =>
@@ -40,7 +46,13 @@ private[golem] object ConfigIntrospection {
                 walk(path :+ field.name, field.value.asInstanceOf[Reflect.Bound[Any]])
               }
             case _ =>
-              List(AgentConfigDeclaration(AgentConfigSource.Local, path, ElementSchema.Component(DataInterop.reflectToDataType(reflect))))
+              List(
+                AgentConfigDeclaration(
+                  AgentConfigSource.Local,
+                  path,
+                  ElementSchema.Component(DataInterop.reflectToDataType(reflect))
+                )
+              )
           }
       }
     }

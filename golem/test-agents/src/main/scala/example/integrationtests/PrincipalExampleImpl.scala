@@ -23,10 +23,10 @@ final class PrincipalAgentImpl(input: String, principal: Principal) extends Prin
 
   override def currentCaller(caller: Principal): Future[String] = {
     val callerInfo = caller match {
-      case Principal.Anonymous => "anonymous"
+      case Principal.Anonymous                            => "anonymous"
       case Principal.Oidc(sub, _, _, _, _, _, _, _, _, _) => s"OIDC:$sub"
-      case Principal.Agent(_, agentId) => s"agent:$agentId"
-      case Principal.GolemUser(accountId) => s"user:$accountId"
+      case Principal.Agent(_, agentId)                    => s"agent:$agentId"
+      case Principal.GolemUser(accountId)                 => s"user:$accountId"
     }
     Future.successful(s"Current caller: $callerInfo")
   }

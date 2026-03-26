@@ -70,7 +70,8 @@ object AutoRegisterCodegen {
   }
 
   /**
-   * Generates auto-registration source files from pre-computed discovery output.
+   * Generates auto-registration source files from pre-computed discovery
+   * output.
    *
    * This is the preferred entry point when discovery has already been performed
    * (e.g. when shared between auto-register and RPC codegen).
@@ -243,8 +244,23 @@ object AutoRegisterCodegen {
     pkg.replace('.', '/') + "/" + fileName
 
   private val scalaBuiltins: Set[String] = Set(
-    "String", "Int", "Long", "Double", "Float", "Boolean", "Byte", "Short", "Char", "Unit",
-    "BigInt", "BigDecimal", "Any", "AnyRef", "AnyVal", "Nothing", "Null"
+    "String",
+    "Int",
+    "Long",
+    "Double",
+    "Float",
+    "Boolean",
+    "Byte",
+    "Short",
+    "Char",
+    "Unit",
+    "BigInt",
+    "BigDecimal",
+    "Any",
+    "AnyRef",
+    "AnyVal",
+    "Nothing",
+    "Null"
   )
 
   private def fqn(ownerPkg: String, tpeOrTerm: String): String =
