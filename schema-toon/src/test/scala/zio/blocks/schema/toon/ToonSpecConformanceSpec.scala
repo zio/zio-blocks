@@ -1781,7 +1781,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeError(
           "a.b: 1\na: 2",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          ToonBinaryCodec.dynamicValueCodec,
+          ToonCodec.dynamicValueCodec,
           ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },
@@ -1789,7 +1789,7 @@ object ToonSpecConformanceSpec extends SchemaBaseSpec {
         decodeError(
           "a.b: 1\na[2]: 2,3",
           "Path expansion conflict at key 'a': cannot overwrite existing value with new value in strict mode at: .",
-          ToonBinaryCodec.dynamicValueCodec,
+          ToonCodec.dynamicValueCodec,
           ReaderConfig.withExpandPaths(PathExpansion.Safe)
         )
       },

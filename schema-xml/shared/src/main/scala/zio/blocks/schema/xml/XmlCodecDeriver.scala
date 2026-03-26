@@ -29,12 +29,12 @@ import java.util.{Currency, UUID}
 import scala.annotation.switch
 import scala.reflect.ClassTag
 
-object XmlFormat extends BinaryFormat("application/xml", XmlBinaryCodecDeriver)
+object XmlFormat extends BinaryFormat("application/xml", XmlCodecDeriver)
 
-object XmlBinaryCodecDeriver extends XmlBinaryCodecDeriver
+object XmlCodecDeriver extends XmlCodecDeriver
 
-class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
-  import XmlBinaryCodec._
+class XmlCodecDeriver extends Deriver[XmlCodec] {
+  import XmlCodec._
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -44,7 +44,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[XmlBinaryCodec[A]] = {
+  ): Lazy[XmlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       primitiveType match {
         case _: PrimitiveType.Unit.type      => unitCodec
@@ -80,7 +80,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
       }
     }
     else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[XmlCodec[A]]]
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -90,7 +90,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val typeName      = typeId.name
@@ -101,13 +101,13 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         var offset = RegisterOffset.Zero
         fields.map { field =>
           val fieldValue  = field.value
-          val fieldCodec  = D.instance(fieldValue.metadata).force.asInstanceOf[XmlBinaryCodec[Any]]
+          val fieldCodec  = D.instance(fieldValue.metadata).force.asInstanceOf[XmlCodec[Any]]
           val fieldOffset = offset
           offset = RegisterOffset.add(offset, fieldCodec.valueOffset)
           (field.name, fieldCodec, isOptionalField(fieldValue), fieldOffset, getXmlAttributeName(field))
         }
       }
-      new XmlBinaryCodec[A]() {
+      new XmlCodec[A]() {
         private[this] val deconstructor = recordBinding.deconstructor
         private[this] val constructor   = recordBinding.constructor
         private[this] val recordName    = typeName
@@ -242,61 +242,61 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Int]].encodeValue(regs.getInt(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Int]].encodeValue(regs.getInt(fieldOffset))
                       )
                     )
                   case 2 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Long]].encodeValue(regs.getLong(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Long]].encodeValue(regs.getLong(fieldOffset))
                       )
                     )
                   case 3 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Float]].encodeValue(regs.getFloat(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Float]].encodeValue(regs.getFloat(fieldOffset))
                       )
                     )
                   case 4 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Double]].encodeValue(regs.getDouble(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Double]].encodeValue(regs.getDouble(fieldOffset))
                       )
                     )
                   case 5 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Boolean]].encodeValue(regs.getBoolean(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Boolean]].encodeValue(regs.getBoolean(fieldOffset))
                       )
                     )
                   case 6 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Byte]].encodeValue(regs.getByte(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Byte]].encodeValue(regs.getByte(fieldOffset))
                       )
                     )
                   case 7 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Char]].encodeValue(regs.getChar(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Char]].encodeValue(regs.getChar(fieldOffset))
                       )
                     )
                   case 8 =>
                     children.addOne(
                       xmlFieldElement(
                         fieldName,
-                        codec.asInstanceOf[XmlBinaryCodec[Short]].encodeValue(regs.getShort(fieldOffset))
+                        codec.asInstanceOf[XmlCodec[Short]].encodeValue(regs.getShort(fieldOffset))
                       )
                     )
                   case _ =>
                     children.addOne(
-                      xmlFieldElement(fieldName, codec.asInstanceOf[XmlBinaryCodec[Unit]].encodeValue(()))
+                      xmlFieldElement(fieldName, codec.asInstanceOf[XmlCodec[Unit]].encodeValue(()))
                     )
                 }
             }
@@ -319,7 +319,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
       }
     }
     else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[XmlCodec[A]]]
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
@@ -329,12 +329,12 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       if (typeId.isOption) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new XmlBinaryCodec[Option[Any]]() {
-            private[this] val innerCodec = codec.asInstanceOf[XmlBinaryCodec[Any]]
+          new XmlCodec[Option[Any]]() {
+            private[this] val innerCodec = codec.asInstanceOf[XmlCodec[Any]]
 
             override def decodeValue(xml: Xml): Either[XmlError, Option[Any]] = xml match {
               case e: Xml.Element if e.name.localName == "None" && e.children.isEmpty => new Right(None)
@@ -366,10 +366,10 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         Lazy {
           val caseCodecs = cases.map { case_ =>
             val caseName  = case_.name
-            val caseCodec = D.instance(case_.value.metadata).force.asInstanceOf[XmlBinaryCodec[A]]
+            val caseCodec = D.instance(case_.value.metadata).force.asInstanceOf[XmlCodec[A]]
             (caseName, caseCodec)
           }
-          new XmlBinaryCodec[A]() {
+          new XmlCodec[A]() {
             private[this] val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
             private[this] val codecMap      = caseCodecs.toMap
 
@@ -410,7 +410,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
           }
         }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[XmlCodec[A]]]
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -420,14 +420,14 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[C[A]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[C[A]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { codec =>
-        new XmlBinaryCodec[Col[Elem]]() {
+        new XmlCodec[Col[Elem]]() {
           private[this] val deconstructor = seqBinding.deconstructor
           private[this] val constructor   = seqBinding.constructor
-          private[this] val elemCodec     = codec.asInstanceOf[XmlBinaryCodec[Elem]]
+          private[this] val elemCodec     = codec.asInstanceOf[XmlCodec[Elem]]
           private[this] val elemClassTag  = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
           override def decodeValue(xml: Xml): Either[XmlError, Col[Elem]] = xml match {
@@ -460,7 +460,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[C[A]]]]
+  }.asInstanceOf[Lazy[XmlCodec[C[A]]]]
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -471,15 +471,15 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[M[K, V]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[M[K, V]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (codec1, codec2) =>
-        new XmlBinaryCodec[Map[Key, Value]]() {
+        new XmlCodec[Map[Key, Value]]() {
           private[this] val deconstructor = mapBinding.deconstructor
           private[this] val constructor   = mapBinding.constructor
-          private[this] val keyCodec      = codec1.asInstanceOf[XmlBinaryCodec[Key]]
-          private[this] val valueCodec    = codec2.asInstanceOf[XmlBinaryCodec[Value]]
+          private[this] val keyCodec      = codec1.asInstanceOf[XmlCodec[Key]]
+          private[this] val valueCodec    = codec2.asInstanceOf[XmlCodec[Value]]
 
           override def decodeValue(xml: Xml): Either[XmlError, Map[Key, Value]] = xml match {
             case Xml.Element(_, _, children) =>
@@ -535,7 +535,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[M[K, V]]]]
+  }.asInstanceOf[Lazy[XmlCodec[M[K, V]]]]
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -543,10 +543,10 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[DynamicValue]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[DynamicValue]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[DynamicValue]]]
+  }.asInstanceOf[Lazy[XmlCodec[DynamicValue]]]
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -556,14 +556,14 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
       D.instance(wrapped.metadata).map { codec =>
-        new XmlBinaryCodec[A]() {
+        new XmlCodec[A]() {
           private[this] val unwrap       = wrapperBinding.unwrap
           private[this] val wrap         = wrapperBinding.wrap
-          private[this] val wrappedCodec = codec.asInstanceOf[XmlBinaryCodec[Wrapped]]
+          private[this] val wrappedCodec = codec.asInstanceOf[XmlCodec[Wrapped]]
 
           override def decodeValue(xml: Xml): Either[XmlError, A] = wrappedCodec.decodeValue(xml).map(wrap)
 
@@ -571,7 +571,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
-  }.asInstanceOf[Lazy[XmlBinaryCodec[A]]]
+  }.asInstanceOf[Lazy[XmlCodec[A]]]
 
   type Elem
   type Key
@@ -607,7 +607,7 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
 
   private[this] def parseAttributeValue(
     attrValue: String,
-    codec: XmlBinaryCodec[Any],
+    codec: XmlCodec[Any],
     regs: Registers,
     offset: RegisterOffset.RegisterOffset
   ): Option[XmlError] =
@@ -629,118 +629,118 @@ class XmlBinaryCodecDeriver extends Deriver[XmlBinaryCodec] {
       case Left(err) => Some(err)
     }
 
-  private val dayOfWeekCodec: XmlBinaryCodec[DayOfWeek] = new XmlBinaryCodec[DayOfWeek]() {
+  private val dayOfWeekCodec: XmlCodec[DayOfWeek] = new XmlCodec[DayOfWeek]() {
     def decodeValue(xml: Xml): Either[XmlError, DayOfWeek] = decodeText(xml)(s => DayOfWeek.valueOf(s.toUpperCase))
 
     def encodeValue(x: DayOfWeek): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  private val durationCodec: XmlBinaryCodec[Duration] = new XmlBinaryCodec[Duration]() {
+  private val durationCodec: XmlCodec[Duration] = new XmlCodec[Duration]() {
     def decodeValue(xml: Xml): Either[XmlError, Duration] = decodeText(xml, Json.durationRawCodec)
 
     def encodeValue(x: Duration): Xml = Xml.Element("value", new Xml.Text(Json.durationRawCodec.encodeToString(x)))
   }
 
-  private val instantCodec: XmlBinaryCodec[Instant] = new XmlBinaryCodec[Instant]() {
+  private val instantCodec: XmlCodec[Instant] = new XmlCodec[Instant]() {
     def decodeValue(xml: Xml): Either[XmlError, Instant] = decodeText(xml, Json.instantRawCodec)
 
     def encodeValue(x: Instant): Xml = Xml.Element("value", new Xml.Text(Json.instantRawCodec.encodeToString(x)))
   }
 
-  private val localDateCodec: XmlBinaryCodec[LocalDate] = new XmlBinaryCodec[LocalDate]() {
+  private val localDateCodec: XmlCodec[LocalDate] = new XmlCodec[LocalDate]() {
     def decodeValue(xml: Xml): Either[XmlError, LocalDate] = decodeText(xml, Json.localDateRawCodec)
 
     def encodeValue(x: LocalDate): Xml = Xml.Element("value", new Xml.Text(Json.localDateRawCodec.encodeToString(x)))
   }
 
-  private val localDateTimeCodec: XmlBinaryCodec[LocalDateTime] = new XmlBinaryCodec[LocalDateTime]() {
+  private val localDateTimeCodec: XmlCodec[LocalDateTime] = new XmlCodec[LocalDateTime]() {
     def decodeValue(xml: Xml): Either[XmlError, LocalDateTime] = decodeText(xml, Json.localDateTimeRawCodec)
 
     def encodeValue(x: LocalDateTime): Xml =
       Xml.Element("value", new Xml.Text(Json.localDateTimeRawCodec.encodeToString(x)))
   }
 
-  private val localTimeCodec: XmlBinaryCodec[LocalTime] = new XmlBinaryCodec[LocalTime]() {
+  private val localTimeCodec: XmlCodec[LocalTime] = new XmlCodec[LocalTime]() {
     def decodeValue(xml: Xml): Either[XmlError, LocalTime] = decodeText(xml, Json.localTimeRawCodec)
 
     def encodeValue(x: LocalTime): Xml = Xml.Element("value", new Xml.Text(Json.localTimeRawCodec.encodeToString(x)))
   }
 
-  private val monthCodec: XmlBinaryCodec[Month] = new XmlBinaryCodec[Month]() {
+  private val monthCodec: XmlCodec[Month] = new XmlCodec[Month]() {
     def decodeValue(xml: Xml): Either[XmlError, Month] = decodeText(xml)(s => Month.valueOf(s.toUpperCase))
 
     def encodeValue(x: Month): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  private val monthDayCodec: XmlBinaryCodec[MonthDay] = new XmlBinaryCodec[MonthDay]() {
+  private val monthDayCodec: XmlCodec[MonthDay] = new XmlCodec[MonthDay]() {
     def decodeValue(xml: Xml): Either[XmlError, MonthDay] = decodeText(xml, Json.monthDayRawCodec)
 
     def encodeValue(x: MonthDay): Xml = Xml.Element("value", new Xml.Text(Json.monthDayRawCodec.encodeToString(x)))
   }
 
-  private val offsetDateTimeCodec: XmlBinaryCodec[OffsetDateTime] = new XmlBinaryCodec[OffsetDateTime]() {
+  private val offsetDateTimeCodec: XmlCodec[OffsetDateTime] = new XmlCodec[OffsetDateTime]() {
     def decodeValue(xml: Xml): Either[XmlError, OffsetDateTime] = decodeText(xml, Json.offsetDateTimeRawCodec)
 
     def encodeValue(x: OffsetDateTime): Xml =
       Xml.Element("value", new Xml.Text(Json.offsetDateTimeRawCodec.encodeToString(x)))
   }
 
-  private val offsetTimeCodec: XmlBinaryCodec[OffsetTime] = new XmlBinaryCodec[OffsetTime]() {
+  private val offsetTimeCodec: XmlCodec[OffsetTime] = new XmlCodec[OffsetTime]() {
     def decodeValue(xml: Xml): Either[XmlError, OffsetTime] = decodeText(xml, Json.offsetTimeRawCodec)
 
     def encodeValue(x: OffsetTime): Xml = Xml.Element("value", new Xml.Text(Json.offsetTimeRawCodec.encodeToString(x)))
   }
 
-  private val periodCodec: XmlBinaryCodec[Period] = new XmlBinaryCodec[Period]() {
+  private val periodCodec: XmlCodec[Period] = new XmlCodec[Period]() {
     def decodeValue(xml: Xml): Either[XmlError, Period] = decodeText(xml, Json.periodRawCodec)
 
     def encodeValue(x: Period): Xml = Xml.Element("value", new Xml.Text(Json.periodRawCodec.encodeToString(x)))
   }
 
-  private val yearCodec: XmlBinaryCodec[Year] = new XmlBinaryCodec[Year]() {
+  private val yearCodec: XmlCodec[Year] = new XmlCodec[Year]() {
     def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml)(Year.parse)
 
     def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  private val yearMonthCodec: XmlBinaryCodec[YearMonth] = new XmlBinaryCodec[YearMonth]() {
+  private val yearMonthCodec: XmlCodec[YearMonth] = new XmlCodec[YearMonth]() {
     def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml)(YearMonth.parse)
 
     def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  private val zoneIdCodec: XmlBinaryCodec[ZoneId] = new XmlBinaryCodec[ZoneId]() {
+  private val zoneIdCodec: XmlCodec[ZoneId] = new XmlCodec[ZoneId]() {
     def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml)(ZoneId.of)
 
     def encodeValue(x: ZoneId): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }
 
-  private val zoneOffsetCodec: XmlBinaryCodec[ZoneOffset] = new XmlBinaryCodec[ZoneOffset]() {
+  private val zoneOffsetCodec: XmlCodec[ZoneOffset] = new XmlCodec[ZoneOffset]() {
     def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml)(ZoneOffset.of)
 
     def encodeValue(x: ZoneOffset): Xml = Xml.Element("value", new Xml.Text(x.getId))
   }
 
-  private val zonedDateTimeCodec: XmlBinaryCodec[ZonedDateTime] = new XmlBinaryCodec[ZonedDateTime]() {
+  private val zonedDateTimeCodec: XmlCodec[ZonedDateTime] = new XmlCodec[ZonedDateTime]() {
     def decodeValue(xml: Xml): Either[XmlError, ZonedDateTime] = decodeText(xml, Json.zonedDateTimeRawCodec)
 
     def encodeValue(x: ZonedDateTime): Xml =
       Xml.Element("value", new Xml.Text(Json.zonedDateTimeRawCodec.encodeToString(x)))
   }
 
-  private val currencyCodec: XmlBinaryCodec[Currency] = new XmlBinaryCodec[Currency]() {
+  private val currencyCodec: XmlCodec[Currency] = new XmlCodec[Currency]() {
     def decodeValue(xml: Xml): Either[XmlError, Currency] = decodeText(xml)(Currency.getInstance)
 
     def encodeValue(x: Currency): Xml = Xml.Element("value", new Xml.Text(x.getCurrencyCode))
   }
 
-  private val uuidCodec: XmlBinaryCodec[UUID] = new XmlBinaryCodec[UUID]() {
+  private val uuidCodec: XmlCodec[UUID] = new XmlCodec[UUID]() {
     def decodeValue(xml: Xml): Either[XmlError, UUID] = decodeText(xml)(UUID.fromString)
 
     def encodeValue(x: UUID): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  private val dynamicValueCodec: XmlBinaryCodec[DynamicValue] = new XmlBinaryCodec[DynamicValue]() {
+  private val dynamicValueCodec: XmlCodec[DynamicValue] = new XmlCodec[DynamicValue]() {
     def decodeValue(xml: Xml): Either[XmlError, DynamicValue] =
       new Left(XmlError.parseError("DynamicValue decoding not supported", 0, 0))
 

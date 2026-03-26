@@ -368,7 +368,7 @@ final class MessagePackReader private[msgpack] (
 
   private[this] def endOfInputError() = decodeError("Unexpected end of input")
 
-  def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
+  private[this] def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
 }
 
 object MessagePackReader {

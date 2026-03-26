@@ -70,7 +70,7 @@ val team = Team(List(User(1, "Alice"), User(2, "Bob")))
 //     name: Bob
 
 // Use tabular format for compact representation of uniform objects
-val tabularDeriver = ToonBinaryCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
+val tabularDeriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
 val tabularCodec = Schema[Team].derive(tabularDeriver)
 // Output:
 // members[2]{id,name}:
@@ -91,16 +91,16 @@ val project = Project(List("scala", "zio", "toon"))
 
 ### Customizing the Deriver
 
-The `ToonBinaryCodecDeriver` provides several configuration options:
+The `ToonCodecDeriver` provides several configuration options:
 
 ```scala
 import zio.blocks.schema.toon._
 
 // Custom deriver with snake_case field names
-val customDeriver = ToonBinaryCodecDeriver
-  .withFieldNameMapper(NameMapper.SnakeCase)
-  .withDelimiter(Delimiter.Tab)
-  .withDiscriminatorKind(DiscriminatorKind.Field("type"))
+val customDeriver = ToonCodecDeriver
+        .withFieldNameMapper(NameMapper.SnakeCase)
+        .withDelimiter(Delimiter.Tab)
+        .withDiscriminatorKind(DiscriminatorKind.Field("type"))
 
 val codec = Schema[Person].derive(customDeriver)
 ```
@@ -178,7 +178,7 @@ object Shape {
 //   radius: 5
 
 // Field discriminator
-val fieldDeriver = ToonBinaryCodecDeriver
+val fieldDeriver = ToonCodecDeriver
   .withDiscriminatorKind(DiscriminatorKind.Field("type"))
 // type: Circle
 // radius: 5

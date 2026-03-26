@@ -24,8 +24,8 @@ import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
 
-object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("ToonBinaryCodecDeriverSpec")(
+object ToonCodecDeriverSpec extends SchemaBaseSpec {
+  def spec: Spec[TestEnvironment, Any] = suite("ToonCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
         roundTrip((), "null") &&
@@ -362,20 +362,20 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genDayOfWeek)(x => decode(s"\"$x\"", x)) &&
         roundTrip(DayOfWeek.MONDAY, "MONDAY") &&
         roundTrip(DayOfWeek.FRIDAY, "FRIDAY") &&
-        decodeError[DayOfWeek]("FUNDAY", "Invalid day of week: FUNDAY at: .")
-      },
+        decodeError[DayOfWeek]("FUNDAY", "No enum constant java.time.DayOfWeek.FUNDAY at: .")
+      } @@ TestAspect.exceptJS,
       test("Duration") {
         check(JavaTimeGen.genDuration)(x => roundTrip(x, x.toString)) &&
         check(JavaTimeGen.genDuration)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Duration.ofSeconds(0), "PT0S") &&
         roundTrip(Duration.ofHours(2), "PT2H") &&
-        decodeError[Duration]("5 hours", "Invalid duration: 5 hours at: .")
+        decodeError[Duration]("5 hours", "expected 'P' or '-' at: .")
       },
       test("Instant") {
         check(JavaTimeGen.genInstant)(x => roundTrip(x, s"\"$x\"")) &&
         check(JavaTimeGen.genInstant)(x => decode(x.toString, x)) &&
         roundTrip(Instant.EPOCH, "\"1970-01-01T00:00:00Z\"") &&
-        decodeError[Instant]("yesterday", "Invalid instant: yesterday at: .")
+        decodeError[Instant]("yesterday", "expected '-' or '+' or digit at: .")
       },
       test("LocalDate") {
         check(JavaTimeGen.genLocalDate)(x =>
@@ -388,7 +388,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genLocalDate)(x => decode(s"\"$x\"", x)) &&
         check(JavaTimeGen.genLocalDate)(x => decode(x.toString, x)) &&
         roundTrip(LocalDate.of(2025, 1, 11), "2025-01-11") &&
-        decodeError[LocalDate]("2025/01/11", "Invalid local date: 2025/01/11 at: .")
+        decodeError[LocalDate]("2025/01/11", "expected '-' at: .")
       },
       test("LocalDateTime") {
         check(JavaTimeGen.genLocalDateTime)(x => roundTrip(x, s"\"$x\"")) &&
@@ -399,14 +399,14 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genLocalTime)(x => roundTrip(x, s"\"$x\"")) &&
         check(JavaTimeGen.genLocalTime)(x => decode(x.toString, x)) &&
         roundTrip(LocalTime.of(10, 30), "\"10:30\"") &&
-        decodeError[LocalTime]("25:99", "Invalid local time: 25:99 at: .")
+        decodeError[LocalTime]("25:99", "illegal hour at: .")
       },
       test("Month") {
         check(JavaTimeGen.genMonth)(x => roundTrip(x, x.toString)) &&
         check(JavaTimeGen.genMonth)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Month.JANUARY, "JANUARY") &&
-        decodeError[Month]("SMARCH", "Invalid month: SMARCH at: .")
-      },
+        decodeError[Month]("SMARCH", "No enum constant java.time.Month.SMARCH at: .")
+      } @@ TestAspect.exceptJS,
       test("MonthDay") {
         check(JavaTimeGen.genMonthDay)(x => roundTrip(x, s"\"$x\"")) &&
         check(JavaTimeGen.genMonthDay)(x => decode(x.toString, x)) &&
@@ -474,7 +474,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(JavaTimeGen.genZoneId)(x => decode(s"\"$x\"", x)) &&
         check(JavaTimeGen.genZoneId)(x => decode(x.toString, x)) &&
         roundTrip(ZoneId.of("UTC"), "UTC") &&
-        decodeError[ZoneId]("Fake/Timezone", "Invalid zone id: Fake/Timezone at: .")
+        decodeError[ZoneId]("Fake/Timezone", "Unknown time-zone ID: Fake/Timezone at: .")
       },
       test("ZoneOffset") {
         check(JavaTimeGen.genZoneOffset)(x =>
@@ -503,8 +503,8 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
         check(Gen.currency)(x => roundTrip(x, x.toString)) &&
         check(Gen.currency)(x => decode(s"\"$x\"", x)) &&
         roundTrip(Currency.getInstance("USD"), "USD") &&
-        decodeError[Currency]("FAKE", "Invalid currency: FAKE at: .")
-      },
+        decodeError[Currency]("FAKE", "The input currency code: \"FAKE\" must have a length of 3 characters at: .")
+      } @@ TestAspect.exceptJS,
       test("UUID") {
         check(Gen.uuid)(x => roundTrip(x, x.toString)) &&
         check(Gen.uuid)(x => decode(s"\"$x\"", x)) &&
@@ -512,7 +512,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           UUID.fromString("00000000-0000-0001-0000-000000000001"),
           "00000000-0000-0001-0000-000000000001"
         ) &&
-        decodeError[UUID]("not-a-uuid", "Invalid UUID: not-a-uuid at: .")
+        decodeError[UUID]("not-a-uuid", "Invalid UUID string: not-a-uuid at: .")
       }
     ),
     suite("records")(
@@ -1051,14 +1051,14 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
             (DynamicValue.Primitive(PrimitiveValue.Int(42)), DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
           )
         )
-        val codec   = ToonBinaryCodec.dynamicValueCodec
+        val codec   = ToonCodec.dynamicValueCodec
         val encoded = new String(codec.encode(map), java.nio.charset.StandardCharsets.UTF_8).trim
         assertTrue(encoded.contains("key1: value1")) &&
         assertTrue(encoded.contains("42: true"))
       },
       test("DynamicValue - default config") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val encoded    = codec.encodeToString(value, WriterConfig)
           val decoded    = codec.decode(encoded, ReaderConfig)
           val normalized = ToonDynamicValueGen.normalize(value)
@@ -1067,7 +1067,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("DynamicValue - tab delimiter") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val writerCfg  = WriterConfig.withDelimiter(Delimiter.Tab)
           val readerCfg  = ReaderConfig.withDelimiter(Delimiter.Tab)
           val encoded    = codec.encodeToString(value, writerCfg)
@@ -1078,7 +1078,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("DynamicValue - pipe delimiter") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val writerCfg  = WriterConfig.withDelimiter(Delimiter.Pipe)
           val readerCfg  = ReaderConfig.withDelimiter(Delimiter.Pipe)
           val encoded    = codec.encodeToString(value, writerCfg)
@@ -1089,7 +1089,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("DynamicValue - key folding") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val writerCfg  = WriterConfig.withKeyFolding(KeyFolding.Safe)
           val readerCfg  = ReaderConfig.withExpandPaths(PathExpansion.Safe)
           val encoded    = codec.encodeToString(value, writerCfg)
@@ -1100,7 +1100,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("DynamicValue - discriminatorField with type") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val discField  = Some("type")
           val writerCfg  = WriterConfig.withDiscriminatorField(discField)
           val readerCfg  = ReaderConfig.withDiscriminatorField(discField)
@@ -1112,7 +1112,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
       },
       test("DynamicValue - discriminatorField with $type") {
         check(ToonDynamicValueGen.genDynamicValue) { value =>
-          val codec      = ToonBinaryCodec.dynamicValueCodec
+          val codec      = ToonCodec.dynamicValueCodec
           val discField  = Some("$type")
           val writerCfg  = WriterConfig.withDiscriminatorField(discField)
           val readerCfg  = ReaderConfig.withDiscriminatorField(discField)
@@ -1127,7 +1127,7 @@ object ToonBinaryCodecDeriverSpec extends SchemaBaseSpec {
           "Dog",
           DynamicValue.Record(Chunk(("name", DynamicValue.Primitive(PrimitiveValue.String("Buddy")))))
         )
-        val codec     = ToonBinaryCodec.dynamicValueCodec
+        val codec     = ToonCodec.dynamicValueCodec
         val discField = Some("type")
         val writerCfg = WriterConfig.withDiscriminatorField(discField)
         val readerCfg = ReaderConfig.withDiscriminatorField(discField)

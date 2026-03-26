@@ -261,10 +261,7 @@ object ThriftCodec {
 
   val instantCodec: ThriftCodec[Instant] = new ThriftCodec[Instant] {
     def decodeValue(protocol: TProtocol): Instant =
-      Json.instantRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.instantRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: Instant, protocol: TProtocol): Unit =
       protocol.writeString(Json.instantRawCodec.encodeToString(value))
@@ -272,10 +269,7 @@ object ThriftCodec {
 
   val localDateCodec: ThriftCodec[LocalDate] = new ThriftCodec[LocalDate] {
     def decodeValue(protocol: TProtocol): LocalDate =
-      Json.localDateRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.localDateRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: LocalDate, protocol: TProtocol): Unit =
       protocol.writeString(Json.localDateRawCodec.encodeToString(value))
@@ -283,10 +277,7 @@ object ThriftCodec {
 
   val localTimeCodec: ThriftCodec[LocalTime] = new ThriftCodec[LocalTime] {
     def decodeValue(protocol: TProtocol): LocalTime =
-      Json.localTimeRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.localTimeRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: LocalTime, protocol: TProtocol): Unit =
       protocol.writeString(Json.localTimeRawCodec.encodeToString(value))
@@ -294,10 +285,7 @@ object ThriftCodec {
 
   val localDateTimeCodec: ThriftCodec[LocalDateTime] = new ThriftCodec[LocalDateTime] {
     def decodeValue(protocol: TProtocol): LocalDateTime =
-      Json.localDateTimeRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.localDateTimeRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: LocalDateTime, protocol: TProtocol): Unit =
       protocol.writeString(Json.localDateTimeRawCodec.encodeToString(value))
@@ -311,10 +299,7 @@ object ThriftCodec {
 
   val monthDayCodec: ThriftCodec[MonthDay] = new ThriftCodec[MonthDay] {
     def decodeValue(protocol: TProtocol): MonthDay =
-      Json.monthDayRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.monthDayRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: MonthDay, protocol: TProtocol): Unit =
       protocol.writeString(Json.monthDayRawCodec.encodeToString(value))
@@ -322,10 +307,7 @@ object ThriftCodec {
 
   val offsetTimeCodec: ThriftCodec[OffsetTime] = new ThriftCodec[OffsetTime] {
     def decodeValue(protocol: TProtocol): OffsetTime =
-      Json.offsetTimeRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.offsetTimeRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: OffsetTime, protocol: TProtocol): Unit =
       protocol.writeString(Json.offsetTimeRawCodec.encodeToString(value))
@@ -333,10 +315,7 @@ object ThriftCodec {
 
   val offsetDateTimeCodec: ThriftCodec[OffsetDateTime] = new ThriftCodec[OffsetDateTime] {
     def decodeValue(protocol: TProtocol): OffsetDateTime =
-      Json.offsetDateTimeRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.offsetDateTimeRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: OffsetDateTime, protocol: TProtocol): Unit =
       protocol.writeString(Json.offsetDateTimeRawCodec.encodeToString(value))
@@ -344,10 +323,7 @@ object ThriftCodec {
 
   val periodCodec: ThriftCodec[Period] = new ThriftCodec[Period] {
     def decodeValue(protocol: TProtocol): Period =
-      Json.periodRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.periodRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: Period, protocol: TProtocol): Unit =
       protocol.writeString(Json.periodRawCodec.encodeToString(value))
@@ -379,10 +355,7 @@ object ThriftCodec {
 
   val zonedDateTimeCodec: ThriftCodec[ZonedDateTime] = new ThriftCodec[ZonedDateTime] {
     def decodeValue(protocol: TProtocol): ZonedDateTime =
-      Json.zonedDateTimeRawCodec.decode(protocol.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+      Json.zonedDateTimeRawCodec.decodeUnsafe(protocol.readString())
 
     def encodeValue(value: ZonedDateTime, protocol: TProtocol): Unit =
       protocol.writeString(Json.zonedDateTimeRawCodec.encodeToString(value))
@@ -404,7 +377,7 @@ object ThriftCodec {
 /**
  * Internal error class for tracking the path during error propagation.
  */
-private[thrift] class ThriftCodecError(var spans: List[DynamicOptic.Node], message: String)
+private class ThriftCodecError(var spans: List[DynamicOptic.Node], message: String)
     extends Throwable(message, null, false, false) {
   override def getMessage: String = message
 }

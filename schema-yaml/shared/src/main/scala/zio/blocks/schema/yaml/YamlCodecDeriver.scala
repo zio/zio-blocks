@@ -31,20 +31,20 @@ import scala.reflect.ClassTag
 
 /**
  * A [[zio.blocks.schema.codec.BinaryFormat]] for `application/yaml` using
- * [[YamlBinaryCodecDeriver]].
+ * [[YamlCodecDeriver]].
  */
-object YamlFormat extends BinaryFormat("application/yaml", YamlBinaryCodecDeriver)
+object YamlFormat extends BinaryFormat("application/yaml", YamlCodecDeriver)
 
-/** Default instance of [[YamlBinaryCodecDeriver]]. */
-object YamlBinaryCodecDeriver extends YamlBinaryCodecDeriver
+/** Default instance of [[YamlCodecDeriver]]. */
+object YamlCodecDeriver extends YamlCodecDeriver
 
 /**
- * A [[zio.blocks.schema.derive.Deriver]] that produces [[YamlBinaryCodec]]
- * instances for schema-described types, converting between Scala values and
- * YAML representations.
+ * A [[zio.blocks.schema.derive.Deriver]] that produces [[YamlCodec]] instances
+ * for schema-described types, converting between Scala values and YAML
+ * representations.
  */
-class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
-  import YamlBinaryCodec._
+class YamlCodecDeriver extends Deriver[YamlCodec] {
+  import YamlCodec._
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -54,7 +54,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[YamlBinaryCodec[A]] =
+  ): Lazy[YamlCodec[A]] =
     Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
   override def deriveRecord[F[_, _], A](
@@ -65,7 +65,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[A]] = Lazy {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Record(
         fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
@@ -85,7 +85,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[A]] = Lazy {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Variant(
         cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
@@ -105,7 +105,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[C[A]]] = Lazy {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[C[A]]] = Lazy {
     deriveCodec(
       new Reflect.Sequence(element.asInstanceOf[Reflect[Binding, A]], typeId, binding, doc, modifiers)
     )
@@ -120,7 +120,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[M[K, V]]] = Lazy {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[M[K, V]]] = Lazy {
     deriveCodec(
       new Reflect.Map(
         key.asInstanceOf[Reflect[Binding, K]],
@@ -139,7 +139,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[DynamicValue]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[DynamicValue]] =
     Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.of[DynamicValue], doc, modifiers)))
 
   def deriveWrapper[F[_, _], A, B](
@@ -150,7 +150,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlBinaryCodec[A]] = Lazy {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
@@ -184,7 +184,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     sb.toString
   }
 
-  private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): YamlBinaryCodec[A] = {
+  private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): YamlCodec[A] = {
     if (reflect.isPrimitive) {
       val primitive = reflect.asPrimitive.get
       if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
@@ -226,8 +226,8 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
       if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
         option(variant) match {
           case Some(value) =>
-            val innerCodec = deriveCodec(value).asInstanceOf[YamlBinaryCodec[Any]]
-            new YamlBinaryCodec[Option[Any]]() {
+            val innerCodec = deriveCodec(value).asInstanceOf[YamlCodec[Any]]
+            new YamlCodec[Option[Any]]() {
               override def decodeValue(yaml: Yaml): Either[YamlError, Option[Any]] = yaml match {
                 case Yaml.NullValue                               => Right(None)
                 case Yaml.Scalar(v, _) if v == "null" || v == "~" => Right(None)
@@ -250,19 +250,17 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
                 case None        => Yaml.NullValue
                 case Some(value) => innerCodec.encodeValue(value)
               }
-
-              override def nullValue: Option[Any] = None
             }
           case _ =>
             val discr      = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
             val cases      = variant.cases
             val caseCodecs = cases.map { case_ =>
               val caseName  = case_.name
-              val caseCodec = deriveCodec(case_.value).asInstanceOf[YamlBinaryCodec[A]]
+              val caseCodec = deriveCodec(case_.value).asInstanceOf[YamlCodec[A]]
               (caseName, caseCodec)
             }
 
-            new YamlBinaryCodec[A]() {
+            new YamlCodec[A]() {
               private[this] val discriminator = discr
               private[this] val codecMap      = caseCodecs.toMap
 
@@ -295,10 +293,10 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
       val sequence = reflect.asSequenceUnknown.get.sequence
       if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
         val binding      = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
-        val elemCodec    = deriveCodec(sequence.element).asInstanceOf[YamlBinaryCodec[Elem]]
+        val elemCodec    = deriveCodec(sequence.element).asInstanceOf[YamlCodec[Elem]]
         val elemClassTag = sequence.elemClassTag.asInstanceOf[ClassTag[Elem]]
 
-        new YamlBinaryCodec[Col[Elem]]() {
+        new YamlCodec[Col[Elem]]() {
           private[this] val deconstructor = binding.deconstructor
           private[this] val constructor   = binding.constructor
 
@@ -328,17 +326,16 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
             Yaml.Sequence(children.result())
           }
 
-          override def nullValue: Col[Elem] = constructor.empty[Elem](elemClassTag)
         }
       } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isMap) {
       val map = reflect.asMapUnknown.get.map
       if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
         val binding  = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
-        val keyCodec = deriveCodec(map.key).asInstanceOf[YamlBinaryCodec[Key]]
-        val valCodec = deriveCodec(map.value).asInstanceOf[YamlBinaryCodec[Value]]
+        val keyCodec = deriveCodec(map.key).asInstanceOf[YamlCodec[Key]]
+        val valCodec = deriveCodec(map.value).asInstanceOf[YamlCodec[Value]]
 
-        new YamlBinaryCodec[Map[Key, Value]]() {
+        new YamlCodec[Map[Key, Value]]() {
           private[this] val deconstructor = binding.deconstructor
           private[this] val constructor   = binding.constructor
 
@@ -372,8 +369,6 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
             }
             Yaml.Mapping(entries.result())
           }
-
-          override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
         }
       } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {
@@ -382,11 +377,11 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
         val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
         val fields  = record.fields
 
-        val fieldInfos: IndexedSeq[(String, YamlBinaryCodec[Any], Boolean, RegisterOffset.RegisterOffset)] = {
+        val fieldInfos: IndexedSeq[(String, YamlCodec[Any], Boolean, RegisterOffset.RegisterOffset)] = {
           var offset = RegisterOffset.Zero
           fields.map { field =>
             val fieldName   = toKebabCase(field.name)
-            val fieldCodec  = deriveCodec(field.value).asInstanceOf[YamlBinaryCodec[Any]]
+            val fieldCodec  = deriveCodec(field.value).asInstanceOf[YamlCodec[Any]]
             val isOptional  = isOptionalField(field.value)
             val fieldOffset = offset
             offset = RegisterOffset.add(offset, fieldCodec.valueOffset)
@@ -394,7 +389,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
           }
         }
 
-        new YamlBinaryCodec[A]() {
+        new YamlCodec[A]() {
           private[this] val deconstructor = binding.deconstructor
           private[this] val constructor   = binding.constructor
 
@@ -485,30 +480,30 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
                   }
                 case 1 =>
                   val value = regs.getInt(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Int]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Int]].encodeValue(value)))
                 case 2 =>
                   val value = regs.getLong(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Long]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Long]].encodeValue(value)))
                 case 3 =>
                   val value = regs.getFloat(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Float]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Float]].encodeValue(value)))
                 case 4 =>
                   val value = regs.getDouble(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Double]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Double]].encodeValue(value)))
                 case 5 =>
                   val value = regs.getBoolean(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Boolean]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Boolean]].encodeValue(value)))
                 case 6 =>
                   val value = regs.getByte(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Byte]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Byte]].encodeValue(value)))
                 case 7 =>
                   val value = regs.getChar(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Char]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Char]].encodeValue(value)))
                 case 8 =>
                   val value = regs.getShort(fieldOffset)
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Short]].encodeValue(value)))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Short]].encodeValue(value)))
                 case _ =>
-                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlBinaryCodec[Unit]].encodeValue(())))
+                  entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Unit]].encodeValue(())))
               }
               idx += 1
             }
@@ -520,9 +515,9 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
       val wrapper = reflect.asWrapperUnknown.get.wrapper
       if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
         val binding      = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
-        val wrappedCodec = deriveCodec(wrapper.wrapped).asInstanceOf[YamlBinaryCodec[Wrapped]]
+        val wrappedCodec = deriveCodec(wrapper.wrapped).asInstanceOf[YamlCodec[Wrapped]]
 
-        new YamlBinaryCodec[A]() {
+        new YamlCodec[A]() {
           private[this] val unwrap = binding.unwrap
           private[this] val wrap   = binding.wrap
 
@@ -538,7 +533,7 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
       if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
       else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     }
-  }.asInstanceOf[YamlBinaryCodec[A]]
+  }.asInstanceOf[YamlCodec[A]]
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeId = variant.typeId
@@ -562,9 +557,9 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
   private[this] def getDefaultValue[F[_, _], A](reflect: Reflect[F, A]): Option[Any] =
     reflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
 
-  private[this] def getInnerCodec(optionCodec: YamlBinaryCodec[Any]): YamlBinaryCodec[Any] = {
-    val codec = optionCodec.asInstanceOf[YamlBinaryCodec[Option[Any]]]
-    new YamlBinaryCodec[Any]() {
+  private[this] def getInnerCodec(optionCodec: YamlCodec[Any]): YamlCodec[Any] = {
+    val codec = optionCodec.asInstanceOf[YamlCodec[Option[Any]]]
+    new YamlCodec[Any]() {
       override def decodeValue(yaml: Yaml): Either[YamlError, Any] =
         codec.decodeValue(yaml).map(_.getOrElse(null))
 
@@ -584,98 +579,98 @@ class YamlBinaryCodecDeriver extends Deriver[YamlBinaryCodec] {
     case _ => Left(YamlError.parseError("Expected scalar value", 0, 0))
   }
 
-  private val dayOfWeekCodec: YamlBinaryCodec[DayOfWeek] = new YamlBinaryCodec[DayOfWeek]() {
+  private val dayOfWeekCodec: YamlCodec[DayOfWeek] = new YamlCodec[DayOfWeek]() {
     def decodeValue(yaml: Yaml): Either[YamlError, DayOfWeek] =
       decodeScalar(yaml)(s => DayOfWeek.valueOf(s.toUpperCase))
     def encodeValue(x: DayOfWeek): Yaml = Yaml.Scalar(x.toString)
   }
 
-  private val durationCodec: YamlBinaryCodec[Duration] = new YamlBinaryCodec[Duration]() {
+  private val durationCodec: YamlCodec[Duration] = new YamlCodec[Duration]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Duration] = decodeScalar(yaml)(Duration.parse)
     def encodeValue(x: Duration): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val instantCodec: YamlBinaryCodec[Instant] = new YamlBinaryCodec[Instant]() {
+  private val instantCodec: YamlCodec[Instant] = new YamlCodec[Instant]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Instant] = decodeScalar(yaml)(Instant.parse)
     def encodeValue(x: Instant): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val localDateCodec: YamlBinaryCodec[LocalDate] = new YamlBinaryCodec[LocalDate]() {
+  private val localDateCodec: YamlCodec[LocalDate] = new YamlCodec[LocalDate]() {
     def decodeValue(yaml: Yaml): Either[YamlError, LocalDate] = decodeScalar(yaml)(LocalDate.parse)
     def encodeValue(x: LocalDate): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val localDateTimeCodec: YamlBinaryCodec[LocalDateTime] = new YamlBinaryCodec[LocalDateTime]() {
+  private val localDateTimeCodec: YamlCodec[LocalDateTime] = new YamlCodec[LocalDateTime]() {
     def decodeValue(yaml: Yaml): Either[YamlError, LocalDateTime] = decodeScalar(yaml)(LocalDateTime.parse)
     def encodeValue(x: LocalDateTime): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val localTimeCodec: YamlBinaryCodec[LocalTime] = new YamlBinaryCodec[LocalTime]() {
+  private val localTimeCodec: YamlCodec[LocalTime] = new YamlCodec[LocalTime]() {
     def decodeValue(yaml: Yaml): Either[YamlError, LocalTime] = decodeScalar(yaml)(LocalTime.parse)
     def encodeValue(x: LocalTime): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val monthCodec: YamlBinaryCodec[Month] = new YamlBinaryCodec[Month]() {
+  private val monthCodec: YamlCodec[Month] = new YamlCodec[Month]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Month] = decodeScalar(yaml)(s => Month.valueOf(s.toUpperCase))
     def encodeValue(x: Month): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val monthDayCodec: YamlBinaryCodec[MonthDay] = new YamlBinaryCodec[MonthDay]() {
+  private val monthDayCodec: YamlCodec[MonthDay] = new YamlCodec[MonthDay]() {
     def decodeValue(yaml: Yaml): Either[YamlError, MonthDay] = decodeScalar(yaml)(MonthDay.parse)
     def encodeValue(x: MonthDay): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val offsetDateTimeCodec: YamlBinaryCodec[OffsetDateTime] = new YamlBinaryCodec[OffsetDateTime]() {
+  private val offsetDateTimeCodec: YamlCodec[OffsetDateTime] = new YamlCodec[OffsetDateTime]() {
     def decodeValue(yaml: Yaml): Either[YamlError, OffsetDateTime] = decodeScalar(yaml)(OffsetDateTime.parse)
     def encodeValue(x: OffsetDateTime): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val offsetTimeCodec: YamlBinaryCodec[OffsetTime] = new YamlBinaryCodec[OffsetTime]() {
+  private val offsetTimeCodec: YamlCodec[OffsetTime] = new YamlCodec[OffsetTime]() {
     def decodeValue(yaml: Yaml): Either[YamlError, OffsetTime] = decodeScalar(yaml)(OffsetTime.parse)
     def encodeValue(x: OffsetTime): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val periodCodec: YamlBinaryCodec[Period] = new YamlBinaryCodec[Period]() {
+  private val periodCodec: YamlCodec[Period] = new YamlCodec[Period]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Period] = decodeScalar(yaml)(Period.parse)
     def encodeValue(x: Period): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val yearCodec: YamlBinaryCodec[Year] = new YamlBinaryCodec[Year]() {
+  private val yearCodec: YamlCodec[Year] = new YamlCodec[Year]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Year] = decodeScalar(yaml)(Year.parse)
     def encodeValue(x: Year): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val yearMonthCodec: YamlBinaryCodec[YearMonth] = new YamlBinaryCodec[YearMonth]() {
+  private val yearMonthCodec: YamlCodec[YearMonth] = new YamlCodec[YearMonth]() {
     def decodeValue(yaml: Yaml): Either[YamlError, YearMonth] = decodeScalar(yaml)(YearMonth.parse)
     def encodeValue(x: YearMonth): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val zoneIdCodec: YamlBinaryCodec[ZoneId] = new YamlBinaryCodec[ZoneId]() {
+  private val zoneIdCodec: YamlCodec[ZoneId] = new YamlCodec[ZoneId]() {
     def decodeValue(yaml: Yaml): Either[YamlError, ZoneId] = decodeScalar(yaml)(ZoneId.of)
     def encodeValue(x: ZoneId): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val zoneOffsetCodec: YamlBinaryCodec[ZoneOffset] = new YamlBinaryCodec[ZoneOffset]() {
+  private val zoneOffsetCodec: YamlCodec[ZoneOffset] = new YamlCodec[ZoneOffset]() {
     def decodeValue(yaml: Yaml): Either[YamlError, ZoneOffset] = decodeScalar(yaml)(ZoneOffset.of)
     def encodeValue(x: ZoneOffset): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val zonedDateTimeCodec: YamlBinaryCodec[ZonedDateTime] = new YamlBinaryCodec[ZonedDateTime]() {
+  private val zonedDateTimeCodec: YamlCodec[ZonedDateTime] = new YamlCodec[ZonedDateTime]() {
     def decodeValue(yaml: Yaml): Either[YamlError, ZonedDateTime] = decodeScalar(yaml)(ZonedDateTime.parse)
     def encodeValue(x: ZonedDateTime): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val currencyCodec: YamlBinaryCodec[Currency] = new YamlBinaryCodec[Currency]() {
+  private val currencyCodec: YamlCodec[Currency] = new YamlCodec[Currency]() {
     def decodeValue(yaml: Yaml): Either[YamlError, Currency] = decodeScalar(yaml)(Currency.getInstance)
     def encodeValue(x: Currency): Yaml                       = Yaml.Scalar(x.getCurrencyCode)
   }
 
-  private val uuidCodec: YamlBinaryCodec[UUID] = new YamlBinaryCodec[UUID]() {
+  private val uuidCodec: YamlCodec[UUID] = new YamlCodec[UUID]() {
     def decodeValue(yaml: Yaml): Either[YamlError, UUID] = decodeScalar(yaml)(UUID.fromString)
     def encodeValue(x: UUID): Yaml                       = Yaml.Scalar(x.toString)
   }
 
-  private val dynamicValueCodec: YamlBinaryCodec[DynamicValue] = new YamlBinaryCodec[DynamicValue]() {
+  private val dynamicValueCodec: YamlCodec[DynamicValue] = new YamlCodec[DynamicValue]() {
     def decodeValue(yaml: Yaml): Either[YamlError, DynamicValue] = Right(yamlToDynamicValue(yaml))
 
     def encodeValue(x: DynamicValue): Yaml = dynamicValueToYaml(x)

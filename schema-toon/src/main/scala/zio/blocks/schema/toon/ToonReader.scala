@@ -360,14 +360,14 @@ final class ToonReader private[toon] (
     else if (looksLikeNumber(token)) parseNumber(token)
     else token
 
-  def decodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+  def decodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
   def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
-    case e: ToonBinaryCodecError =>
+    case e: ToonCodecError =>
       e.spans = new ::(span, e.spans)
       throw e
     case _ =>
-      throw new ToonBinaryCodecError(new ::(span, Nil), error.getMessage)
+      throw new ToonCodecError(new ::(span, Nil), error.getMessage)
   }
 
   private[this] def readPrimitiveToken(): String = {
@@ -622,7 +622,7 @@ final case class ArrayHeader(
   delimiter: Delimiter
 )
 
-private[toon] class ToonBinaryCodecError(var spans: List[zio.blocks.schema.DynamicOptic.Node], message: String)
+private[toon] class ToonCodecError(var spans: List[zio.blocks.schema.DynamicOptic.Node], message: String)
     extends Throwable(message, null, false, false) {
   override def getMessage: String = message
 }

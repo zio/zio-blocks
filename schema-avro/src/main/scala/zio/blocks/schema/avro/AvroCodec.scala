@@ -652,9 +652,7 @@ object AvroCodec {
 }
 
 private class AvroCodecError(var spans: List[DynamicOptic.Node], message: String)
-    extends Throwable(message, null, false, false) {
-  override def getMessage: String = message
-}
+    extends Throwable(message, null, false, false)
 
 /**
  * Custom implementation replacing `java.io.ByteArrayOutputStream`.
