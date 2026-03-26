@@ -1731,36 +1731,52 @@ These methods are essential for building type-safe registries, implementing gene
 
 ## Annotations
 
-TypeId captures annotations attached to types at compile time, making them available at runtime as data.
+**Annotations** are metadata attached to types at compile time. TypeId captures them at runtime, making this metadata available for introspection, validation, and dispatch logic. Annotations enable building smart serializers, validators, and code generators that adjust their behavior based on type-level metadata.
+
+TypeId exposes each annotation as an `Annotation` object containing the annotation's type and its arguments. This is essential for frameworks that need to read compile-time metadata (like JPA, validation libraries, or custom serialization frameworks) but want to remain generic and support multiple annotation schemes.
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
 
 @transient
 case class ImportantData(id: Int, payload: String)
+
+case class Plain(x: Int)
 ```
 
-Derive the TypeId and inspect its annotations:
+Inspect annotations on a type:
 
 ```scala mdoc
 val importantId = TypeId.of[ImportantData]
 importantId.annotations
 importantId.annotations.map(_.name)
+
+TypeId.of[Plain].annotations
 ```
 
-An unannotated type has no annotations:
+Annotations can have arguments and parameters. Create a custom annotation to see how arguments are captured:
 
-```scala mdoc:silent
-case class Plain(x: Int)
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+// Custom annotation with parameters
+case class ApiEndpoint(version: Int, deprecated: Boolean = false) extends scala.annotation.StaticAnnotation
+
+@ApiEndpoint(version = 2, deprecated = true)
+case class UserV2(id: String, name: String)
 ```
+
+Derive the TypeId and inspect annotation arguments:
 
 ```scala mdoc
-TypeId.of[Plain].annotations
+val userV2Id = TypeId.of[UserV2]
+userV2Id.annotations
+userV2Id.annotations.head.args
 ```
 
 ### Annotation Data Model
 
-Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values:
+Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values representing the arguments:
 
 | Type                                           | Description                                        |
 |------------------------------------------------|----------------------------------------------------|
@@ -1771,6 +1787,8 @@ Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationAr
 | `AnnotationArg.Nested(annotation)`             | A nested annotation                                |
 | `AnnotationArg.ClassOf(tpe)`                   | A `classOf[T]` argument                            |
 | `AnnotationArg.EnumValue(enumType, valueName)` | An enum constant                                   |
+
+**Use cases:** Annotations are commonly used to drive serialization strategies, enforce validation rules, mark types for code generation, configure persistence metadata, or enable framework-specific behavior without requiring explicit configuration objects.
 
 ## Namespaces and Owners
 
@@ -1859,19 +1877,6 @@ val notFoundSingletonId = TypeId.of[HttpStatus.NotFound.type]
 notFoundSingletonId.name
 
 okSingletonId == notFoundSingletonId
-```
-
-Construct a TermPath manually to represent a term value path:
-
-```scala mdoc
-val okPath = TermPath.fromOwner(
-  Owner.Root.term("HttpStatus"),
-  "OK"
-)
-okPath.asString
-
-val nestedPath = okPath / "metadata"
-nestedPath.asString
 ```
 
 **When to use TermPath:** In TypeRepr expressions and code generators that need to represent the compile-time path to a value. While singleton types are erased at runtime, TermPath captures this distinction for reflection and metaprogramming scenarios.
