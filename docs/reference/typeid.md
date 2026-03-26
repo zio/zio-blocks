@@ -1883,17 +1883,6 @@ nestedPath.asString
 
 **When to use TermPath:** In TypeRepr expressions and code generators that need to represent the compile-time path to a value. While singleton types are erased at runtime, TermPath captures this distinction for reflection and metaprogramming scenarios.
 
-### Constructing Owners for Common Packages
-
-To construct owners for common packages, use `Owner.fromPackagePath`:
-
-```scala mdoc
-Owner.fromPackagePath("scala")
-Owner.fromPackagePath("scala.collection.immutable")
-Owner.fromPackagePath("java.lang")
-Owner.fromPackagePath("java.time")
-```
-
 ## TypeRepr — Type Expressions
 
 `TypeRepr` represents type expressions in the Scala type system. While `TypeId` identifies a type *definition*, `TypeRepr` represents how types are *used* in expressions — as type arguments, parent types, alias targets, and more.
