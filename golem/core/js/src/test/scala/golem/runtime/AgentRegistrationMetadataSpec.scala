@@ -29,7 +29,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   @agentDefinition("meta-agent")
   @description("An agent used for metadata tests.")
   trait MetaAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     @description("Echoes input.")
     @prompt("Say hello.")
     def echo(s: String): Future[String]
@@ -56,7 +56,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralMetaAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 
@@ -78,7 +78,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
   trait CtorMetaAgent extends BaseAgent {
-    class Constructor(val host: String, val port: Int)
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -96,7 +96,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
   trait ExplicitDurableAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 

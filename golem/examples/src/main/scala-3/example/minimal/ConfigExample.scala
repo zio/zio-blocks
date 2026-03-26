@@ -31,7 +31,7 @@ object MyAppConfig {
 @agentDefinition()
 @description("Example agent with configuration")
 trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Returns a greeting using config values")
   def greet(): Future[String]
@@ -40,7 +40,7 @@ trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
 @agentDefinition()
 @description("Example agent that calls ConfigAgent with config overrides")
 trait ConfigCallerAgent extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Calls ConfigAgent with overridden config values")
   def callWithOverride(): Future[String]

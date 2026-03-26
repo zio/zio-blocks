@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates the Transactions API: infallible and fallible saga-style transactions.")
 trait TransactionsDemo extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Runs an infallible transaction with multiple operations (success path).")
   def infallibleDemo(): Future[String]

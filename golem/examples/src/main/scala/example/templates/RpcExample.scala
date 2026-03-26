@@ -24,7 +24,7 @@ import scala.concurrent.Future
 @agentDefinition()
 @description("Demonstrates agent-to-agent RPC by calling Counter remotely.")
 trait RpcClient extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
   @description("Invoke Counter.increment remotely and return the result.")
   def callCounter(counterId: String): Future[Int]
 }

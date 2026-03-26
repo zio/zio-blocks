@@ -65,7 +65,7 @@ object AgentImplementationMacroImpl {
       val metadata = $metadataExpr
       _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, _root_.scala.Unit](
         metadata = metadata,
-        constructorSchema = $ctorSchemaExpr,
+        idSchema = $ctorSchemaExpr,
         buildInstance = (_: _root_.scala.Unit, _: _root_.golem.Principal) => $build,
         methods = $methodsExpr
       )
@@ -85,20 +85,20 @@ object AgentImplementationMacroImpl {
     }
 
     val ctorType: Type = {
-      val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+      val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
       val annotatedClass = traitType.members.collectFirst {
         case sym if sym.isClass && !sym.isMethod &&
-          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
           sym
       }
 
       val constructorClass = annotatedClass.orElse {
-        val byName = traitType.member(TypeName("Constructor"))
+        val byName = traitType.member(TypeName("Id"))
         if (byName == NoSymbol) None else Some(byName)
       }.getOrElse {
         c.abort(c.enclosingPosition,
-          s"Agent trait ${traitSymbol.fullName} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+          s"Agent trait ${traitSymbol.fullName} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
       }
       val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
       val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
@@ -115,7 +115,7 @@ object AgentImplementationMacroImpl {
     if (!(gotCtor =:= ctorType)) {
       c.abort(
         c.enclosingPosition,
-        s"Constructor function must have input type matching Constructor class parameters ($ctorType) on ${traitSymbol.fullName} (found: $gotCtor)"
+        s"Constructor function must have input type matching Id class parameters ($ctorType) on ${traitSymbol.fullName} (found: $gotCtor)"
       )
     }
 
@@ -136,7 +136,7 @@ object AgentImplementationMacroImpl {
       val metadata = $metadataExpr
       _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
         metadata = metadata,
-        constructorSchema = $ctorSchemaExpr,
+        idSchema = $ctorSchemaExpr,
         buildInstance = { val f = ($build).asInstanceOf[$ctorType => $traitType]; (input: $ctorType, _: _root_.golem.Principal) => f(input) },
         methods = $methodsExpr
       ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, ${weakTypeOf[Ctor]}]]
@@ -530,22 +530,22 @@ object AgentImplementationMacroImpl {
 
     val principalParam = principalParams.headOption
 
-    // Extract constructor type from Constructor class on the trait
+    // Extract constructor type from Id class on the trait
     val expectedCtor: Type = {
-      val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+      val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
       val annotatedClass = traitType.members.collectFirst {
         case sym if sym.isClass && !sym.isMethod &&
-          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
           sym
       }
 
       val constructorClass = annotatedClass.orElse {
-        val byName = traitType.member(TypeName("Constructor"))
+        val byName = traitType.member(TypeName("Id"))
         if (byName == NoSymbol) None else Some(byName)
       }.getOrElse {
         c.abort(c.enclosingPosition,
-          s"Agent trait ${traitSymbol.fullName} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+          s"Agent trait ${traitSymbol.fullName} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
       }
       val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
       val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
@@ -562,7 +562,7 @@ object AgentImplementationMacroImpl {
       if (identityParams.nonEmpty) {
         c.abort(
           c.enclosingPosition,
-          s"Trait ${traitSymbol.fullName} has an empty Constructor class (Unit constructor), " +
+          s"Trait ${traitSymbol.fullName} has an empty Id class (Unit constructor), " +
             s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
             s"${identityParams.map(_.name.toString).mkString(", ")}"
         )
@@ -573,7 +573,7 @@ object AgentImplementationMacroImpl {
           c.abort(
             c.enclosingPosition,
             s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe}, " +
-              s"but Constructor class expects $expectedCtor"
+              s"but Id class expects $expectedCtor"
           )
         }
       } else if (identityParams.length > 1) {
@@ -584,7 +584,7 @@ object AgentImplementationMacroImpl {
             c.abort(
               c.enclosingPosition,
               s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                s"Constructor class expects a ${tupleArgs.length}-element tuple"
+                s"Id class expects a ${tupleArgs.length}-element tuple"
             )
           }
           identityParams.zip(tupleArgs).foreach { case (param, expected) =>
@@ -592,7 +592,7 @@ object AgentImplementationMacroImpl {
               c.abort(
                 c.enclosingPosition,
                 s"Constructor parameter '${param.name}' has type ${param.tpe}, " +
-                  s"expected $expected (from Constructor class parameters)"
+                  s"expected $expected (from Id class parameters)"
               )
             }
           }
@@ -600,7 +600,7 @@ object AgentImplementationMacroImpl {
           c.abort(
             c.enclosingPosition,
             s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-              s"Constructor class type $expectedCtor is not a tuple type"
+              s"Id class type $expectedCtor is not a tuple type"
           )
         }
       }
@@ -755,7 +755,7 @@ object AgentImplementationMacroImpl {
         val metadata = $metadataExpr
         _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
           metadata = metadata,
-          constructorSchema = $ctorSchemaExpr,
+          idSchema = $ctorSchemaExpr,
           buildInstance = $buildInstanceExpr,
           methods = $methodsExpr,
           configBuilder = $configBuilderExpr,

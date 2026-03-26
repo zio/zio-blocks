@@ -227,9 +227,9 @@ object SourceDiscovery {
     }
 
   /**
-   * Extract constructor parameters from the constructor schema class in a trait
-   * body. Looks first for a class annotated with `@constructorSchema`, then
-   * falls back to a class named `Constructor`.
+   * Extract constructor parameters from the id schema class in a trait
+   * body. Looks first for a class annotated with `@id`, then
+   * falls back to a class named `Id`.
    */
   private def extractConstructorParams(templ: Template): List[ConstructorParam] = {
     def paramsFromClass(d: Defn.Class): List[ConstructorParam] =
@@ -241,12 +241,12 @@ object SourceDiscovery {
         .toList
 
     val annotated = templ.stats.collectFirst {
-      case d: Defn.Class if hasAnnotation(d.mods, "constructorSchema") => paramsFromClass(d)
+      case d: Defn.Class if hasAnnotation(d.mods, "id") => paramsFromClass(d)
     }
 
     annotated.getOrElse {
       templ.stats.collectFirst {
-        case d: Defn.Class if d.name.value == "Constructor" => paramsFromClass(d)
+        case d: Defn.Class if d.name.value == "Id" => paramsFromClass(d)
       }.getOrElse(Nil)
     }
   }

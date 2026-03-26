@@ -25,6 +25,6 @@ import golem.BaseAgent
  */
 @agentDefinition("BindListDouble", mode = DurabilityMode.Durable)
 trait BindListDoubleWorkflow extends BaseAgent {
-  class Constructor()
+  class Id()
   def finished(results: List[Double]): Unit
 }

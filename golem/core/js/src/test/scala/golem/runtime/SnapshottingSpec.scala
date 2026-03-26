@@ -18,7 +18,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
 
   @agentDefinition("custom-snapshot-agent", snapshotting = "enabled")
   trait CustomSnapshotAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def setValue(v: Int): Future[Unit]
     def getValue(): Future[Int]
   }
@@ -61,7 +61,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
 
   @agentDefinition("auto-snapshot-agent", snapshotting = "enabled")
   trait AutoSnapshotAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def increment(): Future[Int]
   }
 
@@ -84,7 +84,7 @@ object SnapshottingSpec extends ZIOSpecDefault {
 
   @agentDefinition("no-snapshot-agent")
   trait NoSnapshotAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 

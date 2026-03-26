@@ -31,7 +31,7 @@ import scala.concurrent.Future
  */
 final case class AgentImplementationType[Instance, Ctor](
   metadata: AgentMetadata,
-  constructorSchema: GolemSchema[Ctor],
+  idSchema: GolemSchema[Ctor],
   buildInstance: (Ctor, Principal) => Instance,
   methods: List[ImplementationMethod[Instance]],
   configBuilder: Option[ConfigBuilder[_]] = None,

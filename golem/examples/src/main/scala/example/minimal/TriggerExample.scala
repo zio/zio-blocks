@@ -24,7 +24,7 @@ import scala.concurrent.Future
 @agentDefinition()
 @description("Target agent whose methods are called via trigger (fire-and-forget).")
 trait TriggerTarget extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Multi-param method exercising trigger dispatch.")
   def process(x: Int, label: String): Future[Int]
@@ -36,7 +36,7 @@ trait TriggerTarget extends BaseAgent {
 @agentDefinition()
 @description("Calls TriggerTarget methods via trigger (fire-and-forget) and schedule.")
 trait TriggerCaller extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Fires TriggerTarget.process via trigger and returns confirmation.")
   def fireProcess(): Future[String]

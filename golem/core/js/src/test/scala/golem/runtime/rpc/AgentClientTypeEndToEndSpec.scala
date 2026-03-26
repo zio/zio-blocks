@@ -33,7 +33,7 @@ object AgentClientTypeEndToEndSpec extends ZIOSpecDefault {
 
   @agentDefinition("E2eClientAsync", mode = DurabilityMode.Durable)
   trait AsyncEchoAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def echo(in: String): Future[String]
   }
 

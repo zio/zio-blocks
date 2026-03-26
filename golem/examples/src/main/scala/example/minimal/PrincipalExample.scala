@@ -8,7 +8,7 @@ import scala.concurrent.Future
 @agentDefinition()
 @description("Example agent with Principal injection in constructor")
 trait PrincipalAgent extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Returns who created this agent")
   def whoCreated(): Future[String]

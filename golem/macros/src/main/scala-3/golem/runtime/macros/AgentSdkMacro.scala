@@ -74,7 +74,7 @@ object AgentSdkMacro {
       case '[ctor] =>
         '{
           new AgentApi[Trait] {
-            override type Constructor = ctor
+            override type Id = ctor
             override val typeName: String                  = $typeNameExpr
             override val agentType: AgentType[Trait, ctor] =
               golem.runtime.macros.AgentClientMacro

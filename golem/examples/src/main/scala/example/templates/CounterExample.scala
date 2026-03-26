@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("A simple counter agent (Scala equivalent of the Rust/TS default template).")
 trait Counter extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")

@@ -35,14 +35,14 @@ object AgentTypeEncoder {
         .map(_.info)
         .getOrElse(ConstructorMetadata(name = None, description = definition.typeName, promptHint = None))
 
-    val constructorSchema: JsDataSchema =
+    val idSchema: JsDataSchema =
       Option(definition.constructor)
         .map(_.schema)
         .getOrElse(JsDataSchema.tuple(new js.Array[js.Tuple2[String, JsElementSchema]]()))
 
     val constructorInfo = JsAgentConstructorDef(
       description = constructorMeta.description,
-      inputSchema = constructorSchema,
+      inputSchema = idSchema,
       name = Option(constructorMeta.name).flatten.fold[js.UndefOr[String]](js.undefined)(n => n),
       promptHint = Option(constructorMeta.promptHint).flatten.fold[js.UndefOr[String]](js.undefined)(p => p)
     )

@@ -54,7 +54,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition(typeName = "Human")
          |@description("A human agent.")
          |trait HumanAgent {
-         |  class Constructor(val value: String)
+         |  class Id(val value: String)
          |}
          |""".stripMargin
 
@@ -76,7 +76,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait Shard {
-         |  class Constructor(val tableName: String, val shardId: Int)
+         |  class Id(val tableName: String, val shardId: Int)
          |}
          |""".stripMargin
 
@@ -138,7 +138,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition()
          |@description("A counter agent.")
          |trait Counter {
-         |  class Constructor(val value: String)
+         |  class Id(val value: String)
          |}
          |
          |object Counter
@@ -163,7 +163,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait AgentA {
-         |  class Constructor(val value: String)
+         |  class Id(val value: String)
          |}
          |""".stripMargin
 
@@ -172,7 +172,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition(typeName = "BeeAgent")
          |trait AgentB {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -193,7 +193,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait ZAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -202,7 +202,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait AAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -270,7 +270,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition()
          |@description()
          |trait NoDescValue {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -302,7 +302,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition(mode = DurabilityMode.Ephemeral)
          |trait EphemeralAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -318,7 +318,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition(mode = DurabilityMode.Durable)
          |trait DurableAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -334,7 +334,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait DefaultAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -352,7 +352,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition(mode = Ephemeral)
          |trait ImportedModeAgent {
-         |  class Constructor()
+         |  class Id()
          |}
          |""".stripMargin
 
@@ -368,7 +368,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MethodAgent {
-         |  class Constructor()
+         |  class Id()
          |  def get(key: String): String
          |  def put(key: String, value: Int): Unit
          |}
@@ -401,7 +401,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MixedAgent {
-         |  class Constructor(val value: String)
+         |  class Id(val value: String)
          |  def get(key: String): String
          |}
          |""".stripMargin
@@ -420,7 +420,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait PrincipalAgent {
-         |  class Constructor()
+         |  class Id()
          |  def foo(principal: Principal): String
          |}
          |""".stripMargin
@@ -439,7 +439,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait QualifiedPrincipalAgent {
-         |  class Constructor()
+         |  class Id()
          |  def bar(p: golem.Principal, key: String): String
          |}
          |""".stripMargin
@@ -472,7 +472,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
-         |  class Constructor(val value: String)
+         |  class Id(val value: String)
          |  def greet(): Future[String]
          |}
          |""".stripMargin
@@ -493,7 +493,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait SimpleAgent {
-         |  class Constructor()
+         |  class Id()
          |  def hello(): String
          |}
          |""".stripMargin
@@ -519,7 +519,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MyAgent extends BaseAgent with AgentConfig[AppConfig] {
-         |  class Constructor(val name: String)
+         |  class Id(val name: String)
          |  def hello(): String
          |}
          |""".stripMargin
@@ -544,7 +544,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait ConcreteAgent {
-         |  class Constructor()
+         |  class Id()
          |  def hello(name: String): String = s"Hello, $name"
          |}
          |""".stripMargin

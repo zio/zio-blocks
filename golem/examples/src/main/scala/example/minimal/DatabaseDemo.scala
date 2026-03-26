@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates typed Postgres and MySQL queries with fully typed parameters and results.")
 trait DatabaseDemo extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Run typed Postgres queries with PostgresDbValue params and result reading.")
   def postgresDemo(): Future[String]

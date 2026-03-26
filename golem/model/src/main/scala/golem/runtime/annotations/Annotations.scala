@@ -35,14 +35,14 @@ final class prompt(val value: String) extends StaticAnnotation
 final class agentImplementation() extends StaticAnnotation
 
 /**
- * Explicitly marks a class inside an agent trait as the constructor schema.
- * Optional — by default, a class named `Constructor` is used automatically. Use
- * this annotation to designate a differently-named class as the constructor
+ * Explicitly marks a class inside an agent trait as the id schema.
+ * Optional — by default, a class named `Id` is used automatically. Use
+ * this annotation to designate a differently-named class as the id
  * schema.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(Array(ElementType.TYPE))
-final class constructorSchema() extends StaticAnnotation
+final class id() extends StaticAnnotation
 
 /**
  * Overrides the language code used by multimodal/unstructured text derivation.

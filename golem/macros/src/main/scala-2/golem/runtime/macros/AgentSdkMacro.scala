@@ -59,7 +59,7 @@ object AgentSdkMacroImpl {
     c.Expr[_root_.golem.AgentApi[Trait]](
       q"""
       new _root_.golem.AgentApi[$traitTpe] {
-        override type Constructor = $ctorTpe
+        override type Id = $ctorTpe
         override val typeName: String = $typeName
         override val agentType: _root_.golem.runtime.agenttype.AgentType[$traitTpe, $ctorTpe] =
           _root_.golem.runtime.macros.AgentClientMacro

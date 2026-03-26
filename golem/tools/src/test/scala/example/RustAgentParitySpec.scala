@@ -120,7 +120,7 @@ object RustAgentParitySpec extends ZIOSpecDefault {
   @agentDefinition()
   @description("Rust-style Echo agent for metadata parity")
   trait EchoAgent {
-    class Constructor()
+    class Id()
 
     @prompt("Echo the provided message")
     def echo(message: String): Future[String]
@@ -132,26 +132,26 @@ object RustAgentParitySpec extends ZIOSpecDefault {
 
   @agentDefinition(mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 
   @agentDefinition()
-  trait DurableDefaultAgent { class Constructor(); def ping(): Future[String] }
+  trait DurableDefaultAgent { class Id(); def ping(): Future[String] }
 
   @agentDefinition(mode = DurabilityMode.Durable)
-  trait DurableExplicitAgent { class Constructor(); def ping(): Future[String] }
+  trait DurableExplicitAgent { class Id(); def ping(): Future[String] }
 
   @agentDefinition()
   trait SnapshotAgent {
-    class Constructor()
+    class Id()
     def saveSnapshot(): Future[BinarySegment[VisionOnly]]
     def loadSnapshot(snapshot: BinarySegment[VisionOnly]): Unit
   }
 
   @agentDefinition()
   trait RpcParityAgent {
-    class Constructor()
+    class Id()
     def rpcCall(payload: String): Future[String]
     def rpcCallTrigger(payload: String): Unit
   }

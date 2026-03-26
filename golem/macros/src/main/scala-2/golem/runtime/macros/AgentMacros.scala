@@ -73,7 +73,7 @@ object AgentMacrosImpl {
     val traitModeExpr = optionalTreeExpr(c)(traitMode)
 
     val ctorSchema =
-      constructorSchemaFromAgentInput(c)(tpe)
+      idSchemaFromAgentInput(c)(tpe)
 
     c.Expr[AgentMetadata](q"""
       _root_.golem.runtime.AgentMetadata(
@@ -87,7 +87,7 @@ object AgentMacrosImpl {
     """)
   }
 
-  private def constructorSchemaFromAgentInput(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
+  private def idSchemaFromAgentInput(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
     val baseSymOpt = tpe.baseClasses.find(_.fullName == "golem.BaseAgent")
     val baseArgs   = baseSymOpt.toList.flatMap(sym => tpe.baseType(sym).typeArgs)

@@ -27,7 +27,7 @@ import scala.concurrent.Future
 )
 trait SnapshotCounter extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
@@ -37,7 +37,7 @@ trait SnapshotCounter extends BaseAgent {
 @agentDefinition(snapshotting = "every(1)")
 @description("A counter agent using Snapshotted[S] for automatic JSON-based state persistence.")
 trait AutoSnapshotCounter extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
   def increment(): Future[Int]

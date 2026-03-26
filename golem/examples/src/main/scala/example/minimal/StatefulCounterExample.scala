@@ -31,7 +31,7 @@ object CounterState {
 @description("Counter whose constructor takes a custom case class (CounterState) instead of String.")
 trait StatefulCounter extends BaseAgent {
 
-  class Constructor(val initialCount: Int)
+  class Id(val initialCount: Int)
 
   @description("Increments the counter and returns the new value.")
   def increment(): Future[Int]
@@ -44,7 +44,7 @@ trait StatefulCounter extends BaseAgent {
 @description("Calls StatefulCounter remotely to exercise agent-to-agent RPC with a custom state type.")
 trait StatefulCaller extends BaseAgent {
 
-  class Constructor(val initialCount: Int)
+  class Id(val initialCount: Int)
 
   @description("Increments the remote stateful counter and returns its new value.")
   def remoteIncrement(): Future[Int]

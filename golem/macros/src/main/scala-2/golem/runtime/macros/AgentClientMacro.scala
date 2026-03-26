@@ -113,20 +113,20 @@ object AgentClientMacroImpl {
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
-    val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+    val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
     val annotatedClass = traitType.members.collectFirst {
       case sym if sym.isClass && !sym.isMethod &&
-        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
         sym
     }
 
     val constructorClass = annotatedClass.orElse {
-      val byName = traitType.member(TypeName("Constructor"))
+      val byName = traitType.member(TypeName("Id"))
       if (byName == NoSymbol) None else Some(byName)
     }.getOrElse {
       c.abort(c.enclosingPosition,
-        s"Agent trait ${traitType.typeSymbol.fullName} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+        s"Agent trait ${traitType.typeSymbol.fullName} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
     }
     val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
     val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)

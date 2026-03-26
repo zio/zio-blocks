@@ -68,7 +68,7 @@ object SchemaVerificationSpec extends ZIOSpecDefault {
 
   @agentDefinition("schema-verify-agent")
   trait SchemaVerifyAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def stringMethod(s: String): Future[String]
     def intMethod(i: Int): Future[Int]
     def boolMethod(b: Boolean): Future[Boolean]

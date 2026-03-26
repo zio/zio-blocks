@@ -32,7 +32,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait CtorPrincipalAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def getCreator(): Future[String]
   }
 
@@ -54,7 +54,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait MethodPrincipalAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def identify(name: String, principal: Principal): Future[String]
   }
 
@@ -78,7 +78,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait SchemaCheckAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def greet(name: String, principal: Principal): Future[String]
     def multi(a: String, b: Int, principal: Principal): Future[String]
   }
@@ -111,7 +111,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait MixedParamsAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def info(): Future[String]
   }
 

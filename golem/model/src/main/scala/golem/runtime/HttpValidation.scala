@@ -159,17 +159,17 @@ object HttpValidation {
   /**
    * Extracts constructor parameter names from the agent's constructor schema.
    *
-   * The parameter names depend on how the agent's `class Constructor` is
+   * The parameter names depend on how the agent's `class Id` is
    * defined:
    *
-   *   - '''Single parameter''' (e.g. `class Constructor(val value: String)`):
+   *   - '''Single parameter''' (e.g. `class Id(val value: String)`):
    *     produces one parameter named `"value"`. The mount path must use
    *     `{value}` to refer to it.
    *   - '''Multiple parameters''' (e.g.
-   *     `class Constructor(val arg0: String, val arg1: Int)`): produces
+   *     `class Id(val arg0: String, val arg1: Int)`): produces
    *     parameters named `"arg0"`, `"arg1"`, etc. The mount path must use
    *     `{arg0}`, `{arg1}`, etc.
-   *   - '''No constructor''': produces no parameters. Mount paths must not
+   *   - '''No id''': produces no parameters. Mount paths must not
    *     contain variables.
    */
   private def extractConstructorParamNames(schema: golem.data.StructuredSchema): Set[String] =

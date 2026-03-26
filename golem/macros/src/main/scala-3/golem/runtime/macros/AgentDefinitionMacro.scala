@@ -85,7 +85,7 @@ object AgentDefinitionMacro {
         methodMetadata(method, agentTypeName, hasMount)
     }
 
-    val constructorSchema                              = inferConstructorSchema(typeRepr)
+    val idSchema                                        = inferIdSchema(typeRepr)
     val configExpr: Expr[List[AgentConfigDeclaration]] = detectAgentConfig(typeRepr).getOrElse('{ Nil })
 
     val snapshottingStr =
@@ -118,7 +118,7 @@ object AgentDefinitionMacro {
         methods = ${
           Expr.ofList(methods)
         },
-        constructor = $constructorSchema,
+        constructor = $idSchema,
         httpMount = $httpMountExpr,
         config = $configExpr,
         snapshotting = $snapshottingExpr
@@ -321,7 +321,7 @@ object AgentDefinitionMacro {
     }
   }
 
-  private def inferConstructorSchema(using
+  private def inferIdSchema(using
     Quotes
   )(
     traitRepr: quotes.reflect.TypeRepr
@@ -331,26 +331,26 @@ object AgentDefinitionMacro {
     val typeSymbol = traitRepr.typeSymbol
     val name       = typeSymbol.name
 
-    val constructorSchemaFQN = "golem.runtime.annotations.constructorSchema"
+    val idFQN = "golem.runtime.annotations.id"
 
-    def hasConstructorSchemaAnnotation(sym: Symbol): Boolean =
+    def hasIdAnnotation(sym: Symbol): Boolean =
       sym.annotations.exists {
-        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorSchemaFQN
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == idFQN
         case _                             => false
       }
 
     val constructorClass = typeSymbol.declarations.find { sym =>
-      sym.isClassDef && hasConstructorSchemaAnnotation(sym)
+      sym.isClassDef && hasIdAnnotation(sym)
     }.orElse {
       typeSymbol.declarations.find { sym =>
-        sym.isClassDef && sym.name == "Constructor"
+        sym.isClassDef && sym.name == "Id"
       }
     }
 
     constructorClass match {
       case None =>
         report.errorAndAbort(
-          s"Agent trait $name must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters."
+          s"Agent trait $name must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters."
         )
       case Some(classSym) =>
         val primaryCtor = classSym.primaryConstructor

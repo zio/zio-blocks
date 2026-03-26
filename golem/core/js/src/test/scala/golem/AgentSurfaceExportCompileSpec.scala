@@ -29,26 +29,26 @@ object AgentSurfaceExportCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("unit-export")
   trait UnitExportAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 
   @agentDefinition("string-export")
   @description("An agent with a string constructor.")
   trait StringExportAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def echo(): Future[String]
   }
 
   @agentDefinition("multi-export")
   trait MultiExportAgent extends BaseAgent {
-    class Constructor(val host: String, val port: Int)
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
   @agentDefinition()
   trait DefaultNameAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 

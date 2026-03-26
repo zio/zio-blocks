@@ -19,7 +19,7 @@ package golem
  *
  * @agentDefinition(snapshotting = "enabled")
  * trait MyCounter extends BaseAgent {
- *   class Constructor(val value: String)
+ *   class Id(val value: String)
  *   def increment(): Future[Int]
  * }
  *

@@ -25,11 +25,11 @@ import golem.runtime.agenttype.AgentType
  * runtime (`core`).
  */
 trait AgentApi[Trait] {
-  type Constructor
+  type Id
 
   /** Golem agent type name, from `@agentDefinition("...")`. */
   def typeName: String
 
   /** Reflected agent type (schemas + function names). */
-  def agentType: AgentType[Trait, Constructor]
+  def agentType: AgentType[Trait, Id]
 }

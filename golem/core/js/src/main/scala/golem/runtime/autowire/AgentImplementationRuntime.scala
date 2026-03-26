@@ -39,19 +39,19 @@ private[autowire] object AgentImplementationRuntime {
     }
 
     val constructor =
-      implType.constructorSchema.schema match {
+      implType.idSchema.schema match {
         case StructuredSchema.Tuple(elements) if elements.isEmpty =>
           AgentConstructor.noArgs[Trait](
             description = implType.metadata.description.getOrElse(typeName),
             prompt = None
           )((principal: Principal) => effectiveBuild(().asInstanceOf[Ctor], principal))
         case _ =>
-          // Use the metadata constructor schema (from class Constructor) for param names,
+          // Use the metadata constructor schema (from class Id) for param names,
           // but delegate to the GolemSchema for encoding/decoding.
           // The metadata schema has named params (e.g. "region", "catalog") while
           // the GolemSchema may use tuple names (e.g. "_1", "_2"). We need to
           // translate between them during decoding.
-          val baseSchema: GolemSchema[Ctor]          = implType.constructorSchema
+          val baseSchema: GolemSchema[Ctor]          = implType.idSchema
           val metadataSchema                         = implType.metadata.constructor
           implicit val ctorSchema: GolemSchema[Ctor] = new GolemSchema[Ctor] {
             override val schema: StructuredSchema                  = metadataSchema

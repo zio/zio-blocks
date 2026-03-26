@@ -33,9 +33,9 @@ private[golem] object AgentImplementation {
   /**
    * Registers an agent implementation by class type.
    *
-   * The macro inspects the Impl class constructor, separates identity params
+   * The macro inspects the Impl class constructor, separates Id params
    * from Config[T] params, and generates the registration automatically.
-   * Config[T] params are excluded from agent identity and lazily loaded at runtime.
+   * Config[T] params are excluded from agent Id and lazily loaded at runtime.
    *
    * @tparam Trait The agent trait type
    * @tparam Impl  The implementation class type

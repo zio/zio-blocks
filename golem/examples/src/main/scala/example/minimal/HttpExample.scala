@@ -1,21 +1,21 @@
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, description, endpoint, header}
+import golem.runtime.annotations.{agentDefinition, id, description, endpoint, header}
 import golem.BaseAgent
 
 import scala.concurrent.Future
 
 // ---------------------------------------------------------------------------
-// Single-element constructor: class Constructor(val value: String)
+// Single-element constructor: class Id(val value: String)
 //
-// The mount path variable must be named {value} — matching the Constructor
+// The mount path variable must be named {value} — matching the Id
 // parameter name.
 // ---------------------------------------------------------------------------
 @agentDefinition(mount = "/api/weather/{value}", cors = Array("*"))
 @description("A weather agent demonstrating code-first HTTP routes with a single constructor parameter")
 trait WeatherAgent extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @endpoint(method = "GET", path = "/current/{city}")
   @description("Returns current weather for a city")
@@ -43,16 +43,16 @@ trait WeatherAgent extends BaseAgent {
 }
 
 // ---------------------------------------------------------------------------
-// Tuple constructor: class Constructor(val arg0: String, val arg1: Int)
+// Tuple constructor: class Id(val arg0: String, val arg1: Int)
 //
 // Mount path variables must be named {arg0}, {arg1}, etc., matching the
-// Constructor parameter names.
+// Id parameter names.
 // ---------------------------------------------------------------------------
 @agentDefinition(mount = "/api/inventory/{arg0}/{arg1}")
 @description("An inventory agent demonstrating tuple constructor parameters")
 trait InventoryAgent extends BaseAgent {
 
-  class Constructor(val arg0: String, val arg1: Int)
+  class Id(val arg0: String, val arg1: Int)
 
   @endpoint(method = "GET", path = "/stock")
   @description("Get stock level for this warehouse/zone")
@@ -64,20 +64,18 @@ trait InventoryAgent extends BaseAgent {
 }
 
 // ---------------------------------------------------------------------------
-// Case class constructor: class Constructor(val region: String, val catalog: String)
+// Named constructor using @id annotation:
 //
-// Mount path variables match the Constructor parameter names: {region}, {catalog}.
+// Instead of the default `class Id(...)`, you can use any class name
+// with the @id annotation. Mount path variables match the
+// annotated class's parameter names: {region}, {catalog}.
 // ---------------------------------------------------------------------------
-final case class CatalogParams(region: String, catalog: String)
-object CatalogParams {
-  implicit val schema: zio.blocks.schema.Schema[CatalogParams] = zio.blocks.schema.Schema.derived
-}
-
 @agentDefinition(mount = "/api/catalog/{region}/{catalog}")
-@description("A catalog agent demonstrating case-class constructor parameters")
+@description("A catalog agent demonstrating @id with a custom class name")
 trait CatalogAgent extends BaseAgent {
 
-  class Constructor(val region: String, val catalog: String)
+  @id
+  class CatalogParams(val region: String, val catalog: String)
 
   @endpoint(method = "GET", path = "/search?q={query}")
   @description("Search the catalog")
@@ -98,7 +96,7 @@ trait CatalogAgent extends BaseAgent {
 )
 @description("Demonstrates phantom agent with webhook suffix")
 trait WebhookAgent extends BaseAgent {
-  class Constructor(val value: String)
+  class Id(val value: String)
   @endpoint(method = "POST", path = "/receive")
   def receive(payload: String): Future[String]
 }

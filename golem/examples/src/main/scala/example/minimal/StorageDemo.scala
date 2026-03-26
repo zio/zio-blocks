@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates KeyValue bucket CRUD, Blobstore container/object operations, and Config reading.")
 trait StorageDemo extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Full KeyValue lifecycle: open bucket, set/get/exists/keys/delete.")
   def keyValueDemo(): Future[String]

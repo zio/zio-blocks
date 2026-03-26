@@ -26,7 +26,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
        |
        |@agentDefinition("counter-agent")
        |trait CounterAgent {
-       |  class Constructor(val value: String)
+       |  class Id(val value: String)
        |  def increment(amount: Int): Int
        |}
        |
@@ -84,7 +84,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MyAgent {
-         |  class Constructor()
+         |  class Id()
          |  def process(caller: Principal, data: String): String
          |}
          |""".stripMargin
@@ -107,7 +107,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
          |
          |@agentDefinition(mode = DurabilityMode.Ephemeral)
          |trait EphAgent {
-         |  class Constructor()
+         |  class Id()
          |  def hello(): String
          |}
          |""".stripMargin

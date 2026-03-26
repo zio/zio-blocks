@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Reads and inspects oplog entries with full type-safe pattern matching.")
 trait OplogInspector extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Read the last N oplog entries and format a typed summary.")
   def inspectRecent(): Future[String]

@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates fork() with the promise-based join pattern from the Golem docs.")
 trait ForkDemo extends BaseAgent {
 
-  class Constructor(val value: String)
+  class Id(val value: String)
 
   @description("Forks the agent, joins via a promise, and returns info about both branches.")
   def runFork(): Future[String]

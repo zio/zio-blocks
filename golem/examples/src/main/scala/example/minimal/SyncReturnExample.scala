@@ -22,7 +22,7 @@ import golem.BaseAgent
 @agentDefinition()
 @description("Demonstrates agent methods with synchronous return types.")
 trait SyncReturnAgent extends BaseAgent {
-  class Constructor()
+  class Id()
 
   @description("Returns a greeting synchronously.")
   def greet(name: String): String

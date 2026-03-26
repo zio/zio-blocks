@@ -127,7 +127,7 @@ object AgentImplementationMacro {
     if expectedCtor =:= TypeRepr.of[Unit] then {
       if identityParams.nonEmpty then
         report.errorAndAbort(
-          s"Trait ${traitSymbol.fullName} has an empty Constructor class (Unit constructor), " +
+          s"Trait ${traitSymbol.fullName} has an empty Id class (Unit constructor), " +
             s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
             s"${identityParams.map(_.name).mkString(", ")}"
         )
@@ -136,7 +136,7 @@ object AgentImplementationMacro {
         if !(identityParams.head.tpe =:= expectedCtor) then
           report.errorAndAbort(
             s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe.show}, " +
-              s"but Constructor class expects ${expectedCtor.show}"
+              s"but Id class expects ${expectedCtor.show}"
           )
       } else if identityParams.length > 1 then {
         expectedCtor match {
@@ -144,23 +144,23 @@ object AgentImplementationMacro {
             if tupleArgs.length != identityParams.length then
               report.errorAndAbort(
                 s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                  s"Constructor class expects a ${tupleArgs.length}-element tuple"
+                  s"Id class expects a ${tupleArgs.length}-element tuple"
               )
             identityParams.zip(tupleArgs).foreach { case (param, expected) =>
               if !(param.tpe =:= expected) then
                 report.errorAndAbort(
                   s"Constructor parameter '${param.name}' has type ${param.tpe.show}, " +
-                    s"expected ${expected.show} (from Constructor class parameters)"
+                    s"expected ${expected.show} (from Id class parameters)"
                 )
             }
           case _ =>
             report.errorAndAbort(
               s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                s"Constructor class type ${expectedCtor.show} is not a tuple type"
+                s"Id class type ${expectedCtor.show} is not a tuple type"
             )
         }
       }
-      // identityParams.isEmpty is valid (config-only constructor on a non-Unit Constructor class)
+      // identityParams.isEmpty is valid (config-only constructor on a non-Unit Id class)
     }
 
     // Determine the Ctor type based on identity params
@@ -450,7 +450,7 @@ object AgentImplementationMacro {
           val metadata = $metadataExpr
           AgentImplementationType[Trait, ctor](
             metadata = metadata,
-            constructorSchema = $ctorSchemaExpr,
+            idSchema = $ctorSchemaExpr,
             buildInstance = (input: ctor, principal: golem.Principal) => $buildInstanceExpr(input, principal),
             methods = $methodsExpr,
             configBuilder = $configBuilderExpr,
@@ -494,7 +494,7 @@ object AgentImplementationMacro {
       val metadata = $metadataExpr
       AgentImplementationType[Trait, Unit](
         metadata = metadata,
-        constructorSchema = $ctorSchemaExpr,
+        idSchema = $ctorSchemaExpr,
         buildInstance = (_: Unit, _: golem.Principal) => $buildExpr,
         methods = $methodsExpr,
         configBuilder = $configBuilderExpr
@@ -517,7 +517,7 @@ object AgentImplementationMacro {
     val gotCtor      = TypeRepr.of[Ctor]
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"Constructor function must have input type matching Constructor class parameters (${expectedCtor.show}) on ${traitSymbol.fullName} (found: ${gotCtor.show})"
+        s"Constructor function must have input type matching Id class parameters (${expectedCtor.show}) on ${traitSymbol.fullName} (found: ${gotCtor.show})"
       )
 
     val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
@@ -544,7 +544,7 @@ object AgentImplementationMacro {
       val metadata = $metadataExpr
       AgentImplementationType[Trait, Ctor](
         metadata = metadata,
-        constructorSchema = $ctorSchemaExpr,
+        idSchema = $ctorSchemaExpr,
         buildInstance = (input: Ctor, _: golem.Principal) => $buildTyped(input),
         methods = $methodsExpr,
         configBuilder = $configBuilderExpr
@@ -646,26 +646,26 @@ object AgentImplementationMacro {
     val traitRepr   = TypeRepr.of[Trait]
     val traitSymbol = traitRepr.typeSymbol
 
-    val constructorSchemaFQN = "golem.runtime.annotations.constructorSchema"
+    val idFQN = "golem.runtime.annotations.id"
 
-    def hasConstructorSchemaAnnotation(sym: Symbol): Boolean =
+    def hasIdAnnotation(sym: Symbol): Boolean =
       sym.annotations.exists {
-        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorSchemaFQN
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == idFQN
         case _                             => false
       }
 
     val constructorClass = traitSymbol.declarations.find { sym =>
-      sym.isClassDef && hasConstructorSchemaAnnotation(sym)
+      sym.isClassDef && hasIdAnnotation(sym)
     }.orElse {
       traitSymbol.declarations.find { sym =>
-        sym.isClassDef && sym.name == "Constructor"
+        sym.isClassDef && sym.name == "Id"
       }
     }
 
     constructorClass match {
       case None =>
         report.errorAndAbort(
-          s"Agent trait ${traitSymbol.name} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters."
+          s"Agent trait ${traitSymbol.name} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters."
         )
       case Some(classSym) =>
         val primaryCtor = classSym.primaryConstructor

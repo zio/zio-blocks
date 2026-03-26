@@ -96,7 +96,7 @@ object AgentDefinitionMacroImpl {
         methodMetadata(c)(method, descriptionType, promptType, endpointType, headerType, agentTypeName, hasMount)
     }.toList
 
-    val constructorSchema = inferConstructorSchema(c)(tpe)
+    val idSchema = inferIdSchema(c)(tpe)
 
     val typeName      = agentTypeName
     val traitDescExpr = optionalStringExpr(c)(traitDescription)
@@ -119,7 +119,7 @@ object AgentDefinitionMacroImpl {
         description = $traitDescExpr,
         mode = $traitModeExpr,
         methods = List(..$methods),
-        constructor = $constructorSchema,
+        constructor = $idSchema,
         httpMount = $httpMountExpr,
         config = $configExpr,
         snapshotting = $snapshottingExpr
@@ -220,24 +220,24 @@ object AgentDefinitionMacroImpl {
     q"$schemaInstance.elementSchema"
   }
 
-  private def inferConstructorSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
+  private def inferIdSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
-    val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+    val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
     val annotatedClass = tpe.members.collectFirst {
       case sym if sym.isClass && !sym.isMethod &&
-        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
         sym
     }
 
     val constructorClass = annotatedClass.orElse {
-      val byName = tpe.member(TypeName("Constructor"))
+      val byName = tpe.member(TypeName("Id"))
       if (byName == NoSymbol) None else Some(byName)
     }.getOrElse {
       val name = tpe.typeSymbol.name.decodedName.toString
       c.abort(c.enclosingPosition,
-        s"Agent trait $name must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+        s"Agent trait $name must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
     }
 
     val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod

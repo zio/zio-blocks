@@ -34,19 +34,19 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("unit-ctor-agent", mode = DurabilityMode.Durable)
   trait UnitCtorAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def ping(): Future[String]
   }
 
   @agentDefinition("string-ctor-agent")
   trait StringCtorAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def echo(): Future[String]
   }
 
   @agentDefinition("case-class-ctor-agent")
   trait CaseClassCtorAgent extends BaseAgent {
-    class Constructor(val host: String, val port: Int)
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -55,25 +55,25 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("tuple2-ctor-agent")
   trait Tuple2CtorAgent extends BaseAgent {
-    class Constructor(val arg0: String, val arg1: Int)
+    class Id(val arg0: String, val arg1: Int)
     def combined(): Future[String]
   }
 
   @agentDefinition("tuple3-ctor-agent")
   trait Tuple3CtorAgent extends BaseAgent {
-    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean)
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean)
     def all(): Future[String]
   }
 
   @agentDefinition("tuple4-ctor-agent")
   trait Tuple4CtorAgent extends BaseAgent {
-    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double)
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double)
     def data(): Future[String]
   }
 
   @agentDefinition("tuple5-ctor-agent")
   trait Tuple5CtorAgent extends BaseAgent {
-    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double, val arg4: Long)
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double, val arg4: Long)
     def data(): Future[String]
   }
 
@@ -83,7 +83,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("return-types-agent")
   trait ReturnTypesAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def asyncString(): Future[String]
     def asyncInt(): Future[Int]
     def asyncOption(): Future[Option[String]]
@@ -103,7 +103,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("param-types-agent")
   trait ParamTypesAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def singlePrimitive(s: String): Future[String]
     def multipleParams(a: String, b: Int, c: Boolean): Future[String]
     def caseClassParam(config: MyConfig): Future[String]
@@ -122,7 +122,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("kitchen-sink-agent")
   @description("Agent with many method signature patterns.")
   trait KitchenSinkAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def echoString(message: String): Future[String]
     def echoInt(value: Int): Future[Int]
     def echoBoolean(flag: Boolean): Future[Boolean]
@@ -179,7 +179,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("explicit-name-agent")
   @description("An agent with explicit type name.")
   trait ExplicitNameAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     @description("Says hello.")
     @prompt("Greet the user warmly.")
     def greet(name: String): Future[String]
@@ -187,7 +187,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
     def process(): Future[String]
   }
 
@@ -233,7 +233,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("factory-ctor-agent")
   trait FactoryCtorAgent extends BaseAgent {
-    class Constructor(val host: String, val port: Int)
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -248,7 +248,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("no-methods-agent")
   trait NoMethodsAgent extends BaseAgent {
-    class Constructor(val value: String)
+    class Id(val value: String)
   }
 
   @agentImplementation()
@@ -260,7 +260,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("single-method-agent")
   trait SingleMethodAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def only(): Future[String]
   }
 
@@ -293,7 +293,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("multimodal-agent")
   @description("Agent with multimodal and unstructured type methods.")
   trait MultimodalAgent extends BaseAgent {
-    class Constructor()
+    class Id()
     def echoMultimodal(input: Multimodal[MultimodalPayload]): Future[Multimodal[MultimodalPayload]]
     def echoText(input: TextSegment[SupportedLang]): Future[TextSegment[SupportedLang]]
     def echoTextAny(input: TextSegment[AllowedLanguages.Any]): Future[TextSegment[AllowedLanguages.Any]]

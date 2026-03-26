@@ -117,7 +117,7 @@ class RpcCodegenSpec extends munit.FunSuite {
     )
 
     val content = result.files.head.content
-    assert(content.contains("private type Constructor"), s"Constructor should be private:\n$content")
+    assert(content.contains("private type Id"), s"Id type should be private:\n$content")
     assert(content.contains("private def bindRemote("), s"bindRemote should be private:\n$content")
   }
 
