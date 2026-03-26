@@ -9,23 +9,25 @@ import golem.runtime.macros.AgentMacros
 import golem.runtime.AgentMetadata
 import zio.test._
 
+import zio.blocks.schema.Schema
+
 import scala.concurrent.Future
 import scala.scalajs.js
 
 object ConfigMetadataSpec extends ZIOSpecDefault {
 
   // ---------------------------------------------------------------------------
-  // Config types
+  // Config types — Schema instances provide ConfigSchema automatically
   // ---------------------------------------------------------------------------
 
   final case class TestDbConfig(host: String, secret: Secret[String])
   object TestDbConfig {
-    implicit val cs: ConfigSchema[TestDbConfig] = ConfigSchemaDerived.derived
+    implicit val schema: Schema[TestDbConfig] = Schema.derived
   }
 
   final case class NestedAppConfig(appName: String, db: TestDbConfig)
   object NestedAppConfig {
-    implicit val cs: ConfigSchema[NestedAppConfig] = ConfigSchemaDerived.derived
+    implicit val schema: Schema[NestedAppConfig] = Schema.derived
   }
 
   // ---------------------------------------------------------------------------

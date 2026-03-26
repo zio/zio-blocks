@@ -274,7 +274,7 @@ object AgentDefinitionMacroImpl {
         if (configSchemaInstance.isEmpty) {
           c.abort(c.enclosingPosition,
             s"No implicit ConfigSchema available for config type $configType.\n" +
-              "Hint: Define an implicit ConfigSchema[T] for your config type."
+              "Hint: Add an implicit Schema[T] for your config type, which provides ConfigSchema automatically."
           )
         }
 

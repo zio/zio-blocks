@@ -53,7 +53,7 @@ object DataInterop {
   def dataTypeOf[A](implicit schema: Schema[A]): DataType =
     IntoDataType[A].dataType
 
-  private def reflectToDataType[A](reflect: Reflect.Bound[A]): DataType =
+  private[golem] def reflectToDataType[A](reflect: Reflect.Bound[A]): DataType =
     isUnsignedWrapper(reflect)
       .orElse(reflectToDataType_wrapper(reflect))
       .orElse(reflectToDataType_option(reflect))

@@ -313,7 +313,7 @@ object AgentDefinitionMacro {
               case None =>
                 report.errorAndAbort(
                   s"No implicit ConfigSchema available for config type ${Type.show[t]}.\n" +
-                    "Hint: Derive it with `derives ConfigSchemaDerived` or define it manually."
+                    "Hint: Add an implicit Schema[T] for your config type, which provides ConfigSchema automatically."
                 )
             }
         }
