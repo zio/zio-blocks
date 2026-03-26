@@ -1934,7 +1934,7 @@ import zio.blocks.typeid._
 ```
 
 ```scala mdoc
-val erased: TypeId.Erased = TypeId.int.erased
+val erased: TypeId.Erased = TypeId.of[Int].erased
 erased
 ```
 
@@ -1944,12 +1944,12 @@ Erased TypeIds are the key to building type-indexed maps:
 
 ```scala mdoc
 val registry: Map[TypeId.Erased, String] = Map(
-  TypeId.int.erased    -> "Integer type",
-  TypeId.string.erased -> "String type"
+  TypeId.of[Int].erased    -> "Integer type",
+  TypeId.of[String].erased -> "String type"
 )
 
-registry.get(TypeId.int.erased)
-registry.get(TypeId.double.erased)
+registry.get(TypeId.of[Int].erased)
+registry.get(TypeId.of[Double].erased)
 ```
 
 ### Runtime Reflection
