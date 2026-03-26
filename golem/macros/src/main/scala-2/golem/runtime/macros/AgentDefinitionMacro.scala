@@ -457,7 +457,7 @@ object AgentDefinitionMacroImpl {
         .getOrElse(c.abort(c.enclosingPosition, s"@endpoint on method '$methodName' requires a 'method' argument"))
       val pathStr = extractNamedStringArg(c)(args, "path", 1)
         .getOrElse(c.abort(c.enclosingPosition, s"@endpoint on method '$methodName' requires a 'path' argument"))
-      val authByte = extractNamedByteArg(c)(args, "auth", 2).getOrElse(-1: Byte)
+      val authOverrideOpt = extractNamedBooleanArg(c)(args, "auth", 2)
       val corsPatterns = extractNamedStringArrayArg(c)(args, "cors", 3).getOrElse(Nil)
 
       val httpMethod = HttpMethod.fromString(httpMethodStr) match {
@@ -474,12 +474,7 @@ object AgentDefinitionMacroImpl {
         HeaderVariable(headerName, varName)
       }.toList
 
-      val authOverride: Option[Boolean] = authByte match {
-        case -1 => None
-        case 0  => Some(false)
-        case 1  => Some(true)
-        case _  => c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': auth must be -1, 0, or 1")
-      }
+      val authOverride: Option[Boolean] = authOverrideOpt
       val corsOverride: Option[List[String]] = if (corsPatterns.isEmpty) None else Some(corsPatterns)
 
       val endpointDetails = HttpEndpointDetails(httpMethod, parsed.pathSegments, headerVars, parsed.queryVars, authOverride, corsOverride)
@@ -564,22 +559,6 @@ object AgentDefinitionMacroImpl {
       args.lift(positionalIndex).collect {
         case Literal(Constant(v: Boolean))                                    => v
         case NamedArg(_, Literal(Constant(v: Boolean)))                       => v
-      }
-    }
-  }
-
-  private def extractNamedByteArg(c: blackbox.Context)(
-    args: List[c.universe.Tree],
-    name: String,
-    positionalIndex: Int
-  ): Option[Byte] = {
-    import c.universe._
-    args.collectFirst {
-      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: Byte))) => v
-    }.orElse {
-      args.lift(positionalIndex).collect {
-        case Literal(Constant(v: Byte))                                    => v
-        case NamedArg(_, Literal(Constant(v: Byte)))                       => v
       }
     }
   }

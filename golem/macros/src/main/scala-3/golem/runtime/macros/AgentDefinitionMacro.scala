@@ -713,15 +713,10 @@ object AgentDefinitionMacro {
           report.errorAndAbort(s"@endpoint on method '${method.name}' must specify 'path'")
         )
 
-        val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(ByteConstant(v))) =>
+        val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(BooleanConstant(v))) =>
           v
         }.orElse {
-          args.lift(2).collect { case Literal(ByteConstant(v)) => v }
-        }.flatMap {
-          case -1 => None
-          case 0  => Some(false)
-          case 1  => Some(true)
-          case v  => report.errorAndAbort(s"@endpoint auth must be -1, 0, or 1, got $v")
+          args.lift(2).collect { case Literal(BooleanConstant(v)) => v }
         }
 
         val corsOverride: Option[List[String]] = args.collectFirst { case NamedArg("cors", arrayTerm) =>
@@ -820,13 +815,8 @@ object AgentDefinitionMacro {
           httpMethod <- HttpMethod.fromString(methodStr).toOption
           parsed     <- HttpRouteParser.parse(pathStr).toOption
         } {
-          val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(ByteConstant(v))) =>
+          val authOverride: Option[Boolean] = args.collectFirst { case NamedArg("auth", Literal(BooleanConstant(v))) =>
             v
-          }.flatMap {
-            case -1 => None
-            case 0  => Some(false)
-            case 1  => Some(true)
-            case _  => None
           }
 
           val corsOverride: Option[List[String]] = args.collectFirst { case NamedArg("cors", arrayTerm) =>

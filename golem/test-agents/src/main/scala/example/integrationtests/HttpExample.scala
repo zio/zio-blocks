@@ -37,7 +37,7 @@ trait WeatherAgent extends BaseAgent {
   @description("Root endpoint")
   def root(): Future[String]
 
-  @endpoint(method = "GET", path = "/public", auth = 0)
+  @endpoint(method = "GET", path = "/public", auth = false)
   @description("Public endpoint with auth disabled")
   def publicEndpoint(): Future[String]
 }

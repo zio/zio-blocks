@@ -14,7 +14,7 @@ import scala.annotation.StaticAnnotation
  *
  * @param method HTTP method: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, etc.
  * @param path   Path suffix with optional query: "/items/{id}?format={fmt}"
- * @param auth   -1 = inherit from mount, 0 = false, 1 = true
+ * @param auth   Whether authentication is required. If omitted, inherits from mount.
  * @param cors   CORS allowed patterns; empty = inherit from mount
  */
 @Retention(RetentionPolicy.RUNTIME)
@@ -22,6 +22,6 @@ import scala.annotation.StaticAnnotation
 final class endpoint(
   val method: String,
   val path: String,
-  val auth: Byte = -1,
+  val auth: Boolean = false,
   val cors: Array[String] = Array.empty
 ) extends StaticAnnotation
