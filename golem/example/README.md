@@ -34,7 +34,7 @@ golem-cli server run --clean --local
 - **`golem-cli`** on your `PATH`
 - **Java + sbt**
 - **A reachable Golem router/executor**
-  - Local: run `golem server run` in another terminal
+  - Local: run `golem-cli server run` in another terminal
   - Cloud: configure a cloud profile (e.g. `golem-cli --cloud profile list`)
 
 ## 1) Create the Scala.js project

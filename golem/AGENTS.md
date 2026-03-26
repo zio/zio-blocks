@@ -36,7 +36,7 @@ Every change **must** include tests. No exceptions.
 
 ### Test Agents (`golem/test-agents/`)
 
-- Every **user-facing feature** must have a working test agent in `golem/test-agents/src/main/scala/example/`.
+- Every **user-facing feature** must have a working test agent in `golem/test-agents/js/src/main/scala/example/`.
 - Test agents must compile as part of `zioGolemTestAgents/fastLinkJS`.
 - If the feature involves HTTP endpoints, add the agent to `golem/test-agents/golem.yaml`.
 - If the feature involves REPL-testable behavior, add a TypeScript REPL script in `golem/test-agents/samples/`.
@@ -49,7 +49,7 @@ Every change **must** include tests. No exceptions.
 
 #### Before running integration tests, ask the user for:
 
-1. **Path to the `golem` binary** — if `golem` is not already on `PATH`. Default location: `~/.cargo/bin/golem-cli`.
+1. **Path to the `golem-cli` binary** — if `golem` is not already on `PATH`. Default location: `~/.cargo/bin/golem-cli`.
 2. **Path to the TypeScript SDK packages directory** — needed for REPL tests. Example: `/home/vigoo/projects/golem/sdks/ts/packages`.
 
 **Never skip running integration tests.** If the required paths are unknown, ask the user — do not silently omit the test run.

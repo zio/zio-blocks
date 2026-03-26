@@ -78,7 +78,7 @@ cargo install wasm-rquickjs-cli@0.1.0
 From the **repository root** (`zio-blocks/`):
 
 ```bash
-./golem/tools/generate-agent-guest-wasm.sh
+./golem/scripts/generate-agent-guest-wasm.sh
 ```
 
 The script performs these steps:

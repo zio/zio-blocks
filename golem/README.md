@@ -209,11 +209,8 @@ sbt compile
 # Run tests
 sbt test
 
-# Build Scala.js bundle for examples
-sbt examplesJS/fastLinkJS
-
-# Run host-backed integration tests
-GOLEM_HOST_TESTS=1 sbt hostTests/golemHostTests
+# Build Scala.js bundle for test agents
+sbt zioGolemTestAgents/fastLinkJS
 ```
 
 ## Key Concepts
@@ -269,7 +266,7 @@ The `agent_guest.wasm` is an SDK artifact embedded in the sbt/Mill plugins. It i
 To regenerate when upgrading Golem/WIT versions:
 
 ```bash
-./golem/scripts/generate-agent-guest-wasm.sh v1.4.1
+./golem/scripts/generate-agent-guest-wasm.sh
 ```
 
 ### Golem AI provider dependencies
@@ -291,7 +288,7 @@ The Scala SDK exposes host APIs in two layers:
 
 1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.5.0`).
 2) **Raw host modules** (forward-compatible, mirrors JS/WIT surface):
-   - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`, `golem.host.Rdbms`
+   - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`
 
 Example:
 

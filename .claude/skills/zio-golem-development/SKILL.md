@@ -1,6 +1,6 @@
 ---
 name: zio-golem-development
-description: "Compile, publish, and test the ZIO Golem Scala.js SDK. Use when working on the golem/ subtree: building the SDK, publishing locally, compiling/running the gettingStarted demo, regenerating the agent_guest.wasm, or debugging end-to-end deployment."
+description: "Compile, publish, and test the ZIO Golem Scala.js SDK. Use when working on the golem/ subtree: building the SDK, publishing locally, compiling/running the example demo, regenerating the agent_guest.wasm, or debugging end-to-end deployment."
 ---
 
 # ZIO Golem SDK Development
@@ -11,19 +11,20 @@ The Golem SDK for Scala.js lives under `golem/` in the zio-blocks monorepo. It t
 
 ```
 golem/
-├── core/           # zio-golem-core (Scala.js facades, agent framework)
+├── core/           # zio-golem-core (Scala.js facades, agent framework) — JS-only
 ├── model/          # zio-golem-model (WIT value types, RPC types)
 ├── macros/         # zio-golem-macros (Scala 3 macros, JVM-only)
+├── codegen/        # Shared build-time code generation library
 ├── sbt/            # zio-golem-sbt (SBT plugin, Scala 2.12)
 ├── mill/           # Mill plugin
 ├── wit/            # WIT definitions (main.wit + deps/)
 │   ├── main.wit    # Primary WIT — package golem:agent-guest, world agent-guest
 │   ├── deps/       # WIT dependencies (copied from golem repo)
 │   └── dts/        # Generated TypeScript d.ts (source of truth for JS exports)
-├── tools/          # generate-agent-guest-wasm.sh and agent-wit/
-├── examples/       # zioGolemExamples project
-├── gettingStarted/ # Standalone demo project (separate sbt build)
-├── quickstart/     # Quickstart template
+├── scripts/        # generate-agent-guest-wasm.sh
+├── example/        # Standalone demo project (separate sbt build)
+├── test-agents/    # Test agent definitions + implementations for integration tests
+├── integration-tests/ # Integration test suite
 └── docs/           # Documentation
 ```
 
@@ -38,11 +39,11 @@ golem/
 
 | Project | Description |
 |---------|-------------|
-| `zioGolemCoreJS` / `zioGolemCoreJVM` | Core agent framework, Scala.js facades |
+| `zioGolemCoreJS` | Core agent framework, Scala.js facades (JS-only) |
 | `zioGolemModelJS` / `zioGolemModelJVM` | WIT value types, RPC types |
 | `zioGolemMacros` | Scala 3 macros (JVM only, cross-used at compile time) |
 | `zioGolemSbt` | SBT plugin (Scala 2.12) |
-| `zioGolemExamples` | Example agents |
+| `zioGolemTestAgents` | Test agents for integration tests |
 
 ## Running All Tests
 
@@ -50,8 +51,8 @@ Use these sbt aliases (from the monorepo root) to run all zio-golem tests:
 
 | Alias | What it runs |
 |-------|-------------|
-| `sbt --client golemTest3` | All unit tests (JVM + JS) + examples compile + integration tests — **Scala 3** |
-| `sbt --client golemTest2` | All unit tests (JVM + JS) + examples compile — **Scala 2** (integration tests are Scala 3 only) |
+| `sbt --client golemTest3` | All unit tests (JVM + JS) + test-agents compile + integration tests — **Scala 3** |
+| `sbt --client golemTest2` | All unit tests (JVM + JS) + test-agents compile — **Scala 2** (integration tests are Scala 3 only) |
 | `sbt --client golemTestAll` | Both of the above (Scala 3 then Scala 2) |
 
 **Always run `golemTestAll` before considering a change complete.**
@@ -61,8 +62,8 @@ Use these sbt aliases (from the monorepo root) to run all zio-golem tests:
 From the monorepo root (`/home/vigoo/projects/zio-blocks`):
 
 ```bash
-# Compile examples (good smoke test)
-sbt --client "++3.8.2; zioGolemExamples/fastLinkJS"
+# Compile test agents (good smoke test)
+sbt --client "++3.8.2; zioGolemTestAgents/fastLinkJS"
 
 # Compile core
 sbt --client "++3.8.2; zioGolemCoreJS/compile"
@@ -75,19 +76,19 @@ Use the standard AGENTS.md sbt logging pattern:
 ```bash
 ROOT="$(git rev-parse --show-toplevel)" && mkdir -p "$ROOT/.git/agent-logs"
 LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"
-sbt --client -Dsbt.color=false "++3.8.2; zioGolemExamples/fastLinkJS" >"$LOG" 2>&1
+sbt --client -Dsbt.color=false "++3.8.2; zioGolemTestAgents/fastLinkJS" >"$LOG" 2>&1
 echo "Exit: $? | Log: $LOG"
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 ```
 
 ## Publishing Locally
 
-The `gettingStarted` project depends on `0.0.0-SNAPSHOT` artifacts. All golem projects have `publish / skip := true` by default, so you must override it.
+The `example` project depends on `0.0.0-SNAPSHOT` artifacts. All golem projects have `publish / skip := true` by default, so you must override it.
 
 ### Step 1: Publish Dependencies + Golem Libraries (Scala 3.8.2)
 
 ```bash
-sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; markdownJVM/publishLocal; markdownJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal; zioGolemCoreJVM/publishLocal'
+sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; typeidJVM/publishLocal; typeidJS/publishLocal; chunkJVM/publishLocal; chunkJS/publishLocal; markdownJVM/publishLocal; markdownJS/publishLocal; schemaJVM/publishLocal; schemaJS/publishLocal; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal'
 ```
 
 ### Step 2: Publish SBT Plugin (Scala 2.12.21)
@@ -96,18 +97,18 @@ sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuil
 sbt --client '++2.12.21!; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; zioGolemSbt/publishLocal'
 ```
 
-> **Gotcha**: The `golemPublishLocal` alias in `build.sbt` does NOT work correctly — it doesn't override `publish / skip` and uses the wrong Scala 2.12 version. Always use the explicit commands above.
+> **Note**: The `golemPublishLocal` alias exists in `build.sbt` but may need `set every (publish / skip) := false` prepended to work correctly. The explicit commands above are the most reliable approach.
 
-## Building the gettingStarted Project
+## Building the Example Project
 
-The `gettingStarted` project at `golem/gettingStarted/` is a standalone sbt project (its own `build.sbt`, `project/plugins.sbt`). It depends on the SDK at `0.0.0-SNAPSHOT`.
+The `example` project at `golem/example/` is a standalone sbt project (its own `build.sbt`, `project/plugins.sbt`). It depends on the SDK at `0.0.0-SNAPSHOT`.
 
 ### Prerequisites
 1. Publish the SDK locally (both steps above).
 
 ### Clean Build
 ```bash
-cd golem/gettingStarted
+cd golem/example
 rm -rf target project/target .bsp .generated .golem
 sbt -batch -no-colors -Dsbt.supershell=false compile
 ```
@@ -127,13 +128,13 @@ sbt -batch -no-colors -Dsbt.supershell=false compile
 
 ### Start the Local Golem Server
 ```bash
-golem server run --clean
+golem-cli server run --clean
 ```
 This starts the all-in-one Golem server on `localhost:9881`.
 
 ### Using run.sh
 ```bash
-cd golem/gettingStarted
+cd golem/example
 bash run.sh
 ```
 
@@ -145,7 +146,7 @@ The script does:
 
 ### Manual Steps
 ```bash
-cd golem/gettingStarted
+cd golem/example
 sbt golemPrepare
 golem-cli build --yes
 golem-cli deploy --yes --local
@@ -160,7 +161,7 @@ The agent_guest.wasm is the QuickJS-based WASM runtime that wraps the Scala.js b
 
 ### Script
 ```bash
-./golem/tools/generate-agent-guest-wasm.sh
+./golem/scripts/generate-agent-guest-wasm.sh
 ```
 
 ### What It Does
@@ -183,7 +184,6 @@ The agent_guest.wasm is the QuickJS-based WASM runtime that wraps the Scala.js b
 - **Primary**: `golem/wit/main.wit` — The `golem:agent-guest` package definition.
 - **Dependencies**: `golem/wit/deps/` — Copied from the main Golem repo at `/home/vigoo/projects/golem/wit/deps/`.
 - **TypeScript reference**: `golem/wit/dts/` — Generated d.ts files showing exact JS types expected by the wasm runtime. `exports.d.ts` is the source of truth for what the JS module must export.
-- **Legacy**: `golem/tools/agent-wit/main.wit` — May still be referenced but `golem/wit/main.wit` is authoritative.
 
 ### Updating WIT Dependencies
 1. Delete `golem/wit/deps.lock` (prevents `wit-deps` from restoring stale versions).
@@ -206,4 +206,4 @@ The TypeScript SDK at `/home/vigoo/projects/golem/sdks/ts/wit/` is the reference
 | `wit-deps` restoring stale 1.1.7 dependencies | Stale `deps.lock` | Delete `golem/wit/deps.lock`, copy fresh deps from Golem repo |
 | `Provided exports: (empty)` after deploy | QuickJS fails to evaluate the JS module silently | JS crashes during initialization — check for ESM strict-mode issues, bundle size limits, or import path mismatches |
 | `publish / skip` preventing local publish | Default setting in `build.sbt` | Use `set every (publish / skip) := false` in the sbt command |
-| Wrong Scala 2.12 version for plugin | `golemPublishLocal` alias uses `2.12.20` instead of `2.12.21` | Use the explicit `++2.12.21!` command instead of the alias |
+| Wrong Scala 2.12 version for plugin | Alias or cached sbt version uses wrong 2.12.x | Use the explicit `++2.12.21!` command to force the correct version |

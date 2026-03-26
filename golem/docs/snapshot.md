@@ -100,6 +100,7 @@ final class AutoSnapshotCounterImpl(private val name: String)
     with Snapshotted[CounterState] {
 
   var state: CounterState = CounterState(0)
+  val stateSchema: Schema[CounterState] = Schema.derived
 
   override def increment(): Future[Int] =
     Future.successful {
