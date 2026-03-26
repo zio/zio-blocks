@@ -102,11 +102,11 @@ class RpcCodegenSpec extends munit.FunSuite {
 
   test("file path uses package dirs with Client suffix") {
     val result = RpcCodegen.generate(
-      agents = List(agent("example.minimal.Counter", "example.minimal", "Counter")),
+      agents = List(agent("example.integrationtests.Counter", "example.integrationtests", "Counter")),
       existingObjects = Seq.empty
     )
 
-    assertEquals(result.files.head.relativePath, "example/minimal/CounterClient.scala")
+    assertEquals(result.files.head.relativePath, "example/integrationtests/CounterClient.scala")
   }
 
   test("Constructor and bindRemote are private") {

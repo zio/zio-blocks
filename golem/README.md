@@ -189,12 +189,11 @@ object Example {
 | `model`  | yes     | Types + schemas + annotations + agent metadata |
 | `core`   | yes     | Runtime client/server helpers (RPC, host API, transactions, snapshot helpers) |
 | `macros` | yes     | Compile-time derivation (analogous to Rust's `golem-rust-macro`) |
-| `tools`  | no      | Repo-local JVM helpers/tests (not part of the SDK surface) |
-| `examples` | no | Repo-local verification/harnesses (not user-facing) |
+| `test-agents` | no | Agent definitions + implementations for integration tests |
 
 ## Documentation
 
-- **[Getting started](gettingStarted/README.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
+- **[Getting started](example/README.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
 - **[Snapshot helpers](docs/snapshot.md)** - State persistence helpers
 - **[Multimodal helpers](docs/multimodal.md)** - Text/binary segment schemas with constraints
 - **[Transaction helpers](docs/transactions.md)** - Infallible and fallible transaction patterns
@@ -261,7 +260,7 @@ golem-cli deploy --yes
 golem-cli repl org:component
 ```
 
-See `golem/gettingStarted/` for a standalone example or `golem/examples/` for the monorepo setup.
+See `golem/example/` for a standalone example or `golem/test-agents/` for the monorepo setup.
 
 ### Base guest runtime (agent_guest.wasm)
 
@@ -270,7 +269,7 @@ The `agent_guest.wasm` is an SDK artifact embedded in the sbt/Mill plugins. It i
 To regenerate when upgrading Golem/WIT versions:
 
 ```bash
-./golem/tools/generate-agent-guest-wasm.sh v1.4.1
+./golem/scripts/generate-agent-guest-wasm.sh v1.4.1
 ```
 
 ### Golem AI provider dependencies

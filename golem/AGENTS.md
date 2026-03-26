@@ -34,12 +34,12 @@ Every change **must** include tests. No exceptions.
   sbt --client '++3.8.2; <project>/test'
   ```
 
-### Examples (`golem/examples/`)
+### Test Agents (`golem/test-agents/`)
 
-- Every **user-facing feature** must have a working example in `golem/examples/src/main/scala/example/`.
-- Examples must compile as part of `zioGolemExamples/fastLinkJS`.
-- If the feature involves HTTP endpoints, add the agent to `golem/examples/golem.yaml`.
-- If the feature involves REPL-testable behavior, add a TypeScript REPL script in `golem/examples/samples/`.
+- Every **user-facing feature** must have a working test agent in `golem/test-agents/src/main/scala/example/`.
+- Test agents must compile as part of `zioGolemTestAgents/fastLinkJS`.
+- If the feature involves HTTP endpoints, add the agent to `golem/test-agents/golem.yaml`.
+- If the feature involves REPL-testable behavior, add a TypeScript REPL script in `golem/test-agents/samples/`.
 
 ### Integration Tests (`golem/integration-tests/`)
 
@@ -70,6 +70,6 @@ Every feature **must** work with both **Scala 2** and **Scala 3**. Run tests und
 
 1. **Implement** the feature or fix in the appropriate module (`core/`, `model/`, `macros/`).
 2. **Write unit tests** using ZIO Test. Run them — they must pass.
-3. **Add an example** in `golem/examples/` demonstrating the feature.
+3. **Add a test agent** in `golem/test-agents/` demonstrating the feature.
 4. **Add an integration test** covering the example. Run it — it must pass.
 5. Follow the root `AGENTS.md` verify/format phases as usual.

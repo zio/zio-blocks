@@ -20,7 +20,7 @@ import golem.runtime.autowire.{AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.Sum
 import golem.{BaseAgent, Principal}
 import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation}
-import golem.runtime.util.FutureInterop
+import golem.FutureInterop
 import zio._
 import zio.test._
 import zio.blocks.schema.Schema

@@ -26,15 +26,15 @@ object GolemServer {
   private val examplesDir: File = {
     val cwd        = Path.of(sys.props.getOrElse("user.dir", ".")).toAbsolutePath.normalize
     val candidates = Seq(
-      cwd.resolve("examples"),
-      cwd.resolve("../examples"),
-      cwd.resolve("golem/examples"),
-      cwd.resolve("../golem/examples")
+      cwd.resolve("test-agents"),
+      cwd.resolve("../test-agents"),
+      cwd.resolve("golem/test-agents"),
+      cwd.resolve("../golem/test-agents")
     ).map(_.normalize.toFile)
 
     candidates
       .find(d => new File(d, "golem.yaml").isFile)
-      .getOrElse(sys.error(s"Could not locate examples dir (with golem.yaml) from user.dir=$cwd"))
+      .getOrElse(sys.error(s"Could not locate test-agents dir (with golem.yaml) from user.dir=$cwd"))
   }
 
   private val tsPackagesPath: Option[String] =

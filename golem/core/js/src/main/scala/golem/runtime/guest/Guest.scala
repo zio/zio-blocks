@@ -18,7 +18,7 @@ package golem.runtime.guest
 
 import golem.host.js._
 import golem.runtime.autowire.{AgentRegistry, WitValueBuilder}
-import golem.runtime.util.FutureInterop
+import golem.FutureInterop
 import zio.blocks.schema.json.Json
 
 import scala.concurrent.Future

@@ -30,7 +30,7 @@ inThisBuild(
 )
 
 Global / excludeLintKeys ++= Set(
-  zioGolemExamples / testFrameworks
+  zioGolemTestAgents / testFrameworks
 )
 
 com.github.sbt.git.SbtGit.useReadableConsoleGit
@@ -87,11 +87,11 @@ addCommandAlias(
 )
 addCommandAlias(
   "golemTest3",
-  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTools/test; zioGolemExamples/fastLinkJS; zioGolemIntegrationTests/test"
+  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS; zioGolemIntegrationTests/test"
 )
 addCommandAlias(
   "golemTest2",
-  "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTools/test; zioGolemExamples/fastLinkJS"
+  "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
 )
 addCommandAlias(
   "golemTestAll",
@@ -101,7 +101,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; zioGolemTools/test; codegen/test"
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; codegen/test"
 )
 
 addCommandAlias(
@@ -120,7 +120,7 @@ addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; zioGolemTools/doc; codegen/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; codegen/doc"
 )
 addCommandAlias(
   "docJS1",
@@ -185,8 +185,7 @@ lazy val root = project
     zioGolemCore.jvm,
     zioGolemCore.js,
     zioGolemMacros,
-    zioGolemTools,
-    zioGolemExamples,
+    zioGolemTestAgents,
     zioGolemIntegrationTests,
     zioGolemBuildCodegen,
     zioGolemSbt,
@@ -875,6 +874,12 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
     )
   )
   .dependsOn(schema)
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "com.lihaoyi"   %% "ujson"                 % "3.1.0",
+      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
+    )
+  )
   .jsSettings(jsSettings)
   .jsSettings(
     // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
@@ -905,6 +910,12 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
         case _            => Seq.empty
       }
     }
+  )
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "com.lihaoyi"   %% "ujson"                 % "3.1.0"  % Test,
+      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
+    )
   )
   .jsSettings(jsSettings)
   .jsSettings(
@@ -950,24 +961,8 @@ lazy val zioGolemMacros = project
   )
   .dependsOn(zioGolemModel.jvm)
 
-lazy val zioGolemTools = project
-  .in(file("golem/tools"))
-  .settings(stdSettings("zio-golem-tools", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
-  .settings(
-    publish / skip := true,
-    fork           := true,
-    libraryDependencies ++= Seq(
-      "com.lihaoyi"   %% "ujson"                 % "3.1.0",
-      "dev.zio"       %% "zio-test"              % "2.1.24" % Test,
-      "dev.zio"       %% "zio-test-sbt"          % "2.1.24" % Test,
-      "dev.zio"       %% "zio-schema"            % "1.8.3"  % Test,
-      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
-    )
-  )
-  .dependsOn(zioGolemModel.jvm, zioGolemMacros)
-
-lazy val zioGolemExamples = project
-  .in(file("golem/examples"))
+lazy val zioGolemTestAgents = project
+  .in(file("golem/test-agents"))
   .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
@@ -979,7 +974,7 @@ lazy val zioGolemExamples = project
       }
     },
     publish / skip                  := true,
-    name                            := "zio-golem-examples",
+    name                            := "zio-golem-test-agents",
     scalaJSUseMainModuleInitializer := false,
     golemBasePackage                := Some("example"),
 
@@ -992,7 +987,7 @@ lazy val zioGolemExamples = project
     ),
     Test / test := {
       Keys.streams.value.log.info(
-        "Skipping zioGolemExamples tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
+        "Skipping zioGolemTestAgents tests (requires golem runtime). Run integration tests instead."
       )
     },
     Test / testOnly       := (Test / test).value,

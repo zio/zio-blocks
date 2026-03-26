@@ -393,7 +393,7 @@ object HostApi {
   private[golem] def awaitPromiseRaw(promiseId: PromiseId): Future[Uint8Array] = {
     val handle   = AgentHostApi.getPromise(promiseId)
     val pollable = handle.subscribe()
-    golem.runtime.util.FutureInterop
+    golem.FutureInterop
       .fromPromise(pollable.promise())
       .map { _ =>
         handle.get().toOption match {

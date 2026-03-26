@@ -20,7 +20,7 @@ import golem.config.ConfigOverride
 import golem.data.GolemSchema
 import golem.host.js._
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
-import golem.runtime.util.FutureInterop
+import golem.FutureInterop
 import golem.Uuid
 import golem.Datetime
 

@@ -3,7 +3,7 @@ package golem.runtime
 import golem.{BaseAgent, Principal}
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, HostPayload, MethodBinding}
-import golem.runtime.util.FutureInterop
+import golem.FutureInterop
 import zio._
 import zio.test._
 import zio.blocks.schema.Schema

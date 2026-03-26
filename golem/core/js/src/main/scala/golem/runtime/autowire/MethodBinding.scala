@@ -20,7 +20,7 @@ import golem.Principal
 import golem.data.GolemSchema
 import golem.host.js._
 import golem.runtime.MethodMetadata
-import golem.runtime.util.FutureInterop
+import golem.FutureInterop
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
