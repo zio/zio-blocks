@@ -665,7 +665,7 @@ object AgentImplementationMacroImpl {
               c.abort(
                 c.enclosingPosition,
                 s"No implicit ConfigBuilder available for config type $configInner.\n" +
-                  "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                  "Hint: Add an implicit Schema[T] for your config type, which provides ConfigBuilder automatically."
               )
             }
             q"_root_.scala.Some($builderImplicit: _root_.golem.config.ConfigBuilder[_])"
@@ -696,7 +696,7 @@ object AgentImplementationMacroImpl {
                 c.abort(
                   c.enclosingPosition,
                   s"No implicit ConfigBuilder available for config type $configType.\n" +
-                    "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                    "Hint: Add an implicit Schema[T] for your config type, which provides ConfigBuilder automatically."
                 )
               }
               q"_root_.scala.Some($builderImplicit: _root_.golem.config.ConfigBuilder[_])"

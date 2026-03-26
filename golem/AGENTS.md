@@ -15,7 +15,7 @@ Use these sbt aliases (from the monorepo root) to run all zio-golem tests:
 | Alias | What it runs |
 |-------|-------------|
 | `sbt --client golemTest3` | All unit tests (JVM + JS) + examples compile + integration tests — **Scala 3** |
-| `sbt --client golemTest2` | All unit tests (JVM + JS) + examples compile — **Scala 2** (integration tests are Scala 3 only) |
+| `sbt --client golemTest2` | All unit tests (JVM + JS) + examples compile — **Scala 2** |
 | `sbt --client golemTestAll` | Both of the above (Scala 3 then Scala 2) |
 
 **Always run `golemTestAll` before considering a change complete.**

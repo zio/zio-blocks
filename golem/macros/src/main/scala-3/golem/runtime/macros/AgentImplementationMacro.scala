@@ -227,7 +227,7 @@ object AgentImplementationMacro {
                       case None =>
                         report.errorAndAbort(
                           s"No implicit ConfigBuilder available for config type ${Type.show[t]}.\n" +
-                            "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                            "Hint: Add an implicit Schema[T] for your config type, which provides ConfigBuilder automatically."
                         )
                     }
                 }
@@ -711,7 +711,7 @@ object AgentImplementationMacro {
                 case None =>
                   report.errorAndAbort(
                     s"No implicit ConfigBuilder available for config type ${Type.show[t]}.\n" +
-                      "Hint: Derive it with `derives ConfigBuilderDerived` or define it manually."
+                      "Hint: Add an implicit Schema[T] for your config type, which provides ConfigBuilder automatically."
                   )
               }
           }

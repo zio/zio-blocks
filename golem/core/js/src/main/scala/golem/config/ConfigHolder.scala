@@ -14,7 +14,7 @@ object ConfigHolder {
       case Some(c) => c.asInstanceOf[Config[T]]
       case None    =>
         throw new IllegalStateException(
-          "No config is available. Ensure your agent trait extends AgentConfig[T] and the config type derives ConfigBuilderDerived."
+          "No config is available. Ensure your agent trait extends AgentConfig[T] and an implicit Schema[T] is provided for your config type."
         )
     }
 }
