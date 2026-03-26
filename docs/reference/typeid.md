@@ -1779,8 +1779,6 @@ userV2Id.annotations
 userV2Id.annotations.head.args
 ```
 
-### Annotation Data Model
-
 Each `Annotation` contains the annotation's `TypeId` and a list of `AnnotationArg` values representing the arguments:
 
 | Type                                           | Description                                        |
