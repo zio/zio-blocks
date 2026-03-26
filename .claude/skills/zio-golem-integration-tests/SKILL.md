@@ -20,26 +20,30 @@ sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuil
 
 ## Running Tests
 
-Always use `++3.8.2` (without `!` — lets upstream deps compile at their own version) and pass the TS packages path as a JVM system property:
+The simplest way to run all tests (unit + integration, Scala 2 + 3) is with non-client `sbt`:
+
+```bash
+GOLEM_TS_PACKAGES_PATH=<TS_PACKAGES_PATH> sbt golemTestAll
+```
+
+The `GOLEM_TS_PACKAGES_PATH` env var is forwarded automatically by `build.sbt` to `javaOptions` and `envVars` for the integration tests.
+
+### Running specific tests with `sbt --client`
+
+With `sbt --client`, env vars don't propagate to the forked test JVM. Use the `set` override instead:
 
 ```bash
 # All integration tests
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=/home/vigoo/projects/golem/sdks/ts/packages"; zioGolemIntegrationTests/test'
+sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
 
 # Only HTTP endpoint tests
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=/home/vigoo/projects/golem/sdks/ts/packages"; zioGolemIntegrationTests/testOnly -- -t http-'
+sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t http-'
 
 # A specific test by name
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=/home/vigoo/projects/golem/sdks/ts/packages"; zioGolemIntegrationTests/testOnly -- -t sync-return'
+sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t sync-return'
 ```
 
 Use the standard AGENTS.md sbt logging pattern (redirect to log file, check exit code).
-
-### Environment Variable
-
-The TS packages path can be provided two ways:
-- **System property** (works with `sbt --client`): `-Dgolem.tsPackagesPath=...` via `javaOptions`
-- **Environment variable**: `GOLEM_TS_PACKAGES_PATH=...` (does NOT propagate through `sbt --client` to the forked test JVM — use the system property instead)
 
 ## Test Architecture
 

@@ -56,6 +56,14 @@ Every change **must** include tests. No exceptions.
 
 #### Running integration tests:
 
+The `GOLEM_TS_PACKAGES_PATH` env var is forwarded automatically by `build.sbt`. Use non-client `sbt` so the env var is visible:
+
+```bash
+GOLEM_TS_PACKAGES_PATH=<TS_PACKAGES_PATH> sbt golemTestAll
+```
+
+For running only integration tests with `sbt --client` (where env vars don't propagate), use the `set` override:
+
 ```bash
 sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
 ```

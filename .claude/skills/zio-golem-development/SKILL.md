@@ -57,6 +57,12 @@ Use these sbt aliases (from the monorepo root) to run all zio-golem tests:
 
 **Always run `golemTestAll` before considering a change complete.**
 
+Integration tests require the TypeScript SDK packages path. The `GOLEM_TS_PACKAGES_PATH` env var is forwarded automatically by `build.sbt`, but `sbt --client` doesn't propagate env vars. Use non-client `sbt` instead:
+
+```bash
+GOLEM_TS_PACKAGES_PATH=<TS_PACKAGES_PATH> sbt golemTestAll
+```
+
 ## Compiling
 
 From the monorepo root (`/home/vigoo/projects/zio-blocks`):
