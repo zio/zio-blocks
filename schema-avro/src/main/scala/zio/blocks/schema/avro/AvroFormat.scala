@@ -95,20 +95,20 @@ object AvroFormat
               if (isRecursive) recursiveRecordCache.get.get(typeId)
               else null
             if (fieldInfosWithAvroSchema eq null) {
-              var offset     = 0L
               val namespace  = typeId.owner.asString
               val avroSchema = createAvroRecord(namespace, typeId.name)
               val len        = fields.length
-              val fieldInfos = new Array[FieldInfo](len)
+              val fieldInfos = new Array[AvroFieldInfo](len)
               fieldInfosWithAvroSchema = (fieldInfos, avroSchema)
               if (isRecursive) recursiveRecordCache.get.put(typeId, fieldInfosWithAvroSchema)
               val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
+              var offset           = 0L
               var idx              = 0
               while (idx < len) {
                 val field        = fields(idx)
                 val fieldReflect = field.value
                 val codec        = D.instance(fieldReflect.metadata).force.asInstanceOf[AvroCodec[?]]
-                fieldInfos(idx) = new FieldInfo(codec, Reflect.typeTag(fieldReflect), offset)
+                fieldInfos(idx) = new AvroFieldInfo(codec, Reflect.typeTag(fieldReflect), offset)
                 avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
                 offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
                 idx += 1
@@ -794,8 +794,8 @@ object AvroFormat
         type TC[_]
 
         private[this] val recursiveRecordCache =
-          new ThreadLocal[java.util.HashMap[TypeId[?], (Array[FieldInfo], AvroSchema)]] {
-            override def initialValue: java.util.HashMap[TypeId[?], (Array[FieldInfo], AvroSchema)] =
+          new ThreadLocal[java.util.HashMap[TypeId[?], (Array[AvroFieldInfo], AvroSchema)]] {
+            override def initialValue: java.util.HashMap[TypeId[?], (Array[AvroFieldInfo], AvroSchema)] =
               new java.util.HashMap
           }
         private[this] val recordCounters =
@@ -1246,7 +1246,7 @@ object AvroFormat
       }
     )
 
-private[avro] case class FieldInfo(
+private[avro] case class AvroFieldInfo(
   codec: AvroCodec[?],
   typeTag: Int,
   offset: RegisterOffset.RegisterOffset = 0L

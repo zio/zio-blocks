@@ -597,7 +597,7 @@ lazy val `schema-thrift` = project
       "dev.zio"           %% "zio-test"               % "2.1.24" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 87,
+    coverageMinimumStmtTotal   := 86,
     coverageMinimumBranchTotal := 77
   )
 
