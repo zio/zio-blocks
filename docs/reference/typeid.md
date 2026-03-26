@@ -1385,11 +1385,13 @@ object TypeId {
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
+
+type Age = Int
 ```
 
 ```scala mdoc
-val alias = TypeId.alias[Any]("Age", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
-val norm = TypeId.normalize(alias)
+val ageId = TypeId.of[Age]
+val norm = TypeId.normalize(ageId)
 norm.fullName
 ```
 
