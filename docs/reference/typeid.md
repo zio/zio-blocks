@@ -1834,13 +1834,6 @@ val configId = TypeId.of[ExampleModule.Config]
 configId.owner.asString
 ```
 
-You can construct nested owners using the `term()` and `tpe()` methods:
-
-```scala mdoc
-val moduleOwner = Owner.fromPackagePath("com.example").term("ExampleModule")
-moduleOwner.asString
-```
-
 ### TermPath
 
 `TermPath` represents paths to term values and is used in TypeRepr expressions for singleton types (like `obj.field.type`). Singleton type information exists at compile time but is **erased at runtime** by the JVM — both `TypeId.of[HttpStatus.OK.type]` and `TypeId.of[HttpStatus.NotFound.type]` resolve to the same underlying `Int` TypeId. TermPath is useful in type representation structures and code generators that need to capture the compile-time singleton distinction for metaprogramming.
