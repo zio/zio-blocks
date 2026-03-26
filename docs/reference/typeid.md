@@ -1367,7 +1367,11 @@ TypeId.of[Either[String, Int]].construct(Chunk(false: java.lang.Boolean, "error"
 
 ### Normalization and Equality
 
-Companion object methods for normalization, equality checking, and type constructor stripping.
+**Normalization** resolves type aliases and opaque type representations to their underlying concrete types. For example, `type Age = Int` normalizes to `Int`, and chained aliases like `type UserId = NonEmpty; type NonEmpty = List[Int]` both resolve to `List[Int]`. Opaque types such as `opaque type UserId = String` normalize to their representation. Normalization is crucial because multiple syntactic names often refer to the same underlying type, enabling deduplication and caching strategies.
+
+**Structural Equality** compares two TypeIds by their normalized form, treating types with identical underlying structure as equal. Importantly, opaque types preserve their semantic identity even after normalization—`TypeId.of[UserId]` where `opaque type UserId = String` remains distinct from `TypeId.of[String]` for equality purposes, preserving runtime type safety. This distinction enables type-safe registries and validators that respect opaque type boundaries.
+
+These concepts are essential for building type-indexed registries that recognize multiple alias names as referring to the same handler, implementing serialization strategies based on normalized type structure, and enforcing opaque type safety in type-indexed maps where different opaque types wrapping the same base type should have separate validators or handlers.
 
 #### `TypeId.normalize` — Resolve Aliases
 
