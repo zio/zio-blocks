@@ -1313,26 +1313,57 @@ sealed trait TypeId[A <: AnyKind] {
 }
 ```
 
-```scala
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+import zio.Chunk
+
 // JVM only
 case class User(name: String, age: Int)
 
 val userId = TypeId.of[User]
-userId.construct(Chunk("Alice", 30: Integer))  // Right(User(Alice,30))
-userId.construct(Chunk("Bob"))                 // Left(...) — wrong argument count
 ```
 
-:::note
-Special calling conventions apply to certain types:
+```scala mdoc
+userId.construct(Chunk("Alice", 30: Integer))
+userId.construct(Chunk("Bob"))
+```
 
-**Collection types** accept variadic arguments representing elements:
-- **Sequence-like types** (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`): Pass a variadic sequence of elements. For example, `construct(Chunk("a", "b", "c"))` returns `Right(List("a", "b", "c"))`.
-- **Map:** Pass interleaved key-value pairs and fails on odd argument counts. For example, `construct(Chunk("a", 1: Integer, "b", 2: Integer))` returns `Right(Map("a" -> 1, "b" -> 2))`.
+##### Collection Types
 
-**Sum types** have special calling conventions:
-- **Option:** Pass 1 element to construct `Some(value)`, or 0 elements to construct `None`.
-- **Either:** First argument is a Boolean flag (`true` = `Right`, `false` = `Left`), followed by the value. For example, `construct(Chunk(true: java.lang.Boolean, value))` for `Right(value)`, or `construct(Chunk(false: java.lang.Boolean, value))` for `Left(value)`.
-:::
+Collection types accept variadic arguments representing elements. Sequence-like types (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`) each pass a variadic sequence of elements:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+import zio.Chunk
+```
+
+```scala mdoc
+TypeId.of[List[String]].construct(Chunk("a", "b", "c"))
+TypeId.of[Vector[Int]].construct(Chunk(1: Integer, 2: Integer, 3: Integer))
+TypeId.of[Set[String]].construct(Chunk("x", "y", "z"))
+```
+
+Map types pass interleaved key-value pairs and fail on odd argument counts:
+
+```scala mdoc
+TypeId.of[Map[String, Int]].construct(Chunk("a", 1: Integer, "b", 2: Integer))
+```
+
+##### Sum Types
+
+Sum types have special calling conventions. `Option` accepts 1 element to construct `Some(value)`, or 0 elements to construct `None`:
+
+```scala mdoc
+TypeId.of[Option[String]].construct(Chunk("hello"))
+TypeId.of[Option[String]].construct(Chunk())
+```
+
+`Either` requires a Boolean flag as the first argument (`true` for `Right`, `false` for `Left`), followed by the value:
+
+```scala mdoc
+TypeId.of[Either[String, Int]].construct(Chunk(true: java.lang.Boolean, 42: Integer))
+TypeId.of[Either[String, Int]].construct(Chunk(false: java.lang.Boolean, "error"))
+```
 
 ### Normalization and Equality
 
