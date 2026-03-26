@@ -1607,43 +1607,53 @@ Variance.Covariant.flip
 
 ### Kind
 
-Kind describes the "type of a type" — whether it's a proper type or a type constructor. Derive TypeIds for types of different kinds to see this in action:
+**Kind** describes the "type of a type"—it captures whether something is a concrete type or a type constructor, and how many type parameters it requires. A **proper type** like `Int` or `Box[String]` has kind `*` (zero parameters). A **unary type constructor** like `List` has kind `* -> *` (takes one type parameter). A **binary type constructor** like `Map` has kind `* -> * -> *` (takes two). **Higher-kinded types** like `Runnable[F[_]]` have kinds like `(* -> *) -> *` (takes a type constructor as a parameter). Kind information is essential for generic programming, enforcing API contracts, and enabling advanced patterns like monad transformers.
 
-A proper type (`*`) — takes no type parameters:
+TypeId captures kind information at runtime, allowing you to inspect and validate the structure of types:
 
-```scala mdoc
-val properTypeId = TypeId.of[Box[Int]]
-properTypeId.typeParams.map(_.kind)
-properTypeId.arity
-```
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
 
-A unary type constructor (`* -> *`) — takes one type parameter:
+sealed trait Container[+A]
+case class Box[+A](value: A) extends Container[A]
 
-```scala mdoc
-val containerKind = TypeId.of[Container].typeParams.map(_.kind)
-containerKind
-TypeId.of[Container].arity
-```
+sealed trait Cache[K, +V]
+case class LRUCache[K, +V](maxSize: Int) extends Cache[K, V]
 
-A binary type constructor (`* -> * -> *`) — takes two type parameters:
-
-```scala mdoc
-val cacheKind = TypeId.of[Cache].typeParams.map(_.kind)
-cacheKind
-TypeId.of[Cache].arity
-```
-
-A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself takes a type parameter:
-
-```scala mdoc:silent
 trait Runnable[F[_]] {
   def run[A](fa: F[A]): A
 }
 ```
 
+A proper type (`*`) — fully concrete with no type parameters:
+
+```scala mdoc
+val boxIntId = TypeId.of[Box[Int]]
+boxIntId.isApplied
+boxIntId.arity
+```
+
+A unary type constructor (`* -> *`) — takes one type parameter:
+
+```scala mdoc
+val containerId = TypeId.of[Container]
+containerId.arity
+containerId.typeParams.map(p => (p.name, p.kind))
+```
+
+A binary type constructor (`* -> * -> *`) — takes two type parameters:
+
+```scala mdoc
+val cacheId = TypeId.of[Cache]
+cacheId.arity
+cacheId.typeParams.map(p => (p.name, p.kind))
+```
+
+A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself is a type constructor:
+
 ```scala mdoc
 val runnableId = TypeId.of[Runnable]
-runnableId.typeParams.map(_.kind)
+runnableId.typeParams.head.kind
 runnableId.typeParams.head.kind.arity
 ```
 
