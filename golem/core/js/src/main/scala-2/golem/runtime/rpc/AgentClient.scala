@@ -16,7 +16,7 @@
 
 package golem.runtime.rpc
 
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import scala.language.experimental.macros
 
 // format: off
@@ -48,7 +48,7 @@ object AgentClient {
    * Typed agent-type accessor (no user-land casts).
    *
    * Validates at compile-time that `Constructor` matches
-   * the `BaseAgent[Input]` constructor type on the agent trait.
+   * the `BaseAgent` constructor type on the agent trait.
    */
   def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
     macro AgentTypeWithCtorMacro.agentTypeWithCtorImpl[Trait, Constructor]
@@ -67,10 +67,7 @@ private[rpc] object AgentTypeWithCtorMacro {
       c.abort(c.enclosingPosition, s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
     }
 
-    val expectedCtor: Type = {
-      val baseSym = typeOf[_root_.golem.BaseAgent[_]].typeSymbol
-      traitType.baseType(baseSym).typeArgs.headOption.getOrElse(typeOf[Unit]).dealias
-    }
+    val expectedCtor: Type = typeOf[Unit].dealias
 
     val gotCtor = weakTypeOf[Constructor].dealias
 
@@ -82,7 +79,7 @@ private[rpc] object AgentTypeWithCtorMacro {
     }
 
     c.Expr[AgentType[Trait, Constructor]](
-      q"_root_.golem.runtime.rpc.AgentClient.agentType[$traitType].asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitType, $gotCtor]]"
+      q"_root_.golem.runtime.rpc.AgentClient.agentType[$traitType].asInstanceOf[_root_.golem.runtime.AgentType[$traitType, $gotCtor]]"
     )
   }
 }
@@ -99,7 +96,11 @@ private[rpc] object AgentClientBindMacro {
     if (!traitSym.isClass || !traitSym.asClass.isTrait)
       c.abort(c.enclosingPosition, s"Agent client target must be a trait, found: ${traitSym.fullName}")
 
-    val futureSym = typeOf[scala.concurrent.Future[_]].typeSymbol
+    val futureSym        = typeOf[scala.concurrent.Future[_]].typeSymbol
+    val principalFullName = "golem.Principal"
+
+    def isPrincipalType(tpe: Type): Boolean =
+      tpe.dealias.typeSymbol.fullName == principalFullName
 
     def isPromiseReturn(tpe: Type): Boolean =
       tpe.typeSymbol.fullName == "scala.scalajs.js.Promise"
@@ -128,13 +129,13 @@ private[rpc] object AgentClientBindMacro {
         $resolvedRef.agentType.methods
           .collectFirst {
             case p if p.metadata.name == $methodName =>
-              p.asInstanceOf[_root_.golem.runtime.agenttype.AgentMethod[$traitTpe, $inTpe, $outTpe]]
+              p.asInstanceOf[_root_.golem.runtime.AgentMethod[$traitTpe, $inTpe, $outTpe]]
           }
           .getOrElse(throw new _root_.java.lang.IllegalStateException("Method definition for " + $methodName + " not found"))
       """
 
     def inputExpr(paramss: List[List[ValDef]]): Tree = {
-      val params = paramss.flatten
+      val params = paramss.flatten.filter(p => !isPrincipalType(p.tpt.tpe))
       params match {
         case Nil        => q"()"
         case one :: Nil => q"${Ident(one.name)}"
@@ -162,8 +163,10 @@ private[rpc] object AgentClientBindMacro {
       val paramss: List[List[ValDef]] = m.paramLists.map(_.map(mkParamValDef))
       val returnTpe                   = m.returnType
 
+      val nonPrincipalParams = m.paramLists.flatten.filter(p => !isPrincipalType(p.typeSignature))
+
       val inType: Type =
-        m.paramLists.flatten match {
+        nonPrincipalParams match {
           case Nil        => typeOf[Unit]
           case one :: Nil => one.typeSignature
           case _          => typeOf[Vector[Any]]

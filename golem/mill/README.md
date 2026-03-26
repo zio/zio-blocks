@@ -7,9 +7,8 @@ This directory contains a Mill plugin that mirrors the sbt `GolemPlugin` behavio
 | Feature | Description |
 |---|---|
 | `golemBasePackage` | Base package for `@agentImplementation` auto-registration |
-| `golemComponentPathPrefix` | Relative path from component dir to app root (`"."` for standalone, `"../.."` for monorepo) |
 | `golemAgentGuestWasmFile` | Smart detection of where to write `agent_guest.wasm` (searches for `golem.yaml`) |
-| `golemPrepare` | Ensures `agent_guest.wasm` and `scala-js-template.yaml` exist in `.generated/` |
+| `golemPrepare` | Ensures `agent_guest.wasm` exists in `.generated/` |
 | `golemBuildComponent` | Builds the Scala.js bundle for golem-cli (`mill <module>.golemBuildComponent ...`) |
 | `scalaJSModuleInitializers` | Auto-configured for the generated `RegisterAgents` entrypoint |
 | Source generation | Scans for `@agentImplementation` classes and generates registration code |
@@ -24,9 +23,6 @@ object myApp extends GolemAutoRegister {
   def scalaJSVersion   = "1.20.0"
   def scalaVersion     = "3.3.7"
   def golemBasePackage = T(Some("myapp"))
-
-  // For monorepo layouts where components are in components-js/<name>/:
-  // def golemComponentPathPrefix = T("../..")
 }
 ```
 

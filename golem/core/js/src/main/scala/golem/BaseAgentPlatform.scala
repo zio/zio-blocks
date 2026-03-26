@@ -16,6 +16,7 @@
 
 package golem
 
+import golem.host.js.JsAgentMetadataRuntime
 import golem.runtime.rpc.host.AgentHostApi
 
 private[golem] object BaseAgentPlatform {
@@ -25,8 +26,8 @@ private[golem] object BaseAgentPlatform {
     self.agentId.agentId
 
   def agentType: String =
-    self.agentType
+    self.asInstanceOf[JsAgentMetadataRuntime].agentType.getOrElse("")
 
   def agentName: String =
-    self.agentName
+    self.asInstanceOf[JsAgentMetadataRuntime].agentName.getOrElse("")
 }

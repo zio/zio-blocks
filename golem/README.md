@@ -56,7 +56,7 @@ object Name {
 // Define your agent trait (typeName is optional; when omitted, it is derived from the trait name)
 @agentDefinition(mode = DurabilityMode.Durable)
 @description("A simple name-processing agent")
-trait NameAgent extends BaseAgent[Unit] {
+trait NameAgent extends BaseAgent {
 
   @description("Reverse the provided name")
   def reverse(input: Name): Future[Name]
@@ -66,17 +66,19 @@ trait NameAgent extends BaseAgent[Unit] {
 ### Implement and Register
 
 ```scala
+import golem.runtime.annotations.agentImplementation
 import golem.runtime.autowire._
 
-object NameAgentModule {
-  private class NameAgentImpl extends NameAgent {
-    override def reverse(input: Name): Name =
-      input.copy(value = input.value.reverse)
-  }
+@agentImplementation()
+final class NameAgentImpl() extends NameAgent {
+  override def reverse(input: Name): Future[Name] =
+    Future.successful(input.copy(value = input.value.reverse))
+}
 
+object NameAgentModule {
   // Type name is derived from @agentDefinition(...) on the trait:
   val definition: AgentDefinition[NameAgent] =
-    AgentImplementation.register[NameAgent](new NameAgentImpl)
+    AgentImplementation.registerClass[NameAgent, NameAgentImpl]
 }
 ```
 
@@ -122,7 +124,7 @@ Notes:
 
 ### Custom data types (Schemas)
 
-If you use custom Scala types as **constructor inputs** (`BaseAgent[MyInput]`) or **method parameters/return values**,
+If you use custom Scala types as **constructor inputs** (via `class Id(...)`) or **method parameters/return values**,
 the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
 
 You normally **do not** define `GolemSchema` directly -- instead, derive/provide a `zio.blocks.schema.Schema[T]`,
@@ -149,7 +151,9 @@ import golem.{AgentCompanion, BaseAgent, Uuid}
 import scala.concurrent.Future
 
 @agentDefinition(mode = DurabilityMode.Durable)
-trait Shard extends BaseAgent[(String, Int)] {
+trait Shard extends BaseAgent {
+
+  class Id(val arg0: String, val arg1: Int)
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]
@@ -158,7 +162,7 @@ trait Shard extends BaseAgent[(String, Int)] {
   def set(key: String, value: String): Unit
 }
 
-object Shard extends AgentCompanion[Shard, (String, Int)]
+object Shard extends AgentCompanion[Shard]
 
 @agentImplementation()
 final class ShardImpl(input: (String, Int)) extends Shard {
@@ -168,7 +172,7 @@ final class ShardImpl(input: (String, Int)) extends Shard {
 
 object ShardModule {
   val definition: AgentDefinition[Shard] =
-    AgentImplementation.register[Shard, (String, Int)](in => new ShardImpl(in))
+    AgentImplementation.registerClass[Shard, ShardImpl]
 }
 
 object Example {
@@ -185,12 +189,11 @@ object Example {
 | `model`  | yes     | Types + schemas + annotations + agent metadata |
 | `core`   | yes     | Runtime client/server helpers (RPC, host API, transactions, snapshot helpers) |
 | `macros` | yes     | Compile-time derivation (analogous to Rust's `golem-rust-macro`) |
-| `tools`  | no      | Repo-local JVM helpers/tests (not part of the SDK surface) |
-| `examples` | no | Repo-local verification/harnesses (not user-facing) |
+| `test-agents` | no | Agent definitions + implementations for integration tests |
 
 ## Documentation
 
-- **[Getting started](gettingStarted/README.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
+- **[Getting started](example/README.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
 - **[Snapshot helpers](docs/snapshot.md)** - State persistence helpers
 - **[Multimodal helpers](docs/multimodal.md)** - Text/binary segment schemas with constraints
 - **[Transaction helpers](docs/transactions.md)** - Infallible and fallible transaction patterns
@@ -206,11 +209,8 @@ sbt compile
 # Run tests
 sbt test
 
-# Build Scala.js bundle for examples
-sbt examplesJS/fastLinkJS
-
-# Run host-backed integration tests
-GOLEM_HOST_TESTS=1 sbt hostTests/golemHostTests
+# Build Scala.js bundle for test agents
+sbt zioGolemTestAgents/fastLinkJS
 ```
 
 ## Key Concepts
@@ -257,7 +257,7 @@ golem-cli deploy --yes
 golem-cli repl org:component
 ```
 
-See `golem/gettingStarted/` for a standalone example or `golem/examples/` for the monorepo setup.
+See `golem/example/` for a standalone example or `golem/test-agents/` for the monorepo setup.
 
 ### Base guest runtime (agent_guest.wasm)
 
@@ -266,7 +266,7 @@ The `agent_guest.wasm` is an SDK artifact embedded in the sbt/Mill plugins. It i
 To regenerate when upgrading Golem/WIT versions:
 
 ```bash
-./golem/tools/generate-agent-guest-wasm.sh v1.4.1
+./golem/scripts/generate-agent-guest-wasm.sh
 ```
 
 ### Golem AI provider dependencies
@@ -286,9 +286,9 @@ components:
 
 The Scala SDK exposes host APIs in two layers:
 
-1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.3.0`).
+1) **Typed Scala wrapper**: `golem.HostApi` (idiomatic Scala helpers over `golem:api/host@1.5.0`).
 2) **Raw host modules** (forward-compatible, mirrors JS/WIT surface):
-   - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`, `golem.host.Rdbms`
+   - `golem.host.OplogApi`, `golem.host.ContextApi`, `golem.host.DurabilityApi`
 
 Example:
 

@@ -17,7 +17,7 @@
 package golem.runtime.rpc
 
 import golem.runtime.macros.AgentClientMacro
-import golem.runtime.agenttype.{AgentMethod, AgentType}
+import golem.runtime.{AgentMethod, AgentType}
 import golem.Uuid
 
 import scala.collection.immutable.Vector
@@ -34,7 +34,7 @@ object AgentClient {
    * This exists because Scala.js cannot safely cast a plain JS object to a
    * Scala trait at runtime. When you need to operate at the "agent type +
    * resolved client" level (e.g. in internal wiring), use this API to keep
-   * examples cast-free.
+   * examples cast-free. Constructor type is always Unit (temporary).
    */
   transparent inline def agentTypeWithCtor[Trait, Constructor]: AgentType[Trait, Constructor] =
     ${ AgentTypeMacro.agentTypeWithCtorImpl[Trait, Constructor] }
@@ -71,23 +71,6 @@ private object AgentTypeMacro {
 
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
-
-    val expectedCtor: TypeRepr = {
-      val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-      if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-      else
-        traitRepr.baseType(baseSym) match {
-          case AppliedType(_, List(arg)) => arg
-          case _                         => TypeRepr.of[Unit]
-        }
-    }.dealias.widen
-
-    val gotCtor = TypeRepr.of[Constructor].dealias.widen
-
-    if !(gotCtor =:= expectedCtor) then
-      report.errorAndAbort(
-        s"AgentClient.agentTypeWithCtor requires: BaseAgent[${expectedCtor.show}] (found: ${gotCtor.show})"
-      )
 
     '{ AgentClientMacro.agentType[Trait].asInstanceOf[AgentType[Trait, Constructor]] }
   }
@@ -153,12 +136,16 @@ private object AgentClientInlineMacros {
     case class MethodData(
       method: Symbol,
       params: List[(String, TypeRepr)],
+      nonPrincipalParams: List[(String, TypeRepr)],
       accessMode: MethodParamAccess,
       inputType: TypeRepr,
       outputType: TypeRepr,
       returnType: TypeRepr,
       invocation: InvocationKind
     )
+
+    def isPrincipalType(tpe: TypeRepr): Boolean =
+      tpe.dealias.typeSymbol.fullName == "golem.Principal"
 
     val traitRepr   = TypeRepr.of[Trait]
     val traitSymbol = traitRepr.typeSymbol
@@ -169,13 +156,15 @@ private object AgentClientInlineMacros {
     val pendingMethods = traitSymbol.methodMembers.collect {
       case method if method.flags.is(Flags.Deferred) && method.isDefDef && method.name != "new" =>
         val params                                   = extractParameters(method)
-        val accessMode                               = methodAccess(params)
-        val inputType                                = inputTypeFor(accessMode, params)
+        val nonPrincipalParams                       = params.filter { case (_, tpe) => !isPrincipalType(tpe) }
+        val accessMode                               = methodAccess(nonPrincipalParams)
+        val inputType                                = inputTypeFor(accessMode, nonPrincipalParams)
         val (invocationKind, outputType, returnType) = methodInvocationInfo(method)
 
         MethodData(
           method = method,
           params = params,
+          nonPrincipalParams = nonPrincipalParams,
           accessMode = accessMode,
           inputType = inputType,
           outputType = outputType,
@@ -225,12 +214,16 @@ private object AgentClientInlineMacros {
     def buildMethodBody(methodData: MethodData, paramExprs: List[Expr[Any]]): Expr[Any] = {
       val methodNameExpr: Expr[String] = Expr(methodData.method.name)
 
+      val nonPrincipalParamExprs = paramExprs
+        .zip(methodData.params)
+        .collect { case (expr, (_, tpe)) if !isPrincipalType(tpe) => expr }
+
       methodData.inputType.asType match {
         case '[input] =>
           methodData.outputType.asType match {
             case '[output] =>
               val inputValueExpr =
-                buildInputValueExpr(methodData.accessMode, methodData.inputType, paramExprs).asExprOf[input]
+                buildInputValueExpr(methodData.accessMode, methodData.inputType, nonPrincipalParamExprs).asExprOf[input]
               val methodExpr =
                 findMethod[input, output](methodData.method.name)
 
@@ -273,161 +266,58 @@ private object AgentClientInlineMacros {
       }
     }
 
-    def encodeTypeName(tpe0: TypeRepr): String = {
-      val tpe = tpe0.dealias.widen
-
-      if tpe =:= TypeRepr.of[Unit] then "V"
-      else if tpe =:= TypeRepr.of[Boolean] then "Z"
-      else if tpe =:= TypeRepr.of[Byte] then "B"
-      else if tpe =:= TypeRepr.of[Short] then "S"
-      else if tpe =:= TypeRepr.of[Char] then "C"
-      else if tpe =:= TypeRepr.of[Int] then "I"
-      else if tpe =:= TypeRepr.of[Long] then "J"
-      else if tpe =:= TypeRepr.of[Float] then "F"
-      else if tpe =:= TypeRepr.of[Double] then "D"
-      else if tpe =:= TypeRepr.of[String] then "T"
-      else
-        tpe match {
-          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
-            "A" + encodeTypeName(elem)
-          case AppliedType(constructor, _) =>
-            encodeTypeName(constructor)
-          case _ =>
-            val full = tpe.typeSymbol.fullName
-            if full.startsWith("scala.scalajs.") then "sjs_" + full.stripPrefix("scala.scalajs.").replace('.', '_')
-            else if full.startsWith("scala.collection.immutable.") then
-              "sci_" + full.stripPrefix("scala.collection.immutable.").replace('.', '_')
-            else if full.startsWith("scala.collection.mutable.") then
-              "scm_" + full.stripPrefix("scala.collection.mutable.").replace('.', '_')
-            else if full.startsWith("scala.collection.") then
-              "sc_" + full.stripPrefix("scala.collection.").replace('.', '_')
-            else if full.startsWith("scala.") then "s_" + full.stripPrefix("scala.").replace('.', '_')
-            else if full.startsWith("java.lang.") then "jl_" + full.stripPrefix("java.lang.").replace('.', '_')
-            else if full.startsWith("java.util.") then "ju_" + full.stripPrefix("java.util.").replace('.', '_')
-            else if full == "" || full == "<none>" then "O"
-            else "L" + full.replace('.', '_')
-        }
-    }
-
-    def scalaJsMethodName(methodData: MethodData): String = {
-      val paramTypeNames = methodData.params.map(_._2).map(encodeTypeName)
-      val resultTypeName = encodeTypeName(methodData.returnType)
-      if paramTypeNames.isEmpty then s"${methodData.method.name}__${resultTypeName}"
-      else s"${methodData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
-    }
-
-    // Conservative fallback for non-overloaded methods: some Scala.js encodings use only erased param shapes.
-    // To avoid "TypeError: not a function" for certain generic/collection types, also publish an erased signature name.
-    def encodeErasedParamTypeName(tpe0: TypeRepr): String = {
-      val tpe = tpe0.dealias.widen
-      if tpe =:= TypeRepr.of[Unit] then "V"
-      else if tpe =:= TypeRepr.of[Boolean] then "Z"
-      else if tpe =:= TypeRepr.of[Byte] then "B"
-      else if tpe =:= TypeRepr.of[Short] then "S"
-      else if tpe =:= TypeRepr.of[Char] then "C"
-      else if tpe =:= TypeRepr.of[Int] then "I"
-      else if tpe =:= TypeRepr.of[Long] then "J"
-      else if tpe =:= TypeRepr.of[Float] then "F"
-      else if tpe =:= TypeRepr.of[Double] then "D"
-      else if tpe =:= TypeRepr.of[String] then "T"
-      else
-        tpe match {
-          case AppliedType(arr, List(elem)) if arr.typeSymbol.fullName == "scala.Array" =>
-            "A" + encodeErasedParamTypeName(elem)
-          case _ =>
-            // Erased reference type
-            "O"
-        }
-    }
-
-    def scalaJsMethodNameErased(methodData: MethodData): String = {
-      val paramTypeNames = methodData.params.map(_._2).map(encodeErasedParamTypeName)
-      val resultTypeName = encodeTypeName(methodData.returnType)
-      if paramTypeNames.isEmpty then s"${methodData.method.name}__${resultTypeName}"
-      else s"${methodData.method.name}__${paramTypeNames.mkString("__")}__${resultTypeName}"
-    }
-
-    val overloadCounts: Map[String, Int] =
-      pendingMethods.groupBy(_.method.name).view.mapValues(_.size).toMap
-
-    val objSym =
-      Symbol.newVal(Symbol.spliceOwner, "$agentClient", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
-    val objVal = ValDef(objSym, Some('{ js.Dynamic.literal() }.asTerm))
-    val objRef = Ref(objSym).asExprOf[js.Dynamic]
-
-    val updates: List[Statement] =
-      pendingMethods.map { data =>
-        val jsName     = scalaJsMethodName(data)
-        val jsNameAlt  = scalaJsMethodNameErased(data)
-        val methodTpe  = traitRepr.memberType(data.method)
-        val lambdaTerm = methodTpe match {
-          case mt: MethodType =>
-            Lambda(
-              Symbol.spliceOwner,
-              mt,
-              (owner, params) => {
-                val paramExprs = params.collect { case t: Term => t.asExprOf[Any] }.toList
-                buildMethodBody(data, paramExprs).asTerm.changeOwner(owner)
-              }
-            )
-          case other =>
-            report.errorAndAbort(s"Unsupported agent method shape for ${data.method.name}: ${other.show}")
-        }
-
-        val fnExpr = lambdaTerm.asExprOf[Any]
-
-        val jsFnExpr: Expr[js.Any] =
-          data.params.length match {
-            case 0 => '{ js.Any.fromFunction0($fnExpr.asInstanceOf[() => Any]) }
-            case 1 => '{ js.Any.fromFunction1($fnExpr.asInstanceOf[Any => Any]) }
-            case 2 => '{ js.Any.fromFunction2($fnExpr.asInstanceOf[(Any, Any) => Any]) }
-            case 3 => '{ js.Any.fromFunction3($fnExpr.asInstanceOf[(Any, Any, Any) => Any]) }
-            case n =>
-              report.errorAndAbort(s"Unsupported agent method arity for ${data.method.name}: $n (supported: 0-3)")
-          }
-
-        // Always publish the precise name. Publish erased fallback only when the method name is not overloaded.
-        val primary = '{ $objRef.updateDynamic(${ Expr(jsName) })($jsFnExpr) }.asTerm
-        if (jsNameAlt == jsName || overloadCounts.getOrElse(data.method.name, 0) > 1)
-          primary
-        else
-          Block(
-            List(primary),
-            '{ $objRef.updateDynamic(${ Expr(jsNameAlt) })($jsFnExpr) }.asTerm
+    // Generate an anonymous class that extends Trait with concrete method
+    // implementations delegating to the resolved agent's RPC call.
+    // This ensures that fullLinkJS name minification is applied consistently
+    // to both the method definitions and their call sites.
+    val clsSym = Symbol.newClass(
+      Symbol.spliceOwner,
+      "$proxy",
+      parents = List(TypeRepr.of[Object], traitRepr),
+      decls = cls =>
+        pendingMethods.map { data =>
+          Symbol.newMethod(
+            cls,
+            data.method.name,
+            traitRepr.memberType(data.method),
+            Flags.Override,
+            Symbol.noSymbol
           )
-      }
+        },
+      selfType = None
+    )
 
-    // Minimal Scala.js runtime type info: provide `$classData.ancestors[...]` entries so `$as_...` succeeds.
-    def encodeAncestor(fullName: String): String =
-      "L" + fullName.replace('.', '_')
+    val methodDefs: List[DefDef] = pendingMethods.map { data =>
+      val methodSym = clsSym.declaredMethod(data.method.name).head
+      DefDef(
+        methodSym,
+        { argss =>
+          val paramExprs = argss.flatten.collect { case t: Term => t.asExprOf[Any] }.toList
+          Some(buildMethodBody(data, paramExprs).asTerm.changeOwner(methodSym))
+        }
+      )
+    }
 
-    val ancestorKeys: List[String] =
-      traitRepr.baseClasses
-        .map(_.fullName)
-        .distinct
-        .map(encodeAncestor)
+    val classDef = ClassDef(
+      clsSym,
+      List(
+        Apply(
+          Select(New(TypeTree.of[Object]), TypeRepr.of[Object].typeSymbol.primaryConstructor),
+          Nil
+        ),
+        TypeTree.of[Trait]
+      ),
+      body = methodDefs
+    )
 
-    val classDataSym =
-      Symbol.newVal(Symbol.spliceOwner, "$classData", TypeRepr.of[js.Dynamic], Flags.EmptyFlags, Symbol.noSymbol)
-    val classDataVal =
-      ValDef(classDataSym, Some('{ js.Dynamic.literal("ancestors" -> js.Dynamic.literal()) }.asTerm))
-    val classDataRef = Ref(classDataSym).asExprOf[js.Dynamic]
-    val ancestorsRef = '{ $classDataRef.selectDynamic("ancestors").asInstanceOf[js.Dynamic] }
-
-    val ancestorUpdates: List[Statement] =
-      ancestorKeys.map { key =>
-        '{ $ancestorsRef.updateDynamic(${ Expr(key) })(1.asInstanceOf[js.Any]) }.asTerm
-      }
-
-    val attachClassData: Statement =
-      '{ $objRef.updateDynamic("$classData")($classDataRef.asInstanceOf[js.Any]) }.asTerm
-
-    val casted =
-      '{ $objRef.asInstanceOf[Trait] }.asTerm
+    val newInstance = Typed(
+      Apply(Select(New(TypeIdent(clsSym)), clsSym.primaryConstructor), Nil),
+      TypeTree.of[Trait]
+    )
 
     Block(
-      resolvedVal :: objVal :: classDataVal :: (updates ++ ancestorUpdates :+ attachClassData),
-      casted
+      List(resolvedVal, classDef),
+      newInstance
     ).asExprOf[Trait]
   }
 

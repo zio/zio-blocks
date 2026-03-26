@@ -16,9 +16,9 @@
 
 package golem.wasi
 
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
-class ConfigCompileSpec extends AnyFunSuite {
+object ConfigCompileSpec extends ZIOSpecDefault {
   import Config._
 
   private val errors: List[ConfigError] = List(
@@ -31,29 +31,35 @@ class ConfigCompileSpec extends AnyFunSuite {
     case ConfigError.Io(msg)       => s"io($msg)"
   }
 
-  test("ConfigError exhaustive match") {
-    errors.foreach(e => assert(describeError(e).nonEmpty))
-  }
+  def spec = suite("ConfigCompileSpec")(
+    test("ConfigError exhaustive match") {
+      errors.foreach(e => assertTrue(describeError(e).nonEmpty))
+      assertTrue(true)
+    },
+    test("ConfigError field access") {
+      assertTrue(
+        errors.head.asInstanceOf[ConfigError.Upstream].message == "upstream error",
+        errors(1).asInstanceOf[ConfigError.Io].message == "io error"
+      )
+    },
+    test("Either result type usage") {
+      val result: Either[ConfigError, Option[String]]         = Right(Some("value"))
+      val allResult: Either[ConfigError, Map[String, String]] = Right(Map("k" -> "v"))
 
-  test("ConfigError field access") {
-    assert(errors.head.asInstanceOf[ConfigError.Upstream].message == "upstream error")
-    assert(errors(1).asInstanceOf[ConfigError.Io].message == "io error")
-  }
-
-  test("Either result type usage") {
-    val result: Either[ConfigError, Option[String]]         = Right(Some("value"))
-    val allResult: Either[ConfigError, Map[String, String]] = Right(Map("k" -> "v"))
-
-    result match {
-      case Right(Some(v))                  => assert(v == "value")
-      case Right(None)                     => fail("expected Some")
-      case Left(ConfigError.Upstream(msg)) => fail(msg)
-      case Left(ConfigError.Io(msg))       => fail(msg)
+      result match {
+        case Right(Some(v)) =>
+          allResult match {
+            case Right(m) =>
+              assertTrue(
+                v == "value",
+                m.size == 1
+              )
+            case Left(_) => assertTrue(false)
+          }
+        case Right(None)                     => assertTrue(false)
+        case Left(ConfigError.Upstream(msg)) => assertTrue(false)
+        case Left(ConfigError.Io(msg))       => assertTrue(false)
+      }
     }
-
-    allResult match {
-      case Right(m) => assert(m.size == 1)
-      case Left(_)  => fail("expected Right")
-    }
-  }
+  )
 }

@@ -16,11 +16,13 @@
 
 package golem.host
 
+import golem.host.js._
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 
 /**
- * Scala.js facade for `golem:api/context@1.3.0`.
+ * Scala.js facade for `golem:api/context@1.5.0`.
  *
  * WIT interface:
  * {{{
@@ -41,13 +43,11 @@ object ContextApi {
   object AttributeValue {
     final case class StringValue(value: String) extends AttributeValue
 
-    def fromDynamic(raw: js.Dynamic): AttributeValue = {
-      val v = raw.selectDynamic("val")
-      StringValue(v.asInstanceOf[String])
-    }
+    def fromJs(raw: JsAttributeValue): AttributeValue =
+      StringValue(raw.asInstanceOf[JsAttributeValueString].value)
 
-    def toDynamic(av: AttributeValue): js.Dynamic = av match {
-      case StringValue(v) => js.Dynamic.literal(tag = "string", `val` = v)
+    def toJs(av: AttributeValue): JsAttributeValue = av match {
+      case StringValue(v) => JsAttributeValue.string(v)
     }
   }
 
@@ -65,22 +65,22 @@ object ContextApi {
 
   // --- WIT: span resource ---
 
-  final class Span private[golem] (private[golem] val underlying: js.Dynamic) {
+  final class Span private[golem] (private[golem] val underlying: JsSpan) {
 
     def startedAt(): DateTime = {
-      val raw   = underlying.startedAt().asInstanceOf[js.Dynamic]
+      val raw   = underlying.startedAt()
       val secs  = BigInt(raw.seconds.toString)
-      val nanos = raw.nanoseconds.asInstanceOf[Int].toLong
+      val nanos = raw.nanoseconds.toLong
       DateTime(secs, nanos)
     }
 
     def setAttribute(name: String, value: AttributeValue): Unit =
-      underlying.setAttribute(name, AttributeValue.toDynamic(value))
+      underlying.setAttribute(name, AttributeValue.toJs(value))
 
     def setAttributes(attributes: List[Attribute]): Unit = {
-      val arr = js.Array[js.Dynamic]()
+      val arr = js.Array[JsAttribute]()
       attributes.foreach { a =>
-        arr.push(js.Dynamic.literal(key = a.key, value = AttributeValue.toDynamic(a.value)))
+        arr.push(JsAttribute(a.key, AttributeValue.toJs(a.value)))
       }
       underlying.setAttributes(arr)
     }
@@ -91,74 +91,56 @@ object ContextApi {
 
   // --- WIT: invocation-context resource ---
 
-  final class InvocationContext private[golem] (private[golem] val underlying: js.Dynamic) {
+  final class InvocationContext private[golem] (private[golem] val underlying: JsInvocationContext) {
 
     def traceId(): String =
-      underlying.traceId().asInstanceOf[String]
+      underlying.traceId()
 
     def spanId(): String =
-      underlying.spanId().asInstanceOf[String]
+      underlying.spanId()
 
-    def parent(): Option[InvocationContext] = {
-      val raw = underlying.parent()
-      if (js.isUndefined(raw) || raw == null) None
-      else {
-        val obj = raw.asInstanceOf[js.Object]
-        if (js.Object.keys(obj).length == 0) None
-        else Some(new InvocationContext(raw.asInstanceOf[js.Dynamic]))
+    def parent(): Option[InvocationContext] =
+      underlying.parent().toOption.map(p => new InvocationContext(p))
+
+    def getAttribute(key: String, inherited: Boolean): Option[AttributeValue] =
+      underlying.getAttribute(key, inherited).toOption.map(AttributeValue.fromJs)
+
+    def getAttributes(inherited: Boolean): List[Attribute] =
+      underlying.getAttributes(inherited).toList.map { a =>
+        Attribute(a.key, AttributeValue.fromJs(a.value))
       }
-    }
 
-    def getAttribute(key: String, inherited: Boolean): Option[AttributeValue] = {
-      val raw = underlying.getAttribute(key, inherited)
-      if (js.isUndefined(raw) || raw == null) None
-      else Some(AttributeValue.fromDynamic(raw.asInstanceOf[js.Dynamic]))
-    }
+    def getAttributeChain(key: String): List[AttributeValue] =
+      underlying.getAttributeChain(key).toList.map(AttributeValue.fromJs)
 
-    def getAttributes(inherited: Boolean): List[Attribute] = {
-      val arr = underlying.getAttributes(inherited).asInstanceOf[js.Array[js.Dynamic]]
-      arr.toList.map { a =>
-        Attribute(a.key.asInstanceOf[String], AttributeValue.fromDynamic(a.value.asInstanceOf[js.Dynamic]))
-      }
-    }
-
-    def getAttributeChain(key: String): List[AttributeValue] = {
-      val arr = underlying.getAttributeChain(key).asInstanceOf[js.Array[js.Dynamic]]
-      arr.toList.map(AttributeValue.fromDynamic)
-    }
-
-    def getAttributeChains(): List[AttributeChain] = {
-      val arr = underlying.getAttributeChains().asInstanceOf[js.Array[js.Dynamic]]
-      arr.toList.map { c =>
-        val key    = c.key.asInstanceOf[String]
-        val values = c.values.asInstanceOf[js.Array[js.Dynamic]].toList.map(AttributeValue.fromDynamic)
+    def getAttributeChains(): List[AttributeChain] =
+      underlying.getAttributeChains().toList.map { c =>
+        val key    = c.key
+        val values = c.values.toList.map(AttributeValue.fromJs)
         AttributeChain(key, values)
       }
-    }
 
-    def traceContextHeaders(): List[(String, String)] = {
-      val arr = underlying.traceContextHeaders().asInstanceOf[js.Array[js.Tuple2[String, String]]]
-      arr.toList.map(kv => (kv._1, kv._2))
-    }
+    def traceContextHeaders(): List[(String, String)] =
+      underlying.traceContextHeaders().toList.map(kv => (kv._1, kv._2))
   }
 
   // --- Native bindings ---
 
   @js.native
-  @JSImport("golem:api/context@1.3.0", JSImport.Namespace)
+  @JSImport("golem:api/context@1.5.0", JSImport.Namespace)
   private object ContextModule extends js.Object {
-    def startSpan(name: String): js.Any                             = js.native
-    def currentContext(): js.Any                                    = js.native
+    def startSpan(name: String): JsSpan                             = js.native
+    def currentContext(): JsInvocationContext                       = js.native
     def allowForwardingTraceContextHeaders(allow: Boolean): Boolean = js.native
   }
 
   // --- Typed public API ---
 
   def startSpan(name: String): Span =
-    new Span(ContextModule.startSpan(name).asInstanceOf[js.Dynamic])
+    new Span(ContextModule.startSpan(name))
 
   def currentContext(): InvocationContext =
-    new InvocationContext(ContextModule.currentContext().asInstanceOf[js.Dynamic])
+    new InvocationContext(ContextModule.currentContext())
 
   def allowForwardingTraceContextHeaders(allow: Boolean): Boolean =
     ContextModule.allowForwardingTraceContextHeaders(allow)

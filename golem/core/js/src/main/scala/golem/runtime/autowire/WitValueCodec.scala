@@ -19,33 +19,41 @@ package golem.runtime.autowire
 import golem.data.DataType._
 import golem.data.DataValue._
 import golem.data.{DataType, DataValue}
+import golem.host.js._
+import golem.host.js.{JsOk, JsErr}
 
 import scala.scalajs.js
 
 private[golem] object WitValueCodec {
-  def decode(dataType: DataType, witValue: js.Dynamic): Either[String, DataValue] = {
-    val nodes = witValue.selectDynamic("nodes").asInstanceOf[js.Array[js.Dynamic]]
+  def decode(dataType: DataType, witValue: JsWitValue): Either[String, DataValue] = {
+    val nodes = witValue.nodes
     decodeNode(dataType, nodes, 0)
   }
 
-  private def decodeNode(dataType: DataType, nodes: js.Array[js.Dynamic], index: Int): Either[String, DataValue] = {
+  private def decodeNode(dataType: DataType, nodes: js.Array[JsWitNode], index: Int): Either[String, DataValue] = {
     if (index < 0 || index >= nodes.length)
       Left(s"Wit node index $index out of bounds")
     else {
       val node = nodes(index)
-      val tag  = node.selectDynamic("tag").asInstanceOf[String]
+      val tag  = node.tag
 
       (dataType, tag) match {
         case (UnitType, "tuple-value") =>
           Right(NullValue)
         case (StringType, "prim-string") =>
-          Right(StringValue(node.selectDynamic("val").asInstanceOf[String]))
+          Right(StringValue(node.asInstanceOf[JsWitNodePrimString].value))
         case (BoolType, "prim-bool") =>
-          Right(BoolValue(node.selectDynamic("val").asInstanceOf[Boolean]))
+          Right(BoolValue(node.asInstanceOf[JsWitNodePrimBool].value))
+        case (CharType, "prim-char") =>
+          Right(CharValue(node.asInstanceOf[JsWitNodePrimChar].value.charAt(0)))
+        case (ByteType, "prim-s8") =>
+          Right(ByteValue(node.asInstanceOf[JsWitNodePrimS8].value))
+        case (ShortType, "prim-s16") =>
+          Right(ShortValue(node.asInstanceOf[JsWitNodePrimS16].value))
         case (IntType, "prim-s32") =>
-          Right(IntValue(node.selectDynamic("val").asInstanceOf[Int]))
+          Right(IntValue(node.asInstanceOf[JsWitNodePrimS32].value))
         case (IntType, "prim-float64") =>
-          val raw = node.selectDynamic("val").asInstanceOf[Double]
+          val raw = node.asInstanceOf[JsWitNodePrimFloat64].value
           if (!isWholeNumber(raw))
             Left(s"Non-integral numeric value $raw cannot be decoded as IntType")
           else if (!inIntRange(raw))
@@ -53,75 +61,86 @@ private[golem] object WitValueCodec {
           else
             Right(IntValue(raw.toInt))
         case (LongType, "prim-s64") =>
-          val raw = node.selectDynamic("val").asInstanceOf[Double]
-          if (!isWholeNumber(raw))
-            Left(s"Non-integral numeric value $raw cannot be decoded as LongType (prim-s64)")
-          else if (!inLongRange(raw))
-            Left(s"Value $raw is out of Long range for LongType (prim-s64)")
-          else
-            Right(LongValue(raw.toLong))
+          val rawVal  = node.asInstanceOf[JsWitNodePrimS64].value
+          val longVal = BigInt(rawVal.toString).toLong
+          Right(LongValue(longVal))
         case (LongType, "prim-float64") =>
-          val raw = node.selectDynamic("val").asInstanceOf[Double]
+          val raw = node.asInstanceOf[JsWitNodePrimFloat64].value
           if (!isWholeNumber(raw))
             Left(s"Non-integral numeric value $raw cannot be decoded as LongType (prim-float64)")
           else if (!inLongRange(raw))
             Left(s"Value $raw is out of Long range for LongType (prim-float64)")
           else
             Right(LongValue(raw.toLong))
+        case (FloatType, "prim-float32") =>
+          Right(FloatValue(node.asInstanceOf[JsWitNodePrimFloat32].value))
         case (DoubleType, "prim-float64") =>
-          Right(DoubleValue(node.selectDynamic("val").asInstanceOf[Double]))
-        case (BigDecimalType, "prim-string") =>
-          Right(BigDecimalValue(BigDecimal(node.selectDynamic("val").asInstanceOf[String])))
-        case (UUIDType, "prim-string") =>
-          Right(UUIDValue(java.util.UUID.fromString(node.selectDynamic("val").asInstanceOf[String])))
+          Right(DoubleValue(node.asInstanceOf[JsWitNodePrimFloat64].value))
+        case (UByteType, "prim-u8") =>
+          Right(UByteValue(node.asInstanceOf[JsWitNodePrimU8].value))
+        case (UShortType, "prim-u16") =>
+          Right(UShortValue(node.asInstanceOf[JsWitNodePrimU16].value))
+        case (UIntType, "prim-u32") =>
+          Right(UIntValue(node.asInstanceOf[JsWitNodePrimU32].value.toLong))
+        case (ULongType, "prim-u64") =>
+          Right(ULongValue(BigInt(node.asInstanceOf[JsWitNodePrimU64].value.toString)))
+        case (BigDecimalType, "record-value") =>
+          val refs = node.asInstanceOf[JsWitNodeRecordValue].value
+          if (refs.length != 1) Left(s"BigDecimal record expected 1 field, found ${refs.length}")
+          else
+            decodeNode(StringType, nodes, refs(0)).flatMap {
+              case StringValue(s) => Right(BigDecimalValue(BigDecimal(s)))
+              case other          => Left(s"Expected string inside BigDecimal record, found $other")
+            }
+        case (UUIDType, "record-value") =>
+          val refs = node.asInstanceOf[JsWitNodeRecordValue].value
+          if (refs.length != 1) Left(s"UUID record expected 1 field, found ${refs.length}")
+          else
+            decodeNode(StringType, nodes, refs(0)).flatMap {
+              case StringValue(s) => Right(UUIDValue(java.util.UUID.fromString(s)))
+              case other          => Left(s"Expected string inside UUID record, found $other")
+            }
         case (BytesType, "list-value") =>
-          val refs        = node.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val refs        = node.asInstanceOf[JsWitNodeListValue].value
           val bytesEither = refs.foldLeft[Either[String, Vector[Byte]]](Right(Vector.empty)) { case (acc, childIdx) =>
             for {
-              vec        <- acc
-              childValue <- decodeNode(IntType, nodes, childIdx)
-              byte       <- childValue match {
-                        case IntValue(v) => Right(v.toByte)
-                        case other       => Left(s"Expected byte value, found $other")
-                      }
+              vec  <- acc
+              byte <- {
+                val child    = nodes(childIdx)
+                val childTag = child.tag
+                childTag match {
+                  case "prim-u8" => Right((child.asInstanceOf[JsWitNodePrimU8].value & 0xff).toByte)
+                  case other     => Left(s"Expected prim-u8 byte node, found $other")
+                }
+              }
             } yield vec :+ byte
           }
           bytesEither.map(vector => BytesValue(vector.toArray))
         case (Optional(of), "option-value") =>
-          val ref = node.selectDynamic("val")
-          if (js.isUndefined(ref)) Right(OptionalValue(None))
+          val ref = node.asInstanceOf[JsWitNodeOptionValue].value
+          if (ref.isEmpty) Right(OptionalValue(None))
           else
-            decodeNode(of, nodes, ref.asInstanceOf[Int]).map(value => OptionalValue(Some(value)))
+            decodeNode(of, nodes, ref.get).map(value => OptionalValue(Some(value)))
         case (ListType(of), "list-value") =>
           decodeIndexed(of, nodes, node).map(values => ListValue(values))
         case (SetType(of), "list-value") =>
           decodeIndexed(of, nodes, node).map(values => SetValue(values.toSet))
-        case (MapType(valueType), "list-value") =>
-          val entryType = StructType(
-            List(
-              Field("key", StringType, optional = false),
-              Field("value", valueType, optional = false)
-            )
-          )
+        case (MapType(keyType, valueType), "list-value") =>
+          val entryType = TupleType(List(keyType, valueType))
           decodeIndexed(entryType, nodes, node).flatMap { entries =>
-            entries.foldLeft[Either[String, Map[String, DataValue]]](Right(Map.empty)) {
-              case (acc, StructValue(fields)) =>
-                for {
-                  map      <- acc
-                  keyValue <- fields.get("key") match {
-                                case Some(StringValue(key)) => Right(key)
-                                case other                  => Left(s"Expected string map key, found $other")
-                              }
-                  value <- fields.get("value").toRight("Missing map value field")
-                } yield map.updated(keyValue, value)
-              case (_, other) =>
-                Left(s"Invalid map entry payload: $other")
+            val pairs = entries.map {
+              case TupleValue(List(key, value)) => Right((key, value))
+              case other                        => Left(s"Invalid map entry payload: $other")
+            }
+            pairs.foldLeft[Either[String, List[(DataValue, DataValue)]]](Right(Nil)) {
+              case (acc, Right(pair)) => acc.map(_ :+ pair)
+              case (_, Left(err))     => Left(err)
             }
           }.map(MapValue(_))
         case (TupleType(elements), "tuple-value") =>
           decodeTuple(elements, nodes, node).map(TupleValue(_))
         case (struct: StructType, "record-value") =>
-          val refs = node.selectDynamic("val").asInstanceOf[js.Array[Int]]
+          val refs = node.asInstanceOf[JsWitNodeRecordValue].value
           if (refs.length != struct.fields.length)
             Left(s"Struct field count mismatch. Expected ${struct.fields.length}, found ${refs.length}")
           else {
@@ -135,23 +154,64 @@ private[golem] object WitValueCodec {
             decoded.map(StructValue(_))
           }
         case (enumType: EnumType, "variant-value") =>
-          val arr        = node.selectDynamic("val").asInstanceOf[js.Array[Any]]
-          val caseIndex  = arr(0).asInstanceOf[Int]
-          val maybeValue = arr(1)
+          val variantVal = node.asInstanceOf[JsWitNodeVariantValue].value
+          val caseIndex  = variantVal._1
+          val maybeValue = variantVal._2
           if (caseIndex < 0 || caseIndex >= enumType.cases.length)
             Left(s"Variant index $caseIndex out of range")
           else {
             val selected = enumType.cases(caseIndex)
-            if (js.isUndefined(maybeValue))
+            if (maybeValue.isEmpty)
               Right(EnumValue(selected.name, None))
             else
               selected.payload match {
                 case Some(payloadType) =>
-                  decodeNode(payloadType, nodes, maybeValue.asInstanceOf[Int])
+                  decodeNode(payloadType, nodes, maybeValue.get)
                     .map(value => EnumValue(selected.name, Some(value)))
                 case None =>
                   Left(s"Variant ${selected.name} does not expect payload")
               }
+          }
+        case (enumType: EnumType, "enum-value") =>
+          val caseIndex = node.asInstanceOf[JsWitNodeEnumValue].value
+          if (caseIndex < 0 || caseIndex >= enumType.cases.length)
+            Left(s"Enum index $caseIndex out of range")
+          else
+            Right(EnumValue(enumType.cases(caseIndex).name, None))
+        case (pureEnum: PureEnumType, "enum-value") =>
+          val caseIndex = node.asInstanceOf[JsWitNodeEnumValue].value
+          if (caseIndex < 0 || caseIndex >= pureEnum.cases.length)
+            Left(s"Enum index $caseIndex out of range")
+          else
+            Right(PureEnumValue(pureEnum.cases(caseIndex)))
+        case (resultType: ResultType, "result-value") =>
+          val resultVal = node.asInstanceOf[JsWitNodeResultValue].value
+          val resultTag = resultVal.tag
+          resultTag match {
+            case "ok" =>
+              val okRef = resultVal.asInstanceOf[JsOk[js.UndefOr[JsNodeIndex]]].value
+              if (okRef.isEmpty)
+                Right(ResultValue(Right(NullValue)))
+              else
+                resultType.ok match {
+                  case Some(okType) =>
+                    decodeNode(okType, nodes, okRef.get).map(v => ResultValue(Right(v)))
+                  case None =>
+                    Left("Result ok has payload but type declares none")
+                }
+            case "err" =>
+              val errRef = resultVal.asInstanceOf[JsErr[js.UndefOr[JsNodeIndex]]].value
+              if (errRef.isEmpty)
+                Right(ResultValue(Left(NullValue)))
+              else
+                resultType.err match {
+                  case Some(errType) =>
+                    decodeNode(errType, nodes, errRef.get).map(v => ResultValue(Left(v)))
+                  case None =>
+                    Left("Result err has payload but type declares none")
+                }
+            case other =>
+              Left(s"Unknown result tag: $other")
           }
         case other =>
           Left(s"Unsupported decoding for $other with node tag $tag")
@@ -161,10 +221,10 @@ private[golem] object WitValueCodec {
 
   private def decodeIndexed(
     dataType: DataType,
-    nodes: js.Array[js.Dynamic],
-    node: js.Dynamic
+    nodes: js.Array[JsWitNode],
+    node: JsWitNode
   ): Either[String, List[DataValue]] = {
-    val refs = node.selectDynamic("val").asInstanceOf[js.Array[Int]]
+    val refs = node.asInstanceOf[JsWitNodeListValue].value
     refs.foldLeft[Either[String, List[DataValue]]](Right(Nil)) { case (acc, childIdx) =>
       acc.flatMap { values =>
         decodeNode(dataType, nodes, childIdx).map(value => values :+ value)
@@ -183,10 +243,10 @@ private[golem] object WitValueCodec {
 
   private def decodeTuple(
     elements: List[DataType],
-    nodes: js.Array[js.Dynamic],
-    node: js.Dynamic
+    nodes: js.Array[JsWitNode],
+    node: JsWitNode
   ): Either[String, List[DataValue]] = {
-    val refs = node.selectDynamic("val").asInstanceOf[js.Array[Int]]
+    val refs = node.asInstanceOf[JsWitNodeTupleValue].value
     if (refs.length != elements.length)
       Left(s"Tuple size mismatch. Expected ${elements.length}, found ${refs.length}")
     else {

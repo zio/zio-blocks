@@ -16,55 +16,73 @@
 
 package golem.runtime.wit
 
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
-class WitResultSpec extends AnyFunSuite {
-  test("ok unwraps to value and stays Ok through map") {
-    val result = WitResult.ok(21)
-    val mapped = result.map(_ * 2)
+object WitResultSpec extends ZIOSpecDefault {
+  def spec = suite("WitResultSpec")(
+    test("ok unwraps to value and stays Ok through map") {
+      val result = WitResult.ok(21)
+      val mapped = result.map(_ * 2)
 
-    assert(mapped.isOk)
-    assert(mapped.unwrap() == 42)
-    assert(mapped.toEither == Right(42))
-  }
+      assertTrue(
+        mapped.isOk,
+        mapped.unwrap() == 42,
+        mapped.toEither == Right(42)
+      )
+    },
+    test("err unwrapErr returns payload and mapError transforms it") {
+      val err    = WitResult.err("boom")
+      val mapped = err.mapError(_.toUpperCase)
 
-  test("err unwrapErr returns payload and mapError transforms it") {
-    val err    = WitResult.err("boom")
-    val mapped = err.mapError(_.toUpperCase)
+      assertTrue(
+        mapped.isErr,
+        mapped.unwrapErr() == "BOOM",
+        mapped.toEither == Left("BOOM")
+      )
+    },
+    test("flatMap short-circuits on error") {
+      val first  = WitResult.ok(1)
+      val second = WitResult.err[String]("fail")
 
-    assert(mapped.isErr)
-    assert(mapped.unwrapErr() == "BOOM")
-    assert(mapped.toEither == Left("BOOM"))
-  }
+      val combined = for {
+        a <- first
+        _ <- second
+      } yield a + 1
 
-  test("flatMap short-circuits on error") {
-    val first  = WitResult.ok(1)
-    val second = WitResult.err[String]("fail")
+      assertTrue(combined.isErr) &&
+      assertTrue {
+        try {
+          combined.unwrap()
+          false
+        } catch {
+          case _: UnwrapError => true
+        }
+      }
+    },
+    test("unwrapForWit rethrows Throwable payloads directly") {
+      val boom = new IllegalStateException("boom")
+      val err  = WitResult.err[Throwable](boom)
 
-    val combined = for {
-      a <- first
-      _ <- second
-    } yield a + 1
+      assertTrue {
+        try {
+          err.unwrapForWit()
+          false
+        } catch {
+          case ex: IllegalStateException => ex eq boom
+        }
+      }
+    },
+    test("unwrapForWit wraps non-throwable payloads") {
+      val err = WitResult.err("boom")
 
-    assert(combined.isErr)
-    assertThrows[UnwrapError](combined.unwrap())
-  }
-
-  test("unwrapForWit rethrows Throwable payloads directly") {
-    val boom = new IllegalStateException("boom")
-    val err  = WitResult.err[Throwable](boom)
-
-    val thrown = intercept[IllegalStateException] {
-      err.unwrapForWit()
+      assertTrue {
+        try {
+          err.unwrapForWit()
+          false
+        } catch {
+          case ex: UnwrapError => ex.payload == "boom"
+        }
+      }
     }
-    assert(thrown eq boom)
-  }
-
-  test("unwrapForWit wraps non-throwable payloads") {
-    val err    = WitResult.err("boom")
-    val thrown = intercept[UnwrapError] {
-      err.unwrapForWit()
-    }
-    assert(thrown.payload == "boom")
-  }
+  )
 }

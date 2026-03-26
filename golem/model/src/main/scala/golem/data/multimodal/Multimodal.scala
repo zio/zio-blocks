@@ -68,6 +68,15 @@ object Multimodal {
           case other =>
             Left(s"Expected multimodal structured value, found $other")
         }
+
+      override def elementSchema: ElementSchema =
+        base.elementSchema
+
+      override def encodeElement(value: Multimodal[A]): Either[String, ElementValue] =
+        base.encodeElement(value.value)
+
+      override def decodeElement(value: ElementValue): Either[String, Multimodal[A]] =
+        base.decodeElement(value).map(Multimodal(_))
     }
 
   private def schemaAsModality(structured: StructuredSchema): List[NamedElementSchema] =

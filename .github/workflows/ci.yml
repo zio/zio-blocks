@@ -141,9 +141,35 @@ jobs:
         if: ${{ startsWith(matrix.scala, '3.') }}
         run: sbt "++${{ matrix.scala }}; testJS2"
 
+  testGolem:
+    name: Test Golem (Scala 3.8.x / 2.13.x)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [17]
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup Action
+        uses: coursier/setup-action@v3
+        with:
+          jvm: temurin:${{ matrix.java }}
+          jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
+          apps: sbt
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v8
+      - name: Run Golem tests (Scala 3.8)
+        run: sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
+      - name: Run Golem tests (Scala 2.13)
+        run: sbt "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
+
   ci:
     runs-on: ubuntu-latest
-    needs: [lint, testJVM, testJS, buildDocs]
+    needs: [lint, testJVM, testJS, testGolem, buildDocs]
     steps:
       - name: Aggregate of lint, and all tests
         run: echo "ci passed"

@@ -16,7 +16,9 @@
 
 package golem.runtime
 
+import golem.config.AgentConfigDeclaration
 import golem.data.StructuredSchema
+import golem.runtime.http.{HttpEndpointDetails, HttpMountDetails}
 
 /**
  * Describes a single method on an agent.
@@ -43,7 +45,8 @@ final case class MethodMetadata(
   prompt: Option[String],
   mode: Option[String],
   input: StructuredSchema,
-  output: StructuredSchema
+  output: StructuredSchema,
+  httpEndpoints: List[HttpEndpointDetails] = Nil
 )
 
 /**
@@ -71,5 +74,8 @@ final case class AgentMetadata(
   description: Option[String],
   mode: Option[String],
   methods: List[MethodMetadata],
-  constructor: StructuredSchema
+  constructor: StructuredSchema,
+  httpMount: Option[HttpMountDetails] = None,
+  config: List[AgentConfigDeclaration] = Nil,
+  snapshotting: Snapshotting = Snapshotting.Disabled
 )

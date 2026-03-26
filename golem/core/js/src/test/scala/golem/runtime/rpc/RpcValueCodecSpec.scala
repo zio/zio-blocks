@@ -16,42 +16,69 @@
 
 package golem.runtime.rpc
 
-import org.scalatest.concurrent.TimeLimits
-import org.scalatest.funsuite.AnyFunSuite
-import org.scalatest.time.SpanSugar._
+import golem.data.multimodal._
+import golem.host.js._
 import golem.runtime.rpc.{Color, Labels, Point}
+import zio.test._
+import zio.test.Assertion._
 
-final class RpcValueCodecSpec extends AnyFunSuite with TimeLimits {
-  test("encodeArgs/decodeValue roundtrip for product") {
-    failAfter(30.seconds) {
-      val in = Point(1, 2)
-      info("rpc encodeArgs product")
-      val params = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
-      info(s"rpc params product: $params")
-      val decoded = RpcValueCodec.decodeValue[Point](params(0)).fold(err => fail(err), identity)
-      assert(decoded == in)
-    }
-  }
+import scala.scalajs.js
 
-  test("encodeArgs/decodeValue roundtrip for map") {
-    failAfter(30.seconds) {
-      val in = Labels(Map("a" -> 1, "b" -> 2))
-      info("rpc encodeArgs map")
-      val params = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
-      info(s"rpc params map: $params")
-      val decoded = RpcValueCodec.decodeValue[Labels](params(0)).fold(err => fail(err), identity)
-      assert(decoded == in)
-    }
-  }
-
-  test("encodeArgs/decodeValue roundtrip for enum") {
-    failAfter(30.seconds) {
+object RpcValueCodecSpec extends ZIOSpecDefault {
+  def spec = suite("RpcValueCodecSpec")(
+    test("encodeArgs/decodeValue roundtrip for product") {
+      val in        = Point(1, 2)
+      val dataValue = RpcValueCodec.encodeArgs(in).fold(err => throw new RuntimeException(err), identity)
+      val witValue  =
+        dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
+      val decoded = RpcValueCodec.decodeValue[Point](witValue).fold(err => throw new RuntimeException(err), identity)
+      assertTrue(decoded == in)
+    },
+    test("encodeArgs/decodeValue roundtrip for map") {
+      val in        = Labels(Map("a" -> 1, "b" -> 2))
+      val dataValue = RpcValueCodec.encodeArgs(in).fold(err => throw new RuntimeException(err), identity)
+      val witValue  =
+        dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
+      val decoded = RpcValueCodec.decodeValue[Labels](witValue).fold(err => throw new RuntimeException(err), identity)
+      assertTrue(decoded == in)
+    },
+    test("encodeArgs/decodeValue roundtrip for enum") {
       val in: Color = Color.Blue
-      info("rpc encodeArgs enum")
-      val params = RpcValueCodec.encodeArgs(in).fold(err => fail(err), identity)
-      info(s"rpc params enum: $params")
-      val decoded = RpcValueCodec.decodeValue[Color](params(0)).fold(err => fail(err), identity)
-      assert(decoded == in)
+      val dataValue = RpcValueCodec.encodeArgs(in).fold(err => throw new RuntimeException(err), identity)
+      val witValue  =
+        dataValue.asInstanceOf[JsDataValueTuple].value(0).asInstanceOf[JsElementValueComponentModel].value
+      val decoded = RpcValueCodec.decodeValue[Color](witValue).fold(err => throw new RuntimeException(err), identity)
+      assertTrue(decoded == in)
+    },
+    test("decodeResult handles multimodal result via HostPayload roundtrip") {
+      import golem.runtime.autowire.HostPayload
+
+      val items = MultimodalItems.basic(
+        Modality.text("hello", Some("en")),
+        Modality.binary(Array[Byte](1, 2, 3), "image/png")
+      )
+
+      val encoded = HostPayload.encode[MultimodalItems.Basic](items)
+      val decoded = encoded.flatMap(RpcValueCodec.decodeResult[MultimodalItems.Basic])
+
+      assert(decoded)(isRight(hasField("items", _.items, hasSize(equalTo(2))))) &&
+      assert(decoded.map(_.items(0)))(isRight(isSubtype[Modality.Text](anything))) &&
+      assert(decoded.map(_.items(1)))(isRight(isSubtype[Modality.Binary](anything)))
+    },
+    test("decodeResult handles Multimodal[A] result via HostPayload roundtrip") {
+      import golem.runtime.autowire.HostPayload
+
+      val payload = Multimodal(Point(10, 20))
+
+      val encoded = HostPayload.encode[Multimodal[Point]](payload)
+      val decoded = encoded.flatMap(RpcValueCodec.decodeResult[Multimodal[Point]])
+
+      assert(decoded)(isRight(equalTo(payload)))
+    },
+    test("decodeResult rejects multimodal result when schema expects tuple") {
+      val multimodalData = JsDataValue.multimodal(js.Array[js.Tuple2[String, JsElementValue]]())
+      val result         = RpcValueCodec.decodeResult[Point](multimodalData)
+      assert(result)(isLeft)
     }
-  }
+  ) @@ TestAspect.timeout(zio.Duration.fromSeconds(30))
 }
