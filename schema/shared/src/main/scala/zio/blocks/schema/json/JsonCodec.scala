@@ -549,7 +549,6 @@ object JsonCodec {
   private val writerPool: ThreadLocal[JsonWriter] = new ThreadLocal[JsonWriter] {
     override def initialValue(): JsonWriter = new JsonWriter
   }
-
   val unitCodec: JsonCodec[Unit] = new JsonCodec[Unit] {
     def decodeValue(in: JsonReader): Unit =
       if (in.isNextToken('{') && in.isNextToken('}')) ()

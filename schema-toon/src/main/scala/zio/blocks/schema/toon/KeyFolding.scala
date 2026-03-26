@@ -16,19 +16,16 @@
 
 package zio.blocks.schema.toon
 
-import zio.blocks.schema.binding.{Constructor, Discriminator}
+/**
+ * Strategy for folding nested keys in TOON output.
+ */
+sealed abstract class KeyFolding
 
-import scala.annotation.tailrec
+object KeyFolding {
 
-private[toon] sealed trait ToonEnumInfo
+  /** No key folding - nested records use indentation. */
+  case object Off extends KeyFolding
 
-private[toon] final class ToonEnumLeafInfo(val name: String, val constructor: Constructor[?]) extends ToonEnumInfo
-
-private[toon] final class ToonEnumNodeInfo(discr: Discriminator[?], children: Array[ToonEnumInfo])
-    extends ToonEnumInfo {
-  @tailrec
-  def discriminate(x: Any): String = children(discr.asInstanceOf[Discriminator[Any]].discriminate(x)) match {
-    case leaf: ToonEnumLeafInfo => leaf.name
-    case node: ToonEnumNodeInfo => node.discriminate(x)
-  }
+  /** Safe key folding - shallow nesting may use dot-separated keys. */
+  case object Safe extends KeyFolding
 }

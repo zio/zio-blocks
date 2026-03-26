@@ -95,7 +95,7 @@ final class ToonWriter private (
     java.util.Arrays.copyOf(buf, end)
   }
 
-  def encodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
+  private[this] def encodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
   def writeToTrimmed(out: OutputStream): Unit = {
     var end = count
@@ -188,8 +188,7 @@ final class ToonWriter private (
     writeByte(':')
   }
 
-  def writeArrayHeaderInline(key: String, length: Int): Unit =
-    writeArrayHeaderInline(key, length, delimiter)
+  def writeArrayHeaderInline(key: String, length: Int): Unit = writeArrayHeaderInline(key, length, delimiter)
 
   def writeArrayHeaderInline(key: String, length: Int, delim: Delimiter): Unit = {
     writeArrayHeader(key, length, null, delim)

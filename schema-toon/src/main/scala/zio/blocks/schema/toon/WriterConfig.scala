@@ -17,20 +17,6 @@
 package zio.blocks.schema.toon
 
 /**
- * Strategy for folding nested keys in TOON output.
- */
-sealed abstract class KeyFolding
-
-object KeyFolding {
-
-  /** No key folding - nested records use indentation. */
-  case object Off extends KeyFolding
-
-  /** Safe key folding - shallow nesting may use dot-separated keys. */
-  case object Safe extends KeyFolding
-}
-
-/**
  * Configuration for [[zio.blocks.schema.toon.ToonWriter]] that contains params
  * for formatting of output TOON and for tuning serialization behavior.
  *

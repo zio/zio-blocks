@@ -84,7 +84,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroCodec[A]] = {
-    if (binding.isInstanceOf[Binding[?, ?]]) {
+    if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val recordBinding            = binding.asInstanceOf[Binding.Record[A]]
       val isRecursive              = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
       var fieldInfosWithAvroSchema =
@@ -111,7 +111,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
         }
         avroSchema.setFields(avroSchemaFields)
       }
-      Lazy(new AvroCodec[A]() {
+      new AvroCodec[A]() {
         private[this] val deconstructor = recordBinding.deconstructor
         private[this] val constructor   = recordBinding.constructor
         private[this] val usedRegisters = constructor.usedRegisters
@@ -172,8 +172,9 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
             idx += 1
           }
         }
-      })
-    } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
+      }
+    }
+    else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[AvroCodec[A]]]
 
   override def deriveVariant[F[_, _], A](
@@ -185,7 +186,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroCodec[A]] = {
-    if (binding.isInstanceOf[Binding[?, ?]]) {
+    if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val variantBinding = binding.asInstanceOf[Binding.Variant[A]]
       val len            = cases.length
       val codecs         = new Array[AvroCodec[?]](len)
@@ -194,7 +195,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
         codecs(idx) = D.instance(cases(idx).value.metadata).force.asInstanceOf[AvroCodec[A]]
         idx += 1
       }
-      Lazy(new AvroCodec[A]() {
+      new AvroCodec[A]() {
         private[this] val discriminator = variantBinding.discriminator
         private[this] val caseCodecs    = codecs
 
@@ -224,8 +225,9 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
           encoder.writeInt(idx)
           caseCodecs(idx).asInstanceOf[AvroCodec[A]].encodeValue(value, encoder)
         }
-      })
-    } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
+      }
+    }
+    else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[AvroCodec[A]]]
 
   override def deriveSequence[F[_, _], C[_], A](
@@ -768,8 +770,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
             }
 
-          def encodeValue(value: A, encoder: BinaryEncoder): Unit =
-            wrappedCodec.encodeValue(unwrap(value), encoder)
+          def encodeValue(value: A, encoder: BinaryEncoder): Unit = wrappedCodec.encodeValue(unwrap(value), encoder)
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
