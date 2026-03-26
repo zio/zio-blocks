@@ -1315,7 +1315,7 @@ sealed trait TypeId[A <: AnyKind] {
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
-import zio.Chunk
+import zio.blocks.chunk.Chunk
 
 // JVM only
 case class User(name: String, age: Int)
@@ -1334,7 +1334,7 @@ Collection types accept variadic arguments representing elements. Sequence-like 
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
-import zio.Chunk
+import zio.blocks.chunk.Chunk
 ```
 
 ```scala mdoc
