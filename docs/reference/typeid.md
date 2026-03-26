@@ -1938,8 +1938,6 @@ val erased: TypeId.Erased = TypeId.of[Int].erased
 erased
 ```
 
-### Building Registries
-
 Erased TypeIds are the key to building type-indexed maps:
 
 ```scala mdoc
@@ -1950,19 +1948,6 @@ val registry: Map[TypeId.Erased, String] = Map(
 
 registry.get(TypeId.of[Int].erased)
 registry.get(TypeId.of[Double].erased)
-```
-
-### Runtime Reflection
-
-The `clazz` and `construct` methods are available on all platforms. On the JVM, `clazz` returns the corresponding `Class[_]` and `construct` uses reflection to create instances. On Scala.js, both methods are no-ops — `clazz` returns `None` and `construct` returns `Left` with an error message.
-
-Note: Primitive values must be explicitly boxed when passed to `construct` (e.g., `30: Integer` instead of `30`).
-
-```scala
-val typeId = TypeId.of[Person]
-val clazz: Option[Class[_]] = typeId.clazz            // Some(...) on JVM, None on Scala.js
-
-val result: Either[String, Any] = typeId.construct(Chunk("Alice", 30: Integer))  // Right(...) on JVM, Left(...) on Scala.js
 ```
 
 ## Integration with Schema
@@ -2028,16 +2013,16 @@ TypeId provides instances for common types:
 
 TypeId occupies a different niche from the reflection and type-tagging mechanisms in the Scala ecosystem:
 
-| Feature | `TypeId` | `ClassTag` | `TypeTag` (Scala 2) | `TypeTest` (Scala 3) | `Mirror` (Scala 3) |
-|---|---|---|---|---|---|
-| Preserves generic type args | Yes | No | Yes | No | No |
-| Distinguishes opaque types | Yes | No | No | No | No |
-| Available on Scala.js | Yes | Partial | No | Yes | Yes |
-| Cross-version (2 & 3) | Yes | Yes | Scala 2 only | Scala 3 only | Scala 3 only |
-| Pure data (no runtime reflection) | Yes | No | No | No | Yes |
-| Captures annotations | Yes | No | Yes | No | No |
-| Captures variance & kind | Yes | No | Yes | No | No |
-| Subtype relationship checks | Yes | No | Yes | Yes | No |
+| Feature                           | `TypeId` | `ClassTag` | `TypeTag` (Scala 2) | `TypeTest` (Scala 3) | `Mirror` (Scala 3) |
+|-----------------------------------|----------|------------|---------------------|----------------------|--------------------|
+| Preserves generic type args       | Yes      | No         | Yes                 | No                   | No                 |
+| Distinguishes opaque types        | Yes      | No         | No                  | No                   | No                 |
+| Available on Scala.js             | Yes      | Partial    | No                  | Yes                  | Yes                |
+| Cross-version (2 & 3)             | Yes      | Yes        | Scala 2 only        | Scala 3 only         | Scala 3 only       |
+| Pure data (no runtime reflection) | Yes      | No         | No                  | No                   | Yes                |
+| Captures annotations              | Yes      | No         | Yes                 | No                   | No                 |
+| Captures variance & kind          | Yes      | No         | Yes                 | No                   | No                 |
+| Subtype relationship checks       | Yes      | No         | Yes                 | Yes                  | No                 |
 
 **When to migrate from `ClassTag`:** If you only need `ClassTag` to create arrays of the correct runtime type, keep using it — TypeId does not replace that functionality. If you are using `ClassTag` to identify or dispatch on types, TypeId provides strictly more information (generics, opaque types, annotations) and works identically on JVM and Scala.js.
 
