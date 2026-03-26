@@ -39,24 +39,26 @@ object MigrationAction {
     def reverse: MigrationAction = Optionalize(at)
   }
 
-  case class Optionalize(at: DynamicOptic) extends MigrationAction {
-    def reverse: MigrationAction = Mandate(at, null.asInstanceOf[SchemaExpr[_, _]])
+  case class Optionalize(at: DynamicOptic, defaultForReverse: SchemaExpr[_, _]) extends MigrationAction {
+    def reverse: MigrationAction = Mandate(at, defaultForReverse)
   }
 
   case class Join(
     at: DynamicOptic,
     sourcePaths: Vector[DynamicOptic],
-    combiner: SchemaExpr[_, _]
+    combiner: SchemaExpr[_, _],
+    splitter: SchemaExpr[_, _]
   ) extends MigrationAction {
-    def reverse: MigrationAction = Split(at, sourcePaths, combiner)
+    def reverse: MigrationAction = Split(at, sourcePaths, splitter, combiner)
   }
 
   case class Split(
     at: DynamicOptic,
     targetPaths: Vector[DynamicOptic],
-    splitter: SchemaExpr[_, _]
+    splitter: SchemaExpr[_, _],
+    combiner: SchemaExpr[_, _]
   ) extends MigrationAction {
-    def reverse: MigrationAction = Join(at, targetPaths, splitter)
+    def reverse: MigrationAction = Join(at, targetPaths, combiner, splitter)
   }
 
   case class ChangeType(at: DynamicOptic, converter: SchemaExpr[_, _]) extends MigrationAction {
@@ -126,6 +128,14 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
       acc.flatMap(v => applyActionSafe(v, action.at.nodes.toList, action).run)
     }
 
+  private def evalExpr(expr: SchemaExpr[_, _], input: Any, at: DynamicOptic): Either[MigrationError, DynamicValue] =
+    scala.util.Try(expr.asInstanceOf[SchemaExpr[Any, Any]].evalDynamic(input)).toEither match {
+      case Right(Right(seq)) if seq.nonEmpty => Right(seq.head)
+      case Right(Right(_)) => Left(MigrationError.TransformationFailed(at, "Expression evaluated to empty Sequence"))
+      case Right(Left(err)) => Left(MigrationError.TransformationFailed(at, err.toString))
+      case Left(ex) => Left(MigrationError.TransformationFailed(at, ex.getMessage))
+    }
+
   private def applyActionSafe(
     current: DynamicValue,
     nodes: List[DynamicOptic.Node],
@@ -160,20 +170,84 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case MigrationAction.TransformCase(_, caseActions) =>
             Trampoline.done(DynamicMigration(caseActions).apply(current))
 
-          case MigrationAction.Mandate(_, _) =>
+          case MigrationAction.Mandate(_, default) =>
             current match {
-              case DynamicValue.Variant("None", _) => Trampoline.done(Right(DynamicValue.Null))
+              case DynamicValue.Variant("None", _) => 
+                evalExpr(default, null.asInstanceOf[Any], action.at) match {
+                  case Right(defaultValue) => Trampoline.done(Right(defaultValue))
+                  case Left(_) => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, s"Mandated value is missing (encountered None) and default failed to evaluate.")))
+                }
               case DynamicValue.Variant("Some", v) => Trampoline.done(Right(v))
               case dyn => Trampoline.done(Right(dyn))
             }
 
-          case MigrationAction.Optionalize(_) =>
+          case MigrationAction.Optionalize(_, _) =>
             current match {
               case DynamicValue.Null => Trampoline.done(Right(DynamicValue.Variant("None", DynamicValue.Null)))
               case _                 => Trampoline.done(Right(DynamicValue.Variant("Some", current)))
             }
 
-          case _ => Trampoline.done(Right(current)) // Placeholder for pure SchemaExpr evals
+          case MigrationAction.TransformValue(_, transform) =>
+            evalExpr(transform, current, action.at) match {
+              case Right(res) => Trampoline.done(Right(res))
+              case Left(err) => Trampoline.done(Left(err))
+            }
+
+          case MigrationAction.ChangeType(_, converter) =>
+            evalExpr(converter, current, action.at) match {
+              case Right(res) => Trampoline.done(Right(res))
+              case Left(err) => Trampoline.done(Left(err))
+            }
+
+          case MigrationAction.TransformElements(_, transform) =>
+            current match {
+              case DynamicValue.Sequence(values) =>
+                Trampoline.collectAll(values.map(v => Trampoline.done(evalExpr(transform, v, action.at)))).map { results =>
+                  results.find(_.isLeft) match {
+                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                    case None => Right(DynamicValue.Sequence(Chunk.fromIterable(results.map(_.getOrElse(DynamicValue.Null)))))
+                  }
+                }
+              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Sequence for TransformElements")))
+            }
+
+          case MigrationAction.TransformKeys(_, transform) =>
+            current match {
+              case DynamicValue.Map(entries) =>
+                Trampoline.collectAll(entries.map { case (k, v) => Trampoline.done(evalExpr(transform, k, action.at).map(res => (res, v))) }).map { results =>
+                  results.find(_.isLeft) match {
+                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                    case None => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+                  }
+                }
+              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformKeys")))
+            }
+
+          case MigrationAction.TransformValues(_, transform) =>
+            current match {
+              case DynamicValue.Map(entries) =>
+                Trampoline.collectAll(entries.map { case (k, v) => Trampoline.done(evalExpr(transform, v, action.at).map(res => (k, res))) }).map { results =>
+                  results.find(_.isLeft) match {
+                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                    case None => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+                  }
+                }
+              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformValues")))
+            }
+
+          case MigrationAction.Join(_, _, combiner, _) =>
+            evalExpr(combiner, current, action.at) match {
+              case Right(res) => Trampoline.done(Right(res))
+              case Left(err) => Trampoline.done(Left(err))
+            }
+
+          case MigrationAction.Split(_, _, splitter, _) =>
+            evalExpr(splitter, current, action.at) match {
+              case Right(res) => Trampoline.done(Right(res))
+              case Left(err) => Trampoline.done(Left(err))
+            }
+
+          case _ => Trampoline.done(Right(current))
         }
 
       case DynamicOptic.Node.Field(name) :: Nil
@@ -183,9 +257,14 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case DynamicValue.Record(fields) =>
             val lm = ListMap.from(fields)
             action match {
-              case MigrationAction.AddField(_, _) =>
+              case MigrationAction.AddField(_, default) =>
                 if (lm.contains(name)) Trampoline.done(Left(MigrationError.TransformationFailed(action.at, s"Field $name already exists")))
-                else Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(lm + (name -> DynamicValue.Null)))))
+                else {
+                  evalExpr(default, null.asInstanceOf[Any], action.at) match {
+                    case Right(defaultValue) => Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(lm + (name -> defaultValue)))))
+                    case Left(err) => Trampoline.done(Left(err))
+                  }
+                }
               case MigrationAction.DropField(_, _) =>
                 if (!lm.contains(name)) Trampoline.done(Left(MigrationError.PathNotFound(action.at)))
                 else Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(lm - name))))

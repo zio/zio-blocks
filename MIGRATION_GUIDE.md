@@ -20,6 +20,9 @@ case class PersonV1(name: String, age: Int)
 case class PersonV2(fullName: String, age: Int, active: Boolean)
 
 // The Builder
+val boolSchema = Schema[Boolean]
+val trueValue = true
+
 val V1ToV2: Migration[PersonV1, PersonV2] = 
   MigrationBuilder.make[PersonV1, PersonV2]
     .renameField(_.name, _.fullName)

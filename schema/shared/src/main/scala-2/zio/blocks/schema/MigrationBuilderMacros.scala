@@ -8,7 +8,7 @@ trait MigrationBuilderMacros[A, B] { self: MigrationBuilder[A, B] =>
   def renameField[T](oldPath: A => T, newPath: B => T): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.renameFieldImpl[A, B, T]
   def transformField[T](path: B => T, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformFieldImpl[A, B, T]
   def mandateField[T](path: B => T, default: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.mandateFieldImpl[A, B, T]
-  def optionalizeField[T](path: B => T): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]
+  def optionalizeField[T](path: B => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]
   def changeFieldType[T](path: B => T, converter: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.changeFieldTypeImpl[A, B, T]
 
   def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] = self.renameCaseCore(from, to)
@@ -101,9 +101,9 @@ private[schema] object MigrationBuilderMacroImpls {
     q"${c.prefix}.mandateFieldCore(${extractOptic(c)(path)}, $default)"
   }
 
-  def optionalizeFieldImpl[A, B, T](c: blackbox.Context)(path: c.Tree): c.Tree = {
+  def optionalizeFieldImpl[A, B, T](c: blackbox.Context)(path: c.Tree, defaultForReverse: c.Tree): c.Tree = {
     import c.universe._
-    q"${c.prefix}.optionalizeFieldCore(${extractOptic(c)(path)})"
+    q"${c.prefix}.optionalizeFieldCore(${extractOptic(c)(path)}, $defaultForReverse)"
   }
 
   def changeFieldTypeImpl[A, B, T](c: blackbox.Context)(path: c.Tree, converter: c.Tree): c.Tree = {
@@ -115,7 +115,7 @@ private[schema] object MigrationBuilderMacroImpls {
     import c.universe._
     val caseName = weakTypeOf[CaseA].typeSymbol.name.decodedName.toString
     q"""
-      val builtMigration = $caseMigration(_root_.zio.blocks.schema.MigrationBuilder.make(..$schemaCaseA, ..$schemaCaseB))
+      val builtMigration = $caseMigration(_root_.zio.blocks.schema.MigrationBuilder.make($schemaCaseA, $schemaCaseB))
       ${c.prefix}.transformCaseCore($caseName, builtMigration)
     """
   }

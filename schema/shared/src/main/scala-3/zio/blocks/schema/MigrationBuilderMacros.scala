@@ -28,9 +28,9 @@ trait MigrationBuilderMacros[A, B] { self: MigrationBuilder[A, B] =>
     ${ MigrationBuilderMacroImpls.mandateFieldImpl[A, B, T]('selfRef, 'path, 'default) }
   }
 
-  inline def optionalizeField[T](inline path: B => T): MigrationBuilder[A, B] = {
+  inline def optionalizeField[T](inline path: B => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] = {
     val selfRef = this
-    ${ MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]('selfRef, 'path) }
+    ${ MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]('selfRef, 'path, 'defaultForReverse) }
   }
 
   inline def changeFieldType[T](inline path: B => T, converter: SchemaExpr[_, _]): MigrationBuilder[A, B] = {
@@ -99,6 +99,9 @@ object MigrationBuilderMacroImpls {
     val nodes = extractOpticNodesForTerm(path.asTerm)
     val nodeExprs = nodes.map {
       case Select(_, fieldName) => '{ DynamicOptic.Node.Field(${Expr(fieldName)}) }
+      case Apply(TypeApply(Ident("when"), List(tpt)), _) =>
+        val caseName = tpt.tpe.typeSymbol.name
+        '{ DynamicOptic.Node.Case(${Expr(caseName)}) }
       case _ => report.errorAndAbort("unsupported element extractor")
     }
     '{ DynamicOptic(Vector(${Varargs(nodeExprs)}*)) }
@@ -175,10 +178,11 @@ object MigrationBuilderMacroImpls {
 
   def optionalizeFieldImpl[A: Type, B: Type, T: Type](
     self: Expr[MigrationBuilder[A, B]],
-    path: Expr[B => T]
+    path: Expr[B => T],
+    defaultForReverse: Expr[SchemaExpr[_, _]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B]] = {
     val optic = extractOptic(path)
-    '{ $self.optionalizeFieldCore($optic) }
+    '{ $self.optionalizeFieldCore($optic, $defaultForReverse) }
   }
 
   def changeFieldTypeImpl[A: Type, B: Type, T: Type](

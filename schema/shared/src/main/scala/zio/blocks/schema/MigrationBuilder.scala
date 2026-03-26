@@ -21,8 +21,8 @@ final class MigrationBuilder[A, B](
   def mandateFieldCore(at: DynamicOptic, default: SchemaExpr[_, _]): MigrationBuilder[A, B] =
     new MigrationBuilder(actions :+ MigrationAction.Mandate(at, default), source, target)
 
-  def optionalizeFieldCore(at: DynamicOptic): MigrationBuilder[A, B] =
-    new MigrationBuilder(actions :+ MigrationAction.Optionalize(at), source, target)
+  def optionalizeFieldCore(at: DynamicOptic, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    new MigrationBuilder(actions :+ MigrationAction.Optionalize(at, defaultForReverse), source, target)
 
   def changeFieldTypeCore(at: DynamicOptic, converter: SchemaExpr[_, _]): MigrationBuilder[A, B] =
     new MigrationBuilder(actions :+ MigrationAction.ChangeType(at, converter), source, target)

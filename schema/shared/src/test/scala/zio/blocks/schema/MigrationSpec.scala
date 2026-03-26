@@ -40,8 +40,7 @@ object MigrationSpec extends ZIOSpecDefault {
       // "Field(s) [active, fullName] in target schema are missing from source and have no default value provided."
       // val failingMigration = MigrationBuilder.make[PersonV1, PersonV2].build
       
-      val trueValue = DynamicValue.Primitive(PrimitiveValue.Boolean(true), StandardType.BoolType)
-      val trueLiteral = SchemaExpr.Literal(trueValue, Schema.primitive(StandardType.BoolType))
+      val trueLiteral = SchemaExpr.Literal(true, Schema.primitive(StandardType.BoolType))
 
       val workingMigration = MigrationBuilder.make[PersonV1, PersonV2]
         .renameField(_.name, _.fullName)
