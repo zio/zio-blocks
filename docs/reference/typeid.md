@@ -1588,6 +1588,13 @@ cacheStringIntId.typeArgs
 
 Variance matters for type safety, polymorphism, and API design. TypeId captures variance information, enabling runtime inspection and validation:
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+sealed trait Container[+A]
+sealed trait Cache[K, +V]
+```
+
 ```scala mdoc
 val containerParams = TypeId.of[Container].typeParams
 containerParams.map(p => (p.name, p.variance))
