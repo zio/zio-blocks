@@ -1469,13 +1469,13 @@ userId match {
 
 The extractors are:
 
-| Extractor                                          | Matches                  |
-|----------------------------------------------------|--------------------------|
+| Extractor                                               | Matches                  |
+|---------------------------------------------------------|--------------------------|
 | `TypeId.Nominal(name, owner, params, defKind, parents)` | Classes, traits, objects |
-| `TypeId.Alias(name, owner, params, aliased)`       | Type aliases             |
-| `TypeId.Opaque(name, owner, params, repr, bounds)` | Opaque types             |
-| `TypeId.Sealed(name)`                              | Sealed traits            |
-| `TypeId.Enum(name, owner)`                         | Scala 3 enums            |
+| `TypeId.Alias(name, owner, params, aliased)`            | Type aliases             |
+| `TypeId.Opaque(name, owner, params, repr, bounds)`      | Opaque types             |
+| `TypeId.Sealed(name)`                                   | Sealed traits            |
+| `TypeId.Enum(name, owner)`                              | Scala 3 enums            |
 
 ## TypeDefKind Reference
 
