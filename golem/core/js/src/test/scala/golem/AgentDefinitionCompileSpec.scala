@@ -40,13 +40,13 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("string-ctor-agent")
   trait StringCtorAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def echo(): Future[String]
   }
 
   @agentDefinition("case-class-ctor-agent")
   trait CaseClassCtorAgent extends BaseAgent {
-    @constructor def create(host: String, port: Int): Unit = ()
+    @constructor private def create(host: String, port: Int): Unit = ()
     def info(): Future[String]
   }
 
@@ -55,25 +55,25 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("tuple2-ctor-agent")
   trait Tuple2CtorAgent extends BaseAgent {
-    @constructor def create(arg0: String, arg1: Int): Unit = ()
+    @constructor private def create(arg0: String, arg1: Int): Unit = ()
     def combined(): Future[String]
   }
 
   @agentDefinition("tuple3-ctor-agent")
   trait Tuple3CtorAgent extends BaseAgent {
-    @constructor def create(arg0: String, arg1: Int, arg2: Boolean): Unit = ()
+    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean): Unit = ()
     def all(): Future[String]
   }
 
   @agentDefinition("tuple4-ctor-agent")
   trait Tuple4CtorAgent extends BaseAgent {
-    @constructor def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double): Unit = ()
+    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double): Unit = ()
     def data(): Future[String]
   }
 
   @agentDefinition("tuple5-ctor-agent")
   trait Tuple5CtorAgent extends BaseAgent {
-    @constructor def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double, arg4: Long): Unit = ()
+    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double, arg4: Long): Unit = ()
     def data(): Future[String]
   }
 
@@ -120,7 +120,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("kitchen-sink-agent")
   @description("Agent with many method signature patterns.")
   trait KitchenSinkAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def echoString(message: String): Future[String]
     def echoInt(value: Int): Future[Int]
     def echoBoolean(flag: Boolean): Future[Boolean]
@@ -184,7 +184,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def process(): Future[String]
   }
 
@@ -230,7 +230,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("factory-ctor-agent")
   trait FactoryCtorAgent extends BaseAgent {
-    @constructor def create(host: String, port: Int): Unit = ()
+    @constructor private def create(host: String, port: Int): Unit = ()
     def info(): Future[String]
   }
 
@@ -245,7 +245,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("no-methods-agent")
   trait NoMethodsAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
   }
 
   @agentImplementation()

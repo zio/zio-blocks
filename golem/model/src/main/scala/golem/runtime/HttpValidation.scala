@@ -163,10 +163,10 @@ object HttpValidation {
    * defined:
    *
    *   - '''Single parameter''' (e.g.
-   *     `@constructor def create(value: String): Unit`): produces one parameter
+   *     `@constructor private def create(value: String): Unit`): produces one parameter
    *     named `"value"`. The mount path must use `{value}` to refer to it.
    *   - '''Multiple parameters''' (e.g.
-   *     `@constructor def create(arg0: String, arg1: Int): Unit`): produces
+   *     `@constructor private def create(arg0: String, arg1: Int): Unit`): produces
    *     parameters named `"arg0"`, `"arg1"`, etc. The mount path must use
    *     `{arg0}`, `{arg1}`, etc.
    *   - '''No constructor''': produces no parameters. Mount paths must not

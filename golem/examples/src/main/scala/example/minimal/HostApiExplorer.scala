@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Explores raw host APIs to discover their JS shape for typing.")
 trait HostApiExplorer extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Explore the WASI config store module")
   def exploreConfig(): Future[String]

@@ -33,7 +33,7 @@ object MyAppConfig {
 @agentDefinition()
 @description("Example agent with configuration")
 trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Returns a greeting using config values")
   def greet(): Future[String]
@@ -42,7 +42,7 @@ trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
 @agentDefinition()
 @description("Example agent that calls ConfigAgent with config overrides")
 trait ConfigCallerAgent extends BaseAgent {
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Calls ConfigAgent with overridden config values")
   def callWithOverride(): Future[String]

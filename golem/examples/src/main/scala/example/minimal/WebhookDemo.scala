@@ -18,7 +18,7 @@ object WebhookEvent {
 )
 @description("Demonstrates webhook creation and awaiting webhook payloads")
 trait WebhookDemo extends BaseAgent {
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @endpoint(method = "GET", path = "/create")
   @description("Creates a webhook and returns the webhook URL")

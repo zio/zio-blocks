@@ -54,7 +54,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition(typeName = "Human")
          |@description("A human agent.")
          |trait HumanAgent {
-         |  @constructor def create(value: String): Unit = ()
+         |  @constructor private def create(value: String): Unit = ()
          |}
          |""".stripMargin
 
@@ -76,7 +76,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait Shard {
-         |  @constructor def create(tableName: String, shardId: Int): Unit = ()
+         |  @constructor private def create(tableName: String, shardId: Int): Unit = ()
          |}
          |""".stripMargin
 
@@ -138,7 +138,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition()
          |@description("A counter agent.")
          |trait Counter {
-         |  @constructor def create(value: String): Unit = ()
+         |  @constructor private def create(value: String): Unit = ()
          |}
          |
          |object Counter
@@ -163,7 +163,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait AgentA {
-         |  @constructor def create(value: String): Unit = ()
+         |  @constructor private def create(value: String): Unit = ()
          |}
          |""".stripMargin
 
@@ -377,7 +377,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MixedAgent {
-         |  @constructor def create(value: String): Unit = ()
+         |  @constructor private def create(value: String): Unit = ()
          |  def get(key: String): String
          |}
          |""".stripMargin

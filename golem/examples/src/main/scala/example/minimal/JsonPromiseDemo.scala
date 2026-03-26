@@ -31,7 +31,7 @@ object PromisePayload {
 @description("Demonstrates JSON-typed promises and blocking promise await.")
 trait JsonPromiseDemo extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Creates a promise, completes with JSON, and awaits the JSON result.")
   def jsonRoundtrip(): Future[String]

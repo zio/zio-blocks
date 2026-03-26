@@ -36,13 +36,13 @@ object AgentSurfaceExportCompileSpec extends ZIOSpecDefault {
   @agentDefinition("string-export")
   @description("An agent with a string constructor.")
   trait StringExportAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def echo(): Future[String]
   }
 
   @agentDefinition("multi-export")
   trait MultiExportAgent extends BaseAgent {
-    @constructor def create(host: String, port: Int): Unit = ()
+    @constructor private def create(host: String, port: Int): Unit = ()
     def info(): Future[String]
   }
 

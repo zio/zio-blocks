@@ -8,7 +8,7 @@ import scala.concurrent.Future
 @agentDefinition(mount = "/api/fetch/{value}")
 @description("Example agent demonstrating outgoing HTTP requests using fetch")
 trait FetchAgent extends BaseAgent {
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @endpoint(method = "GET", path = "/call?port={port}")
   @description("Makes a GET request to localhost on the given port and returns the response body")

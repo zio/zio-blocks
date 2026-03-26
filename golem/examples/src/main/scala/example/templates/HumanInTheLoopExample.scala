@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Human-in-the-loop workflow using Golem promises (Scala equivalent of the Rust/TS HITL template).")
 trait ApprovalWorkflow extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @prompt("Start approval process")
   @description("Starts a workflow that requires human approval before continuing")
@@ -42,7 +42,7 @@ trait ApprovalWorkflow extends BaseAgent {
 @description("A minimal 'human' agent that can approve/reject workflows (used by ApprovalWorkflow examples).")
 trait HumanAgent extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @prompt("Approve or reject a workflow")
   @description("Makes a decision on a workflow approval request")

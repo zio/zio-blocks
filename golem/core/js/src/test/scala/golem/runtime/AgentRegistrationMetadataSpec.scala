@@ -83,7 +83,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
   trait CtorMetaAgent extends BaseAgent {
-    @constructor def create(host: String, port: Int): Unit = ()
+    @constructor private def create(host: String, port: Int): Unit = ()
     def info(): Future[String]
   }
 

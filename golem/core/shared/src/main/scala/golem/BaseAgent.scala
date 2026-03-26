@@ -25,7 +25,7 @@ package golem
  * {{{
  * @agentDefinition()
  * trait Shard extends BaseAgent {
- *   @constructor def create(tableName: String, shardId: Int): Unit = ()
+ *   @constructor private def create(tableName: String, shardId: Int): Unit = ()
  *   def get(key: String): Future[Option[String]]
  * }
  * }}}

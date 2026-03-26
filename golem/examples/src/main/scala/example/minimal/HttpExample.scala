@@ -6,7 +6,7 @@ import golem.BaseAgent
 import scala.concurrent.Future
 
 // ---------------------------------------------------------------------------
-// Single-element constructor: @constructor def create(value: String)
+// Single-element constructor: @constructor private def create(value: String)
 //
 // The mount path variable must be named {value} — matching the @constructor
 // parameter name.
@@ -15,7 +15,7 @@ import scala.concurrent.Future
 @description("A weather agent demonstrating code-first HTTP routes with a single constructor parameter")
 trait WeatherAgent extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @endpoint(method = "GET", path = "/current/{city}")
   @description("Returns current weather for a city")
@@ -43,7 +43,7 @@ trait WeatherAgent extends BaseAgent {
 }
 
 // ---------------------------------------------------------------------------
-// Tuple constructor: @constructor def create(arg0: String, arg1: Int)
+// Tuple constructor: @constructor private def create(arg0: String, arg1: Int)
 //
 // Mount path variables must be named {arg0}, {arg1}, etc., matching the
 // @constructor parameter names.
@@ -52,7 +52,7 @@ trait WeatherAgent extends BaseAgent {
 @description("An inventory agent demonstrating tuple constructor parameters")
 trait InventoryAgent extends BaseAgent {
 
-  @constructor def create(arg0: String, arg1: Int): Unit = ()
+  @constructor private def create(arg0: String, arg1: Int): Unit = ()
 
   @endpoint(method = "GET", path = "/stock")
   @description("Get stock level for this warehouse/zone")
@@ -64,7 +64,7 @@ trait InventoryAgent extends BaseAgent {
 }
 
 // ---------------------------------------------------------------------------
-// Case class constructor: @constructor def create(region: String, catalog: String)
+// Case class constructor: @constructor private def create(region: String, catalog: String)
 //
 // Mount path variables match the @constructor parameter names: {region}, {catalog}.
 // ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ object CatalogParams {
 @description("A catalog agent demonstrating case-class constructor parameters")
 trait CatalogAgent extends BaseAgent {
 
-  @constructor def create(region: String, catalog: String): Unit = ()
+  @constructor private def create(region: String, catalog: String): Unit = ()
 
   @endpoint(method = "GET", path = "/search?q={query}")
   @description("Search the catalog")
@@ -98,7 +98,7 @@ trait CatalogAgent extends BaseAgent {
 )
 @description("Demonstrates phantom agent with webhook suffix")
 trait WebhookAgent extends BaseAgent {
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
   @endpoint(method = "POST", path = "/receive")
   def receive(payload: String): Future[String]
 }

@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates the full span/context and durability APIs with typed responses.")
 trait ObservabilityDemo extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Create nested spans with attributes and read the invocation context.")
   def traceDemo(): Future[String]

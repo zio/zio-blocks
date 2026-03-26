@@ -26,7 +26,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
        |
        |@agentDefinition("counter-agent")
        |trait CounterAgent {
-       |  @constructor def create(value: String): Unit = ()
+       |  @constructor private def create(value: String): Unit = ()
        |  def increment(amount: Int): Int
        |}
        |

@@ -30,7 +30,7 @@ import scala.concurrent.Future
 @agentDefinition(mode = DurabilityMode.Durable)
 trait Shard extends BaseAgent {
 
-  @constructor def create(tableName: String, shardId: Int): Unit = ()
+  @constructor private def create(tableName: String, shardId: Int): Unit = ()
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]

@@ -252,7 +252,7 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
 private object AgentClientRuntimeSpecFixtures {
   @agentDefinition(mode = DurabilityMode.Durable)
   trait RpcParityAgent extends BaseAgent {
-    @constructor def create(token: String): Unit = ()
+    @constructor private def create(token: String): Unit = ()
 
     def `new`(token: String): RpcParityAgent
 

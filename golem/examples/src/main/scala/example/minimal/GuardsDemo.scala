@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates Guards API, HostApi config get/set, and oplog management.")
 trait GuardsDemo extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Exercises block-scoped guards: withPersistenceLevel, withRetryPolicy, withIdempotenceMode, atomically.")
   def guardsBlockDemo(): Future[String]

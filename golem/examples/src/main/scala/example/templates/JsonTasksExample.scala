@@ -36,7 +36,7 @@ object CreateTaskRequest {
 @description("A simple agent demonstrating JSON API support (Scala equivalent of the Rust/TS JSON template).")
 trait Tasks extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @prompt("Create a new task with the given title")
   @description("Creates a task and returns the complete task object")

@@ -114,7 +114,7 @@ import scala.concurrent.Future
 @agentDefinition()
 trait CounterAgent extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")

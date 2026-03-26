@@ -32,7 +32,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait CtorPrincipalAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def getCreator(): Future[String]
   }
 
@@ -109,7 +109,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait MixedParamsAgent extends BaseAgent {
-    @constructor def create(value: String): Unit = ()
+    @constructor private def create(value: String): Unit = ()
     def info(): Future[String]
   }
 

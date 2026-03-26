@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates agent type registry, metadata queries, resolution, lifecycle, and phantom RPC.")
 trait AgentRegistryDemo extends BaseAgent {
 
-  @constructor def create(value: String): Unit = ()
+  @constructor private def create(value: String): Unit = ()
 
   @description("Explores registeredAgentType, getAllAgentTypes, parseAgentId, resolveComponentId, resolveAgentId.")
   def exploreRegistry(): Future[String]
