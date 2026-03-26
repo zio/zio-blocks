@@ -1,9 +1,14 @@
 package golem.host.js
 
 import golem.{Principal, Uuid}
+import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
+
 import scala.scalajs.js
 
 object PrincipalConverter {
+
+  private val codec: JsonCodec[Principal] =
+    Principal.schema.derive(JsonCodecDeriver)
 
   def fromJs(dynamic: js.Dynamic): Principal = {
     val tag = dynamic.tag
@@ -49,4 +54,10 @@ object PrincipalConverter {
           Principal.Anonymous
       }
   }
+
+  def toJson(principal: Principal): Array[Byte] =
+    codec.encode(principal)
+
+  def fromJson(bytes: Array[Byte]): Either[String, Principal] =
+    codec.decode(bytes).left.map(_.toString)
 }

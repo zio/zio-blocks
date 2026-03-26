@@ -1,5 +1,7 @@
 package golem
 
+import zio.blocks.schema.Schema
+
 sealed trait Principal extends Product with Serializable
 
 object Principal {
@@ -26,4 +28,6 @@ object Principal {
   ) extends Principal
 
   case object Anonymous extends Principal
+
+  implicit val schema: Schema[Principal] = Schema.derived
 }

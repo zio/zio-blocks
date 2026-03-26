@@ -19,6 +19,7 @@ package golem.runtime.guest
 import golem.host.js._
 import golem.runtime.autowire.{AgentRegistry, WitValueBuilder}
 import golem.runtime.util.FutureInterop
+import zio.blocks.schema.json.Json
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
@@ -35,7 +36,8 @@ import scala.scalajs.js.typedarray.Uint8Array
  * initializer runs on module load).
  */
 object Guest {
-  private var resolved: js.UndefOr[Resolved] = js.undefined
+  private var resolved: js.UndefOr[Resolved]                    = js.undefined
+  private var initializationPrincipal: Option[golem.Principal]  = None
   private final case class Resolved(defn: golem.runtime.autowire.AgentDefinition[Any], instance: Any)
 
   private def invalidType(message: String): JsAgentError =
@@ -98,6 +100,7 @@ object Guest {
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
           val scalaPrincipal           = PrincipalConverter.fromJs(principal)
+          initializationPrincipal = Some(scalaPrincipal)
           // Avoid calling `.then` directly (Scala 3 scaladoc / TASTy reader can error on it during `doc`).
           val initPromise              = defnAny.initializeAny(input.asInstanceOf[JsDataValue], scalaPrincipal)
           val initFuture: Future[Unit] =
@@ -189,7 +192,25 @@ object Guest {
           case Some(handlers) =>
             FutureInterop.toPromise(
               handlers.save(r.instance).map { payload =>
-                JsSnapshot(toUint8Array(payload.bytes), payload.mimeType)
+                val principal = initializationPrincipal.getOrElse(golem.Principal.Anonymous)
+                val principalBytes = PrincipalConverter.toJson(principal)
+                if (payload.mimeType == "application/json") {
+                  val stateJson        = new String(payload.bytes, "UTF-8")
+                  val principalJsonStr = new String(principalBytes, "UTF-8")
+                  val envelope         = s"""{"version":1,"principal":$principalJsonStr,"state":$stateJson}"""
+                  JsSnapshot(toUint8Array(envelope.getBytes("UTF-8")), "application/json")
+                } else {
+                  val totalLength    = 1 + 4 + principalBytes.length + payload.bytes.length
+                  val fullSnapshot   = new Array[Byte](totalLength)
+                  fullSnapshot(0) = 2.toByte
+                  fullSnapshot(1) = ((principalBytes.length >>> 24) & 0xff).toByte
+                  fullSnapshot(2) = ((principalBytes.length >>> 16) & 0xff).toByte
+                  fullSnapshot(3) = ((principalBytes.length >>> 8) & 0xff).toByte
+                  fullSnapshot(4) = (principalBytes.length & 0xff).toByte
+                  System.arraycopy(principalBytes, 0, fullSnapshot, 5, principalBytes.length)
+                  System.arraycopy(payload.bytes, 0, fullSnapshot, 5 + principalBytes.length, payload.bytes.length)
+                  JsSnapshot(toUint8Array(fullSnapshot), "application/octet-stream")
+                }
               }
             )
           case None =>
@@ -209,8 +230,51 @@ object Guest {
         val r = resolved.asInstanceOf[Resolved]
         r.defn.snapshotHandlers match {
           case Some(handlers) =>
+            val bytes = fromUint8Array(snapshot.data)
+            val (principal, agentState) =
+              if (snapshot.mimeType == "application/json") {
+                Json.parse(bytes) match {
+                  case Right(envelope) =>
+                    val p = envelope.get("principal").one.toOption
+                      .flatMap(pJson => PrincipalConverter.fromJson(pJson.printBytes).toOption)
+                      .getOrElse(initializationPrincipal.getOrElse(golem.Principal.Anonymous))
+                    val stateBytes = envelope.get("state").one.toOption
+                      .map(_.printBytes)
+                      .getOrElse(bytes)
+                    (p, stateBytes)
+                  case Left(_) =>
+                    (initializationPrincipal.getOrElse(golem.Principal.Anonymous), bytes)
+                }
+              } else if (bytes.nonEmpty) {
+                val version = bytes(0) & 0xff
+                version match {
+                  case 1 =>
+                    val p = initializationPrincipal.getOrElse(golem.Principal.Anonymous)
+                    (p, bytes.drop(1))
+                  case 2 =>
+                    if (bytes.length < 5)
+                      throw new RuntimeException("Version 2 snapshot too short for principal length")
+                    val principalLen =
+                      ((bytes(1) & 0xff) << 24) | ((bytes(2) & 0xff) << 16) |
+                      ((bytes(3) & 0xff) << 8) | (bytes(4) & 0xff)
+                    val principalEnd = 5 + principalLen
+                    if (bytes.length < principalEnd)
+                      throw new RuntimeException("Version 2 snapshot too short for principal data")
+                    val principalBytes = java.util.Arrays.copyOfRange(bytes, 5, principalEnd)
+                    val p = PrincipalConverter.fromJson(principalBytes) match {
+                      case Right(v)  => v
+                      case Left(err) => throw new RuntimeException(s"Failed to deserialize principal: $err")
+                    }
+                    (p, bytes.drop(principalEnd))
+                  case other =>
+                    throw new RuntimeException(s"Unsupported snapshot version: $other")
+                }
+              } else {
+                (initializationPrincipal.getOrElse(golem.Principal.Anonymous), bytes)
+              }
+            initializationPrincipal = Some(principal)
             FutureInterop.toPromise(
-              handlers.load(r.instance, fromUint8Array(snapshot.data)).map { newInstance =>
+              handlers.load(r.instance, agentState).map { newInstance =>
                 resolved = Resolved(r.defn, newInstance)
               }
             )
