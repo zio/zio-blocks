@@ -1485,16 +1485,16 @@ The `defKind` property (documented in [Core Operations](#type-classification)) r
 
 `TypeDefKind` has these variants:
 
-| Variant                                              | Description                     |
-|------------------------------------------------------|---------------------------------|
-| `Class(isFinal, isAbstract, isCase, isValue, bases)` | Class definitions               |
-| `Trait(isSealed, bases)`                             | Trait definitions               |
-| `Object(bases)`                                      | Singleton objects               |
-| `Enum(bases)`                                        | Scala 3 enums                   |
-| `EnumCase(parentEnum, ordinal, isObjectCase)`        | Enum cases                      |
-| `TypeAlias`                                          | Type aliases (`type Foo = Bar`) |
-| `OpaqueType(publicBounds)`                           | Opaque types                    |
-| `AbstractType`                                       | Abstract type members           |
+| Variant                                              | Description                                  |
+|------------------------------------------------------|----------------------------------------------|
+| `Class(isFinal, isAbstract, isCase, isValue, bases)` | Class definitions                            |
+| `Trait(isSealed, bases)`                             | Trait definitions                            |
+| `Object(bases)`                                      | Singleton objects                            |
+| `Enum(bases)`                                        | Scala 3 enums                                |
+| `EnumCase(parentEnum, ordinal, isObjectCase)`        | Enum cases                                   |
+| `TypeAlias`                                          | Type aliases (`type Foo = Bar`)              |
+| `OpaqueType(publicBounds)`                           | Opaque types                                 |
+| `AbstractType`                                       | Abstract type members                        |
 | `Unknown`                                            | Unclassified or unresolvable type definition |
 
 ## Type Parameters and Generics
