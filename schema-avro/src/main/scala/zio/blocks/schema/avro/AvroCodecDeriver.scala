@@ -94,7 +94,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
         val namespace  = typeId.owner.asString
         val avroSchema = createAvroRecord(namespace, typeId.name)
         val len        = fields.length
-        val fieldInfos = new Array[AvroFieldInfo](len)
+        val fieldInfos = new Array[FieldInfo](len)
         fieldInfosWithAvroSchema = (fieldInfos, avroSchema)
         if (isRecursive) recursiveRecordCache.get.put(typeId, fieldInfosWithAvroSchema)
         val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
@@ -104,7 +104,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
           val field        = fields(idx)
           val fieldReflect = field.value
           val codec        = D.instance(fieldReflect.metadata).force.asInstanceOf[AvroCodec[?]]
-          fieldInfos(idx) = new AvroFieldInfo(codec, Reflect.typeTag(fieldReflect), offset)
+          fieldInfos(idx) = new FieldInfo(codec, Reflect.typeTag(fieldReflect), offset)
           avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
           offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
           idx += 1
@@ -791,9 +791,8 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
   type TC[_]
 
   private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[TypeId[?], (Array[AvroFieldInfo], AvroSchema)]] {
-      override def initialValue: java.util.HashMap[TypeId[?], (Array[AvroFieldInfo], AvroSchema)] =
-        new java.util.HashMap
+    new ThreadLocal[java.util.HashMap[TypeId[?], (Array[FieldInfo], AvroSchema)]] {
+      override def initialValue: java.util.HashMap[TypeId[?], (Array[FieldInfo], AvroSchema)] = new java.util.HashMap
     }
   private[this] val recordCounters =
     new ThreadLocal[java.util.HashMap[(String, String), Int]] {
@@ -1239,4 +1238,4 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
   }
 }
 
-private case class AvroFieldInfo(codec: AvroCodec[?], typeTag: Int, offset: RegisterOffset.RegisterOffset)
+private case class FieldInfo(codec: AvroCodec[?], typeTag: Int, offset: RegisterOffset.RegisterOffset)

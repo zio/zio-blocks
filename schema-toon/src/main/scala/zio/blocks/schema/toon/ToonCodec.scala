@@ -814,19 +814,20 @@ object ToonCodec {
         val (rawKey, wasQuoted) = in.readKeyWithQuoteInfo()
         val bracketStart        = rawKey.indexOf('[')
         val hasArrayNotation    = bracketStart >= 0 && rawKey.indexOf(']', bracketStart) > bracketStart
-        val (fieldName, value)  = if (wasQuoted && bracketStart > 0) {
-          val quotedPart = rawKey.substring(0, bracketStart)
-          val name       =
-            if (quotedPart.startsWith("\"") && quotedPart.endsWith("\""))
-              quotedPart.substring(1, quotedPart.length - 1)
-            else quotedPart
-          (name, decodeArrayFieldValue(in, rawKey.substring(bracketStart)))
-        } else if (!wasQuoted && hasArrayNotation) {
-          val name = if (bracketStart > 0) rawKey.substring(0, bracketStart) else rawKey
-          (name, decodeArrayFieldValue(in, rawKey))
-        } else {
-          (rawKey, decodeValue(in))
-        }
+        val (fieldName, value)  =
+          if (wasQuoted && bracketStart > 0) {
+            val quotedPart = rawKey.substring(0, bracketStart)
+            val name       =
+              if (quotedPart.startsWith("\"") && quotedPart.endsWith("\"")) {
+                quotedPart.substring(1, quotedPart.length - 1)
+              } else quotedPart
+            (name, decodeArrayFieldValue(in, rawKey.substring(bracketStart)))
+          } else if (!wasQuoted && hasArrayNotation) {
+            val name =
+              if (bracketStart > 0) rawKey.substring(0, bracketStart)
+              else rawKey
+            (name, decodeArrayFieldValue(in, rawKey))
+          } else (rawKey, decodeValue(in))
         builder.addOne(((fieldName, wasQuoted), value))
         in.skipBlankLines()
       }
@@ -834,8 +835,7 @@ object ToonCodec {
       in.expandPaths match {
         case PathExpansion.Safe => expandAndMergeFieldsWithQuoteInfo(in, fieldsWithQuoteInfo)
         case PathExpansion.Off  =>
-          val record = new DynamicValue.Record(fieldsWithQuoteInfo.map { case ((k, _), v) => (k, v) })
-          maybeExtractVariant(record, in)
+          maybeExtractVariant(new DynamicValue.Record(fieldsWithQuoteInfo.map { case ((k, _), v) => (k, v) }), in)
       }
     }
 
@@ -956,7 +956,7 @@ object ToonCodec {
     }
 
     private[this] def splitInlineValues(s: String, delim: Delimiter): Array[String] = {
-      val result  = new scala.collection.mutable.ArrayBuffer[String]()
+      val result  = new scala.collection.mutable.ArrayBuffer[String]
       var start   = 0
       var inQuote = false
       var i       = 0

@@ -432,7 +432,7 @@ final class ToonReader private[toon] (
     }
 
   private[this] def splitByDelimiter(s: String, delim: Delimiter): Array[String] = {
-    val result  = new scala.collection.mutable.ArrayBuffer[String]()
+    val result  = new scala.collection.mutable.ArrayBuffer[String]
     var start   = 0
     var inQuote = false
     var i       = 0
