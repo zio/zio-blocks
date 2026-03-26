@@ -1938,20 +1938,6 @@ val erased: TypeId.Erased = TypeId.int.erased
 erased
 ```
 
-### Equality and Hashing
-
-TypeId uses structural equality:
-
-```scala mdoc
-val alias1 = TypeId.alias[Int]("A", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
-val alias2 = TypeId.alias[Int]("A", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
-
-alias1 == alias2
-
-val map = Map(alias1 -> "value")
-map.get(alias2)
-```
-
 ### Building Registries
 
 Erased TypeIds are the key to building type-indexed maps:
