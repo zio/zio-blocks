@@ -19,12 +19,18 @@ configure snapshotting, from fully automatic JSON-based persistence to custom bi
 To enable snapshotting for an agent, set the `snapshotting` parameter on `@agentDefinition`:
 
 ```scala
-@agentDefinition(snapshotting = "enabled")
+import golem.runtime.Snapshotting
+
+@agentDefinition(snapshotting = Snapshotting.enabled)
 trait MyAgent extends BaseAgent {
   class Id(val value: String)
   def doSomething(): Future[String]
 }
 ```
+
+The `Snapshotting` companion object provides string constants (`Snapshotting.disabled`, `Snapshotting.enabled`) and
+helper methods (`Snapshotting.periodic(...)`, `Snapshotting.everyN(...)`) for type-safe annotation usage with IDE
+completion. The `disabled` and `enabled` constants are `final val` and can be used directly in Scala 2 annotations.
 
 Without this annotation parameter, snapshotting is disabled and no snapshot exports are generated.
 
@@ -36,14 +42,21 @@ The `snapshotting` parameter accepts the following values:
 
 | Mode              | Description                                              |
 |-------------------|----------------------------------------------------------|
-| `"disabled"`      | No snapshotting (default when omitted)                   |
-| `"enabled"`       | Snapshot on every successful function call                |
+| `Snapshotting.disabled`      | No snapshotting (default when omitted)                   |
+| `Snapshotting.enabled`       | Snapshot on every successful function call                |
 | `"periodic(10s)"` | Snapshot at most once every 10 seconds (duration format)  |
 | `"every(5)"`      | Snapshot every 5 successful function calls               |
+
+String constants `Snapshotting.disabled` and `Snapshotting.enabled` are `final val` and work in both Scala 2 and 3
+annotations. For `periodic` and `every`, use the raw strings directly in annotations or the helper methods
+`Snapshotting.periodic("30s")` and `Snapshotting.everyN(10)` for programmatic usage.
 
 Examples:
 
 ```scala
+@agentDefinition(snapshotting = Snapshotting.enabled)
+trait EnabledAgent extends BaseAgent { ... }
+
 @agentDefinition(snapshotting = "periodic(30s)")
 trait PeriodicAgent extends BaseAgent { ... }
 
@@ -70,7 +83,7 @@ object CounterState {
 **2. Enable snapshotting on the agent definition:**
 
 ```scala
-@agentDefinition(snapshotting = "enabled")
+@agentDefinition(snapshotting = Snapshotting.enabled)
 @description("A counter with automatic JSON-based state persistence.")
 trait AutoSnapshotCounter extends BaseAgent {
   class Id(val value: String)
@@ -108,7 +121,7 @@ For agents that need custom binary serialization (e.g., for performance or compa
 `saveSnapshot()` and `loadSnapshot()` convention methods directly on the implementation class:
 
 ```scala
-@agentDefinition(snapshotting = "enabled")
+@agentDefinition(snapshotting = Snapshotting.enabled)
 trait SnapshotCounter extends BaseAgent {
   class Id(val value: String)
   def increment(): Future[Int]

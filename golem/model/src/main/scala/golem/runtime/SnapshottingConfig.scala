@@ -7,6 +7,13 @@ object Snapshotting {
   case object Disabled extends Snapshotting
   final case class Enabled(config: SnapshottingConfig) extends Snapshotting
 
+  // String constants for use in @agentDefinition(snapshotting = ...) annotations.
+  // These provide IDE completion and avoid typos in stringly-typed annotation parameters.
+  final val disabled: String = "disabled"
+  final val enabled: String  = "enabled"
+  def periodic(duration: String): String = s"periodic($duration)"
+  def everyN(count: Int): String         = s"every($count)"
+
   def parse(value: String): Either[String, Snapshotting] = {
     val trimmed = value.trim.toLowerCase
     trimmed match {

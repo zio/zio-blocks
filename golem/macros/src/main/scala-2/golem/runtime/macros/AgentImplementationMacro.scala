@@ -798,23 +798,14 @@ object AgentImplementationMacroImpl {
       case None =>
         snapshottedState match {
           case Some(stateTpe) =>
-            // Snapshotted[S] mixin — summon Schema[S], derive JSON codec
-            val schemaTpe = appliedType(typeOf[zio.blocks.schema.Schema[_]].typeConstructor, stateTpe)
-            val schemaInstance = c.inferImplicitValue(schemaTpe)
-            if (schemaInstance.isEmpty) {
-              c.abort(
-                c.enclosingPosition,
-                s"Unable to summon zio.blocks.schema.Schema[$stateTpe] required by Snapshotted on ${implType.typeSymbol.fullName}.\n" +
-                "Hint: Add an implicit `Schema[$stateTpe] = Schema.derived` for your state case class."
-              )
-            }
+            // Snapshotted[S] mixin — call stateSchema on the instance
             q"""
             {
-              val codec = $schemaInstance.derive(_root_.zio.blocks.schema.json.JsonCodecDeriver)
               _root_.scala.Some(
                 _root_.golem.runtime.agenttype.SnapshotHandlers[$traitType](
                   save = (instance: $traitType) => {
                     val snap = instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]]
+                    val codec = snap.stateSchema.derive(_root_.zio.blocks.schema.json.JsonCodecDeriver)
                     _root_.scala.concurrent.Future.successful(
                       _root_.golem.runtime.agenttype.SnapshotPayload(
                         bytes = codec.encode(snap.state),
@@ -823,9 +814,11 @@ object AgentImplementationMacroImpl {
                     )
                   },
                   load = (instance: $traitType, bytes: Array[Byte]) => {
+                    val snap = instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]]
+                    val codec = snap.stateSchema.derive(_root_.zio.blocks.schema.json.JsonCodecDeriver)
                     codec.decode(bytes) match {
                       case Right(restored) =>
-                        instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]].state = restored
+                        snap.state = restored
                         _root_.scala.concurrent.Future.successful(instance)
                       case Left(err) =>
                         _root_.scala.concurrent.Future.failed(
@@ -845,7 +838,7 @@ object AgentImplementationMacroImpl {
                 c.enclosingPosition,
                 s"Snapshotting is enabled for ${traitType.typeSymbol.fullName}, but ${implType.typeSymbol.fullName} " +
                 s"provides no snapshot support. Either:\n" +
-                s"  (1) Mix in Snapshotted[S] with a case class S that has an implicit zio.blocks.schema.Schema\n" +
+                s"  (1) Mix in Snapshotted[S] and implement `stateSchema` with your Schema[S] instance\n" +
                 s"  (2) Implement `def saveSnapshot(): Future[Array[Byte]]` and `def loadSnapshot(bytes: Array[Byte]): Future[Unit]`"
               )
             }

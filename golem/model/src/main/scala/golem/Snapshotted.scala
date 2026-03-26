@@ -5,11 +5,12 @@ package golem
  *
  * Mix this into your agent implementation class to get automatic snapshot
  * save/load support. Bundle all mutable state into a case class `S` with a
- * `zio.blocks.schema.Schema[S]` instance, and provide it as `var state`.
+ * `zio.blocks.schema.Schema[S]` instance, provide it as `var state`, and
+ * implement `stateSchema` to return the schema instance.
  *
- * The macro detects this trait on the implementation class, summons `Schema[S]`
- * at compile time, and generates snapshot handlers that serialize/deserialize
- * `state` as JSON using zio-schema's `jsonCodec`.
+ * The macro detects this trait on the implementation class and generates
+ * snapshot handlers that serialize/deserialize `state` as JSON using
+ * zio-schema's `jsonCodec`, obtaining the schema from `stateSchema`.
  *
  * ==Example==
  * {{{
@@ -28,6 +29,7 @@ package golem
  *   extends MyCounter with Snapshotted[CounterState] {
  *
  *   var state: CounterState = CounterState(0)
+ *   val stateSchema: Schema[CounterState] = Schema.derived
  *
  *   override def increment(): Future[Int] = Future.successful {
  *     state = state.copy(value = state.value + 1)
@@ -37,8 +39,10 @@ package golem
  * }}}
  *
  * @tparam S
- *   The state type. Must have a `zio.blocks.schema.Schema[S]` instance.
+ *   The state type. Must have a `zio.blocks.schema.Schema[S]` instance
+ *   provided via `stateSchema`.
  */
 trait Snapshotted[S] {
   var state: S
+  def stateSchema: zio.blocks.schema.Schema[S]
 }

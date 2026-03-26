@@ -116,6 +116,7 @@ final class AutoSnapshotCounterImpl(@unused private val name: String)
     with Snapshotted[SnapshotCounterState] {
 
   var state: SnapshotCounterState = SnapshotCounterState(0)
+  val stateSchema: zio.blocks.schema.Schema[SnapshotCounterState] = SnapshotCounterState.schema
 
   override def increment(): Future[Int] =
     Future.successful {

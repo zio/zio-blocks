@@ -396,18 +396,12 @@ object AgentImplementationMacro {
                 case Some(stateTpe) =>
                   stateTpe.asType match {
                     case '[s] =>
-                      val schemaExpr = Expr.summon[zio.blocks.schema.Schema[s]].getOrElse {
-                        report.errorAndAbort(
-                          s"Unable to summon zio.blocks.schema.Schema[${Type.show[s]}] required by Snapshotted on ${implSymbol.fullName}.\n" +
-                            "Hint: Add `derives zio.blocks.schema.Schema` to your state case class."
-                        )
-                      }
                       '{
-                        val codec = $schemaExpr.derive(zio.blocks.schema.json.JsonCodecDeriver)
                         Some(
                           SnapshotHandlers[Trait](
                             save = (instance: Trait) => {
                               val snap = instance.asInstanceOf[golem.Snapshotted[s]]
+                              val codec = snap.stateSchema.derive(zio.blocks.schema.json.JsonCodecDeriver)
                               scala.concurrent.Future.successful(
                                 SnapshotPayload(
                                   bytes = codec.encode(snap.state),
@@ -416,9 +410,11 @@ object AgentImplementationMacro {
                               )
                             },
                             load = (instance: Trait, bytes: Array[Byte]) => {
+                              val snap = instance.asInstanceOf[golem.Snapshotted[s]]
+                              val codec = snap.stateSchema.derive(zio.blocks.schema.json.JsonCodecDeriver)
                               codec.decode(bytes) match {
                                 case Right(restored) =>
-                                  instance.asInstanceOf[golem.Snapshotted[s]].state = restored
+                                  snap.state = restored
                                   scala.concurrent.Future.successful(instance)
                                 case Left(err) =>
                                   scala.concurrent.Future.failed(
@@ -437,7 +433,7 @@ object AgentImplementationMacro {
                     report.errorAndAbort(
                       s"Snapshotting is enabled for ${traitSymbol.fullName}, but ${implSymbol.fullName} " +
                         s"provides no snapshot support. Either:\n" +
-                        s"  (1) Mix in Snapshotted[S] with a case class S that has `derives zio.blocks.schema.Schema`\n" +
+                        s"  (1) Mix in Snapshotted[S] and implement `stateSchema` with your Schema[S] instance\n" +
                         s"  (2) Implement `def saveSnapshot(): Future[Array[Byte]]` and `def loadSnapshot(bytes: Array[Byte]): Future[Unit]`"
                     )
                   }
