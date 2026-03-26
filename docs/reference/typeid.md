@@ -1923,53 +1923,6 @@ Here is a reference of the different `TypeRepr` variants you may encounter when 
 |              | `Constant.*`                                     | `42`, `"foo"`, `true` (literal types)       |
 | **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types                               |
 
-## Opaque Types and Type Aliases
-
-### Opaque Types
-
-TypeId preserves the distinction of opaque types — they are not erased to their representation type:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-opaque type UserId = String
-opaque type Email = String
-```
-
-```scala mdoc
-val userIdType = TypeId.of[UserId]
-val emailType  = TypeId.of[Email]
-
-userIdType.name
-userIdType.isOpaque
-
-userIdType.isEquivalentTo(TypeId.string)
-userIdType.isEquivalentTo(emailType)
-```
-
-This enables type-safe registries keyed by opaque type — see the [Erased TypeId](#erased-typeid-and-registries) section.
-
-### Type Aliases and Normalization
-
-Type aliases can be normalized to their underlying types:
-
-```scala mdoc:silent:reset
-import zio.blocks.typeid._
-
-type Age = Int
-val ageId = TypeId.alias[Age]("Age", Owner.Root, Nil, TypeRepr.Ref(TypeId.int))
-```
-
-```scala mdoc
-ageId.name
-ageId.isAlias
-
-val normalized = TypeId.normalize(ageId)
-normalized.fullName
-```
-
-Normalization resolves chains of aliases (e.g., `type MyIntList = IntList` where `type IntList = List[Int]` resolves to `List[Int]`).
-
 ## Erased TypeId and Registries
 
 ### Erased TypeId
