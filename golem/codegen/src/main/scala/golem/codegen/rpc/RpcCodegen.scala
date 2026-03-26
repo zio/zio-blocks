@@ -221,16 +221,8 @@ object RpcCodegen {
 
     sb.append(s"  final class $className private[$simpleName" + "Client] (\n")
     sb.append(s"    resolved: _root_.golem.runtime.rpc.AgentClientRuntime.ResolvedAgent[$simpleName]\n")
-    sb.append(s"  ) {\n")
-
-    // Lazy method lookup
-    sb.append(s"    private lazy val method: _root_.golem.runtime.agenttype.AgentMethod[$simpleName, $packedInputType, $outputType] =\n")
-    sb.append(s"      resolved.agentType.methods.collectFirst {\n")
-    sb.append(s"""        case m if m.metadata.name == "${method.name}" =>\n""")
-    sb.append(s"          m.asInstanceOf[_root_.golem.runtime.agenttype.AgentMethod[$simpleName, $packedInputType, $outputType]]\n")
-    sb.append(s"      }.getOrElse(\n")
-    sb.append(s"""        throw new _root_.java.lang.IllegalStateException("Method definition for ${method.name} not found")\n""")
-    sb.append(s"      )\n\n")
+    val methodNameLit = "\"" + method.name + "\""
+    sb.append(s"  ) extends _root_.golem.runtime.rpc.AbstractRemoteMethod[$simpleName, $packedInputType, $outputType](resolved, $methodNameLit) {\n")
 
     val packExpr = rParams match {
       case Nil      => "()"
@@ -240,15 +232,15 @@ object RpcCodegen {
 
     val paramDecls = rParams.map(p => s"${p.name}: ${p.typeExpr}").mkString(", ")
     sb.append(s"    def apply($paramDecls): _root_.scala.concurrent.Future[$outputType] =\n")
-    sb.append(s"      resolved.await(method, $packExpr)\n\n")
+    sb.append(s"      awaitWith($packExpr)\n\n")
 
     sb.append(s"    def trigger($paramDecls): _root_.scala.concurrent.Future[_root_.scala.Unit] =\n")
-    sb.append(s"      resolved.trigger(method, $packExpr)\n\n")
+    sb.append(s"      triggerWith($packExpr)\n\n")
 
     val scheduleParamDecls = if (paramDecls.isEmpty) "when: _root_.golem.Datetime"
-                             else s"$paramDecls, when: _root_.golem.Datetime"
+                              else s"$paramDecls, when: _root_.golem.Datetime"
     sb.append(s"    def scheduleAt($scheduleParamDecls): _root_.scala.concurrent.Future[_root_.scala.Unit] =\n")
-    sb.append(s"      resolved.schedule(method, when, $packExpr)\n\n")
+    sb.append(s"      scheduleWith($packExpr, when)\n\n")
 
     sb.append(s"  }\n\n")
   }

@@ -86,6 +86,14 @@ object AgentClientRuntime {
   final case class ResolvedAgent[Trait](agentType: AgentType[Trait, Any], client: RemoteAgentClient) {
     def agentId: String = client.agentId
 
+    private lazy val methodsByName: Map[String, AgentType.AnyMethod[Trait]] =
+      agentType.methods.iterator.map(m => m.metadata.name -> m).toMap
+
+    private[rpc] def methodByName[In, Out](name: String): AgentMethod[Trait, In, Out] =
+      methodsByName
+        .getOrElse(name, throw new IllegalStateException(s"Method definition for $name not found"))
+        .asInstanceOf[AgentMethod[Trait, In, Out]]
+
     /**
      * Always invoke via "invoke-and-await" regardless of `method.invocation`.
      *
@@ -103,16 +111,8 @@ object AgentClientRuntime {
           runFireAndForget(method, input).asInstanceOf[Future[Out]]
       }
 
-    private[golem] def callByName[In, Out](methodName: String, input: In): Future[Out] = {
-      val method =
-        agentType.methods.collectFirst {
-          case p if p.metadata.name == methodName =>
-            p.asInstanceOf[AgentMethod[Trait, In, Out]]
-        }
-          .getOrElse(throw new IllegalStateException(s"Method definition for $methodName not found"))
-
-      call(method, input)
-    }
+    private[golem] def callByName[In, Out](methodName: String, input: In): Future[Out] =
+      call(methodByName[In, Out](methodName), input)
 
     def trigger[In](method: AgentMethod[Trait, In, _], input: In): Future[Unit] =
       runFireAndForget(method, input)

@@ -187,7 +187,7 @@ class RpcCodegenSpec extends munit.FunSuite {
     )
 
     val content = result.files.head.content
-    assert(content.contains("AgentMethod[MyAgent, String, String]"), s"missing correct method type in:\n$content")
+    assert(content.contains("AbstractRemoteMethod[MyAgent, String, String]"), s"missing correct method type in:\n$content")
     assert(content.contains("def apply(key: String): _root_.scala.concurrent.Future[String]"), s"missing apply in:\n$content")
   }
 
@@ -219,7 +219,7 @@ class RpcCodegenSpec extends munit.FunSuite {
     val content = result.files.head.content
     assert(content.contains("def apply(data: String)"), s"missing filtered apply in:\n$content")
     assert(!content.contains("caller: Principal"), s"principal param should be filtered out:\n$content")
-    assert(content.contains("AgentMethod[MyAgent, String, String]"), s"wrong method type in:\n$content")
+    assert(content.contains("AbstractRemoteMethod[MyAgent, String, String]"), s"wrong method type in:\n$content")
   }
 
   test("all-principal method generates no-arg apply") {
@@ -246,6 +246,27 @@ class RpcCodegenSpec extends munit.FunSuite {
     assertEquals(RpcCodegen.unwrapFutureType("Unit"), "Unit")
     assertEquals(RpcCodegen.unwrapFutureType("Option[String]"), "Option[String]")
     assertEquals(RpcCodegen.unwrapFutureType("Future[(Int, String)]"), "(Int, String)")
+  }
+
+  test("generated method classes extend AbstractRemoteMethod and delegate via helpers") {
+    val result = RpcCodegen.generate(
+      agents = List(agent(
+        "example.MyAgent", "example", "MyAgent",
+        methods = List(
+          MethodSurface("process", List(ParamSurface("id", "Int"), ParamSurface("msg", "String")), "Future[String]", List(false, false))
+        )
+      )),
+      existingObjects = Seq.empty
+    )
+
+    val content = result.files.head.content
+    assert(content.contains("extends _root_.golem.runtime.rpc.AbstractRemoteMethod["), s"missing AbstractRemoteMethod extends in:\n$content")
+    assert(content.contains("awaitWith("), s"missing awaitWith delegation in:\n$content")
+    assert(content.contains("triggerWith("), s"missing triggerWith delegation in:\n$content")
+    assert(content.contains("scheduleWith("), s"missing scheduleWith delegation in:\n$content")
+    assert(!content.contains("resolved.await("), s"should not directly call resolved.await:\n$content")
+    assert(!content.contains("resolved.trigger("), s"should not directly call resolved.trigger:\n$content")
+    assert(!content.contains("resolved.schedule("), s"should not directly call resolved.schedule:\n$content")
   }
 
   test("no remote trait generated when methods list is empty") {
@@ -286,7 +307,7 @@ class RpcCodegenSpec extends munit.FunSuite {
     )
 
     val content = result.files.head.content
-    assert(content.contains("""m.metadata.name == "process""""), s"missing method name lookup in:\n$content")
+    assert(content.contains("""(resolved, "process")"""), s"missing method name in AbstractRemoteMethod constructor in:\n$content")
   }
 
   // ── Mode-aware constructor tests ──────────────────────────────────────────
