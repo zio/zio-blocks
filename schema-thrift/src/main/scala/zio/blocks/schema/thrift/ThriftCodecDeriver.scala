@@ -98,14 +98,14 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
         else null
       if (fieldInfos eq null) {
         val len = fields.length
-        fieldInfos = new Array[ThriftFieldInfo](len)
+        fieldInfos = new Array[FieldInfo](len)
         if (isRecursive) recursiveRecordCache.get.put(typeId, fieldInfos)
-        var idx    = 0
         var offset = 0L
+        var idx    = 0
         while (idx < len) {
           val field        = fields(idx)
           val fieldReflect = field.value
-          fieldInfos(idx) = new ThriftFieldInfo(
+          fieldInfos(idx) = new FieldInfo(
             field.name,
             D.instance(fieldReflect.metadata).force,
             offset,
@@ -430,8 +430,8 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
 
   // Thread-local cache for recursive type handling
   private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[TypeId[?], Array[ThriftFieldInfo]]] {
-      override def initialValue: java.util.HashMap[TypeId[?], Array[ThriftFieldInfo]] = new java.util.HashMap
+    new ThreadLocal[java.util.HashMap[TypeId[?], Array[FieldInfo]]] {
+      override def initialValue: java.util.HashMap[TypeId[?], Array[FieldInfo]] = new java.util.HashMap
     }
   private[this] val dynamicValueCodec = new ThriftCodec[DynamicValue]() {
     def decodeValue(protocol: TProtocol): DynamicValue = error("Cannot decode DynamicValue without schema")
@@ -499,7 +499,7 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
   }
 }
 
-private case class ThriftFieldInfo(
+private case class FieldInfo(
   name: String,
   codec: ThriftCodec[?],
   offset: RegisterOffset.RegisterOffset,

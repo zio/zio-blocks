@@ -93,13 +93,13 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
         else null
       val deriveCodecs = infos eq null
       if (deriveCodecs) {
-        infos = new Array[MessagePackFieldInfo](len)
+        infos = new Array[FieldInfo](len)
         var idx = 0
         while (idx < len) {
           val field        = fields(idx)
           val fieldName    = field.name
           val fieldReflect = field.value
-          val info         = new MessagePackFieldInfo(DynamicOptic.Node.Field(fieldName), idx, Reflect.typeTag(fieldReflect))
+          val info         = new FieldInfo(DynamicOptic.Node.Field(fieldName), idx, Reflect.typeTag(fieldReflect))
           info.setName(fieldName)
           infos(idx) = info
           idx += 1
@@ -485,9 +485,8 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
   type TC[_]
 
   private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[TypeId[?], Array[MessagePackFieldInfo]]] {
-      override def initialValue: java.util.HashMap[TypeId[?], Array[MessagePackFieldInfo]] =
-        new java.util.HashMap
+    new ThreadLocal[java.util.HashMap[TypeId[?], Array[FieldInfo]]] {
+      override def initialValue: java.util.HashMap[TypeId[?], Array[FieldInfo]] = new java.util.HashMap
     }
 
   private[this] val dynamicValueCodec: MessagePackCodec[DynamicValue] =
@@ -639,7 +638,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
     }
 }
 
-private class MessagePackFieldInfo(val span: DynamicOptic.Node.Field, val idx: Int, val typeTag: Int) {
+private class FieldInfo(val span: DynamicOptic.Node.Field, val idx: Int, val typeTag: Int) {
   private[this] var codec: MessagePackCodec[?]            = null
   private[this] var _name: String                         = null
   private[this] var offset: RegisterOffset.RegisterOffset = 0

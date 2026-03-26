@@ -3294,7 +3294,7 @@ private class DiscriminatorFieldInfo(name: String, value: String) {
   def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne((name, new Json.String(value)))
 }
 
-trait CaseInfo
+private sealed trait CaseInfo
 
 private class CaseLeafInfo(
   var codec: JsonCodec[?],
@@ -3337,7 +3337,7 @@ private class CaseNodeInfo[A](
   }
 }
 
-trait EnumInfo
+private sealed trait EnumInfo
 
 private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extends EnumInfo {
   private[this] val isNonEscapedAsciiName = JsonWriter.isNonEscapedAscii(name)
