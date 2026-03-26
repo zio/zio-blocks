@@ -1405,9 +1405,15 @@ object TypeId {
 }
 ```
 
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+type UserId = Int
+```
+
 ```scala mdoc
-val a = TypeId.alias[Any]("X", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
-val b = TypeId.alias[Any]("X", Owner.Root, aliased = TypeRepr.Ref(TypeId.int))
+val a = TypeId.of[UserId]
+val b = TypeId.of[Int]
 TypeId.structurallyEqual(a, b)
 a == b
 ```
