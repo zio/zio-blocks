@@ -29,11 +29,11 @@ object DataType {
 
   final case class TupleType(elements: List[DataType]) extends DataType
 
-  final case class StructType(fields: List[Field]) extends DataType
+  final case class StructType(fields: List[Field], name: Option[String] = None) extends DataType
 
-  final case class EnumType(cases: List[EnumCase]) extends DataType
+  final case class EnumType(cases: List[EnumCase], name: Option[String] = None) extends DataType
 
-  final case class PureEnumType(cases: List[String]) extends DataType
+  final case class PureEnumType(cases: List[String], name: Option[String] = None) extends DataType
 
   final case class ResultType(ok: Option[DataType], err: Option[DataType]) extends DataType
 

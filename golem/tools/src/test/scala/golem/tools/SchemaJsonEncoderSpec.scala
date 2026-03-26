@@ -119,7 +119,7 @@ object SchemaJsonEncoderSpec extends ZIOSpecDefault {
             .obj("val")
             .arr
             .flatMap { element =>
-              element.arr(1).obj("val").obj("nodes").arr.map(_.obj("tag").str)
+              element.arr(1).obj("val").obj("nodes").arr.map(_.obj("type").obj("tag").str)
             }
             .toSet
 
@@ -143,7 +143,7 @@ object SchemaJsonEncoderSpec extends ZIOSpecDefault {
           .obj("val")
           .obj("nodes")
           .arr
-          .map(_.obj("tag").str)
+          .map(_.obj("type").obj("tag").str)
           .toSet
 
         assertTrue(
@@ -190,7 +190,7 @@ object SchemaJsonEncoderSpec extends ZIOSpecDefault {
           encoded
             .obj("val")
             .arr
-            .flatMap(_.arr(1).obj("val").obj("nodes").arr.map(_.obj("tag").str))
+            .flatMap(_.arr(1).obj("val").obj("nodes").arr.map(_.obj("type").obj("tag").str))
             .toSet
 
         assertTrue(

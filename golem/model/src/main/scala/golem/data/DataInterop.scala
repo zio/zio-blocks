@@ -70,6 +70,11 @@ object DataInterop {
       Optional(reflectToDataType(innerRef))
     }
 
+  private def reflectedTypeName(reflect: Reflect.Bound[?]): Option[String] = {
+    val raw = reflect.typeId.name.stripSuffix("$")
+    Option.when(raw.nonEmpty)(raw)
+  }
+
   private def reflectToDataType_core[A](reflect: Reflect.Bound[A]): DataType =
     reflect.asPrimitive match {
       case Some(p) => primitiveToDataType(p.primitiveType)
@@ -87,7 +92,8 @@ object DataInterop {
                     dataType = reflectToDataType(field.value.asInstanceOf[Reflect.Bound[Any]]),
                     optional = false
                   )
-                }.toList
+                }.toList,
+                name = reflectedTypeName(reflect)
               )
             }
 
@@ -109,7 +115,8 @@ object DataInterop {
                   case None =>
                     reflect.asVariant match {
                       case Some(variant) =>
-                        val cases = variant.cases.map { c =>
+                        val typeName = reflectedTypeName(reflect)
+                        val cases    = variant.cases.map { c =>
                           val payloadDt =
                             c.value.asRecord match {
                               case Some(r) if r.fields.isEmpty                                      => None
@@ -123,9 +130,9 @@ object DataInterop {
                           EnumCase(c.name, payloadDt)
                         }.toList
                         if (cases.forall(_.payload.isEmpty))
-                          PureEnumType(cases.map(_.name))
+                          PureEnumType(cases.map(_.name), name = typeName)
                         else
-                          EnumType(cases)
+                          EnumType(cases, name = typeName)
 
                       case None =>
                         if (reflect.isDynamic) StructType(Nil)
@@ -194,8 +201,8 @@ object DataInterop {
     }
 
   /**
-   * Detects an Either-like schema (Variant(Left(value), Right(value))) and returns
-   * the inner `value` field reflects for Left (err) and Right (ok).
+   * Detects an Either-like schema (Variant(Left(value), Right(value))) and
+   * returns the inner `value` field reflects for Left (err) and Right (ok).
    */
   private def eitherInfo(
     reflect: Reflect.Bound[?]
@@ -245,7 +252,7 @@ object DataInterop {
       case _: PrimitiveType.BigDecimal => BigDecimalType
       case _: PrimitiveType.BigInt     => BigDecimalType // BigInt mapped via BigDecimal encoding
       case _: PrimitiveType.UUID       => UUIDType
-      case _: PrimitiveType.Char      => CharType
+      case _: PrimitiveType.Char       => CharType
       case other                       =>
         throw new IllegalArgumentException(s"Unsupported primitive: ${other.getClass.getName}")
     }
@@ -347,7 +354,7 @@ object DataInterop {
                 case DV.Record(fields) =>
                   fields.find(_._1 == "value") match {
                     case Some((_, inner)) => ResultValue(Right(dynamicToDataValue(innerRef, inner)))
-                    case None => throw new IllegalArgumentException("Either(Right) payload missing value field")
+                    case None             => throw new IllegalArgumentException("Either(Right) payload missing value field")
                   }
                 case other => ResultValue(Right(dynamicToDataValue(innerRef, other)))
               }

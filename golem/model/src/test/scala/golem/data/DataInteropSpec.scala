@@ -330,7 +330,7 @@ object DataInteropSpec extends ZIOSpecDefault {
       },
       test("maps all-unit sealed trait to PureEnumType") {
         val dt = DataInterop.schemaToDataType(Schema[Color])
-        assertTrue(dt == DataType.PureEnumType(List("Red", "Green", "Blue")))
+        assertTrue(dt == DataType.PureEnumType(List("Red", "Green", "Blue"), name = Some("Color")))
       },
       test("round trips pure enum values") {
         val red: Color   = Red

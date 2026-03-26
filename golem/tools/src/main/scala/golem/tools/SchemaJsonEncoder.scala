@@ -89,48 +89,48 @@ object SchemaJsonEncoder {
         Obj("nodes" -> Arr(nodes.toSeq: _*))
 
       def buildNode(dataType: DataType): Int = {
-        val index       = newNode()
-        val node: Value = dataType match {
+        val index                                   = newNode()
+        val (node: Value, typeName: Option[String]) = dataType match {
           case DataType.UnitType =>
-            tupleType(Seq.empty)
+            (tupleType(Seq.empty), None)
           case DataType.StringType =>
-            tagOnly("prim-string-type")
+            (tagOnly("prim-string-type"), None)
           case DataType.BoolType =>
-            tagOnly("prim-bool-type")
+            (tagOnly("prim-bool-type"), None)
           case DataType.CharType =>
-            tagOnly("prim-char-type")
+            (tagOnly("prim-char-type"), None)
           case DataType.ByteType =>
-            tagOnly("prim-s8-type")
+            (tagOnly("prim-s8-type"), None)
           case DataType.ShortType =>
-            tagOnly("prim-s16-type")
+            (tagOnly("prim-s16-type"), None)
           case DataType.IntType =>
-            tagOnly("prim-s32-type")
+            (tagOnly("prim-s32-type"), None)
           case DataType.LongType =>
-            tagOnly("prim-s64-type")
+            (tagOnly("prim-s64-type"), None)
           case DataType.FloatType =>
-            tagOnly("prim-f32-type")
+            (tagOnly("prim-f32-type"), None)
           case DataType.DoubleType =>
-            tagOnly("prim-f64-type")
+            (tagOnly("prim-f64-type"), None)
           case DataType.UByteType =>
-            tagOnly("prim-u8-type")
+            (tagOnly("prim-u8-type"), None)
           case DataType.UShortType =>
-            tagOnly("prim-u16-type")
+            (tagOnly("prim-u16-type"), None)
           case DataType.UIntType =>
-            tagOnly("prim-u32-type")
+            (tagOnly("prim-u32-type"), None)
           case DataType.ULongType =>
-            tagOnly("prim-u64-type")
+            (tagOnly("prim-u64-type"), None)
           case DataType.BigDecimalType =>
-            tagOnly("prim-string-type")
+            (tagOnly("prim-string-type"), None)
           case DataType.UUIDType =>
-            tagOnly("prim-string-type")
+            (tagOnly("prim-string-type"), None)
           case DataType.BytesType =>
-            listType(buildNode(DataType.IntType))
+            (listType(buildNode(DataType.IntType)), None)
           case DataType.Optional(of) =>
-            optionType(buildNode(of))
+            (optionType(buildNode(of)), None)
           case DataType.ListType(of) =>
-            listType(buildNode(of))
+            (listType(buildNode(of)), None)
           case DataType.SetType(of) =>
-            listType(buildNode(of))
+            (listType(buildNode(of)), None)
           case DataType.MapType(keyType, valueType) =>
             val entryStruct = DataType.StructType(
               List(
@@ -139,16 +139,16 @@ object SchemaJsonEncoder {
               )
             )
             val entryIndex = buildNode(entryStruct)
-            listType(entryIndex)
+            (listType(entryIndex), None)
           case DataType.TupleType(elements) =>
-            tupleType(elements.map(buildNode))
-          case DataType.StructType(fields) =>
+            (tupleType(elements.map(buildNode)), None)
+          case DataType.StructType(fields, name) =>
             val fieldEntries = fields.map { field =>
               val idx = buildNode(field.dataType)
               Arr(Str(field.name), Num(idx))
             }
-            recordType(fieldEntries)
-          case DataType.EnumType(cases) =>
+            (recordType(fieldEntries), name)
+          case DataType.EnumType(cases, name) =>
             val variantEntries = cases.map { enumCase =>
               val payloadIndex        = enumCase.payload.map(buildNode)
               val payloadValue: Value = payloadIndex match {
@@ -157,31 +157,40 @@ object SchemaJsonEncoder {
               }
               Arr(Str(enumCase.name), payloadValue)
             }
-            variantType(variantEntries)
-          case DataType.PureEnumType(cases) =>
-            val variantEntries = cases.map { name =>
-              Arr(Str(name), Null)
+            (variantType(variantEntries), name)
+          case DataType.PureEnumType(cases, name) =>
+            val variantEntries = cases.map { caseName =>
+              Arr(Str(caseName), Null)
             }
-            variantType(variantEntries)
+            (variantType(variantEntries), name)
           case DataType.ResultType(ok, err) =>
             val okIndex  = ok.map(buildNode)
             val errIndex = err.map(buildNode)
-            Obj(
-              "tag"   -> Str("result-type"),
-              "ok"    -> okIndex.fold[Value](Null)(i => Num(i)),
-              "error" -> errIndex.fold[Value](Null)(i => Num(i))
+            (
+              Obj(
+                "tag"   -> Str("result-type"),
+                "ok"    -> okIndex.fold[Value](Null)(i => Num(i)),
+                "error" -> errIndex.fold[Value](Null)(i => Num(i))
+              ),
+              None
             )
         }
 
-        nodes(index) = node
+        nodes(index) = namedNode(node, typeName)
         index
+      }
+
+      private def namedNode(typeNode: Value, name: Option[String]): Value = {
+        val fields = collection.mutable.LinkedHashMap[String, Value]("type" -> typeNode)
+        name.foreach(n => fields("name") = Str(n))
+        Obj.from(fields)
       }
 
       private def tagOnly(tag: String): Value =
         Obj("tag" -> Str(tag))
 
       private def newNode(): Int = {
-        nodes += Obj()
+        nodes += Obj("type" -> Obj())
         nodes.length - 1
       }
 

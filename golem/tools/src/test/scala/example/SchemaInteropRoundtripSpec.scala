@@ -107,7 +107,7 @@ object SchemaInteropRoundtripSpec extends ZIOSpecDefault {
 
       val dt = DataInterop.schemaToDataType(implicitly[Schema[ByteWrap]])
       dt match {
-        case DataType.StructType(fields) =>
+        case DataType.StructType(fields, _) =>
           assertTrue(fields.head.dataType == DataType.ByteType)
         case other => throw new RuntimeException(s"Expected StructType, got: $other")
       }
@@ -118,7 +118,7 @@ object SchemaInteropRoundtripSpec extends ZIOSpecDefault {
 
       val dt = DataInterop.schemaToDataType(implicitly[Schema[ShortWrap]])
       dt match {
-        case DataType.StructType(fields) =>
+        case DataType.StructType(fields, _) =>
           assertTrue(fields.head.dataType == DataType.ShortType)
         case other => throw new RuntimeException(s"Expected StructType, got: $other")
       }
@@ -129,7 +129,7 @@ object SchemaInteropRoundtripSpec extends ZIOSpecDefault {
 
       val dt = DataInterop.schemaToDataType(implicitly[Schema[FloatWrap]])
       dt match {
-        case DataType.StructType(fields) =>
+        case DataType.StructType(fields, _) =>
           assertTrue(fields.head.dataType == DataType.FloatType)
         case other => throw new RuntimeException(s"Expected StructType, got: $other")
       }
@@ -182,7 +182,7 @@ object SchemaInteropRoundtripSpec extends ZIOSpecDefault {
       val dt = DataInterop.schemaToDataType(implicitly[Schema[Rec]])
 
       dt match {
-        case DataType.StructType(fields) =>
+        case DataType.StructType(fields, _) =>
           assertTrue(fields.map(_.name) == List("a", "b", "c"))
         case other =>
           throw new RuntimeException(s"Expected StructType, got: $other")
