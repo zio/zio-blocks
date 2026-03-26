@@ -217,9 +217,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] =
     throw new UnsupportedOperationException("CSV does not support variant/sum types. Use a flat case class instead.")
-  )
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -229,9 +228,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] =
     throw new UnsupportedOperationException("CSV does not support sequence fields.")
-  )
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -242,9 +240,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] =
     throw new UnsupportedOperationException("CSV does not support map fields.")
-  )
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -252,9 +249,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] =
     throw new UnsupportedOperationException("CSV does not support dynamic values.")
-  )
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],

@@ -37,7 +37,7 @@ object XmlDecoder {
   }
 
   implicit def fromSchema[A](implicit schema: Schema[A]): XmlDecoder[A] = new XmlDecoder[A] {
-    private[this] val codec = schema.derive(XmlBinaryCodecDeriver)
+    private[this] val codec = schema.derive(XmlCodecDeriver)
 
     def decode(xml: Xml): Either[XmlError, A] = codec.decodeValue(xml)
   }

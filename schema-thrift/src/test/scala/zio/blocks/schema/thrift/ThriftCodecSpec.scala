@@ -24,10 +24,10 @@ import java.time._
 import java.util.{Currency, UUID}
 
 /**
- * Comprehensive test suite for ThriftBinaryCodec. Tests round-trip
- * encoding/decoding for all supported types.
+ * Comprehensive test suite for ThriftCodec. Tests round-trip encoding/decoding
+ * for all supported types.
  */
-object ThriftBinaryCodecSpec extends SchemaBaseSpec {
+object ThriftCodecSpec extends SchemaBaseSpec {
   case class BasicInt(value: Int)
 
   object BasicInt {
@@ -140,7 +140,7 @@ object ThriftBinaryCodecSpec extends SchemaBaseSpec {
     )
   }
 
-  def spec = suite("ThriftBinaryCodecSpec")(
+  def spec = suite("ThriftCodecSpec")(
     suite("primitives")(
       test("encode/decode Unit") {
         roundTrip(())

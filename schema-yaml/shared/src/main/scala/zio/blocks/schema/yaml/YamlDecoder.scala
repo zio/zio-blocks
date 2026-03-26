@@ -36,7 +36,7 @@ object YamlDecoder {
   }
 
   implicit def fromSchema[A](implicit schema: Schema[A]): YamlDecoder[A] = new YamlDecoder[A] {
-    private[this] val codec = schema.derive(YamlBinaryCodecDeriver)
+    private[this] val codec = schema.derive(YamlCodecDeriver)
 
     def decode(yaml: Yaml): Either[YamlError, A] = codec.decodeValue(yaml)
   }

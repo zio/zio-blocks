@@ -19,7 +19,7 @@ package zio.blocks.schema.yaml
 import zio.blocks.schema.Schema
 import zio.test._
 
-object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
+object YamlCodecDeriverSpec extends YamlBaseSpec {
 
   case class Person(name: String, age: Int)
   object Person {
@@ -60,10 +60,10 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     implicit val schema: Schema[OptionalField] = Schema.derived
   }
 
-  def spec: Spec[TestEnvironment, Any] = suite("YamlBinaryCodecDeriverSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("YamlCodecDeriverSpec")(
     suite("record derivation")(
       test("encode simple case class") {
-        val codec  = Schema[Person].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Person].derive(YamlCodecDeriver)
         val person = Person("Alice", 30)
         val yaml   = codec.encodeToString(person)
         assertTrue(
@@ -74,19 +74,19 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("decode simple case class") {
-        val codec  = Schema[Person].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Person].derive(YamlCodecDeriver)
         val yaml   = "name: Bob\nage: 25"
         val result = codec.decode(yaml)
         assertTrue(result == Right(Person("Bob", 25)))
       },
       test("round-trip simple case class") {
-        val codec  = Schema[Person].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Person].derive(YamlCodecDeriver)
         val person = Person("Charlie", 35)
         val result = codec.decode(codec.encode(person))
         assertTrue(result == Right(person))
       },
       test("encode nested case class") {
-        val codec  = Schema[PersonWithAddress].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[PersonWithAddress].derive(YamlCodecDeriver)
         val person = PersonWithAddress("Alice", Address("123 Main St", "Springfield"))
         val yaml   = codec.encodeToString(person)
         assertTrue(
@@ -100,7 +100,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("round-trip nested case class") {
-        val codec  = Schema[PersonWithAddress].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[PersonWithAddress].derive(YamlCodecDeriver)
         val person = PersonWithAddress("Bob", Address("456 Oak Ave", "Shelbyville"))
         val result = codec.decode(codec.encode(person))
         assertTrue(result == Right(person))
@@ -108,7 +108,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     ),
     suite("variant derivation")(
       test("encode sealed trait case - Dog") {
-        val codec          = Schema[Animal].derive(YamlBinaryCodecDeriver)
+        val codec          = Schema[Animal].derive(YamlCodecDeriver)
         val animal: Animal = Dog("Rex")
         val yaml           = codec.encodeToString(animal)
         assertTrue(
@@ -118,7 +118,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("encode sealed trait case - Cat") {
-        val codec          = Schema[Animal].derive(YamlBinaryCodecDeriver)
+        val codec          = Schema[Animal].derive(YamlCodecDeriver)
         val animal: Animal = Cat("Whiskers", 9)
         val yaml           = codec.encodeToString(animal)
         assertTrue(
@@ -130,13 +130,13 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("round-trip sealed trait - Dog") {
-        val codec          = Schema[Animal].derive(YamlBinaryCodecDeriver)
+        val codec          = Schema[Animal].derive(YamlCodecDeriver)
         val animal: Animal = Dog("Buddy")
         val result         = codec.decode(codec.encode(animal))
         assertTrue(result == Right(animal))
       },
       test("round-trip sealed trait - Cat") {
-        val codec          = Schema[Animal].derive(YamlBinaryCodecDeriver)
+        val codec          = Schema[Animal].derive(YamlCodecDeriver)
         val animal: Animal = Cat("Mittens", 7)
         val result         = codec.decode(codec.encode(animal))
         assertTrue(result == Right(animal))
@@ -144,7 +144,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     ),
     suite("sequence derivation")(
       test("encode list of strings") {
-        val codec = Schema[Team].derive(YamlBinaryCodecDeriver)
+        val codec = Schema[Team].derive(YamlCodecDeriver)
         val team  = Team(List("Alice", "Bob", "Charlie"))
         val yaml  = codec.encodeToString(team)
         assertTrue(
@@ -155,13 +155,13 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("round-trip list of strings") {
-        val codec  = Schema[Team].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Team].derive(YamlCodecDeriver)
         val team   = Team(List("Alice", "Bob"))
         val result = codec.decode(codec.encode(team))
         assertTrue(result == Right(team))
       },
       test("round-trip empty list") {
-        val codec  = Schema[Team].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Team].derive(YamlCodecDeriver)
         val team   = Team(List.empty)
         val result = codec.decode(codec.encode(team))
         assertTrue(result == Right(team))
@@ -169,7 +169,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     ),
     suite("map derivation")(
       test("encode map of string to int") {
-        val codec  = Schema[Config].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Config].derive(YamlCodecDeriver)
         val config = Config(Map("timeout" -> 30, "retries" -> 3))
         val yaml   = codec.encodeToString(config)
         assertTrue(
@@ -177,13 +177,13 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("round-trip map of string to int") {
-        val codec  = Schema[Config].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Config].derive(YamlCodecDeriver)
         val config = Config(Map("timeout" -> 30, "retries" -> 3))
         val result = codec.decode(codec.encode(config))
         assertTrue(result == Right(config))
       },
       test("round-trip empty map") {
-        val codec  = Schema[Config].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Config].derive(YamlCodecDeriver)
         val config = Config(Map.empty)
         val result = codec.decode(codec.encode(config))
         assertTrue(result == Right(config))
@@ -191,7 +191,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     ),
     suite("optional field handling")(
       test("encode with Some value") {
-        val codec = Schema[OptionalField].derive(YamlBinaryCodecDeriver)
+        val codec = Schema[OptionalField].derive(YamlCodecDeriver)
         val value = OptionalField("Alice", Some("Ali"))
         val yaml  = codec.encodeToString(value)
         assertTrue(
@@ -202,7 +202,7 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("encode with None value") {
-        val codec = Schema[OptionalField].derive(YamlBinaryCodecDeriver)
+        val codec = Schema[OptionalField].derive(YamlCodecDeriver)
         val value = OptionalField("Bob", None)
         val yaml  = codec.encodeToString(value)
         assertTrue(
@@ -212,13 +212,13 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
         )
       },
       test("round-trip with Some value") {
-        val codec  = Schema[OptionalField].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[OptionalField].derive(YamlCodecDeriver)
         val value  = OptionalField("Charlie", Some("Chuck"))
         val result = codec.decode(codec.encode(value))
         assertTrue(result == Right(value))
       },
       test("round-trip with None value") {
-        val codec  = Schema[OptionalField].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[OptionalField].derive(YamlCodecDeriver)
         val value  = OptionalField("Dave", None)
         val result = codec.decode(codec.encode(value))
         assertTrue(result == Right(value))
@@ -226,34 +226,34 @@ object YamlBinaryCodecDeriverSpec extends YamlBaseSpec {
     ),
     suite("primitive types")(
       test("round-trip Int") {
-        val codec  = Schema[Int].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Int].derive(YamlCodecDeriver)
         val result = codec.decode(codec.encode(42))
         assertTrue(result == Right(42))
       },
       test("round-trip String") {
-        val codec  = Schema[String].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[String].derive(YamlCodecDeriver)
         val result = codec.decode(codec.encode("hello"))
         assertTrue(result == Right("hello"))
       },
       test("round-trip Boolean") {
-        val codec  = Schema[Boolean].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Boolean].derive(YamlCodecDeriver)
         val result = codec.decode(codec.encode(true))
         assertTrue(result == Right(true))
       },
       test("round-trip Long") {
-        val codec  = Schema[Long].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Long].derive(YamlCodecDeriver)
         val result = codec.decode(codec.encode(123456789L))
         assertTrue(result == Right(123456789L))
       },
       test("round-trip Double") {
-        val codec  = Schema[Double].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Double].derive(YamlCodecDeriver)
         val result = codec.decode(codec.encode(3.14159))
         assertTrue(result == Right(3.14159))
       }
     ),
     suite("round-trip through bytes")(
       test("round-trip case class through Array[Byte]") {
-        val codec  = Schema[Person].derive(YamlBinaryCodecDeriver)
+        val codec  = Schema[Person].derive(YamlCodecDeriver)
         val person = Person("Alice", 30)
         val bytes  = codec.encode(person)
         val result = codec.decode(bytes)

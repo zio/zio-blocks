@@ -261,7 +261,7 @@ final class MessagePackReader private[msgpack] (
       i += 1
     }
     if (unscaled eq null) decodeError("Missing 'unscaled' field in BigDecimal")
-    BigDecimal(new java.math.BigDecimal(unscaled.bigInteger, scale, new java.math.MathContext(precision)))
+    new BigDecimal(new java.math.BigDecimal(unscaled.bigInteger, scale, new java.math.MathContext(precision)))
   }
 
   def skipValue(): Unit = {
@@ -368,7 +368,7 @@ final class MessagePackReader private[msgpack] (
 
   private[this] def endOfInputError() = decodeError("Unexpected end of input")
 
-  def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
+  private[this] def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
 }
 
 object MessagePackReader {

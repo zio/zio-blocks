@@ -851,9 +851,9 @@ All standard ZIO Blocks Schema types are supported:
 - Options (`Option[A]`)
 - Wrappers (newtypes)
 
-## XmlBinaryCodec
+## XmlCodec
 
-`XmlBinaryCodec[A]` is the low-level codec interface that bridges Schema definitions with XML serialization. While usually derived automatically, you can work with it directly:
+`XmlCodec[A]` is the low-level codec interface that bridges Schema definitions with XML serialization. While usually derived automatically, you can work with it directly:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -865,8 +865,7 @@ object Person {
 }
 
 // Get the underlying binary codec
-val codec: XmlBinaryCodec[Person] =
-  Schema[Person].derive(XmlBinaryCodecDeriver)
+val codec: XmlCodec[Person] = Schema[Person].derive(XmlCodecDeriver)
 
 // Encode to Xml directly
 val person = Person("Alice", 30)
@@ -876,7 +875,7 @@ val xml: Xml = codec.encodeValue(person)
 val decoded: Either[XmlError, Person] = codec.decodeValue(xml)
 ```
 
-**XmlBinaryCodec supports all Schema types:**
+**XmlCodec supports all Schema types:**
 - Primitives (Int, String, Boolean, etc.)
 - Java time types (Instant, LocalDate, Duration, etc.)
 - Records (case classes with field-level configuration)

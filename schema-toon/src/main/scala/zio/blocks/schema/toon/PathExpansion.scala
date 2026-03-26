@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema.msgpack
+package zio.blocks.schema.toon
 
-import zio.blocks.schema.DynamicOptic
+/**
+ * Strategy for expanding dot-separated paths in TOON input.
+ */
+sealed abstract class PathExpansion
 
-final case class MessagePackCodecError(spans: List[DynamicOptic.Node], message: String)
-    extends Throwable(message, null, false, false)
+object PathExpansion {
+
+  /** No path expansion - keys are treated as literals. */
+  case object Off extends PathExpansion
+
+  /**
+   * Safe path expansion - dot-separated keys are expanded to nested records.
+   */
+  case object Safe extends PathExpansion
+}
