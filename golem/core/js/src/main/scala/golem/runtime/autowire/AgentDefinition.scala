@@ -19,7 +19,7 @@ package golem.runtime.autowire
 import golem.Principal
 import golem.host.js._
 import golem.runtime.AgentMetadata
-import golem.runtime.agenttype.SnapshotHandlers
+import golem.runtime.SnapshotHandlers
 
 import scala.scalajs.js
 

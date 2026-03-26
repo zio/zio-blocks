@@ -18,17 +18,15 @@ package golem.runtime.macros
 
 import golem.config.ConfigSchema
 import golem.data.GolemSchema
-import golem.runtime.{
-  AgentMetadata,
+import golem.runtime.{AgentMetadata, Snapshotting, SnapshottingConfig}
+import golem.runtime.http.{
   HeaderVariable,
   HttpEndpointDetails,
   HttpMethod,
   HttpMountDetails,
   HttpRouteParser,
   HttpValidation,
-  PathSegment,
-  Snapshotting,
-  SnapshottingConfig
+  PathSegment
 }
 
 import scala.reflect.macros.blackbox
@@ -404,7 +402,7 @@ object AgentDefinitionMacroImpl {
         val webhookTrees = webhookSuffix.map(seg => pathSegmentTree(c)(seg))
 
         Some(q"""
-          _root_.golem.runtime.HttpMountDetails(
+          _root_.golem.runtime.http.HttpMountDetails(
             pathPrefix = _root_.scala.List(..$prefixTrees),
             authRequired = $authRequired,
             phantomAgent = $phantomAgent,
@@ -419,10 +417,10 @@ object AgentDefinitionMacroImpl {
   private def pathSegmentTree(c: blackbox.Context)(seg: PathSegment): c.Tree = {
     import c.universe._
     seg match {
-      case PathSegment.Literal(value)               => q"_root_.golem.runtime.PathSegment.Literal($value)"
-      case PathSegment.PathVariable(name)            => q"_root_.golem.runtime.PathSegment.PathVariable($name)"
-      case PathSegment.RemainingPathVariable(name)   => q"_root_.golem.runtime.PathSegment.RemainingPathVariable($name)"
-      case PathSegment.SystemVariable(name)          => q"_root_.golem.runtime.PathSegment.SystemVariable($name)"
+      case PathSegment.Literal(value)               => q"_root_.golem.runtime.http.PathSegment.Literal($value)"
+      case PathSegment.PathVariable(name)            => q"_root_.golem.runtime.http.PathSegment.PathVariable($name)"
+      case PathSegment.RemainingPathVariable(name)   => q"_root_.golem.runtime.http.PathSegment.RemainingPathVariable($name)"
+      case PathSegment.SystemVariable(name)          => q"_root_.golem.runtime.http.PathSegment.SystemVariable($name)"
     }
   }
 
@@ -493,10 +491,10 @@ object AgentDefinitionMacroImpl {
       val methodTree = httpMethodTree(c)(httpMethod)
       val pathTrees  = parsed.pathSegments.map(seg => pathSegmentTree(c)(seg))
       val headerTrees = headerVars.map { hv =>
-        q"_root_.golem.runtime.HeaderVariable(${hv.headerName}, ${hv.variableName})"
+        q"_root_.golem.runtime.http.HeaderVariable(${hv.headerName}, ${hv.variableName})"
       }
       val queryTrees = parsed.queryVars.map { qv =>
-        q"_root_.golem.runtime.QueryVariable(${qv.queryParamName}, ${qv.variableName})"
+        q"_root_.golem.runtime.http.QueryVariable(${qv.queryParamName}, ${qv.variableName})"
       }
       val authOverrideTree = authOverride match {
         case Some(v) => q"_root_.scala.Some($v)"
@@ -510,7 +508,7 @@ object AgentDefinitionMacroImpl {
       }
 
       q"""
-        _root_.golem.runtime.HttpEndpointDetails(
+        _root_.golem.runtime.http.HttpEndpointDetails(
           httpMethod = $methodTree,
           pathSuffix = _root_.scala.List(..$pathTrees),
           headerVars = _root_.scala.List(..$headerTrees),
@@ -525,16 +523,16 @@ object AgentDefinitionMacroImpl {
   private def httpMethodTree(c: blackbox.Context)(method: HttpMethod): c.Tree = {
     import c.universe._
     method match {
-      case HttpMethod.Get     => q"_root_.golem.runtime.HttpMethod.Get"
-      case HttpMethod.Post    => q"_root_.golem.runtime.HttpMethod.Post"
-      case HttpMethod.Put     => q"_root_.golem.runtime.HttpMethod.Put"
-      case HttpMethod.Delete  => q"_root_.golem.runtime.HttpMethod.Delete"
-      case HttpMethod.Patch   => q"_root_.golem.runtime.HttpMethod.Patch"
-      case HttpMethod.Head    => q"_root_.golem.runtime.HttpMethod.Head"
-      case HttpMethod.Options => q"_root_.golem.runtime.HttpMethod.Options"
-      case HttpMethod.Connect => q"_root_.golem.runtime.HttpMethod.Connect"
-      case HttpMethod.Trace   => q"_root_.golem.runtime.HttpMethod.Trace"
-      case HttpMethod.Custom(m) => q"_root_.golem.runtime.HttpMethod.Custom($m)"
+      case HttpMethod.Get     => q"_root_.golem.runtime.http.HttpMethod.Get"
+      case HttpMethod.Post    => q"_root_.golem.runtime.http.HttpMethod.Post"
+      case HttpMethod.Put     => q"_root_.golem.runtime.http.HttpMethod.Put"
+      case HttpMethod.Delete  => q"_root_.golem.runtime.http.HttpMethod.Delete"
+      case HttpMethod.Patch   => q"_root_.golem.runtime.http.HttpMethod.Patch"
+      case HttpMethod.Head    => q"_root_.golem.runtime.http.HttpMethod.Head"
+      case HttpMethod.Options => q"_root_.golem.runtime.http.HttpMethod.Options"
+      case HttpMethod.Connect => q"_root_.golem.runtime.http.HttpMethod.Connect"
+      case HttpMethod.Trace   => q"_root_.golem.runtime.http.HttpMethod.Trace"
+      case HttpMethod.Custom(m) => q"_root_.golem.runtime.http.HttpMethod.Custom($m)"
     }
   }
 

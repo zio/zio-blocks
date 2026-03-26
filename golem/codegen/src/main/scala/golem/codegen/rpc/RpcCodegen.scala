@@ -151,9 +151,9 @@ object RpcCodegen {
     sb.append(s"""  val typeName: _root_.scala.Predef.String = "$typeName"\n\n""")
 
     // agentType
-    sb.append(s"  lazy val agentType: _root_.golem.runtime.agenttype.AgentType[$simpleName, Id] =\n")
+    sb.append(s"  lazy val agentType: _root_.golem.runtime.AgentType[$simpleName, Id] =\n")
     sb.append(s"    _root_.golem.runtime.rpc.AgentClient.agentType[$simpleName]\n")
-    sb.append(s"      .asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$simpleName, Id]]\n\n")
+    sb.append(s"      .asInstanceOf[_root_.golem.runtime.AgentType[$simpleName, Id]]\n\n")
 
     // Generate XRemote trait, per-method classes, and mode-aware constructors
     if (remoteMethods.nonEmpty) {

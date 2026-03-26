@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-package golem.runtime.agenttype
+package golem.runtime
 
 import golem.Principal
 import golem.config.ConfigBuilder
 import golem.data.GolemSchema
-import golem.runtime.{AgentMetadata, MethodMetadata}
 
 import scala.concurrent.Future
 

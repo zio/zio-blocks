@@ -19,19 +19,16 @@ package golem.runtime.macros
 import golem.config.{AgentConfigDeclaration, ConfigSchema}
 import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
 import golem.runtime.annotations.{description, prompt}
-import golem.runtime.{
-  AgentMetadata,
+import golem.runtime.{AgentMetadata, MethodMetadata, Snapshotting, SnapshottingConfig}
+import golem.runtime.http.{
   HeaderVariable,
   HttpEndpointDetails,
   HttpMethod,
   HttpMountDetails,
   HttpRouteParser,
   HttpValidation,
-  MethodMetadata,
   PathSegment,
-  QueryVariable,
-  Snapshotting,
-  SnapshottingConfig
+  QueryVariable
 }
 
 import scala.quoted.*

@@ -16,7 +16,7 @@
 
 package golem.runtime.rpc
 
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import scala.language.experimental.macros
 
 // format: off
@@ -79,7 +79,7 @@ private[rpc] object AgentTypeWithCtorMacro {
     }
 
     c.Expr[AgentType[Trait, Constructor]](
-      q"_root_.golem.runtime.rpc.AgentClient.agentType[$traitType].asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitType, $gotCtor]]"
+      q"_root_.golem.runtime.rpc.AgentClient.agentType[$traitType].asInstanceOf[_root_.golem.runtime.AgentType[$traitType, $gotCtor]]"
     )
   }
 }
@@ -129,7 +129,7 @@ private[rpc] object AgentClientBindMacro {
         $resolvedRef.agentType.methods
           .collectFirst {
             case p if p.metadata.name == $methodName =>
-              p.asInstanceOf[_root_.golem.runtime.agenttype.AgentMethod[$traitTpe, $inTpe, $outTpe]]
+              p.asInstanceOf[_root_.golem.runtime.AgentMethod[$traitTpe, $inTpe, $outTpe]]
           }
           .getOrElse(throw new _root_.java.lang.IllegalStateException("Method definition for " + $methodName + " not found"))
       """

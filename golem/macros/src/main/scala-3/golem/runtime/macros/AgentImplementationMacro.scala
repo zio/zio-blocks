@@ -18,15 +18,17 @@ package golem.runtime.macros
 
 import golem.config.ConfigBuilder
 import golem.data.GolemSchema
-import golem.runtime.agenttype.{
+import golem.runtime.{
   AgentImplementationType,
+  AgentMetadata,
   AsyncImplementationMethod,
   ImplementationMethod,
+  MethodMetadata,
   SnapshotHandlers,
   SnapshotPayload,
+  Snapshotting,
   SyncImplementationMethod
 }
-import golem.runtime.{AgentMetadata, MethodMetadata, Snapshotting}
 import scala.quoted.*
 
 object AgentImplementationMacro {
@@ -44,7 +46,7 @@ object AgentImplementationMacro {
     ${ implementationTypeWithCtorImpl[Trait, Ctor]('build) }
 
   inline def implementationTypeFromClass[Trait, Impl <: Trait]
-    : golem.runtime.agenttype.AgentImplementationType[Trait, ?] =
+    : golem.runtime.AgentImplementationType[Trait, ?] =
     ${ implementationTypeFromClassImpl[Trait, Impl] }
 
   private def implementationTypeFromClassImpl[Trait: Type, Impl: Type](using

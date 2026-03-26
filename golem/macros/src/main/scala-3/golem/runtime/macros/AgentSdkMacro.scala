@@ -17,7 +17,7 @@
 package golem.runtime.macros
 
 // Macro annotations live in a separate module; do not depend on them here.
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import golem.AgentApi
 
 import scala.quoted.*

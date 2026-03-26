@@ -14,18 +14,6 @@
  * limitations under the License.
  */
 
-package golem
+package golem.runtime
 
-private[golem] object BaseAgentPlatform {
-  private def unavailable: Nothing =
-    throw new UnsupportedOperationException("BaseAgent is only available when running inside a Golem JS guest runtime")
-
-  def agentId: String =
-    unavailable
-
-  def agentType: String =
-    unavailable
-
-  def agentName: String =
-    unavailable
-}
+final case class ConstructorMetadata(name: Option[String], description: String, promptHint: Option[String])

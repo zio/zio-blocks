@@ -17,7 +17,7 @@
 package golem.runtime.macros
 
 import golem.data.GolemSchema
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import scala.reflect.macros.blackbox
 
 object AgentClientMacro {
@@ -45,10 +45,10 @@ object AgentClientMacroImpl {
     val traitName                              = agentTypeNameOrDefault(c)(traitSymbol)
 
     c.Expr[AgentType[Trait, _]](q"""
-      _root_.golem.runtime.agenttype.AgentType[$traitType, $constructorType](
+      _root_.golem.runtime.AgentType[$traitType, $constructorType](
         traitClassName = ${Literal(Constant(traitSymbol.fullName))},
         typeName = $traitName,
-        constructor = $constructorTypeExpr.asInstanceOf[_root_.golem.runtime.agenttype.ConstructorType[$constructorType]],
+        constructor = $constructorTypeExpr.asInstanceOf[_root_.golem.runtime.ConstructorType[$constructorType]],
         methods = List(..$methods)
       )
     """)
@@ -76,7 +76,7 @@ object AgentClientMacroImpl {
         schemaInstance
     }
 
-    val typeExpr = q"_root_.golem.runtime.agenttype.ConstructorType[$inputType]($schemaExpr)"
+    val typeExpr = q"_root_.golem.runtime.ConstructorType[$inputType]($schemaExpr)"
     (inputType, typeExpr)
   }
 
@@ -165,8 +165,8 @@ object AgentClientMacroImpl {
     val (invocationKind, outputType) = methodInvocationInfo(c)(method)
 
     val invocationExpr = invocationKind match {
-      case InvocationKind.Awaitable     => q"_root_.golem.runtime.agenttype.MethodInvocation.Awaitable"
-      case InvocationKind.FireAndForget => q"_root_.golem.runtime.agenttype.MethodInvocation.FireAndForget"
+      case InvocationKind.Awaitable     => q"_root_.golem.runtime.MethodInvocation.Awaitable"
+      case InvocationKind.FireAndForget => q"_root_.golem.runtime.MethodInvocation.FireAndForget"
     }
 
     val inputSchemaExpr = accessMode match {
@@ -194,7 +194,7 @@ object AgentClientMacroImpl {
     }
 
     q"""
-      _root_.golem.runtime.agenttype.AgentMethod[$traitType, $inputType, $outputType](
+      _root_.golem.runtime.AgentMethod[$traitType, $inputType, $outputType](
         metadata = $metadataExpr,
         functionName = $functionName,
         inputSchema = $inputSchemaExpr,

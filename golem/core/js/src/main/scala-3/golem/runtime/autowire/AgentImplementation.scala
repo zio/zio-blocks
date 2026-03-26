@@ -24,9 +24,9 @@ private[golem] object AgentImplementation {
   def registerAnyCtorType[Trait](
     typeName: String,
     mode: AgentMode,
-    implType: golem.runtime.agenttype.AgentImplementationType[Trait, _]
+    implType: golem.runtime.AgentImplementationType[Trait, _]
   ): AgentDefinition[Trait] =
-    AgentImplementationRuntime.register(typeName, mode, implType.asInstanceOf[golem.runtime.agenttype.AgentImplementationType[Trait, Any]])
+    AgentImplementationRuntime.register(typeName, mode, implType.asInstanceOf[golem.runtime.AgentImplementationType[Trait, Any]])
 
   /**
    * Registers an agent implementation by class type.

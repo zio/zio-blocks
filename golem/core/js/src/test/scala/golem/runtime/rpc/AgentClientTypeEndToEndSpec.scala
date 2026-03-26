@@ -18,7 +18,7 @@ package golem.runtime.rpc
 
 import golem.host.js._
 import golem.BaseAgent
-import golem.runtime.agenttype.AgentMethod
+import golem.runtime.AgentMethod
 import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation}
 import golem.runtime.autowire.AgentImplementation
 import golem.runtime.rpc.RpcValueCodec
@@ -76,7 +76,7 @@ object AgentClientTypeEndToEndSpec extends ZIOSpecDefault {
 
         val resolvedAgent =
           AgentClientRuntime.ResolvedAgent(
-            agentType.asInstanceOf[golem.runtime.agenttype.AgentType[AsyncEchoAgent, Any]],
+            agentType.asInstanceOf[golem.runtime.AgentType[AsyncEchoAgent, Any]],
             RemoteAgentClient("e2e-client-async", "fake-id", null, rpc)
           )
 

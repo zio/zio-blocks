@@ -1,4 +1,4 @@
-package golem.runtime
+package golem.runtime.http
 
 /**
  * Pure Scala model types for HTTP route metadata.

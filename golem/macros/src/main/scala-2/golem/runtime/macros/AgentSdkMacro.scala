@@ -61,10 +61,10 @@ object AgentSdkMacroImpl {
       new _root_.golem.AgentApi[$traitTpe] {
         override type Id = $ctorTpe
         override val typeName: String = $typeName
-        override val agentType: _root_.golem.runtime.agenttype.AgentType[$traitTpe, $ctorTpe] =
+        override val agentType: _root_.golem.runtime.AgentType[$traitTpe, $ctorTpe] =
           _root_.golem.runtime.macros.AgentClientMacro
             .agentType[$traitTpe]
-            .asInstanceOf[_root_.golem.runtime.agenttype.AgentType[$traitTpe, $ctorTpe]]
+            .asInstanceOf[_root_.golem.runtime.AgentType[$traitTpe, $ctorTpe]]
       }
       """
     )

@@ -20,7 +20,7 @@ import golem.data.GolemSchema
 import golem.host.js._
 import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.BaseAgent
-import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
+import golem.runtime.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.rpc.AgentClientRuntime.TestHooks
 import golem.runtime.rpc.AgentClientRuntimeSpecFixtures._
 import golem.runtime.rpc.host.AgentHostApi

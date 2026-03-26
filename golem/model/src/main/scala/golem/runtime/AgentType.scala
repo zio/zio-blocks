@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package golem.runtime.agenttype
+package golem.runtime
 
 import golem.data.GolemSchema
-import golem.runtime.MethodMetadata
 
 /**
  * Reflected structure of an agent trait for client-side calling: schemas, WIT

@@ -17,8 +17,7 @@
 package golem.runtime.macros
 
 import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
-import golem.runtime.MethodMetadata
-import golem.runtime.agenttype.{AgentMethod, AgentType, ConstructorType, MethodInvocation}
+import golem.runtime.{AgentMethod, AgentType, ConstructorType, MethodInvocation, MethodMetadata}
 // Macro annotations live in a separate module; do not depend on them here.
 
 import scala.quoted.*

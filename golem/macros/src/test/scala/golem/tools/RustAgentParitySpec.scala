@@ -23,7 +23,7 @@ import golem.data._
 import golem.runtime.annotations.{agentDefinition, description, prompt}
 import golem.runtime.annotations.DurabilityMode
 import golem.runtime.macros.{AgentClientMacro, AgentImplementationMacro, AgentMacros}
-import golem.runtime.agenttype.{AsyncImplementationMethod, MethodInvocation}
+import golem.runtime.{AsyncImplementationMethod, MethodInvocation}
 import golem.tools.AgentTypeJsonEncoder
 import ujson.Value
 import zio.blocks.schema.Schema

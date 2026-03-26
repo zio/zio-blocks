@@ -20,6 +20,7 @@ import golem.config.{AgentConfigDeclaration, AgentConfigSource}
 import golem.data.StructuredSchema
 import golem.host.js._
 import golem.runtime._
+import golem.runtime.http._
 
 import scala.scalajs.js
 

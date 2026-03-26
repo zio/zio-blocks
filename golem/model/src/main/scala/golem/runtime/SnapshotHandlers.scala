@@ -1,4 +1,4 @@
-package golem.runtime.agenttype
+package golem.runtime
 
 import scala.concurrent.Future
 

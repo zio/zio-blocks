@@ -17,7 +17,7 @@
 package golem.runtime.rpc
 
 import golem.runtime.macros.AgentClientMacro
-import golem.runtime.agenttype.{AgentMethod, AgentType}
+import golem.runtime.{AgentMethod, AgentType}
 import golem.Uuid
 
 import scala.collection.immutable.Vector

@@ -70,8 +70,7 @@ addCommandAlias(
       "zioGolemModelJVM/publishLocal",
       "zioGolemModelJS/publishLocal",
       "zioGolemMacros/publishLocal",
-      "zioGolemCoreJS/publishLocal",
-      "zioGolemCoreJVM/publishLocal"
+      "zioGolemCoreJS/publishLocal"
     )
     List(
       // Scala 3.7.4 JVM / 3.3.7 JS (via jsSettings) for deps
@@ -87,11 +86,11 @@ addCommandAlias(
 )
 addCommandAlias(
   "golemTest3",
-  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS; zioGolemIntegrationTests/test"
+  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS; zioGolemIntegrationTests/test"
 )
 addCommandAlias(
   "golemTest2",
-  "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJVM/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
+  "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
 )
 addCommandAlias(
   "golemTestAll",
@@ -101,7 +100,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemCoreJVM/test; zioGolemMacros/test; codegen/test"
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; zioGolemModelJVM/test; zioGolemMacros/test; codegen/test"
 )
 
 addCommandAlias(
@@ -120,7 +119,7 @@ addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemCoreJVM/doc; zioGolemMacros/doc; codegen/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; zioGolemModelJVM/doc; zioGolemMacros/doc; codegen/doc"
 )
 addCommandAlias(
   "docJS1",
@@ -182,8 +181,7 @@ lazy val root = project
     markdown.js,
     zioGolemModel.jvm,
     zioGolemModel.js,
-    zioGolemCore.jvm,
-    zioGolemCore.js,
+    zioGolemCoreJS,
     zioGolemMacros,
     zioGolemTestAgents,
     zioGolemIntegrationTests,
@@ -891,17 +889,28 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
     }
   )
 
-lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Full)
-  .in(file("golem/core"))
+lazy val zioGolemCoreJS = project
+  .in(file("golem/core/js"))
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
   .settings(stdSettings("zio-golem-core", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
+  .settings(jsSettings)
   .settings(
     publish / skip := true,
+    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
+    scalaVersion := {
+      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
+        case Some((3, _)) => BuildHelper.Scala3Golem
+        case _            => (ThisBuild / scalaVersion).value
+      }
+    },
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio"           %%% "zio-test"                   % "2.1.24" % Test,
+      "dev.zio"           %%% "zio-test-sbt"               % "2.1.24" % Test,
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4"  % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"  % Test
     ),
-    // Match zioGolemModel/macros: compile per-Scala-version sources from src/main/scala-2 and src/main/scala-3.
     Compile / unmanagedSourceDirectories ++= {
       val base = baseDirectory.value / "src" / "main"
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -911,32 +920,7 @@ lazy val zioGolemCore = crossProject(JSPlatform, JVMPlatform)
       }
     }
   )
-  .jvmSettings(
-    libraryDependencies ++= Seq(
-      "com.lihaoyi"   %% "ujson"                 % "3.1.0"  % Test,
-      "dev.zio"       %% "zio-schema-derivation" % "1.8.3"  % Test
-    )
-  )
-  .jsSettings(jsSettings)
-  .jsSettings(
-    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
-    scalaVersion := {
-      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => BuildHelper.Scala3Golem
-        case _            => (ThisBuild / scalaVersion).value
-      }
-    },
-    libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0" % Test,
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0" % Test,
-      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
-      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
-  )
-  .dependsOn(zioGolemModel)
-
-lazy val zioGolemCoreJS  = zioGolemCore.js.dependsOn(zioGolemMacros)
-lazy val zioGolemCoreJVM = zioGolemCore.jvm.dependsOn(zioGolemMacros)
+  .dependsOn(zioGolemModel.js, zioGolemMacros)
 
 lazy val zioGolemMacros = project
   .in(file("golem/macros"))
@@ -957,7 +941,13 @@ lazy val zioGolemMacros = project
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _            => Seq.empty
-    })
+    }),
+    libraryDependencies ++= Seq(
+      "dev.zio"     %% "zio-test"              % "2.1.24" % Test,
+      "dev.zio"     %% "zio-test-sbt"          % "2.1.24" % Test,
+      "com.lihaoyi" %% "ujson"                 % "3.1.0"  % Test,
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.3"  % Test
+    )
   )
   .dependsOn(zioGolemModel.jvm)
 

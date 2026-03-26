@@ -17,7 +17,7 @@
 package golem.runtime.rpc
 
 import golem.Datetime
-import golem.runtime.agenttype.AgentMethod
+import golem.runtime.AgentMethod
 
 import scala.concurrent.Future
 

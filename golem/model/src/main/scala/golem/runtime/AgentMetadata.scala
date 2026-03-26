@@ -18,6 +18,7 @@ package golem.runtime
 
 import golem.config.AgentConfigDeclaration
 import golem.data.StructuredSchema
+import golem.runtime.http.{HttpEndpointDetails, HttpMountDetails}
 
 /**
  * Describes a single method on an agent.

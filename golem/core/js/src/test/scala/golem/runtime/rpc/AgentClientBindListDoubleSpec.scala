@@ -16,7 +16,7 @@
 
 package golem.runtime.rpc
 
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import zio._
 import zio.test._
 

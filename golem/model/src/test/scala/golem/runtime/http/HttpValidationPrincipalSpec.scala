@@ -1,4 +1,4 @@
-package golem.runtime
+package golem.runtime.http
 
 import zio.test._
 

@@ -16,7 +16,7 @@
 
 package golem
 
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 
 /**
  * Pure metadata + reflected type for an agent trait.

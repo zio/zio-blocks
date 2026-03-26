@@ -1,4 +1,4 @@
-package golem.runtime
+package golem.runtime.http
 
 /**
  * Parser for HTTP route templates like "/api/{city}/weather?q={query}&limit={n}"

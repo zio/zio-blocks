@@ -1,4 +1,6 @@
-package golem.runtime
+package golem.runtime.http
+
+import golem.runtime.AgentMetadata
 
 /**
  * Validation rules for HTTP mount and endpoint configurations.

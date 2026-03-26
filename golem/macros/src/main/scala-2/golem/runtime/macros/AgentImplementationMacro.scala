@@ -19,7 +19,7 @@ package golem.runtime.macros
 import golem.config.ConfigBuilder
 import golem.data.GolemSchema
 import golem.runtime.Snapshotting
-import golem.runtime.agenttype.AgentImplementationType
+import golem.runtime.AgentImplementationType
 
 import scala.reflect.macros.blackbox
 
@@ -63,7 +63,7 @@ object AgentImplementationMacroImpl {
 
     c.Expr[AgentImplementationType[Trait, Unit]](q"""
       val metadata = $metadataExpr
-      _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, _root_.scala.Unit](
+      _root_.golem.runtime.AgentImplementationType[$traitType, _root_.scala.Unit](
         metadata = metadata,
         idSchema = $ctorSchemaExpr,
         buildInstance = (_: _root_.scala.Unit, _: _root_.golem.Principal) => $build,
@@ -134,12 +134,12 @@ object AgentImplementationMacroImpl {
     c.Expr[AgentImplementationType[Trait, Ctor]](
       q"""
       val metadata = $metadataExpr
-      _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
+      _root_.golem.runtime.AgentImplementationType[$traitType, $ctorType](
         metadata = metadata,
         idSchema = $ctorSchemaExpr,
         buildInstance = { val f = ($build).asInstanceOf[$ctorType => $traitType]; (input: $ctorType, _: _root_.golem.Principal) => f(input) },
         methods = $methodsExpr
-      ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, ${weakTypeOf[Ctor]}]]
+      ).asInstanceOf[_root_.golem.runtime.AgentImplementationType[$traitType, ${weakTypeOf[Ctor]}]]
       """
     )
   }
@@ -226,7 +226,7 @@ object AgentImplementationMacroImpl {
 
     if (isAsync) {
       q"""
-        _root_.golem.runtime.agenttype.AsyncImplementationMethod[$traitType, $inputType, $outputType](
+        _root_.golem.runtime.AsyncImplementationMethod[$traitType, $inputType, $outputType](
           metadata = $methodMetadataExpr,
           inputSchema = $inputSchemaExpr,
           outputSchema = $outputSchemaInstance,
@@ -235,7 +235,7 @@ object AgentImplementationMacroImpl {
       """
     } else {
       q"""
-        _root_.golem.runtime.agenttype.SyncImplementationMethod[$traitType, $inputType, $outputType](
+        _root_.golem.runtime.SyncImplementationMethod[$traitType, $inputType, $outputType](
           metadata = $methodMetadataExpr,
           inputSchema = $inputSchemaExpr,
           outputSchema = $outputSchemaInstance,
@@ -753,7 +753,7 @@ object AgentImplementationMacroImpl {
       q"""
       {
         val metadata = $metadataExpr
-        _root_.golem.runtime.agenttype.AgentImplementationType[$traitType, $ctorType](
+        _root_.golem.runtime.AgentImplementationType[$traitType, $ctorType](
           metadata = metadata,
           idSchema = $ctorSchemaExpr,
           buildInstance = $buildInstanceExpr,
@@ -762,7 +762,7 @@ object AgentImplementationMacroImpl {
           configInjectedViaConstructor = ${if (configParam.isDefined) q"true" else q"false"},
           principalInjectedViaConstructor = ${if (principalParam.isDefined) q"true" else q"false"},
           snapshotHandlers = ${buildSnapshotHandlersExpr(c)(traitType, implType)}
-        ).asInstanceOf[_root_.golem.runtime.agenttype.AgentImplementationType[$traitType, Any]]
+        ).asInstanceOf[_root_.golem.runtime.AgentImplementationType[$traitType, Any]]
       }
       """
     )
@@ -788,9 +788,9 @@ object AgentImplementationMacroImpl {
           val rawLoad: (($traitType, Array[Byte]) => _root_.scala.concurrent.Future[Unit]) =
             (instance: $traitType, bytes: Array[Byte]) => instance.asInstanceOf[$implType].${loadSym.name.toTermName}(bytes)
           _root_.scala.Some(
-            _root_.golem.runtime.agenttype.SnapshotHandlers[$traitType](
-              save = _root_.golem.runtime.agenttype.SnapshotHandlers.wrapSave[$traitType](rawSave),
-              load = _root_.golem.runtime.agenttype.SnapshotHandlers.wrapLoad[$traitType](rawLoad)
+            _root_.golem.runtime.SnapshotHandlers[$traitType](
+              save = _root_.golem.runtime.SnapshotHandlers.wrapSave[$traitType](rawSave),
+              load = _root_.golem.runtime.SnapshotHandlers.wrapLoad[$traitType](rawLoad)
             )
           )
         }
@@ -802,12 +802,12 @@ object AgentImplementationMacroImpl {
             q"""
             {
               _root_.scala.Some(
-                _root_.golem.runtime.agenttype.SnapshotHandlers[$traitType](
+                _root_.golem.runtime.SnapshotHandlers[$traitType](
                   save = (instance: $traitType) => {
                     val snap = instance.asInstanceOf[_root_.golem.Snapshotted[$stateTpe]]
                     val codec = snap.stateSchema.derive(_root_.zio.blocks.schema.json.JsonCodecDeriver)
                     _root_.scala.concurrent.Future.successful(
-                      _root_.golem.runtime.agenttype.SnapshotPayload(
+                      _root_.golem.runtime.SnapshotPayload(
                         bytes = codec.encode(snap.state),
                         mimeType = "application/json"
                       )

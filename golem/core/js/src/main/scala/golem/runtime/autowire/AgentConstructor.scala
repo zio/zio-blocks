@@ -19,6 +19,7 @@ package golem.runtime.autowire
 import golem.Principal
 import golem.data._
 import golem.host.js._
+import golem.runtime.ConstructorMetadata
 import golem.FutureInterop
 
 import scala.concurrent.Future

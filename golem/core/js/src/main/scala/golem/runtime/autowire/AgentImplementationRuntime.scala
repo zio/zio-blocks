@@ -20,7 +20,7 @@ import golem.Principal
 import golem.config.{ConfigHolder, ConfigLoader}
 import golem.data.GolemSchema
 import golem.data.StructuredSchema
-import golem.runtime.agenttype.{AgentImplementationType, AsyncImplementationMethod, SyncImplementationMethod}
+import golem.runtime.{AgentImplementationType, AsyncImplementationMethod, ConstructorMetadata, SyncImplementationMethod}
 
 private[autowire] object AgentImplementationRuntime {
   def register[Trait, Ctor](
