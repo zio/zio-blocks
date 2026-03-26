@@ -20,6 +20,20 @@ object HttpValidation {
     methodParamNames: Set[String],
     hasMount: Boolean
   ): Either[String, Unit] =
+    validateEndpointVars(agentName, methodName, endpoint, methodParamNames, Set.empty, hasMount)
+
+  /**
+   * Validates an HTTP endpoint at the trait level (method params are known),
+   * including rejection of Principal-typed parameters from HTTP bindings.
+   */
+  def validateEndpointVars(
+    agentName: String,
+    methodName: String,
+    endpoint: HttpEndpointDetails,
+    methodParamNames: Set[String],
+    principalParamNames: Set[String],
+    hasMount: Boolean
+  ): Either[String, Unit] =
     if (!hasMount)
       Left(
         s"Agent method '$methodName' of '$agentName' defines HTTP endpoints " +
@@ -27,10 +41,37 @@ object HttpValidation {
       )
     else
       for {
+        _ <- validateEndpointVarsAreNotPrincipal(methodName, endpoint, principalParamNames)
         _ <- validatePathVars(methodName, endpoint.pathSuffix, methodParamNames)
         _ <- validateHeaderVars(methodName, endpoint.headerVars, methodParamNames)
         _ <- validateQueryVars(methodName, endpoint.queryVars, methodParamNames)
       } yield ()
+
+  private def validateEndpointVarsAreNotPrincipal(
+    methodName: String,
+    endpoint: HttpEndpointDetails,
+    principalParamNames: Set[String]
+  ): Either[String, Unit] =
+    if (principalParamNames.isEmpty) Right(())
+    else {
+      val pathPrincipal = endpoint.pathSuffix.collectFirst {
+        case PathSegment.PathVariable(v) if principalParamNames.contains(v)          => v
+        case PathSegment.RemainingPathVariable(v) if principalParamNames.contains(v) => v
+      }
+      val headerPrincipal = endpoint.headerVars.collectFirst {
+        case hv if principalParamNames.contains(hv.variableName) => hv.variableName
+      }
+      val queryPrincipal = endpoint.queryVars.collectFirst {
+        case qv if principalParamNames.contains(qv.variableName) => qv.variableName
+      }
+      pathPrincipal.orElse(headerPrincipal).orElse(queryPrincipal) match {
+        case Some(varName) =>
+          Left(
+            s"HTTP endpoint variable '$varName' in method '$methodName' cannot reference a Principal-typed parameter."
+          )
+        case None => Right(())
+      }
+    }
 
   private def validatePathVars(
     methodName: String,
@@ -126,6 +167,27 @@ object HttpValidation {
   }
 
   /**
+   * Validates that mount path variables do not reference Principal-typed
+   * constructor parameters.
+   */
+  def validateMountVarsAreNotPrincipal(
+    agentName: String,
+    mount: HttpMountDetails,
+    principalParamNames: Set[String]
+  ): Either[String, Unit] =
+    if (principalParamNames.isEmpty) Right(())
+    else
+      mount.pathPrefix.collectFirst {
+        case PathSegment.PathVariable(v) if principalParamNames.contains(v) => v
+      } match {
+        case Some(varName) =>
+          Left(
+            s"HTTP mount path variable '$varName' for agent '$agentName' cannot reference a Principal-typed constructor parameter."
+          )
+        case None => Right(())
+      }
+
+  /**
    * Runs all mount-level validations (called from implementation-level macro).
    */
   def validateHttpMount(
@@ -133,8 +195,20 @@ object HttpValidation {
     mount: HttpMountDetails,
     constructorParamNames: Set[String]
   ): Either[String, Unit] =
+    validateHttpMount(agentName, mount, constructorParamNames, Set.empty)
+
+  /**
+   * Runs all mount-level validations including Principal rejection.
+   */
+  def validateHttpMount(
+    agentName: String,
+    mount: HttpMountDetails,
+    constructorParamNames: Set[String],
+    principalParamNames: Set[String]
+  ): Either[String, Unit] =
     for {
       _ <- validateNoCatchAllInMount(agentName, mount)
+      _ <- validateMountVarsAreNotPrincipal(agentName, mount, principalParamNames)
       _ <- validateMountVarsExistInConstructor(mount, constructorParamNames)
       _ <- validateConstructorVarsSatisfied(mount, constructorParamNames)
     } yield ()
@@ -159,18 +233,17 @@ object HttpValidation {
   /**
    * Extracts constructor parameter names from the agent's constructor schema.
    *
-   * The parameter names depend on how the agent's `class Id` is
-   * defined:
+   * The parameter names depend on how the agent's `class Id` is defined:
    *
-   *   - '''Single parameter''' (e.g. `class Id(val value: String)`):
-   *     produces one parameter named `"value"`. The mount path must use
-   *     `{value}` to refer to it.
+   *   - '''Single parameter''' (e.g. `class Id(val value: String)`): produces
+   *     one parameter named `"value"`. The mount path must use `{value}` to
+   *     refer to it.
    *   - '''Multiple parameters''' (e.g.
-   *     `class Id(val arg0: String, val arg1: Int)`): produces
-   *     parameters named `"arg0"`, `"arg1"`, etc. The mount path must use
-   *     `{arg0}`, `{arg1}`, etc.
-   *   - '''No id''': produces no parameters. Mount paths must not
-   *     contain variables.
+   *     `class Id(val arg0: String, val arg1: Int)`): produces parameters named
+   *     `"arg0"`, `"arg1"`, etc. The mount path must use `{arg0}`, `{arg1}`,
+   *     etc.
+   *   - '''No id''': produces no parameters. Mount paths must not contain
+   *     variables.
    */
   private def extractConstructorParamNames(schema: golem.data.StructuredSchema): Set[String] =
     schema match {

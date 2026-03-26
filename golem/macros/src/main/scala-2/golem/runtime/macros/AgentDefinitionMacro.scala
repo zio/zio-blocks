@@ -98,6 +98,25 @@ object AgentDefinitionMacroImpl {
 
     val idSchema = inferIdSchema(c)(tpe)
 
+    // --- Mount-level Principal validation ---
+    if (hasMount) {
+      val idPrincipalParams = idConstructorPrincipalParams(c)(tpe)
+      if (idPrincipalParams.nonEmpty) {
+        val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
+        val mountStr = annOpt.flatMap { ann =>
+          extractNamedStringArg(c)(ann.tree.children.tail, "mount", 2)
+        }.getOrElse("")
+        if (mountStr.nonEmpty) {
+          val mountSegments = HttpRouteParser.parsePathOnly(mountStr, "mount").getOrElse(Nil)
+          val mount = HttpMountDetails(mountSegments, false, false, Nil, Nil)
+          HttpValidation.validateMountVarsAreNotPrincipal(agentTypeName, mount, idPrincipalParams) match {
+            case Left(err) => c.abort(c.enclosingPosition, err)
+            case Right(()) => ()
+          }
+        }
+      }
+    }
+
     val typeName      = agentTypeName
     val traitDescExpr = optionalStringExpr(c)(traitDescription)
     val traitModeExpr = optionalTreeExpr(c)(traitMode)
@@ -148,11 +167,15 @@ object AgentDefinitionMacroImpl {
     val outputSchema = methodOutputSchema(c)(method)
 
     val principalFullName = "golem.Principal"
-    val paramNames     = method.paramLists.flatten.collect {
-      case p if p.isTerm && p.typeSignature.dealias.typeSymbol.fullName != principalFullName => p.name.toString
+    val allParams = method.paramLists.flatten.filter(_.isTerm)
+    val paramNames = allParams.collect {
+      case p if p.typeSignature.dealias.typeSymbol.fullName != principalFullName => p.name.toString
+    }.toSet
+    val principalParamNames = allParams.collect {
+      case p if p.typeSignature.dealias.typeSymbol.fullName == principalFullName => p.name.toString
     }.toSet
     val headerVarMap   = extractHeaderAnnotations(c)(method, headerType)
-    val endpointTrees  = extractEndpoints(c)(method, endpointType, headerVarMap, agentName, methodName, paramNames, hasMount)
+    val endpointTrees  = extractEndpoints(c)(method, endpointType, headerVarMap, agentName, methodName, paramNames, principalParamNames, hasMount)
 
     q"""
       _root_.golem.runtime.MethodMetadata(
@@ -250,6 +273,37 @@ object AgentDefinitionMacroImpl {
         q"_root_.golem.data.NamedElementSchema($name, $schemaExpr)"
       }
       q"_root_.golem.data.StructuredSchema.Tuple(List(..$elements))"
+    }
+  }
+
+  /**
+   * Finds the Id constructor class and returns the names of any Principal-typed
+   * parameters. Returns empty set if no Id class or no Principal params.
+   */
+  private def idConstructorPrincipalParams(c: blackbox.Context)(tpe: c.universe.Type): Set[String] = {
+    import c.universe._
+
+    val idAnnotationType = typeOf[golem.runtime.annotations.id]
+    val principalFullName = "golem.Principal"
+
+    val annotatedClass = tpe.members.collectFirst {
+      case sym if sym.isClass && !sym.isMethod &&
+        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
+        sym
+    }
+
+    val constructorClass = annotatedClass.orElse {
+      val byName = tpe.member(TypeName("Id"))
+      if (byName == NoSymbol) None else Some(byName)
+    }
+
+    constructorClass match {
+      case None => Set.empty
+      case Some(classSym) =>
+        val primaryCtor = classSym.asClass.primaryConstructor.asMethod
+        primaryCtor.paramLists.flatten.filter(_.isTerm).collect {
+          case p if p.typeSignature.dealias.typeSymbol.fullName == principalFullName => p.name.toString
+        }.toSet
     }
   }
 
@@ -393,6 +447,7 @@ object AgentDefinitionMacroImpl {
     agentName: String,
     methodName: String,
     paramNames: Set[String],
+    principalParamNames: Set[String],
     hasMount: Boolean
   ): List[c.Tree] = {
     import c.universe._
@@ -430,7 +485,7 @@ object AgentDefinitionMacroImpl {
       val corsOverride: Option[List[String]] = if (corsPatterns.isEmpty) None else Some(corsPatterns)
 
       val endpointDetails = HttpEndpointDetails(httpMethod, parsed.pathSegments, headerVars, parsed.queryVars, authOverride, corsOverride)
-      HttpValidation.validateEndpointVars(agentName, methodName, endpointDetails, paramNames, hasMount) match {
+      HttpValidation.validateEndpointVars(agentName, methodName, endpointDetails, paramNames, principalParamNames, hasMount) match {
         case Left(err) => c.abort(c.enclosingPosition, err)
         case Right(()) => ()
       }

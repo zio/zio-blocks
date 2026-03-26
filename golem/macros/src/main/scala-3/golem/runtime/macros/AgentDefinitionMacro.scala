@@ -85,7 +85,22 @@ object AgentDefinitionMacro {
         methodMetadata(method, agentTypeName, hasMount)
     }
 
-    val idSchema                                        = inferIdSchema(typeRepr)
+    val idSchema = inferIdSchema(typeRepr)
+
+    // --- Mount-level Principal validation ---
+    if (hasMount) {
+      val mountPath         = extractAgentDefinitionStringArg(typeSymbol, "mount", positionalIndex = 2).getOrElse("")
+      val mountSegments     = HttpRouteParser.parsePathOnly(mountPath, "mount").getOrElse(Nil)
+      val idPrincipalParams = idConstructorPrincipalParams(typeRepr)
+      if (idPrincipalParams.nonEmpty) {
+        val mount = HttpMountDetails(mountSegments, false, false, Nil, Nil)
+        HttpValidation.validateMountVarsAreNotPrincipal(agentTypeName, mount, idPrincipalParams) match {
+          case Left(err) => report.errorAndAbort(err)
+          case Right(()) => ()
+        }
+      }
+    }
+
     val configExpr: Expr[List[AgentConfigDeclaration]] = detectAgentConfig(typeRepr).getOrElse('{ Nil })
 
     val snapshottingStr =
@@ -190,11 +205,18 @@ object AgentDefinitionMacro {
     val endpointListExpr = Expr.ofList(endpointDetails)
 
     // --- Compile-time validation ---
-    val methodParamNames = method.paramSymss.flatten.collect {
-      case sym if sym.isTerm => sym.name
+    val principalFullName   = "golem.Principal"
+    val allTermParams       = method.paramSymss.flatten.filter(_.isTerm)
+    val methodParamNames    = allTermParams.map(_.name).toSet
+    val principalParamNames = allTermParams.collect {
+      case sym if sym.tree match {
+            case v: ValDef => v.tpt.tpe.dealias.typeSymbol.fullName == principalFullName
+            case _         => false
+          } =>
+        sym.name
     }.toSet
 
-    validateEndpoints(method, agentName, hasMount, methodParamNames, headerVars)
+    validateEndpoints(method, agentName, hasMount, methodParamNames, principalParamNames, headerVars)
 
     '{
       MethodMetadata(
@@ -376,6 +398,46 @@ object AgentDefinitionMacro {
           val listExpr = Expr.ofList(elements)
           '{ StructuredSchema.Tuple($listExpr) }
         }
+    }
+  }
+
+  /**
+   * Finds the Id constructor class and returns the names of any Principal-typed
+   * parameters. Returns empty set if no Id class or no Principal params.
+   */
+  private def idConstructorPrincipalParams(using
+    Quotes
+  )(traitRepr: quotes.reflect.TypeRepr): Set[String] = {
+    import quotes.reflect.*
+
+    val typeSymbol   = traitRepr.typeSymbol
+    val idFQN        = "golem.runtime.annotations.id"
+    val principalFQN = "golem.Principal"
+
+    def hasIdAnnotation(sym: Symbol): Boolean =
+      sym.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == idFQN
+        case _                             => false
+      }
+
+    val constructorClass = typeSymbol.declarations.find { sym =>
+      sym.isClassDef && hasIdAnnotation(sym)
+    }.orElse {
+      typeSymbol.declarations.find { sym =>
+        sym.isClassDef && sym.name == "Id"
+      }
+    }
+
+    constructorClass match {
+      case None           => Set.empty
+      case Some(classSym) =>
+        classSym.primaryConstructor.paramSymss.flatten.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef if v.tpt.tpe.dealias.typeSymbol.fullName == principalFQN => sym.name
+              case _                                                                  => null
+            }
+        }.filter(_ != null).toSet
     }
   }
 
@@ -735,6 +797,7 @@ object AgentDefinitionMacro {
     agentName: String,
     hasMount: Boolean,
     methodParamNames: Set[String],
+    principalParamNames: Set[String],
     headerVars: List[HeaderVariable]
   ): Unit = {
     import quotes.reflect.*
@@ -783,7 +846,14 @@ object AgentDefinitionMacro {
             corsOverride = corsOverride
           )
 
-          HttpValidation.validateEndpointVars(agentName, method.name, endpoint, methodParamNames, hasMount) match {
+          HttpValidation.validateEndpointVars(
+            agentName,
+            method.name,
+            endpoint,
+            methodParamNames,
+            principalParamNames,
+            hasMount
+          ) match {
             case Left(err) => report.errorAndAbort(err)
             case Right(()) => ()
           }
