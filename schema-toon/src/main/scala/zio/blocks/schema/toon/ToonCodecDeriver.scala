@@ -17,7 +17,7 @@
 package zio.blocks.schema.toon
 
 import zio.blocks.docs.Doc
-import zio.blocks.schema.toon.ToonBinaryCodec._
+import zio.blocks.schema.toon.ToonCodec._
 import zio.blocks.schema.toon.ToonCodecUtils._
 import zio.blocks.schema.binding.{Binding, Discriminator, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
@@ -27,8 +27,8 @@ import java.util
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-object ToonBinaryCodecDeriver
-    extends ToonBinaryCodecDeriver(
+object ToonCodecDeriver
+    extends ToonCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
       caseNameMapper = NameMapper.Identity,
       discriminatorKind = DiscriminatorKind.Key,
@@ -44,7 +44,7 @@ object ToonBinaryCodecDeriver
       requireDefaultValueFields = false
     )
 
-class ToonBinaryCodecDeriver private[toon] (
+class ToonCodecDeriver private[toon] (
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
   discriminatorKind: DiscriminatorKind,
@@ -58,45 +58,45 @@ class ToonBinaryCodecDeriver private[toon] (
   requireCollectionFields: Boolean,
   transientDefaultValue: Boolean,
   requireDefaultValueFields: Boolean
-) extends Deriver[ToonBinaryCodec] {
+) extends Deriver[ToonCodec] {
 
-  def withFieldNameMapper(fieldNameMapper: NameMapper): ToonBinaryCodecDeriver =
+  def withFieldNameMapper(fieldNameMapper: NameMapper): ToonCodecDeriver =
     copy(fieldNameMapper = fieldNameMapper)
 
-  def withCaseNameMapper(caseNameMapper: NameMapper): ToonBinaryCodecDeriver =
+  def withCaseNameMapper(caseNameMapper: NameMapper): ToonCodecDeriver =
     copy(caseNameMapper = caseNameMapper)
 
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): ToonBinaryCodecDeriver =
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): ToonCodecDeriver =
     copy(discriminatorKind = discriminatorKind)
 
-  def withArrayFormat(arrayFormat: ArrayFormat): ToonBinaryCodecDeriver =
+  def withArrayFormat(arrayFormat: ArrayFormat): ToonCodecDeriver =
     copy(arrayFormat = arrayFormat)
 
-  def withDelimiter(delimiter: Delimiter): ToonBinaryCodecDeriver =
+  def withDelimiter(delimiter: Delimiter): ToonCodecDeriver =
     copy(delimiter = delimiter)
 
-  def withRejectExtraFields(rejectExtraFields: Boolean): ToonBinaryCodecDeriver =
+  def withRejectExtraFields(rejectExtraFields: Boolean): ToonCodecDeriver =
     copy(rejectExtraFields = rejectExtraFields)
 
-  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): ToonBinaryCodecDeriver =
+  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): ToonCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
-  def withTransientNone(transientNone: Boolean): ToonBinaryCodecDeriver =
+  def withTransientNone(transientNone: Boolean): ToonCodecDeriver =
     copy(transientNone = transientNone)
 
-  def withRequireOptionFields(requireOptionFields: Boolean): ToonBinaryCodecDeriver =
+  def withRequireOptionFields(requireOptionFields: Boolean): ToonCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
-  def withTransientEmptyCollection(transientEmptyCollection: Boolean): ToonBinaryCodecDeriver =
+  def withTransientEmptyCollection(transientEmptyCollection: Boolean): ToonCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
 
-  def withRequireCollectionFields(requireCollectionFields: Boolean): ToonBinaryCodecDeriver =
+  def withRequireCollectionFields(requireCollectionFields: Boolean): ToonCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
-  def withTransientDefaultValue(transientDefaultValue: Boolean): ToonBinaryCodecDeriver =
+  def withTransientDefaultValue(transientDefaultValue: Boolean): ToonCodecDeriver =
     copy(transientDefaultValue = transientDefaultValue)
 
-  def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): ToonBinaryCodecDeriver =
+  def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): ToonCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
   private[this] def copy(
@@ -113,7 +113,7 @@ class ToonBinaryCodecDeriver private[toon] (
     requireCollectionFields: Boolean = requireCollectionFields,
     transientDefaultValue: Boolean = transientDefaultValue,
     requireDefaultValueFields: Boolean = requireDefaultValueFields
-  ) = new ToonBinaryCodecDeriver(
+  ) = new ToonCodecDeriver(
     fieldNameMapper,
     caseNameMapper,
     discriminatorKind,
@@ -137,7 +137,7 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  ): Lazy[ToonBinaryCodec[A]] = {
+  ): Lazy[ToonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       Lazy(primitiveType match {
         case _: PrimitiveType.Unit.type      => unitCodec
@@ -171,8 +171,8 @@ class ToonBinaryCodecDeriver private[toon] (
         case _: PrimitiveType.Currency       => currencyCodec
         case _: PrimitiveType.UUID           => uuidCodec
       })
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance
-  }.asInstanceOf[Lazy[ToonBinaryCodec[A]]]
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, A]].instance
+  }.asInstanceOf[Lazy[ToonCodec[A]]]
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
@@ -182,12 +182,12 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
       val len           = fields.length
       if (len == 0) Lazy {
-        new ToonBinaryCodec[A]() {
+        new ToonCodec[A]() {
           private[this] val constructor = recordBinding.constructor
 
           def decodeValue(in: ToonReader, default: A): A = {
@@ -201,8 +201,8 @@ class ToonBinaryCodecDeriver private[toon] (
       else if (len == 1 && fields(0).value.isMap) {
         val mapField = fields(0)
         D.instance(mapField.value.metadata).map { mapCodec =>
-          new ToonBinaryCodec[A]() {
-            private[this] val mCodec        = mapCodec.asInstanceOf[ToonBinaryCodec[AnyRef]]
+          new ToonCodec[A]() {
+            private[this] val mCodec        = mapCodec.asInstanceOf[ToonCodec[AnyRef]]
             private[this] val deconstructor = recordBinding.deconstructor
             private[this] val constructor   = recordBinding.constructor
 
@@ -282,7 +282,7 @@ class ToonBinaryCodecDeriver private[toon] (
           }
           if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
           val finalOffset = offset
-          new ToonBinaryCodec[A]() {
+          new ToonCodec[A]() {
             private[this] val deconstructor       = recordBinding.deconstructor
             private[this] val constructor         = recordBinding.constructor
             private[this] val fieldInfos          = infos
@@ -487,7 +487,7 @@ class ToonBinaryCodecDeriver private[toon] (
             }
           }
         }
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, A]].instance
 
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
@@ -497,13 +497,13 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       option(typeId, cases) match {
         case Some(innerReflect) =>
           D.instance(innerReflect.metadata).map { codec =>
-            new ToonBinaryCodec[Option[Any]]() {
-              private[this] val innerCodec = codec.asInstanceOf[ToonBinaryCodec[Any]]
+            new ToonCodec[Option[Any]]() {
+              private[this] val innerCodec = codec.asInstanceOf[ToonCodec[Any]]
 
               override def decodeValue(in: ToonReader, default: Option[Any]): Option[Any] = {
                 in.skipBlankLines()
@@ -515,7 +515,7 @@ class ToonBinaryCodecDeriver private[toon] (
                   try Some(innerCodec.decodeValue(in, innerCodec.nullValue))
                   catch {
                     case err if NonFatal(err) =>
-                      throw new ToonBinaryCodecError(
+                      throw new ToonCodecError(
                         new ::(DynamicOptic.Node.Case("Some"), new ::(DynamicOptic.Node.Field("value"), Nil)),
                         err.getMessage
                       )
@@ -549,7 +549,7 @@ class ToonBinaryCodecDeriver private[toon] (
                 val caseReflect = case_.value
                 infos(idx) = if (caseReflect.isVariant) {
                   val discr = caseReflect.asVariant.get.variantBinding
-                    .asInstanceOf[BindingInstance[ToonBinaryCodec, _, _]]
+                    .asInstanceOf[BindingInstance[ToonCodec, _, _]]
                     .binding
                     .asInstanceOf[Binding.Variant[_]]
                     .discriminator
@@ -559,7 +559,7 @@ class ToonBinaryCodecDeriver private[toon] (
                   )
                 } else {
                   val constructor = caseReflect.asRecord.get.recordBinding
-                    .asInstanceOf[BindingInstance[ToonBinaryCodec, _, _]]
+                    .asInstanceOf[BindingInstance[ToonCodec, _, _]]
                     .binding
                     .asInstanceOf[Binding.Record[_]]
                     .constructor
@@ -583,7 +583,7 @@ class ToonBinaryCodecDeriver private[toon] (
               case _                      =>
             }
 
-            new ToonBinaryCodec[A]() {
+            new ToonCodec[A]() {
               private[this] val root = new ToonEnumNodeInfo(discr, caseInfos)
               private[this] val map  = caseMap
 
@@ -640,7 +640,7 @@ class ToonBinaryCodecDeriver private[toon] (
                     infos
                   }
 
-                  new ToonBinaryCodec[A]() {
+                  new ToonCodec[A]() {
                     private[this] val root                   = new ToonCaseNodeInfo(discr, getInfos(cases))
                     private[this] val map                    = caseMap
                     private[this] val discriminatorFieldName = fieldName
@@ -703,7 +703,7 @@ class ToonBinaryCodecDeriver private[toon] (
                       savedLines.toArray(linesArray)
                       val combinedContent = linesArray.mkString("\n")
                       val caseReader      = createReaderForValue(combinedContent)
-                      val codec           = caseInfo.codec.asInstanceOf[ToonBinaryCodec[A]]
+                      val codec           = caseInfo.codec.asInstanceOf[ToonCodec[A]]
                       try codec.decodeValue(caseReader, codec.nullValue)
                       catch {
                         case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Case(discriminatorValue), err)
@@ -711,7 +711,7 @@ class ToonBinaryCodecDeriver private[toon] (
                     }
 
                     def encodeValue(x: A, out: ToonWriter): Unit =
-                      root.discriminate(x).codec.asInstanceOf[ToonBinaryCodec[A]].encodeValue(x, out)
+                      root.discriminate(x).codec.asInstanceOf[ToonCodec[A]].encodeValue(x, out)
                   }
                 case DiscriminatorKind.None =>
                   def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[ToonCaseInfo] = {
@@ -723,7 +723,7 @@ class ToonBinaryCodecDeriver private[toon] (
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
                         val discr = caseReflect.asVariant.get.variantBinding
-                          .asInstanceOf[BindingInstance[ToonBinaryCodec, _, _]]
+                          .asInstanceOf[BindingInstance[ToonCodec, _, _]]
                           .binding
                           .asInstanceOf[Binding.Variant[_]]
                           .discriminator
@@ -746,22 +746,22 @@ class ToonBinaryCodecDeriver private[toon] (
                     infos
                   }
 
-                  val codecs    = new java.util.ArrayList[ToonBinaryCodec[?]]()
+                  val codecs    = new java.util.ArrayList[ToonCodec[?]]()
                   val caseInfos = getInfos(cases)
                   caseInfos.foreach {
                     case leaf: ToonCaseLeafInfo => codecs.add(leaf.codec)
                     case _                      =>
                   }
 
-                  new ToonBinaryCodec[A]() {
+                  new ToonCodec[A]() {
                     private[this] val root           = new ToonCaseNodeInfo(discr, caseInfos)
-                    private[this] val caseLeafCodecs = codecs.toArray(new Array[ToonBinaryCodec[?]](codecs.size))
+                    private[this] val caseLeafCodecs = codecs.toArray(new Array[ToonCodec[?]](codecs.size))
 
                     def decodeValue(in: ToonReader, default: A): A = {
                       var idx = 0
                       while (idx < caseLeafCodecs.length) {
                         in.setMark()
-                        val codec = caseLeafCodecs(idx).asInstanceOf[ToonBinaryCodec[A]]
+                        val codec = caseLeafCodecs(idx).asInstanceOf[ToonCodec[A]]
                         try {
                           val x = codec.decodeValue(in, codec.nullValue)
                           in.resetMark()
@@ -775,7 +775,7 @@ class ToonBinaryCodecDeriver private[toon] (
                     }
 
                     def encodeValue(x: A, out: ToonWriter): Unit =
-                      root.discriminate(x).codec.asInstanceOf[ToonBinaryCodec[A]].encodeValue(x, out)
+                      root.discriminate(x).codec.asInstanceOf[ToonCodec[A]].encodeValue(x, out)
                   }
                 case _ =>
                   def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[ToonCaseInfo] = {
@@ -787,7 +787,7 @@ class ToonBinaryCodecDeriver private[toon] (
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
                         val discr = caseReflect.asVariant.get.variantBinding
-                          .asInstanceOf[BindingInstance[ToonBinaryCodec, _, _]]
+                          .asInstanceOf[BindingInstance[ToonCodec, _, _]]
                           .binding
                           .asInstanceOf[Binding.Variant[_]]
                           .discriminator
@@ -817,7 +817,7 @@ class ToonBinaryCodecDeriver private[toon] (
                     case _                      =>
                   }
 
-                  new ToonBinaryCodec[A]() {
+                  new ToonCodec[A]() {
                     private[this] val root = new ToonCaseNodeInfo(discr, caseInfos)
                     private[this] val map  = caseMap
 
@@ -826,7 +826,7 @@ class ToonBinaryCodecDeriver private[toon] (
                       val key      = in.readKey()
                       val caseInfo = map.get(key)
                       if (caseInfo ne null) {
-                        val codec = caseInfo.codec.asInstanceOf[ToonBinaryCodec[A]]
+                        val codec = caseInfo.codec.asInstanceOf[ToonCodec[A]]
                         try codec.decodeValue(in, codec.nullValue)
                         catch {
                           case err if NonFatal(err) => in.decodeError(DynamicOptic.Node.Case(key), err)
@@ -838,15 +838,15 @@ class ToonBinaryCodecDeriver private[toon] (
                       val caseInfo = root.discriminate(x)
                       out.writeKeyOnly(caseInfo.name)
                       out.incrementDepth()
-                      caseInfo.codec.asInstanceOf[ToonBinaryCodec[A]].encodeValue(x, out)
+                      caseInfo.codec.asInstanceOf[ToonCodec[A]].encodeValue(x, out)
                       out.decrementDepth()
                     }
                   }
               }
             }
       }
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance
-  }.asInstanceOf[Lazy[ToonBinaryCodec[A]]]
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, A]].instance
+  }.asInstanceOf[Lazy[ToonCodec[A]]]
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -856,7 +856,7 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[C[A]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[C[A]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { elemCodec =>
@@ -870,10 +870,10 @@ class ToonBinaryCodecDeriver private[toon] (
           case ArrayFormat.Tabular => isRecordElement
           case _                   => false
         }
-        new ToonBinaryCodec[Col[Elem]]() {
+        new ToonCodec[Col[Elem]]() {
           private[this] val deconstructor    = seqBinding.deconstructor
           private[this] val constructor      = seqBinding.constructor
-          private[this] val elementCodec     = elemCodec.asInstanceOf[ToonBinaryCodec[Elem]]
+          private[this] val elementCodec     = elemCodec.asInstanceOf[ToonCodec[Elem]]
           private[this] val elemClassTag     = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
           private[this] val useInlineFormat  = useInline
           private[this] val useTabularFormat = useTabular
@@ -1041,7 +1041,7 @@ class ToonBinaryCodecDeriver private[toon] (
 
           override def decodeInlineArray(in: ToonReader, values: Array[String], expectedLength: Int): Col[Elem] = {
             if (values.length != expectedLength) {
-              throw new ToonBinaryCodecError(
+              throw new ToonCodecError(
                 Nil,
                 s"Array count mismatch: expected $expectedLength items but got ${values.length}"
               )
@@ -1134,8 +1134,8 @@ class ToonBinaryCodecDeriver private[toon] (
           }
         }
       }
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, C[A]]].instance
-  }.asInstanceOf[Lazy[ToonBinaryCodec[C[A]]]]
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, C[A]]].instance
+  }.asInstanceOf[Lazy[ToonCodec[C[A]]]]
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -1146,15 +1146,15 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[M[K, V]]] = {
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[M[K, V]]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (keyCodec, valueCodec) =>
-        new ToonBinaryCodec[Map[Key, Value]]() {
+        new ToonCodec[Map[Key, Value]]() {
           private[this] val deconstructor = mapBinding.deconstructor
           private[this] val constructor   = mapBinding.constructor
-          private[this] val kCodec        = keyCodec.asInstanceOf[ToonBinaryCodec[Key]]
-          private[this] val vCodec        = valueCodec.asInstanceOf[ToonBinaryCodec[Value]]
+          private[this] val kCodec        = keyCodec.asInstanceOf[ToonCodec[Key]]
+          private[this] val vCodec        = valueCodec.asInstanceOf[ToonCodec[Value]]
           private[this] val keyReflect    = key.asInstanceOf[Reflect.Bound[Key]]
 
           def decodeValue(in: ToonReader, default: Map[Key, Value]): Map[Key, Value] = {
@@ -1215,8 +1215,8 @@ class ToonBinaryCodecDeriver private[toon] (
           override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
         }
       }
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, M[K, V]]].instance
-  }.asInstanceOf[Lazy[ToonBinaryCodec[M[K, V]]]]
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, M[K, V]]].instance
+  }.asInstanceOf[Lazy[ToonCodec[M[K, V]]]]
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -1224,9 +1224,9 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[DynamicValue]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[DynamicValue]] =
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
-    else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, DynamicValue]].instance
+    else binding.asInstanceOf[BindingInstance[ToonCodec, ?, DynamicValue]].instance
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -1236,21 +1236,21 @@ class ToonBinaryCodecDeriver private[toon] (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonBinaryCodec[A]] =
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ToonCodec[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
       D.instance(wrapped.metadata).map { codec =>
-        new ToonBinaryCodec[A](PrimitiveType.fromTypeId(typeId).fold(ToonBinaryCodec.objectType) {
-          case _: PrimitiveType.Boolean   => ToonBinaryCodec.booleanType
-          case _: PrimitiveType.Byte      => ToonBinaryCodec.byteType
-          case _: PrimitiveType.Char      => ToonBinaryCodec.charType
-          case _: PrimitiveType.Short     => ToonBinaryCodec.shortType
-          case _: PrimitiveType.Float     => ToonBinaryCodec.floatType
-          case _: PrimitiveType.Int       => ToonBinaryCodec.intType
-          case _: PrimitiveType.Double    => ToonBinaryCodec.doubleType
-          case _: PrimitiveType.Long      => ToonBinaryCodec.longType
-          case _: PrimitiveType.Unit.type => ToonBinaryCodec.unitType
-          case _                          => ToonBinaryCodec.objectType
+        new ToonCodec[A](PrimitiveType.fromTypeId(typeId).fold(ToonCodec.objectType) {
+          case _: PrimitiveType.Boolean   => ToonCodec.booleanType
+          case _: PrimitiveType.Byte      => ToonCodec.byteType
+          case _: PrimitiveType.Char      => ToonCodec.charType
+          case _: PrimitiveType.Short     => ToonCodec.shortType
+          case _: PrimitiveType.Float     => ToonCodec.floatType
+          case _: PrimitiveType.Int       => ToonCodec.intType
+          case _: PrimitiveType.Double    => ToonCodec.doubleType
+          case _: PrimitiveType.Long      => ToonCodec.longType
+          case _: PrimitiveType.Unit.type => ToonCodec.unitType
+          case _                          => ToonCodec.objectType
         }) {
           private[this] val unwrap       = wrapperBinding.unwrap
           private[this] val wrap         = wrapperBinding.wrap
@@ -1281,7 +1281,7 @@ class ToonBinaryCodecDeriver private[toon] (
           override def encodeKey(x: A, out: ToonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
         }
       }
-    } else binding.asInstanceOf[BindingInstance[ToonBinaryCodec, ?, A]].instance
+    } else binding.asInstanceOf[BindingInstance[ToonCodec, ?, A]].instance
 
   override def instanceOverrides: IndexedSeq[InstanceOverride] = {
     recursiveRecordCache.remove()
@@ -1332,7 +1332,7 @@ class ToonBinaryCodecDeriver private[toon] (
 
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[A] =
     caseReflect.asVariant.get.variantBinding
-      .asInstanceOf[BindingInstance[ToonBinaryCodec, _, A]]
+      .asInstanceOf[BindingInstance[ToonCodec, _, A]]
       .binding
       .asInstanceOf[Binding.Variant[A]]
       .discriminator

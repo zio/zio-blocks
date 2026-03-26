@@ -3808,7 +3808,6 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
 
   object Email {
     private[this] val EmailRegex       = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-    implicit val typeId: TypeId[Email] = TypeId.of[Email]
     implicit val schema: Schema[Email] =
       Schema[String].transform[Email](
         {

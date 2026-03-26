@@ -38,17 +38,17 @@ import scala.util.control.NonFatal
  *
  * @param valueType
  *   Integer representing the type of the value for encoding/decoding. Default
- *   is set to `ToonBinaryCodec.objectType`.
+ *   is set to `ToonCodec.objectType`.
  *
  * This class requires an implementation for two core operations: decoding a
  * value of type `A` from a TOON representation and encoding a value of type `A`
  * into a TOON representation.
  */
-abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectType) extends BinaryCodec[A] {
+abstract class ToonCodec[A](val valueType: Int = ToonCodec.objectType) extends BinaryCodec[A] {
 
   /**
    * Computes the appropriate `RegisterOffset` based on the value type defined
-   * in `ToonBinaryCodec`.
+   * in `ToonCodec`.
    */
   val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
     case 0 => RegisterOffset(objects = 1)
@@ -65,8 +65,8 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
 
   /**
    * Attempts to decode a value of type `A` from the specified `ToonReader`, but
-   * may fail with `ToonBinaryCodecError` error if the TOON input does not
-   * encode a value of this type.
+   * may fail with `ToonCodecError` error if the TOON input does not encode a
+   * value of this type.
    *
    * @param in
    *   an instance of `ToonReader` which provides access to the TOON input to
@@ -79,7 +79,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
 
   /**
    * Encodes the specified value using provided `ToonWriter`, but may fail with
-   * `ToonBinaryCodecError` if it cannot be encoded properly according to TOON
+   * `ToonCodecError` if it cannot be encoded properly according to TOON
    * specification requirements.
    *
    * @param x
@@ -98,8 +98,8 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
 
   /**
    * Attempts to decode a value of type `A` from the specified `ToonReader`, but
-   * may fail with `ToonBinaryCodecError` error if the TOON input is not a key
-   * or does not encode a value of this type.
+   * may fail with `ToonCodecError` error if the TOON input is not a key or does
+   * not encode a value of this type.
    *
    * @param in
    *   an instance of `ToonReader` which provides access to the TOON input to
@@ -109,8 +109,8 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
 
   /**
    * Encodes the specified value using provided `ToonWriter` as a TOON key, but
-   * may fail with `ToonBinaryCodecError` if it cannot be encoded properly
-   * according to TOON specification requirements.
+   * may fail with `ToonCodecError` if it cannot be encoded properly according
+   * to TOON specification requirements.
    *
    * @param x
    *   the value provided for serialization
@@ -209,7 +209,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
    *   the delimiter to use between values
    */
   def encodeTabularRow(x: A, out: ToonWriter, delimiter: Delimiter): Unit =
-    throw new ToonBinaryCodecError(Nil, "encodeTabularRow not supported for this type")
+    throw new ToonCodecError(Nil, "encodeTabularRow not supported for this type")
 
   /**
    * Returns true if this codec represents a record type. Used to determine if a
@@ -357,7 +357,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
     new ::(
       ExpectationMismatch(
         error match {
-          case e: ToonBinaryCodecError =>
+          case e: ToonCodecError =>
             var list  = e.spans
             val array = new Array[DynamicOptic.Node](list.size)
             var idx   = 0
@@ -379,7 +379,7 @@ abstract class ToonBinaryCodec[A](val valueType: Int = ToonBinaryCodec.objectTyp
   )
 }
 
-object ToonBinaryCodec {
+object ToonCodec {
   val objectType  = 0
   val intType     = 1
   val longType    = 2
@@ -391,7 +391,7 @@ object ToonBinaryCodec {
   val shortType   = 8
   val unitType    = 9
 
-  val unitCodec: ToonBinaryCodec[Unit] = new ToonBinaryCodec[Unit](ToonBinaryCodec.unitType) {
+  val unitCodec: ToonCodec[Unit] = new ToonCodec[Unit](ToonCodec.unitType) {
     def decodeValue(in: ToonReader, default: Unit): Unit = {
       in.skipBlankLines()
       in.readNull()
@@ -399,7 +399,7 @@ object ToonBinaryCodec {
 
     def encodeValue(x: Unit, out: ToonWriter): Unit = out.writeNull()
   }
-  val booleanCodec: ToonBinaryCodec[Boolean] = new ToonBinaryCodec[Boolean](ToonBinaryCodec.booleanType) {
+  val booleanCodec: ToonCodec[Boolean] = new ToonCodec[Boolean](ToonCodec.booleanType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Boolean): Boolean = {
@@ -413,7 +413,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Boolean, out: ToonWriter): Unit = out.writeBoolean(x)
   }
-  val byteCodec: ToonBinaryCodec[Byte] = new ToonBinaryCodec[Byte](ToonBinaryCodec.byteType) {
+  val byteCodec: ToonCodec[Byte] = new ToonCodec[Byte](ToonCodec.byteType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Byte): Byte = {
@@ -427,7 +427,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Byte, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
-  val shortCodec: ToonBinaryCodec[Short] = new ToonBinaryCodec[Short](ToonBinaryCodec.shortType) {
+  val shortCodec: ToonCodec[Short] = new ToonCodec[Short](ToonCodec.shortType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Short): Short = {
@@ -441,7 +441,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Short, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
-  val intCodec: ToonBinaryCodec[Int] = new ToonBinaryCodec[Int](ToonBinaryCodec.intType) {
+  val intCodec: ToonCodec[Int] = new ToonCodec[Int](ToonCodec.intType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Int): Int = {
@@ -455,7 +455,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Int, out: ToonWriter): Unit = out.writeInt(x)
   }
-  val longCodec: ToonBinaryCodec[Long] = new ToonBinaryCodec[Long](ToonBinaryCodec.longType) {
+  val longCodec: ToonCodec[Long] = new ToonCodec[Long](ToonCodec.longType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Long): Long = {
@@ -469,7 +469,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Long, out: ToonWriter): Unit = out.writeLong(x)
   }
-  val floatCodec: ToonBinaryCodec[Float] = new ToonBinaryCodec[Float](ToonBinaryCodec.floatType) {
+  val floatCodec: ToonCodec[Float] = new ToonCodec[Float](ToonCodec.floatType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Float): Float = {
@@ -483,7 +483,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Float, out: ToonWriter): Unit = out.writeFloat(x)
   }
-  val doubleCodec: ToonBinaryCodec[Double] = new ToonBinaryCodec[Double](ToonBinaryCodec.doubleType) {
+  val doubleCodec: ToonCodec[Double] = new ToonCodec[Double](ToonCodec.doubleType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Double): Double = {
@@ -497,7 +497,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Double, out: ToonWriter): Unit = out.writeDouble(x)
   }
-  val charCodec: ToonBinaryCodec[Char] = new ToonBinaryCodec[Char](ToonBinaryCodec.charType) {
+  val charCodec: ToonCodec[Char] = new ToonCodec[Char](ToonCodec.charType) {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: Char): Char = {
@@ -517,7 +517,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: Char, out: ToonWriter): Unit = out.writeChar(x)
   }
-  val stringCodec: ToonBinaryCodec[String] = new ToonBinaryCodec[String]() {
+  val stringCodec: ToonCodec[String] = new ToonCodec[String]() {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: String): String = {
@@ -531,7 +531,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: String, out: ToonWriter): Unit = out.writeString(x)
   }
-  val bigIntCodec: ToonBinaryCodec[BigInt] = new ToonBinaryCodec[BigInt]() {
+  val bigIntCodec: ToonCodec[BigInt] = new ToonCodec[BigInt]() {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: BigInt): BigInt = {
@@ -545,7 +545,7 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: BigInt, out: ToonWriter): Unit = out.writeBigInt(x)
   }
-  val bigDecimalCodec: ToonBinaryCodec[BigDecimal] = new ToonBinaryCodec[BigDecimal]() {
+  val bigDecimalCodec: ToonCodec[BigDecimal] = new ToonCodec[BigDecimal]() {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: BigDecimal): BigDecimal = {
@@ -559,257 +559,200 @@ object ToonBinaryCodec {
 
     override def encodeKey(x: BigDecimal, out: ToonWriter): Unit = out.writeBigDecimal(x)
   }
-  val dayOfWeekCodec: ToonBinaryCodec[DayOfWeek] = new ToonBinaryCodec[java.time.DayOfWeek]() {
+  val dayOfWeekCodec: ToonCodec[DayOfWeek] = new ToonCodec[DayOfWeek]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.DayOfWeek): java.time.DayOfWeek = {
+    def decodeValue(in: ToonReader, default: DayOfWeek): DayOfWeek = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.time.DayOfWeek.valueOf(s)
-      catch { case _: IllegalArgumentException => in.decodeError(s"Invalid day of week: $s") }
+      DayOfWeek.valueOf(in.readString())
     }
 
-    def encodeValue(x: java.time.DayOfWeek, out: ToonWriter): Unit = out.writeString(x.name)
+    def encodeValue(x: DayOfWeek, out: ToonWriter): Unit = out.writeString(x.name)
   }
-  val durationCodec: ToonBinaryCodec[Duration] = new ToonBinaryCodec[java.time.Duration]() {
+  val durationCodec: ToonCodec[Duration] = new ToonCodec[Duration]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.Duration): java.time.Duration = {
+    def decodeValue(in: ToonReader, default: Duration): Duration = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.durationRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid duration: $s")
-      }
+      Json.durationRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.Duration, out: ToonWriter): Unit =
+    def encodeValue(x: Duration, out: ToonWriter): Unit =
       out.writeString(Json.durationRawCodec.encodeToString(x))
   }
-  val instantCodec: ToonBinaryCodec[Instant] = new ToonBinaryCodec[java.time.Instant]() {
+  val instantCodec: ToonCodec[Instant] = new ToonCodec[Instant]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.Instant): java.time.Instant = {
+    def decodeValue(in: ToonReader, default: Instant): Instant = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.instantRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid instant: $s")
-      }
+      Json.instantRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.Instant, out: ToonWriter): Unit =
+    def encodeValue(x: Instant, out: ToonWriter): Unit =
       out.writeString(Json.instantRawCodec.encodeToString(x))
   }
-  val localDateCodec: ToonBinaryCodec[LocalDate] = new ToonBinaryCodec[java.time.LocalDate]() {
+  val localDateCodec: ToonCodec[LocalDate] = new ToonCodec[LocalDate]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.LocalDate): java.time.LocalDate = {
+    def decodeValue(in: ToonReader, default: LocalDate): LocalDate = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.localDateRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid local date: $s")
-      }
+      Json.localDateRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.LocalDate, out: ToonWriter): Unit =
+    def encodeValue(x: LocalDate, out: ToonWriter): Unit =
       out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
-  val localDateTimeCodec: ToonBinaryCodec[LocalDateTime] = new ToonBinaryCodec[java.time.LocalDateTime]() {
+  val localDateTimeCodec: ToonCodec[LocalDateTime] = new ToonCodec[LocalDateTime]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.LocalDateTime): java.time.LocalDateTime = {
+    def decodeValue(in: ToonReader, default: LocalDateTime): LocalDateTime = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.localDateTimeRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid local date time: $s")
-      }
+      Json.localDateTimeRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.LocalDateTime, out: ToonWriter): Unit =
+    def encodeValue(x: LocalDateTime, out: ToonWriter): Unit =
       out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
-  val localTimeCodec: ToonBinaryCodec[LocalTime] = new ToonBinaryCodec[java.time.LocalTime]() {
+  val localTimeCodec: ToonCodec[LocalTime] = new ToonCodec[LocalTime]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.LocalTime): java.time.LocalTime = {
+    def decodeValue(in: ToonReader, default: LocalTime): LocalTime = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.localTimeRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid local time: $s")
-      }
+      Json.localTimeRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.LocalTime, out: ToonWriter): Unit =
+    def encodeValue(x: LocalTime, out: ToonWriter): Unit =
       out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
-  val monthCodec: ToonBinaryCodec[Month] = new ToonBinaryCodec[java.time.Month]() {
+  val monthCodec: ToonCodec[Month] = new ToonCodec[Month]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.Month): java.time.Month = {
+    def decodeValue(in: ToonReader, default: Month): Month = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.time.Month.valueOf(s)
-      catch { case _: IllegalArgumentException => in.decodeError(s"Invalid month: $s") }
+      Month.valueOf(in.readString())
     }
 
-    def encodeValue(x: java.time.Month, out: ToonWriter): Unit = out.writeString(x.name)
+    def encodeValue(x: Month, out: ToonWriter): Unit = out.writeString(x.name)
   }
-  val monthDayCodec: ToonBinaryCodec[MonthDay] = new ToonBinaryCodec[java.time.MonthDay]() {
+  val monthDayCodec: ToonCodec[MonthDay] = new ToonCodec[MonthDay]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.MonthDay): java.time.MonthDay = {
+    def decodeValue(in: ToonReader, default: MonthDay): MonthDay = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.monthDayRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid month-day: $s")
-      }
+      Json.monthDayRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.MonthDay, out: ToonWriter): Unit =
+    def encodeValue(x: MonthDay, out: ToonWriter): Unit =
       out.writeString(Json.monthDayRawCodec.encodeToString(x))
   }
-  val offsetDateTimeCodec: ToonBinaryCodec[OffsetDateTime] = new ToonBinaryCodec[java.time.OffsetDateTime]() {
+  val offsetDateTimeCodec: ToonCodec[OffsetDateTime] = new ToonCodec[OffsetDateTime]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime = {
+    def decodeValue(in: ToonReader, default: OffsetDateTime): OffsetDateTime = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.offsetDateTimeRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid offset date time: $s")
-      }
+      Json.offsetDateTimeRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.OffsetDateTime, out: ToonWriter): Unit =
+    def encodeValue(x: OffsetDateTime, out: ToonWriter): Unit =
       out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
-  val offsetTimeCodec: ToonBinaryCodec[OffsetTime] = new ToonBinaryCodec[java.time.OffsetTime]() {
+  val offsetTimeCodec: ToonCodec[OffsetTime] = new ToonCodec[OffsetTime]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.OffsetTime): java.time.OffsetTime = {
+    def decodeValue(in: ToonReader, default: OffsetTime): OffsetTime = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.offsetTimeRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid offset time: $s")
-      }
+      Json.offsetTimeRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.OffsetTime, out: ToonWriter): Unit =
+    def encodeValue(x: OffsetTime, out: ToonWriter): Unit =
       out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
-  val periodCodec: ToonBinaryCodec[Period] = new ToonBinaryCodec[java.time.Period]() {
+  val periodCodec: ToonCodec[Period] = new ToonCodec[Period]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.Period): java.time.Period = {
+    def decodeValue(in: ToonReader, default: Period): Period = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.periodRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid period: $s")
-      }
+      Json.periodRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.Period, out: ToonWriter): Unit =
-      out.writeString(Json.periodRawCodec.encodeToString(x))
+    def encodeValue(x: Period, out: ToonWriter): Unit = out.writeString(Json.periodRawCodec.encodeToString(x))
   }
-  val yearCodec: ToonBinaryCodec[Year] = new ToonBinaryCodec[java.time.Year]() {
+  val yearCodec: ToonCodec[Year] = new ToonCodec[Year]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.Year): java.time.Year = {
+    def decodeValue(in: ToonReader, default: Year): Year = {
       in.skipBlankLines()
       val s = in.readString()
-      try java.time.Year.of(s.toInt)
+      try Year.of(s.toInt)
       catch {
-        case _: NumberFormatException =>
-          try java.time.Year.parse(s)
-          catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year: $s") }
+        case _: NumberFormatException => Year.parse(s)
       }
     }
 
-    def encodeValue(x: java.time.Year, out: ToonWriter): Unit = out.writeInt(x.getValue)
+    def encodeValue(x: Year, out: ToonWriter): Unit = out.writeInt(x.getValue)
   }
-  val yearMonthCodec: ToonBinaryCodec[YearMonth] = new ToonBinaryCodec[java.time.YearMonth]() {
+  val yearMonthCodec: ToonCodec[YearMonth] = new ToonCodec[YearMonth]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.YearMonth): java.time.YearMonth = {
+    def decodeValue(in: ToonReader, default: YearMonth): YearMonth = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.time.YearMonth.parse(s)
-      catch { case _: java.time.format.DateTimeParseException => in.decodeError(s"Invalid year-month: $s") }
+      YearMonth.parse(in.readString())
     }
 
-    def encodeValue(x: java.time.YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
+    def encodeValue(x: YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
   }
-  val zoneIdCodec: ToonBinaryCodec[ZoneId] = new ToonBinaryCodec[java.time.ZoneId]() {
+  val zoneIdCodec: ToonCodec[ZoneId] = new ToonCodec[ZoneId]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.ZoneId): java.time.ZoneId = {
+    def decodeValue(in: ToonReader, default: ZoneId): ZoneId = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.time.ZoneId.of(s)
-      catch { case _: java.time.DateTimeException => in.decodeError(s"Invalid zone id: $s") }
+      ZoneId.of(in.readString())
     }
 
-    def encodeValue(x: java.time.ZoneId, out: ToonWriter): Unit = out.writeString(x.getId)
+    def encodeValue(x: ZoneId, out: ToonWriter): Unit = out.writeString(x.getId)
   }
-  val zoneOffsetCodec: ToonBinaryCodec[ZoneOffset] = new ToonBinaryCodec[java.time.ZoneOffset]() {
+  val zoneOffsetCodec: ToonCodec[ZoneOffset] = new ToonCodec[ZoneOffset]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.ZoneOffset): java.time.ZoneOffset = {
+    def decodeValue(in: ToonReader, default: ZoneOffset): ZoneOffset = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.time.ZoneOffset.of(s)
-      catch { case _: java.time.DateTimeException => in.decodeError(s"Invalid zone offset: $s") }
+      ZoneOffset.of(in.readString())
     }
 
-    def encodeValue(x: java.time.ZoneOffset, out: ToonWriter): Unit = out.writeString(x.getId)
+    def encodeValue(x: ZoneOffset, out: ToonWriter): Unit = out.writeString(x.getId)
   }
-  val zonedDateTimeCodec: ToonBinaryCodec[ZonedDateTime] = new ToonBinaryCodec[java.time.ZonedDateTime]() {
+  val zonedDateTimeCodec: ToonCodec[ZonedDateTime] = new ToonCodec[ZonedDateTime]() {
     override def isPrimitive: Boolean = true
 
-    def decodeValue(in: ToonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime = {
+    def decodeValue(in: ToonReader, default: ZonedDateTime): ZonedDateTime = {
       in.skipBlankLines()
-      val s = in.readString()
-      Json.zonedDateTimeRawCodec.decode(s) match {
-        case Right(v) => v
-        case _        => in.decodeError(s"Invalid zoned date time: $s")
-      }
+      Json.zonedDateTimeRawCodec.decodeUnsafe(in.readString())
     }
 
-    def encodeValue(x: java.time.ZonedDateTime, out: ToonWriter): Unit =
+    def encodeValue(x: ZonedDateTime, out: ToonWriter): Unit =
       out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
-  val currencyCodec: ToonBinaryCodec[Currency] = new ToonBinaryCodec[java.util.Currency]() {
+  val currencyCodec: ToonCodec[Currency] = new ToonCodec[java.util.Currency]() {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: java.util.Currency): java.util.Currency = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.util.Currency.getInstance(s)
-      catch { case _: Exception => in.decodeError(s"Invalid currency: $s") }
+      java.util.Currency.getInstance(in.readString())
     }
 
     def encodeValue(x: java.util.Currency, out: ToonWriter): Unit = out.writeString(x.getCurrencyCode)
   }
-  val uuidCodec: ToonBinaryCodec[UUID] = new ToonBinaryCodec[java.util.UUID]() {
+  val uuidCodec: ToonCodec[UUID] = new ToonCodec[java.util.UUID]() {
     override def isPrimitive: Boolean = true
 
     def decodeValue(in: ToonReader, default: java.util.UUID): java.util.UUID = {
       in.skipBlankLines()
-      val s = in.readString()
-      try java.util.UUID.fromString(s)
-      catch { case _: IllegalArgumentException => in.decodeError(s"Invalid UUID: $s") }
+      java.util.UUID.fromString(in.readString())
     }
 
     def encodeValue(x: java.util.UUID, out: ToonWriter): Unit = out.writeString(x.toString)
   }
-  val dynamicValueCodec: ToonBinaryCodec[DynamicValue] = new ToonBinaryCodec[DynamicValue]() {
+  val dynamicValueCodec: ToonCodec[DynamicValue] = new ToonCodec[DynamicValue]() {
     private[this] val falseValue = DynamicValue.Primitive(PrimitiveValue.Boolean(false))
     private[this] val trueValue  = DynamicValue.Primitive(PrimitiveValue.Boolean(true))
     private[this] val unitValue  = DynamicValue.Primitive(PrimitiveValue.Unit)

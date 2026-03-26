@@ -18,10 +18,11 @@ package zio.blocks.schema.msgpack
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, HasBinding, Registers, RegisterOffset}
+import zio.blocks.schema.binding.{Binding, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
+import java.nio.charset.StandardCharsets
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
@@ -139,13 +140,13 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
           val fieldLen = fieldInfos.length
           val regs     = Registers(usedRegisters)
           val mapSize  = in.readMapHeader()
-          if (mapSize != fieldLen) in.decodeError(s"Expected $fieldLen fields, got: $mapSize")
+          if (mapSize != fieldLen) error(s"Expected $fieldLen fields, got: $mapSize")
           var idx = 0
           while (idx < mapSize) {
             val fieldName = in.readString()
             val fieldIdx  = if (fieldLookup != null) {
               val mapIdx = fieldLookup.get(fieldName)
-              if (mapIdx == null) in.decodeError(s"Unknown field: $fieldName")
+              if (mapIdx == null) error(s"Unknown field: $fieldName")
               mapIdx.intValue()
             } else {
               var i     = 0
@@ -154,7 +155,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
                 if (fieldInfos(i).name == fieldName) found = i
                 i += 1
               }
-              if (found < 0) in.decodeError(s"Unknown field: $fieldName")
+              if (found < 0) error(s"Unknown field: $fieldName")
               found
             }
             val fieldInfo = fieldInfos(fieldIdx)
@@ -234,7 +235,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
                 } catch {
                   case err if NonFatal(err) => error(new DynamicOptic.Node.Case("Some"), err)
                 }
-              } else in.decodeError(s"Expected Option array of 0 or 1, got: $arrLen")
+              } else error(s"Expected Option array of 0 or 1, got: $arrLen")
             }.asInstanceOf[A]
 
             def encodeValue(value: A, out: MessagePackWriter): Unit = {
@@ -272,7 +273,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
 
               def decodeValue(in: MessagePackReader): A = {
                 val mapSize = in.readMapHeader()
-                if (mapSize != 1) in.decodeError(s"Expected Either map of 1, got: $mapSize")
+                if (mapSize != 1) error(s"Expected Either map of 1, got: $mapSize")
                 val key = in.readString()
                 if (key == "left") {
                   try new Left(leftCodec.decodeValue(in)).asInstanceOf[A]
@@ -284,7 +285,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
                   catch {
                     case err if NonFatal(err) => error(new DynamicOptic.Node.Case("Right"), err)
                   }
-                } else in.decodeError(s"Expected 'left' or 'right', got: $key")
+                } else error(s"Expected 'left' or 'right', got: $key")
               }
 
               def encodeValue(value: A, out: MessagePackWriter): Unit = {
@@ -320,7 +321,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
                 catch {
                   case err if NonFatal(err) => error(new DynamicOptic.Node.Case(cases(idx).name), err)
                 }
-              } else in.decodeError(s"Expected variant index from 0 to ${caseCodecs.length - 1}, got $idx")
+              } else error(s"Expected variant index from 0 to ${caseCodecs.length - 1}, got $idx")
             }
 
             def encodeValue(value: A, out: MessagePackWriter): Unit = {
@@ -503,7 +504,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
           new DynamicValue.Primitive(PrimitiveValue.String(in.readString()))
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
-          if (len < 0) in.decodeError("Array length exceeds maximum (2GB)")
+          if (len < 0) error("Array length exceeds maximum (2GB)")
           val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](len)
           var idx     = 0
           while (idx < len) {
@@ -513,7 +514,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
           new DynamicValue.Sequence(builder.result())
         } else if ((b & 0xf0) == 0x80 || b == 0xde || b == 0xdf) {
           val len = in.readMapHeader()
-          if (len < 0) in.decodeError("Map length exceeds maximum (2GB)")
+          if (len < 0) error("Map length exceeds maximum (2GB)")
           val entries       = new Array[(DynamicValue, DynamicValue)](len)
           var idx           = 0
           var allStringKeys = true
@@ -556,7 +557,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
               new DynamicValue.Primitive(new PrimitiveValue.Long(in.readLongValue()))
             case 0xc4 | 0xc5 | 0xc6 =>
               new DynamicValue.Primitive(new PrimitiveValue.BigInt(in.readBigInt()))
-            case _ => in.decodeError(s"Unsupported MessagePack type for DynamicValue: $b")
+            case _ => error(s"Unsupported MessagePack type for DynamicValue: $b")
           }
         }
       }
@@ -636,4 +637,89 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
         case v: PrimitiveValue.UUID           => uuidCodec.encodeValue(v.value, out)
       }
     }
+}
+
+private class MessagePackFieldInfo(val span: DynamicOptic.Node.Field, val idx: Int, val typeTag: Int) {
+  private[this] var codec: MessagePackCodec[?]            = null
+  private[this] var _name: String                         = null
+  private[this] var offset: RegisterOffset.RegisterOffset = 0
+  private[this] var encodedName: Array[Byte]              = null
+
+  def name: String = _name
+
+  def setName(name: String): Unit = {
+    this._name = name
+    val utf8 = name.getBytes(StandardCharsets.UTF_8)
+    val len  = utf8.length
+    encodedName = if (len <= 31) {
+      val arr = new Array[Byte](1 + len)
+      arr(0) = (0xa0 | len).toByte // fixstr header
+      System.arraycopy(utf8, 0, arr, 1, len)
+      arr
+    } else if (len <= 0xff) {
+      val arr = new Array[Byte](2 + len)
+      arr(0) = 0xd9.toByte // str8
+      arr(1) = len.toByte
+      System.arraycopy(utf8, 0, arr, 2, len)
+      arr
+    } else if (len <= 0xffff) {
+      val arr = new Array[Byte](3 + len)
+      arr(0) = 0xda.toByte // str16
+      arr(1) = (len >> 8).toByte
+      arr(2) = len.toByte
+      System.arraycopy(utf8, 0, arr, 3, len)
+      arr
+    } else {
+      val arr = new Array[Byte](5 + len)
+      arr(0) = 0xdb.toByte // str32
+      arr(1) = (len >> 24).toByte
+      arr(2) = (len >> 16).toByte
+      arr(3) = (len >> 8).toByte
+      arr(4) = len.toByte
+      System.arraycopy(utf8, 0, arr, 5, len)
+      arr
+    }
+  }
+
+  def writeEncodedName(out: MessagePackWriter): Unit = out.writeRaw(encodedName)
+
+  def setCodec(codec: MessagePackCodec[?]): Unit = this.codec = codec
+
+  def setOffset(offset: RegisterOffset.RegisterOffset): Unit = this.offset = offset
+
+  def readValue(in: MessagePackReader, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
+    val offset =
+      if (top == 0L) this.offset
+      else RegisterOffset.add(this.offset, top)
+    (typeTag: @switch) match {
+      case 0 => regs.setObject(offset, codec.asInstanceOf[MessagePackCodec[AnyRef]].decodeValue(in))
+      case 1 => regs.setInt(offset, codec.asInstanceOf[MessagePackCodec[Int]].decodeValue(in))
+      case 2 => regs.setLong(offset, codec.asInstanceOf[MessagePackCodec[Long]].decodeValue(in))
+      case 3 => regs.setFloat(offset, codec.asInstanceOf[MessagePackCodec[Float]].decodeValue(in))
+      case 4 => regs.setDouble(offset, codec.asInstanceOf[MessagePackCodec[Double]].decodeValue(in))
+      case 5 => regs.setBoolean(offset, codec.asInstanceOf[MessagePackCodec[Boolean]].decodeValue(in))
+      case 6 => regs.setByte(offset, codec.asInstanceOf[MessagePackCodec[Byte]].decodeValue(in))
+      case 7 => regs.setChar(offset, codec.asInstanceOf[MessagePackCodec[Char]].decodeValue(in))
+      case 8 => regs.setShort(offset, codec.asInstanceOf[MessagePackCodec[Short]].decodeValue(in))
+      case _ => codec.asInstanceOf[MessagePackCodec[Unit]].decodeValue(in)
+    }
+  }
+
+  def writeValue(out: MessagePackWriter, regs: Registers, top: RegisterOffset.RegisterOffset): Unit = {
+    val offset =
+      if (top == 0L) this.offset
+      else RegisterOffset.add(this.offset, top)
+    (typeTag: @switch) match {
+      case 0 => codec.asInstanceOf[MessagePackCodec[AnyRef]].encodeValue(regs.getObject(offset), out)
+      case 1 => codec.asInstanceOf[MessagePackCodec[Int]].encodeValue(regs.getInt(offset), out)
+      case 2 => codec.asInstanceOf[MessagePackCodec[Long]].encodeValue(regs.getLong(offset), out)
+      case 3 => codec.asInstanceOf[MessagePackCodec[Float]].encodeValue(regs.getFloat(offset), out)
+      case 4 => codec.asInstanceOf[MessagePackCodec[Double]].encodeValue(regs.getDouble(offset), out)
+      case 5 => codec.asInstanceOf[MessagePackCodec[Boolean]].encodeValue(regs.getBoolean(offset), out)
+      case 6 => codec.asInstanceOf[MessagePackCodec[Byte]].encodeValue(regs.getByte(offset), out)
+      case 7 => codec.asInstanceOf[MessagePackCodec[Char]].encodeValue(regs.getChar(offset), out)
+      case 8 => codec.asInstanceOf[MessagePackCodec[Short]].encodeValue(regs.getShort(offset), out)
+      case _ => codec.asInstanceOf[MessagePackCodec[Unit]].encodeValue((), out)
+    }
+  }
 }

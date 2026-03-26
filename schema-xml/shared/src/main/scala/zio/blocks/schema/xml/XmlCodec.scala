@@ -24,7 +24,7 @@ import java.nio.ByteBuffer
 import scala.annotation.switch
 import scala.util.control.NonFatal
 
-abstract class XmlBinaryCodec[A](val valueType: Int = XmlBinaryCodec.objectType) extends BinaryCodec[A] {
+abstract class XmlCodec[A](val valueType: Int = XmlCodec.objectType) extends BinaryCodec[A] {
 
   val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
     case 0 => RegisterOffset(objects = 1)
@@ -110,7 +110,7 @@ abstract class XmlBinaryCodec[A](val valueType: Int = XmlBinaryCodec.objectType)
   })
 }
 
-object XmlBinaryCodec {
+object XmlCodec {
   val objectType  = 0
   val intType     = 1
   val longType    = 2
@@ -122,7 +122,7 @@ object XmlBinaryCodec {
   val shortType   = 8
   val unitType    = 9
 
-  val unitCodec: XmlBinaryCodec[Unit] = new XmlBinaryCodec[Unit](XmlBinaryCodec.unitType) {
+  val unitCodec: XmlCodec[Unit] = new XmlCodec[Unit](XmlCodec.unitType) {
     def decodeValue(xml: Xml): Either[XmlError, Unit] = xml match {
       case e: Xml.Element if e.name.localName == "unit" => new Right(())
       case _                                            => new Left(XmlError.parseError("Expected <unit> element", 0, 0))
@@ -131,7 +131,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Unit): Xml = Xml.Element("unit")
   }
 
-  val booleanCodec: XmlBinaryCodec[Boolean] = new XmlBinaryCodec[Boolean](XmlBinaryCodec.booleanType) {
+  val booleanCodec: XmlCodec[Boolean] = new XmlCodec[Boolean](XmlCodec.booleanType) {
     def decodeValue(xml: Xml): Either[XmlError, Boolean] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -149,7 +149,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Boolean): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val byteCodec: XmlBinaryCodec[Byte] = new XmlBinaryCodec[Byte](XmlBinaryCodec.byteType) {
+  val byteCodec: XmlCodec[Byte] = new XmlCodec[Byte](XmlCodec.byteType) {
     def decodeValue(xml: Xml): Either[XmlError, Byte] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -166,7 +166,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Byte): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val shortCodec: XmlBinaryCodec[Short] = new XmlBinaryCodec[Short](XmlBinaryCodec.shortType) {
+  val shortCodec: XmlCodec[Short] = new XmlCodec[Short](XmlCodec.shortType) {
     def decodeValue(xml: Xml): Either[XmlError, Short] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -183,7 +183,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Short): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val intCodec: XmlBinaryCodec[Int] = new XmlBinaryCodec[Int](XmlBinaryCodec.intType) {
+  val intCodec: XmlCodec[Int] = new XmlCodec[Int](XmlCodec.intType) {
     def decodeValue(xml: Xml): Either[XmlError, Int] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -200,7 +200,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Int): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val longCodec: XmlBinaryCodec[Long] = new XmlBinaryCodec[Long](XmlBinaryCodec.longType) {
+  val longCodec: XmlCodec[Long] = new XmlCodec[Long](XmlCodec.longType) {
     def decodeValue(xml: Xml): Either[XmlError, Long] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -217,7 +217,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Long): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val floatCodec: XmlBinaryCodec[Float] = new XmlBinaryCodec[Float](XmlBinaryCodec.floatType) {
+  val floatCodec: XmlCodec[Float] = new XmlCodec[Float](XmlCodec.floatType) {
     def decodeValue(xml: Xml): Either[XmlError, Float] = xml match {
       case Xml.Element(name, _, children) if name.localName == "value" =>
         children.headOption match {
@@ -234,7 +234,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Float): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val doubleCodec: XmlBinaryCodec[Double] = new XmlBinaryCodec[Double](XmlBinaryCodec.doubleType) {
+  val doubleCodec: XmlCodec[Double] = new XmlCodec[Double](XmlCodec.doubleType) {
     def decodeValue(xml: Xml): Either[XmlError, Double] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -251,7 +251,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Double): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val charCodec: XmlBinaryCodec[Char] = new XmlBinaryCodec[Char](XmlBinaryCodec.charType) {
+  val charCodec: XmlCodec[Char] = new XmlCodec[Char](XmlCodec.charType) {
     def decodeValue(xml: Xml): Either[XmlError, Char] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -267,7 +267,7 @@ object XmlBinaryCodec {
     def encodeValue(x: Char): Xml = Xml.Element("value", new Xml.Text(x.toString))
   }
 
-  val stringCodec: XmlBinaryCodec[String] = new XmlBinaryCodec[String]() {
+  val stringCodec: XmlCodec[String] = new XmlCodec[String]() {
     def decodeValue(xml: Xml): Either[XmlError, String] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -283,7 +283,7 @@ object XmlBinaryCodec {
       else Xml.Element("value", new Xml.Text(x))
   }
 
-  val bigIntCodec: XmlBinaryCodec[BigInt] = new XmlBinaryCodec[BigInt]() {
+  val bigIntCodec: XmlCodec[BigInt] = new XmlCodec[BigInt]() {
     def decodeValue(xml: Xml): Either[XmlError, BigInt] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {
@@ -300,7 +300,7 @@ object XmlBinaryCodec {
     def encodeValue(x: BigInt): Xml = Xml.Element("value", new Xml.Text(JsonCodec.bigIntCodec.encodeToString(x)))
   }
 
-  val bigDecimalCodec: XmlBinaryCodec[BigDecimal] = new XmlBinaryCodec[BigDecimal]() {
+  val bigDecimalCodec: XmlCodec[BigDecimal] = new XmlCodec[BigDecimal]() {
     def decodeValue(xml: Xml): Either[XmlError, BigDecimal] = xml match {
       case e: Xml.Element if e.name.localName == "value" =>
         e.children.headOption match {

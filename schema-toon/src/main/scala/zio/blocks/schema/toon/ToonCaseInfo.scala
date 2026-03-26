@@ -22,7 +22,7 @@ import scala.annotation.tailrec
 
 private[toon] sealed trait ToonCaseInfo
 
-private[toon] final class ToonCaseLeafInfo(val name: String, val codec: ToonBinaryCodec[?]) extends ToonCaseInfo
+private[toon] final class ToonCaseLeafInfo(val name: String, val codec: ToonCodec[?]) extends ToonCaseInfo
 
 private[toon] final class ToonCaseNodeInfo(discr: Discriminator[?], children: Array[ToonCaseInfo])
     extends ToonCaseInfo {

@@ -19,29 +19,29 @@ package zio.blocks.schema.xml
 import zio.blocks.schema.{Schema, SchemaBaseSpec}
 import zio.test._
 
-object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("XmlBinaryCodecDeriverScala3Spec")(
+object XmlCodecDeriverScala3Spec extends SchemaBaseSpec {
+  def spec: Spec[TestEnvironment, Any] = suite("XmlCodecDeriverScala3Spec")(
     suite("Scala 3 enums")(
       test("simple enum round-trip - Red") {
-        val codec   = Schema[TrafficLight].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[TrafficLight].derive(XmlCodecDeriver)
         val traffic = TrafficLight.Red
         val result  = codec.decode(codec.encode(traffic))
         assertTrue(result == Right(TrafficLight.Red))
       },
       test("simple enum round-trip - Yellow") {
-        val codec   = Schema[TrafficLight].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[TrafficLight].derive(XmlCodecDeriver)
         val traffic = TrafficLight.Yellow
         val result  = codec.decode(codec.encode(traffic))
         assertTrue(result == Right(TrafficLight.Yellow))
       },
       test("simple enum round-trip - Green") {
-        val codec   = Schema[TrafficLight].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[TrafficLight].derive(XmlCodecDeriver)
         val traffic = TrafficLight.Green
         val result  = codec.decode(codec.encode(traffic))
         assertTrue(result == Right(TrafficLight.Green))
       },
       test("simple enum encode produces valid XML") {
-        val codec = Schema[TrafficLight].derive(XmlBinaryCodecDeriver)
+        val codec = Schema[TrafficLight].derive(XmlCodecDeriver)
         val xml   = codec.encodeToString(TrafficLight.Red)
         assertTrue(
           xml.contains("Red") ||
@@ -55,7 +55,7 @@ object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
 
         implicit val schema: Schema[GenericTuple8] = Schema.derived
 
-        val codec  = Schema[GenericTuple8].derive(XmlBinaryCodecDeriver)
+        val codec  = Schema[GenericTuple8].derive(XmlCodecDeriver)
         val tuple  = true *: (2: Byte) *: '3' *: (4: Short) *: 5.0f *: 6 *: 7.0 *: 8L *: EmptyTuple
         val result = codec.decode(codec.encode(tuple))
         assertTrue(result == Right(tuple))
@@ -65,7 +65,7 @@ object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
 
         implicit val schema: Schema[GenericTuple2] = Schema.derived
 
-        val codec  = Schema[GenericTuple2].derive(XmlBinaryCodecDeriver)
+        val codec  = Schema[GenericTuple2].derive(XmlCodecDeriver)
         val tuple  = 42 *: "hello" *: EmptyTuple
         val result = codec.decode(codec.encode(tuple))
         assertTrue(result == Right(tuple))
@@ -73,19 +73,19 @@ object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
     ),
     suite("enum with parameterized cases")(
       test("parameterized enum - RGB case") {
-        val codec  = Schema[Color].derive(XmlBinaryCodecDeriver)
+        val codec  = Schema[Color].derive(XmlCodecDeriver)
         val color  = Color.RGB(255, 128, 64)
         val result = codec.decode(codec.encode(color))
         assertTrue(result == Right(color))
       },
       test("parameterized enum - constant Black") {
-        val codec  = Schema[Color].derive(XmlBinaryCodecDeriver)
+        val codec  = Schema[Color].derive(XmlCodecDeriver)
         val color  = Color.Black
         val result = codec.decode(codec.encode(color))
         assertTrue(result == Right(color))
       },
       test("parameterized enum - Hex case") {
-        val codec  = Schema[Color].derive(XmlBinaryCodecDeriver)
+        val codec  = Schema[Color].derive(XmlCodecDeriver)
         val color  = Color.Hex("FFFFFF")
         val result = codec.decode(codec.encode(color))
         assertTrue(result == Right(color))
@@ -93,25 +93,25 @@ object XmlBinaryCodecDeriverScala3Spec extends SchemaBaseSpec {
     ),
     suite("sealed trait variants")(
       test("sealed trait Foo variant") {
-        val codec   = Schema[MySealedTrait].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[MySealedTrait].derive(XmlCodecDeriver)
         val variant = MySealedTrait.Foo(42)
         val result  = codec.decode(codec.encode(variant))
         assertTrue(result == Right(variant))
       },
       test("sealed trait Bar variant") {
-        val codec   = Schema[MySealedTrait].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[MySealedTrait].derive(XmlCodecDeriver)
         val variant = MySealedTrait.Bar("test")
         val result  = codec.decode(codec.encode(variant))
         assertTrue(result == Right(variant))
       },
       test("sealed trait Baz variant") {
-        val codec   = Schema[MySealedTrait].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[MySealedTrait].derive(XmlCodecDeriver)
         val variant = MySealedTrait.Baz(3.14)
         val result  = codec.decode(codec.encode(variant))
         assertTrue(result == Right(variant))
       },
       test("sealed trait encode produces XML with variant info") {
-        val codec   = Schema[MySealedTrait].derive(XmlBinaryCodecDeriver)
+        val codec   = Schema[MySealedTrait].derive(XmlCodecDeriver)
         val variant = MySealedTrait.Foo(1)
         val xml     = codec.encodeToString(variant)
         assertTrue(xml.contains("Foo") || xml.contains("value"))
