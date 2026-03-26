@@ -84,21 +84,66 @@ private[rpc] object RpcValueCodec {
   def decodeResult[A](dataValue: JsDataValue)(implicit codec: GolemSchema[A]): Either[String, A] =
     dataValue.tag match {
       case "tuple" =>
-        val elements = dataValue.asInstanceOf[JsDataValueTuple].value
-        if (elements.length != 1)
-          Left(s"Expected single-element tuple result, found ${elements.length} elements")
-        else {
-          val elem = elements(0)
-          elem.tag match {
-            case "component-model" =>
-              val witValue = elem.asInstanceOf[JsElementValueComponentModel].value
-              decodeValue[A](witValue)
-            case other =>
-              Left(s"Expected component-model element, found $other")
+        codec.schema match {
+          case StructuredSchema.Multimodal(_) =>
+            val elements = dataValue.asInstanceOf[JsDataValueTuple].value
+            if (elements.length != 1)
+              Left(s"Expected single-element tuple result, found ${elements.length} elements")
+            else {
+              val elem = elements(0)
+              elem.tag match {
+                case "component-model" =>
+                  val witValue = elem.asInstanceOf[JsElementValueComponentModel].value
+                  structuredFromWit(codec.schema, witValue).flatMap(codec.decode)
+                case other =>
+                  Left(s"Expected component-model element, found $other")
+              }
+            }
+          case _ =>
+            val elements = dataValue.asInstanceOf[JsDataValueTuple].value
+            if (elements.length != 1)
+              Left(s"Expected single-element tuple result, found ${elements.length} elements")
+            else {
+              val elem = elements(0)
+              elem.tag match {
+                case "component-model" =>
+                  val witValue = elem.asInstanceOf[JsElementValueComponentModel].value
+                  decodeValue[A](witValue)
+                case other =>
+                  Left(s"Expected component-model element, found $other")
+              }
+            }
+        }
+      case "multimodal" =>
+        val entries               = dataValue.asInstanceOf[JsDataValueMultimodal].value
+        val namedElements         = new scala.collection.mutable.ListBuffer[NamedElementValue]()
+        var error: Option[String] = None
+        var idx                   = 0
+        val schemaElements        = codec.schema match {
+          case StructuredSchema.Multimodal(elems) => elems
+          case other                              => return Left(s"Received multimodal result but schema is not multimodal: $other")
+        }
+        val schemaByName = schemaElements.map(e => e.name -> e.schema).toMap
+        while (idx < entries.length && error.isEmpty) {
+          val entry     = entries(idx)
+          val name      = entry._1
+          val elemValue = entry._2
+          schemaByName.get(name) match {
+            case None             => error = Some(s"Unknown modality in result: $name")
+            case Some(elemSchema) =>
+              decodeElementValue(elemSchema, elemValue) match {
+                case Left(err) => error = Some(err)
+                case Right(ev) => namedElements += NamedElementValue(name, ev)
+              }
           }
+          idx += 1
+        }
+        error match {
+          case Some(err) => Left(err)
+          case None      => codec.decode(StructuredValue.Multimodal(namedElements.toList))
         }
       case other =>
-        Left(s"Expected tuple data value for result, found $other")
+        Left(s"Expected tuple or multimodal data value for result, found $other")
     }
 
   private def structuredToDataValue(
@@ -306,6 +351,26 @@ private[rpc] object RpcValueCodec {
         dataValueToBinaryValue(dataValue).map(UnstructuredBinaryValueElt.apply)
     }
 
+  private def decodeElementValue(schema: ElementSchema, jsElem: JsElementValue): Either[String, ElementValue] =
+    jsElem.tag match {
+      case "component-model" =>
+        schema match {
+          case Component(dataType) =>
+            val witValue = jsElem.asInstanceOf[JsElementValueComponentModel].value
+            WitValueCodec.decode(dataType, witValue).map(ElementValue.Component.apply)
+          case _ =>
+            Left(s"Received component-model element but schema is $schema")
+        }
+      case "unstructured-text" =>
+        val textRef = jsElem.asInstanceOf[JsElementValueUnstructuredText].value
+        decodeTextReference(textRef).map(ElementValue.UnstructuredText.apply)
+      case "unstructured-binary" =>
+        val binaryRef = jsElem.asInstanceOf[JsElementValueUnstructuredBinary].value
+        decodeBinaryReference(binaryRef).map(ElementValue.UnstructuredBinary.apply)
+      case other =>
+        Left(s"Unknown element value tag: $other")
+    }
+
   private def elementDataType(schema: ElementSchema): DataType =
     schema match {
       case Component(dataType)   => dataType
@@ -395,5 +460,34 @@ private[rpc] object RpcValueCodec {
         }
       case other =>
         Left(s"Invalid binary reference payload: $other")
+    }
+
+  private def decodeTextReference(ref: JsTextReference): Either[String, UnstructuredTextValue] =
+    ref.tag match {
+      case "url" =>
+        Right(UnstructuredTextValue.Url(ref.asInstanceOf[JsTextReferenceUrl].value))
+      case "inline" =>
+        val source   = ref.asInstanceOf[JsTextReferenceInline].value
+        val data     = source.data
+        val language = source.textType.toOption.map(_.languageCode)
+        Right(UnstructuredTextValue.Inline(data, language))
+      case other =>
+        Left(s"Unsupported text reference tag: $other")
+    }
+
+  private def decodeBinaryReference(ref: JsBinaryReference): Either[String, UnstructuredBinaryValue] =
+    ref.tag match {
+      case "url" =>
+        Right(UnstructuredBinaryValue.Url(ref.asInstanceOf[JsBinaryReferenceUrl].value))
+      case "inline" =>
+        val source     = ref.asInstanceOf[JsBinaryReferenceInline].value
+        val dataBuffer = source.data
+        val mimeType   = source.binaryType.mimeType
+        val bytes      = new Array[Byte](dataBuffer.length)
+        var i          = 0
+        while (i < dataBuffer.length) { bytes(i) = dataBuffer(i).toByte; i += 1 }
+        Right(UnstructuredBinaryValue.Inline(bytes, mimeType))
+      case other =>
+        Left(s"Unsupported binary reference tag: $other")
     }
 }
