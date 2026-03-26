@@ -21,7 +21,7 @@ To enable snapshotting for an agent, set the `snapshotting` parameter on `@agent
 ```scala
 @agentDefinition(snapshotting = "enabled")
 trait MyAgent extends BaseAgent {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
   def doSomething(): Future[String]
 }
 ```
@@ -73,7 +73,7 @@ object CounterState {
 @agentDefinition(snapshotting = "enabled")
 @description("A counter with automatic JSON-based state persistence.")
 trait AutoSnapshotCounter extends BaseAgent {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
   def increment(): Future[Int]
 }
 ```
@@ -110,7 +110,7 @@ For agents that need custom binary serialization (e.g., for performance or compa
 ```scala
 @agentDefinition(snapshotting = "enabled")
 trait SnapshotCounter extends BaseAgent {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
   def increment(): Future[Int]
 }
 

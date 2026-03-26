@@ -23,7 +23,8 @@ import scala.quoted.*
  *
  * This is used by the prepass compile phase to extract trait-level metadata
  * (type name, constructor params, description, mode, snapshotting) without
- * needing the full runtime. The JSON format matches [[golem.codegen.ir.AgentSurfaceIR]].
+ * needing the full runtime. The JSON format matches
+ * [[golem.codegen.ir.AgentSurfaceIR]].
  */
 object AgentSurfaceExportMacro {
 
@@ -39,14 +40,12 @@ object AgentSurfaceExportMacro {
     if !typeSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"AgentSurfaceExport target must be a trait, found: ${typeSymbol.fullName}")
 
-    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
-    val constructorAnnotationFQN = "golem.runtime.annotations.constructor"
+    val agentDefinitionFQN       = "golem.runtime.annotations.agentDefinition"
     val descriptionAnnotationFQN = "golem.runtime.annotations.description"
 
     // Extract @agentDefinition annotation
     val annArgsOpt = typeSymbol.annotations.collectFirst {
-      case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.dealias.typeSymbol.fullName == agentDefinitionFQN =>
+      case Apply(Select(New(tpt), _), args) if tpt.tpe.dealias.typeSymbol.fullName == agentDefinitionFQN =>
         args
     }
 
@@ -56,17 +55,16 @@ object AgentSurfaceExportMacro {
     // Extract typeName
     val rawTypeName: String = annArgsOpt.flatMap { args =>
       args.collectFirst {
-        case Literal(StringConstant(value)) if value.trim.nonEmpty => value
+        case Literal(StringConstant(value)) if value.trim.nonEmpty                       => value
         case NamedArg("typeName", Literal(StringConstant(value))) if value.trim.nonEmpty => value
       }
     }.getOrElse(typeSymbol.name)
 
     // Extract description
     val description: Option[String] = typeSymbol.annotations.collectFirst {
-      case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.dealias.typeSymbol.fullName == descriptionAnnotationFQN =>
-        args.collectFirst {
-          case Literal(StringConstant(value)) => value
+      case Apply(Select(New(tpt), _), args) if tpt.tpe.dealias.typeSymbol.fullName == descriptionAnnotationFQN =>
+        args.collectFirst { case Literal(StringConstant(value)) =>
+          value
         }
     }.flatten
 
@@ -92,19 +90,31 @@ object AgentSurfaceExportMacro {
     val snapshotting: String = extractStringArg(typeSymbol, agentDefinitionFQN, "snapshotting", 7)
       .getOrElse("disabled")
 
-    // Extract constructor params from @constructor method
+    // Extract constructor params from Constructor class
     val constructorParams: List[(String, String)] = {
-      val ctorMethod = typeSymbol.methodMembers.find { method =>
-        method.isDefDef &&
-        method.annotations.exists {
-          case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationFQN
+      val constructorSchemaFQN = "golem.runtime.annotations.constructorSchema"
+
+      def hasConstructorSchemaAnnotation(sym: Symbol): Boolean =
+        sym.annotations.exists {
+          case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorSchemaFQN
           case _                             => false
         }
+
+      val constructorClass = typeSymbol.declarations.find { sym =>
+        sym.isClassDef && hasConstructorSchemaAnnotation(sym)
+      }.orElse {
+        typeSymbol.declarations.find { sym =>
+          sym.isClassDef && sym.name == "Constructor"
+        }
       }
-      ctorMethod match {
-        case None => Nil
-        case Some(method) =>
-          method.paramSymss.flatten.collect {
+      constructorClass match {
+        case None =>
+          report.errorAndAbort(
+            s"Agent trait ${typeSymbol.name} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters."
+          )
+        case Some(classSym) =>
+          val primaryCtor = classSym.primaryConstructor
+          primaryCtor.paramSymss.flatten.collect {
             case sym if sym.isTerm =>
               sym.tree match {
                 case v: ValDef => (sym.name, v.tpt.tpe.show)
@@ -115,9 +125,9 @@ object AgentSurfaceExportMacro {
     }
 
     // Build JSON
-    val traitFqn = typeSymbol.fullName
+    val traitFqn    = typeSymbol.fullName
     val packageName = {
-      val fqn = traitFqn
+      val fqn     = traitFqn
       val lastDot = fqn.lastIndexOf('.')
       if (lastDot > 0) fqn.substring(0, lastDot) else ""
     }
@@ -136,7 +146,9 @@ object AgentSurfaceExportMacro {
     Expr(sb.toString)
   }
 
-  private def extractStringArg(using Quotes)(
+  private def extractStringArg(using
+    Quotes
+  )(
     symbol: quotes.reflect.Symbol,
     annFQN: String,
     argName: String,
@@ -144,8 +156,7 @@ object AgentSurfaceExportMacro {
   ): Option[String] = {
     import quotes.reflect.*
     symbol.annotations.collectFirst {
-      case Apply(Select(New(tpt), _), args)
-          if tpt.tpe.dealias.typeSymbol.fullName == annFQN =>
+      case Apply(Select(New(tpt), _), args) if tpt.tpe.dealias.typeSymbol.fullName == annFQN =>
         args.collectFirst {
           case NamedArg(`argName`, Literal(StringConstant(v))) if v.nonEmpty => v
         }.orElse {
@@ -167,11 +178,11 @@ object AgentSurfaceExportMacro {
     var i = 0
     while (i < s.length) {
       s.charAt(i) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
+        case '"'           => sb.append("\\\"")
+        case '\\'          => sb.append("\\\\")
+        case '\n'          => sb.append("\\n")
+        case '\r'          => sb.append("\\r")
+        case '\t'          => sb.append("\\t")
         case c if c < 0x20 =>
           sb.append("\\u")
           sb.append(String.format("%04x", Int.box(c.toInt)))

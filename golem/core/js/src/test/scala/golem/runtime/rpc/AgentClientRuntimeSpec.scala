@@ -18,7 +18,7 @@ package golem.runtime.rpc
 
 import golem.data.GolemSchema
 import golem.host.js._
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, constructor}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition}
 import golem.BaseAgent
 import golem.runtime.agenttype.{AgentMethod, AgentType, MethodInvocation}
 import golem.runtime.rpc.AgentClientRuntime.TestHooks
@@ -252,7 +252,7 @@ object AgentClientRuntimeSpec extends ZIOSpecDefault {
 private object AgentClientRuntimeSpecFixtures {
   @agentDefinition(mode = DurabilityMode.Durable)
   trait RpcParityAgent extends BaseAgent {
-    @constructor private def create(token: String): Unit = ()
+    class Constructor(val token: String)
 
     def `new`(token: String): RpcParityAgent
 

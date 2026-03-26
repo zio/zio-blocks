@@ -1,6 +1,6 @@
 package demo
 
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, constructor, description, prompt}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description, prompt}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -8,7 +8,7 @@ import scala.concurrent.Future
 @agentDefinition()
 trait CounterAgent extends BaseAgent {
 
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @prompt("Increase the count by one")
   @description("Increases the count by one and returns the new value")
@@ -17,7 +17,7 @@ trait CounterAgent extends BaseAgent {
 
 @agentDefinition()
 trait Example1 extends BaseAgent {
-  @constructor private def create(name: String, count: Int): Unit = ()
+  class Constructor(val name: String, val count: Int)
 
   def run(): Future[String]
 }

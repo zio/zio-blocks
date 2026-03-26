@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, constructor, description}
+import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates KeyValue bucket CRUD, Blobstore container/object operations, and Config reading.")
 trait StorageDemo extends BaseAgent {
 
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Full KeyValue lifecycle: open bucket, set/get/exists/keys/delete.")
   def keyValueDemo(): Future[String]
@@ -36,4 +36,3 @@ trait StorageDemo extends BaseAgent {
   @description("Read config values with typed error handling.")
   def configDemo(): Future[String]
 }
-

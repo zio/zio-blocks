@@ -17,14 +17,7 @@
 package golem.runtime
 
 import golem.BaseAgent
-import golem.runtime.annotations.{
-  DurabilityMode,
-  agentDefinition,
-  agentImplementation,
-  constructor,
-  description,
-  prompt
-}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description, prompt}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, AgentMode}
 import zio.test._
 import zio.blocks.schema.Schema
@@ -36,6 +29,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   @agentDefinition("meta-agent")
   @description("An agent used for metadata tests.")
   trait MetaAgent extends BaseAgent {
+    class Constructor()
     @description("Echoes input.")
     @prompt("Say hello.")
     def echo(s: String): Future[String]
@@ -62,6 +56,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralMetaAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 
@@ -83,7 +78,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
   @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
   trait CtorMetaAgent extends BaseAgent {
-    @constructor private def create(host: String, port: Int): Unit = ()
+    class Constructor(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -101,6 +96,7 @@ object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
   trait ExplicitDurableAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 

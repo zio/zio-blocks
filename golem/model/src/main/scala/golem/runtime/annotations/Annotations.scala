@@ -34,10 +34,15 @@ final class prompt(val value: String) extends StaticAnnotation
 @Target(Array(ElementType.TYPE))
 final class agentImplementation() extends StaticAnnotation
 
-/** Marks a method on an agent trait as the constructor definition. */
+/**
+ * Explicitly marks a class inside an agent trait as the constructor schema.
+ * Optional — by default, a class named `Constructor` is used automatically. Use
+ * this annotation to designate a differently-named class as the constructor
+ * schema.
+ */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(Array(ElementType.METHOD))
-final class constructor() extends StaticAnnotation
+@Target(Array(ElementType.TYPE))
+final class constructorSchema() extends StaticAnnotation
 
 /**
  * Overrides the language code used by multimodal/unstructured text derivation.

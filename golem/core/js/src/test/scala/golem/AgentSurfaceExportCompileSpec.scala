@@ -16,7 +16,6 @@
 
 package golem
 
-import golem.runtime.annotations.constructor
 import golem.runtime.macros.AgentSurfaceExportMacro
 import zio.test._
 
@@ -30,24 +29,26 @@ object AgentSurfaceExportCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("unit-export")
   trait UnitExportAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 
   @agentDefinition("string-export")
   @description("An agent with a string constructor.")
   trait StringExportAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def echo(): Future[String]
   }
 
   @agentDefinition("multi-export")
   trait MultiExportAgent extends BaseAgent {
-    @constructor private def create(host: String, port: Int): Unit = ()
+    class Constructor(val host: String, val port: Int)
     def info(): Future[String]
   }
 
   @agentDefinition()
   trait DefaultNameAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 

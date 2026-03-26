@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, constructor, description, DurabilityMode}
+import golem.runtime.annotations.{agentDefinition, description, DurabilityMode}
 import golem.BaseAgent
 import zio.blocks.schema.Schema
 
@@ -44,7 +44,7 @@ object TypedReply {
 @agentDefinition()
 @description("A minimal worker agent used for in-Golem agent-to-agent calling examples.")
 trait Worker extends BaseAgent {
-  @constructor private def create(arg0: String, arg1: Int): Unit = ()
+  class Constructor(val arg0: String, val arg1: Int)
   def reverse(input: String): Future[String]
   def handle(payload: TypedPayload): Future[TypedReply]
 }
@@ -52,7 +52,7 @@ trait Worker extends BaseAgent {
 @agentDefinition(mode = DurabilityMode.Ephemeral)
 @description("A minimal coordinator agent that calls Worker via agent RPC inside Golem.")
 trait Coordinator extends BaseAgent {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
   def route(shardName: String, shardIndex: Int, input: String): Future[String]
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }

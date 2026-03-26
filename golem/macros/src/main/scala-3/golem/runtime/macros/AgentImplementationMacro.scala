@@ -127,7 +127,7 @@ object AgentImplementationMacro {
     if expectedCtor =:= TypeRepr.of[Unit] then {
       if identityParams.nonEmpty then
         report.errorAndAbort(
-          s"Trait ${traitSymbol.fullName} has no @constructor method (Unit constructor), " +
+          s"Trait ${traitSymbol.fullName} has an empty Constructor class (Unit constructor), " +
             s"but Impl ${implSymbol.fullName} has ${identityParams.length} non-Config constructor parameter(s): " +
             s"${identityParams.map(_.name).mkString(", ")}"
         )
@@ -136,7 +136,7 @@ object AgentImplementationMacro {
         if !(identityParams.head.tpe =:= expectedCtor) then
           report.errorAndAbort(
             s"Constructor parameter '${identityParams.head.name}' has type ${identityParams.head.tpe.show}, " +
-              s"but @constructor expects ${expectedCtor.show}"
+              s"but Constructor class expects ${expectedCtor.show}"
           )
       } else if identityParams.length > 1 then {
         expectedCtor match {
@@ -144,23 +144,23 @@ object AgentImplementationMacro {
             if tupleArgs.length != identityParams.length then
               report.errorAndAbort(
                 s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                  s"@constructor expects a ${tupleArgs.length}-element tuple"
+                  s"Constructor class expects a ${tupleArgs.length}-element tuple"
               )
             identityParams.zip(tupleArgs).foreach { case (param, expected) =>
               if !(param.tpe =:= expected) then
                 report.errorAndAbort(
                   s"Constructor parameter '${param.name}' has type ${param.tpe.show}, " +
-                    s"expected ${expected.show} (from @constructor parameters)"
+                    s"expected ${expected.show} (from Constructor class parameters)"
                 )
             }
           case _ =>
             report.errorAndAbort(
               s"Impl ${implSymbol.fullName} has ${identityParams.length} identity params but " +
-                s"@constructor type ${expectedCtor.show} is not a tuple type"
+                s"Constructor class type ${expectedCtor.show} is not a tuple type"
             )
         }
       }
-      // identityParams.isEmpty is valid (config-only constructor on a non-Unit @constructor)
+      // identityParams.isEmpty is valid (config-only constructor on a non-Unit Constructor class)
     }
 
     // Determine the Ctor type based on identity params
@@ -175,18 +175,12 @@ object AgentImplementationMacro {
 
     ctorTypeRepr.asType match {
       case '[ctor] =>
-        val metadataExpr                               = '{ AgentDefinitionMacro.generate[Trait] }
-        val constructorAnnotationName                  = "golem.runtime.annotations.constructor"
-        def hasCtorAnnotation(method: Symbol): Boolean =
-          method.annotations.exists {
-            case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
-            case _                             => false
-          }
+        val metadataExpr  = '{ AgentDefinitionMacro.generate[Trait] }
         val methodSymbols = traitSymbol.methodMembers.collect {
           case method
               if method.owner == traitSymbol && method.flags.is(
                 Flags.Deferred
-              ) && method.isDefDef && !hasCtorAnnotation(method) =>
+              ) && method.isDefDef =>
             method
         }
         val methodsExpr = buildImplementationMethodsExpr[Trait](methodSymbols, metadataExpr)
@@ -479,14 +473,8 @@ object AgentImplementationMacro {
     if !traitSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(s"@agentImplementation target must be a trait, found: ${traitSymbol.fullName}")
 
-    val constructorAnnotationName2 = "golem.runtime.annotations.constructor"
-    val methodSymbols              = traitSymbol.methodMembers.collect {
-      case method
-          if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef &&
-            !method.annotations.exists {
-              case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName2
-              case _                             => false
-            } =>
+    val methodSymbols = traitSymbol.methodMembers.collect {
+      case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef =>
         method
     }
 
@@ -529,19 +517,13 @@ object AgentImplementationMacro {
     val gotCtor      = TypeRepr.of[Ctor]
     if !(gotCtor =:= expectedCtor) then
       report.errorAndAbort(
-        s"Constructor function must have input type matching @constructor parameters (${expectedCtor.show}) on ${traitSymbol.fullName} (found: ${gotCtor.show})"
+        s"Constructor function must have input type matching Constructor class parameters (${expectedCtor.show}) on ${traitSymbol.fullName} (found: ${gotCtor.show})"
       )
 
-    val constructorAnnotationName3 = "golem.runtime.annotations.constructor"
-    val metadataExpr               = '{ AgentDefinitionMacro.generate[Trait] }
-    val methodsExpr                = buildImplementationMethodsExpr[Trait](
+    val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
+    val methodsExpr  = buildImplementationMethodsExpr[Trait](
       traitSymbol.methodMembers.collect {
-        case method
-            if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef &&
-              !method.annotations.exists {
-                case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName3
-                case _                             => false
-              } =>
+        case method if method.owner == traitSymbol && method.flags.is(Flags.Deferred) && method.isDefDef =>
           method
       },
       metadataExpr
@@ -661,22 +643,33 @@ object AgentImplementationMacro {
 
   private def agentInputTypeRepr[Trait: Type](using Quotes): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val traitRepr                 = TypeRepr.of[Trait]
-    val traitSymbol               = traitRepr.typeSymbol
-    val constructorAnnotationName = "golem.runtime.annotations.constructor"
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
 
-    val constructorMethod = traitSymbol.methodMembers.find { method =>
-      method.isDefDef &&
-      method.annotations.exists {
-        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+    val constructorSchemaFQN = "golem.runtime.annotations.constructorSchema"
+
+    def hasConstructorSchemaAnnotation(sym: Symbol): Boolean =
+      sym.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorSchemaFQN
         case _                             => false
+      }
+
+    val constructorClass = traitSymbol.declarations.find { sym =>
+      sym.isClassDef && hasConstructorSchemaAnnotation(sym)
+    }.orElse {
+      traitSymbol.declarations.find { sym =>
+        sym.isClassDef && sym.name == "Constructor"
       }
     }
 
-    constructorMethod match {
-      case None         => TypeRepr.of[Unit]
-      case Some(method) =>
-        val params = method.paramSymss.flatten.collect {
+    constructorClass match {
+      case None =>
+        report.errorAndAbort(
+          s"Agent trait ${traitSymbol.name} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters."
+        )
+      case Some(classSym) =>
+        val primaryCtor = classSym.primaryConstructor
+        val params      = primaryCtor.paramSymss.flatten.collect {
           case sym if sym.isTerm =>
             sym.tree match {
               case v: ValDef => v.tpt.tpe

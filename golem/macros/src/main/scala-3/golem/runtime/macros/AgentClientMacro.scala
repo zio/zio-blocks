@@ -134,21 +134,32 @@ object AgentClientMacro {
     traitRepr: quotes.reflect.TypeRepr
   ): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val constructorAnnotationName = "golem.runtime.annotations.constructor"
-    val typeSymbol                = traitRepr.typeSymbol
+    val typeSymbol = traitRepr.typeSymbol
 
-    val constructorMethod = typeSymbol.methodMembers.find { method =>
-      method.isDefDef &&
-      method.annotations.exists {
-        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorAnnotationName
+    val constructorSchemaFQN = "golem.runtime.annotations.constructorSchema"
+
+    def hasConstructorSchemaAnnotation(sym: Symbol): Boolean =
+      sym.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == constructorSchemaFQN
         case _                             => false
+      }
+
+    val constructorClass = typeSymbol.declarations.find { sym =>
+      sym.isClassDef && hasConstructorSchemaAnnotation(sym)
+    }.orElse {
+      typeSymbol.declarations.find { sym =>
+        sym.isClassDef && sym.name == "Constructor"
       }
     }
 
-    constructorMethod match {
-      case None         => TypeRepr.of[Unit]
-      case Some(method) =>
-        val params = method.paramSymss.flatten.collect {
+    constructorClass match {
+      case None =>
+        report.errorAndAbort(
+          s"Agent trait ${typeSymbol.name} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters."
+        )
+      case Some(classSym) =>
+        val primaryCtor = classSym.primaryConstructor
+        val params      = primaryCtor.paramSymss.flatten.collect {
           case sym if sym.isTerm =>
             sym.tree match {
               case v: ValDef => v.tpt.tpe

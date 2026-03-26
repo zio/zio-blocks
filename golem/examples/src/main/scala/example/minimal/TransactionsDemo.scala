@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, constructor, description}
+import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates the Transactions API: infallible and fallible saga-style transactions.")
 trait TransactionsDemo extends BaseAgent {
 
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Runs an infallible transaction with multiple operations (success path).")
   def infallibleDemo(): Future[String]
@@ -36,4 +36,3 @@ trait TransactionsDemo extends BaseAgent {
   @description("Runs a fallible transaction where the last operation fails, triggering compensations.")
   def fallibleFailureDemo(): Future[String]
 }
-

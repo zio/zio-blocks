@@ -39,7 +39,6 @@ object AgentSurfaceExportMacroImpl {
       c.abort(c.enclosingPosition, s"AgentSurfaceExport target must be a trait, found: ${typeSymbol.fullName}")
 
     val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
-    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
     val descriptionAnnotationType = typeOf[golem.runtime.annotations.description]
 
     def isAgentDefinitionAnn(ann: Annotation): Boolean =
@@ -98,17 +97,24 @@ object AgentSurfaceExportMacroImpl {
 
     // Extract constructor params
     val constructorParams: List[(String, String)] = {
-      val ctorMethod = tpe.members.collectFirst {
-        case m: MethodSymbol if m.isMethod &&
-          m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
-          m
+      val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+
+      val annotatedClass = tpe.members.collectFirst {
+        case sym if sym.isClass && !sym.isMethod &&
+          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+          sym
       }
-      ctorMethod match {
-        case None => Nil
-        case Some(method) =>
-          method.paramLists.flatten.filter(_.isTerm).map { param =>
-            (param.name.toString, param.typeSignature.toString)
-          }
+
+      val constructorClass = annotatedClass.orElse {
+        val byName = tpe.member(TypeName("Constructor"))
+        if (byName == NoSymbol) None else Some(byName)
+      }.getOrElse {
+        c.abort(c.enclosingPosition,
+          s"Agent trait ${typeSymbol.fullName} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+      }
+      val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
+      primaryCtor.paramLists.flatten.filter(_.isTerm).map { param =>
+        (param.name.toString, param.typeSignature.toString)
       }
     }
 

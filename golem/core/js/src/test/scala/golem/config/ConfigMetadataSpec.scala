@@ -34,16 +34,19 @@ object ConfigMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait ConfigTestAgent extends BaseAgent with AgentConfig[TestDbConfig] {
+    class Constructor()
     def ping(): Future[String]
   }
 
   @agentDefinition()
   trait NestedConfigAgent extends BaseAgent with AgentConfig[NestedAppConfig] {
+    class Constructor()
     def info(): Future[String]
   }
 
   @agentDefinition()
   trait NoConfigAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 

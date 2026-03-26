@@ -20,7 +20,6 @@ import golem.data.multimodal.Multimodal
 import golem.data.UnstructuredBinaryValue
 import golem.data.UnstructuredTextValue
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
-import golem.runtime.annotations.constructor
 import golem.runtime.autowire.AgentImplementation
 import zio.test._
 import zio.blocks.schema.Schema
@@ -35,18 +34,19 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("unit-ctor-agent", mode = DurabilityMode.Durable)
   trait UnitCtorAgent extends BaseAgent {
+    class Constructor()
     def ping(): Future[String]
   }
 
   @agentDefinition("string-ctor-agent")
   trait StringCtorAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def echo(): Future[String]
   }
 
   @agentDefinition("case-class-ctor-agent")
   trait CaseClassCtorAgent extends BaseAgent {
-    @constructor private def create(host: String, port: Int): Unit = ()
+    class Constructor(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -55,25 +55,25 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("tuple2-ctor-agent")
   trait Tuple2CtorAgent extends BaseAgent {
-    @constructor private def create(arg0: String, arg1: Int): Unit = ()
+    class Constructor(val arg0: String, val arg1: Int)
     def combined(): Future[String]
   }
 
   @agentDefinition("tuple3-ctor-agent")
   trait Tuple3CtorAgent extends BaseAgent {
-    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean): Unit = ()
+    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean)
     def all(): Future[String]
   }
 
   @agentDefinition("tuple4-ctor-agent")
   trait Tuple4CtorAgent extends BaseAgent {
-    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double): Unit = ()
+    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double)
     def data(): Future[String]
   }
 
   @agentDefinition("tuple5-ctor-agent")
   trait Tuple5CtorAgent extends BaseAgent {
-    @constructor private def create(arg0: String, arg1: Int, arg2: Boolean, arg3: Double, arg4: Long): Unit = ()
+    class Constructor(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double, val arg4: Long)
     def data(): Future[String]
   }
 
@@ -83,6 +83,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("return-types-agent")
   trait ReturnTypesAgent extends BaseAgent {
+    class Constructor()
     def asyncString(): Future[String]
     def asyncInt(): Future[Int]
     def asyncOption(): Future[Option[String]]
@@ -102,6 +103,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("param-types-agent")
   trait ParamTypesAgent extends BaseAgent {
+    class Constructor()
     def singlePrimitive(s: String): Future[String]
     def multipleParams(a: String, b: Int, c: Boolean): Future[String]
     def caseClassParam(config: MyConfig): Future[String]
@@ -120,7 +122,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("kitchen-sink-agent")
   @description("Agent with many method signature patterns.")
   trait KitchenSinkAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def echoString(message: String): Future[String]
     def echoInt(value: Int): Future[Int]
     def echoBoolean(flag: Boolean): Future[Boolean]
@@ -177,6 +179,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("explicit-name-agent")
   @description("An agent with explicit type name.")
   trait ExplicitNameAgent extends BaseAgent {
+    class Constructor()
     @description("Says hello.")
     @prompt("Greet the user warmly.")
     def greet(name: String): Future[String]
@@ -184,7 +187,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("ephemeral-agent", mode = DurabilityMode.Ephemeral)
   trait EphemeralAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def process(): Future[String]
   }
 
@@ -230,7 +233,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("factory-ctor-agent")
   trait FactoryCtorAgent extends BaseAgent {
-    @constructor private def create(host: String, port: Int): Unit = ()
+    class Constructor(val host: String, val port: Int)
     def info(): Future[String]
   }
 
@@ -245,7 +248,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("no-methods-agent")
   trait NoMethodsAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
   }
 
   @agentImplementation()
@@ -257,6 +260,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   @agentDefinition("single-method-agent")
   trait SingleMethodAgent extends BaseAgent {
+    class Constructor()
     def only(): Future[String]
   }
 
@@ -289,6 +293,7 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
   @agentDefinition("multimodal-agent")
   @description("Agent with multimodal and unstructured type methods.")
   trait MultimodalAgent extends BaseAgent {
+    class Constructor()
     def echoMultimodal(input: Multimodal[MultimodalPayload]): Future[Multimodal[MultimodalPayload]]
     def echoText(input: TextSegment[SupportedLang]): Future[TextSegment[SupportedLang]]
     def echoTextAny(input: TextSegment[AllowedLanguages.Any]): Future[TextSegment[AllowedLanguages.Any]]
@@ -335,13 +340,13 @@ object AgentDefinitionCompileSpec extends ZIOSpecDefault {
     test("no-arg constructor compiles") {
       assertTrue(unitCtorDefn.methodMetadata.nonEmpty)
     },
-    test("single-param @constructor compiles") {
+    test("single-param Constructor compiles") {
       assertTrue(stringCtorDefn.methodMetadata.nonEmpty)
     },
-    test("multi-param @constructor compiles") {
+    test("multi-param Constructor compiles") {
       assertTrue(caseClassCtorDefn.methodMetadata.nonEmpty)
     },
-    test("tuple-style @constructor compiles") {
+    test("tuple-style Constructor compiles") {
       assertTrue(tuple2CtorDefn.methodMetadata.nonEmpty)
     },
     test("async and sync return types compile") {

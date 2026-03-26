@@ -159,14 +159,14 @@ object HttpValidation {
   /**
    * Extracts constructor parameter names from the agent's constructor schema.
    *
-   * The parameter names depend on how the agent's `@constructor` method is
+   * The parameter names depend on how the agent's `class Constructor` is
    * defined:
    *
-   *   - '''Single parameter''' (e.g.
-   *     `@constructor private def create(value: String): Unit`): produces one parameter
-   *     named `"value"`. The mount path must use `{value}` to refer to it.
+   *   - '''Single parameter''' (e.g. `class Constructor(val value: String)`):
+   *     produces one parameter named `"value"`. The mount path must use
+   *     `{value}` to refer to it.
    *   - '''Multiple parameters''' (e.g.
-   *     `@constructor private def create(arg0: String, arg1: Int): Unit`): produces
+   *     `class Constructor(val arg0: String, val arg1: Int)`): produces
    *     parameters named `"arg0"`, `"arg1"`, etc. The mount path must use
    *     `{arg0}`, `{arg1}`, etc.
    *   - '''No constructor''': produces no parameters. Mount paths must not

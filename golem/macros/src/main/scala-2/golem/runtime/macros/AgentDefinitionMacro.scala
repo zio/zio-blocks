@@ -91,11 +91,8 @@ object AgentDefinitionMacroImpl {
     val httpMountOpt = extractHttpMount(c)(typeSymbol, agentTypeName, agentDefinitionFQN)
     val hasMount     = httpMountOpt.isDefined
 
-    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
-
     val methods = tpe.decls.collect {
-      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" &&
-        !method.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
+      case method: MethodSymbol if method.isAbstract && method.isMethod && method.name.toString != "new" =>
         methodMetadata(c)(method, descriptionType, promptType, endpointType, headerType, agentTypeName, hasMount)
     }.toList
 
@@ -226,27 +223,33 @@ object AgentDefinitionMacroImpl {
   private def inferConstructorSchema(c: blackbox.Context)(tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
-    val constructorAnnotationType = typeOf[golem.runtime.annotations.constructor]
-    val constructorMethod = tpe.members.collectFirst {
-      case m: MethodSymbol if m.isMethod &&
-        m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
-        m
+    val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+
+    val annotatedClass = tpe.members.collectFirst {
+      case sym if sym.isClass && !sym.isMethod &&
+        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+        sym
     }
 
-    constructorMethod match {
-      case None => q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
-      case Some(method) =>
-        val params = method.paramLists.flatten.collect {
-          case param if param.isTerm => (param.name.toString, param.typeSignature)
-        }
-        if (params.isEmpty) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
-        else {
-          val elements = params.map { case (name, paramTpe) =>
-            val schemaExpr = elementSchemaExpr(c)(name, paramTpe)
-            q"_root_.golem.data.NamedElementSchema($name, $schemaExpr)"
-          }
-          q"_root_.golem.data.StructuredSchema.Tuple(List(..$elements))"
-        }
+    val constructorClass = annotatedClass.orElse {
+      val byName = tpe.member(TypeName("Constructor"))
+      if (byName == NoSymbol) None else Some(byName)
+    }.getOrElse {
+      val name = tpe.typeSymbol.name.decodedName.toString
+      c.abort(c.enclosingPosition,
+        s"Agent trait $name must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+    }
+
+    val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
+    val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(p => (p.name.toString, p.typeSignature))
+
+    if (params.isEmpty) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
+    else {
+      val elements = params.map { case (name, paramTpe) =>
+        val schemaExpr = elementSchemaExpr(c)(name, paramTpe)
+        q"_root_.golem.data.NamedElementSchema($name, $schemaExpr)"
+      }
+      q"_root_.golem.data.StructuredSchema.Tuple(List(..$elements))"
     }
   }
 

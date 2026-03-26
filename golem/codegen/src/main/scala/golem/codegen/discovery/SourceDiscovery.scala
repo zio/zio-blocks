@@ -83,7 +83,10 @@ object SourceDiscovery {
     warnings: Seq[Warning]
   )
 
-  /** Discover all agent traits, implementations, and top-level objects from the given sources. */
+  /**
+   * Discover all agent traits, implementations, and top-level objects from the
+   * given sources.
+   */
   def discover(sources: Seq[SourceInput]): Result = {
     val warnings = List.newBuilder[Warning]
     val traits   = List.newBuilder[AgentTrait]
@@ -93,7 +96,7 @@ object SourceDiscovery {
     val parsedTrees: Seq[(SourceInput, Tree)] = sources.flatMap { src =>
       parseSource(src.content) match {
         case Some(tree) => Some((src, tree))
-        case None =>
+        case None       =>
           warnings += Warning(Some(src.path), "Failed to parse source file.")
           None
       }
@@ -123,7 +126,10 @@ object SourceDiscovery {
   // ── Parsing ────────────────────────────────────────────────────────────────
 
   private def parseSource(source: String): Option[Source] =
-    dialects.Scala3(source).parse[Source].toOption
+    dialects
+      .Scala3(source)
+      .parse[Source]
+      .toOption
       .orElse(Scala213(source).parse[Source].toOption)
 
   // ── Annotation detection ───────────────────────────────────────────────────
@@ -146,7 +152,10 @@ object SourceDiscovery {
   private def flattenArgs(init: Init): List[Term] =
     init.argClauses.toList.flatMap(_.values)
 
-  /** Extract `typeName` from `@agentDefinition(typeName = "Foo")` or `@agentDefinition("Foo")`. */
+  /**
+   * Extract `typeName` from `@agentDefinition(typeName = "Foo")` or
+   * `@agentDefinition("Foo")`.
+   */
   private def extractTypeName(mods: List[Mod]): Option[String] =
     mods.collectFirst {
       case Mod.Annot(init) if {
@@ -178,15 +187,17 @@ object SourceDiscovery {
         init
     } match {
       case Some(init) =>
-        val value = flattenArgs(init).headOption.collect {
-          case Lit.String(v) => v
+        val value = flattenArgs(init).headOption.collect { case Lit.String(v) =>
+          v
         }
         (true, value)
       case None =>
         (false, None)
     }
 
-  /** Extract `mode` from `@agentDefinition(mode = DurabilityMode.Ephemeral)`. */
+  /**
+   * Extract `mode` from `@agentDefinition(mode = DurabilityMode.Ephemeral)`.
+   */
   private def extractMode(mods: List[Mod]): Option[String] =
     mods.collectFirst {
       case Mod.Annot(init) if {
@@ -197,8 +208,8 @@ object SourceDiscovery {
     }.flatMap { init =>
       val args = flattenArgs(init)
       // Named argument: mode = DurabilityMode.Ephemeral
-      val named = args.collectFirst {
-        case Term.Assign(Term.Name("mode"), term) => extractModeValue(term)
+      val named = args.collectFirst { case Term.Assign(Term.Name("mode"), term) =>
+        extractModeValue(term)
       }.flatten
       named.orElse {
         // Positional second argument (index 1)
@@ -215,14 +226,30 @@ object SourceDiscovery {
       case _                                      => None
     }
 
-  /** Extract `@constructor` method parameters from a trait body. */
-  private def extractConstructorParams(templ: Template): List[ConstructorParam] =
-    templ.stats.collectFirst {
-      case d: Defn.Def if hasAnnotation(d.mods, "constructor") =>
-        d.paramClauseGroups.flatMap(_.paramClauses).flatMap(_.values).flatMap { param =>
+  /**
+   * Extract constructor parameters from the constructor schema class in a trait
+   * body. Looks first for a class annotated with `@constructorSchema`, then
+   * falls back to a class named `Constructor`.
+   */
+  private def extractConstructorParams(templ: Template): List[ConstructorParam] = {
+    def paramsFromClass(d: Defn.Class): List[ConstructorParam] =
+      d.ctor.paramClauses
+        .flatMap(_.values)
+        .flatMap { param =>
           param.decltpe.map(tpe => ConstructorParam(param.name.value, tpe.syntax))
         }
-    }.getOrElse(Nil)
+        .toList
+
+    val annotated = templ.stats.collectFirst {
+      case d: Defn.Class if hasAnnotation(d.mods, "constructorSchema") => paramsFromClass(d)
+    }
+
+    annotated.getOrElse {
+      templ.stats.collectFirst {
+        case d: Defn.Class if d.name.value == "Constructor" => paramsFromClass(d)
+      }.getOrElse(Nil)
+    }
+  }
 
   /** Check if a type AST represents `Principal` or `golem.Principal`. */
   private def isPrincipalType(tpe: Type): Boolean =
@@ -235,28 +262,32 @@ object SourceDiscovery {
   /** Extract non-constructor methods from a trait body. */
   private def extractMethods(templ: Template): List[DiscoveredMethod] =
     templ.stats.flatMap {
-      case d: Decl.Def if !hasAnnotation(d.mods, "constructor") =>
+      case d: Decl.Def =>
         val params = d.paramClauseGroups.flatMap(_.paramClauses).flatMap(_.values).flatMap { param =>
           param.decltpe.map(tpe => (ConstructorParam(param.name.value, tpe.syntax), isPrincipalType(tpe)))
         }
-        Some(DiscoveredMethod(
-          name = d.name.value,
-          params = params.map(_._1),
-          returnTypeExpr = d.decltpe.syntax,
-          principalParams = params.map(_._2)
-        ))
-      case d: Defn.Def if !hasAnnotation(d.mods, "constructor") =>
+        Some(
+          DiscoveredMethod(
+            name = d.name.value,
+            params = params.map(_._1),
+            returnTypeExpr = d.decltpe.syntax,
+            principalParams = params.map(_._2)
+          )
+        )
+      case d: Defn.Def =>
         d.decltpe match {
           case Some(retTpe) =>
             val params = d.paramClauseGroups.flatMap(_.paramClauses).flatMap(_.values).flatMap { param =>
               param.decltpe.map(tpe => (ConstructorParam(param.name.value, tpe.syntax), isPrincipalType(tpe)))
             }
-            Some(DiscoveredMethod(
-              name = d.name.value,
-              params = params.map(_._1),
-              returnTypeExpr = retTpe.syntax,
-              principalParams = params.map(_._2)
-            ))
+            Some(
+              DiscoveredMethod(
+                name = d.name.value,
+                params = params.map(_._1),
+                returnTypeExpr = retTpe.syntax,
+                principalParams = params.map(_._2)
+              )
+            )
           case None => None // Skip methods with no explicit return type
         }
       case _ => None
@@ -290,14 +321,14 @@ object SourceDiscovery {
         templ.stats.foreach(collect(_, nextPkg, sourcePath, warnings, traits, impls, objects, caseClassIndex))
 
       case t: Defn.Trait if hasAgentDefinition(t.mods) =>
-        val typeName                      = extractTypeName(t.mods)
-        val (hasDesc, descVal)            = extractDescription(t.mods)
-        val ctorParams                    = extractConstructorParams(t.templ)
-        val modeValue                     = extractMode(t.mods)
-        val discoveredMethods             = extractMethods(t.templ)
-        val cfgFields                     = extractAgentConfigType(t.templ, pkg)
-                                              .flatMap(cfgType => extractConfigFields(cfgType, pkg, caseClassIndex, Nil))
-                                              .getOrElse(Nil)
+        val typeName           = extractTypeName(t.mods)
+        val (hasDesc, descVal) = extractDescription(t.mods)
+        val ctorParams         = extractConstructorParams(t.templ)
+        val modeValue          = extractMode(t.mods)
+        val discoveredMethods  = extractMethods(t.templ)
+        val cfgFields          = extractAgentConfigType(t.templ, pkg)
+          .flatMap(cfgType => extractConfigFields(cfgType, pkg, caseClassIndex, Nil))
+          .getOrElse(Nil)
         traits += AgentTrait(
           path = sourcePath,
           pkg = pkg,
@@ -344,7 +375,10 @@ object SourceDiscovery {
 
   // ── Config field extraction ───────────────────────────────────────────────
 
-  /** Collect all case class definitions from the AST, indexed by simple name and FQN. */
+  /**
+   * Collect all case class definitions from the AST, indexed by simple name and
+   * FQN.
+   */
   private def collectCaseClasses(
     tree: Tree,
     pkg: String,
@@ -362,7 +396,7 @@ object SourceDiscovery {
       case cls: Defn.Class if cls.mods.exists(_.is[Mod.Case]) =>
         val fqn = if (pkg.isEmpty) cls.name.value else s"$pkg.${cls.name.value}"
         builder += (cls.name.value -> (pkg, cls))
-        builder += (fqn -> (pkg, cls))
+        builder += (fqn            -> (pkg, cls))
       case _ => ()
     }
 
@@ -375,20 +409,20 @@ object SourceDiscovery {
 
   private def isAgentConfigType(tpe: Type): Boolean =
     tpe match {
-      case Type.Apply.After_4_6_0(Type.Name("AgentConfig"), _)                             => true
-      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("AgentConfig")), _)             => true
-      case _                                                                                => false
+      case Type.Apply.After_4_6_0(Type.Name("AgentConfig"), _)                 => true
+      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("AgentConfig")), _) => true
+      case _                                                                   => false
     }
 
   private def extractTypeArg(tpe: Type): Option[String] =
     tpe match {
       case Type.Apply.After_4_6_0(_, args) if args.size == 1 => Some(args.head.syntax)
-      case _                                                  => None
+      case _                                                 => None
     }
 
   /**
-   * Extract non-secret config fields from a config type by looking up its case class definition.
-   * Recursively flattens nested case classes.
+   * Extract non-secret config fields from a config type by looking up its case
+   * class definition. Recursively flattens nested case classes.
    */
   private def extractConfigFields(
     typeName: String,
@@ -397,7 +431,8 @@ object SourceDiscovery {
     path: List[String]
   ): Option[List[ConfigField]] = {
     // Try FQN first, then simple name
-    val resolved = caseClassIndex.get(typeName)
+    val resolved = caseClassIndex
+      .get(typeName)
       .orElse(caseClassIndex.get(if (currentPkg.isEmpty) typeName else s"$currentPkg.$typeName"))
 
     resolved.map { case (classPkg, cls) =>
@@ -411,7 +446,7 @@ object SourceDiscovery {
           case Some(tpe) =>
             val typeStr = tpe.syntax
             // Try to resolve as a nested config case class
-            val nestedKey = typeStr
+            val nestedKey    = typeStr
             val nestedFqnKey = if (classPkg.isEmpty) typeStr else s"$classPkg.$typeStr"
             caseClassIndex.get(nestedKey).orElse(caseClassIndex.get(nestedFqnKey)) match {
               case Some(_) =>
@@ -428,8 +463,8 @@ object SourceDiscovery {
   /** Check if a type AST represents `Secret[_]` or `golem.config.Secret[_]`. */
   private def isSecretType(tpe: Type): Boolean =
     tpe match {
-      case Type.Apply.After_4_6_0(Type.Name("Secret"), _)                             => true
-      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("Secret")), _)            => true
-      case _                                                                           => false
+      case Type.Apply.After_4_6_0(Type.Name("Secret"), _)                 => true
+      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("Secret")), _) => true
+      case _                                                              => false
     }
 }

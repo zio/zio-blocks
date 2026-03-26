@@ -113,23 +113,29 @@ object AgentClientMacroImpl {
 
   private def agentInputType(c: blackbox.Context)(traitType: c.universe.Type): c.universe.Type = {
     import c.universe._
-    val constructorAnnotationType = typeOf[_root_.golem.runtime.annotations.constructor]
-    val constructorMethod = traitType.members.collectFirst {
-      case m: MethodSymbol if m.isMethod &&
-        m.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorAnnotationType) =>
-        m
+    val constructorSchemaType = typeOf[golem.runtime.annotations.constructorSchema]
+
+    val annotatedClass = traitType.members.collectFirst {
+      case sym if sym.isClass && !sym.isMethod &&
+        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= constructorSchemaType) =>
+        sym
     }
-    constructorMethod match {
-      case None => typeOf[Unit]
-      case Some(method) =>
-        val params = method.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
-        params match {
-          case Nil      => typeOf[Unit]
-          case p :: Nil => p
-          case ps       =>
-            val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
-            appliedType(tupleClass.toType, ps)
-        }
+
+    val constructorClass = annotatedClass.orElse {
+      val byName = traitType.member(TypeName("Constructor"))
+      if (byName == NoSymbol) None else Some(byName)
+    }.getOrElse {
+      c.abort(c.enclosingPosition,
+        s"Agent trait ${traitType.typeSymbol.fullName} must define a `class Constructor(...)` to declare its constructor parameters. Use `class Constructor()` for agents with no constructor parameters.")
+    }
+    val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
+    val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(_.typeSignature)
+    params match {
+      case Nil      => typeOf[Unit]
+      case p :: Nil => p
+      case ps       =>
+        val tupleClass = rootMirror.staticClass(s"scala.Tuple${ps.length}")
+        appliedType(tupleClass.toType, ps)
     }
   }
 

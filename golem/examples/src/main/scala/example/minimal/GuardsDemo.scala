@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, constructor, description}
+import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates Guards API, HostApi config get/set, and oplog management.")
 trait GuardsDemo extends BaseAgent {
 
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Exercises block-scoped guards: withPersistenceLevel, withRetryPolicy, withIdempotenceMode, atomically.")
   def guardsBlockDemo(): Future[String]
@@ -38,4 +38,3 @@ trait GuardsDemo extends BaseAgent {
   @description("Exercises oplog management: getOplogIndex, markBeginOperation, markEndOperation, oplogCommit.")
   def oplogDemo(): Future[String]
 }
-

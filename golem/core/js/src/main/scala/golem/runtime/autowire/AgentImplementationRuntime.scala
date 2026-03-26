@@ -46,7 +46,7 @@ private[autowire] object AgentImplementationRuntime {
             prompt = None
           )((principal: Principal) => effectiveBuild(().asInstanceOf[Ctor], principal))
         case _ =>
-          // Use the metadata constructor schema (from @constructor) for param names,
+          // Use the metadata constructor schema (from class Constructor) for param names,
           // but delegate to the GolemSchema for encoding/decoding.
           // The metadata schema has named params (e.g. "region", "catalog") while
           // the GolemSchema may use tuple names (e.g. "_1", "_2"). We need to

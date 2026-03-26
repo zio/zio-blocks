@@ -19,19 +19,19 @@ package golem
 /**
  * Base trait for Scala agent interfaces.
  *
- * Constructor parameters are defined by annotating a method with `@constructor`
+ * Constructor parameters are defined by declaring an inner `class Constructor`
  * on the agent trait:
  *
  * {{{
  * @agentDefinition()
  * trait Shard extends BaseAgent {
- *   @constructor private def create(tableName: String, shardId: Int): Unit = ()
+ *   class Constructor(val tableName: String, val shardId: Int)
  *   def get(key: String): Future[Option[String]]
  * }
  * }}}
  *
  * When the agent is mounted over HTTP via `@agentDefinition(mount = "...")`,
- * mount path variables must match the `@constructor` parameter names. Example:
+ * mount path variables must match the `Constructor` parameter names. Example:
  * `@agentDefinition(mount = "/api/{tableName}/{shardId}")`
  *
  * When running inside Golem, constructor values are provided by the host

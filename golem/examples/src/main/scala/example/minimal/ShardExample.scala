@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, constructor, description}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -30,7 +30,7 @@ import scala.concurrent.Future
 @agentDefinition(mode = DurabilityMode.Durable)
 trait Shard extends BaseAgent {
 
-  @constructor private def create(tableName: String, shardId: Int): Unit = ()
+  class Constructor(val tableName: String, val shardId: Int)
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]

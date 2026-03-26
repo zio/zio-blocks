@@ -26,7 +26,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
        |
        |@agentDefinition("counter-agent")
        |trait CounterAgent {
-       |  @constructor private def create(value: String): Unit = ()
+       |  class Constructor(val value: String)
        |  def increment(amount: Int): Int
        |}
        |
@@ -42,7 +42,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
 
   test("pipeline with both auto-register and rpc enabled") {
     val discovered = discover(agentSource)
-    val result = CodegenPipeline.run(discovered, Some("example"), rpcEnabled = true)
+    val result     = CodegenPipeline.run(discovered, Some("example"), rpcEnabled = true)
 
     assert(result.autoRegister.isDefined)
     assert(result.autoRegister.get.files.nonEmpty)
@@ -55,7 +55,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
 
   test("pipeline with only auto-register") {
     val discovered = discover(agentSource)
-    val result = CodegenPipeline.run(discovered, Some("example"), rpcEnabled = false)
+    val result     = CodegenPipeline.run(discovered, Some("example"), rpcEnabled = false)
 
     assert(result.autoRegister.isDefined)
     assert(result.rpc.files.isEmpty)
@@ -63,7 +63,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
 
   test("pipeline with only rpc enabled") {
     val discovered = discover(agentSource)
-    val result = CodegenPipeline.run(discovered, None, rpcEnabled = true)
+    val result     = CodegenPipeline.run(discovered, None, rpcEnabled = true)
 
     assert(result.autoRegister.isEmpty)
     assert(result.rpc.files.nonEmpty)
@@ -71,7 +71,7 @@ class CodegenPipelineSpec extends munit.FunSuite {
 
   test("pipeline with nothing enabled") {
     val discovered = discover(agentSource)
-    val result = CodegenPipeline.run(discovered, None, rpcEnabled = false)
+    val result     = CodegenPipeline.run(discovered, None, rpcEnabled = false)
 
     assert(result.autoRegister.isEmpty)
     assert(result.rpc.files.isEmpty)
@@ -84,13 +84,14 @@ class CodegenPipelineSpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MyAgent {
+         |  class Constructor()
          |  def process(caller: Principal, data: String): String
          |}
          |""".stripMargin
     )
 
     val discovered = discover(source)
-    val result = CodegenPipeline.run(discovered, None, rpcEnabled = true)
+    val result     = CodegenPipeline.run(discovered, None, rpcEnabled = true)
 
     assert(result.rpc.files.nonEmpty)
     val content = result.rpc.files.head.content
@@ -106,13 +107,14 @@ class CodegenPipelineSpec extends munit.FunSuite {
          |
          |@agentDefinition(mode = DurabilityMode.Ephemeral)
          |trait EphAgent {
+         |  class Constructor()
          |  def hello(): String
          |}
          |""".stripMargin
     )
 
     val discovered = discover(source)
-    val result = CodegenPipeline.run(discovered, None, rpcEnabled = true)
+    val result     = CodegenPipeline.run(discovered, None, rpcEnabled = true)
 
     assert(result.rpc.files.nonEmpty)
     val content = result.rpc.files.head.content

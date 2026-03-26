@@ -124,7 +124,7 @@ Notes:
 
 ### Custom data types (Schemas)
 
-If you use custom Scala types as **constructor inputs** (via `@constructor`) or **method parameters/return values**,
+If you use custom Scala types as **constructor inputs** (via `class Constructor(...)`) or **method parameters/return values**,
 the SDK must be able to derive a `golem.data.GolemSchema[T]` for them.
 
 You normally **do not** define `GolemSchema` directly -- instead, derive/provide a `zio.blocks.schema.Schema[T]`,
@@ -144,7 +144,7 @@ If you want `Shard.get(...)` / `Shard.getPhantom(...)` style ergonomics, Scala r
 Today this is a one-liner:
 
 ```scala
-import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, constructor, description}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.{AgentCompanion, BaseAgent, Uuid}
 
@@ -153,7 +153,7 @@ import scala.concurrent.Future
 @agentDefinition(mode = DurabilityMode.Durable)
 trait Shard extends BaseAgent {
 
-  @constructor private def create(arg0: String, arg1: Int): Unit = ()
+  class Constructor(val arg0: String, val arg1: Int)
 
   @description("Get a value from the table")
   def get(key: String): Future[Option[String]]

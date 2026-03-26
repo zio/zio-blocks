@@ -707,7 +707,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
     }
 
   // ---------------------------------------------------------------------------
-  // WeatherAgent: single-param @constructor (value: String)
+  // WeatherAgent: single-param Constructor (value: String)
   // Mount: /api/weather/{value}  — {value} is the default name for single-element types
   // ---------------------------------------------------------------------------
   private val weatherTests: Seq[Spec[GolemServer, Throwable]] = Seq(
@@ -759,7 +759,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
   // ---------------------------------------------------------------------------
-  // InventoryAgent: multi-param @constructor (arg0: String, arg1: Int)
+  // InventoryAgent: multi-param Constructor (arg0: String, arg1: Int)
   // Mount: /api/inventory/{arg0}/{arg1}  — positional names for tuple elements
   // ---------------------------------------------------------------------------
   private val inventoryTests: Seq[Spec[GolemServer, Throwable]] = Seq(
@@ -779,7 +779,7 @@ object GolemExamplesIntegrationSpec extends ZIOSpec[GolemServer] {
   ).map(_ @@ TestAspect.timeout(60.seconds))
 
   // ---------------------------------------------------------------------------
-  // CatalogAgent: multi-param @constructor (region: String, catalog: String)
+  // CatalogAgent: multi-param Constructor (region: String, catalog: String)
   // Mount: /api/catalog/{region}/{catalog}  — field names from case class
   // ---------------------------------------------------------------------------
   private val catalogTests: Seq[Spec[GolemServer, Throwable]] = Seq(

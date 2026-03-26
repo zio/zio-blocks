@@ -16,7 +16,7 @@
 
 package example.minimal
 
-import golem.runtime.annotations.{agentDefinition, constructor, description}
+import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 
 import scala.concurrent.Future
@@ -25,7 +25,7 @@ import scala.concurrent.Future
 @description("Demonstrates fork() with the promise-based join pattern from the Golem docs.")
 trait ForkDemo extends BaseAgent {
 
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Forks the agent, joins via a promise, and returns info about both branches.")
   def runFork(): Future[String]
@@ -33,4 +33,3 @@ trait ForkDemo extends BaseAgent {
   @description("Forks the agent and joins using JSON-encoded promise (awaitPromiseJson/completePromiseJson).")
   def runForkJson(): Future[String]
 }
-

@@ -2,7 +2,7 @@ package example.minimal
 
 import golem.BaseAgent
 import golem.config.{AgentConfig, ConfigBuilder, ConfigBuilderDerived, ConfigSchema, ConfigSchemaDerived, Secret}
-import golem.runtime.annotations.{agentDefinition, constructor, description}
+import golem.runtime.annotations.{agentDefinition, description}
 
 import scala.concurrent.Future
 
@@ -13,8 +13,8 @@ final case class DbConfig(
 )
 
 object DbConfig {
-  implicit val configSchema: ConfigSchema[DbConfig]    = ConfigSchemaDerived.derived
-  implicit val configBuilder: ConfigBuilder[DbConfig]  = ConfigBuilderDerived.derived
+  implicit val configSchema: ConfigSchema[DbConfig]   = ConfigSchemaDerived.derived
+  implicit val configBuilder: ConfigBuilder[DbConfig] = ConfigBuilderDerived.derived
 }
 
 final case class MyAppConfig(
@@ -24,14 +24,14 @@ final case class MyAppConfig(
 )
 
 object MyAppConfig {
-  implicit val configSchema: ConfigSchema[MyAppConfig]    = ConfigSchemaDerived.derived
-  implicit val configBuilder: ConfigBuilder[MyAppConfig]  = ConfigBuilderDerived.derived
+  implicit val configSchema: ConfigSchema[MyAppConfig]   = ConfigSchemaDerived.derived
+  implicit val configBuilder: ConfigBuilder[MyAppConfig] = ConfigBuilderDerived.derived
 }
 
 @agentDefinition()
 @description("Example agent with configuration")
 trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Returns a greeting using config values")
   def greet(): Future[String]
@@ -40,7 +40,7 @@ trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
 @agentDefinition()
 @description("Example agent that calls ConfigAgent with config overrides")
 trait ConfigCallerAgent extends BaseAgent {
-  @constructor private def create(value: String): Unit = ()
+  class Constructor(val value: String)
 
   @description("Calls ConfigAgent with overridden config values")
   def callWithOverride(): Future[String]
@@ -62,11 +62,11 @@ trait ConfigCallerAgent extends BaseAgent {
  * }}}
  */
 object ConfigRpcUsageExample {
-  def example(): Unit = {
-    ConfigAgentClient.getWithConfig("hello",
+  def example(): Unit =
+    ConfigAgentClient.getWithConfig(
+      "hello",
       appName = Some("overridden"),
-      dbHost  = Some("new-host"),
-      dbPort  = Some(5433)
+      dbHost = Some("new-host"),
+      dbPort = Some(5433)
     )
-  }
 }

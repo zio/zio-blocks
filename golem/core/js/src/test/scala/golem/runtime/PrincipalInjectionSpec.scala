@@ -1,7 +1,7 @@
 package golem.runtime
 
 import golem.{BaseAgent, Principal}
-import golem.runtime.annotations.{agentDefinition, agentImplementation, constructor}
+import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, HostPayload, MethodBinding}
 import golem.runtime.util.FutureInterop
 import zio._
@@ -32,7 +32,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait CtorPrincipalAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def getCreator(): Future[String]
   }
 
@@ -54,6 +54,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait MethodPrincipalAgent extends BaseAgent {
+    class Constructor()
     def identify(name: String, principal: Principal): Future[String]
   }
 
@@ -77,6 +78,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait SchemaCheckAgent extends BaseAgent {
+    class Constructor()
     def greet(name: String, principal: Principal): Future[String]
     def multi(a: String, b: Int, principal: Principal): Future[String]
   }
@@ -109,7 +111,7 @@ object PrincipalInjectionSpec extends ZIOSpecDefault {
 
   @agentDefinition()
   trait MixedParamsAgent extends BaseAgent {
-    @constructor private def create(value: String): Unit = ()
+    class Constructor(val value: String)
     def info(): Future[String]
   }
 

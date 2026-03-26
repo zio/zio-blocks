@@ -49,12 +49,12 @@ class SourceDiscoverySpec extends munit.FunSuite {
     val code =
       """|package example.templates
          |
-         |import golem.runtime.annotations.{agentDefinition, constructor, description}
+         |import golem.runtime.annotations.{agentDefinition, description}
          |
          |@agentDefinition(typeName = "Human")
          |@description("A human agent.")
          |trait HumanAgent {
-         |  @constructor private def create(value: String): Unit = ()
+         |  class Constructor(val value: String)
          |}
          |""".stripMargin
 
@@ -76,7 +76,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait Shard {
-         |  @constructor private def create(tableName: String, shardId: Int): Unit = ()
+         |  class Constructor(val tableName: String, val shardId: Int)
          |}
          |""".stripMargin
 
@@ -138,7 +138,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |@agentDefinition()
          |@description("A counter agent.")
          |trait Counter {
-         |  @constructor private def create(value: String): Unit = ()
+         |  class Constructor(val value: String)
          |}
          |
          |object Counter
@@ -163,7 +163,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait AgentA {
-         |  @constructor private def create(value: String): Unit = ()
+         |  class Constructor(val value: String)
          |}
          |""".stripMargin
 
@@ -171,13 +171,17 @@ class SourceDiscoverySpec extends munit.FunSuite {
       """|package example.b
          |
          |@agentDefinition(typeName = "BeeAgent")
-         |trait AgentB
+         |trait AgentB {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
-    val result = SourceDiscovery.discover(Seq(
-      src("AgentA.scala", code1),
-      src("AgentB.scala", code2)
-    ))
+    val result = SourceDiscovery.discover(
+      Seq(
+        src("AgentA.scala", code1),
+        src("AgentB.scala", code2)
+      )
+    )
 
     assertEquals(result.traits.size, 2)
     assertEquals(result.traits.map(_.name), Seq("AgentA", "AgentB"))
@@ -188,20 +192,26 @@ class SourceDiscoverySpec extends munit.FunSuite {
       """|package z.pkg
          |
          |@agentDefinition()
-         |trait ZAgent
+         |trait ZAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val code2 =
       """|package a.pkg
          |
          |@agentDefinition()
-         |trait AAgent
+         |trait AAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
-    val result = SourceDiscovery.discover(Seq(
-      src("Z.scala", code),
-      src("A.scala", code2)
-    ))
+    val result = SourceDiscovery.discover(
+      Seq(
+        src("Z.scala", code),
+        src("A.scala", code2)
+      )
+    )
 
     assertEquals(result.traits.map(_.pkg), Seq("a.pkg", "z.pkg"))
   }
@@ -259,7 +269,9 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |@description()
-         |trait NoDescValue
+         |trait NoDescValue {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val result = SourceDiscovery.discover(Seq(src("NoDesc.scala", code)))
@@ -289,7 +301,9 @@ class SourceDiscoverySpec extends munit.FunSuite {
       """|package example
          |
          |@agentDefinition(mode = DurabilityMode.Ephemeral)
-         |trait EphemeralAgent
+         |trait EphemeralAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val result = SourceDiscovery.discover(Seq(src("Ephemeral.scala", code)))
@@ -303,7 +317,9 @@ class SourceDiscoverySpec extends munit.FunSuite {
       """|package example
          |
          |@agentDefinition(mode = DurabilityMode.Durable)
-         |trait DurableAgent
+         |trait DurableAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val result = SourceDiscovery.discover(Seq(src("Durable.scala", code)))
@@ -317,7 +333,9 @@ class SourceDiscoverySpec extends munit.FunSuite {
       """|package example
          |
          |@agentDefinition()
-         |trait DefaultAgent
+         |trait DefaultAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val result = SourceDiscovery.discover(Seq(src("Default.scala", code)))
@@ -333,7 +351,9 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |import DurabilityMode.Ephemeral
          |
          |@agentDefinition(mode = Ephemeral)
-         |trait ImportedModeAgent
+         |trait ImportedModeAgent {
+         |  class Constructor()
+         |}
          |""".stripMargin
 
     val result = SourceDiscovery.discover(Seq(src("Imported.scala", code)))
@@ -348,6 +368,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MethodAgent {
+         |  class Constructor()
          |  def get(key: String): String
          |  def put(key: String, value: Int): Unit
          |}
@@ -364,20 +385,23 @@ class SourceDiscoverySpec extends munit.FunSuite {
     assertEquals(methods(0).returnTypeExpr, "String")
 
     assertEquals(methods(1).name, "put")
-    assertEquals(methods(1).params, List(
-      SourceDiscovery.ConstructorParam("key", "String"),
-      SourceDiscovery.ConstructorParam("value", "Int")
-    ))
+    assertEquals(
+      methods(1).params,
+      List(
+        SourceDiscovery.ConstructorParam("key", "String"),
+        SourceDiscovery.ConstructorParam("value", "Int")
+      )
+    )
     assertEquals(methods(1).returnTypeExpr, "Unit")
   }
 
-  test("@constructor methods are excluded from methods list") {
+  test("Constructor class members are excluded from methods list") {
     val code =
       """|package example
          |
          |@agentDefinition()
          |trait MixedAgent {
-         |  @constructor private def create(value: String): Unit = ()
+         |  class Constructor(val value: String)
          |  def get(key: String): String
          |}
          |""".stripMargin
@@ -396,6 +420,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait PrincipalAgent {
+         |  class Constructor()
          |  def foo(principal: Principal): String
          |}
          |""".stripMargin
@@ -414,6 +439,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait QualifiedPrincipalAgent {
+         |  class Constructor()
          |  def bar(p: golem.Principal, key: String): String
          |}
          |""".stripMargin
@@ -446,7 +472,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
-         |  @constructor private def create(value: String): Unit = ()
+         |  class Constructor(val value: String)
          |  def greet(): Future[String]
          |}
          |""".stripMargin
@@ -467,6 +493,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait SimpleAgent {
+         |  class Constructor()
          |  def hello(): String
          |}
          |""".stripMargin
@@ -492,15 +519,17 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait MyAgent extends BaseAgent with AgentConfig[AppConfig] {
-         |  @constructor private def create(name: String): Unit = ()
+         |  class Constructor(val name: String)
          |  def hello(): String
          |}
          |""".stripMargin
 
-    val result = SourceDiscovery.discover(Seq(
-      src("AppConfig.scala", configCode),
-      src("MyAgent.scala", agentCode)
-    ))
+    val result = SourceDiscovery.discover(
+      Seq(
+        src("AppConfig.scala", configCode),
+        src("MyAgent.scala", agentCode)
+      )
+    )
 
     assertEquals(result.traits.size, 1)
     val t = result.traits.head
@@ -515,6 +544,7 @@ class SourceDiscoverySpec extends munit.FunSuite {
          |
          |@agentDefinition()
          |trait ConcreteAgent {
+         |  class Constructor()
          |  def hello(name: String): String = s"Hello, $name"
          |}
          |""".stripMargin
