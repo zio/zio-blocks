@@ -1007,8 +1007,14 @@ lazy val zioGolemExamples = project
     },
     Compile / scalacOptions ++= {
       if (scalaVersion.value.startsWith("2."))
-        Seq("-Wconf:cat=unused-imports:s")
-      else Nil
+        Seq(
+          "-Wconf:cat=unused-imports:s",
+          "-Wconf:msg=private method create .* is never used:s"     // @constructor methods are read by macros
+        )
+      else
+        Seq(
+          "-Wconf:msg=unused private member:s"                      // @constructor methods are read by macros
+        )
     }
   )
   .dependsOn(schema.js, zioGolemCoreJS, zioGolemMacros)

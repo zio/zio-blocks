@@ -1,7 +1,7 @@
 package example.minimal
 
 import golem.BaseAgent
-import golem.config.{AgentConfig, ConfigBuilder, ConfigBuilderDerived, ConfigSchema, ConfigSchemaDerived, RpcConfig, RpcConfigFieldsDerived, RpcFields, Secret}
+import golem.config.{AgentConfig, ConfigBuilder, ConfigBuilderDerived, ConfigSchema, ConfigSchemaDerived, Secret}
 import golem.runtime.annotations.{agentDefinition, constructor, description}
 
 import scala.concurrent.Future
@@ -15,7 +15,6 @@ final case class DbConfig(
 object DbConfig {
   implicit val configSchema: ConfigSchema[DbConfig]    = ConfigSchemaDerived.derived
   implicit val configBuilder: ConfigBuilder[DbConfig]  = ConfigBuilderDerived.derived
-  val rpcFields: RpcFields[DbConfig]                   = RpcConfigFieldsDerived.fields[DbConfig]
 }
 
 final case class MyAppConfig(
@@ -27,7 +26,6 @@ final case class MyAppConfig(
 object MyAppConfig {
   implicit val configSchema: ConfigSchema[MyAppConfig]    = ConfigSchemaDerived.derived
   implicit val configBuilder: ConfigBuilder[MyAppConfig]  = ConfigBuilderDerived.derived
-  val rpcFields: RpcFields[MyAppConfig]                   = RpcConfigFieldsDerived.fields[MyAppConfig]
 }
 
 @agentDefinition()
@@ -49,36 +47,26 @@ trait ConfigCallerAgent extends BaseAgent {
 }
 
 /**
- * Demonstrates using the type-safe RPC config override API.
+ * Demonstrates the generated config override API.
  *
- * Before (untyped):
- * {{{
- * ConfigAgentClient.getWithConfig("hello", List(
- *   ConfigOverride[String](List("appName"), "overridden"),
- *   ConfigOverride[String](List("db", "host"), "new-host")
- * ))
- * }}}
+ * The generated `getWithConfig` takes one `Option[T] = None` parameter per
+ * non-secret config field, derived from the config case class at codegen time.
+ * Secret fields (`apiKey`, `db.password`) are excluded automatically.
  *
- * After (typed):
  * {{{
- * val f = MyAppConfig.rpcFields
- * val config = RpcConfig.empty[MyAppConfig]
- *   .set(f[String]("appName"), "overridden")
- *   .set(f.nested("db")[String]("host"), "new-host")
- *   // f[String]("apiKey")     — runtime error: secret field excluded
- *   // f[Int]("appName")       — compile error: wrong type
- * ConfigAgentClient.getWithConfig("hello", config.toOverrides)
+ * ConfigAgentClient.getWithConfig("hello",
+ *   appName = Some("overridden"),
+ *   dbHost  = Some("new-host"),
+ *   dbPort  = Some(5433)
+ * )
  * }}}
  */
 object ConfigRpcUsageExample {
   def example(): Unit = {
-    val f = MyAppConfig.rpcFields
-    val config = RpcConfig.empty[MyAppConfig]
-      .set(f[String]("appName"), "overridden")
-      .set(f.nested("db")[String]("host"), "new-host")
-      .set(f.nested("db")[Int]("port"), 5433)
-
-    // Type-safe: this connects with config overrides
-    ConfigAgentClient.getWithConfig("hello", config.toOverrides)
+    ConfigAgentClient.getWithConfig("hello",
+      appName = Some("overridden"),
+      dbHost  = Some("new-host"),
+      dbPort  = Some(5433)
+    )
   }
 }

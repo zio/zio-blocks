@@ -426,6 +426,89 @@ class SourceDiscoverySpec extends munit.FunSuite {
     assertEquals(methods.head.principalParams, List(true, false))
   }
 
+  test("extract config fields from AgentConfig trait parent") {
+    val code =
+      """|package example
+         |
+         |import golem.config.{AgentConfig, Secret}
+         |
+         |final case class DbConfig(
+         |  host: String,
+         |  port: Int,
+         |  password: Secret[String]
+         |)
+         |
+         |final case class MyAppConfig(
+         |  appName: String,
+         |  apiKey: Secret[String],
+         |  db: DbConfig
+         |)
+         |
+         |@agentDefinition()
+         |trait ConfigAgent extends BaseAgent with AgentConfig[MyAppConfig] {
+         |  @constructor private def create(value: String): Unit = ()
+         |  def greet(): Future[String]
+         |}
+         |""".stripMargin
+
+    val result = SourceDiscovery.discover(Seq(src("ConfigAgent.scala", code)))
+
+    assertEquals(result.traits.size, 1)
+    val t = result.traits.head
+    assertEquals(t.configFields.size, 3)
+    assertEquals(t.configFields(0), SourceDiscovery.ConfigField(List("appName"), "String"))
+    assertEquals(t.configFields(1), SourceDiscovery.ConfigField(List("db", "host"), "String"))
+    assertEquals(t.configFields(2), SourceDiscovery.ConfigField(List("db", "port"), "Int"))
+  }
+
+  test("agent without AgentConfig has no config fields") {
+    val code =
+      """|package example
+         |
+         |@agentDefinition()
+         |trait SimpleAgent {
+         |  def hello(): String
+         |}
+         |""".stripMargin
+
+    val result = SourceDiscovery.discover(Seq(src("SimpleAgent.scala", code)))
+
+    assertEquals(result.traits.size, 1)
+    assertEquals(result.traits.head.configFields, Nil)
+  }
+
+  test("config fields from multiple source files") {
+    val configCode =
+      """|package example
+         |
+         |final case class AppConfig(
+         |  host: String,
+         |  port: Int
+         |)
+         |""".stripMargin
+
+    val agentCode =
+      """|package example
+         |
+         |@agentDefinition()
+         |trait MyAgent extends BaseAgent with AgentConfig[AppConfig] {
+         |  @constructor private def create(name: String): Unit = ()
+         |  def hello(): String
+         |}
+         |""".stripMargin
+
+    val result = SourceDiscovery.discover(Seq(
+      src("AppConfig.scala", configCode),
+      src("MyAgent.scala", agentCode)
+    ))
+
+    assertEquals(result.traits.size, 1)
+    val t = result.traits.head
+    assertEquals(t.configFields.size, 2)
+    assertEquals(t.configFields(0), SourceDiscovery.ConfigField(List("host"), "String"))
+    assertEquals(t.configFields(1), SourceDiscovery.ConfigField(List("port"), "Int"))
+  }
+
   test("concrete methods with explicit return type are discovered") {
     val code =
       """|package example

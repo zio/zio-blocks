@@ -30,7 +30,8 @@ class RpcCodegenSpec extends munit.FunSuite {
     description: Option[String] = None,
     mode: String = "durable",
     snapshotting: String = "disabled",
-    methods: List[MethodSurface] = Nil
+    methods: List[MethodSurface] = Nil,
+    configFields: List[ConfigFieldSurface] = Nil
   ): AgentSurface =
     AgentSurface(
       traitFqn = traitFqn,
@@ -39,7 +40,8 @@ class RpcCodegenSpec extends munit.FunSuite {
       typeName = if (typeName.isEmpty) simpleName else typeName,
       constructor = ConstructorSurface(params),
       metadata = AgentMetadataSurface(description, mode, snapshotting),
-      methods = methods
+      methods = methods,
+      configFields = configFields
     )
 
   test("generates client object with package and AgentCompanionBase") {
@@ -289,7 +291,7 @@ class RpcCodegenSpec extends munit.FunSuite {
 
   // ── Mode-aware constructor tests ──────────────────────────────────────────
 
-  test("durable agent generates get, getWithConfig, and phantom constructors") {
+  test("durable agent without config generates get and phantom but no WithConfig") {
     val result = RpcCodegen.generate(
       agents = List(agent(
         "example.MyAgent", "example", "MyAgent",
@@ -302,15 +304,59 @@ class RpcCodegenSpec extends munit.FunSuite {
     val content = result.files.head.content
     assert(content.contains("def get("), s"missing get in:\n$content")
     assert(content.contains("MyAgentRemote"), s"get should return MyAgentRemote:\n$content")
-    assert(content.contains("def getWithConfig("), s"missing getWithConfig in:\n$content")
-    assert(content.contains("configOverrides: _root_.scala.List[_root_.golem.config.ConfigOverride]"), s"missing configOverrides param in:\n$content")
+    assert(!content.contains("def getWithConfig("), s"should not have getWithConfig without config fields:\n$content")
     assert(content.contains("def getPhantom("), s"durable agent should also have getPhantom:\n$content")
     assert(content.contains("def newPhantom("), s"durable agent should also have newPhantom:\n$content")
-    assert(content.contains("def getPhantomWithConfig("), s"durable agent should also have getPhantomWithConfig:\n$content")
-    assert(content.contains("def newPhantomWithConfig("), s"durable agent should also have newPhantomWithConfig:\n$content")
+    assert(!content.contains("def getPhantomWithConfig("), s"should not have getPhantomWithConfig without config fields:\n$content")
+    assert(!content.contains("def newPhantomWithConfig("), s"should not have newPhantomWithConfig without config fields:\n$content")
   }
 
-  test("ephemeral agent generates getPhantom, newPhantom, getPhantomWithConfig, newPhantomWithConfig") {
+  test("durable agent with config fields generates typed WithConfig constructors") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("appName"), "String"),
+      ConfigFieldSurface(List("db", "host"), "String"),
+      ConfigFieldSurface(List("db", "port"), "Int")
+    )
+    val result = RpcCodegen.generate(
+      agents = List(agent(
+        "example.CfgAgent", "example", "CfgAgent",
+        mode = "durable",
+        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil)),
+        configFields = cfgFields
+      )),
+      existingObjects = Seq.empty
+    )
+
+    val content = result.files.head.content
+    assert(content.contains("def getWithConfig("), s"missing getWithConfig in:\n$content")
+    assert(content.contains("appName: _root_.scala.Option[String] = _root_.scala.None"), s"missing appName param in:\n$content")
+    assert(content.contains("dbHost: _root_.scala.Option[String] = _root_.scala.None"), s"missing dbHost param in:\n$content")
+    assert(content.contains("dbPort: _root_.scala.Option[Int] = _root_.scala.None"), s"missing dbPort param in:\n$content")
+    assert(content.contains("def getPhantomWithConfig("), s"missing getPhantomWithConfig in:\n$content")
+    assert(content.contains("def newPhantomWithConfig("), s"missing newPhantomWithConfig in:\n$content")
+    assert(!content.contains("configOverrides: _root_.scala.List"), s"should not use raw ConfigOverride list:\n$content")
+  }
+
+  test("WithConfig constructors build ConfigOverride list internally") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("host"), "String")
+    )
+    val result = RpcCodegen.generate(
+      agents = List(agent(
+        "example.CfgAgent", "example", "CfgAgent",
+        mode = "durable",
+        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil)),
+        configFields = cfgFields
+      )),
+      existingObjects = Seq.empty
+    )
+
+    val content = result.files.head.content
+    assert(content.contains("ConfigOverride[String]"), s"should build ConfigOverride internally:\n$content")
+    assert(content.contains(""""host""""), s"should use path literal:\n$content")
+  }
+
+  test("ephemeral agent without config generates getPhantom and newPhantom only") {
     val result = RpcCodegen.generate(
       agents = List(agent(
         "example.EphAgent", "example", "EphAgent",
@@ -323,9 +369,31 @@ class RpcCodegenSpec extends munit.FunSuite {
     val content = result.files.head.content
     assert(content.contains("def getPhantom("), s"missing getPhantom in:\n$content")
     assert(content.contains("def newPhantom("), s"missing newPhantom in:\n$content")
+    assert(content.contains("generateIdempotencyKey"), s"newPhantom should generate UUID:\n$content")
+    assert(!content.contains("def get("), s"ephemeral agent should not have get:\n$content")
+    assert(!content.contains("def getWithConfig("), s"ephemeral agent should not have getWithConfig:\n$content")
+    assert(!content.contains("def getPhantomWithConfig("), s"should not have getPhantomWithConfig without config fields:\n$content")
+    assert(!content.contains("def newPhantomWithConfig("), s"should not have newPhantomWithConfig without config fields:\n$content")
+  }
+
+  test("ephemeral agent with config fields generates phantom WithConfig variants") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("key"), "String")
+    )
+    val result = RpcCodegen.generate(
+      agents = List(agent(
+        "example.EphAgent", "example", "EphAgent",
+        mode = "ephemeral",
+        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil)),
+        configFields = cfgFields
+      )),
+      existingObjects = Seq.empty
+    )
+
+    val content = result.files.head.content
     assert(content.contains("def getPhantomWithConfig("), s"missing getPhantomWithConfig in:\n$content")
     assert(content.contains("def newPhantomWithConfig("), s"missing newPhantomWithConfig in:\n$content")
-    assert(content.contains("generateIdempotencyKey"), s"newPhantom should generate UUID:\n$content")
+    assert(content.contains("key: _root_.scala.Option[String] = _root_.scala.None"), s"missing key param in:\n$content")
     assert(!content.contains("def get("), s"ephemeral agent should not have get:\n$content")
     assert(!content.contains("def getWithConfig("), s"ephemeral agent should not have getWithConfig:\n$content")
   }
@@ -343,9 +411,29 @@ class RpcCodegenSpec extends munit.FunSuite {
 
     val content = result.files.head.content
     assert(content.contains("def get(name: String): CounterRemote"), s"missing get with params in:\n$content")
-    assert(content.contains("def getWithConfig(name: String, configOverrides:"), s"missing getWithConfig with params in:\n$content")
     assert(content.contains("def getPhantom(name: String, phantom: _root_.golem.Uuid): CounterRemote"), s"missing getPhantom with params in:\n$content")
     assert(content.contains("def newPhantom(name: String): CounterRemote"), s"missing newPhantom with params in:\n$content")
+  }
+
+  test("durable agent with constructor params and config fields generates WithConfig with both") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("host"), "String")
+    )
+    val result = RpcCodegen.generate(
+      agents = List(agent(
+        "example.Counter", "example", "Counter",
+        params = List(ParamSurface("name", "String")),
+        mode = "durable",
+        methods = List(MethodSurface("inc", Nil, "Future[Int]", Nil)),
+        configFields = cfgFields
+      )),
+      existingObjects = Seq.empty
+    )
+
+    val content = result.files.head.content
+    assert(content.contains("def getWithConfig(name: String, host:"), s"missing getWithConfig with params in:\n$content")
+    assert(content.contains("def getPhantomWithConfig(name: String, phantom: _root_.golem.Uuid, host:"), s"missing getPhantomWithConfig with params in:\n$content")
+    assert(content.contains("def newPhantomWithConfig(name: String, host:"), s"missing newPhantomWithConfig with params in:\n$content")
   }
 
   test("ephemeral agent with constructor params generates getPhantom and newPhantom with unpacked params") {
@@ -362,7 +450,6 @@ class RpcCodegenSpec extends munit.FunSuite {
     val content = result.files.head.content
     assert(content.contains("def getPhantom(name: String, id: Int, phantom: _root_.golem.Uuid): EphAgentRemote"), s"missing getPhantom with params in:\n$content")
     assert(content.contains("def newPhantom(name: String, id: Int): EphAgentRemote"), s"missing newPhantom with params in:\n$content")
-    assert(content.contains("def newPhantomWithConfig(name: String, id: Int, configOverrides:"), s"missing newPhantomWithConfig with params in:\n$content")
   }
 
   test("durable agent with unit constructor generates no-param get and phantom constructors") {
@@ -377,17 +464,20 @@ class RpcCodegenSpec extends munit.FunSuite {
 
     val content = result.files.head.content
     assert(content.contains("def get(): SimpleRemote"), s"missing no-param get in:\n$content")
-    assert(content.contains("def getWithConfig(configOverrides:"), s"missing no-param getWithConfig in:\n$content")
     assert(content.contains("def getPhantom(phantom: _root_.golem.Uuid): SimpleRemote"), s"missing no-param getPhantom in:\n$content")
     assert(content.contains("def newPhantom(): SimpleRemote"), s"missing no-param newPhantom in:\n$content")
   }
 
   test("mode-aware constructors use correct resolve methods") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("key"), "String")
+    )
     val result = RpcCodegen.generate(
       agents = List(agent(
         "example.MyAgent", "example", "MyAgent",
         mode = "durable",
-        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil))
+        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil)),
+        configFields = cfgFields
       )),
       existingObjects = Seq.empty
     )
@@ -400,11 +490,15 @@ class RpcCodegenSpec extends munit.FunSuite {
   }
 
   test("ephemeral mode-aware constructors use correct resolve methods") {
+    val cfgFields = List(
+      ConfigFieldSurface(List("key"), "String")
+    )
     val result = RpcCodegen.generate(
       agents = List(agent(
         "example.EphAgent", "example", "EphAgent",
         mode = "ephemeral",
-        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil))
+        methods = List(MethodSurface("hello", Nil, "Future[String]", Nil)),
+        configFields = cfgFields
       )),
       existingObjects = Seq.empty
     )

@@ -108,7 +108,10 @@ object CodegenPipeline {
           params = m.params.map(p => AgentSurfaceIR.ParamSurface(p.name, p.typeExpr)),
           returnTypeExpr = m.returnTypeExpr,
           principalParams = m.principalParams
-        ))
+        )),
+        configFields = t.configFields.map(cf =>
+          AgentSurfaceIR.ConfigFieldSurface(path = cf.path, typeExpr = cf.typeExpr)
+        )
       )
     }.toList
 }

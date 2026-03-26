@@ -84,7 +84,7 @@ object ConfigSchemaSpec extends ZIOSpecDefault {
           assertTrue(decls.head.path == List("a", "b", "c"))
         }
       ),
-      suite("ConfigOverride")(
+      suite("ConfigOverride (internal)")(
         test("String override has correct path and type") {
           val ov = ConfigOverride[String](List("key"), "hello")
           assertTrue(

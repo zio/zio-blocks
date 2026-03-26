@@ -1,6 +1,6 @@
 package example.minimal
 
-import golem.config.{Config, ConfigOverride}
+import golem.config.Config
 import golem.runtime.annotations.agentImplementation
 
 import scala.concurrent.Future
@@ -19,12 +19,11 @@ final class ConfigAgentImpl(input: String, config: Config[MyAppConfig]) extends 
 @agentImplementation()
 final class ConfigCallerAgentImpl(input: String) extends ConfigCallerAgent {
   override def callWithOverride(): Future[String] = {
-    val overrides = List(
-      ConfigOverride[String](List("appName"), "OverriddenApp"),
-      ConfigOverride[String](List("db", "host"), "overridden-host.example.com"),
-      ConfigOverride[Int](List("db", "port"), 9999)
+    val configAgent = ConfigAgentClient.getWithConfig(input,
+      appName = Some("OverriddenApp"),
+      dbHost  = Some("overridden-host.example.com"),
+      dbPort  = Some(9999)
     )
-    val configAgent = ConfigAgentClient.getWithConfig(input, overrides)
     configAgent.greet()
   }
 }

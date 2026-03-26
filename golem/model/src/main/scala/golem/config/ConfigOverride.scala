@@ -2,12 +2,14 @@ package golem.config
 
 import golem.data.{DataValue, ElementSchema}
 
+/** Internal — used by generated RPC client code to build config overrides. Not intended for direct use. */
 final case class ConfigOverride(
   path: List[String],
   value: DataValue,
   valueType: ElementSchema
 )
 
+/** Internal — used by generated RPC client code. Not intended for direct use. */
 object ConfigOverride {
   def apply[A](path: List[String], value: A)(implicit gs: golem.data.GolemSchema[A]): ConfigOverride = {
     val encoded = gs.encodeElement(value) match {

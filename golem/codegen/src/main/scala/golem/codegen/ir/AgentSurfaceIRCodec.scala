@@ -46,7 +46,8 @@ object AgentSurfaceIRCodec {
         "mode"         -> a.metadata.mode,
         "snapshotting" -> a.metadata.snapshotting
       ),
-      "methods" -> ujson.Arr.from(a.methods.map(methodToJson))
+      "methods" -> ujson.Arr.from(a.methods.map(methodToJson)),
+      "configFields" -> ujson.Arr.from(a.configFields.map(configFieldToJson))
     )
 
   private def methodToJson(m: MethodSurface): ujson.Value =
@@ -57,6 +58,12 @@ object AgentSurfaceIRCodec {
       )),
       "returnTypeExpr" -> m.returnTypeExpr,
       "principalParams" -> ujson.Arr.from(m.principalParams.map(ujson.Bool(_)))
+    )
+
+  private def configFieldToJson(cf: ConfigFieldSurface): ujson.Value =
+    ujson.Obj(
+      "path"     -> ujson.Arr.from(cf.path.map(ujson.Str(_))),
+      "typeExpr" -> cf.typeExpr
     )
 
   private def moduleFromJson(v: ujson.Value): Module =
@@ -85,9 +92,16 @@ object AgentSurfaceIRCodec {
           snapshotting = mo("snapshotting").str
         )
       },
-      methods = obj.get("methods").map(_.arr.toList.map(methodFromJson)).getOrElse(Nil)
+      methods = obj.get("methods").map(_.arr.toList.map(methodFromJson)).getOrElse(Nil),
+      configFields = obj.get("configFields").map(_.arr.toList.map(configFieldFromJson)).getOrElse(Nil)
     )
   }
+
+  private def configFieldFromJson(v: ujson.Value): ConfigFieldSurface =
+    ConfigFieldSurface(
+      path     = v("path").arr.toList.map(_.str),
+      typeExpr = v("typeExpr").str
+    )
 
   private def methodFromJson(v: ujson.Value): MethodSurface = {
     val params = v("params").arr.toList.map(p =>

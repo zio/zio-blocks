@@ -36,6 +36,12 @@ object SourceDiscovery {
 
   final case class Warning(path: Option[String], message: String)
 
+  /** A non-secret config field discovered from a config case class. */
+  final case class ConfigField(
+    path: List[String],
+    typeExpr: String
+  )
+
   /** Discovered `@agentDefinition` trait. */
   final case class AgentTrait(
     path: String,
@@ -46,7 +52,8 @@ object SourceDiscovery {
     hasDescription: Boolean,
     descriptionValue: Option[String],
     mode: Option[String],
-    methods: List[DiscoveredMethod]
+    methods: List[DiscoveredMethod],
+    configFields: List[ConfigField] = Nil
   )
 
   final case class ConstructorParam(name: String, typeExpr: String)
@@ -83,13 +90,26 @@ object SourceDiscovery {
     val impls    = List.newBuilder[AgentImpl]
     val objects  = List.newBuilder[ExistingObject]
 
-    sources.foreach { src =>
+    val parsedTrees: Seq[(SourceInput, Tree)] = sources.flatMap { src =>
       parseSource(src.content) match {
-        case Some(tree) =>
-          collect(tree, "", src.path, warnings, traits, impls, objects)
+        case Some(tree) => Some((src, tree))
         case None =>
           warnings += Warning(Some(src.path), "Failed to parse source file.")
+          None
       }
+    }
+
+    // Build an index of case class definitions across all sources for config field extraction
+    val caseClassIndex: Map[String, (String, Defn.Class)] = {
+      val builder = Map.newBuilder[String, (String, Defn.Class)]
+      parsedTrees.foreach { case (_, tree) =>
+        collectCaseClasses(tree, "", builder)
+      }
+      builder.result()
+    }
+
+    parsedTrees.foreach { case (src, tree) =>
+      collect(tree, "", src.path, warnings, traits, impls, objects, caseClassIndex)
     }
 
     Result(
@@ -254,19 +274,20 @@ object SourceDiscovery {
     warnings: scala.collection.mutable.Builder[Warning, List[Warning]],
     traits: scala.collection.mutable.Builder[AgentTrait, List[AgentTrait]],
     impls: scala.collection.mutable.Builder[AgentImpl, List[AgentImpl]],
-    objects: scala.collection.mutable.Builder[ExistingObject, List[ExistingObject]]
+    objects: scala.collection.mutable.Builder[ExistingObject, List[ExistingObject]],
+    caseClassIndex: Map[String, (String, Defn.Class)]
   ): Unit =
     tree match {
       case source: Source =>
-        source.stats.foreach(collect(_, pkg, sourcePath, warnings, traits, impls, objects))
+        source.stats.foreach(collect(_, pkg, sourcePath, warnings, traits, impls, objects, caseClassIndex))
 
       case pkgNode: Pkg =>
         val nextPkg = appendPkg(pkg, pkgNode.ref.syntax)
-        pkgNode.stats.foreach(collect(_, nextPkg, sourcePath, warnings, traits, impls, objects))
+        pkgNode.stats.foreach(collect(_, nextPkg, sourcePath, warnings, traits, impls, objects, caseClassIndex))
 
       case Pkg.Object(_, name, templ) =>
         val nextPkg = appendPkg(pkg, name.value)
-        templ.stats.foreach(collect(_, nextPkg, sourcePath, warnings, traits, impls, objects))
+        templ.stats.foreach(collect(_, nextPkg, sourcePath, warnings, traits, impls, objects, caseClassIndex))
 
       case t: Defn.Trait if hasAgentDefinition(t.mods) =>
         val typeName                      = extractTypeName(t.mods)
@@ -274,6 +295,9 @@ object SourceDiscovery {
         val ctorParams                    = extractConstructorParams(t.templ)
         val modeValue                     = extractMode(t.mods)
         val discoveredMethods             = extractMethods(t.templ)
+        val cfgFields                     = extractAgentConfigType(t.templ, pkg)
+                                              .flatMap(cfgType => extractConfigFields(cfgType, pkg, caseClassIndex, Nil))
+                                              .getOrElse(Nil)
         traits += AgentTrait(
           path = sourcePath,
           pkg = pkg,
@@ -283,7 +307,8 @@ object SourceDiscovery {
           hasDescription = hasDesc,
           descriptionValue = descVal,
           mode = modeValue,
-          methods = discoveredMethods
+          methods = discoveredMethods,
+          configFields = cfgFields
         )
 
       case cls: Defn.Class if hasAgentImplementation(cls.mods) =>
@@ -315,5 +340,96 @@ object SourceDiscovery {
 
       case _ =>
         ()
+    }
+
+  // ── Config field extraction ───────────────────────────────────────────────
+
+  /** Collect all case class definitions from the AST, indexed by simple name and FQN. */
+  private def collectCaseClasses(
+    tree: Tree,
+    pkg: String,
+    builder: scala.collection.mutable.Builder[(String, (String, Defn.Class)), Map[String, (String, Defn.Class)]]
+  ): Unit =
+    tree match {
+      case source: Source =>
+        source.stats.foreach(collectCaseClasses(_, pkg, builder))
+      case pkgNode: Pkg =>
+        val nextPkg = appendPkg(pkg, pkgNode.ref.syntax)
+        pkgNode.stats.foreach(collectCaseClasses(_, nextPkg, builder))
+      case Pkg.Object(_, name, templ) =>
+        val nextPkg = appendPkg(pkg, name.value)
+        templ.stats.foreach(collectCaseClasses(_, nextPkg, builder))
+      case cls: Defn.Class if cls.mods.exists(_.is[Mod.Case]) =>
+        val fqn = if (pkg.isEmpty) cls.name.value else s"$pkg.${cls.name.value}"
+        builder += (cls.name.value -> (pkg, cls))
+        builder += (fqn -> (pkg, cls))
+      case _ => ()
+    }
+
+  /** Extract the type argument from `AgentConfig[T]` in a trait's parents. */
+  private def extractAgentConfigType(templ: Template, currentPkg: String): Option[String] =
+    templ.inits.collectFirst {
+      case init if isAgentConfigType(init.tpe) =>
+        extractTypeArg(init.tpe)
+    }.flatten
+
+  private def isAgentConfigType(tpe: Type): Boolean =
+    tpe match {
+      case Type.Apply.After_4_6_0(Type.Name("AgentConfig"), _)                             => true
+      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("AgentConfig")), _)             => true
+      case _                                                                                => false
+    }
+
+  private def extractTypeArg(tpe: Type): Option[String] =
+    tpe match {
+      case Type.Apply.After_4_6_0(_, args) if args.size == 1 => Some(args.head.syntax)
+      case _                                                  => None
+    }
+
+  /**
+   * Extract non-secret config fields from a config type by looking up its case class definition.
+   * Recursively flattens nested case classes.
+   */
+  private def extractConfigFields(
+    typeName: String,
+    currentPkg: String,
+    caseClassIndex: Map[String, (String, Defn.Class)],
+    path: List[String]
+  ): Option[List[ConfigField]] = {
+    // Try FQN first, then simple name
+    val resolved = caseClassIndex.get(typeName)
+      .orElse(caseClassIndex.get(if (currentPkg.isEmpty) typeName else s"$currentPkg.$typeName"))
+
+    resolved.map { case (classPkg, cls) =>
+      val params = cls.ctor.paramClauses.flatMap(_.values)
+      params.flatMap { param =>
+        val fieldName = param.name.value
+        val fieldPath = path :+ fieldName
+        param.decltpe match {
+          case Some(tpe) if isSecretType(tpe) =>
+            Nil // Skip secret fields
+          case Some(tpe) =>
+            val typeStr = tpe.syntax
+            // Try to resolve as a nested config case class
+            val nestedKey = typeStr
+            val nestedFqnKey = if (classPkg.isEmpty) typeStr else s"$classPkg.$typeStr"
+            caseClassIndex.get(nestedKey).orElse(caseClassIndex.get(nestedFqnKey)) match {
+              case Some(_) =>
+                extractConfigFields(nestedKey, classPkg, caseClassIndex, fieldPath).getOrElse(Nil)
+              case None =>
+                List(ConfigField(fieldPath, typeStr))
+            }
+          case None => Nil
+        }
+      }.toList
+    }
+  }
+
+  /** Check if a type AST represents `Secret[_]` or `golem.config.Secret[_]`. */
+  private def isSecretType(tpe: Type): Boolean =
+    tpe match {
+      case Type.Apply.After_4_6_0(Type.Name("Secret"), _)                             => true
+      case Type.Apply.After_4_6_0(Type.Select(_, Type.Name("Secret")), _)            => true
+      case _                                                                           => false
     }
 }

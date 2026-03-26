@@ -261,14 +261,23 @@ object RpcCodegen {
       case ps       => "(" + ps.map(_.name).mkString(", ") + ")"
     }
 
+  /** Build a camelCase parameter name from a config field path, e.g. List("db", "host") → "dbHost". */
+  private def configParamName(path: List[String]): String =
+    path match {
+      case Nil      => ""
+      case h :: Nil => h
+      case h :: t   => h + t.map(capitalize).mkString
+    }
+
   private def generateModeAwareConstructors(
     sb: StringBuilder,
     agent: AgentSurface,
     remoteName: String
   ): Unit = {
-    val simpleName = agent.simpleName
-    val ctorParams = agent.constructor.params
-    val mode       = agent.metadata.mode
+    val simpleName    = agent.simpleName
+    val ctorParams    = agent.constructor.params
+    val mode          = agent.metadata.mode
+    val configFields  = agent.configFields
 
     val paramDecls = ctorParams.map(p => s"${p.name}: ${p.typeExpr}").mkString(", ")
     val packExpr   = constructorPackExpr(ctorParams)
@@ -303,24 +312,84 @@ object RpcCodegen {
       sb.append(s"    }\n\n")
     }
 
-    // Durable agents get: get, getWithConfig, getPhantom, getPhantomWithConfig, newPhantom, newPhantomWithConfig
-    // Ephemeral agents get: getPhantom, getPhantomWithConfig, newPhantom, newPhantomWithConfig
+    /** Generate the config override parameters as `Option[T] = None` */
+    def configParamDecls: String =
+      configFields.map { cf =>
+        val pName = configParamName(cf.path)
+        s"$pName: _root_.scala.Option[${cf.typeExpr}] = _root_.scala.None"
+      }.mkString(", ")
+
+    /** Generate the body that builds a List[ConfigOverride] from non-None params */
+    def configOverrideListExpr: String = {
+      val builders = configFields.map { cf =>
+        val pName = configParamName(cf.path)
+        val pathLit = cf.path.map(p => s""""$p"""").mkString(", ")
+        s"$pName.map(v => _root_.golem.config.ConfigOverride[${ cf.typeExpr }](_root_.scala.List($pathLit), v))"
+      }
+      "_root_.scala.List(" + builders.mkString(", ") + ").flatten"
+    }
+
+    def emitWithConfigConstructor(
+      name: String,
+      extraParamsBefore: String,
+      extraParamsAfter: String,
+      phantom: Option[String]
+    ): Unit = {
+      val configParams = configParamDecls
+      val allExtra = Seq(extraParamsAfter, configParams).filter(_.nonEmpty).mkString(", ")
+      val allParams = Seq(extraParamsBefore, paramDecls, allExtra).filter(_.nonEmpty).mkString(", ")
+      val overridesExpr = configOverrideListExpr
+      val resolveExpr = (phantom) match {
+        case None =>
+          s"_root_.golem.runtime.rpc.AgentClientRuntime.resolveWithConfig[$simpleName, Constructor](\n" +
+            s"      agentType, $packExpr, $overridesExpr\n    )"
+        case Some(ph) =>
+          s"_root_.golem.runtime.rpc.AgentClientRuntime.resolveWithPhantomAndConfig[$simpleName, Constructor](\n" +
+            s"      agentType, $packExpr, phantom = _root_.scala.Some($ph), $overridesExpr\n    )"
+      }
+      sb.append(s"  def $name($allParams): $remoteName =\n")
+      sb.append(s"    $resolveExpr match {\n")
+      sb.append(s"      case _root_.scala.Right(resolved) => bindRemote(resolved)\n")
+      sb.append(s"      case _root_.scala.Left(err) => throw _root_.scala.scalajs.js.JavaScriptException(err)\n")
+      sb.append(s"    }\n\n")
+    }
+
+    // Durable agents get: get, getPhantom, newPhantom
+    // Ephemeral agents get: getPhantom, newPhantom
+    // WithConfig variants only generated when configFields is non-empty
     if (mode == "durable" || mode == "") {
       emitConstructor("get", "", "", phantom = None, config = None)
-      emitConstructor("getWithConfig", "", "configOverrides: _root_.scala.List[_root_.golem.config.ConfigOverride]", phantom = None, config = Some("configOverrides"))
+      if (configFields.nonEmpty) {
+        emitWithConfigConstructor("getWithConfig", "", "", phantom = None)
+      }
     }
 
     // Both durable and ephemeral get phantom constructors
     emitConstructor("getPhantom", "", "phantom: _root_.golem.Uuid", phantom = Some("phantom"), config = None)
-    val newPhantomParams = if (paramDecls.isEmpty) "" else paramDecls
     val ctorRefs = if (ctorParams.isEmpty) "" else ctorParams.map(_.name).mkString(", ") + ", "
+    val newPhantomParams = if (paramDecls.isEmpty) "" else paramDecls
     sb.append(s"  def newPhantom($newPhantomParams): $remoteName =\n")
     sb.append(s"    getPhantom(${ctorRefs}_root_.golem.HostApi.generateIdempotencyKey())\n\n")
-    emitConstructor("getPhantomWithConfig", "", "phantom: _root_.golem.Uuid, configOverrides: _root_.scala.List[_root_.golem.config.ConfigOverride]", phantom = Some("phantom"), config = Some("configOverrides"))
-    val newPhantomWithConfigParams = if (paramDecls.isEmpty) "configOverrides: _root_.scala.List[_root_.golem.config.ConfigOverride]"
-                                     else s"$paramDecls, configOverrides: _root_.scala.List[_root_.golem.config.ConfigOverride]"
-    sb.append(s"  def newPhantomWithConfig($newPhantomWithConfigParams): $remoteName =\n")
-    sb.append(s"    getPhantomWithConfig(${ctorRefs}_root_.golem.HostApi.generateIdempotencyKey(), configOverrides)\n\n")
+    if (configFields.nonEmpty) {
+      emitWithConfigConstructor("getPhantomWithConfig", "", "phantom: _root_.golem.Uuid", phantom = Some("phantom"))
+      val newPhantomWithConfigParams = {
+        val configParams = configParamDecls
+        val extra = Seq("phantom: _root_.golem.Uuid" +: Nil, configParams +: Nil).flatten.filter(_.nonEmpty).mkString(", ")
+        Seq(paramDecls, extra).filter(_.nonEmpty).mkString(", ")
+      }
+      // newPhantomWithConfig delegates, need to forward config params
+      val configParamNames = configFields.map(cf => configParamName(cf.path))
+      val forwardArgs = configParamNames.map(n => s"$n = $n").mkString(", ")
+      val phantomAndConfig = s"_root_.golem.HostApi.generateIdempotencyKey(), $forwardArgs"
+      val delegateArgs = if (ctorParams.isEmpty) phantomAndConfig
+                         else ctorParams.map(_.name).mkString(", ") + ", " + phantomAndConfig
+      val npcParams = {
+        val configParams = configParamDecls
+        Seq(paramDecls, configParams).filter(_.nonEmpty).mkString(", ")
+      }
+      sb.append(s"  def newPhantomWithConfig($npcParams): $remoteName =\n")
+      sb.append(s"    getPhantomWithConfig($delegateArgs)\n\n")
+    }
   }
 
   private def constructorTypeExpr(ctor: ConstructorSurface): String =

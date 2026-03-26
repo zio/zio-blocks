@@ -36,6 +36,11 @@ object AgentSurfaceIR {
     principalParams: List[Boolean]
   )
 
+  final case class ConfigFieldSurface(
+    path: List[String],
+    typeExpr: String
+  )
+
   final case class AgentSurface(
     traitFqn: String,
     packageName: String,
@@ -43,7 +48,8 @@ object AgentSurfaceIR {
     typeName: String,
     constructor: ConstructorSurface,
     metadata: AgentMetadataSurface,
-    methods: List[MethodSurface]
+    methods: List[MethodSurface],
+    configFields: List[ConfigFieldSurface] = Nil
   )
 
   final case class ConstructorSurface(
