@@ -149,9 +149,7 @@ val userTypeId = implicitly[TypeId[User]]
 userTypeId.name
 ```
 
-:::tip
-Prefer `TypeId.of[A]` when you need the TypeId in a single expression. Use implicit derivation when you are writing generic functions that accept any `A` and need its TypeId alongside other implicit evidence.
-:::
+When you need the TypeId in a single expression, use `TypeId.of[A]`. For generic functions that accept any `A` and need its TypeId alongside other implicit evidence, use implicit derivation instead.
 
 ### Manual Derivation (Smart Constructors)
 
