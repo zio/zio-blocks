@@ -1982,9 +1982,8 @@ You can access the TypeId from a schema's reflection:
 ```scala
 val reflect = Schema[Person].reflect
 val typeId = reflect.typeId
-
-typeId.name        // "Person"
-typeId.isCaseClass // true
+typeId.name
+typeId.isCaseClass
 ```
 
 ### Schema Transformations
