@@ -51,7 +51,7 @@ object AgentDefinitionMacroImpl {
       c.abort(c.enclosingPosition, s"@agent target must be a trait, found: ${typeSymbol.fullName}")
     }
 
-    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    val agentDefinitionFQN                             = "golem.runtime.annotations.agentDefinition"
     def isAgentDefinitionAnn(ann: Annotation): Boolean =
       ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     def defaultTypeNameFromTrait(sym: Symbol): String =
@@ -100,13 +100,15 @@ object AgentDefinitionMacroImpl {
     if (hasMount) {
       val idPrincipalParams = idConstructorPrincipalParams(c)(tpe)
       if (idPrincipalParams.nonEmpty) {
-        val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
+        val annOpt = typeSymbol.annotations.find(ann =>
+          ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
+        )
         val mountStr = annOpt.flatMap { ann =>
           extractNamedStringArg(c)(ann.tree.children.tail, "mount", 2)
         }.getOrElse("")
         if (mountStr.nonEmpty) {
           val mountSegments = HttpRouteParser.parsePathOnly(mountStr, "mount").getOrElse(Nil)
-          val mount = HttpMountDetails(mountSegments, false, false, Nil, Nil)
+          val mount         = HttpMountDetails(mountSegments, false, false, Nil, Nil)
           HttpValidation.validateMountVarsAreNotPrincipal(agentTypeName, mount, idPrincipalParams) match {
             case Left(err) => c.abort(c.enclosingPosition, err)
             case Right(()) => ()
@@ -165,15 +167,24 @@ object AgentDefinitionMacroImpl {
     val outputSchema = methodOutputSchema(c)(method)
 
     val principalFullName = "golem.Principal"
-    val allParams = method.paramLists.flatten.filter(_.isTerm)
-    val paramNames = allParams.collect {
+    val allParams         = method.paramLists.flatten.filter(_.isTerm)
+    val paramNames        = allParams.collect {
       case p if p.typeSignature.dealias.typeSymbol.fullName != principalFullName => p.name.toString
     }.toSet
     val principalParamNames = allParams.collect {
       case p if p.typeSignature.dealias.typeSymbol.fullName == principalFullName => p.name.toString
     }.toSet
-    val headerVarMap   = extractHeaderAnnotations(c)(method, headerType)
-    val endpointTrees  = extractEndpoints(c)(method, endpointType, headerVarMap, agentName, methodName, paramNames, principalParamNames, hasMount)
+    val headerVarMap  = extractHeaderAnnotations(c)(method, headerType)
+    val endpointTrees = extractEndpoints(c)(
+      method,
+      endpointType,
+      headerVarMap,
+      agentName,
+      methodName,
+      paramNames,
+      principalParamNames,
+      hasMount
+    )
 
     q"""
       _root_.golem.runtime.MethodMetadata(
@@ -192,7 +203,7 @@ object AgentDefinitionMacroImpl {
     import c.universe._
 
     val principalFullName = "golem.Principal"
-    val params = method.paramLists.flatten.collect {
+    val params            = method.paramLists.flatten.collect {
       case param if param.isTerm => (param.name.toString, param.typeSignature)
     }.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != principalFullName }
 
@@ -228,7 +239,9 @@ object AgentDefinitionMacroImpl {
     q"$schemaInstance.schema"
   }
 
-  private def elementSchemaExpr(c: blackbox.Context)(@annotation.unused paramName: String, tpe: c.universe.Type): c.Tree = {
+  private def elementSchemaExpr(
+    c: blackbox.Context
+  )(@annotation.unused paramName: String, tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
@@ -247,8 +260,9 @@ object AgentDefinitionMacroImpl {
     val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
     val annotatedClass = tpe.members.collectFirst {
-      case sym if sym.isClass && !sym.isMethod &&
-        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
+      case sym
+          if sym.isClass && !sym.isMethod &&
+            sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
         sym
     }
 
@@ -257,12 +271,14 @@ object AgentDefinitionMacroImpl {
       if (byName == NoSymbol) None else Some(byName)
     }.getOrElse {
       val name = tpe.typeSymbol.name.decodedName.toString
-      c.abort(c.enclosingPosition,
-        s"Agent trait $name must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
+      c.abort(
+        c.enclosingPosition,
+        s"Agent trait $name must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters."
+      )
     }
 
     val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
-    val params = primaryCtor.paramLists.flatten.filter(_.isTerm).map(p => (p.name.toString, p.typeSignature))
+    val params      = primaryCtor.paramLists.flatten.filter(_.isTerm).map(p => (p.name.toString, p.typeSignature))
 
     if (params.isEmpty) q"_root_.golem.data.StructuredSchema.Tuple(Nil)"
     else {
@@ -281,12 +297,13 @@ object AgentDefinitionMacroImpl {
   private def idConstructorPrincipalParams(c: blackbox.Context)(tpe: c.universe.Type): Set[String] = {
     import c.universe._
 
-    val idAnnotationType = typeOf[golem.runtime.annotations.id]
+    val idAnnotationType  = typeOf[golem.runtime.annotations.id]
     val principalFullName = "golem.Principal"
 
     val annotatedClass = tpe.members.collectFirst {
-      case sym if sym.isClass && !sym.isMethod &&
-        sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
+      case sym
+          if sym.isClass && !sym.isMethod &&
+            sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
         sym
     }
 
@@ -296,12 +313,15 @@ object AgentDefinitionMacroImpl {
     }
 
     constructorClass match {
-      case None => Set.empty
+      case None           => Set.empty
       case Some(classSym) =>
         val primaryCtor = classSym.asClass.primaryConstructor.asMethod
-        primaryCtor.paramLists.flatten.filter(_.isTerm).collect {
-          case p if p.typeSignature.dealias.typeSymbol.fullName == principalFullName => p.name.toString
-        }.toSet
+        primaryCtor.paramLists.flatten
+          .filter(_.isTerm)
+          .collect {
+            case p if p.typeSignature.dealias.typeSymbol.fullName == principalFullName => p.name.toString
+          }
+          .toSet
     }
   }
 
@@ -320,11 +340,12 @@ object AgentDefinitionMacroImpl {
         c.abort(c.enclosingPosition, s"Agent trait may extend at most one AgentConfig[T], found ${configTypes.length}")
 
       configTypes.headOption.map { configType =>
-        val configSchemaType = appliedType(typeOf[ConfigSchema[_]].typeConstructor, configType)
+        val configSchemaType     = appliedType(typeOf[ConfigSchema[_]].typeConstructor, configType)
         val configSchemaInstance = c.inferImplicitValue(configSchemaType)
 
         if (configSchemaInstance.isEmpty) {
-          c.abort(c.enclosingPosition,
+          c.abort(
+            c.enclosingPosition,
             s"No implicit ConfigSchema available for config type $configType.\n" +
               "Hint: Add an implicit Schema[T] for your config type, which provides ConfigSchema automatically."
           )
@@ -341,7 +362,8 @@ object AgentDefinitionMacroImpl {
   ): c.Tree = {
     import c.universe._
 
-    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
+    val annOpt =
+      typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
     val snapStr = annOpt.flatMap { ann =>
       val args = ann.tree.children.tail
       extractNamedStringArg(c)(args, "snapshotting", 7)
@@ -370,14 +392,15 @@ object AgentDefinitionMacroImpl {
   ): Option[c.Tree] = {
     import c.universe._
 
-    val annOpt = typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
+    val annOpt =
+      typeSymbol.annotations.find(ann => ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN)
     annOpt.flatMap { ann =>
-      val args = ann.tree.children.tail
-      val mountStr        = extractNamedStringArg(c)(args, "mount", 2).getOrElse("")
-      val authRequired    = extractNamedBooleanArg(c)(args, "auth", 3).getOrElse(false)
-      val corsPatterns     = extractNamedStringArrayArg(c)(args, "cors", 4).getOrElse(Nil)
-      val phantomAgent    = extractNamedBooleanArg(c)(args, "phantomAgent", 5).getOrElse(false)
-      val webhookStr      = extractNamedStringArg(c)(args, "webhookSuffix", 6).getOrElse("")
+      val args         = ann.tree.children.tail
+      val mountStr     = extractNamedStringArg(c)(args, "mount", 2).getOrElse("")
+      val authRequired = extractNamedBooleanArg(c)(args, "auth", 3).getOrElse(false)
+      val corsPatterns = extractNamedStringArrayArg(c)(args, "cors", 4).getOrElse(Nil)
+      val phantomAgent = extractNamedBooleanArg(c)(args, "phantomAgent", 5).getOrElse(false)
+      val webhookStr   = extractNamedStringArg(c)(args, "webhookSuffix", 6).getOrElse("")
 
       if (mountStr.isEmpty) None
       else {
@@ -385,11 +408,13 @@ object AgentDefinitionMacroImpl {
           case Right(segments) => segments
           case Left(err)       => c.abort(c.enclosingPosition, s"Invalid HTTP mount path on agent '$agentName': $err")
         }
-        val webhookSuffix = if (webhookStr.isEmpty) Nil
-        else HttpRouteParser.parsePathOnly(webhookStr, "webhookSuffix") match {
-          case Right(segments) => segments
-          case Left(err)       => c.abort(c.enclosingPosition, s"Invalid webhookSuffix on agent '$agentName': $err")
-        }
+        val webhookSuffix =
+          if (webhookStr.isEmpty) Nil
+          else
+            HttpRouteParser.parsePathOnly(webhookStr, "webhookSuffix") match {
+              case Right(segments) => segments
+              case Left(err)       => c.abort(c.enclosingPosition, s"Invalid webhookSuffix on agent '$agentName': $err")
+            }
 
         val mount = HttpMountDetails(pathPrefix, authRequired, phantomAgent, corsPatterns, webhookSuffix)
         HttpValidation.validateNoCatchAllInMount(agentName, mount) match {
@@ -417,10 +442,11 @@ object AgentDefinitionMacroImpl {
   private def pathSegmentTree(c: blackbox.Context)(seg: PathSegment): c.Tree = {
     import c.universe._
     seg match {
-      case PathSegment.Literal(value)               => q"_root_.golem.runtime.http.PathSegment.Literal($value)"
-      case PathSegment.PathVariable(name)            => q"_root_.golem.runtime.http.PathSegment.PathVariable($name)"
-      case PathSegment.RemainingPathVariable(name)   => q"_root_.golem.runtime.http.PathSegment.RemainingPathVariable($name)"
-      case PathSegment.SystemVariable(name)          => q"_root_.golem.runtime.http.PathSegment.SystemVariable($name)"
+      case PathSegment.Literal(value)              => q"_root_.golem.runtime.http.PathSegment.Literal($value)"
+      case PathSegment.PathVariable(name)          => q"_root_.golem.runtime.http.PathSegment.PathVariable($name)"
+      case PathSegment.RemainingPathVariable(name) =>
+        q"_root_.golem.runtime.http.PathSegment.RemainingPathVariable($name)"
+      case PathSegment.SystemVariable(name) => q"_root_.golem.runtime.http.PathSegment.SystemVariable($name)"
     }
   }
 
@@ -429,12 +455,13 @@ object AgentDefinitionMacroImpl {
     headerType: c.universe.Type
   ): Map[String, String] = {
     import c.universe._
-    method.paramLists.flatten.collect { case param if param.isTerm =>
-      val paramName = param.name.toString
-      param.annotations.collectFirst {
-        case ann if ann.tree.tpe != null && ann.tree.tpe =:= headerType =>
-          ann.tree.children.tail.collectFirst { case Literal(Constant(headerName: String)) => headerName }
-      }.flatten.map(headerName => paramName -> headerName)
+    method.paramLists.flatten.collect {
+      case param if param.isTerm =>
+        val paramName = param.name.toString
+        param.annotations.collectFirst {
+          case ann if ann.tree.tpe != null && ann.tree.tpe =:= headerType =>
+            ann.tree.children.tail.collectFirst { case Literal(Constant(headerName: String)) => headerName }
+        }.flatten.map(headerName => paramName -> headerName)
     }.flatten.toMap
   }
 
@@ -458,7 +485,7 @@ object AgentDefinitionMacroImpl {
       val pathStr = extractNamedStringArg(c)(args, "path", 1)
         .getOrElse(c.abort(c.enclosingPosition, s"@endpoint on method '$methodName' requires a 'path' argument"))
       val authOverrideOpt = extractNamedBooleanArg(c)(args, "auth", 2)
-      val corsPatterns = extractNamedStringArrayArg(c)(args, "cors", 3).getOrElse(Nil)
+      val corsPatterns    = extractNamedStringArrayArg(c)(args, "cors", 3).getOrElse(Nil)
 
       val httpMethod = HttpMethod.fromString(httpMethodStr) match {
         case Right(m)  => m
@@ -467,24 +494,33 @@ object AgentDefinitionMacroImpl {
 
       val parsed = HttpRouteParser.parse(pathStr) match {
         case Right(p)  => p
-        case Left(err) => c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': invalid path '$pathStr': $err")
+        case Left(err) =>
+          c.abort(c.enclosingPosition, s"@endpoint on method '$methodName': invalid path '$pathStr': $err")
       }
 
       val headerVars = headerVarMap.map { case (varName, headerName) =>
         HeaderVariable(headerName, varName)
       }.toList
 
-      val authOverride: Option[Boolean] = authOverrideOpt
+      val authOverride: Option[Boolean]      = authOverrideOpt
       val corsOverride: Option[List[String]] = if (corsPatterns.isEmpty) None else Some(corsPatterns)
 
-      val endpointDetails = HttpEndpointDetails(httpMethod, parsed.pathSegments, headerVars, parsed.queryVars, authOverride, corsOverride)
-      HttpValidation.validateEndpointVars(agentName, methodName, endpointDetails, paramNames, principalParamNames, hasMount) match {
+      val endpointDetails =
+        HttpEndpointDetails(httpMethod, parsed.pathSegments, headerVars, parsed.queryVars, authOverride, corsOverride)
+      HttpValidation.validateEndpointVars(
+        agentName,
+        methodName,
+        endpointDetails,
+        paramNames,
+        principalParamNames,
+        hasMount
+      ) match {
         case Left(err) => c.abort(c.enclosingPosition, err)
         case Right(()) => ()
       }
 
-      val methodTree = httpMethodTree(c)(httpMethod)
-      val pathTrees  = parsed.pathSegments.map(seg => pathSegmentTree(c)(seg))
+      val methodTree  = httpMethodTree(c)(httpMethod)
+      val pathTrees   = parsed.pathSegments.map(seg => pathSegmentTree(c)(seg))
       val headerTrees = headerVars.map { hv =>
         q"_root_.golem.runtime.http.HeaderVariable(${hv.headerName}, ${hv.variableName})"
       }
@@ -518,15 +554,15 @@ object AgentDefinitionMacroImpl {
   private def httpMethodTree(c: blackbox.Context)(method: HttpMethod): c.Tree = {
     import c.universe._
     method match {
-      case HttpMethod.Get     => q"_root_.golem.runtime.http.HttpMethod.Get"
-      case HttpMethod.Post    => q"_root_.golem.runtime.http.HttpMethod.Post"
-      case HttpMethod.Put     => q"_root_.golem.runtime.http.HttpMethod.Put"
-      case HttpMethod.Delete  => q"_root_.golem.runtime.http.HttpMethod.Delete"
-      case HttpMethod.Patch   => q"_root_.golem.runtime.http.HttpMethod.Patch"
-      case HttpMethod.Head    => q"_root_.golem.runtime.http.HttpMethod.Head"
-      case HttpMethod.Options => q"_root_.golem.runtime.http.HttpMethod.Options"
-      case HttpMethod.Connect => q"_root_.golem.runtime.http.HttpMethod.Connect"
-      case HttpMethod.Trace   => q"_root_.golem.runtime.http.HttpMethod.Trace"
+      case HttpMethod.Get       => q"_root_.golem.runtime.http.HttpMethod.Get"
+      case HttpMethod.Post      => q"_root_.golem.runtime.http.HttpMethod.Post"
+      case HttpMethod.Put       => q"_root_.golem.runtime.http.HttpMethod.Put"
+      case HttpMethod.Delete    => q"_root_.golem.runtime.http.HttpMethod.Delete"
+      case HttpMethod.Patch     => q"_root_.golem.runtime.http.HttpMethod.Patch"
+      case HttpMethod.Head      => q"_root_.golem.runtime.http.HttpMethod.Head"
+      case HttpMethod.Options   => q"_root_.golem.runtime.http.HttpMethod.Options"
+      case HttpMethod.Connect   => q"_root_.golem.runtime.http.HttpMethod.Connect"
+      case HttpMethod.Trace     => q"_root_.golem.runtime.http.HttpMethod.Trace"
       case HttpMethod.Custom(m) => q"_root_.golem.runtime.http.HttpMethod.Custom($m)"
     }
   }
@@ -537,12 +573,12 @@ object AgentDefinitionMacroImpl {
     positionalIndex: Int
   ): Option[String] = {
     import c.universe._
-    args.collectFirst {
-      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: String))) => v
+    args.collectFirst { case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: String))) =>
+      v
     }.orElse {
       args.lift(positionalIndex).collect {
-        case Literal(Constant(v: String))                                    => v
-        case NamedArg(_, Literal(Constant(v: String)))                       => v
+        case Literal(Constant(v: String))              => v
+        case NamedArg(_, Literal(Constant(v: String))) => v
       }
     }.filter(_.nonEmpty)
   }
@@ -553,12 +589,12 @@ object AgentDefinitionMacroImpl {
     positionalIndex: Int
   ): Option[Boolean] = {
     import c.universe._
-    args.collectFirst {
-      case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: Boolean))) => v
+    args.collectFirst { case NamedArg(Ident(TermName(`name`)), Literal(Constant(v: Boolean))) =>
+      v
     }.orElse {
       args.lift(positionalIndex).collect {
-        case Literal(Constant(v: Boolean))                                    => v
-        case NamedArg(_, Literal(Constant(v: Boolean)))                       => v
+        case Literal(Constant(v: Boolean))              => v
+        case NamedArg(_, Literal(Constant(v: Boolean))) => v
       }
     }
   }
@@ -579,8 +615,8 @@ object AgentDefinitionMacroImpl {
       case NamedArg(_, v) => v
       case other          => other
     }
-    args.collectFirst {
-      case NamedArg(Ident(TermName(`name`)), arr) => extractArray(arr)
+    args.collectFirst { case NamedArg(Ident(TermName(`name`)), arr) =>
+      extractArray(arr)
     }.flatten.orElse {
       args.lift(positionalIndex).flatMap(t => extractArray(unwrapNamedArg(t)))
     }

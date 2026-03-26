@@ -32,7 +32,7 @@ object AgentSdkMacroImpl {
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name.decodedName.toString
 
-    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    val agentDefinitionFQN                             = "golem.runtime.annotations.agentDefinition"
     def isAgentDefinitionAnn(ann: Annotation): Boolean =
       ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == agentDefinitionFQN
     val rawTypeName: String =

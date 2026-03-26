@@ -38,7 +38,7 @@ object AgentSurfaceExportMacroImpl {
     if (!typeSymbol.isClass || !typeSymbol.asClass.isTrait)
       c.abort(c.enclosingPosition, s"AgentSurfaceExport target must be a trait, found: ${typeSymbol.fullName}")
 
-    val agentDefinitionFQN = "golem.runtime.annotations.agentDefinition"
+    val agentDefinitionFQN        = "golem.runtime.annotations.agentDefinition"
     val descriptionAnnotationType = typeOf[golem.runtime.annotations.description]
 
     def isAgentDefinitionAnn(ann: Annotation): Boolean =
@@ -88,8 +88,8 @@ object AgentSurfaceExportMacroImpl {
     val snapshotting: String = typeSymbol.annotations.collectFirst {
       case ann if isAgentDefinitionAnn(ann) =>
         val args = ann.tree.children.tail
-        args.collectFirst {
-          case NamedArg(Ident(TermName("snapshotting")), Literal(Constant(s: String))) => s
+        args.collectFirst { case NamedArg(Ident(TermName("snapshotting")), Literal(Constant(s: String))) =>
+          s
         }.orElse {
           args.lift(7).collect { case Literal(Constant(s: String)) => s }
         }
@@ -100,8 +100,9 @@ object AgentSurfaceExportMacroImpl {
       val idAnnotationType = typeOf[golem.runtime.annotations.id]
 
       val annotatedClass = tpe.members.collectFirst {
-        case sym if sym.isClass && !sym.isMethod &&
-          sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
+        case sym
+            if sym.isClass && !sym.isMethod &&
+              sym.annotations.exists(ann => ann.tree.tpe != null && ann.tree.tpe =:= idAnnotationType) =>
           sym
       }
 
@@ -109,8 +110,10 @@ object AgentSurfaceExportMacroImpl {
         val byName = tpe.member(TypeName("Id"))
         if (byName == NoSymbol) None else Some(byName)
       }.getOrElse {
-        c.abort(c.enclosingPosition,
-          s"Agent trait ${typeSymbol.fullName} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters.")
+        c.abort(
+          c.enclosingPosition,
+          s"Agent trait ${typeSymbol.fullName} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters."
+        )
       }
       val primaryCtor = constructorClass.asClass.primaryConstructor.asMethod
       primaryCtor.paramLists.flatten.filter(_.isTerm).map { param =>
@@ -119,7 +122,7 @@ object AgentSurfaceExportMacroImpl {
     }
 
     // Build JSON
-    val traitFqn = typeSymbol.fullName
+    val traitFqn    = typeSymbol.fullName
     val packageName = {
       val lastDot = traitFqn.lastIndexOf('.')
       if (lastDot > 0) traitFqn.substring(0, lastDot) else ""
@@ -150,11 +153,11 @@ object AgentSurfaceExportMacroImpl {
     var i = 0
     while (i < s.length) {
       s.charAt(i) match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
+        case '"'           => sb.append("\\\"")
+        case '\\'          => sb.append("\\\\")
+        case '\n'          => sb.append("\\n")
+        case '\r'          => sb.append("\\r")
+        case '\t'          => sb.append("\\t")
         case c if c < 0x20 =>
           sb.append("\\u")
           sb.append(String.format("%04x", Int.box(c.toInt)))

@@ -130,7 +130,9 @@ object AgentMacrosImpl {
     q"$schemaInstance.schema"
   }
 
-  private def elementSchemaExpr(c: blackbox.Context)(@annotation.unused paramName: String, tpe: c.universe.Type): c.Tree = {
+  private def elementSchemaExpr(
+    c: blackbox.Context
+  )(@annotation.unused paramName: String, tpe: c.universe.Type): c.Tree = {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
