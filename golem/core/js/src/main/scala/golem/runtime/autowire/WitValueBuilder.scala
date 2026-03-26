@@ -79,10 +79,10 @@ private[golem] object WitValueBuilder {
             acc.map { collected =>
               val idx = newNode()
               nodes(idx) = JsWitNode.primU8((b & 0xff).toShort)
-              collected :+ idx
+              idx :: collected
             }
           }
-          indicesEither.map(indices => JsWitNode.listValue(js.Array(indices: _*)))
+          indicesEither.map(indices => JsWitNode.listValue(js.Array(indices.reverse: _*)))
         case (DataType.Optional(of), OptionalValue(maybeValue)) =>
           maybeValue match {
             case Some(inner) =>
@@ -176,15 +176,16 @@ private[golem] object WitValueBuilder {
     ): Either[String, JsWitNode] = {
       val indicesEither = values.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, value) =>
         acc.flatMap { collected =>
-          build(elementType, value).map(idx => collected :+ idx)
+          build(elementType, value).map(idx => idx :: collected)
         }
       }
 
       indicesEither.map { indices =>
+        val reversed = indices.reverse
         tag match {
-          case "list-value"  => JsWitNode.listValue(js.Array(indices: _*))
-          case "tuple-value" => JsWitNode.tupleValue(js.Array(indices: _*))
-          case _             => JsWitNode.listValue(js.Array(indices: _*))
+          case "list-value"  => JsWitNode.listValue(js.Array(reversed: _*))
+          case "tuple-value" => JsWitNode.tupleValue(js.Array(reversed: _*))
+          case _             => JsWitNode.listValue(js.Array(reversed: _*))
         }
       }
     }
@@ -192,15 +193,16 @@ private[golem] object WitValueBuilder {
     private def encodeIndexed(pairs: List[(DataValue, DataType)], tag: String): Either[String, JsWitNode] = {
       val indicesEither = pairs.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, (value, dtype)) =>
         acc.flatMap { collected =>
-          build(dtype, value).map(idx => collected :+ idx)
+          build(dtype, value).map(idx => idx :: collected)
         }
       }
 
       indicesEither.map { indices =>
+        val reversed = indices.reverse
         tag match {
-          case "record-value" => JsWitNode.recordValue(js.Array(indices: _*))
-          case "tuple-value"  => JsWitNode.tupleValue(js.Array(indices: _*))
-          case _              => JsWitNode.tupleValue(js.Array(indices: _*))
+          case "record-value" => JsWitNode.recordValue(js.Array(reversed: _*))
+          case "tuple-value"  => JsWitNode.tupleValue(js.Array(reversed: _*))
+          case _              => JsWitNode.tupleValue(js.Array(reversed: _*))
         }
       }
     }

@@ -173,8 +173,12 @@ object KeyValue {
       bytes
     }
 
-    def size(): Long =
-      BigInt(underlying.incomingValueSize().toString).toLong
+    def size(): Long = {
+      val sizeBigInt = BigInt(underlying.incomingValueSize().toString)
+      if (!sizeBigInt.isValidLong)
+        throw new IllegalArgumentException(s"Incoming value size $sizeBigInt does not fit into a Long")
+      sizeBigInt.toLong
+    }
   }
 
   // --- Raw access (for forward compatibility) ---

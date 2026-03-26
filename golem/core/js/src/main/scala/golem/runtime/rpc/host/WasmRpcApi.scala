@@ -41,23 +41,27 @@ private[golem] object WasmRpcApi {
     JsDatetime(seconds, nanos)
   }
 
-  private def decodeRpcError(thrown: Any): RpcError = {
-    val value = thrown.asInstanceOf[JsRpcError]
-    value.tag match {
-      case "protocol-error" =>
-        RpcError("protocol-error", Some(value.asInstanceOf[JsRpcErrorString].value))
-      case "denied" =>
-        RpcError("denied", Some(value.asInstanceOf[JsRpcErrorString].value))
-      case "not-found" =>
-        RpcError("not-found", Some(value.asInstanceOf[JsRpcErrorString].value))
-      case "remote-internal-error" =>
-        RpcError("remote-internal-error", Some(value.asInstanceOf[JsRpcErrorString].value))
-      case "remote-agent-error" =>
-        RpcError("remote-agent-error", None, Some(value.asInstanceOf[JsRpcErrorRemoteAgent].value))
-      case other =>
-        RpcError(other, None)
+  private def decodeRpcError(thrown: Any): RpcError =
+    try {
+      val value = thrown.asInstanceOf[JsRpcError]
+      value.tag match {
+        case "protocol-error" =>
+          RpcError("protocol-error", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "denied" =>
+          RpcError("denied", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "not-found" =>
+          RpcError("not-found", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "remote-internal-error" =>
+          RpcError("remote-internal-error", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "remote-agent-error" =>
+          RpcError("remote-agent-error", None, Some(value.asInstanceOf[JsRpcErrorRemoteAgent].value))
+        case other =>
+          RpcError(other, None)
+      }
+    } catch {
+      case _: Exception =>
+        RpcError("unknown", Some(String.valueOf(thrown)))
     }
-  }
 
   final class WasmRpcClient private[host] (private val underlying: js.Object) {
     def invokeAndAwait(functionName: String, input: JsDataValue): Either[RpcError, JsDataValue] =
