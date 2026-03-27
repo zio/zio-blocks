@@ -289,38 +289,6 @@ object YamlCodecSpec extends YamlBaseSpec {
         assertTrue(result.isLeft)
       }
     ),
-    suite("valueOffset for different types")(
-      test("objectType offset") {
-        assertTrue(YamlCodec.stringCodec.valueType == YamlCodec.objectType)
-      },
-      test("intType offset") {
-        assertTrue(YamlCodec.intCodec.valueType == YamlCodec.intType)
-      },
-      test("longType offset") {
-        assertTrue(YamlCodec.longCodec.valueType == YamlCodec.longType)
-      },
-      test("floatType offset") {
-        assertTrue(YamlCodec.floatCodec.valueType == YamlCodec.floatType)
-      },
-      test("doubleType offset") {
-        assertTrue(YamlCodec.doubleCodec.valueType == YamlCodec.doubleType)
-      },
-      test("booleanType offset") {
-        assertTrue(YamlCodec.booleanCodec.valueType == YamlCodec.booleanType)
-      },
-      test("byteType offset") {
-        assertTrue(YamlCodec.byteCodec.valueType == YamlCodec.byteType)
-      },
-      test("charType offset") {
-        assertTrue(YamlCodec.charCodec.valueType == YamlCodec.charType)
-      },
-      test("shortType offset") {
-        assertTrue(YamlCodec.shortCodec.valueType == YamlCodec.shortType)
-      },
-      test("unitType offset") {
-        assertTrue(YamlCodec.unitCodec.valueType == YamlCodec.unitType)
-      }
-    ),
     suite("toSchemaError coverage")(
       test("YamlError converts to SchemaError with message") {
         val codec  = YamlCodec.intCodec

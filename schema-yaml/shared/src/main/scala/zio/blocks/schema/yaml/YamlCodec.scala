@@ -17,37 +17,19 @@
 package zio.blocks.schema.yaml
 
 import zio.blocks.schema.SchemaError
-import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
-import scala.annotation.switch
 import scala.util.control.NonFatal
 
 /**
  * Abstract base class for YAML binary codecs that serialize/deserialize values
  * of type `A` to and from YAML representations.
  *
- * @param valueType
- *   the register type index used for binding-level storage
  * @tparam A
  *   the type this codec handles
  */
-abstract class YamlCodec[A](val valueType: Int = YamlCodec.objectType) extends BinaryCodec[A] {
-
-  val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
-    case 0 => RegisterOffset(objects = 1)
-    case 1 => RegisterOffset(ints = 1)
-    case 2 => RegisterOffset(longs = 1)
-    case 3 => RegisterOffset(floats = 1)
-    case 4 => RegisterOffset(doubles = 1)
-    case 5 => RegisterOffset(booleans = 1)
-    case 6 => RegisterOffset(bytes = 1)
-    case 7 => RegisterOffset(chars = 1)
-    case 8 => RegisterOffset(shorts = 1)
-    case _ => RegisterOffset.Zero
-  }
-
+abstract class YamlCodec[A] extends BinaryCodec[A] {
   def decodeValue(in: Yaml): Either[YamlError, A]
 
   def encodeValue(x: A): Yaml
@@ -106,18 +88,7 @@ abstract class YamlCodec[A](val valueType: Int = YamlCodec.objectType) extends B
  * constants.
  */
 object YamlCodec {
-  val objectType  = 0
-  val intType     = 1
-  val longType    = 2
-  val floatType   = 3
-  val doubleType  = 4
-  val booleanType = 5
-  val byteType    = 6
-  val charType    = 7
-  val shortType   = 8
-  val unitType    = 9
-
-  val unitCodec: YamlCodec[Unit] = new YamlCodec[Unit](YamlCodec.unitType) {
+  val unitCodec: YamlCodec[Unit] = new YamlCodec[Unit] {
     def decodeValue(yaml: Yaml): Either[YamlError, Unit] = yaml match {
       case Yaml.NullValue                                            => Right(())
       case Yaml.Scalar(v, _) if v == "null" || v == "~" || v.isEmpty => Right(())
@@ -126,7 +97,7 @@ object YamlCodec {
     def encodeValue(x: Unit): Yaml = Yaml.NullValue
   }
 
-  val booleanCodec: YamlCodec[Boolean] = new YamlCodec[Boolean](YamlCodec.booleanType) {
+  val booleanCodec: YamlCodec[Boolean] = new YamlCodec[Boolean] {
     def decodeValue(yaml: Yaml): Either[YamlError, Boolean] = yaml match {
       case Yaml.Scalar(v, _) =>
         v.trim match {
@@ -139,7 +110,7 @@ object YamlCodec {
     def encodeValue(x: Boolean): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Bool))
   }
 
-  val byteCodec: YamlCodec[Byte] = new YamlCodec[Byte](YamlCodec.byteType) {
+  val byteCodec: YamlCodec[Byte] = new YamlCodec[Byte] {
     def decodeValue(yaml: Yaml): Either[YamlError, Byte] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toByte)
@@ -149,7 +120,7 @@ object YamlCodec {
     def encodeValue(x: Byte): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
-  val shortCodec: YamlCodec[Short] = new YamlCodec[Short](YamlCodec.shortType) {
+  val shortCodec: YamlCodec[Short] = new YamlCodec[Short] {
     def decodeValue(yaml: Yaml): Either[YamlError, Short] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toShort)
@@ -159,7 +130,7 @@ object YamlCodec {
     def encodeValue(x: Short): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
-  val intCodec: YamlCodec[Int] = new YamlCodec[Int](YamlCodec.intType) {
+  val intCodec: YamlCodec[Int] = new YamlCodec[Int] {
     def decodeValue(yaml: Yaml): Either[YamlError, Int] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toInt)
@@ -169,7 +140,7 @@ object YamlCodec {
     def encodeValue(x: Int): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
-  val longCodec: YamlCodec[Long] = new YamlCodec[Long](YamlCodec.longType) {
+  val longCodec: YamlCodec[Long] = new YamlCodec[Long] {
     def decodeValue(yaml: Yaml): Either[YamlError, Long] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toLong)
@@ -179,7 +150,7 @@ object YamlCodec {
     def encodeValue(x: Long): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
 
-  val floatCodec: YamlCodec[Float] = new YamlCodec[Float](YamlCodec.floatType) {
+  val floatCodec: YamlCodec[Float] = new YamlCodec[Float] {
     def decodeValue(yaml: Yaml): Either[YamlError, Float] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toFloat)
@@ -189,7 +160,7 @@ object YamlCodec {
     def encodeValue(x: Float): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
   }
 
-  val doubleCodec: YamlCodec[Double] = new YamlCodec[Double](YamlCodec.doubleType) {
+  val doubleCodec: YamlCodec[Double] = new YamlCodec[Double] {
     def decodeValue(yaml: Yaml): Either[YamlError, Double] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(v.trim.toDouble)
@@ -199,7 +170,7 @@ object YamlCodec {
     def encodeValue(x: Double): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
   }
 
-  val charCodec: YamlCodec[Char] = new YamlCodec[Char](YamlCodec.charType) {
+  val charCodec: YamlCodec[Char] = new YamlCodec[Char] {
     def decodeValue(yaml: Yaml): Either[YamlError, Char] = yaml match {
       case Yaml.Scalar(v, _) if v.length == 1 => Right(v.charAt(0))
       case Yaml.Scalar(v, _)                  => Left(YamlError.parseError(s"Expected single character, got: $v", 0, 0))
@@ -208,7 +179,7 @@ object YamlCodec {
     def encodeValue(x: Char): Yaml = Yaml.Scalar(x.toString)
   }
 
-  val stringCodec: YamlCodec[String] = new YamlCodec[String]() {
+  val stringCodec: YamlCodec[String] = new YamlCodec[String] {
     def decodeValue(yaml: Yaml): Either[YamlError, String] = yaml match {
       case Yaml.Scalar(v, _) => Right(v)
       case Yaml.NullValue    => Right("")
@@ -217,7 +188,7 @@ object YamlCodec {
     def encodeValue(x: String): Yaml = Yaml.Scalar(x)
   }
 
-  val bigIntCodec: YamlCodec[BigInt] = new YamlCodec[BigInt]() {
+  val bigIntCodec: YamlCodec[BigInt] = new YamlCodec[BigInt] {
     def decodeValue(yaml: Yaml): Either[YamlError, BigInt] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(BigInt(v.trim))
@@ -227,7 +198,7 @@ object YamlCodec {
     def encodeValue(x: BigInt): Yaml = Yaml.Scalar(x.toString)
   }
 
-  val bigDecimalCodec: YamlCodec[BigDecimal] = new YamlCodec[BigDecimal]() {
+  val bigDecimalCodec: YamlCodec[BigDecimal] = new YamlCodec[BigDecimal] {
     def decodeValue(yaml: Yaml): Either[YamlError, BigDecimal] = yaml match {
       case Yaml.Scalar(v, _) =>
         try Right(BigDecimal(v.trim))

@@ -374,19 +374,20 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-        val fields  = record.fields
-
-        val fieldInfos: IndexedSeq[(String, YamlCodec[Any], Boolean, RegisterOffset.RegisterOffset)] = {
-          var offset = RegisterOffset.Zero
-          fields.map { field =>
-            val fieldName   = toKebabCase(field.name)
-            val fieldCodec  = deriveCodec(field.value).asInstanceOf[YamlCodec[Any]]
-            val isOptional  = isOptionalField(field.value)
-            val fieldOffset = offset
-            offset = RegisterOffset.add(offset, fieldCodec.valueOffset)
-            (fieldName, fieldCodec, isOptional, fieldOffset)
-          }
+        val binding    = record.recordBinding.asInstanceOf[Binding.Record[A]]
+        val fields     = record.fields
+        var offset     = 0L
+        val fieldInfos = fields.map { field =>
+          val fieldReflect = field.value
+          val fieldInfo    = new FieldInfo(
+            name = toKebabCase(field.name),
+            codec = deriveCodec(fieldReflect).asInstanceOf[YamlCodec[Any]],
+            offset = offset,
+            typeTag = Reflect.typeTag(fieldReflect),
+            isOptional = isOptionalField(fieldReflect)
+          )
+          offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
+          fieldInfo
         }
 
         new YamlCodec[A]() {
@@ -409,45 +410,45 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
               var error: YamlError = null
               var idx              = 0
               while (idx < fieldInfos.length && error == null) {
-                val (fieldName, codec, isOptional, fieldOffset) = fieldInfos(idx)
-                childMap.get(fieldName) match {
+                val fieldInfo = fieldInfos(idx)
+                val offset    = fieldInfo.offset
+                childMap.get(fieldInfo.name) match {
                   case Some(fieldValue) =>
-                    codec.decodeValue(fieldValue) match {
+                    fieldInfo.codec.decodeValue(fieldValue) match {
                       case Right(v) =>
-                        (codec.valueType: @switch) match {
-                          case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
-                          case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
-                          case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
-                          case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
-                          case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
-                          case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
-                          case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
-                          case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
-                          case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
+                        (fieldInfo.typeTag: @switch) match {
+                          case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
+                          case 1 => regs.setInt(offset, v.asInstanceOf[Int])
+                          case 2 => regs.setLong(offset, v.asInstanceOf[Long])
+                          case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
+                          case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
+                          case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
+                          case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
+                          case 7 => regs.setChar(offset, v.asInstanceOf[Char])
+                          case 8 => regs.setShort(offset, v.asInstanceOf[Short])
                           case _ => ()
                         }
                       case Left(err) => error = err
                     }
                   case None =>
-                    if (isOptional) {
-                      regs.setObject(fieldOffset, None)
-                    } else {
+                    if (fieldInfo.isOptional) regs.setObject(offset, None)
+                    else {
                       val defaultVal = getDefaultValue(fields(idx).value)
                       defaultVal match {
                         case Some(v) =>
-                          (codec.valueType: @switch) match {
-                            case 0 => regs.setObject(fieldOffset, v.asInstanceOf[AnyRef])
-                            case 1 => regs.setInt(fieldOffset, v.asInstanceOf[Int])
-                            case 2 => regs.setLong(fieldOffset, v.asInstanceOf[Long])
-                            case 3 => regs.setFloat(fieldOffset, v.asInstanceOf[Float])
-                            case 4 => regs.setDouble(fieldOffset, v.asInstanceOf[Double])
-                            case 5 => regs.setBoolean(fieldOffset, v.asInstanceOf[Boolean])
-                            case 6 => regs.setByte(fieldOffset, v.asInstanceOf[Byte])
-                            case 7 => regs.setChar(fieldOffset, v.asInstanceOf[Char])
-                            case 8 => regs.setShort(fieldOffset, v.asInstanceOf[Short])
+                          (fieldInfo.typeTag: @switch) match {
+                            case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
+                            case 1 => regs.setInt(offset, v.asInstanceOf[Int])
+                            case 2 => regs.setLong(offset, v.asInstanceOf[Long])
+                            case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
+                            case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
+                            case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
+                            case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
+                            case 7 => regs.setChar(offset, v.asInstanceOf[Char])
+                            case 8 => regs.setShort(offset, v.asInstanceOf[Short])
                             case _ => ()
                           }
-                        case None => error = YamlError.parseError(s"Missing required field: $fieldName", 0, 0)
+                        case None => error = YamlError.parseError(s"Missing required field: ${fieldInfo.name}", 0, 0)
                       }
                     }
                 }
@@ -465,18 +466,21 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
             val entries = Chunk.newBuilder[(Yaml, Yaml)]
             var idx     = 0
             while (idx < fieldInfos.length) {
-              val (fieldName, codec, isOptional, fieldOffset) = fieldInfos(idx)
-              (codec.valueType: @switch) match {
+              val fieldInfo   = fieldInfos(idx)
+              val fieldName   = fieldInfo.name
+              val fieldOffset = fieldInfo.offset
+              val codec       = fieldInfo.codec
+              (fieldInfo.typeTag: @switch) match {
                 case 0 =>
                   val value = regs.getObject(fieldOffset)
-                  if (isOptional && value == None) {
+                  if (fieldInfo.isOptional && value == None) {
                     // skip None
-                  } else if (isOptional && value.isInstanceOf[Some[?]]) {
+                  } else if (fieldInfo.isOptional && value.isInstanceOf[Some[?]]) {
                     val inner      = value.asInstanceOf[Some[Any]].get
-                    val innerCodec = getInnerCodec(codec)
+                    val innerCodec = getInnerCodec(codec.asInstanceOf[YamlCodec[Any]])
                     entries += ((Yaml.Scalar(fieldName), innerCodec.encodeValue(inner)))
                   } else {
-                    entries += ((Yaml.Scalar(fieldName), codec.encodeValue(value)))
+                    entries += ((Yaml.Scalar(fieldName), codec.asInstanceOf[YamlCodec[Any]].encodeValue(value)))
                   }
                 case 1 =>
                   val value = regs.getInt(fieldOffset)
@@ -749,3 +753,11 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     case _: Yaml.NullValue.type => DynamicValue.Null
   }
 }
+
+private case class FieldInfo(
+  name: String,
+  codec: YamlCodec[_],
+  offset: RegisterOffset.RegisterOffset,
+  typeTag: Int,
+  isOptional: Boolean
+)

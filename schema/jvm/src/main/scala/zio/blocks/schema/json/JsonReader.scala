@@ -1648,16 +1648,8 @@ final class JsonReader private[json] (
   @noinline
   def objectEndOrCommaError(): Nothing = decodeError("expected '}' or ','")
 
-  /**
-   * Throws a [[JsonCodecError]] with the given message.
-   *
-   * @param msg
-   *   the exception message
-   * @throws JsonCodecError
-   *   always
-   */
   @noinline
-  def decodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
+  private[this] def decodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Indicates whether the reader is currently in use.

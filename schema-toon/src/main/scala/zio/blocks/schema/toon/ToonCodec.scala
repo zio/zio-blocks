@@ -167,15 +167,6 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("decodeTabularRow not supported for this type")
 
   /**
-   * Returns the field names for this codec if it represents a record type. Used
-   * for tabular array format encoding.
-   *
-   * @return
-   *   Array of field names, or null if not a record type
-   */
-  def fieldNames: Array[String] = null
-
-  /**
    * Encodes a value as a single row in tabular format (values only, no keys).
    * Used when this codec's values are elements in a tabular array.
    *

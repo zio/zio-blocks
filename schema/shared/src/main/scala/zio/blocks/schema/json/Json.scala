@@ -593,10 +593,9 @@ object Json {
         val v2 = v1.normalize
         if (
           v2 match {
-            case obj: Object  => obj.value.nonEmpty
-            case arr: Array   => arr.value.nonEmpty
-            case _: Null.type => false
-            case _            => true
+            case obj: Object => obj.value.nonEmpty
+            case arr: Array  => arr.value.nonEmpty
+            case _           => v2 ne Null
           }
         ) {
           arr(size) =
@@ -734,10 +733,9 @@ object Json {
         val v = value(idx).normalize
         if (
           v match {
-            case obj: Object  => obj.value.nonEmpty
-            case arr: Array   => arr.value.nonEmpty
-            case _: Null.type => false
-            case _            => true
+            case obj: Object => obj.value.nonEmpty
+            case arr: Array  => arr.value.nonEmpty
+            case _           => v ne Null
           }
         ) {
           arr(size) = v

@@ -30,11 +30,6 @@ sealed abstract class CsvError(val message: String) extends Throwable(message, n
 
   /** Column number where the error occurred (1-based). */
   def column: Int
-
-  /** Human-readable formatted error message. */
-  def formatMessage: String
-
-  override def getMessage: String = formatMessage
 }
 
 object CsvError {
@@ -50,7 +45,7 @@ object CsvError {
    *   Column number where the error occurred (1-based)
    */
   final case class ParseError(override val message: String, row: Int, column: Int) extends CsvError(message) {
-    override def formatMessage: String = s"CSV error at row $row, column $column: $message"
+    override def getMessage: String = s"CSV error at row $row, column $column: $message"
   }
 
   /**
@@ -67,6 +62,6 @@ object CsvError {
    */
   final case class TypeError(override val message: String, row: Int, column: Int, fieldName: String)
       extends CsvError(message) {
-    override def formatMessage: String = s"CSV error at row $row, column $column: $message (field: $fieldName)"
+    override def getMessage: String = s"CSV error at row $row, column $column: $message (field: $fieldName)"
   }
 }
