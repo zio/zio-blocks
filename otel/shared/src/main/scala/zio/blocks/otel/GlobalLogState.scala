@@ -42,14 +42,7 @@ final class LogState(
 object GlobalLogState {
 
   /**
-   * Compile-time minimum log level. Log calls below this level are eliminated
-   * from bytecode. Default: 1 (Trace) — nothing eliminated, fully dynamic
-   * filtering.
-   *
-   * To eliminate trace/debug at compile time, override in your build: Set to
-   * Severity.Info.number (9) to eliminate Trace (1-4) and Debug (5-8).
    */
-  inline val COMPILE_MIN_LEVEL: 1 = 1
 
   private val ref: AtomicReference[LogState] = new AtomicReference[LogState](null)
 

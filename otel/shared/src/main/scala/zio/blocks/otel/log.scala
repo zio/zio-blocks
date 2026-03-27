@@ -29,7 +29,8 @@ object log extends LogVersionSpecific {
     val state = GlobalLogState.get()
     if (state != null && severity.number >= state.effectiveLevel(location.namespace)) {
       val now     = System.nanoTime()
-      val builder = Attributes.builder
+      val builder = AttributeBuilderPool
+        .get()
         .put("code.filepath", location.filePath)
         .put("code.namespace", location.namespace)
         .put("code.function", location.methodName)
@@ -65,7 +66,8 @@ object log extends LogVersionSpecific {
     location: SourceLocation
   ): LogRecord = {
     val now     = System.nanoTime()
-    val builder = Attributes.builder
+    val builder = AttributeBuilderPool
+      .get()
       .put("code.filepath", location.filePath)
       .put("code.namespace", location.namespace)
       .put("code.function", location.methodName)

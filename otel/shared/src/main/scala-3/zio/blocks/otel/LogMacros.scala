@@ -39,7 +39,6 @@ private[otel] object LogMacros {
     enrichments match {
       case Varargs(enrichmentExprs) =>
         if (enrichmentExprs.isEmpty) {
-          // No enrichments — use the original emit path for zero overhead
           '{
             val state = GlobalLogState.get()
             if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
@@ -51,7 +50,6 @@ private[otel] object LogMacros {
             }
           }
         } else {
-          // Build unrolled enrichment chain — no List/Seq allocation
           val enrichmentChain: Expr[LogRecord] => Expr[LogRecord] =
             enrichmentExprs.foldLeft(identity[Expr[LogRecord]]) { (chain, enrichmentExpr) =>
               val tpe = enrichmentExpr.asTerm.tpe.widen
