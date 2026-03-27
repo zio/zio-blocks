@@ -194,6 +194,7 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    otelBenchmarks,
     smithy
   )
 

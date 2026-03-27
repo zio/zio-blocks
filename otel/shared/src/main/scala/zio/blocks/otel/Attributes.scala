@@ -252,6 +252,12 @@ object Attributes {
     }
 
     /**
+     * Resets the builder to empty, allowing reuse without allocation.
+     */
+    def clear(): Unit =
+      entries = Array.empty
+
+    /**
      * Builds and returns the immutable Attributes.
      */
     def build: Attributes =
