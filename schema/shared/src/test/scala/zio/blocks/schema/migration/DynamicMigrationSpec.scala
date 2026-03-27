@@ -176,6 +176,70 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
       val source = DynamicValue.Record(Chunk("name" -> str("Ann")))
       val mig    = DynamicMigration(Vector(DropField(DynamicOptic.root.field("age"), MigrationExpr.DefaultValue)))
       assertTrue(mig(source).isLeft)
+    },
+    test("Convert LongToInt expression") {
+      val expr = MigrationExpr.Convert(
+        MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(42L))),
+        MigrationExpr.PrimitiveConversion.LongToInt
+      )
+      assertTrue(
+        expr(DynamicValue.Null).contains(
+          DynamicValue.Primitive(PrimitiveValue.Int(42))
+        )
+      )
+    },
+    test("Convert IntToString expression") {
+      val expr = MigrationExpr.Convert(
+        MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(99))),
+        MigrationExpr.PrimitiveConversion.IntToString
+      )
+      assertTrue(
+        expr(DynamicValue.Null).contains(
+          DynamicValue.Primitive(PrimitiveValue.String("99"))
+        )
+      )
+    },
+    test("MigrationAction reverse of AddField is DropField") {
+      val action = AddField(DynamicOptic.root.field("x"), MigrationExpr.Identity)
+      assertTrue(action.reverse.isInstanceOf[DropField])
+    },
+    test("MigrationAction reverse of Rename swaps to original name") {
+      val action = Rename(DynamicOptic.root.field("old"), "new")
+      val rev    = action.reverse.asInstanceOf[Rename]
+      assertTrue(rev.to == "old")
+    },
+    test("DefaultValue expression returns Right") {
+      assertTrue(MigrationExpr.DefaultValue(DynamicValue.Null).isRight)
+    },
+    test("TransformKeys maps over map keys") {
+      val source = DynamicValue.Map(Chunk(str("old") -> str("val")))
+      val mig    = DynamicMigration(
+        Vector(
+          TransformKeys(
+            DynamicOptic.root,
+            MigrationExpr.Concat(
+              Vector(MigrationExpr.Identity, MigrationExpr.Literal(str("_new"))),
+              ""
+            )
+          )
+        )
+      )
+      assertTrue(mig(source).isRight)
+    },
+    test("TransformValues maps over map values") {
+      val source = DynamicValue.Map(Chunk(str("k") -> str("val")))
+      val mig    = DynamicMigration(
+        Vector(
+          TransformValues(
+            DynamicOptic.root,
+            MigrationExpr.Concat(
+              Vector(MigrationExpr.Identity, MigrationExpr.Literal(str("_x"))),
+              ""
+            )
+          )
+        )
+      )
+      assertTrue(mig(source).isRight)
     }
   )
 }
