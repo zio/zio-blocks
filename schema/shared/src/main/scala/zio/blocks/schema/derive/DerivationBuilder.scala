@@ -218,7 +218,7 @@ final case class DerivationBuilder[TC[_], A](
                 )
                 term.copy(value = newValue.asInstanceOf[Reflect[G, term.Focus]]).asInstanceOf[Term[G, A0, ?]]
               }
-            case None => term
+            case _ => term
           }
         }
       }

@@ -206,8 +206,10 @@ private[schema] object CommonMacroOps {
     val types = new mutable.ListBuffer[TypeRepr]
 
     def loop(tpe: TypeRepr): Unit = tpe.dealias match {
-      case OrType(left, right) => loop(left); loop(right)
-      case dealiased           => if (seen.add(dealiased)) types.addOne(dealiased)
+      case OrType(left, right) =>
+        loop(left)
+        loop(right)
+      case dealiased => if (seen.add(dealiased)) types.addOne(dealiased)
     }
 
     loop(tpe)

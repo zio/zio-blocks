@@ -228,7 +228,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                   case 8 => attributes.addOne((xmlName, regs.getShort(offset).toString))
                   case _ => ()
                 }
-              case None =>
+              case _ =>
                 val name  = fieldInfo.name
                 val codec = fieldInfo.codec
                 (fieldInfo.typeTag: @switch) match {
@@ -296,7 +296,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                   chld
                 )
               } else new Xml.Element(XmlName(recordName), (XmlName("xmlns"), uri) +: attr, chld)
-            case None => new Xml.Element(XmlName(recordName), attr, chld)
+            case _ => new Xml.Element(XmlName(recordName), attr, chld)
           }
         }
       }
@@ -750,11 +750,11 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
   }
 }
 
-private case class FieldInfo(
-  name: String,
-  codec: XmlCodec[Any],
-  offset: RegisterOffset,
-  typeTag: Int,
-  isOptional: Boolean,
-  attrName: Option[String]
+private class FieldInfo(
+  val name: String,
+  val codec: XmlCodec[Any],
+  val offset: RegisterOffset,
+  val typeTag: Int,
+  val isOptional: Boolean,
+  val attrName: Option[String]
 )

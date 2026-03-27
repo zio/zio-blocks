@@ -250,7 +250,10 @@ private[comptime] object AllowsMacroImpl {
 
     def isSealed(tpe: Type): Boolean = {
       val sym = tpe.dealias.typeSymbol
-      sym.isClass && { val cs = sym.asClass; cs.isSealed && (cs.isAbstract || cs.isTrait) }
+      sym.isClass && {
+        val cs = sym.asClass
+        cs.isSealed && (cs.isAbstract || cs.isTrait)
+      }
     }
 
     def isProduct(tpe: Type): Boolean =
@@ -288,8 +291,10 @@ private[comptime] object AllowsMacroImpl {
 
     def casesOf(tpe: Type): List[Type] = {
       implicit val positionOrdering: Ordering[Symbol] = (x: Symbol, y: Symbol) => {
-        val xPos  = x.pos; val yPos                      = y.pos
-        val xFile = xPos.source.file.absolute; val yFile = yPos.source.file.absolute
+        val xPos  = x.pos
+        val yPos  = y.pos
+        val xFile = xPos.source.file.absolute
+        val yFile = yPos.source.file.absolute
         var diff  = xFile.path.compareTo(yFile.path)
         if (diff == 0) diff = xFile.name.compareTo(yFile.name)
         if (diff == 0) diff = xPos.line.compareTo(yPos.line)

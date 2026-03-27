@@ -1238,4 +1238,8 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
   }
 }
 
-private case class FieldInfo(codec: AvroCodec[?], typeTag: Int, offset: RegisterOffset.RegisterOffset)
+private class FieldInfo(
+  val codec: AvroCodec[?],
+  val typeTag: Int,
+  val offset: RegisterOffset.RegisterOffset
+)

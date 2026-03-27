@@ -499,10 +499,10 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
   }
 }
 
-private case class FieldInfo(
-  name: String,
-  codec: ThriftCodec[?],
-  offset: RegisterOffset.RegisterOffset,
-  typeTag: Int,
-  tType: Byte
+private class FieldInfo(
+  val name: String,
+  val codec: ThriftCodec[?],
+  val offset: RegisterOffset.RegisterOffset,
+  val typeTag: Int,
+  val tType: Byte
 )
