@@ -64,6 +64,150 @@ object MigrationSpec extends SchemaBaseSpec {
     test("Migration.identity returns unchanged value") {
       val id = Migration.identity[PersonV1](personV1Schema)
       assertTrue(id(PersonV1("Ann", 2)) == Right(PersonV1("Ann", 2)))
-    }
+    },
+    suite("MigrationAction schema serialization")(
+      test("AddField can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.AddField(
+          DynamicOptic.root.field("x"),
+          MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("default")))
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("DropField can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.DropField(
+          DynamicOptic.root.field("x"),
+          MigrationExpr.DefaultValue
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("Rename can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.Rename(DynamicOptic.root.field("old"), "new")
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("TransformValue can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.TransformValue(
+          DynamicOptic.root.field("x"),
+          MigrationExpr.Identity
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("Mandate can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.Mandate(
+          DynamicOptic.root.field("x"),
+          MigrationExpr.DefaultValue
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("Optionalize can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.Optionalize(DynamicOptic.root.field("x"))
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("RenameCase can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.RenameCase(DynamicOptic.root, "Old", "New")
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("TransformCase can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "MyCase",
+          Vector(MigrationAction.Rename(DynamicOptic.root.field("x"), "y"))
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("ChangeType can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.ChangeType(
+          DynamicOptic.root.field("age"),
+          MigrationExpr.Convert(MigrationExpr.Identity, MigrationExpr.PrimitiveConversion.IntToLong)
+        )
+        val encoded = MigrationAction.schema.toDynamicValue(action)
+        val decoded = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("TransformElements can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.TransformElements(DynamicOptic.root, MigrationExpr.Identity)
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("TransformKeys can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.TransformKeys(DynamicOptic.root, MigrationExpr.Identity)
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("TransformValues can be encoded and decoded via Schema") {
+        val action: MigrationAction = MigrationAction.TransformValues(DynamicOptic.root, MigrationExpr.Identity)
+        val encoded                 = MigrationAction.schema.toDynamicValue(action)
+        val decoded                 = MigrationAction.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(action))
+      },
+      test("DynamicMigration can be encoded and decoded via Schema") {
+        val m = DynamicMigration(
+          Vector(
+            MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName"),
+            MigrationAction.AddField(
+              DynamicOptic.root.field("age"),
+              MigrationExpr.Literal(
+                DynamicValue.Primitive(PrimitiveValue.Int(0))
+              )
+            )
+          )
+        )
+        val encoded = DynamicMigration.schema.toDynamicValue(m)
+        val decoded = DynamicMigration.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(m))
+      },
+      test("MigrationExpr Concat can be encoded and decoded via Schema") {
+        val expr: MigrationExpr = MigrationExpr.Concat(
+          Vector(
+            MigrationExpr.Identity,
+            MigrationExpr.Literal(
+              DynamicValue.Primitive(PrimitiveValue.String("_suffix"))
+            )
+          ),
+          ""
+        )
+        val encoded = MigrationExpr.schema.toDynamicValue(expr)
+        val decoded = MigrationExpr.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(expr))
+      },
+      test("MigrationExpr FieldAccess can be encoded and decoded via Schema") {
+        val expr: MigrationExpr = MigrationExpr.FieldAccess(DynamicOptic.root.field("name"))
+        val encoded             = MigrationExpr.schema.toDynamicValue(expr)
+        val decoded             = MigrationExpr.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(expr))
+      },
+      test("MigrationExpr Convert can be encoded and decoded via Schema") {
+        val expr: MigrationExpr = MigrationExpr.Convert(
+          MigrationExpr.Identity,
+          MigrationExpr.PrimitiveConversion.LongToInt
+        )
+        val encoded = MigrationExpr.schema.toDynamicValue(expr)
+        val decoded = MigrationExpr.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(expr))
+      },
+      test("MigrationExpr Compose can be encoded and decoded via Schema") {
+        val expr: MigrationExpr = MigrationExpr.Compose(MigrationExpr.Identity, MigrationExpr.DefaultValue)
+        val encoded             = MigrationExpr.schema.toDynamicValue(expr)
+        val decoded             = MigrationExpr.schema.fromDynamicValue(encoded)
+        assertTrue(decoded == Right(expr))
+      }
+    )
   )
 }
