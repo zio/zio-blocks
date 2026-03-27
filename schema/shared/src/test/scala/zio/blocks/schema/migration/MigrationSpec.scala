@@ -42,6 +42,23 @@ object MigrationSpec extends SchemaBaseSpec {
       )
       val m2 = Migration.identity[PersonV2](personV2Schema)
       assertTrue((m1 ++ m2)(PersonV1("A", 1)) == Right(PersonV2("A", 1)))
+    },
+    test("reverse swaps schemas and dynamic migration direction") {
+      val migration = Migration[PersonV1, PersonV2](
+        DynamicMigration(Vector(MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName"))),
+        personV1Schema,
+        personV2Schema
+      )
+      assertTrue(migration.reverse(PersonV2("Ann", 10)) == Right(PersonV1("Ann", 10)))
+    },
+    test("schema decode failures are mapped to InvalidValue") {
+      val migration = Migration[Int, String](DynamicMigration.identity, Schema[Int], Schema[String])
+      assertTrue(
+        migration(42) match {
+          case Left(MigrationError.InvalidValue(path, _)) => path == DynamicOptic.root
+          case _                                          => false
+        }
+      )
     }
   )
 }

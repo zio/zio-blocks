@@ -22,9 +22,9 @@ import zio.blocks.schema.migration.MigrationAction._
 import zio.test._
 
 object DynamicMigrationSpec extends SchemaBaseSpec {
-  private def str(v: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(v))
-  private def int(v: Int): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.Int(v))
-  private def long(v: Long): DynamicValue  = DynamicValue.Primitive(PrimitiveValue.Long(v))
+  private def str(v: String): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.String(v))
+  private def int(v: Int): DynamicValue      = DynamicValue.Primitive(PrimitiveValue.Int(v))
+  private def long(v: Long): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.Long(v))
   private def bool(v: Boolean): DynamicValue = DynamicValue.Primitive(PrimitiveValue.Boolean(v))
 
   def spec: Spec[Any, Any] = suite("DynamicMigrationSpec")(
@@ -72,14 +72,16 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     test("Optionalize wraps field in Some") {
       val source = DynamicValue.Record(Chunk("enabled" -> bool(true)))
       val mig    = DynamicMigration(Vector(Optionalize(DynamicOptic.root.field("enabled"))))
-      assertTrue(mig(source).contains(DynamicValue.Record(Chunk("enabled" -> DynamicValue.Variant("Some", bool(true))))))
+      assertTrue(
+        mig(source).contains(DynamicValue.Record(Chunk("enabled" -> DynamicValue.Variant("Some", bool(true)))))
+      )
     },
     test("Join stores combined value at target path") {
       val source = DynamicValue.Record(
         Chunk(
           "first" -> str("Ann"),
-          "last" -> str("Lee"),
-          "full" -> str("")
+          "last"  -> str("Lee"),
+          "full"  -> str("")
         )
       )
       val mig = DynamicMigration(
@@ -140,7 +142,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("ChangeType converts an existing field") {
       val source = DynamicValue.Record(Chunk("age" -> int(10)))
-      val mig = DynamicMigration(
+      val mig    = DynamicMigration(
         Vector(
           ChangeType(
             DynamicOptic.root.field("age"),

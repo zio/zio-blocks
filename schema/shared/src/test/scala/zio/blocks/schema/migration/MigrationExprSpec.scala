@@ -22,11 +22,11 @@ import zio.blocks.schema.migration.MigrationExpr.PrimitiveConversion
 import zio.test._
 
 object MigrationExprSpec extends SchemaBaseSpec {
-  private def str(v: String): DynamicValue  = DynamicValue.Primitive(PrimitiveValue.String(v))
-  private def int(v: Int): DynamicValue     = DynamicValue.Primitive(PrimitiveValue.Int(v))
-  private def long(v: Long): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.Long(v))
-  private def dbl(v: Double): DynamicValue  = DynamicValue.Primitive(PrimitiveValue.Double(v))
-  private def flt(v: Float): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.Float(v))
+  private def str(v: String): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.String(v))
+  private def int(v: Int): DynamicValue      = DynamicValue.Primitive(PrimitiveValue.Int(v))
+  private def long(v: Long): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.Long(v))
+  private def dbl(v: Double): DynamicValue   = DynamicValue.Primitive(PrimitiveValue.Double(v))
+  private def flt(v: Float): DynamicValue    = DynamicValue.Primitive(PrimitiveValue.Float(v))
   private def bool(v: Boolean): DynamicValue = DynamicValue.Primitive(PrimitiveValue.Boolean(v))
 
   def spec: Spec[Any, Any] = suite("MigrationExprSpec")(
