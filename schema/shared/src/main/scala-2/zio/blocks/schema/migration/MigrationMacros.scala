@@ -2,6 +2,7 @@ package zio.blocks.schema.migration
 
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
+import zio.blocks.schema.DynamicOptic
 
 object MigrationMacros {
 

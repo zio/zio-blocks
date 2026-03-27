@@ -7,7 +7,6 @@ import zio.test.*
 object MigrationMacroSpec extends ZIOSpecDefault {
 
   def spec: Spec[Any, Any] = suite("MigrationMacroSpec")(
-
     test("select produces DynamicOptic for single field") {
       case class Person(name: String)
       val optic = select[Person](_.name)
@@ -32,12 +31,14 @@ object MigrationMacroSpec extends ZIOSpecDefault {
       given Schema[PersonV0]  = Schema.derived[PersonV0]
       given Schema[PersonV1]  = Schema.derived[PersonV1]
 
-      val addrMigration = Migration.newBuilder[AddressV0, AddressV1]
+      val addrMigration = Migration
+        .newBuilder[AddressV0, AddressV1]
         .renameField(select[AddressV0](_.street), select[AddressV1](_.streetName))
-        .renameField(select[AddressV0](_.zip),    select[AddressV1](_.postalCode))
+        .renameField(select[AddressV0](_.zip), select[AddressV1](_.postalCode))
         .buildPartial
 
-      val personMigration = Migration.newBuilder[PersonV0, PersonV1]
+      val personMigration = Migration
+        .newBuilder[PersonV0, PersonV1]
         .renameField(select[PersonV0](_.name), select[PersonV1](_.name))
         .inField(select[PersonV0](_.address), select[PersonV1](_.address), addrMigration)
         .buildPartial
@@ -45,6 +46,5 @@ object MigrationMacroSpec extends ZIOSpecDefault {
       val result = personMigration(PersonV0("John", AddressV0("Main St", "10001")))
       assertTrue(result == Right(PersonV1("John", AddressV1("Main St", "10001"))))
     }
-
   )
 }

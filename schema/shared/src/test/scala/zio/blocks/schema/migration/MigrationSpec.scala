@@ -42,6 +42,28 @@ object MigrationSpec extends SchemaBaseSpec {
       )
       val m2 = Migration.identity[PersonV2](personV2Schema)
       assertTrue((m1 ++ m2)(PersonV1("A", 1)) == Right(PersonV2("A", 1)))
+    },
+    test("typed migration reverse works for rename") {
+      val m = Migration[PersonV1, PersonV2](
+        DynamicMigration(Vector(MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName"))),
+        personV1Schema,
+        personV2Schema
+      )
+      val in = PersonV1("Ann", 10)
+      assertTrue(m(in).flatMap(m.reverse(_)) == Right(in))
+    },
+    test("typed migration andThen composes") {
+      val m1 = Migration[PersonV1, PersonV2](
+        DynamicMigration(Vector(MigrationAction.Rename(DynamicOptic.root.field("name"), "fullName"))),
+        personV1Schema,
+        personV2Schema
+      )
+      val m2 = Migration.identity[PersonV2](personV2Schema)
+      assertTrue(m1.andThen(m2)(PersonV1("A", 1)) == Right(PersonV2("A", 1)))
+    },
+    test("Migration.identity returns unchanged value") {
+      val id = Migration.identity[PersonV1](personV1Schema)
+      assertTrue(id(PersonV1("Ann", 2)) == Right(PersonV1("Ann", 2)))
     }
   )
 }
