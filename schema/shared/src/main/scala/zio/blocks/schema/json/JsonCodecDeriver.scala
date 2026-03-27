@@ -1410,19 +1410,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Int] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Int](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Int](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, intCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, intCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Int](builder)
-                  case _: Json.Null.type => constructor.empty[Int]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Int]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
@@ -1485,19 +1488,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Int] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Int](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Int](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Int](builder)
-                  case _: Json.Null.type => constructor.empty[Int]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Int]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
@@ -1561,19 +1567,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Long] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Long](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Long](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, longCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, longCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Long](builder)
-                  case _: Json.Null.type => constructor.empty[Long]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Long]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
@@ -1636,19 +1645,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Long] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Long](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Long](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Long](builder)
-                  case _: Json.Null.type => constructor.empty[Long]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Long]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
@@ -1712,19 +1724,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Float] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Float](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Float](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, floatCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, floatCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Float](builder)
-                  case _: Json.Null.type => constructor.empty[Float]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Float]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
@@ -1787,19 +1802,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Float] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Float](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Float](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Float](builder)
-                  case _: Json.Null.type => constructor.empty[Float]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Float]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
@@ -1863,19 +1881,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Double] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Double](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Double](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, doubleCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, doubleCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Double](builder)
-                  case _: Json.Null.type => constructor.empty[Double]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Double]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
@@ -1938,19 +1959,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Double] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Double](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Double](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Double](builder)
-                  case _: Json.Null.type => constructor.empty[Double]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Double]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
@@ -2014,19 +2038,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Boolean] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Boolean](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, booleanCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, booleanCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Boolean](builder)
-                  case _: Json.Null.type => constructor.empty[Boolean]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Boolean]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
@@ -2089,19 +2116,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Boolean] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Boolean](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Boolean](builder)
-                  case _: Json.Null.type => constructor.empty[Boolean]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Boolean]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
@@ -2165,19 +2195,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Byte] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Byte](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, byteCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, byteCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Byte](builder)
-                  case _: Json.Null.type => constructor.empty[Byte]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Byte]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
@@ -2240,19 +2273,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Byte] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Byte](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Byte](builder)
-                  case _: Json.Null.type => constructor.empty[Byte]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Byte]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
@@ -2316,19 +2352,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Char] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Char](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Char](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, charCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, charCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Char](builder)
-                  case _: Json.Null.type => constructor.empty[Char]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Char]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
@@ -2391,19 +2430,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Char] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Char](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Char](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Char](builder)
-                  case _: Json.Null.type => constructor.empty[Char]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Char]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
@@ -2467,19 +2509,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Short] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Short](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Short](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, shortCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, shortCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Short](builder)
-                  case _: Json.Null.type => constructor.empty[Short]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Short]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
@@ -2542,19 +2587,22 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Short] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Short](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Short](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Short](builder)
-                  case _: Json.Null.type => constructor.empty[Short]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Short]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
@@ -2615,19 +2663,22 @@ class JsonCodecDeriver private[json] (
 
               override def decodeValue(json: Json): Col[Elem] = json match {
                 case a: Json.Array =>
-                  val builder = constructor.newBuilder[Elem](a.value.length)(elemClassTag)
+                  val elems   = a.value
+                  val len     = elems.length
+                  val builder = constructor.newBuilder[Elem](len)(elemClassTag)
                   var idx     = 0
                   try {
-                    a.value.foreach { e =>
-                      constructor.add(builder, elementCodec.decodeValue(e))
+                    while (idx < len) {
+                      constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                       idx += 1
                     }
                   } catch {
                     case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                   }
                   constructor.result[Elem](builder)
-                case _: Json.Null.type => constructor.empty[Elem](elemClassTag)
-                case _                 => error("expected Json.Array")
+                case _ =>
+                  if (json eq Json.Null) constructor.empty[Elem](elemClassTag)
+                  else error("expected Json.Array")
               }
 
               override def encodeValue(x: Col[Elem]): Json = {
@@ -2729,8 +2780,9 @@ class JsonCodecDeriver private[json] (
                   idx += 1
               }
               constructor.resultObject[Key, Value](builder)
-            case _: Json.Null.type => constructor.emptyObject[Key, Value]
-            case _                 => error("expected Json.Object")
+            case _ =>
+              if (json eq Json.Null) constructor.emptyObject[Key, Value]
+              else error("expected Json.Object")
           }
 
           override def encodeValue(x: Map[Key, Value]): Json = {
@@ -2792,7 +2844,7 @@ class JsonCodecDeriver private[json] (
           override def encodeValue(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeValue(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => out.encodeError(err.getMessage)
+              case err if NonFatal(err) => error(err.getMessage)
             }
 
           override def decodeValue(json: Json): A =
@@ -2816,7 +2868,7 @@ class JsonCodecDeriver private[json] (
           override def encodeKey(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeKey(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => out.encodeError(err.getMessage)
+              case err if NonFatal(err) => error(err.getMessage)
             }
 
           override def decodeKey(s: String): A =

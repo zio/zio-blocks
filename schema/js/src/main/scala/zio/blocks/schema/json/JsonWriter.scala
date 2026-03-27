@@ -506,7 +506,7 @@ final class JsonWriter private[json] (
    *   always
    */
   @noinline
-  def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
+  private[this] def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Writes a `BigDecimal` value as a JSON value.
