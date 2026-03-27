@@ -7,12 +7,12 @@ object MigrationSpec extends ZIOSpecDefault {
 
   case class PersonV1(name: String, age: Int)
   object PersonV1 {
-    implicit val schema: Schema[PersonV1] = DeriveSchema.gen[PersonV1]
+    implicit lazy val schema: Schema[PersonV1] = Schema.derived[PersonV1]
   }
 
   case class PersonV2(fullName: String, age: Int, active: Boolean)
   object PersonV2 {
-    implicit val schema: Schema[PersonV2] = DeriveSchema.gen[PersonV2]
+    implicit lazy val schema: Schema[PersonV2] = Schema.derived[PersonV2]
   }
 
   def spec = suite("MigrationSpec")(
@@ -40,7 +40,7 @@ object MigrationSpec extends ZIOSpecDefault {
       // "Field(s) [active, fullName] in target schema are missing from source and have no default value provided."
       // val failingMigration = MigrationBuilder.make[PersonV1, PersonV2].build
 
-      val trueLiteral = SchemaExpr.Literal(true, Schema.primitive(StandardType.BoolType))
+      val trueLiteral = SchemaExpr.Literal[Any, Boolean](true, Schema[Boolean])
 
       val workingMigration = MigrationBuilder
         .make[PersonV1, PersonV2]

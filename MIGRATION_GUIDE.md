@@ -1,6 +1,6 @@
 # ZIO Schema Migrations Guide
 
-Welcome to the **Algebraic Migration Engine** for ZIO Blocks Schema. 
+Welcome to the **Algebraic Migration Engine** for ZIO Blocks Schema.
 This system provides a compile-time safe, stack-safe, purely algebraic layout for migrating your `Schema` versions using an advanced Macro Builder API.
 
 ## Core Concepts
@@ -23,7 +23,7 @@ case class PersonV2(fullName: String, age: Int, active: Boolean)
 val boolSchema = Schema[Boolean]
 val trueValue = true
 
-val V1ToV2: Migration[PersonV1, PersonV2] = 
+val V1ToV2: Migration[PersonV1, PersonV2] =
   MigrationBuilder.make[PersonV1, PersonV2]
     .renameField(_.name, _.fullName)
     .addField(_.active, SchemaExpr.Literal(trueValue, boolSchema))

@@ -93,16 +93,16 @@ private[schema] sealed trait Trampoline[+A] {
     case Trampoline.Suspend(thunk) => thunk().run
     case Trampoline.FlatMap(t, f)  =>
       t match {
-        case Trampoline.Done(a)         => f(a).run
-        case Trampoline.Suspend(thunk)  => 
+        case Trampoline.Done(a)        => f(a).run
+        case Trampoline.Suspend(thunk) =>
           val next: Trampoline[A] = Trampoline.FlatMap(thunk(), f)
           next.run
         case fm2: Trampoline.FlatMap[_, _] =>
-        val t2 = fm2.t.asInstanceOf[Trampoline[Any]]
-        val f2 = fm2.f.asInstanceOf[Any => Trampoline[Any]]
-        val f1 = f.asInstanceOf[Any => Trampoline[A]]
-        val next: Trampoline[A] = Trampoline.FlatMap(t2, (x: Any) => Trampoline.FlatMap(f2(x), f1))
-        next.run
+          val t2                  = fm2.t.asInstanceOf[Trampoline[Any]]
+          val f2                  = fm2.f.asInstanceOf[Any => Trampoline[Any]]
+          val f1                  = f.asInstanceOf[Any => Trampoline[A]]
+          val next: Trampoline[A] = Trampoline.FlatMap(t2, (x: Any) => Trampoline.FlatMap(f2(x), f1))
+          next.run
       }
   }
   def flatMap[B](f: A => Trampoline[B]): Trampoline[B] = Trampoline.FlatMap(this, f)

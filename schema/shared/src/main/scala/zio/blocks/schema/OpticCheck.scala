@@ -16,7 +16,6 @@
 
 package zio.blocks.schema
 
-import java.lang
 import scala.util.control.NoStackTrace
 
 final case class OpticCheck(errors: ::[OpticCheck.Single]) extends Exception with NoStackTrace {
@@ -27,7 +26,7 @@ final case class OpticCheck(errors: ::[OpticCheck.Single]) extends Exception wit
   def hasError: Boolean = errors.exists(_.isError)
 
   def message: String = {
-    val sb = new lang.StringBuilder
+    val sb = new StringBuilder
     errors.foreach { e =>
       if (sb.length > 0) sb.append('\n')
       sb.append(e.message)

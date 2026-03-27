@@ -24,22 +24,30 @@ import zio.blocks.typeid.TypeId
 import zio.blocks.schema.json.{Json, JsonCodec, JsonFormat, JsonSchema, JsonSchemaToReflect}
 import zio.blocks.schema.patch.{Patch, PatchMode}
 
-import java.util.concurrent.ConcurrentHashMap
-
 /**
  * A `Schema` is a data type that contains reified information on the structure
  * of a Scala data type, together with the ability to tear down and build up
  * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
-  private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
+  @volatile private[this] var cache: Map[codec.Format, Any] = Map.empty
 
   lazy val jsonCodec: JsonCodec[A] = getInstance(JsonFormat)
 
   def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
-    cache
-      .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => deriving(format.deriver).derive)
+    cache.get(format) match {
+      case Some(tc) => tc.asInstanceOf[format.TypeClass[A]]
+      case None =>
+        this.synchronized {
+          cache.get(format) match {
+            case Some(tc) => tc.asInstanceOf[format.TypeClass[A]]
+            case None =>
+              val tc = deriving(format.deriver).derive
+              cache = cache + (format -> tc)
+              tc
+          }
+        }
+    }
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 

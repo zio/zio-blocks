@@ -223,42 +223,83 @@ object MigrationBuilderMacroImpls {
   def buildImpl[A: Type, B: Type](self: Expr[MigrationBuilder[A, B]])(using q: Quotes): Expr[Migration[A, B]] = {
     import q.reflect.*
 
-    val targetTypeSymbol = TypeRepr.of[B].typeSymbol
-    val targetFields     =
-      if (targetTypeSymbol.isClassDef) targetTypeSymbol.caseFields.map(_.name).toSet else Set.empty[String]
+    def getFields(tr: TypeRepr): Set[String] = {
+      val sym = tr.typeSymbol
+      val caseF = scala.util.Try(if (sym.isClassDef) sym.caseFields.map(_.name.trim).toSet else Set.empty[String]).getOrElse(Set.empty[String])
+      def refinements(t: TypeRepr): Set[String] = t.dealias match {
+        case Refinement(parent, name, _) => refinements(parent) + name.trim
+        case AndType(left, right) => refinements(left) ++ refinements(right)
+        case _ => Set.empty
+      }
+      caseF ++ refinements(tr)
+    }
 
-    val sourceTypeSymbol = TypeRepr.of[A].typeSymbol
-    val sourceFields     =
-      if (sourceTypeSymbol.isClassDef) sourceTypeSymbol.caseFields.map(_.name).toSet else Set.empty[String]
+    val targetFields = getFields(TypeRepr.of[B])
+    val sourceFields = getFields(TypeRepr.of[A])
+
+    val fieldMethods = Set("addField", "transformField", "mandateField", "changeFieldType", "optionalizeField")
+
+    def extractFieldFromFirstArg(args: List[Term]): Option[String] =
+      if (args.nonEmpty) {
+        val nodes = extractOpticNodesForTerm(args(0))
+        nodes.lastOption match {
+          case Some(Select(_, fname)) => Some(fname)
+          case _                      => None
+        }
+      } else None
+
+    def extractFieldFromSecondArg(args: List[Term]): Option[String] =
+      if (args.size > 1) {
+        val nodes = extractOpticNodesForTerm(args(1))
+        nodes.lastOption match {
+          case Some(Select(_, fname)) => Some(fname)
+          case _                      => None
+        }
+      } else None
 
     def extractUserFields(term: Term): Set[String] = term match {
-      case Inlined(_, _, body)                                      => extractUserFields(body)
-      case Block(_, expr)                                           => extractUserFields(expr)
-      case TypeApply(Select(qualifier, _), _)              => extractUserFields(qualifier)
+      case Inlined(_, _, body) => extractUserFields(body)
+      case Block(_, expr)      => extractUserFields(expr)
+
+      // Extension method pattern: Apply(Apply(TypeApply(Ident(methodName), _), List(qualifier)), args)
+      case Apply(Apply(TypeApply(Ident(methodName), _), List(qualifier)), args) =>
+        val fromParent = extractUserFields(qualifier)
+        if (fieldMethods.contains(methodName))
+          extractFieldFromFirstArg(args).fold(fromParent)(fromParent + _)
+        else if (methodName == "renameField")
+          extractFieldFromSecondArg(args).orElse(extractFieldFromFirstArg(args)).fold(fromParent)(fromParent + _)
+        else fromParent
+
+      // Extension method without type params: Apply(Apply(Ident(methodName), List(qualifier)), args)
+      case Apply(Apply(Ident(methodName), List(qualifier)), args) =>
+        val fromParent = extractUserFields(qualifier)
+        if (fieldMethods.contains(methodName))
+          extractFieldFromFirstArg(args).fold(fromParent)(fromParent + _)
+        else if (methodName == "renameField")
+          extractFieldFromSecondArg(args).orElse(extractFieldFromFirstArg(args)).fold(fromParent)(fromParent + _)
+        else fromParent
+
+      // Regular method call: Apply(TypeApply(Select(qualifier, methodName), _), args)
       case Apply(TypeApply(Select(qualifier, methodName), _), args) =>
         val fromParent = extractUserFields(qualifier)
-        if (
-          methodName == "addField" || methodName == "transformField" || methodName == "mandateField" || methodName == "changeFieldType" || methodName == "optionalizeField"
-        ) {
-          if (args.nonEmpty) {
-            val nodes = extractOpticNodesForTerm(args(0))
-            nodes.lastOption match {
-              case Some(Select(_, fname)) => fromParent + fname
-              case _                      => fromParent
-            }
-          } else fromParent
-        } else if (methodName == "renameField") {
-          if (args.size > 1) {
-            val nodes = extractOpticNodesForTerm(args(1))
-            nodes.lastOption match {
-              case Some(Select(_, fname)) => fromParent + fname
-              case _                      => fromParent
-            }
-          } else fromParent
-        } else fromParent
-      case Apply(Select(qualifier, _), _) => extractUserFields(qualifier)
-      case Select(qualifier, _)           => extractUserFields(qualifier)
-      case _                              => Set.empty
+        if (fieldMethods.contains(methodName))
+          extractFieldFromFirstArg(args).fold(fromParent)(fromParent + _)
+        else if (methodName == "renameField")
+          extractFieldFromSecondArg(args).orElse(extractFieldFromFirstArg(args)).fold(fromParent)(fromParent + _)
+        else fromParent
+
+      // Regular method call without type params: Apply(Select(qualifier, methodName), args)
+      case Apply(Select(qualifier, methodName), args) =>
+        val fromParent = extractUserFields(qualifier)
+        if (fieldMethods.contains(methodName))
+          extractFieldFromFirstArg(args).fold(fromParent)(fromParent + _)
+        else if (methodName == "renameField")
+          extractFieldFromSecondArg(args).orElse(extractFieldFromFirstArg(args)).fold(fromParent)(fromParent + _)
+        else fromParent
+
+      case TypeApply(inner, _) => extractUserFields(inner)
+      case Select(qualifier, _) => extractUserFields(qualifier)
+      case _ => Set.empty
     }
 
     val handledFields   = extractUserFields(self.asTerm)

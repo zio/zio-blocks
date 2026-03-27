@@ -10,40 +10,75 @@ trait MigrationBuilderMacros[A, B] {
 }
 
 final class MigrationBuilderSyntax[A, B](val self: MigrationBuilder[A, B]) extends AnyVal {
-  def addField[T](path: B => T, default: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.addFieldImpl[A, B, T]
-  def dropField[T](oldPath: A => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.dropFieldImpl[A, B, T]
-  def renameField[T](oldPath: A => T, newPath: B => T): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.renameFieldImpl[A, B, T]
-  def transformField[T](path: B => T, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformFieldImpl[A, B, T]
-  def mandateField[T](path: B => T, default: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.mandateFieldImpl[A, B, T]
-  def optionalizeField[T](path: B => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]
-  def changeFieldType[T](path: B => T, converter: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.changeFieldTypeImpl[A, B, T]
+  def addField[T](path: B => T, default: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.addFieldImpl[A, B, T]
+  def dropField[T](oldPath: A => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.dropFieldImpl[A, B, T]
+  def renameField[T](oldPath: A => T, newPath: B => T): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.renameFieldImpl[A, B, T]
+  def transformField[T](path: B => T, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.transformFieldImpl[A, B, T]
+  def mandateField[T](path: B => T, default: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.mandateFieldImpl[A, B, T]
+  def optionalizeField[T](path: B => T, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.optionalizeFieldImpl[A, B, T]
+  def changeFieldType[T](path: B => T, converter: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.changeFieldTypeImpl[A, B, T]
 
-  def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] = self.renameCaseCore(from, to)
+  def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] =
+    self.renameCaseCore(from, to)
 
   def transformCase[SumA, CaseA, SumB, CaseB](
     caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
-  )(implicit schemaCaseA: Schema[CaseA], schemaCaseB: Schema[CaseB]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformCaseImpl[A, B, SumA, CaseA, SumB, CaseB]
+  )(implicit schemaCaseA: Schema[CaseA], schemaCaseB: Schema[CaseB]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.transformCaseImpl[A, B, SumA, CaseA, SumB, CaseB]
 
-  def transformElements[T](at: A => Iterable[T], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformElementsImpl[A, B, T]
-  def transformKeys[K, V](at: A => Map[K, V], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformKeysImpl[A, B, K, V]
-  def transformValues[K, V](at: A => Map[K, V], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] = macro MigrationBuilderMacroImpls.transformValuesImpl[A, B, K, V]
+  def transformElements[T](at: A => Iterable[T], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.transformElementsImpl[A, B, T]
+  def transformKeys[K, V](at: A => Map[K, V], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.transformKeysImpl[A, B, K, V]
+  def transformValues[K, V](at: A => Map[K, V], transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+    macro MigrationBuilderMacroImpls.transformValuesImpl[A, B, K, V]
 
   def build: Migration[A, B] = macro MigrationBuilderMacroImpls.buildImpl[A, B]
 }
 
 object MigrationBuilderMacroImpls {
+
+  private def extractOpticNodes(c: blackbox.Context)(t: c.Tree): List[c.Tree] = {
+    import c.universe._
+    t match {
+      case Function(_, body)                  => extractOpticNodes(c)(body)
+      case Select(parent, TermName(fieldName)) =>
+        extractOpticNodes(c)(parent) :+ q"_root_.zio.blocks.schema.DynamicOptic.Node.Field($fieldName)"
+      case Ident(_)                           => Nil
+      case _                                  => c.abort(c.enclosingPosition, s"Unsupported path element: ${showRaw(t)}")
+    }
+  }
+
   def extractOptic(c: blackbox.Context)(path: c.Tree): c.Tree = {
     import c.universe._
-
-    def extractOpticNodes(t: c.Tree): List[c.Tree] = t match {
-      case Function(_, body) => extractOpticNodes(body)
-      case Select(parent, TermName(fieldName)) => extractOpticNodes(parent) :+ q"_root_.zio.blocks.schema.DynamicOptic.Node.Field($fieldName)"
-      case Ident(_) => Nil
-      case _ => c.abort(c.enclosingPosition, s"Unsupported path element: ${showRaw(t)}")
-    }
-
-    val nodes = extractOpticNodes(path)
+    val nodes = extractOpticNodes(c)(path)
     q"_root_.zio.blocks.schema.DynamicOptic(Vector(..$nodes))"
+  }
+
+  private def extractParentOptic(c: blackbox.Context)(path: c.Tree): c.Tree = {
+    import c.universe._
+    val nodes = extractOpticNodes(c)(path)
+    if (nodes.isEmpty) c.abort(c.enclosingPosition, "Path empty")
+    val parentNodes = nodes.init
+    q"_root_.zio.blocks.schema.DynamicOptic(Vector(..$parentNodes))"
+  }
+
+  private def extractLastFieldName(c: blackbox.Context)(path: c.Tree): c.Tree = {
+    import c.universe._
+    val nodes = extractOpticNodes(c)(path)
+    if (nodes.isEmpty) c.abort(c.enclosingPosition, "Path empty")
+    // Last node is q"DynamicOptic.Node.Field($name)" — extract the name literal
+    nodes.last match {
+      case q"_root_.zio.blocks.schema.DynamicOptic.Node.Field($name)" => name
+      case _ => c.abort(c.enclosingPosition, "Expected path to end in a field select")
+    }
   }
 
   def addFieldImpl[A, B, T](c: blackbox.Context)(path: c.Tree, default: c.Tree): c.Tree = {
@@ -58,18 +93,10 @@ object MigrationBuilderMacroImpls {
 
   def renameFieldImpl[A, B, T](c: blackbox.Context)(oldPath: c.Tree, newPath: c.Tree): c.Tree = {
     import c.universe._
-    
-    val fromNodeExpr = extractOptic(c)(oldPath)
-    val toNodeExpr = extractOptic(c)(newPath)
-
-    q"""
-      val toOptic = $toNodeExpr
-      val toField = toOptic.nodes.last match {
-        case _root_.zio.blocks.schema.DynamicOptic.Node.Field(name) => name
-        case _ => throw new IllegalArgumentException("renameField target must end in a Field node")
-      }
-      ${c.prefix}.self.renameFieldCore($fromNodeExpr, toField)
-    """
+    val parentOptic = extractParentOptic(c)(oldPath)
+    val oldName = extractLastFieldName(c)(oldPath)
+    val newName = extractLastFieldName(c)(newPath)
+    q"${c.prefix}.self.renameFieldCore($parentOptic, $oldName, $newName)"
   }
 
   def transformFieldImpl[A, B, T](c: blackbox.Context)(path: c.Tree, transform: c.Tree): c.Tree = {
@@ -92,7 +119,9 @@ object MigrationBuilderMacroImpls {
     q"${c.prefix}.self.changeFieldTypeCore(${extractOptic(c)(path)}, $converter)"
   }
 
-  def transformCaseImpl[A, B, SumA, CaseA: c.WeakTypeTag, SumB, CaseB](c: blackbox.Context)(caseMigration: c.Tree)(schemaCaseA: c.Tree, schemaCaseB: c.Tree): c.Tree = {
+  def transformCaseImpl[A, B, SumA, CaseA: c.WeakTypeTag, SumB, CaseB](
+    c: blackbox.Context
+  )(caseMigration: c.Tree)(schemaCaseA: c.Tree, schemaCaseB: c.Tree): c.Tree = {
     import c.universe._
     val caseName = weakTypeOf[CaseA].typeSymbol.name.decodedName.toString
     q"""
@@ -116,40 +145,49 @@ object MigrationBuilderMacroImpls {
     q"${c.prefix}.self.transformValuesCore(${extractOptic(c)(at)}, $transform)"
   }
 
-  def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Tree = {
+  def buildImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Expr[_root_.zio.blocks.schema.Migration[A, B]] = {
     import c.universe._
-    
-    val sourceTpe = weakTypeOf[A]
-    val targetTpe = weakTypeOf[B]
 
-    val sourceFields = sourceTpe.decls.collect { case m: MethodSymbol if m.isCaseAccessor => m.name.decodedName.toString }.toSet
-    val targetFields = targetTpe.decls.collect { case m: MethodSymbol if m.isCaseAccessor => m.name.decodedName.toString }.toSet
+    def getFields(tpe: Type): Set[String] = {
+      val caseAccessors = tpe.decls.collect { case m: MethodSymbol if m.isCaseAccessor => m.name.decodedName.toString }.toSet
+      if (caseAccessors.nonEmpty) caseAccessors
+      else tpe.decls.collect {
+        case m: MethodSymbol if m.isPublic && m.isAbstract && !m.isConstructor => m.name.decodedName.toString
+        case m: MethodSymbol if m.isPublic && m.isVal => m.name.decodedName.toString
+      }.toSet
+    }
+
+    val sourceFields = getFields(weakTypeOf[A])
+    val targetFields = getFields(weakTypeOf[B])
 
     val missingFields = targetFields -- sourceFields
 
     if (missingFields.nonEmpty) {
-      q"""
+      c.Expr[_root_.zio.blocks.schema.Migration[A, B]](q"""
         val builder = ${c.prefix}.self
-        val requiredAdds = Set(..$missingFields)
+        val requiredAdds = Set(..${missingFields.toList.map(f => q"$f")})
         val addedFields = builder.actions.collect {
-          case _root_.zio.blocks.schema.MigrationAction.AddField(optic, _) => 
+          case _root_.zio.blocks.schema.MigrationAction.AddField(optic, _) =>
             optic.nodes.last match {
               case _root_.zio.blocks.schema.DynamicOptic.Node.Field(name) => name
               case _ => ""
             }
           case _root_.zio.blocks.schema.MigrationAction.Rename(_, _, to) => to
         }.toSet
-        
+
         val stillMissing = requiredAdds -- addedFields
-        
+
         if (stillMissing.nonEmpty) {
-          throw new IllegalArgumentException("Field(s) [" + stillMissing.mkString(", ") + "] in target schema are missing from source and have no default value provided.")
+          throw new IllegalArgumentException(
+            "Field(s) [" + stillMissing.mkString(", ") +
+            "] in target schema are missing from source and have no default value provided."
+          )
         }
-        
+
         builder.buildPartial
-      """
+      """)
     } else {
-      q"${c.prefix}.self.buildPartial"
+      c.Expr[_root_.zio.blocks.schema.Migration[A, B]](q"${c.prefix}.self.buildPartial")
     }
   }
 }
