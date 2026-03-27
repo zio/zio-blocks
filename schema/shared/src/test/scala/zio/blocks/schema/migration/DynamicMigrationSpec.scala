@@ -240,6 +240,71 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         )
       )
       assertTrue(mig(source).isRight)
+    },
+    test("Compose expression chains two exprs sequentially") {
+      val inner = MigrationExpr.Literal(str("fixed"))
+      val expr  = MigrationExpr.Compose(MigrationExpr.Identity, inner)
+      assertTrue(expr(str("anything")).contains(str("fixed")))
+    },
+    test("FieldAccess expression reads field from record") {
+      val source = DynamicValue.Record(Chunk("name" -> str("Ann")))
+      val expr   = MigrationExpr.FieldAccess(DynamicOptic.root.field("name"))
+      assertTrue(expr(source).contains(str("Ann")))
+    },
+    test("MigrationAction reverse of RenameCase swaps names") {
+      val action = RenameCase(DynamicOptic.root, "Old", "New")
+      val rev    = action.reverse.asInstanceOf[RenameCase]
+      assertTrue(rev.from == "New" && rev.to == "Old")
+    },
+    test("MigrationAction reverse of TransformCase reverses actions") {
+      val inner  = Rename(DynamicOptic.root.field("x"), "y")
+      val action = TransformCase(DynamicOptic.root, "MyCase", Vector(inner))
+      val rev    = action.reverse.asInstanceOf[TransformCase]
+      assertTrue(rev.actions.head.isInstanceOf[Rename])
+    },
+    test("MigrationAction reverse of Optionalize is Mandate") {
+      val action = Optionalize(DynamicOptic.root.field("x"))
+      assertTrue(action.reverse.isInstanceOf[Mandate])
+    },
+    test("MigrationAction reverse of Mandate is Optionalize") {
+      val action = Mandate(DynamicOptic.root.field("x"), MigrationExpr.DefaultValue)
+      assertTrue(action.reverse.isInstanceOf[Optionalize])
+    },
+    test("MigrationAction reverse of DropField is AddField") {
+      val action = DropField(DynamicOptic.root.field("x"), MigrationExpr.DefaultValue)
+      assertTrue(action.reverse.isInstanceOf[AddField])
+    },
+    test("MigrationAction reverse of TransformElements is TransformElements") {
+      val action = TransformElements(DynamicOptic.root, MigrationExpr.Identity)
+      assertTrue(action.reverse.isInstanceOf[TransformElements])
+    },
+    test("Convert BooleanToString expression") {
+      val expr = MigrationExpr.Convert(
+        MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true))),
+        MigrationExpr.PrimitiveConversion.BooleanToString
+      )
+      assertTrue(
+        expr(DynamicValue.Null).contains(
+          DynamicValue.Primitive(PrimitiveValue.String("true"))
+        )
+      )
+    },
+    test("Convert FloatToDouble expression") {
+      val expr = MigrationExpr.Convert(
+        MigrationExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))),
+        MigrationExpr.PrimitiveConversion.FloatToDouble
+      )
+      assertTrue(expr(DynamicValue.Null).isRight)
+    },
+    test("DynamicMigration identity has no actions") {
+      assertTrue(DynamicMigration.identity.actions.isEmpty)
+    },
+    test("DynamicMigration isEmpty returns true for identity") {
+      assertTrue(DynamicMigration.identity.isEmpty)
+    },
+    test("DynamicMigration isEmpty returns false when actions present") {
+      val m = DynamicMigration(Vector(Rename(DynamicOptic.root.field("x"), "y")))
+      assertTrue(!m.isEmpty)
     }
   )
 }
