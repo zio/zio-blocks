@@ -1886,7 +1886,21 @@ okSingletonId == notFoundSingletonId
 
 ## TypeRepr — Type Expressions
 
-`TypeRepr` represents type expressions in the Scala type system. While `TypeId` identifies a type *definition*, `TypeRepr` represents how types are *used* in expressions — as type arguments, parent types, alias targets, and more.
+`TypeRepr` represents type expressions in the Scala type system. This is fundamentally different from `TypeId`: while `TypeId` identifies a specific type *definition* (like `List` as a class or `Person` as a case class), `TypeRepr` represents how types are *composed and expressed* at runtime — as type arguments, parent types, intersections, unions, functions, and more.
+
+**The Key Distinction:**
+
+A `TypeId` answers the question **"What is this type definition?"** — for example, `TypeId.of[List]` gives you metadata about the `List` class itself. But a `TypeRepr` answers **"How is this type used in context?"** — for example, when you inspect `TypeId.of[List[Int]].typeArgs`, you get a `TypeRepr.Applied(Ref(TypeId.list), List(Ref(TypeId.int)))`, which describes that `List` is applied to the type argument `Int`.
+
+**Practical Examples of the Difference:**
+
+- `TypeId.list` identifies the `List` class definition
+- `TypeRepr.Ref(TypeId.list)` is the expression "use List as a type" (standalone)
+- `TypeRepr.Applied(TypeId.list, args)` is the expression "List applied to type arguments" (e.g., `List[Int]`)
+- `TypeRepr.Function` represents `(A, B) => C` as a first-class type expression (not a method signature)
+- `TypeRepr.Union` represents `A | B` without requiring a union type definition to exist
+
+TypeRepr variants like `Intersection`, `Tuple`, `Union`, `TypeLambda`, and `ContextFunction` allow you to represent type expressions that may not have their own `TypeId` definitions — they are *computed expressions* in the type system rather than named definitions.
 
 You encounter `TypeRepr` values when inspecting `typeArgs`, parent types in `defKind`, and alias targets:
 
