@@ -51,7 +51,7 @@ object MigrationError {
       typeId = TypeId.of[MissingField],
       recordBinding = new Binding.Record(
         constructor = new Constructor[MissingField] {
-          def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): MissingField =
             MissingField(
               in.getObject(offset).asInstanceOf[DynamicOptic],
@@ -59,7 +59,7 @@ object MigrationError {
             )
         },
         deconstructor = new Deconstructor[MissingField] {
-          def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: MissingField): Unit = {
             out.setObject(offset, in.path)
             out.setObject(RegisterOffset.incrementObjects(offset), in.fieldName)
@@ -80,16 +80,17 @@ object MigrationError {
       typeId = TypeId.of[TypeMismatch],
       recordBinding = new Binding.Record(
         constructor = new Constructor[TypeMismatch] {
-          def usedRegisters: RegisterOffset                                      = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 3)
           def construct(in: Registers, offset: RegisterOffset): TypeMismatch =
             TypeMismatch(
               in.getObject(offset).asInstanceOf[DynamicOptic],
               in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[String],
-              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset))).asInstanceOf[String]
+              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset)))
+                .asInstanceOf[String]
             )
         },
         deconstructor = new Deconstructor[TypeMismatch] {
-          def usedRegisters: RegisterOffset                                                   = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 3)
           def deconstruct(out: Registers, offset: RegisterOffset, in: TypeMismatch): Unit = {
             out.setObject(offset, in.path)
             out.setObject(RegisterOffset.incrementObjects(offset), in.expected)
@@ -107,7 +108,7 @@ object MigrationError {
       typeId = TypeId.of[InvalidValue],
       recordBinding = new Binding.Record(
         constructor = new Constructor[InvalidValue] {
-          def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                  = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): InvalidValue =
             InvalidValue(
               in.getObject(offset).asInstanceOf[DynamicOptic],
@@ -115,7 +116,7 @@ object MigrationError {
             )
         },
         deconstructor = new Deconstructor[InvalidValue] {
-          def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                               = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: InvalidValue): Unit = {
             out.setObject(offset, in.path)
             out.setObject(RegisterOffset.incrementObjects(offset), in.detail)
@@ -132,12 +133,12 @@ object MigrationError {
       typeId = TypeId.of[CompositeError],
       recordBinding = new Binding.Record(
         constructor = new Constructor[CompositeError] {
-          def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): CompositeError =
             CompositeError(in.getObject(offset).asInstanceOf[Vector[MigrationError]])
         },
         deconstructor = new Deconstructor[CompositeError] {
-          def usedRegisters: RegisterOffset                                                  = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                                 = RegisterOffset(objects = 1)
           def deconstruct(out: Registers, offset: RegisterOffset, in: CompositeError): Unit =
             out.setObject(offset, in.errors)
         }

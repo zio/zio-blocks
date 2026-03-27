@@ -33,9 +33,12 @@ object MigrationLawSpec extends SchemaBaseSpec {
     },
     test("associativity for dynamic migration composition") {
       val p  = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("x"))))
-      val m1 = DynamicMigration(Vector(AddField(DynamicOptic.root.field("a"), MigrationExpr.Literal(DynamicValue.Null))))
-      val m2 = DynamicMigration(Vector(AddField(DynamicOptic.root.field("b"), MigrationExpr.Literal(DynamicValue.Null))))
-      val m3 = DynamicMigration(Vector(AddField(DynamicOptic.root.field("c"), MigrationExpr.Literal(DynamicValue.Null))))
+      val m1 =
+        DynamicMigration(Vector(AddField(DynamicOptic.root.field("a"), MigrationExpr.Literal(DynamicValue.Null))))
+      val m2 =
+        DynamicMigration(Vector(AddField(DynamicOptic.root.field("b"), MigrationExpr.Literal(DynamicValue.Null))))
+      val m3 =
+        DynamicMigration(Vector(AddField(DynamicOptic.root.field("c"), MigrationExpr.Literal(DynamicValue.Null))))
       assertTrue(((m1 ++ m2) ++ m3)(p) == (m1 ++ (m2 ++ m3))(p))
     },
     test("reverse reverse preserves action shape") {

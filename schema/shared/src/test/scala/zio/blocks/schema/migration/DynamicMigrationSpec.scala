@@ -43,7 +43,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     },
     test("TransformElements maps over sequence") {
       val source = DynamicValue.Sequence(Chunk(str("a"), str("b")))
-      val mig = DynamicMigration(
+      val mig    = DynamicMigration(
         Vector(TransformElements(DynamicOptic.root, MigrationExpr.Concat(Vector(MigrationExpr.Identity), "!")))
       )
       assertTrue(mig(source).isRight)

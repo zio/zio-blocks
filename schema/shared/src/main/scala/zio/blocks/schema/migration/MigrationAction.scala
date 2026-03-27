@@ -41,7 +41,11 @@ object MigrationAction {
   }
 
   final case class TransformValue(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort: only identity-preserving transforms are invertible. */
+
+    /**
+     * Reverse is best-effort: only identity-preserving transforms are
+     * invertible.
+     */
     def reverse: MigrationAction = TransformValue(at, MigrationExpr.Identity)
   }
 
@@ -53,17 +57,27 @@ object MigrationAction {
     def reverse: MigrationAction = Mandate(at, MigrationExpr.DefaultValue)
   }
 
-  final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort and does not reconstruct original source segmentation. */
+  final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: MigrationExpr)
+      extends MigrationAction {
+
+    /**
+     * Reverse is best-effort and does not reconstruct original source
+     * segmentation.
+     */
     def reverse: MigrationAction = Split(at, sourcePaths, MigrationExpr.Identity)
   }
 
-  final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort and does not reconstruct original split intent. */
+  final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: MigrationExpr)
+      extends MigrationAction {
+
+    /**
+     * Reverse is best-effort and does not reconstruct original split intent.
+     */
     def reverse: MigrationAction = Join(at, targetPaths, MigrationExpr.Identity)
   }
 
   final case class ChangeType(at: DynamicOptic, converter: MigrationExpr) extends MigrationAction {
+
     /** Reverse is best-effort unless converter is bijective. */
     def reverse: MigrationAction = ChangeType(at, MigrationExpr.Identity)
   }
@@ -72,22 +86,35 @@ object MigrationAction {
     def reverse: MigrationAction = RenameCase(at, to, from)
   }
 
-  final case class TransformCase(at: DynamicOptic, caseName: String, actions: Vector[MigrationAction]) extends MigrationAction {
+  final case class TransformCase(at: DynamicOptic, caseName: String, actions: Vector[MigrationAction])
+      extends MigrationAction {
     def reverse: MigrationAction = TransformCase(at, caseName, actions.reverseIterator.map(_.reverse).toVector)
   }
 
   final case class TransformElements(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort and cannot reconstruct non-invertible element transforms. */
+
+    /**
+     * Reverse is best-effort and cannot reconstruct non-invertible element
+     * transforms.
+     */
     def reverse: MigrationAction = TransformElements(at, MigrationExpr.Identity)
   }
 
   final case class TransformKeys(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort and cannot reconstruct key collisions or non-bijective maps. */
+
+    /**
+     * Reverse is best-effort and cannot reconstruct key collisions or
+     * non-bijective maps.
+     */
     def reverse: MigrationAction = TransformKeys(at, MigrationExpr.Identity)
   }
 
   final case class TransformValues(at: DynamicOptic, transform: MigrationExpr) extends MigrationAction {
-    /** Reverse is best-effort and cannot reconstruct non-invertible value transforms. */
+
+    /**
+     * Reverse is best-effort and cannot reconstruct non-invertible value
+     * transforms.
+     */
     def reverse: MigrationAction = TransformValues(at, MigrationExpr.Identity)
   }
 
@@ -104,12 +131,12 @@ object MigrationAction {
       typeId = typeId,
       recordBinding = new Binding.Record(
         constructor = new Constructor[A] {
-          def usedRegisters: RegisterOffset                     = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                       = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): A =
             mk(in.getObject(offset), in.getObject(RegisterOffset.incrementObjects(offset)))
         },
         deconstructor = new Deconstructor[A] {
-          def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                    = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit = {
             val (a1, a2) = unmk(in)
             out.setObject(offset, a1)
@@ -128,7 +155,13 @@ object MigrationAction {
     )
 
   implicit lazy val dropFieldSchema: Schema[DropField] =
-    record2(TypeId.of[DropField], Schema[DynamicOptic].reflect, "at", Schema[MigrationExpr].reflect, "defaultForReverse")(
+    record2(
+      TypeId.of[DropField],
+      Schema[DynamicOptic].reflect,
+      "at",
+      Schema[MigrationExpr].reflect,
+      "defaultForReverse"
+    )(
       (a, b) => DropField(a.asInstanceOf[DynamicOptic], b.asInstanceOf[MigrationExpr]),
       in => (in.at, in.defaultForReverse)
     )
@@ -157,12 +190,12 @@ object MigrationAction {
       typeId = TypeId.of[Optionalize],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Optionalize] {
-          def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Optionalize =
             Optionalize(in.getObject(offset).asInstanceOf[DynamicOptic])
         },
         deconstructor = new Deconstructor[Optionalize] {
-          def usedRegisters: RegisterOffset                                           = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Optionalize): Unit =
             out.setObject(offset, in.at)
         }
@@ -181,16 +214,17 @@ object MigrationAction {
       typeId = TypeId.of[Join],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Join] {
-          def usedRegisters: RegisterOffset                        = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 3)
           def construct(in: Registers, offset: RegisterOffset): Join =
             Join(
               in.getObject(offset).asInstanceOf[DynamicOptic],
               in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Vector[DynamicOptic]],
-              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset))).asInstanceOf[MigrationExpr]
+              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset)))
+                .asInstanceOf[MigrationExpr]
             )
         },
         deconstructor = new Deconstructor[Join] {
-          def usedRegisters: RegisterOffset                                     = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 3)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Join): Unit = {
             out.setObject(offset, in.at)
             out.setObject(RegisterOffset.incrementObjects(offset), in.sourcePaths)
@@ -212,16 +246,17 @@ object MigrationAction {
       typeId = TypeId.of[Split],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Split] {
-          def usedRegisters: RegisterOffset                         = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 3)
           def construct(in: Registers, offset: RegisterOffset): Split =
             Split(
               in.getObject(offset).asInstanceOf[DynamicOptic],
               in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[Vector[DynamicOptic]],
-              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset))).asInstanceOf[MigrationExpr]
+              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset)))
+                .asInstanceOf[MigrationExpr]
             )
         },
         deconstructor = new Deconstructor[Split] {
-          def usedRegisters: RegisterOffset                                      = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                        = RegisterOffset(objects = 3)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Split): Unit = {
             out.setObject(offset, in.at)
             out.setObject(RegisterOffset.incrementObjects(offset), in.targetPaths)
@@ -241,20 +276,25 @@ object MigrationAction {
 
   implicit lazy val renameCaseSchema: Schema[RenameCase] = new Schema(
     reflect = new Reflect.Record[Binding, RenameCase](
-      fields = Chunk(Schema[DynamicOptic].reflect.asTerm("at"), Schema[String].reflect.asTerm("from"), Schema[String].reflect.asTerm("to")),
+      fields = Chunk(
+        Schema[DynamicOptic].reflect.asTerm("at"),
+        Schema[String].reflect.asTerm("from"),
+        Schema[String].reflect.asTerm("to")
+      ),
       typeId = TypeId.of[RenameCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[RenameCase] {
-          def usedRegisters: RegisterOffset                              = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                = RegisterOffset(objects = 3)
           def construct(in: Registers, offset: RegisterOffset): RenameCase =
             RenameCase(
               in.getObject(offset).asInstanceOf[DynamicOptic],
               in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[String],
-              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset))).asInstanceOf[String]
+              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset)))
+                .asInstanceOf[String]
             )
         },
         deconstructor = new Deconstructor[RenameCase] {
-          def usedRegisters: RegisterOffset                                           = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                             = RegisterOffset(objects = 3)
           def deconstruct(out: Registers, offset: RegisterOffset, in: RenameCase): Unit = {
             out.setObject(offset, in.at)
             out.setObject(RegisterOffset.incrementObjects(offset), in.from)
@@ -276,16 +316,17 @@ object MigrationAction {
       typeId = TypeId.of[TransformCase],
       recordBinding = new Binding.Record(
         constructor = new Constructor[TransformCase] {
-          def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                   = RegisterOffset(objects = 3)
           def construct(in: Registers, offset: RegisterOffset): TransformCase =
             TransformCase(
               in.getObject(offset).asInstanceOf[DynamicOptic],
               in.getObject(RegisterOffset.incrementObjects(offset)).asInstanceOf[String],
-              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset))).asInstanceOf[Vector[MigrationAction]]
+              in.getObject(RegisterOffset.incrementObjects(RegisterOffset.incrementObjects(offset)))
+                .asInstanceOf[Vector[MigrationAction]]
             )
         },
         deconstructor = new Deconstructor[TransformCase] {
-          def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 3)
+          def usedRegisters: RegisterOffset                                                = RegisterOffset(objects = 3)
           def deconstruct(out: Registers, offset: RegisterOffset, in: TransformCase): Unit = {
             out.setObject(offset, in.at)
             out.setObject(RegisterOffset.incrementObjects(offset), in.caseName)
@@ -298,7 +339,13 @@ object MigrationAction {
   )
 
   implicit lazy val transformElementsSchema: Schema[TransformElements] =
-    record2(TypeId.of[TransformElements], Schema[DynamicOptic].reflect, "at", Schema[MigrationExpr].reflect, "transform")(
+    record2(
+      TypeId.of[TransformElements],
+      Schema[DynamicOptic].reflect,
+      "at",
+      Schema[MigrationExpr].reflect,
+      "transform"
+    )(
       (a, b) => TransformElements(a.asInstanceOf[DynamicOptic], b.asInstanceOf[MigrationExpr]),
       in => (in.at, in.transform)
     )
@@ -314,7 +361,13 @@ object MigrationAction {
     )
 
   implicit lazy val nestedMigrationSchema: Schema[NestedMigration] =
-    record2(TypeId.of[NestedMigration], Schema[DynamicOptic].reflect, "at", Schema[DynamicMigration].reflect, "migration")(
+    record2(
+      TypeId.of[NestedMigration],
+      Schema[DynamicOptic].reflect,
+      "at",
+      Schema[DynamicMigration].reflect,
+      "migration"
+    )(
       (a, b) => NestedMigration(a.asInstanceOf[DynamicOptic], b.asInstanceOf[DynamicMigration]),
       in => (in.at, in.migration)
     )
@@ -360,21 +413,73 @@ object MigrationAction {
           }
         },
         matchers = Matchers(
-          new Matcher[AddField] { def downcastOrNull(a: Any): AddField = a match { case x: AddField => x; case _ => null.asInstanceOf[AddField] } },
-          new Matcher[DropField] { def downcastOrNull(a: Any): DropField = a match { case x: DropField => x; case _ => null.asInstanceOf[DropField] } },
-          new Matcher[Rename] { def downcastOrNull(a: Any): Rename = a match { case x: Rename => x; case _ => null.asInstanceOf[Rename] } },
-          new Matcher[TransformValue] { def downcastOrNull(a: Any): TransformValue = a match { case x: TransformValue => x; case _ => null.asInstanceOf[TransformValue] } },
-          new Matcher[Mandate] { def downcastOrNull(a: Any): Mandate = a match { case x: Mandate => x; case _ => null.asInstanceOf[Mandate] } },
-          new Matcher[Optionalize] { def downcastOrNull(a: Any): Optionalize = a match { case x: Optionalize => x; case _ => null.asInstanceOf[Optionalize] } },
-          new Matcher[Join] { def downcastOrNull(a: Any): Join = a match { case x: Join => x; case _ => null.asInstanceOf[Join] } },
-          new Matcher[Split] { def downcastOrNull(a: Any): Split = a match { case x: Split => x; case _ => null.asInstanceOf[Split] } },
-          new Matcher[ChangeType] { def downcastOrNull(a: Any): ChangeType = a match { case x: ChangeType => x; case _ => null.asInstanceOf[ChangeType] } },
-          new Matcher[RenameCase] { def downcastOrNull(a: Any): RenameCase = a match { case x: RenameCase => x; case _ => null.asInstanceOf[RenameCase] } },
-          new Matcher[TransformCase] { def downcastOrNull(a: Any): TransformCase = a match { case x: TransformCase => x; case _ => null.asInstanceOf[TransformCase] } },
-          new Matcher[TransformElements] { def downcastOrNull(a: Any): TransformElements = a match { case x: TransformElements => x; case _ => null.asInstanceOf[TransformElements] } },
-          new Matcher[TransformKeys] { def downcastOrNull(a: Any): TransformKeys = a match { case x: TransformKeys => x; case _ => null.asInstanceOf[TransformKeys] } },
-          new Matcher[TransformValues] { def downcastOrNull(a: Any): TransformValues = a match { case x: TransformValues => x; case _ => null.asInstanceOf[TransformValues] } },
-          new Matcher[NestedMigration] { def downcastOrNull(a: Any): NestedMigration = a match { case x: NestedMigration => x; case _ => null.asInstanceOf[NestedMigration] } }
+          new Matcher[AddField] {
+            def downcastOrNull(a: Any): AddField = a match {
+              case x: AddField => x; case _ => null.asInstanceOf[AddField]
+            }
+          },
+          new Matcher[DropField] {
+            def downcastOrNull(a: Any): DropField = a match {
+              case x: DropField => x; case _ => null.asInstanceOf[DropField]
+            }
+          },
+          new Matcher[Rename] {
+            def downcastOrNull(a: Any): Rename = a match { case x: Rename => x; case _ => null.asInstanceOf[Rename] }
+          },
+          new Matcher[TransformValue] {
+            def downcastOrNull(a: Any): TransformValue = a match {
+              case x: TransformValue => x; case _ => null.asInstanceOf[TransformValue]
+            }
+          },
+          new Matcher[Mandate] {
+            def downcastOrNull(a: Any): Mandate = a match { case x: Mandate => x; case _ => null.asInstanceOf[Mandate] }
+          },
+          new Matcher[Optionalize] {
+            def downcastOrNull(a: Any): Optionalize = a match {
+              case x: Optionalize => x; case _ => null.asInstanceOf[Optionalize]
+            }
+          },
+          new Matcher[Join] {
+            def downcastOrNull(a: Any): Join = a match { case x: Join => x; case _ => null.asInstanceOf[Join] }
+          },
+          new Matcher[Split] {
+            def downcastOrNull(a: Any): Split = a match { case x: Split => x; case _ => null.asInstanceOf[Split] }
+          },
+          new Matcher[ChangeType] {
+            def downcastOrNull(a: Any): ChangeType = a match {
+              case x: ChangeType => x; case _ => null.asInstanceOf[ChangeType]
+            }
+          },
+          new Matcher[RenameCase] {
+            def downcastOrNull(a: Any): RenameCase = a match {
+              case x: RenameCase => x; case _ => null.asInstanceOf[RenameCase]
+            }
+          },
+          new Matcher[TransformCase] {
+            def downcastOrNull(a: Any): TransformCase = a match {
+              case x: TransformCase => x; case _ => null.asInstanceOf[TransformCase]
+            }
+          },
+          new Matcher[TransformElements] {
+            def downcastOrNull(a: Any): TransformElements = a match {
+              case x: TransformElements => x; case _ => null.asInstanceOf[TransformElements]
+            }
+          },
+          new Matcher[TransformKeys] {
+            def downcastOrNull(a: Any): TransformKeys = a match {
+              case x: TransformKeys => x; case _ => null.asInstanceOf[TransformKeys]
+            }
+          },
+          new Matcher[TransformValues] {
+            def downcastOrNull(a: Any): TransformValues = a match {
+              case x: TransformValues => x; case _ => null.asInstanceOf[TransformValues]
+            }
+          },
+          new Matcher[NestedMigration] {
+            def downcastOrNull(a: Any): NestedMigration = a match {
+              case x: NestedMigration => x; case _ => null.asInstanceOf[NestedMigration]
+            }
+          }
         )
       ),
       modifiers = Chunk.empty

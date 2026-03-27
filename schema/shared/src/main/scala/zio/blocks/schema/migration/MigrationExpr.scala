@@ -72,19 +72,32 @@ sealed trait MigrationExpr { self =>
     case (DynamicValue.Primitive(PrimitiveValue.Int(v)), PrimitiveConversion.IntToString) =>
       Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
     case (DynamicValue.Primitive(PrimitiveValue.String(v)), PrimitiveConversion.StringToInt) =>
-      scala.util.Try(v.toInt).toEither.left.map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Int")).map {
-        i => DynamicValue.Primitive(PrimitiveValue.Int(i))
-      }
+      scala.util
+        .Try(v.toInt)
+        .toEither
+        .left
+        .map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Int"))
+        .map { i =>
+          DynamicValue.Primitive(PrimitiveValue.Int(i))
+        }
     case (DynamicValue.Primitive(PrimitiveValue.Long(v)), PrimitiveConversion.LongToString) =>
       Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
     case (DynamicValue.Primitive(PrimitiveValue.String(v)), PrimitiveConversion.StringToLong) =>
-      scala.util.Try(v.toLong).toEither.left.map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Long")).map {
-        i => DynamicValue.Primitive(PrimitiveValue.Long(i))
-      }
+      scala.util
+        .Try(v.toLong)
+        .toEither
+        .left
+        .map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Long"))
+        .map { i =>
+          DynamicValue.Primitive(PrimitiveValue.Long(i))
+        }
     case (DynamicValue.Primitive(PrimitiveValue.Double(v)), PrimitiveConversion.DoubleToString) =>
       Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
     case (DynamicValue.Primitive(PrimitiveValue.String(v)), PrimitiveConversion.StringToDouble) =>
-      scala.util.Try(v.toDouble).toEither.left
+      scala.util
+        .Try(v.toDouble)
+        .toEither
+        .left
         .map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Double"))
         .map(i => DynamicValue.Primitive(PrimitiveValue.Double(i)))
     case (DynamicValue.Primitive(PrimitiveValue.Float(v)), PrimitiveConversion.FloatToDouble) =>
@@ -94,7 +107,10 @@ sealed trait MigrationExpr { self =>
     case (DynamicValue.Primitive(PrimitiveValue.Boolean(v)), PrimitiveConversion.BooleanToString) =>
       Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
     case (DynamicValue.Primitive(PrimitiveValue.String(v)), PrimitiveConversion.StringToBoolean) =>
-      scala.util.Try(v.toBoolean).toEither.left
+      scala.util
+        .Try(v.toBoolean)
+        .toEither
+        .left
         .map(_ => InvalidValue(DynamicOptic.root, s"Cannot convert '$v' to Boolean"))
         .map(i => DynamicValue.Primitive(PrimitiveValue.Boolean(i)))
     case _ =>
@@ -103,26 +119,26 @@ sealed trait MigrationExpr { self =>
 }
 
 object MigrationExpr {
-  case object Identity extends MigrationExpr
-  final case class Literal(value: DynamicValue) extends MigrationExpr
-  final case class FieldAccess(path: DynamicOptic) extends MigrationExpr
+  case object Identity                                                           extends MigrationExpr
+  final case class Literal(value: DynamicValue)                                  extends MigrationExpr
+  final case class FieldAccess(path: DynamicOptic)                               extends MigrationExpr
   final case class Convert(expr: MigrationExpr, conversion: PrimitiveConversion) extends MigrationExpr
-  final case class Concat(exprs: Vector[MigrationExpr], separator: String) extends MigrationExpr
-  final case class Compose(first: MigrationExpr, second: MigrationExpr) extends MigrationExpr
-  case object DefaultValue extends MigrationExpr
+  final case class Concat(exprs: Vector[MigrationExpr], separator: String)       extends MigrationExpr
+  final case class Compose(first: MigrationExpr, second: MigrationExpr)          extends MigrationExpr
+  case object DefaultValue                                                       extends MigrationExpr
 
   sealed trait PrimitiveConversion
   object PrimitiveConversion {
-    case object IntToLong extends PrimitiveConversion
-    case object LongToInt extends PrimitiveConversion
-    case object IntToString extends PrimitiveConversion
-    case object StringToInt extends PrimitiveConversion
-    case object LongToString extends PrimitiveConversion
-    case object StringToLong extends PrimitiveConversion
-    case object DoubleToString extends PrimitiveConversion
-    case object StringToDouble extends PrimitiveConversion
-    case object FloatToDouble extends PrimitiveConversion
-    case object DoubleToFloat extends PrimitiveConversion
+    case object IntToLong       extends PrimitiveConversion
+    case object LongToInt       extends PrimitiveConversion
+    case object IntToString     extends PrimitiveConversion
+    case object StringToInt     extends PrimitiveConversion
+    case object LongToString    extends PrimitiveConversion
+    case object StringToLong    extends PrimitiveConversion
+    case object DoubleToString  extends PrimitiveConversion
+    case object StringToDouble  extends PrimitiveConversion
+    case object FloatToDouble   extends PrimitiveConversion
+    case object DoubleToFloat   extends PrimitiveConversion
     case object BooleanToString extends PrimitiveConversion
     case object StringToBoolean extends PrimitiveConversion
 
@@ -138,8 +154,8 @@ object MigrationExpr {
       )
     )
 
-    implicit lazy val intToLongSchema: Schema[IntToLong.type] = singletonSchema(IntToLong, TypeId.of[IntToLong.type])
-    implicit lazy val longToIntSchema: Schema[LongToInt.type] = singletonSchema(LongToInt, TypeId.of[LongToInt.type])
+    implicit lazy val intToLongSchema: Schema[IntToLong.type]     = singletonSchema(IntToLong, TypeId.of[IntToLong.type])
+    implicit lazy val longToIntSchema: Schema[LongToInt.type]     = singletonSchema(LongToInt, TypeId.of[LongToInt.type])
     implicit lazy val intToStringSchema: Schema[IntToString.type] =
       singletonSchema(IntToString, TypeId.of[IntToString.type])
     implicit lazy val stringToIntSchema: Schema[StringToInt.type] =
@@ -196,18 +212,54 @@ object MigrationExpr {
             }
           },
           matchers = Matchers(
-            new Matcher[IntToLong.type] { def downcastOrNull(a: Any): IntToLong.type = if (a == IntToLong) IntToLong else null.asInstanceOf[IntToLong.type] },
-            new Matcher[LongToInt.type] { def downcastOrNull(a: Any): LongToInt.type = if (a == LongToInt) LongToInt else null.asInstanceOf[LongToInt.type] },
-            new Matcher[IntToString.type] { def downcastOrNull(a: Any): IntToString.type = if (a == IntToString) IntToString else null.asInstanceOf[IntToString.type] },
-            new Matcher[StringToInt.type] { def downcastOrNull(a: Any): StringToInt.type = if (a == StringToInt) StringToInt else null.asInstanceOf[StringToInt.type] },
-            new Matcher[LongToString.type] { def downcastOrNull(a: Any): LongToString.type = if (a == LongToString) LongToString else null.asInstanceOf[LongToString.type] },
-            new Matcher[StringToLong.type] { def downcastOrNull(a: Any): StringToLong.type = if (a == StringToLong) StringToLong else null.asInstanceOf[StringToLong.type] },
-            new Matcher[DoubleToString.type] { def downcastOrNull(a: Any): DoubleToString.type = if (a == DoubleToString) DoubleToString else null.asInstanceOf[DoubleToString.type] },
-            new Matcher[StringToDouble.type] { def downcastOrNull(a: Any): StringToDouble.type = if (a == StringToDouble) StringToDouble else null.asInstanceOf[StringToDouble.type] },
-            new Matcher[FloatToDouble.type] { def downcastOrNull(a: Any): FloatToDouble.type = if (a == FloatToDouble) FloatToDouble else null.asInstanceOf[FloatToDouble.type] },
-            new Matcher[DoubleToFloat.type] { def downcastOrNull(a: Any): DoubleToFloat.type = if (a == DoubleToFloat) DoubleToFloat else null.asInstanceOf[DoubleToFloat.type] },
-            new Matcher[BooleanToString.type] { def downcastOrNull(a: Any): BooleanToString.type = if (a == BooleanToString) BooleanToString else null.asInstanceOf[BooleanToString.type] },
-            new Matcher[StringToBoolean.type] { def downcastOrNull(a: Any): StringToBoolean.type = if (a == StringToBoolean) StringToBoolean else null.asInstanceOf[StringToBoolean.type] }
+            new Matcher[IntToLong.type] {
+              def downcastOrNull(a: Any): IntToLong.type =
+                if (a == IntToLong) IntToLong else null.asInstanceOf[IntToLong.type]
+            },
+            new Matcher[LongToInt.type] {
+              def downcastOrNull(a: Any): LongToInt.type =
+                if (a == LongToInt) LongToInt else null.asInstanceOf[LongToInt.type]
+            },
+            new Matcher[IntToString.type] {
+              def downcastOrNull(a: Any): IntToString.type =
+                if (a == IntToString) IntToString else null.asInstanceOf[IntToString.type]
+            },
+            new Matcher[StringToInt.type] {
+              def downcastOrNull(a: Any): StringToInt.type =
+                if (a == StringToInt) StringToInt else null.asInstanceOf[StringToInt.type]
+            },
+            new Matcher[LongToString.type] {
+              def downcastOrNull(a: Any): LongToString.type =
+                if (a == LongToString) LongToString else null.asInstanceOf[LongToString.type]
+            },
+            new Matcher[StringToLong.type] {
+              def downcastOrNull(a: Any): StringToLong.type =
+                if (a == StringToLong) StringToLong else null.asInstanceOf[StringToLong.type]
+            },
+            new Matcher[DoubleToString.type] {
+              def downcastOrNull(a: Any): DoubleToString.type =
+                if (a == DoubleToString) DoubleToString else null.asInstanceOf[DoubleToString.type]
+            },
+            new Matcher[StringToDouble.type] {
+              def downcastOrNull(a: Any): StringToDouble.type =
+                if (a == StringToDouble) StringToDouble else null.asInstanceOf[StringToDouble.type]
+            },
+            new Matcher[FloatToDouble.type] {
+              def downcastOrNull(a: Any): FloatToDouble.type =
+                if (a == FloatToDouble) FloatToDouble else null.asInstanceOf[FloatToDouble.type]
+            },
+            new Matcher[DoubleToFloat.type] {
+              def downcastOrNull(a: Any): DoubleToFloat.type =
+                if (a == DoubleToFloat) DoubleToFloat else null.asInstanceOf[DoubleToFloat.type]
+            },
+            new Matcher[BooleanToString.type] {
+              def downcastOrNull(a: Any): BooleanToString.type =
+                if (a == BooleanToString) BooleanToString else null.asInstanceOf[BooleanToString.type]
+            },
+            new Matcher[StringToBoolean.type] {
+              def downcastOrNull(a: Any): StringToBoolean.type =
+                if (a == StringToBoolean) StringToBoolean else null.asInstanceOf[StringToBoolean.type]
+            }
           )
         ),
         modifiers = Chunk.empty
@@ -232,12 +284,12 @@ object MigrationExpr {
       typeId = TypeId.of[Literal],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Literal] {
-          def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): Literal =
             Literal(in.getObject(offset).asInstanceOf[DynamicValue])
         },
         deconstructor = new Deconstructor[Literal] {
-          def usedRegisters: RegisterOffset                                        = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                          = RegisterOffset(objects = 1)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Literal): Unit =
             out.setObject(offset, in.value)
         }
@@ -251,12 +303,12 @@ object MigrationExpr {
       typeId = TypeId.of[FieldAccess],
       recordBinding = new Binding.Record(
         constructor = new Constructor[FieldAccess] {
-          def usedRegisters: RegisterOffset                               = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                 = RegisterOffset(objects = 1)
           def construct(in: Registers, offset: RegisterOffset): FieldAccess =
             FieldAccess(in.getObject(offset).asInstanceOf[DynamicOptic])
         },
         deconstructor = new Deconstructor[FieldAccess] {
-          def usedRegisters: RegisterOffset                                            = RegisterOffset(objects = 1)
+          def usedRegisters: RegisterOffset                                              = RegisterOffset(objects = 1)
           def deconstruct(out: Registers, offset: RegisterOffset, in: FieldAccess): Unit =
             out.setObject(offset, in.path)
         }
@@ -273,7 +325,7 @@ object MigrationExpr {
       typeId = TypeId.of[Convert],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Convert] {
-          def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): Convert =
             Convert(
               in.getObject(offset).asInstanceOf[MigrationExpr],
@@ -281,7 +333,7 @@ object MigrationExpr {
             )
         },
         deconstructor = new Deconstructor[Convert] {
-          def usedRegisters: RegisterOffset                                        = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                          = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Convert): Unit = {
             out.setObject(offset, in.expr)
             out.setObject(RegisterOffset.incrementObjects(offset), in.conversion)
@@ -300,7 +352,7 @@ object MigrationExpr {
       typeId = TypeId.of[Concat],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Concat] {
-          def usedRegisters: RegisterOffset                          = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                            = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): Concat =
             Concat(
               in.getObject(offset).asInstanceOf[Vector[MigrationExpr]],
@@ -308,7 +360,7 @@ object MigrationExpr {
             )
         },
         deconstructor = new Deconstructor[Concat] {
-          def usedRegisters: RegisterOffset                                       = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                         = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Concat): Unit = {
             out.setObject(offset, in.exprs)
             out.setObject(RegisterOffset.incrementObjects(offset), in.separator)
@@ -327,7 +379,7 @@ object MigrationExpr {
       typeId = TypeId.of[Compose],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Compose] {
-          def usedRegisters: RegisterOffset                           = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                             = RegisterOffset(objects = 2)
           def construct(in: Registers, offset: RegisterOffset): Compose =
             Compose(
               in.getObject(offset).asInstanceOf[MigrationExpr],
@@ -335,7 +387,7 @@ object MigrationExpr {
             )
         },
         deconstructor = new Deconstructor[Compose] {
-          def usedRegisters: RegisterOffset                                        = RegisterOffset(objects = 2)
+          def usedRegisters: RegisterOffset                                          = RegisterOffset(objects = 2)
           def deconstruct(out: Registers, offset: RegisterOffset, in: Compose): Unit = {
             out.setObject(offset, in.first)
             out.setObject(RegisterOffset.incrementObjects(offset), in.second)
@@ -371,23 +423,41 @@ object MigrationExpr {
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[MigrationExpr] {
           def discriminate(a: MigrationExpr): Int = a match {
-            case Identity     => 0
-            case _: Literal   => 1
+            case Identity       => 0
+            case _: Literal     => 1
             case _: FieldAccess => 2
-            case _: Convert   => 3
-            case _: Concat    => 4
-            case _: Compose   => 5
-            case DefaultValue => 6
+            case _: Convert     => 3
+            case _: Concat      => 4
+            case _: Compose     => 5
+            case DefaultValue   => 6
           }
         },
         matchers = Matchers(
-          new Matcher[Identity.type] { def downcastOrNull(a: Any): Identity.type = if (a == Identity) Identity else null.asInstanceOf[Identity.type] },
-          new Matcher[Literal] { def downcastOrNull(a: Any): Literal = a match { case x: Literal => x; case _ => null.asInstanceOf[Literal] } },
-          new Matcher[FieldAccess] { def downcastOrNull(a: Any): FieldAccess = a match { case x: FieldAccess => x; case _ => null.asInstanceOf[FieldAccess] } },
-          new Matcher[Convert] { def downcastOrNull(a: Any): Convert = a match { case x: Convert => x; case _ => null.asInstanceOf[Convert] } },
-          new Matcher[Concat] { def downcastOrNull(a: Any): Concat = a match { case x: Concat => x; case _ => null.asInstanceOf[Concat] } },
-          new Matcher[Compose] { def downcastOrNull(a: Any): Compose = a match { case x: Compose => x; case _ => null.asInstanceOf[Compose] } },
-          new Matcher[DefaultValue.type] { def downcastOrNull(a: Any): DefaultValue.type = if (a == DefaultValue) DefaultValue else null.asInstanceOf[DefaultValue.type] }
+          new Matcher[Identity.type] {
+            def downcastOrNull(a: Any): Identity.type =
+              if (a == Identity) Identity else null.asInstanceOf[Identity.type]
+          },
+          new Matcher[Literal] {
+            def downcastOrNull(a: Any): Literal = a match { case x: Literal => x; case _ => null.asInstanceOf[Literal] }
+          },
+          new Matcher[FieldAccess] {
+            def downcastOrNull(a: Any): FieldAccess = a match {
+              case x: FieldAccess => x; case _ => null.asInstanceOf[FieldAccess]
+            }
+          },
+          new Matcher[Convert] {
+            def downcastOrNull(a: Any): Convert = a match { case x: Convert => x; case _ => null.asInstanceOf[Convert] }
+          },
+          new Matcher[Concat] {
+            def downcastOrNull(a: Any): Concat = a match { case x: Concat => x; case _ => null.asInstanceOf[Concat] }
+          },
+          new Matcher[Compose] {
+            def downcastOrNull(a: Any): Compose = a match { case x: Compose => x; case _ => null.asInstanceOf[Compose] }
+          },
+          new Matcher[DefaultValue.type] {
+            def downcastOrNull(a: Any): DefaultValue.type =
+              if (a == DefaultValue) DefaultValue else null.asInstanceOf[DefaultValue.type]
+          }
         )
       ),
       modifiers = Chunk.empty

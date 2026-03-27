@@ -27,8 +27,8 @@ object MigrationMacros {
     import quotes.reflect.*
 
     def loop(term: Term): List[DynamicOptic.Node] = term match {
-      case Inlined(_, _, t) => loop(t)
-      case Block(_, t)      => loop(t)
+      case Inlined(_, _, t)       => loop(t)
+      case Block(_, t)            => loop(t)
       case Select(parent, "each") =>
         loop(parent) :+ DynamicOptic.Node.Elements
       case TypeApply(Select(parent, "when"), List(tpe)) =>
@@ -47,15 +47,17 @@ object MigrationMacros {
     f.asTerm match {
       case Inlined(_, _, Block(List(DefDef(_, List(List(_)), _, Some(body))), _)) =>
         val nodes = loop(body)
-        '{ DynamicOptic(${
-          Expr.ofSeq(nodes.map {
-            case DynamicOptic.Node.Field(name) => '{ DynamicOptic.Node.Field(${ Expr(name) }) }
-            case DynamicOptic.Node.Case(name)  => '{ DynamicOptic.Node.Case(${ Expr(name) }) }
-            case DynamicOptic.Node.Elements    => '{ DynamicOptic.Node.Elements }
-            case _ =>
-              report.errorAndAbort("Unsupported selector node in migration macro")
-          })
-        }.toIndexedSeq) }
+        '{
+          DynamicOptic(${
+            Expr.ofSeq(nodes.map {
+              case DynamicOptic.Node.Field(name) => '{ DynamicOptic.Node.Field(${ Expr(name) }) }
+              case DynamicOptic.Node.Case(name)  => '{ DynamicOptic.Node.Case(${ Expr(name) }) }
+              case DynamicOptic.Node.Elements    => '{ DynamicOptic.Node.Elements }
+              case _                             =>
+                report.errorAndAbort("Unsupported selector node in migration macro")
+            })
+          }.toIndexedSeq)
+        }
       case _ =>
         report.errorAndAbort("Expected selector lambda of shape `x => x.foo.bar`")
     }
@@ -67,7 +69,7 @@ object MigrationMacros {
     def targetFieldsOf(tpe: TypeRepr): Set[String] =
       tpe.dealias match {
         case Refinement(parent, name, _) => targetFieldsOf(parent) + name
-        case other =>
+        case other                       =>
           val params = other.typeSymbol.primaryConstructor.paramSymss.flatten.map(_.name).toSet
           if (params.nonEmpty) params
           else Set.empty
@@ -76,7 +78,7 @@ object MigrationMacros {
     def extractTopField(term: Term): Option[String] = {
       def loop(t: Term): Option[String] = t match {
         case Inlined(_, _, inner) => loop(inner)
-        case Block(_, expr) =>
+        case Block(_, expr)       =>
           loop(expr)
         case Literal(StringConstant(name)) =>
           Some(name)
@@ -96,8 +98,8 @@ object MigrationMacros {
     }
 
     def baseBuilder(term: Term): Boolean = {
-      val sym = term.symbol
-      val full = sym.fullName
+      val sym          = term.symbol
+      val full         = sym.fullName
       val ownerAndName = s"${sym.owner.fullName}.${sym.name}"
       full == "zio.blocks.schema.migration.MigrationBuilder" ||
       full == "zio.blocks.schema.migration.Migration" ||
@@ -108,7 +110,7 @@ object MigrationMacros {
     def extractHandled(term: Term): Option[Set[String]] = term match {
       case Inlined(_, _, inner) => extractHandled(inner)
       case Typed(inner, _)      => extractHandled(inner)
-      case id: Ident =>
+      case id: Ident            =>
         id.symbol.tree match {
           case v: ValDef => v.rhs.flatMap(extractHandled)
           case _         => None
