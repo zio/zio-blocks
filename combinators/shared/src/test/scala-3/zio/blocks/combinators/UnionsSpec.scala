@@ -17,7 +17,6 @@
 package zio.blocks.combinators
 
 import zio.test._
-import scala.compiletime.testing.typeCheckErrors
 
 object UnionsSpec extends ZIOSpecDefault {
 

@@ -30,8 +30,15 @@ final class MigrationBuilder[A, B](
   def renameCaseCore(from: String, to: String): MigrationBuilder[A, B] =
     new MigrationBuilder(actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to), source, target)
 
-  def transformCaseCore[CaseA, CaseB](caseName: String, caseMigration: MigrationBuilder[CaseA, CaseB]): MigrationBuilder[A, B] =
-    new MigrationBuilder(actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), caseMigration.actions), source, target)
+  def transformCaseCore[CaseA, CaseB](
+    caseName: String,
+    caseMigration: MigrationBuilder[CaseA, CaseB]
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(
+      actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), caseMigration.actions),
+      source,
+      target
+    )
 
   def transformElementsCore(at: DynamicOptic, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
     new MigrationBuilder(actions :+ MigrationAction.TransformElements(at, transform), source, target)

@@ -6,7 +6,7 @@ import scala.collection.immutable.ListMap
 sealed trait MigrationError
 
 object MigrationError {
-  case class PathNotFound(at: DynamicOptic) extends MigrationError
+  case class PathNotFound(at: DynamicOptic)                      extends MigrationError
   case class TransformationFailed(at: DynamicOptic, msg: String) extends MigrationError
 }
 
@@ -36,7 +36,7 @@ object MigrationAction {
   }
 
   case class Mandate(at: DynamicOptic, default: SchemaExpr[_, _]) extends MigrationAction {
-    def reverse: MigrationAction = Optionalize(at)
+    def reverse: MigrationAction = Optionalize(at, default)
   }
 
   case class Optionalize(at: DynamicOptic, defaultForReverse: SchemaExpr[_, _]) extends MigrationAction {
@@ -89,31 +89,39 @@ object MigrationAction {
 private[schema] sealed trait Trampoline[+A] {
   @scala.annotation.tailrec
   final def run: A = this match {
-    case Trampoline.Done(a) => a
+    case Trampoline.Done(a)        => a
     case Trampoline.Suspend(thunk) => thunk().run
-    case Trampoline.FlatMap(t, f) => t match {
-      case Trampoline.Done(a) => f(a).run
-      case Trampoline.Suspend(thunk) => Trampoline.FlatMap(thunk(), f).run
-      case Trampoline.FlatMap(t2, f2) => Trampoline.FlatMap(t2, (x: Any) => Trampoline.FlatMap(f2(x), f)).run
-    }
+    case Trampoline.FlatMap(t, f)  =>
+      t match {
+        case Trampoline.Done(a)         => f(a).run
+        case Trampoline.Suspend(thunk)  => 
+          val next: Trampoline[A] = Trampoline.FlatMap(thunk(), f)
+          next.run
+        case fm2: Trampoline.FlatMap[_, _] =>
+        val t2 = fm2.t.asInstanceOf[Trampoline[Any]]
+        val f2 = fm2.f.asInstanceOf[Any => Trampoline[Any]]
+        val f1 = f.asInstanceOf[Any => Trampoline[A]]
+        val next: Trampoline[A] = Trampoline.FlatMap(t2, (x: Any) => Trampoline.FlatMap(f2(x), f1))
+        next.run
+      }
   }
   def flatMap[B](f: A => Trampoline[B]): Trampoline[B] = Trampoline.FlatMap(this, f)
-  def map[B](f: A => B): Trampoline[B] = flatMap(a => Trampoline.Done(f(a)))
+  def map[B](f: A => B): Trampoline[B]                 = flatMap(a => Trampoline.Done(f(a)))
 }
 
 private[schema] object Trampoline {
-  case class Done[A](value: A) extends Trampoline[A]
-  case class Suspend[A](thunk: () => Trampoline[A]) extends Trampoline[A]
+  case class Done[A](value: A)                                      extends Trampoline[A]
+  case class Suspend[A](thunk: () => Trampoline[A])                 extends Trampoline[A]
   case class FlatMap[A, B](t: Trampoline[A], f: A => Trampoline[B]) extends Trampoline[B]
 
-  def done[A](value: A): Trampoline[A] = Done(value)
+  def done[A](value: A): Trampoline[A]                   = Done(value)
   def suspend[A](thunk: => Trampoline[A]): Trampoline[A] = Suspend(() => thunk)
 
   def collectAll[A](ts: Iterable[Trampoline[A]]): Trampoline[List[A]] =
     ts.foldLeft(done(List.empty[A])) { (acc, t) =>
       for {
         list <- acc
-        a <- t
+        a    <- t
       } yield a :: list
     }.map(_.reverse)
 }
@@ -131,9 +139,9 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
   private def evalExpr(expr: SchemaExpr[_, _], input: Any, at: DynamicOptic): Either[MigrationError, DynamicValue] =
     scala.util.Try(expr.asInstanceOf[SchemaExpr[Any, Any]].evalDynamic(input)).toEither match {
       case Right(Right(seq)) if seq.nonEmpty => Right(seq.head)
-      case Right(Right(_)) => Left(MigrationError.TransformationFailed(at, "Expression evaluated to empty Sequence"))
-      case Right(Left(err)) => Left(MigrationError.TransformationFailed(at, err.toString))
-      case Left(ex) => Left(MigrationError.TransformationFailed(at, ex.getMessage))
+      case Right(Right(_))                   => Left(MigrationError.TransformationFailed(at, "Expression evaluated to empty Sequence"))
+      case Right(Left(err))                  => Left(MigrationError.TransformationFailed(at, err.toString))
+      case Left(ex)                          => Left(MigrationError.TransformationFailed(at, ex.getMessage))
     }
 
   private def applyActionSafe(
@@ -152,7 +160,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
                 else {
                   val newLm = fields.foldLeft(ListMap.empty[String, DynamicValue]) {
                     case (acc, (k, value)) if k == from => acc + (to -> value)
-                    case (acc, (k, value))              => acc + (k -> value)
+                    case (acc, (k, value))              => acc + (k  -> value)
                   }
                   Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(newLm))))
                 }
@@ -172,13 +180,21 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
 
           case MigrationAction.Mandate(_, default) =>
             current match {
-              case DynamicValue.Variant("None", _) => 
+              case DynamicValue.Variant("None", _) =>
                 evalExpr(default, null.asInstanceOf[Any], action.at) match {
                   case Right(defaultValue) => Trampoline.done(Right(defaultValue))
-                  case Left(_) => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, s"Mandated value is missing (encountered None) and default failed to evaluate.")))
+                  case Left(_)             =>
+                    Trampoline.done(
+                      Left(
+                        MigrationError.TransformationFailed(
+                          action.at,
+                          s"Mandated value is missing (encountered None) and default failed to evaluate."
+                        )
+                      )
+                    )
                 }
               case DynamicValue.Variant("Some", v) => Trampoline.done(Right(v))
-              case dyn => Trampoline.done(Right(dyn))
+              case dyn                             => Trampoline.done(Right(dyn))
             }
 
           case MigrationAction.Optionalize(_, _) =>
@@ -190,61 +206,89 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case MigrationAction.TransformValue(_, transform) =>
             evalExpr(transform, current, action.at) match {
               case Right(res) => Trampoline.done(Right(res))
-              case Left(err) => Trampoline.done(Left(err))
+              case Left(err)  => Trampoline.done(Left(err))
             }
 
           case MigrationAction.ChangeType(_, converter) =>
             evalExpr(converter, current, action.at) match {
               case Right(res) => Trampoline.done(Right(res))
-              case Left(err) => Trampoline.done(Left(err))
+              case Left(err)  => Trampoline.done(Left(err))
             }
 
           case MigrationAction.TransformElements(_, transform) =>
             current match {
               case DynamicValue.Sequence(values) =>
-                Trampoline.collectAll(values.map(v => Trampoline.done(evalExpr(transform, v, action.at)))).map { results =>
-                  results.find(_.isLeft) match {
-                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                    case None => Right(DynamicValue.Sequence(Chunk.fromIterable(results.map(_.getOrElse(DynamicValue.Null)))))
-                  }
+                Trampoline.collectAll(values.map(v => Trampoline.done(evalExpr(transform, v, action.at)))).map {
+                  results =>
+                    results.find(_.isLeft) match {
+                      case Some(err) =>
+                        Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                      case None =>
+                        Right(DynamicValue.Sequence(Chunk.fromIterable(results.map(_.getOrElse(DynamicValue.Null)))))
+                    }
                 }
-              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Sequence for TransformElements")))
+              case _ =>
+                Trampoline.done(
+                  Left(MigrationError.TransformationFailed(action.at, "Expected Sequence for TransformElements"))
+                )
             }
 
           case MigrationAction.TransformKeys(_, transform) =>
             current match {
               case DynamicValue.Map(entries) =>
-                Trampoline.collectAll(entries.map { case (k, v) => Trampoline.done(evalExpr(transform, k, action.at).map(res => (res, v))) }).map { results =>
-                  results.find(_.isLeft) match {
-                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                    case None => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+                Trampoline
+                  .collectAll(entries.map { case (k, v) =>
+                    Trampoline.done(evalExpr(transform, k, action.at).map(res => (res, v)))
+                  })
+                  .map { results =>
+                    results.find(_.isLeft) match {
+                      case Some(err) =>
+                        Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                      case None =>
+                        Right(
+                          DynamicValue
+                            .Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null)))))
+                        )
+                    }
                   }
-                }
-              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformKeys")))
+              case _ =>
+                Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformKeys")))
             }
 
           case MigrationAction.TransformValues(_, transform) =>
             current match {
               case DynamicValue.Map(entries) =>
-                Trampoline.collectAll(entries.map { case (k, v) => Trampoline.done(evalExpr(transform, v, action.at).map(res => (k, res))) }).map { results =>
-                  results.find(_.isLeft) match {
-                    case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                    case None => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+                Trampoline
+                  .collectAll(entries.map { case (k, v) =>
+                    Trampoline.done(evalExpr(transform, v, action.at).map(res => (k, res)))
+                  })
+                  .map { results =>
+                    results.find(_.isLeft) match {
+                      case Some(err) =>
+                        Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                      case None =>
+                        Right(
+                          DynamicValue
+                            .Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null)))))
+                        )
+                    }
                   }
-                }
-              case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformValues")))
+              case _ =>
+                Trampoline.done(
+                  Left(MigrationError.TransformationFailed(action.at, "Expected Map for TransformValues"))
+                )
             }
 
           case MigrationAction.Join(_, _, combiner, _) =>
             evalExpr(combiner, current, action.at) match {
               case Right(res) => Trampoline.done(Right(res))
-              case Left(err) => Trampoline.done(Left(err))
+              case Left(err)  => Trampoline.done(Left(err))
             }
 
           case MigrationAction.Split(_, _, splitter, _) =>
             evalExpr(splitter, current, action.at) match {
               case Right(res) => Trampoline.done(Right(res))
-              case Left(err) => Trampoline.done(Left(err))
+              case Left(err)  => Trampoline.done(Left(err))
             }
 
           case _ => Trampoline.done(Right(current))
@@ -252,16 +296,18 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
 
       case DynamicOptic.Node.Field(name) :: Nil
           if action.isInstanceOf[MigrationAction.AddField] ||
-             action.isInstanceOf[MigrationAction.DropField] =>
+            action.isInstanceOf[MigrationAction.DropField] =>
         current match {
           case DynamicValue.Record(fields) =>
             val lm = ListMap.from(fields)
             action match {
               case MigrationAction.AddField(_, default) =>
-                if (lm.contains(name)) Trampoline.done(Left(MigrationError.TransformationFailed(action.at, s"Field $name already exists")))
+                if (lm.contains(name))
+                  Trampoline.done(Left(MigrationError.TransformationFailed(action.at, s"Field $name already exists")))
                 else {
                   evalExpr(default, null.asInstanceOf[Any], action.at) match {
-                    case Right(defaultValue) => Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(lm + (name -> defaultValue)))))
+                    case Right(defaultValue) =>
+                      Trampoline.done(Right(DynamicValue.Record(Chunk.fromIterable(lm + (name -> defaultValue)))))
                     case Left(err) => Trampoline.done(Left(err))
                   }
                 }
@@ -309,10 +355,11 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
         current match {
           case DynamicValue.Sequence(values) =>
             if (index < 0 || index >= values.length) Trampoline.done(Left(MigrationError.PathNotFound(action.at)))
-            else applyActionSafe(values(index), tail, action).map {
-              case Right(res) => Right(DynamicValue.Sequence(values.updated(index, res)))
-              case Left(err)  => Left(err)
-            }
+            else
+              applyActionSafe(values(index), tail, action).map {
+                case Right(res) => Right(DynamicValue.Sequence(values.updated(index, res)))
+                case Left(err)  => Left(err)
+              }
           case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Sequence")))
         }
 
@@ -321,8 +368,10 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case DynamicValue.Sequence(values) =>
             Trampoline.collectAll(values.map(v => applyActionSafe(v, tail, action))).map { results =>
               results.find(_.isLeft) match {
-                case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                case None      => Right(DynamicValue.Sequence(Chunk.fromIterable(results.map(_.getOrElse(DynamicValue.Null)))))
+                case Some(err) =>
+                  Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                case None =>
+                  Right(DynamicValue.Sequence(Chunk.fromIterable(results.map(_.getOrElse(DynamicValue.Null)))))
               }
             }
           case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Sequence")))
@@ -331,24 +380,38 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
       case DynamicOptic.Node.MapValues :: tail =>
         current match {
           case DynamicValue.Map(entries) =>
-            Trampoline.collectAll(entries.map { case (k, v) => applyActionSafe(v, tail, action).map(_.map(res => (k, res))) }).map { results =>
-              results.find(_.isLeft) match {
-                case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                case None      => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+            Trampoline
+              .collectAll(entries.map { case (k, v) => applyActionSafe(v, tail, action).map(_.map(res => (k, res))) })
+              .map { results =>
+                results.find(_.isLeft) match {
+                  case Some(err) =>
+                    Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                  case None =>
+                    Right(
+                      DynamicValue
+                        .Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null)))))
+                    )
+                }
               }
-            }
           case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map")))
         }
 
       case DynamicOptic.Node.MapKeys :: tail =>
         current match {
           case DynamicValue.Map(entries) =>
-            Trampoline.collectAll(entries.map { case (k, v) => applyActionSafe(k, tail, action).map(_.map(res => (res, v))) }).map { results =>
-              results.find(_.isLeft) match {
-                case Some(err) => Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
-                case None      => Right(DynamicValue.Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null))))))
+            Trampoline
+              .collectAll(entries.map { case (k, v) => applyActionSafe(k, tail, action).map(_.map(res => (res, v))) })
+              .map { results =>
+                results.find(_.isLeft) match {
+                  case Some(err) =>
+                    Left(err.swap.getOrElse(MigrationError.TransformationFailed(action.at, "Unknown error")))
+                  case None =>
+                    Right(
+                      DynamicValue
+                        .Map(Chunk.fromIterable(results.map(_.getOrElse((DynamicValue.Null, DynamicValue.Null)))))
+                    )
+                }
               }
-            }
           case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map")))
         }
 
@@ -356,7 +419,7 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
         current match {
           case DynamicValue.Map(entries) =>
             entries.find(_._1 == kOptic) match {
-              case Some((k, v)) =>
+              case Some((_, v)) =>
                 applyActionSafe(v, tail, action).map {
                   case Right(res) =>
                     val newEntries = entries.map {
@@ -371,7 +434,8 @@ case class DynamicMigration(actions: Vector[MigrationAction]) {
           case _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Expected Map")))
         }
 
-      case _ :: _ => Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Unsupported optic node in migration")))
+      case _ :: _ =>
+        Trampoline.done(Left(MigrationError.TransformationFailed(action.at, "Unsupported optic node in migration")))
     }
   }
 }
@@ -386,7 +450,7 @@ case class Migration[A, B](
     dynamicMigration.apply(dynamic) match {
       case Right(dynB) =>
         targetSchema.fromDynamicValue(dynB) match {
-          case Right(b) => Right(b)
+          case Right(b)  => Right(b)
           case Left(err) => Left(MigrationError.TransformationFailed(DynamicOptic.root, err.toString))
         }
       case Left(err) => Left(err)
