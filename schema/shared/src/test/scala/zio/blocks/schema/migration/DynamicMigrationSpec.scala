@@ -230,6 +230,68 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
     test("Rename reports invalid root shape") {
       val mig = DynamicMigration(Vector(Rename(DynamicOptic.root.field("name"), "fullName")))
       assertTrue(mig(int(1)).isLeft)
+    },
+    test("Rename reports missing field in record roots") {
+      val source = DynamicValue.Record(Chunk("other" -> str("Ann")))
+      val mig    = DynamicMigration(Vector(Rename(DynamicOptic.root.field("name"), "fullName")))
+      assertTrue(mig(source).isLeft)
+    },
+    test("Rename rejects non field paths") {
+      val source = DynamicValue.Sequence(Chunk(str("a"), str("b")))
+      val mig    = DynamicMigration(Vector(Rename(DynamicOptic.root.elements, "value")))
+      assertTrue(mig(source).isLeft)
+    },
+    test("Join fails when one of the source paths is missing") {
+      val source = DynamicValue.Record(Chunk("first" -> str("Ann"), "full" -> str("")))
+      val mig    = DynamicMigration(
+        Vector(
+          Join(
+            DynamicOptic.root.field("full"),
+            Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
+            MigrationExpr.Concat(
+              Vector(
+                MigrationExpr.FieldAccess(DynamicOptic.root.field("first")),
+                MigrationExpr.FieldAccess(DynamicOptic.root.field("last"))
+              ),
+              " "
+            )
+          )
+        )
+      )
+      assertTrue(mig(source).isLeft)
+    },
+    test("TransformCase, TransformKeys, and TransformValues leave unsupported values unchanged") {
+      val caseMig = DynamicMigration(
+        Vector(
+          TransformCase(
+            DynamicOptic.root,
+            "Person",
+            Vector(Rename(DynamicOptic.root.field("name"), "fullName"))
+          )
+        )
+      )
+      val keyMig = DynamicMigration(
+        Vector(
+          TransformKeys(
+            DynamicOptic.root,
+            MigrationExpr.Concat(Vector(MigrationExpr.Identity, MigrationExpr.Literal(str("key"))), "-")
+          )
+        )
+      )
+      val valueMig = DynamicMigration(
+        Vector(
+          TransformValues(
+            DynamicOptic.root,
+            MigrationExpr.Convert(MigrationExpr.Identity, MigrationExpr.PrimitiveConversion.IntToLong)
+          )
+        )
+      )
+      assertTrue(
+        caseMig(DynamicValue.Variant("Other", DynamicValue.Record(Chunk("name" -> str("Ann")))))
+          .contains(DynamicValue.Variant("Other", DynamicValue.Record(Chunk("name" -> str("Ann"))))) &&
+          keyMig(str("value")).contains(str("value")) &&
+          valueMig(str("value")).contains(str("value"))
+      )
     }
   )
 }
