@@ -485,7 +485,15 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
     case _ => throw new JsonCodecError(spans, error.getMessage)
   }
 
-  protected def error(message: String): Nothing = throw new JsonCodecError(Nil, message)
+  /**
+   * Throws a [[JsonCodecError]] with the given error message.
+   *
+   * @param message
+   *   the error message
+   * @throws JsonCodecError
+   *   always
+   */
+  def error(message: String): Nothing = throw new JsonCodecError(Nil, message)
 
   private[schema] def decodeUnsafe(input: String): A = {
     val buf    = input.getBytes(UTF_8)
@@ -549,11 +557,10 @@ object JsonCodec {
   private val writerPool: ThreadLocal[JsonWriter] = new ThreadLocal[JsonWriter] {
     override def initialValue(): JsonWriter = new JsonWriter
   }
-
   val unitCodec: JsonCodec[Unit] = new JsonCodec[Unit] {
     def decodeValue(in: JsonReader): Unit =
       if (in.isNextToken('{') && in.isNextToken('}')) ()
-      else in.decodeError("expected an empty JSON object")
+      else error("expected an empty JSON object")
 
     def encodeValue(x: Unit, out: JsonWriter): Unit = {
       out.writeObjectStart()
@@ -896,7 +903,7 @@ object JsonCodec {
       val code = in.readString()
       try DayOfWeek.valueOf(code)
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal day of week value")
+        case err if NonFatal(err) => error("illegal day of week value")
       }
     }
 
@@ -919,7 +926,7 @@ object JsonCodec {
     override def decodeKey(in: JsonReader): DayOfWeek =
       try DayOfWeek.valueOf(in.readKeyAsString())
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal day of week value")
+        case err if NonFatal(err) => error("illegal day of week value")
       }
 
     override def encodeKey(x: DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
@@ -1050,7 +1057,7 @@ object JsonCodec {
       val code = in.readString()
       try Month.valueOf(code)
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal month value")
+        case err if NonFatal(err) => error("illegal month value")
       }
     }
 
@@ -1074,7 +1081,7 @@ object JsonCodec {
       val code = in.readKeyAsString()
       try Month.valueOf(code)
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal month value")
+        case err if NonFatal(err) => error("illegal month value")
       }
     }
 
@@ -1338,7 +1345,7 @@ object JsonCodec {
       val code = in.readString()
       try Currency.getInstance(code)
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal currency value")
+        case err if NonFatal(err) => error("illegal currency value")
       }
     }
 
@@ -1362,7 +1369,7 @@ object JsonCodec {
       val code = in.readKeyAsString()
       try Currency.getInstance(code)
       catch {
-        case err if NonFatal(err) => in.decodeError("illegal currency value")
+        case err if NonFatal(err) => error("illegal currency value")
       }
     }
 
@@ -1473,7 +1480,9 @@ object JsonCodec {
     def encodeValue(x: DynamicValue, out: JsonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.writeObjectStart(); out.writeObjectEnd()
+          case _: PrimitiveValue.Unit.type =>
+            out.writeObjectStart()
+            out.writeObjectEnd()
           case v: PrimitiveValue.Boolean        => out.writeVal(v.value)
           case v: PrimitiveValue.Byte           => out.writeVal(v.value)
           case v: PrimitiveValue.Short          => out.writeVal(v.value)
@@ -1596,7 +1605,7 @@ object JsonCodec {
     override def encodeKey(x: DynamicValue, out: JsonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.encodeError("encoding as JSON key is not supported")
+          case _: PrimitiveValue.Unit.type      => error("encoding as JSON key is not supported")
           case v: PrimitiveValue.Boolean        => out.writeKey(v.value)
           case v: PrimitiveValue.Byte           => out.writeKey(v.value)
           case v: PrimitiveValue.Short          => out.writeKey(v.value)
@@ -1627,7 +1636,7 @@ object JsonCodec {
           case v: PrimitiveValue.Currency       => out.writeNonEscapedAsciiKey(v.value.toString)
           case v: PrimitiveValue.UUID           => out.writeKey(v.value)
         }
-      case _ => out.encodeError("encoding as JSON key is not supported")
+      case _ => error("encoding as JSON key is not supported")
     }
 
     override def encodeKey(x: DynamicValue): String = x match {

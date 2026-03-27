@@ -386,20 +386,6 @@ object CsvPrimitiveCodecSpec extends SchemaBaseSpec {
         val c = codec(PrimitiveType.Int(Validation.None))
         assertTrue(c.headerNames == IndexedSeq("value"))
       }
-    ),
-    suite("nullValue")(
-      test("Int nullValue is 0") {
-        val c = codec(PrimitiveType.Int(Validation.None))
-        assertTrue(c.nullValue == 0)
-      },
-      test("Boolean nullValue is false") {
-        val c = codec(PrimitiveType.Boolean(Validation.None))
-        assertTrue(c.nullValue == false)
-      },
-      test("String nullValue is empty") {
-        val c = codec(PrimitiveType.String(Validation.None))
-        assertTrue(c.nullValue == "")
-      }
     )
   )
 }

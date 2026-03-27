@@ -44,13 +44,17 @@ object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
 
 Here's a summary of the formats currently supported by ZIO Blocks. Each format provides a `BinaryFormat` object that can be passed to `derive`:
 
-| Format Object       | Codec Type             | MIME Type             | Module                          |
-|---------------------|------------------------|-----------------------|---------------------------------|
-| `JsonFormat`        | `JsonCodec[A]`         | `application/json`    | `zio-blocks-schema`             |
-| `ToonFormat`        | `ToonBinaryCodec[A]`   | `text/toon`           | `zio-blocks-schema-toon`        |
-| `MessagePackFormat` | `MessagePackCodec[A]`  | `application/msgpack` | `zio-blocks-schema-messagepack` |
-| `AvroFormat`        | `AvroCodec[A]`         | `application/avro`    | `zio-blocks-schema-avro`        |
-| `ThriftFormat`      | `ThriftBinaryCodec[A]` | `application/thrift`  | `zio-blocks-schema-thrift`      |
+| Format Object       | Codec Type            | MIME Type             | Module                          |
+|---------------------|-----------------------|-----------------------|---------------------------------|
+| `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             |
+| `AvroFormat`        | `AvroCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        |
+| `BsonFormat`        | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        |
+| `CsvFormat`         | `CsvCodec[A]`         | `text/csv`            | `zio-blocks-schema-csv`         |
+| `MessagePackFormat` | `MessagePackCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` |
+| `ThriftFormat`      | `ThriftCodec[A]`      | `application/thrift`  | `zio-blocks-schema-thrift`      |
+| `ToonFormat`        | `ToonCodec[A]`        | `text/toon`           | `zio-blocks-schema-toon`        |
+| `XmlFormat`         | `XmlCodec[A]`         | `application/xml`     | `zio-blocks-schema-xml`         |
+| `YamlFormat`        | `YamlCodec[A]`        | `application/yaml`    | `zio-blocks-schema-yaml`        |
 
 ## Defining a Custom Format
 
@@ -308,7 +312,7 @@ orders[2]{id,total}:
 
 ### Configuration Options
 
-The `ToonBinaryCodecDeriver` provides extensive configuration:
+The `ToonCodecDeriver` provides extensive configuration:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -320,7 +324,7 @@ object Person {
 }
 
 // Custom deriver with snake_case field names
-val customDeriver = ToonBinaryCodecDeriver
+val customDeriver = ToonCodecDeriver
   .withFieldNameMapper(NameMapper.SnakeCase)
   .withArrayFormat(ArrayFormat.Tabular)
   .withDiscriminatorKind(DiscriminatorKind.Field("type"))
@@ -362,7 +366,7 @@ val keyCodec = Schema[Shape].derive(ToonFormat)
 //   radius: 5
 
 // Field discriminator
-val fieldDeriver = ToonBinaryCodecDeriver
+val fieldDeriver = ToonCodecDeriver
   .withDiscriminatorKind(DiscriminatorKind.Field("type"))
 val fieldCodec = Schema[Shape].derive(fieldDeriver)
 // type: Circle

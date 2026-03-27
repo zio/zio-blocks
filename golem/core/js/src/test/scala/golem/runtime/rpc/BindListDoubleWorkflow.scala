@@ -23,7 +23,8 @@ import golem.BaseAgent
  * Top-level agent trait used to regression-test Scala.js AgentClient.bind
  * behavior for collection parameter types.
  */
-@agentDefinition("bind-list-double", mode = DurabilityMode.Durable)
-trait BindListDoubleWorkflow extends BaseAgent[Unit] {
+@agentDefinition("BindListDouble", mode = DurabilityMode.Durable)
+trait BindListDoubleWorkflow extends BaseAgent {
+  class Id()
   def finished(results: List[Double]): Unit
 }

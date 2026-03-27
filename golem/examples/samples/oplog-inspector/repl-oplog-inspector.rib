@@ -1,3 +1,0 @@
-let inspector = oplog-inspector("demo");
-let recent = inspector.inspect-recent();
-recent

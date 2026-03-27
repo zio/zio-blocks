@@ -103,10 +103,11 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
         else null
       val deriveCodecs = cachedInfo eq null
       if (deriveCodecs) {
-        val names   = new Array[String](len)
-        val codecs  = new Array[CsvCodec[Any]](len)
-        val offsets = new Array[Long](len)
-        cachedInfo = new CsvRecordInfo(names, codecs, offsets)
+        val names    = new Array[String](len)
+        val codecs   = new Array[CsvCodec[Any]](len)
+        val typeTags = new Array[Int](len)
+        val offsets  = new Array[Long](len)
+        cachedInfo = new CsvRecordInfo(names, codecs, typeTags, offsets)
         var idx = 0
         while (idx < len) {
           names(idx) = fields(idx).name
@@ -114,18 +115,21 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
         }
         if (isRecursive) recursiveRecordCache.get.put(typeId, cachedInfo)
       }
-      val fieldNames                            = cachedInfo.fieldNames
-      val fieldCodecs                           = cachedInfo.fieldCodecs
-      val fieldOffsets                          = cachedInfo.fieldOffsets
-      var offset: RegisterOffset.RegisterOffset = 0L
-      var idx                                   = 0
+      val fieldNames    = cachedInfo.fieldNames
+      val fieldCodecs   = cachedInfo.fieldCodecs
+      val fieldTypeTags = cachedInfo.fieldTypeTags
+      val fieldOffsets  = cachedInfo.fieldOffsets
+      var offset        = 0L
+      var idx           = 0
       while (idx < len) {
         val field = fields(idx)
         if (deriveCodecs) {
-          val codec = D.instance(field.value.metadata).force.asInstanceOf[CsvCodec[Any]]
+          val fieldReflect = field.value
+          val codec        = D.instance(fieldReflect.metadata).force.asInstanceOf[CsvCodec[Any]]
           fieldCodecs(idx) = codec
+          fieldTypeTags(idx) = Reflect.typeTag(fieldReflect)
           fieldOffsets(idx) = offset
-          offset = RegisterOffset.add(codec.valueOffset, offset)
+          offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
         }
         idx += 1
       }
@@ -139,26 +143,19 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
       new CsvCodec[A] {
         private[csv] val deconstructor      = recordBinding.deconstructor
         private[csv] val constructor        = recordBinding.constructor
-        private[csv] var usedRegisters      = offset
+        private[csv] val usedRegisters      = constructor.usedRegisters
         val headerNames: IndexedSeq[String] = headerResult
-        def nullValue: A                    = {
-          if (len > 0 && usedRegisters == 0L)
-            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
-          val regs = Registers(usedRegisters)
-          constructor.construct(regs, 0)
-        }
+
         def encode(value: A, output: CharBuffer): Unit = {
-          if (len > 0 && usedRegisters == 0L)
-            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
           val regs = Registers(usedRegisters)
           deconstructor.deconstruct(regs, 0, value)
           val fieldStrings = new Array[String](len)
           val buf          = encodeBuffer.get
-          var i            = 0
-          while (i < len) {
-            val fieldCodec  = fieldCodecs(i)
-            val fieldOffset = fieldOffsets(i)
-            val fieldValue  = readFieldFromRegisters(fieldCodec, regs, fieldOffset)
+          var idx          = 0
+          while (idx < len) {
+            val fieldCodec  = fieldCodecs(idx)
+            val fieldOffset = fieldOffsets(idx)
+            val fieldValue  = readFieldFromRegisters(fieldTypeTags(idx), regs, fieldOffset)
             buf.clear()
             val usedBuf = try {
               fieldCodec.encode(fieldValue, buf)
@@ -170,36 +167,35 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
                 largeBuf
             }
             usedBuf.flip()
-            fieldStrings(i) = usedBuf.toString
-            i += 1
+            fieldStrings(idx) = usedBuf.toString
+            idx += 1
           }
           val row =
             CsvWriter.writeRow(scala.collection.immutable.ArraySeq.unsafeWrapArray(fieldStrings), CsvConfig.default)
           output.put(row)
         }
+
         def decode(input: CharBuffer): Either[SchemaError, A] = {
-          if (len > 0 && usedRegisters == 0L)
-            usedRegisters = RegisterOffset.add(fieldCodecs(len - 1).valueOffset, fieldOffsets(len - 1))
           val str = input.toString
           input.position(input.limit())
           CsvReader.readRow(str, 0, CsvConfig.default) match {
-            case Left(err)                => new Left(SchemaError.expectationMismatch(Nil, err.formatMessage))
+            case Left(err)                => new Left(SchemaError.expectationMismatch(Nil, err.getMessage))
             case Right((parsedFields, _)) =>
               if (parsedFields.length != len)
                 new Left(SchemaError.expectationMismatch(Nil, s"Expected $len fields, got ${parsedFields.length}"))
               else {
                 val regs = Registers(usedRegisters)
-                var i    = 0
-                while (i < len) {
-                  val fieldCodec  = fieldCodecs(i)
-                  val fieldOffset = fieldOffsets(i)
-                  val fieldStr    = parsedFields(i)
+                var idx  = 0
+                while (idx < len) {
+                  val fieldCodec  = fieldCodecs(idx)
+                  val fieldOffset = fieldOffsets(idx)
+                  val fieldStr    = parsedFields(idx)
                   fieldCodec.decode(CharBuffer.wrap(fieldStr)) match {
                     case Left(err)         => return new Left(err)
                     case Right(fieldValue) =>
-                      writeFieldToRegisters(fieldCodec, regs, fieldOffset, fieldValue)
+                      writeFieldToRegisters(fieldTypeTags(idx), regs, fieldOffset, fieldValue)
                   }
-                  i += 1
+                  idx += 1
                 }
                 new Right(constructor.construct(regs, 0))
               }
@@ -217,9 +213,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[A]] =
     throw new UnsupportedOperationException("CSV does not support variant/sum types. Use a flat case class instead.")
-  )
 
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
@@ -229,9 +224,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[C[A]],
     examples: Seq[C[A]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[C[A]]] =
     throw new UnsupportedOperationException("CSV does not support sequence fields.")
-  )
 
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -242,9 +236,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[M[K, V]],
     examples: Seq[M[K, V]]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[M[K, V]]] =
     throw new UnsupportedOperationException("CSV does not support map fields.")
-  )
 
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
@@ -252,9 +245,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] = Lazy(
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[CsvCodec[DynamicValue]] =
     throw new UnsupportedOperationException("CSV does not support dynamic values.")
-  )
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -268,13 +260,14 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
       D.instance(wrapped.metadata).map { codec =>
-        new CsvCodec[A](codec.valueType) {
-          private[csv] val wrap                                 = wrapperBinding.wrap
-          private[csv] val unwrap                               = wrapperBinding.unwrap
-          private[csv] val wrappedCodec                         = codec
-          val headerNames: IndexedSeq[String]                   = wrappedCodec.headerNames
-          def nullValue: A                                      = wrap(wrappedCodec.nullValue)
-          def encode(value: A, output: CharBuffer): Unit        = wrappedCodec.encode(unwrap(value), output)
+        new CsvCodec[A] {
+          private[this] val wrap              = wrapperBinding.wrap
+          private[this] val unwrap            = wrapperBinding.unwrap
+          private[this] val wrappedCodec      = codec
+          val headerNames: IndexedSeq[String] = wrappedCodec.headerNames
+
+          def encode(value: A, output: CharBuffer): Unit = wrappedCodec.encode(unwrap(value), output)
+
           def decode(input: CharBuffer): Either[SchemaError, A] =
             wrappedCodec.decode(input) match {
               case Right(b) => new Right(wrap(b))
@@ -294,6 +287,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
   private[csv] final class CsvRecordInfo(
     val fieldNames: Array[String],
     val fieldCodecs: Array[CsvCodec[Any]],
+    val fieldTypeTags: Array[Int],
     val fieldOffsets: Array[Long]
   )
 
@@ -317,16 +311,14 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val singleHeader: IndexedSeq[String] = IndexedSeq("value")
 
-  private val unitCodec: CsvCodec[Unit] = new CsvCodec[Unit](CsvCodec.unitType) {
+  private val unitCodec: CsvCodec[Unit] = new CsvCodec[Unit] {
     val headerNames: IndexedSeq[String]                      = singleHeader
-    def nullValue: Unit                                      = ()
     def encode(value: Unit, output: CharBuffer): Unit        = ()
     def decode(input: CharBuffer): Either[SchemaError, Unit] = new Right(())
   }
 
-  private val booleanCodec: CsvCodec[Boolean] = new CsvCodec[Boolean](CsvCodec.booleanType) {
+  private val booleanCodec: CsvCodec[Boolean] = new CsvCodec[Boolean] {
     val headerNames: IndexedSeq[String]                         = singleHeader
-    def nullValue: Boolean                                      = false
     def encode(value: Boolean, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Boolean] = {
       val str = readString(input)
@@ -338,9 +330,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val byteCodec: CsvCodec[Byte] = new CsvCodec[Byte](CsvCodec.byteType) {
+  private val byteCodec: CsvCodec[Byte] = new CsvCodec[Byte] {
     val headerNames: IndexedSeq[String]                      = singleHeader
-    def nullValue: Byte                                      = 0
     def encode(value: Byte, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Byte] = {
       val str = readString(input)
@@ -349,9 +340,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val shortCodec: CsvCodec[Short] = new CsvCodec[Short](CsvCodec.shortType) {
+  private val shortCodec: CsvCodec[Short] = new CsvCodec[Short] {
     val headerNames: IndexedSeq[String]                       = singleHeader
-    def nullValue: Short                                      = 0
     def encode(value: Short, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Short] = {
       val str = readString(input)
@@ -360,9 +350,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val intCodec: CsvCodec[scala.Int] = new CsvCodec[scala.Int](CsvCodec.intType) {
+  private val intCodec: CsvCodec[scala.Int] = new CsvCodec[scala.Int] {
     val headerNames: IndexedSeq[String]                           = singleHeader
-    def nullValue: scala.Int                                      = 0
     def encode(value: scala.Int, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, scala.Int] = {
       val str = readString(input)
@@ -371,9 +360,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val longCodec: CsvCodec[Long] = new CsvCodec[Long](CsvCodec.longType) {
+  private val longCodec: CsvCodec[Long] = new CsvCodec[Long] {
     val headerNames: IndexedSeq[String]                      = singleHeader
-    def nullValue: Long                                      = 0L
     def encode(value: Long, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Long] = {
       val str = readString(input)
@@ -382,9 +370,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val floatCodec: CsvCodec[Float] = new CsvCodec[Float](CsvCodec.floatType) {
+  private val floatCodec: CsvCodec[Float] = new CsvCodec[Float] {
     val headerNames: IndexedSeq[String]                       = singleHeader
-    def nullValue: Float                                      = 0.0f
     def encode(value: Float, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Float] = {
       val str = readString(input)
@@ -393,9 +380,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val doubleCodec: CsvCodec[Double] = new CsvCodec[Double](CsvCodec.doubleType) {
+  private val doubleCodec: CsvCodec[Double] = new CsvCodec[Double] {
     val headerNames: IndexedSeq[String]                        = singleHeader
-    def nullValue: Double                                      = 0.0d
     def encode(value: Double, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, Double] = {
       val str = readString(input)
@@ -404,9 +390,8 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
   }
 
-  private val charCodec: CsvCodec[Char] = new CsvCodec[Char](CsvCodec.charType) {
+  private val charCodec: CsvCodec[Char] = new CsvCodec[Char] {
     val headerNames: IndexedSeq[String]                      = singleHeader
-    def nullValue: Char                                      = '\u0000'
     def encode(value: Char, output: CharBuffer): Unit        = output.put(value)
     def decode(input: CharBuffer): Either[SchemaError, Char] = {
       val str = readString(input)
@@ -417,14 +402,12 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val stringCodec: CsvCodec[String] = new CsvCodec[String] {
     val headerNames: IndexedSeq[String]                        = singleHeader
-    def nullValue: String                                      = ""
     def encode(value: String, output: CharBuffer): Unit        = output.put(value)
     def decode(input: CharBuffer): Either[SchemaError, String] = new Right(readString(input))
   }
 
   private val bigIntCodec: CsvCodec[BigInt] = new CsvCodec[BigInt] {
     val headerNames: IndexedSeq[String]                        = singleHeader
-    def nullValue: BigInt                                      = BigInt(0)
     def encode(value: BigInt, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, BigInt] = {
       val str = readString(input)
@@ -435,7 +418,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val bigDecimalCodec: CsvCodec[BigDecimal] = new CsvCodec[BigDecimal] {
     val headerNames: IndexedSeq[String]                            = singleHeader
-    def nullValue: BigDecimal                                      = BigDecimal(0)
     def encode(value: BigDecimal, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, BigDecimal] = {
       val str = readString(input)
@@ -446,7 +428,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val dayOfWeekCodec: CsvCodec[java.time.DayOfWeek] = new CsvCodec[java.time.DayOfWeek] {
     val headerNames: IndexedSeq[String]                                     = singleHeader
-    def nullValue: java.time.DayOfWeek                                      = java.time.DayOfWeek.MONDAY
     def encode(value: java.time.DayOfWeek, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.DayOfWeek] = {
       val str = readString(input)
@@ -457,7 +438,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val durationCodec: CsvCodec[java.time.Duration] = new CsvCodec[java.time.Duration] {
     val headerNames: IndexedSeq[String]                                    = singleHeader
-    def nullValue: java.time.Duration                                      = java.time.Duration.ZERO
     def encode(value: java.time.Duration, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.Duration] = {
       val str = readString(input)
@@ -468,7 +448,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val instantCodec: CsvCodec[java.time.Instant] = new CsvCodec[java.time.Instant] {
     val headerNames: IndexedSeq[String]                                   = singleHeader
-    def nullValue: java.time.Instant                                      = java.time.Instant.EPOCH
     def encode(value: java.time.Instant, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.Instant] = {
       val str = readString(input)
@@ -479,7 +458,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val localDateCodec: CsvCodec[java.time.LocalDate] = new CsvCodec[java.time.LocalDate] {
     val headerNames: IndexedSeq[String]                                     = singleHeader
-    def nullValue: java.time.LocalDate                                      = java.time.LocalDate.MIN
     def encode(value: java.time.LocalDate, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDate] = {
       val str = readString(input)
@@ -490,7 +468,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val localDateTimeCodec: CsvCodec[java.time.LocalDateTime] = new CsvCodec[java.time.LocalDateTime] {
     val headerNames: IndexedSeq[String]                                         = singleHeader
-    def nullValue: java.time.LocalDateTime                                      = java.time.LocalDateTime.MIN
     def encode(value: java.time.LocalDateTime, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalDateTime] = {
       val str = readString(input)
@@ -501,7 +478,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val localTimeCodec: CsvCodec[java.time.LocalTime] = new CsvCodec[java.time.LocalTime] {
     val headerNames: IndexedSeq[String]                                     = singleHeader
-    def nullValue: java.time.LocalTime                                      = java.time.LocalTime.MIDNIGHT
     def encode(value: java.time.LocalTime, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.LocalTime] = {
       val str = readString(input)
@@ -512,7 +488,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val monthCodec: CsvCodec[java.time.Month] = new CsvCodec[java.time.Month] {
     val headerNames: IndexedSeq[String]                                 = singleHeader
-    def nullValue: java.time.Month                                      = java.time.Month.JANUARY
     def encode(value: java.time.Month, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.Month] = {
       val str = readString(input)
@@ -523,7 +498,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val monthDayCodec: CsvCodec[java.time.MonthDay] = new CsvCodec[java.time.MonthDay] {
     val headerNames: IndexedSeq[String]                                    = singleHeader
-    def nullValue: java.time.MonthDay                                      = java.time.MonthDay.of(1, 1)
     def encode(value: java.time.MonthDay, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.MonthDay] = {
       val str = readString(input)
@@ -534,7 +508,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val offsetDateTimeCodec: CsvCodec[java.time.OffsetDateTime] = new CsvCodec[java.time.OffsetDateTime] {
     val headerNames: IndexedSeq[String]                                          = singleHeader
-    def nullValue: java.time.OffsetDateTime                                      = java.time.OffsetDateTime.MIN
     def encode(value: java.time.OffsetDateTime, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetDateTime] = {
       val str = readString(input)
@@ -545,7 +518,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val offsetTimeCodec: CsvCodec[java.time.OffsetTime] = new CsvCodec[java.time.OffsetTime] {
     val headerNames: IndexedSeq[String]                                      = singleHeader
-    def nullValue: java.time.OffsetTime                                      = java.time.OffsetTime.MIN
     def encode(value: java.time.OffsetTime, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.OffsetTime] = {
       val str = readString(input)
@@ -556,7 +528,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val periodCodec: CsvCodec[java.time.Period] = new CsvCodec[java.time.Period] {
     val headerNames: IndexedSeq[String]                                  = singleHeader
-    def nullValue: java.time.Period                                      = java.time.Period.ZERO
     def encode(value: java.time.Period, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.Period] = {
       val str = readString(input)
@@ -567,7 +538,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val yearCodec: CsvCodec[java.time.Year] = new CsvCodec[java.time.Year] {
     val headerNames: IndexedSeq[String]                                = singleHeader
-    def nullValue: java.time.Year                                      = java.time.Year.of(1970)
     def encode(value: java.time.Year, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.Year] = {
       val str = readString(input)
@@ -578,7 +548,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val yearMonthCodec: CsvCodec[java.time.YearMonth] = new CsvCodec[java.time.YearMonth] {
     val headerNames: IndexedSeq[String]                                     = singleHeader
-    def nullValue: java.time.YearMonth                                      = java.time.YearMonth.of(1970, 1)
     def encode(value: java.time.YearMonth, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.YearMonth] = {
       val str = readString(input)
@@ -589,7 +558,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val zoneIdCodec: CsvCodec[java.time.ZoneId] = new CsvCodec[java.time.ZoneId] {
     val headerNames: IndexedSeq[String]                                  = singleHeader
-    def nullValue: java.time.ZoneId                                      = java.time.ZoneId.of("UTC")
     def encode(value: java.time.ZoneId, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneId] = {
       val str = readString(input)
@@ -600,7 +568,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val zoneOffsetCodec: CsvCodec[java.time.ZoneOffset] = new CsvCodec[java.time.ZoneOffset] {
     val headerNames: IndexedSeq[String]                                      = singleHeader
-    def nullValue: java.time.ZoneOffset                                      = java.time.ZoneOffset.UTC
     def encode(value: java.time.ZoneOffset, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZoneOffset] = {
       val str = readString(input)
@@ -610,9 +577,7 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
   }
 
   private val zonedDateTimeCodec: CsvCodec[java.time.ZonedDateTime] = new CsvCodec[java.time.ZonedDateTime] {
-    val headerNames: IndexedSeq[String]    = singleHeader
-    def nullValue: java.time.ZonedDateTime =
-      java.time.ZonedDateTime.of(java.time.LocalDateTime.MIN, java.time.ZoneOffset.UTC)
+    val headerNames: IndexedSeq[String]                                         = singleHeader
     def encode(value: java.time.ZonedDateTime, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, java.time.ZonedDateTime] = {
       val str = readString(input)
@@ -623,7 +588,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val currencyCodec: CsvCodec[Currency] = new CsvCodec[Currency] {
     val headerNames: IndexedSeq[String]                          = singleHeader
-    def nullValue: Currency                                      = Currency.getInstance("USD")
     def encode(value: Currency, output: CharBuffer): Unit        = output.put(value.getCurrencyCode)
     def decode(input: CharBuffer): Either[SchemaError, Currency] = {
       val str = readString(input)
@@ -634,7 +598,6 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
 
   private val uuidCodec: CsvCodec[UUID] = new CsvCodec[UUID] {
     val headerNames: IndexedSeq[String]                      = singleHeader
-    def nullValue: UUID                                      = new UUID(0L, 0L)
     def encode(value: UUID, output: CharBuffer): Unit        = output.put(value.toString)
     def decode(input: CharBuffer): Either[SchemaError, UUID] = {
       val str = readString(input)
@@ -650,11 +613,11 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
   }
 
   private def readFieldFromRegisters(
-    codec: CsvCodec[Any],
+    typeTag: Int,
     regs: Registers,
     offset: RegisterOffset.RegisterOffset
   ): Any =
-    (codec.valueType: @scala.annotation.switch) match {
+    (typeTag: @scala.annotation.switch) match {
       case 0 => regs.getObject(offset)
       case 1 => regs.getInt(offset)
       case 2 => regs.getLong(offset)
@@ -668,12 +631,12 @@ object CsvCodecDeriver extends Deriver[CsvCodec] {
     }
 
   private def writeFieldToRegisters(
-    codec: CsvCodec[Any],
+    typeTag: Int,
     regs: Registers,
     offset: RegisterOffset.RegisterOffset,
     value: Any
   ): Unit =
-    (codec.valueType: @scala.annotation.switch) match {
+    (typeTag: @scala.annotation.switch) match {
       case 0 => regs.setObject(offset, value.asInstanceOf[AnyRef])
       case 1 => regs.setInt(offset, value.asInstanceOf[Int])
       case 2 => regs.setLong(offset, value.asInstanceOf[Long])

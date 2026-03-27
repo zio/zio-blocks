@@ -19,7 +19,7 @@ abstract class Codec[DecodeInput, EncodeOutput, Value] {
 - **`encode`** writes the encoded form of `value` into `output`. The output parameter is typically a mutable buffer (`ByteBuffer`, `CharBuffer`) that the caller provides.
 - **`decode`** reads from `input` and returns either a `SchemaError` describing the failure or the decoded value.
 
-End users rarely interact with `Codec` directly. Instead, they work with format-specific subclasses like `JsonCodec[A]` or `ToonBinaryCodec[A]`, which add convenience methods for common input/output types.
+End users rarely interact with `Codec` directly. Instead, they work with format-specific subclasses like `JsonCodec[A]` or `ToonCodec[A]`, which add convenience methods for common input/output types.
 
 Given a `Schema[A]`, you can derive a codec for any supported format by calling `Schema[A].derive(format)`, which uses the `Deriver` associated with that format to generate the appropriate codec instance. For example, to derive a JSON codec:
 
@@ -55,10 +55,13 @@ Additional format modules are separate artifacts:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv"         % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml"         % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml"        % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
@@ -76,12 +79,15 @@ The codec system in ZIO Blocks is organized as a layered hierarchy:
 ```
 Codec[DecodeInput, EncodeOutput, Value]        
 ├── BinaryCodec[A] =  Codec[ByteBuffer, ByteBuffer, A]   (ByteBuffer ↔ A)
-│   ├── JsonCodec[A]                    
 │   ├── AvroCodec[A]                   
-│   ├── ToonBinaryCodec[A]                  
-│   ├── ThriftBinaryCodec[A]               
-│   └── MessagePackCodec[A]         
+│   ├── JsonCodec[A]                    
+│   ├── MessagePackCodec[A]         
+│   ├── ThriftCodec[A]               
+│   ├── ToonCodec[A]                  
+│   ├── XmlCodec[A]         
+│   └── YamlCodec[A]         
 └── TextCodec[A] = Codec[CharBuffer, CharBuffer, A]      (CharBuffer ↔ A)
+    └── CsvCodec[A]                    
 ```
 
 1. **`BinaryCodec[A]`** fixes both the input and output to `ByteBuffer` and is the base class for all codecs that operate on binary data:
@@ -207,7 +213,7 @@ Passing a `Deriver` directly is useful when working with custom or configured de
 
 ## Convenience Methods on Format-Specific Codecs
 
-While the base `Codec` class defines only `encode(value, output)` and `decode(input)`, format-specific subclasses like `JsonCodec` and `ToonBinaryCodec` add convenience overloads for common I/O types.
+While the base `Codec` class defines only `encode(value, output)` and `decode(input)`, format-specific subclasses like `JsonCodec` and `ToonCodec` add convenience overloads for common I/O types.
 
 ### JsonCodec Convenience Methods
 
@@ -244,9 +250,9 @@ val is = new ByteArrayInputStream(os.toByteArray)
 val fromStream: Either[SchemaError, Person] = codec.decode(is)
 ```
 
-### ToonBinaryCodec Convenience Methods
+### ToonCodec Convenience Methods
 
-`ToonBinaryCodec[A]` provides the same set of overloads:
+`ToonCodec[A]` provides the same set of overloads:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -348,7 +354,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val customDeriver = ToonBinaryCodecDeriver
+val customDeriver = ToonCodecDeriver
   .withFieldNameMapper(NameMapper.SnakeCase)
   .withArrayFormat(ArrayFormat.Tabular)
   .withDiscriminatorKind(DiscriminatorKind.Field("type"))

@@ -16,9 +16,11 @@
 
 package golem.runtime.autowire
 
+import golem.Principal
+import golem.config.{ConfigHolder, ConfigLoader}
 import golem.data.GolemSchema
 import golem.data.StructuredSchema
-import golem.runtime.agenttype.{AgentImplementationType, AsyncImplementationMethod, SyncImplementationMethod}
+import golem.runtime.{AgentImplementationType, AsyncImplementationMethod, ConstructorMetadata, SyncImplementationMethod}
 
 private[autowire] object AgentImplementationRuntime {
   def register[Trait, Ctor](
@@ -26,23 +28,61 @@ private[autowire] object AgentImplementationRuntime {
     mode: AgentMode,
     implType: AgentImplementationType[Trait, Ctor]
   ): AgentDefinition[Trait] = {
+    val effectiveBuild: (Ctor, Principal) => Trait = implType.configBuilder match {
+      case Some(builder) if !implType.configInjectedViaConstructor =>
+        (ctor: Ctor, principal: Principal) => {
+          val config = ConfigLoader.loadConfig(builder)
+          ConfigHolder.set(config)
+          implType.buildInstance(ctor, principal)
+        }
+      case _ => implType.buildInstance
+    }
+
     val constructor =
-      implType.constructorSchema.schema match {
+      implType.idSchema.schema match {
         case StructuredSchema.Tuple(elements) if elements.isEmpty =>
-          val instance = implType.buildInstance(().asInstanceOf[Ctor])
           AgentConstructor.noArgs[Trait](
             description = implType.metadata.description.getOrElse(typeName),
             prompt = None
-          )(instance)
+          )((principal: Principal) => effectiveBuild(().asInstanceOf[Ctor], principal))
         case _ =>
-          implicit val ctorSchema: GolemSchema[Ctor] = implType.constructorSchema
+          // Use the metadata constructor schema (from class Id) for param names,
+          // but delegate to the GolemSchema for encoding/decoding.
+          // The metadata schema has named params (e.g. "region", "catalog") while
+          // the GolemSchema may use tuple names (e.g. "_1", "_2"). We need to
+          // translate between them during decoding.
+          val baseSchema: GolemSchema[Ctor]          = implType.idSchema
+          val metadataSchema                         = implType.metadata.constructor
+          implicit val ctorSchema: GolemSchema[Ctor] = new GolemSchema[Ctor] {
+            override val schema: StructuredSchema                  = metadataSchema
+            override def encode(value: Ctor)                       = baseSchema.encode(value)
+            override def decode(value: golem.data.StructuredValue) = {
+              // Translate named params from metadata schema names back to base schema names
+              val translated = (value, baseSchema.schema, metadataSchema) match {
+                case (
+                      golem.data.StructuredValue.Tuple(metaElems),
+                      StructuredSchema.Tuple(baseFields),
+                      StructuredSchema.Tuple(metaFields)
+                    ) if metaElems.length == baseFields.length && baseFields.length == metaFields.length =>
+                  val renamed = metaElems.zip(baseFields).map { case (elem, baseField) =>
+                    golem.data.NamedElementValue(baseField.name, elem.value)
+                  }
+                  golem.data.StructuredValue.Tuple(renamed)
+                case _ => value
+              }
+              baseSchema.decode(translated)
+            }
+            override def elementSchema                                 = baseSchema.elementSchema
+            override def encodeElement(value: Ctor)                    = baseSchema.encodeElement(value)
+            override def decodeElement(value: golem.data.ElementValue) = baseSchema.decodeElement(value)
+          }
           AgentConstructor.sync[Ctor, Trait](
             ConstructorMetadata(
               name = None,
               description = implType.metadata.description.getOrElse(typeName),
               promptHint = None
             )
-          )(implType.buildInstance)
+          )(effectiveBuild)
       }
 
     val bindings = implType.methods.map {
@@ -57,19 +97,13 @@ private[autowire] object AgentImplementationRuntime {
       metadata = implType.metadata,
       constructor = constructor,
       bindings = bindings,
-      mode = mode
+      mode = mode,
+      snapshotHandlers = implType.snapshotHandlers
     )
 
     AgentRegistry.register(definition)
     definition
   }
-
-  def registerWithCtor[Trait, Ctor](
-    typeName: String,
-    mode: AgentMode,
-    implType: AgentImplementationType[Trait, Ctor]
-  ): AgentDefinition[Trait] =
-    register[Trait, Ctor](typeName, mode, implType)
 
   private def buildSyncBinding[Trait, In, Out](
     method: SyncImplementationMethod[Trait, In, Out]
@@ -77,8 +111,8 @@ private[autowire] object AgentImplementationRuntime {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.sync[Trait, In, Out](method.metadata) { (instance, input) =>
-      method.handler(instance, input)
+    MethodBinding.sync[Trait, In, Out](method.metadata) { (instance, input, principal) =>
+      method.handler(instance, input, principal)
     }
   }
 
@@ -88,8 +122,8 @@ private[autowire] object AgentImplementationRuntime {
     implicit val inSchema: GolemSchema[In]   = method.inputSchema
     implicit val outSchema: GolemSchema[Out] = method.outputSchema
 
-    MethodBinding.async[Trait, In, Out](method.metadata) { (instance, input) =>
-      method.handler(instance, input)
+    MethodBinding.async[Trait, In, Out](method.metadata) { (instance, input, principal) =>
+      method.handler(instance, input, principal)
     }
   }
 }

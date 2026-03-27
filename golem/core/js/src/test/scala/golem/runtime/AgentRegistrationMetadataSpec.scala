@@ -19,16 +19,17 @@ package golem.runtime
 import golem.BaseAgent
 import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description, prompt}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation, AgentMode}
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
 
-final class AgentRegistrationMetadataSpec extends AnyFunSuite {
+object AgentRegistrationMetadataSpec extends ZIOSpecDefault {
 
   @agentDefinition("meta-agent")
   @description("An agent used for metadata tests.")
-  trait MetaAgent extends BaseAgent[Unit] {
+  trait MetaAgent extends BaseAgent {
+    class Id()
     @description("Echoes input.")
     @prompt("Say hello.")
     def echo(s: String): Future[String]
@@ -47,53 +48,15 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   }
 
   private lazy val defn: AgentDefinition[MetaAgent] =
-    AgentImplementation.register[MetaAgent]("meta-agent")(new MetaAgentImpl())
-
-  test("registered agent has correct typeName") {
-    assert(defn.typeName == "meta-agent")
-  }
-
-  test("metadata contains all methods") {
-    val names = defn.methodMetadata.map(_.metadata.name).toSet
-    assert(names == Set("echo", "add", "noAnnotation"))
-  }
-
-  test("method count matches trait method count") {
-    assert(defn.methodMetadata.size == 3)
-  }
-
-  test("echo method has description from @description") {
-    val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
-    assert(echo.metadata.description.contains("Echoes input."))
-  }
-
-  test("echo method has prompt from @prompt") {
-    val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
-    assert(echo.metadata.prompt.contains("Say hello."))
-  }
-
-  test("add method has description but no prompt") {
-    val add = defn.methodMetadata.find(_.metadata.name == "add").get
-    assert(add.metadata.description.contains("Adds two ints."))
-    assert(add.metadata.prompt.isEmpty)
-  }
-
-  test("unannotated method has no description and no prompt") {
-    val m = defn.methodMetadata.find(_.metadata.name == "noAnnotation").get
-    assert(m.metadata.description.isEmpty)
-    assert(m.metadata.prompt.isEmpty)
-  }
-
-  test("default mode is Durable") {
-    assert(defn.mode == AgentMode.Durable)
-  }
+    AgentImplementation.registerClass[MetaAgent, MetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Ephemeral mode
   // ---------------------------------------------------------------------------
 
   @agentDefinition("ephemeral-meta-agent", mode = DurabilityMode.Ephemeral)
-  trait EphemeralMetaAgent extends BaseAgent[Unit] {
+  trait EphemeralMetaAgent extends BaseAgent {
+    class Id()
     def ping(): Future[String]
   }
 
@@ -103,11 +66,7 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   }
 
   private lazy val ephDefn: AgentDefinition[EphemeralMetaAgent] =
-    AgentImplementation.register[EphemeralMetaAgent]("ephemeral-meta-agent")(new EphemeralMetaAgentImpl())
-
-  test("ephemeral agent has Ephemeral mode") {
-    assert(ephDefn.mode == AgentMode.Ephemeral)
-  }
+    AgentImplementation.registerClass[EphemeralMetaAgent, EphemeralMetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Constructor type agent
@@ -118,33 +77,26 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
 
   @agentDefinition("ctor-meta-agent")
   @description("Agent with case class constructor.")
-  trait CtorMetaAgent extends BaseAgent[MetaConfig] {
+  trait CtorMetaAgent extends BaseAgent {
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
   @agentImplementation()
-  final class CtorMetaAgentImpl(private val config: MetaConfig) extends CtorMetaAgent {
-    override def info(): Future[String] = Future.successful(s"${config.host}:${config.port}")
+  final class CtorMetaAgentImpl(private val host: String, private val port: Int) extends CtorMetaAgent {
+    override def info(): Future[String] = Future.successful(s"$host:$port")
   }
 
   private lazy val ctorDefn: AgentDefinition[CtorMetaAgent] =
-    AgentImplementation.register[CtorMetaAgent]("ctor-meta-agent")(new CtorMetaAgentImpl(MetaConfig("h", 80)))
-
-  test("constructor agent registration succeeds") {
-    assert(ctorDefn.typeName == "ctor-meta-agent")
-  }
-
-  test("constructor agent has correct method count") {
-    assert(ctorDefn.methodMetadata.size == 1)
-    assert(ctorDefn.methodMetadata.head.metadata.name == "info")
-  }
+    AgentImplementation.registerClass[CtorMetaAgent, CtorMetaAgentImpl]
 
   // ---------------------------------------------------------------------------
   // Explicit Durable mode
   // ---------------------------------------------------------------------------
 
   @agentDefinition("explicit-durable-agent", mode = DurabilityMode.Durable)
-  trait ExplicitDurableAgent extends BaseAgent[Unit] {
+  trait ExplicitDurableAgent extends BaseAgent {
+    class Id()
     def ping(): Future[String]
   }
 
@@ -154,45 +106,81 @@ final class AgentRegistrationMetadataSpec extends AnyFunSuite {
   }
 
   private lazy val durDefn: AgentDefinition[ExplicitDurableAgent] =
-    AgentImplementation.register[ExplicitDurableAgent]("explicit-durable-agent")(new ExplicitDurableAgentImpl())
+    AgentImplementation.registerClass[ExplicitDurableAgent, ExplicitDurableAgentImpl]
 
-  test("explicit durable agent has Durable mode") {
-    assert(durDefn.mode == AgentMode.Durable)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Schema verification: method input/output schemas are structurally correct
-  // ---------------------------------------------------------------------------
-
-  test("echo method inputSchema has tuple tag") {
-    val echo  = defn.methodMetadata.find(_.metadata.name == "echo").get
-    val input = echo.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
-  }
-
-  test("echo method outputSchema has tuple tag") {
-    val echo   = defn.methodMetadata.find(_.metadata.name == "echo").get
-    val output = echo.outputSchema
-    assert(output.selectDynamic("tag").asInstanceOf[String] == "tuple")
-  }
-
-  test("add method inputSchema has tuple tag with elements") {
-    val add   = defn.methodMetadata.find(_.metadata.name == "add").get
-    val input = add.inputSchema
-    assert(input.selectDynamic("tag").asInstanceOf[String] == "tuple")
-  }
-
-  // ---------------------------------------------------------------------------
-  // Multiple descriptions on different methods
-  // ---------------------------------------------------------------------------
-
-  test("multiple methods can have different descriptions") {
-    val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
-    val add  = defn.methodMetadata.find(_.metadata.name == "add").get
-    assert(echo.metadata.description != add.metadata.description)
-  }
-
-  test("agent trait description is captured in metadata") {
-    assert(defn.metadata.description.contains("An agent used for metadata tests."))
-  }
+  def spec = suite("AgentRegistrationMetadataSpec")(
+    test("registered agent has correct typeName") {
+      assertTrue(defn.typeName == "meta-agent")
+    },
+    test("metadata contains all methods") {
+      val names = defn.methodMetadata.map(_.metadata.name).toSet
+      assertTrue(names == Set("echo", "add", "noAnnotation"))
+    },
+    test("method count matches trait method count") {
+      assertTrue(defn.methodMetadata.size == 3)
+    },
+    test("echo method has description from @description") {
+      val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
+      assertTrue(echo.metadata.description.contains("Echoes input."))
+    },
+    test("echo method has prompt from @prompt") {
+      val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
+      assertTrue(echo.metadata.prompt.contains("Say hello."))
+    },
+    test("add method has description but no prompt") {
+      val add = defn.methodMetadata.find(_.metadata.name == "add").get
+      assertTrue(
+        add.metadata.description.contains("Adds two ints."),
+        add.metadata.prompt.isEmpty
+      )
+    },
+    test("unannotated method has no description and no prompt") {
+      val m = defn.methodMetadata.find(_.metadata.name == "noAnnotation").get
+      assertTrue(
+        m.metadata.description.isEmpty,
+        m.metadata.prompt.isEmpty
+      )
+    },
+    test("default mode is Durable") {
+      assertTrue(defn.mode == AgentMode.Durable)
+    },
+    test("ephemeral agent has Ephemeral mode") {
+      assertTrue(ephDefn.mode == AgentMode.Ephemeral)
+    },
+    test("constructor agent registration succeeds") {
+      assertTrue(ctorDefn.typeName == "ctor-meta-agent")
+    },
+    test("constructor agent has correct method count") {
+      assertTrue(
+        ctorDefn.methodMetadata.size == 1,
+        ctorDefn.methodMetadata.head.metadata.name == "info"
+      )
+    },
+    test("explicit durable agent has Durable mode") {
+      assertTrue(durDefn.mode == AgentMode.Durable)
+    },
+    test("echo method inputSchema has tuple tag") {
+      val echo  = defn.methodMetadata.find(_.metadata.name == "echo").get
+      val input = echo.inputSchema
+      assertTrue(input.tag == "tuple")
+    },
+    test("echo method outputSchema has tuple tag") {
+      val echo   = defn.methodMetadata.find(_.metadata.name == "echo").get
+      val output = echo.outputSchema
+      assertTrue(output.tag == "tuple")
+    },
+    test("add method inputSchema has tuple tag with elements") {
+      val add   = defn.methodMetadata.find(_.metadata.name == "add").get
+      val input = add.inputSchema
+      assertTrue(input.tag == "tuple")
+    },
+    test("multiple methods can have different descriptions") {
+      val echo = defn.methodMetadata.find(_.metadata.name == "echo").get
+      val add  = defn.methodMetadata.find(_.metadata.name == "add").get
+      assertTrue(echo.metadata.description != add.metadata.description)
+    },
+    test("agent trait description is captured in metadata") {
+      assertTrue(defn.metadata.description.contains("An agent used for metadata tests."))
+    }
+  )
 }

@@ -318,8 +318,8 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
           wrap = { dv =>
             val json = Json.fromDynamicValue(dv)
             jsonSchema.check(json) match {
-              case None        => json
               case Some(error) => throw error
+              case _           => json
             }
           },
           unwrap = j => j.toDynamicValue

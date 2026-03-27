@@ -464,16 +464,8 @@ final class JsonWriter private[json] (
 
   def registers: Registers = this.stack
 
-  /**
-   * Throws a [[JsonCodecError]] with the given error message.
-   *
-   * @param msg
-   *   the error message
-   * @throws JsonCodecError
-   *   always
-   */
   @noinline
-  def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
+  private[this] def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Writes a `BigDecimal` value as a JSON value.

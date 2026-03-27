@@ -18,11 +18,11 @@ package golem.host
 
 import golem.HostApi
 import golem.runtime.rpc.host.AgentHostApi
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
 import scala.scalajs.js
 
-class OplogApiCompileSpec extends AnyFunSuite {
+object OplogApiCompileSpec extends ZIOSpecDefault {
   import OplogApi._
 
   private val ts        = ContextApi.DateTime(BigInt(1700000000L), 500000000L)
@@ -31,6 +31,7 @@ class OplogApiCompileSpec extends AnyFunSuite {
     WitValueTypes.WitValue(List(WitValueTypes.WitNode.PrimString("test"))),
     WitValueTypes.WitType(List(WitValueTypes.NamedWitTypeNode(None, None, WitValueTypes.WitTypeNode.PrimStringType)))
   )
+  private val sampleTdv = TypedDataValue("""{"tag":"tuple","val":[]}""", """{"tag":"tuple","val":[]}""")
 
   private val pluginDesc  = PluginInstallationDescription("plug", "1.0", Map("key" -> "val"))
   private val oplogRegion = OplogRegion(BigInt(0), BigInt(10))
@@ -41,10 +42,10 @@ class OplogApiCompileSpec extends AnyFunSuite {
 
   private val agentInvocations: List[AgentInvocation] = List(
     AgentInvocation.ExportedFunction(
-      ExportedFunctionInvocationParameters(
+      AgentMethodInvocationParameters(
         "idem-1",
         "func",
-        Some(List(sampleVat)),
+        Some(List(sampleTdv)),
         "trace1",
         List("state1"),
         List(spanDatas)
@@ -83,9 +84,9 @@ class OplogApiCompileSpec extends AnyFunSuite {
   @SuppressWarnings(Array("all"))
   private def describeEntry(e: OplogEntry): String = e match {
     case OplogEntry.Create(p)                       => s"create(${p.componentRevision})"
-    case OplogEntry.ImportedFunctionInvoked(p)      => s"import(${p.functionName})"
-    case OplogEntry.ExportedFunctionInvoked(p)      => s"export(${p.functionName})"
-    case OplogEntry.ExportedFunctionCompleted(p)    => s"completed(${p.consumedFuel})"
+    case OplogEntry.HostCall(p)                     => s"import(${p.functionName})"
+    case OplogEntry.AgentInvocationStarted(p)       => s"export(${p.functionName})"
+    case OplogEntry.AgentInvocationFinished(p)      => s"completed(${p.consumedFuel})"
     case OplogEntry.Suspend(t)                      => s"suspend(${t.seconds})"
     case OplogEntry.Error(p)                        => s"error(${p.error})"
     case OplogEntry.NoOp(t)                         => s"noop(${t.seconds})"
@@ -109,7 +110,7 @@ class OplogApiCompileSpec extends AnyFunSuite {
     case OplogEntry.ActivatePlugin(p)               => s"activate(${p.plugin.name})"
     case OplogEntry.DeactivatePlugin(p)             => s"deactivate(${p.plugin.name})"
     case OplogEntry.Revert(p)                       => s"revert(${p.start})"
-    case OplogEntry.CancelInvocation(p)             => s"cancel(${p.idempotencyKey})"
+    case OplogEntry.CancelPendingInvocation(p)      => s"cancel(${p.idempotencyKey})"
     case OplogEntry.StartSpan(p)                    => s"start-span(${p.spanId})"
     case OplogEntry.FinishSpan(p)                   => s"finish-span(${p.spanId})"
     case OplogEntry.SetSpanAttribute(p)             => s"set-attr(${p.key})"
@@ -119,6 +120,8 @@ class OplogApiCompileSpec extends AnyFunSuite {
     case OplogEntry.PreRollbackRemoteTransaction(p) => s"pre-rollback(${p.beginIndex})"
     case OplogEntry.CommittedRemoteTransaction(p)   => s"committed(${p.beginIndex})"
     case OplogEntry.RolledBackRemoteTransaction(p)  => s"rolled-back(${p.beginIndex})"
+    case OplogEntry.Snapshot(ts, _, mime)           => s"snapshot($ts,$mime)"
+    case OplogEntry.OplogProcessorCheckpoint(p)     => s"checkpoint(${p.confirmedUpTo})"
   }
 
   private val mockUuid    = AgentHostApi.UuidLiteral(js.BigInt("0"), js.BigInt("0"))
@@ -157,7 +160,7 @@ class OplogApiCompileSpec extends AnyFunSuite {
       OplogEntry.EndAtomicRegion(EndAtomicRegionParameters(ts, BigInt(1))),
       OplogEntry.EndRemoteWrite(EndRemoteWriteParameters(ts, BigInt(2))),
       OplogEntry.GrowMemory(GrowMemoryParameters(ts, BigInt(65536))),
-      OplogEntry.CancelInvocation(CancelInvocationParameters(ts, "idem-key")),
+      OplogEntry.CancelPendingInvocation(CancelPendingInvocationParameters(ts, "idem-key")),
       OplogEntry.FinishSpan(FinishSpanParameters(ts, "span-1")),
       OplogEntry.ChangePersistenceLevel(ChangePersistenceLevelParameters(ts, HostApi.PersistenceLevel.Smart)),
       OplogEntry.BeginRemoteTransaction(BeginRemoteTransactionParameters(ts, "tx-1")),
@@ -165,10 +168,10 @@ class OplogApiCompileSpec extends AnyFunSuite {
       OplogEntry.PreRollbackRemoteTransaction(RemoteTransactionParameters(ts, BigInt(11))),
       OplogEntry.CommittedRemoteTransaction(RemoteTransactionParameters(ts, BigInt(12))),
       OplogEntry.RolledBackRemoteTransaction(RemoteTransactionParameters(ts, BigInt(13))),
-      OplogEntry.ExportedFunctionCompleted(ExportedFunctionCompletedParameters(ts, Some(sampleVat), 1000L)),
-      OplogEntry.ExportedFunctionCompleted(ExportedFunctionCompletedParameters(ts, None, 0L)),
-      OplogEntry.ImportedFunctionInvoked(
-        ImportedFunctionInvokedParameters(
+      OplogEntry.AgentInvocationFinished(AgentInvocationFinishedParameters(ts, Some(sampleTdv), 1000L)),
+      OplogEntry.AgentInvocationFinished(AgentInvocationFinishedParameters(ts, None, 0L)),
+      OplogEntry.HostCall(
+        HostCallParameters(
           ts,
           "wasi:io/read",
           sampleVat,
@@ -176,11 +179,11 @@ class OplogApiCompileSpec extends AnyFunSuite {
           DurabilityApi.DurableFunctionType.ReadRemote
         )
       ),
-      OplogEntry.ExportedFunctionInvoked(
-        ExportedFunctionInvokedParameters(
+      OplogEntry.AgentInvocationStarted(
+        AgentInvocationStartedParameters(
           ts,
           "increment",
-          List(sampleVat),
+          List(sampleTdv),
           "idem-1",
           "trace-1",
           List("state"),
@@ -205,54 +208,59 @@ class OplogApiCompileSpec extends AnyFunSuite {
     )
   }
 
-  test("all 37 OplogEntry variants constructed") {
-    val distinctTags = allEntries.map(describeEntry).map(_.takeWhile(_ != '(')).distinct
-    assert(distinctTags.size >= 37)
-  }
-
-  test("exhaustive OplogEntry match compiles") {
-    allEntries.foreach(e => assert(describeEntry(e).nonEmpty))
-  }
-
-  test("every entry has timestamp") {
-    allEntries.foreach(e => assert(e.timestamp.seconds >= BigInt(0)))
-  }
-
-  test("SpanData exhaustive match") {
-    spanDatas.foreach {
-      case SpanData.LocalSpan(d)    => assert(d.spanId.nonEmpty)
-      case SpanData.ExternalSpan(d) => assert(d.spanId.nonEmpty)
+  def spec = suite("OplogApiCompileSpec")(
+    test("all 37 OplogEntry variants constructed") {
+      val distinctTags = allEntries.map(describeEntry).map(_.takeWhile(_ != '(')).distinct
+      assertTrue(distinctTags.size >= 37)
+    },
+    test("exhaustive OplogEntry match compiles") {
+      allEntries.foreach(e => Predef.assert(describeEntry(e).nonEmpty))
+      assertCompletes
+    },
+    test("every entry has timestamp") {
+      allEntries.foreach(e => Predef.assert(e.timestamp.seconds >= BigInt(0)))
+      assertCompletes
+    },
+    test("SpanData exhaustive match") {
+      spanDatas.foreach {
+        case SpanData.LocalSpan(d)    => Predef.assert(d.spanId.nonEmpty)
+        case SpanData.ExternalSpan(d) => Predef.assert(d.spanId.nonEmpty)
+      }
+      assertCompletes
+    },
+    test("AgentInvocation exhaustive match") {
+      agentInvocations.foreach {
+        case AgentInvocation.ExportedFunction(p)    => Predef.assert(p.functionName.nonEmpty)
+        case AgentInvocation.ManualUpdate(rev)      => Predef.assert(rev > 0)
+        case AgentInvocation.AgentInitialization(k) => Predef.assert(k.nonEmpty)
+        case AgentInvocation.SaveSnapshot           => ()
+        case AgentInvocation.LoadSnapshot           => ()
+        case AgentInvocation.ProcessOplogEntries(k) => Predef.assert(k.nonEmpty)
+      }
+      assertCompletes
+    },
+    test("UpdateDescription exhaustive match") {
+      updateDescs.foreach {
+        case UpdateDescription.AutoUpdate       => Predef.assert(true)
+        case UpdateDescription.SnapshotBased(d) => Predef.assert(d.nonEmpty)
+      }
+      assertCompletes
+    },
+    test("LogLevel exhaustive match") {
+      logLevels.foreach(l => Predef.assert(describeLogLevel(l).nonEmpty))
+      assertTrue(logLevels.size == 8)
+    },
+    test("supporting record construction") {
+      assertTrue(
+        pluginDesc.name == "plug",
+        oplogRegion.start == BigInt(0),
+        localSpan.spanId == "span1",
+        externalSpan.spanId == "span2"
+      )
+    },
+    test("OplogIndex type alias") {
+      val idx: OplogIndex = BigInt(99)
+      assertTrue(idx == BigInt(99))
     }
-  }
-
-  test("AgentInvocation exhaustive match") {
-    agentInvocations.foreach {
-      case AgentInvocation.ExportedFunction(p) => assert(p.functionName.nonEmpty)
-      case AgentInvocation.ManualUpdate(rev)   => assert(rev > 0)
-    }
-  }
-
-  test("UpdateDescription exhaustive match") {
-    updateDescs.foreach {
-      case UpdateDescription.AutoUpdate       => assert(true)
-      case UpdateDescription.SnapshotBased(d) => assert(d.nonEmpty)
-    }
-  }
-
-  test("LogLevel exhaustive match") {
-    assert(logLevels.size == 8)
-    logLevels.foreach(l => assert(describeLogLevel(l).nonEmpty))
-  }
-
-  test("supporting record construction") {
-    assert(pluginDesc.name == "plug")
-    assert(oplogRegion.start == BigInt(0))
-    assert(localSpan.spanId == "span1")
-    assert(externalSpan.spanId == "span2")
-  }
-
-  test("OplogIndex type alias") {
-    val idx: OplogIndex = BigInt(99)
-    assert(idx == BigInt(99))
-  }
+  )
 }

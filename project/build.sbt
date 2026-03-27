@@ -9,12 +9,25 @@ import sbt.Keys.*
 lazy val root = (project in file("."))
   .settings(
     Compile / unmanagedSources ++= {
-      val repoRoot = baseDirectory.value.getParentFile
-      Seq(repoRoot / "golem" / "sbt" / "src" / "main" / "scala" / "golem" / "sbt" / "GolemPlugin.scala")
+      val repoRoot   = baseDirectory.value.getParentFile
+      val codegenDir = repoRoot / "golem" / "codegen" / "src" / "main" / "scala" / "golem" / "codegen"
+      Seq(
+        repoRoot / "golem" / "sbt" / "src" / "main" / "scala" / "golem" / "sbt" / "GolemPlugin.scala",
+        codegenDir / "autoregister" / "AutoRegisterCodegen.scala",
+        codegenDir / "discovery" / "SourceDiscovery.scala",
+        codegenDir / "ir" / "AgentSurfaceIR.scala",
+        codegenDir / "ir" / "AgentSurfaceIRCodec.scala",
+        codegenDir / "rpc" / "RpcCodegen.scala",
+        codegenDir / "pipeline" / "CodegenPipeline.scala"
+      )
     },
     Compile / unmanagedResourceDirectories += {
       val repoRoot = baseDirectory.value.getParentFile
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
     },
-    libraryDependencies += "org.scalameta" %% "scalameta" % "4.14.7"
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "scalameta"        % "4.14.7",
+      "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
+      "com.lihaoyi"   %% "ujson"            % "3.1.0"
+    )
   )

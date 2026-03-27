@@ -95,7 +95,7 @@ final class ToonWriter private (
     java.util.Arrays.copyOf(buf, end)
   }
 
-  def encodeError(msg: String): Nothing = throw new ToonBinaryCodecError(Nil, msg)
+  private[this] def encodeError(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
   def writeToTrimmed(out: OutputStream): Unit = {
     var end = count
@@ -188,8 +188,7 @@ final class ToonWriter private (
     writeByte(':')
   }
 
-  def writeArrayHeaderInline(key: String, length: Int): Unit =
-    writeArrayHeaderInline(key, length, delimiter)
+  def writeArrayHeaderInline(key: String, length: Int): Unit = writeArrayHeaderInline(key, length, delimiter)
 
   def writeArrayHeaderInline(key: String, length: Int, delim: Delimiter): Unit = {
     writeArrayHeader(key, length, null, delim)
@@ -409,9 +408,7 @@ final class ToonWriter private (
     while (i < len) {
       val c = key.charAt(i)
       val a = c | 0x20
-      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9' || c == '.'))) {
-        return false
-      }
+      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9' || c == '.'))) return false
       i += 1
     }
     i != 0
@@ -447,9 +444,7 @@ final class ToonWriter private (
             c = s.charAt(i)
             c == '+' || c == '-'
           }
-        ) {
-          i += 1
-        }
+        ) i += 1
         while (
           i < len && {
             c = s.charAt(i)
@@ -491,9 +486,7 @@ object ToonWriter {
     while (i < len) {
       val c = key.charAt(i)
       val a = c | 0x20
-      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9'))) {
-        return false
-      }
+      if (!(a >= 'a' && a <= 'z' || c == '_' || i > 0 && (c >= '0' && c <= '9'))) return false
       i += 1
     }
     i != 0

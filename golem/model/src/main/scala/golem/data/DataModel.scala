@@ -25,13 +25,17 @@ object DataType {
 
   final case class SetType(of: DataType) extends DataType
 
-  final case class MapType(valueType: DataType) extends DataType // string keys
+  final case class MapType(keyType: DataType, valueType: DataType) extends DataType
 
   final case class TupleType(elements: List[DataType]) extends DataType
 
-  final case class StructType(fields: List[Field]) extends DataType
+  final case class StructType(fields: List[Field], name: Option[String] = None) extends DataType
 
-  final case class EnumType(cases: List[EnumCase]) extends DataType
+  final case class EnumType(cases: List[EnumCase], name: Option[String] = None) extends DataType
+
+  final case class PureEnumType(cases: List[String], name: Option[String] = None) extends DataType
+
+  final case class ResultType(ok: Option[DataType], err: Option[DataType]) extends DataType
 
   final case class Field(name: String, dataType: DataType, optional: Boolean)
 
@@ -41,11 +45,27 @@ object DataType {
 
   case object BoolType extends DataType
 
+  case object CharType extends DataType
+
+  case object ByteType extends DataType
+
+  case object ShortType extends DataType
+
   case object IntType extends DataType
 
   case object LongType extends DataType
 
+  case object FloatType extends DataType
+
   case object DoubleType extends DataType
+
+  case object UByteType extends DataType
+
+  case object UShortType extends DataType
+
+  case object UIntType extends DataType
+
+  case object ULongType extends DataType
 
   case object BigDecimalType extends DataType
 
@@ -63,11 +83,27 @@ object DataValue {
 
   final case class BoolValue(value: Boolean) extends DataValue
 
+  final case class CharValue(value: Char) extends DataValue
+
+  final case class ByteValue(value: Byte) extends DataValue
+
+  final case class ShortValue(value: Short) extends DataValue
+
   final case class IntValue(value: Int) extends DataValue
 
   final case class LongValue(value: Long) extends DataValue
 
+  final case class FloatValue(value: Float) extends DataValue
+
   final case class DoubleValue(value: Double) extends DataValue
+
+  final case class UByteValue(value: Short) extends DataValue
+
+  final case class UShortValue(value: Int) extends DataValue
+
+  final case class UIntValue(value: Long) extends DataValue
+
+  final case class ULongValue(value: BigInt) extends DataValue
 
   final case class BigDecimalValue(value: BigDecimal) extends DataValue
 
@@ -81,13 +117,17 @@ object DataValue {
 
   final case class SetValue(values: Set[DataValue]) extends DataValue
 
-  final case class MapValue(entries: Map[String, DataValue]) extends DataValue
+  final case class MapValue(entries: List[(DataValue, DataValue)]) extends DataValue
 
   final case class TupleValue(values: List[DataValue]) extends DataValue
 
   final case class StructValue(fields: Map[String, DataValue]) extends DataValue
 
   final case class EnumValue(caseName: String, payload: Option[DataValue]) extends DataValue
+
+  final case class PureEnumValue(caseName: String) extends DataValue
+
+  final case class ResultValue(value: Either[DataValue, DataValue]) extends DataValue
 
   case object NullValue extends DataValue
 }

@@ -17,22 +17,59 @@
 package golem
 
 import scala.concurrent.Future
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
+import scala.scalajs.js.JSConverters._
 
 /**
- * These helpers convert between Scala `Future` and JS `Promise`, and provide a
- * small `Either -> Future` adapter.
+ * Utilities for converting between Scala Futures and JavaScript Promises.
+ *
+ * These helpers bridge the async worlds of Scala and JavaScript, used
+ * throughout the runtime for host interop.
  */
 object FutureInterop {
+
+  /**
+   * Converts a JavaScript Promise to a Scala Future.
+   *
+   * @param promise
+   *   The Promise to convert
+   * @return
+   *   A Future that completes with the Promise's result
+   */
   def fromPromise[A](promise: js.Promise[A]): Future[A] =
-    golem.runtime.util.FutureInterop.fromPromise(promise)
+    promise.toFuture
 
+  /**
+   * Converts a Scala Future to a JavaScript Promise.
+   *
+   * @param future
+   *   The Future to convert
+   * @return
+   *   A Promise that resolves with the Future's result
+   */
   def toPromise[A](future: Future[A]): js.Promise[A] =
-    golem.runtime.util.FutureInterop.toPromise(future)
+    future.toJSPromise
 
+  /**
+   * Converts an Either to a Future, failing on Left.
+   *
+   * @param either
+   *   The Either to convert
+   * @return
+   *   A successful Future for Right, failed Future for Left
+   */
   def fromEither[A](either: Either[String, A]): Future[A] =
-    golem.runtime.util.FutureInterop.fromEither(either)
+    either.fold(err => Future.failed(js.JavaScriptException(err)), Future.successful)
 
+  /**
+   * Creates a failed Future with the given message.
+   *
+   * @param message
+   *   The error message
+   * @return
+   *   A failed Future
+   */
   def failed[A](message: String): Future[A] =
-    golem.runtime.util.FutureInterop.failed(message)
+    Future.failed(js.JavaScriptException(message))
 }

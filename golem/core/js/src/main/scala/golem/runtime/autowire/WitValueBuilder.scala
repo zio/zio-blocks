@@ -18,68 +18,88 @@ package golem.runtime.autowire
 
 import golem.data.DataValue._
 import golem.data.{DataType, DataValue}
+import golem.host.js._
+import golem.host.js.JsResult
 
 import scala.scalajs.js
 
 private[golem] object WitValueBuilder {
-  def build(dataType: DataType, value: DataValue): Either[String, js.Dynamic] = {
+  def build(dataType: DataType, value: DataValue): Either[String, JsWitValue] = {
     val builder = new Builder
     builder.build(dataType, value).map(_ => builder.result())
   }
 
   private final class Builder {
-    private val nodes = js.Array[js.Dynamic]()
+    private val nodes = js.Array[JsWitNode]()
 
-    def result(): js.Dynamic =
-      js.Dynamic.literal("nodes" -> nodes)
+    def result(): JsWitValue =
+      JsWitValue(nodes)
 
     def build(dataType: DataType, value: DataValue): Either[String, Int] = {
       val index      = newNode()
       val nodeEither = (dataType, value) match {
         case (DataType.UnitType, NullValue) =>
-          Right(js.Dynamic.literal("tag" -> "tuple-value", "val" -> js.Array()))
+          Right(JsWitNode.tupleValue(js.Array[JsNodeIndex]()))
         case (DataType.StringType, StringValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-string", "val" -> v))
+          Right(JsWitNode.primString(v))
         case (DataType.BoolType, BoolValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-bool", "val" -> v))
+          Right(JsWitNode.primBool(v))
+        case (DataType.CharType, CharValue(v)) =>
+          Right(JsWitNode.primChar(v.toString))
+        case (DataType.ByteType, ByteValue(v)) =>
+          Right(JsWitNode.primS8(v))
+        case (DataType.ShortType, ShortValue(v)) =>
+          Right(JsWitNode.primS16(v))
         case (DataType.IntType, IntValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-s32", "val" -> v))
+          Right(JsWitNode.primS32(v))
         case (DataType.LongType, LongValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-s64", "val" -> v.toDouble))
+          Right(JsWitNode.primS64(js.BigInt(v.toString)))
+        case (DataType.FloatType, FloatValue(v)) =>
+          Right(JsWitNode.primFloat32(v))
         case (DataType.DoubleType, DoubleValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-float64", "val" -> v))
+          Right(JsWitNode.primFloat64(v))
+        case (DataType.UByteType, UByteValue(v)) =>
+          Right(JsWitNode.primU8(v))
+        case (DataType.UShortType, UShortValue(v)) =>
+          Right(JsWitNode.primU16(v))
+        case (DataType.UIntType, UIntValue(v)) =>
+          Right(JsWitNode.primU32(v.toDouble))
+        case (DataType.ULongType, ULongValue(v)) =>
+          Right(JsWitNode.primU64(js.BigInt(v.toString)))
         case (DataType.BigDecimalType, BigDecimalValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-string", "val" -> v.toString))
+          val stringIndex = newNode()
+          nodes(stringIndex) = JsWitNode.primString(v.toString)
+          Right(JsWitNode.recordValue(js.Array(stringIndex)))
         case (DataType.UUIDType, UUIDValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-string", "val" -> v.toString))
+          val stringIndex = newNode()
+          nodes(stringIndex) = JsWitNode.primString(v.toString)
+          Right(JsWitNode.recordValue(js.Array(stringIndex)))
         case (DataType.BytesType, BytesValue(bytes)) =>
-          encodeSequence(
-            bytes.toList.map(b => IntValue(b & 0xff)),
-            DataType.IntType,
-            "list-value"
-          )
+          val indicesEither = bytes.toList.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, b) =>
+            acc.map { collected =>
+              val idx = newNode()
+              nodes(idx) = JsWitNode.primU8((b & 0xff).toShort)
+              idx :: collected
+            }
+          }
+          indicesEither.map(indices => JsWitNode.listValue(js.Array(indices.reverse: _*)))
         case (DataType.Optional(of), OptionalValue(maybeValue)) =>
           maybeValue match {
             case Some(inner) =>
               build(of, inner).map { child =>
-                js.Dynamic.literal("tag" -> "option-value", "val" -> child)
+                JsWitNode.optionValue(child: js.UndefOr[JsNodeIndex])
               }
             case None =>
-              Right(js.Dynamic.literal("tag" -> "option-value", "val" -> js.undefined))
+              Right(JsWitNode.optionValue(js.undefined))
           }
         case (DataType.ListType(of), ListValue(values)) =>
           encodeSequence(values, of, "list-value")
         case (DataType.SetType(of), SetValue(values)) =>
           encodeSequence(values.toList, of, "list-value")
-        case (DataType.MapType(valueType), MapValue(entries)) =>
-          val entryType = DataType.StructType(
-            List(
-              DataType.Field("key", DataType.StringType, optional = false),
-              DataType.Field("value", valueType, optional = false)
-            )
-          )
-          val entryValues = entries.toList.map { case (k, v) =>
-            StructValue(Map("key" -> StringValue(k), "value" -> v))
+        case (DataType.MapType(keyType, valueType), MapValue(entries)) =>
+          val entryType   = DataType.TupleType(List(keyType, valueType))
+          val entryValues = entries.map { case (k, v) =>
+            TupleValue(List(k, v))
           }
           encodeSequence(entryValues, entryType, "list-value")
         case (DataType.TupleType(elements), TupleValue(values)) =>
@@ -109,11 +129,36 @@ private[golem] object WitValueBuilder {
             payload match {
               case Some(valuePayload) =>
                 build(enumType.cases(index).payload.get, valuePayload).map { child =>
-                  js.Dynamic.literal("tag" -> "variant-value", "val" -> js.Array(index, child))
+                  JsWitNode.variantValue(index, child: js.UndefOr[JsNodeIndex])
                 }
               case None =>
-                Right(js.Dynamic.literal("tag" -> "variant-value", "val" -> js.Array(index, js.undefined)))
+                Right(JsWitNode.variantValue(index, js.undefined))
             }
+        case (pureEnum: DataType.PureEnumType, PureEnumValue(caseName)) =>
+          val index = pureEnum.cases.indexOf(caseName)
+          if (index < 0) Left(s"Unknown pure enum case $caseName")
+          else Right(JsWitNode.enumValue(index))
+        case (resultType: DataType.ResultType, ResultValue(either)) =>
+          either match {
+            case Right(okVal) =>
+              resultType.ok match {
+                case Some(okType) =>
+                  build(okType, okVal).map { child =>
+                    JsWitNode.resultValue(JsResult.okOptional[JsNodeIndex](child: js.UndefOr[JsNodeIndex]))
+                  }
+                case None =>
+                  Right(JsWitNode.resultValue(JsResult.okOptional[JsNodeIndex](js.undefined)))
+              }
+            case Left(errVal) =>
+              resultType.err match {
+                case Some(errType) =>
+                  build(errType, errVal).map { child =>
+                    JsWitNode.resultValue(JsResult.errOptional[JsNodeIndex](child: js.UndefOr[JsNodeIndex]))
+                  }
+                case None =>
+                  Right(JsWitNode.resultValue(JsResult.errOptional[JsNodeIndex](js.undefined)))
+              }
+          }
         case other =>
           Left(s"Unsupported value encoding for $other")
       }
@@ -128,32 +173,42 @@ private[golem] object WitValueBuilder {
       values: List[DataValue],
       elementType: DataType,
       tag: String
-    ): Either[String, js.Dynamic] = {
+    ): Either[String, JsWitNode] = {
       val indicesEither = values.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, value) =>
         acc.flatMap { collected =>
-          build(elementType, value).map(idx => collected :+ idx)
+          build(elementType, value).map(idx => idx :: collected)
         }
       }
 
       indicesEither.map { indices =>
-        js.Dynamic.literal("tag" -> tag, "val" -> js.Array(indices: _*))
+        val reversed = indices.reverse
+        tag match {
+          case "list-value"  => JsWitNode.listValue(js.Array(reversed: _*))
+          case "tuple-value" => JsWitNode.tupleValue(js.Array(reversed: _*))
+          case _             => JsWitNode.listValue(js.Array(reversed: _*))
+        }
       }
     }
 
-    private def encodeIndexed(pairs: List[(DataValue, DataType)], tag: String): Either[String, js.Dynamic] = {
+    private def encodeIndexed(pairs: List[(DataValue, DataType)], tag: String): Either[String, JsWitNode] = {
       val indicesEither = pairs.foldLeft[Either[String, List[Int]]](Right(Nil)) { case (acc, (value, dtype)) =>
         acc.flatMap { collected =>
-          build(dtype, value).map(idx => collected :+ idx)
+          build(dtype, value).map(idx => idx :: collected)
         }
       }
 
       indicesEither.map { indices =>
-        js.Dynamic.literal("tag" -> tag, "val" -> js.Array(indices: _*))
+        val reversed = indices.reverse
+        tag match {
+          case "record-value" => JsWitNode.recordValue(js.Array(reversed: _*))
+          case "tuple-value"  => JsWitNode.tupleValue(js.Array(reversed: _*))
+          case _              => JsWitNode.tupleValue(js.Array(reversed: _*))
+        }
       }
     }
 
     private def newNode(): Int = {
-      val placeholder = js.Dynamic.literal()
+      val placeholder = JsShape.tagOnly[JsWitNode]("__placeholder")
       nodes.push(placeholder)
       nodes.length - 1
     }

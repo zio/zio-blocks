@@ -17,6 +17,9 @@
 package golem.runtime.rpc.host
 
 import golem.Uuid
+import golem.host.js._
+
+import scala.annotation.unused
 
 import scala.scalajs.js
 import scala.scalajs.js.BigInt
@@ -27,8 +30,66 @@ import scala.scalajs.js.typedarray.Uint8Array
 object AgentHostApi {
   type OplogIndex       = BigInt
   type ComponentVersion = BigInt
-  private lazy val getAgentsConstructor: js.Dynamic =
-    HostModule.asInstanceOf[js.Dynamic].selectDynamic("GetAgents")
+
+  // --- Type aliases pointing to golem.host.js facades ---
+  type AgentMetadata          = JsAgentMetadata
+  type RetryPolicy            = JsRetryPolicy
+  type PersistenceLevel       = JsPersistenceLevel
+  type AgentStatus            = JsAgentStatus
+  type UpdateMode             = JsUpdateMode
+  type FilterComparator       = JsFilterComparator
+  type StringFilterComparator = JsStringFilterComparator
+  type AgentPropertyFilter    = JsAgentPropertyFilter
+  type RevertAgentTarget      = JsRevertAgentTarget
+  type RegisteredAgentType    = JsRegisteredAgentType
+  type ComponentIdLiteral     = JsComponentId
+  type AgentIdLiteral         = JsAgentId
+  type UuidLiteral            = JsUuid
+  type PromiseIdLiteral       = JsPromiseId
+  type AgentNameFilter        = JsAgentNameFilter
+  type AgentStatusFilter      = JsAgentStatusFilter
+  type AgentVersionFilter     = JsAgentVersionFilter
+  type AgentCreatedAtFilter   = JsAgentCreatedAtFilter
+  type AgentEnvFilter         = JsAgentEnvFilter
+  type AgentConfigVarsFilter  = JsAgentConfigVarsFilter
+  type AgentAllFilter         = JsAgentAllFilter
+  type AgentAnyFilter         = JsAgentAnyFilter
+
+  @js.native
+  @JSImport("golem:api/host@1.5.0", "GetAgents")
+  class GetAgentsHandle(
+    @unused componentId: JsComponentId,
+    @unused filter: js.UndefOr[JsAgentAnyFilter],
+    @unused precise: Boolean
+  ) extends js.Object {
+    def getNext(): js.UndefOr[js.Array[AgentMetadata]] = js.native
+  }
+
+  @js.native
+  trait GetPromiseResultHandle extends js.Object {
+    def subscribe(): Pollable = js.native
+
+    /**
+     * Returns `Uint8Array` if the promise is completed, or `undefined` if not
+     * yet.
+     */
+    def get(): js.UndefOr[Uint8Array] = js.native
+  }
+
+  @js.native
+  trait Pollable extends js.Object {
+    def ready(): Boolean = js.native
+
+    def block(): Unit = js.native
+
+    /**
+     * Converts this WASI pollable into a JS Promise that resolves when ready.
+     */
+    @JSName("promise")
+    def promise(): js.Promise[Unit] = js.native
+  }
+
+  final case class AgentIdParts(agentTypeName: String, payload: JsDataValue, phantom: Option[Uuid])
 
   def registeredAgentType(typeName: String): Option[RegisteredAgentType] = {
     val v = AgentRegistryModule.getAgentType(typeName)
@@ -38,7 +99,7 @@ object AgentHostApi {
   def getAllAgentTypes(): List[RegisteredAgentType] =
     AgentRegistryModule.getAllAgentTypes().toList
 
-  def makeAgentId(agentTypeName: String, payload: js.Dynamic, phantom: Option[Uuid]): Either[String, String] = {
+  def makeAgentId(agentTypeName: String, payload: JsDataValue, phantom: Option[Uuid]): Either[String, String] = {
     val phantomArg = phantom.fold[js.Any](js.undefined)(uuid => toUuidLiteral(uuid))
     try Right(AgentRegistryModule.makeAgentId(agentTypeName, payload, phantomArg))
     catch {
@@ -50,7 +111,7 @@ object AgentHostApi {
     try {
       val tuple                 = AgentRegistryModule.parseAgentId(agentId)
       val agentType             = tuple(0).asInstanceOf[String]
-      val dataValue             = tuple(1).asInstanceOf[js.Dynamic]
+      val dataValue             = tuple(1).asInstanceOf[JsDataValue]
       val phantomValue          = tuple(2)
       val phantom: Option[Uuid] =
         if (phantomValue == null || js.isUndefined(phantomValue)) None
@@ -78,39 +139,11 @@ object AgentHostApi {
   private def toOption[A](value: js.Any): Option[A] =
     if (value == null || js.isUndefined(value)) None else Some(value.asInstanceOf[A])
 
-  def getAgents(componentId: ComponentIdLiteral, filter: Option[AgentAnyFilter], precise: Boolean): GetAgentsHandle = {
-    val filterArg = filter.fold[js.Any](js.undefined)(identity)
-    try
-      js.Dynamic
-        .newInstance(getAgentsConstructor)(componentId, filterArg, precise)
-        .asInstanceOf[GetAgentsHandle]
-    catch {
-      case js.JavaScriptException(err) =>
-        val exports = js.Object.keys(HostModule.asInstanceOf[js.Object]).toList.mkString(",")
-        val detail  = s"type=${js.typeOf(err)}, value=${err.toString}"
-        throw new IllegalStateException(s"golem host get-agents unavailable (exports=[$exports]): $detail")
-    }
-  }
+  def getAgents(componentId: ComponentIdLiteral, filter: Option[AgentAnyFilter], precise: Boolean): GetAgentsHandle =
+    new GetAgentsHandle(componentId, filter.orUndefined, precise)
 
   def nextAgentBatch(handle: GetAgentsHandle): Option[List[AgentMetadata]] =
-    invokeGetAgentsNext(handle).toOption.map(_.toList)
-
-  private def invokeGetAgentsNext(handle: GetAgentsHandle): js.UndefOr[js.Array[AgentMetadata]] = {
-    val dynamicHandle = handle.asInstanceOf[js.Dynamic]
-    val camelCase     = dynamicHandle.selectDynamic("getNext")
-    val dashedCase    = dynamicHandle.selectDynamic("get-next")
-    val fn            =
-      if (!js.isUndefined(camelCase) && camelCase != null) camelCase
-      else if (!js.isUndefined(dashedCase) && dashedCase != null) dashedCase
-      else {
-        val protoObj   = js.Object.getPrototypeOf(dynamicHandle.asInstanceOf[js.Object]).asInstanceOf[js.Object]
-        val protoKeys  = js.Object.keys(protoObj).toList.mkString(",")
-        val ownKeys    = js.Object.keys(dynamicHandle.asInstanceOf[js.Object]).toList.mkString(",")
-        val detailInfo = s"own=[$ownKeys], proto=[$protoKeys]"
-        throw new IllegalStateException(s"get-agents handle missing getNext/get-next functions ($detailInfo)")
-      }
-    fn.call(handle).asInstanceOf[js.UndefOr[js.Array[AgentMetadata]]]
-  }
+    handle.getNext().toOption.map(_.toList)
 
   def createPromise(): PromiseIdLiteral =
     HostModule.createPromise().asInstanceOf[PromiseIdLiteral]
@@ -120,6 +153,12 @@ object AgentHostApi {
 
   def completePromise(promiseId: PromiseIdLiteral, data: Uint8Array): Boolean =
     HostModule.completePromise(promiseId, data)
+
+  def createWebhook(promiseId: PromiseIdLiteral): String =
+    AgentRegistryModule.createWebhook(promiseId)
+
+  def getConfigValue(key: List[String], expectedType: JsWitType): JsWitValue =
+    AgentRegistryModule.getConfigValue(js.Array(key: _*), expectedType)
 
   def getOplogIndex(): OplogIndex =
     HostModule.getOplogIndex()
@@ -167,245 +206,15 @@ object AgentHostApi {
     HostModule.revertAgent(agentId, target)
 
   def fork(): (String, UuidLiteral) = {
-    val raw       = HostModule.fork().asInstanceOf[js.Dynamic]
-    val tag       = raw.tag.asInstanceOf[String]
-    val details   = raw.selectDynamic("val").asInstanceOf[js.Dynamic]
-    val phantomId = details.forkedPhantomId.asInstanceOf[UuidLiteral]
+    val raw       = HostModule.fork().asInstanceOf[JsForkResult]
+    val tag       = raw.tag
+    val details   = raw.asInstanceOf[JsForkResultOriginal].value
+    val phantomId = details.forkedPhantomId
     (tag, phantomId)
   }
 
-  private def tagOnly(tag: String): js.Dynamic =
-    js.Dynamic.literal("tag" -> tag)
-
-  private def tagWithValue(tag: String, value: js.Any): js.Dynamic = {
-    val literal = js.Dynamic.literal("tag" -> tag)
-    literal.updateDynamic("val")(value)
-    literal
-  }
-
-  @js.native
-  sealed trait AgentMetadata extends js.Object {
-
-    // WIT-defined fields (golem:api/host@1.3.0 agent-metadata record)
-    def agentId: AgentIdLiteral = js.native
-
-    def args: js.Array[String] = js.native
-
-    def env: js.Array[js.Tuple2[String, String]] = js.native
-
-    def configVars: js.Array[js.Tuple2[String, String]] = js.native
-
-    def status: AgentStatus = js.native
-
-    def componentRevision: BigInt = js.native
-
-    def retryCount: BigInt = js.native
-
-    // Runtime-provided fields (beyond WIT minimum)
-    def agentType: String = js.native
-
-    def agentName: String = js.native
-
-    def componentId: ComponentIdLiteral = js.native
-  }
-
-  @js.native
-  sealed trait RetryPolicy extends js.Object {
-    // WIT: retry-policy { max-attempts: u32, min-delay: duration(u64 nanos), max-delay: duration(u64 nanos),
-    //                     multiplier: f64, max-jitter-factor: option<f64> }
-    // jco guest-types: camelCase field names.
-    def maxAttempts: Int = js.native
-
-    def minDelay: BigInt = js.native
-
-    def maxDelay: BigInt = js.native
-
-    def multiplier: Double = js.native
-
-    def maxJitterFactor: js.UndefOr[Double] = js.native
-  }
-
-  @js.native
-  sealed trait PersistenceLevel extends js.Any
-
-  @js.native
-  sealed trait AgentStatus extends js.Any
-
-  @js.native
-  sealed trait UpdateMode extends js.Any
-
-  @js.native
-  sealed trait FilterComparator extends js.Any
-
-  @js.native
-  sealed trait StringFilterComparator extends js.Any
-
-  @js.native
-  sealed trait AgentPropertyFilter extends js.Object
-
-  @js.native
-  sealed trait RevertAgentTarget extends js.Any
-
-  @js.native
-  trait RegisteredAgentType extends js.Object {
-    def agentType: AgentTypeDescriptor = js.native
-
-    def implementedBy: ComponentIdLiteral = js.native
-  }
-
-  @js.native
-  trait AgentTypeDescriptor extends js.Object {
-    def typeName: String = js.native
-  }
-
-  @js.native
-  trait ComponentIdLiteral extends js.Object {
-    def uuid: UuidLiteral = js.native
-  }
-
-  @js.native
-  trait AgentIdLiteral extends js.Object {
-    def componentId: ComponentIdLiteral = js.native
-
-    def agentId: String = js.native
-  }
-
-  @js.native
-  trait PromiseIdLiteral extends js.Object {
-    def agentId: AgentIdLiteral = js.native
-
-    def oplogIdx: OplogIndex = js.native
-  }
-
-  @js.native
-  trait GetAgentsHandle extends js.Object
-
-  @js.native
-  trait GetPromiseResultHandle extends js.Object {
-    def subscribe(): Pollable = js.native
-
-    /**
-     * Returns `Uint8Array` if the promise is completed, or `undefined` if not
-     * yet.
-     */
-    def get(): Uint8Array = js.native
-  }
-
-  @js.native
-  trait Pollable extends js.Object {
-    def ready(): Boolean = js.native
-
-    def block(): Unit = js.native
-
-    /**
-     * Converts this WASI pollable into a JS Promise that resolves when ready.
-     */
-    @JSName("promise")
-    def promise(): js.Promise[Unit] = js.native
-  }
-
-  @js.native
-  trait UuidLiteral extends js.Object {
-    def highBits: BigInt = js.native
-
-    def lowBits: BigInt = js.native
-  }
-
-  @js.native
-  trait AgentNameFilter extends js.Object {
-    def comparator: StringFilterComparator = js.native
-
-    def value: String = js.native
-  }
-
-  @js.native
-  trait AgentStatusFilter extends js.Object {
-    def comparator: FilterComparator = js.native
-
-    def value: AgentStatus = js.native
-  }
-
-  @js.native
-  trait AgentVersionFilter extends js.Object {
-    def comparator: FilterComparator = js.native
-
-    def value: BigInt = js.native
-  }
-
-  @js.native
-  trait AgentCreatedAtFilter extends js.Object {
-    def comparator: FilterComparator = js.native
-
-    def value: BigInt = js.native
-  }
-
-  @js.native
-  trait AgentEnvFilter extends js.Object {
-    def name: String = js.native
-
-    def comparator: StringFilterComparator = js.native
-
-    def value: String = js.native
-  }
-
-  @js.native
-  trait AgentConfigVarsFilter extends js.Object {
-    def name: String = js.native
-
-    def comparator: StringFilterComparator = js.native
-
-    def value: String = js.native
-  }
-
-  @js.native
-  trait AgentAllFilter extends js.Object {
-    def filters: js.Array[AgentPropertyFilter] = js.native
-  }
-
-  @js.native
-  trait AgentAnyFilter extends js.Object {
-    def filters: js.Array[AgentAllFilter] = js.native
-  }
-
-  final case class AgentIdParts(agentTypeName: String, payload: js.Dynamic, phantom: Option[Uuid])
-
-  object ComponentIdLiteral {
-    def apply(uuid: UuidLiteral): ComponentIdLiteral =
-      js.Dynamic.literal("uuid" -> uuid).asInstanceOf[ComponentIdLiteral]
-  }
-
-  object AgentIdLiteral {
-    def apply(componentId: ComponentIdLiteral, agentId: String): AgentIdLiteral =
-      js.Dynamic
-        .literal(
-          "component-id" -> componentId,
-          "agent-id"     -> agentId
-        )
-        .asInstanceOf[AgentIdLiteral]
-  }
-
-  object PromiseIdLiteral {
-    def apply(agentId: AgentIdLiteral, oplogIndex: OplogIndex): PromiseIdLiteral =
-      js.Dynamic
-        .literal(
-          "agentId"  -> agentId,
-          "oplogIdx" -> oplogIndex
-        )
-        .asInstanceOf[PromiseIdLiteral]
-  }
-
-  object UuidLiteral {
-    def apply(highBits: BigInt, lowBits: BigInt): UuidLiteral =
-      js.Dynamic
-        .literal(
-          "highBits" -> highBits,
-          "lowBits"  -> lowBits
-        )
-        .asInstanceOf[UuidLiteral]
-  }
-
   private def toUuidLiteral(uuid: Uuid): UuidLiteral =
-    UuidLiteral(
+    JsUuid(
       highBits = js.BigInt(uuid.highBits.toString),
       lowBits = js.BigInt(uuid.lowBits.toString)
     )
@@ -417,188 +226,165 @@ object AgentHostApi {
     )
 
   object RetryPolicy {
-    def apply(maxAttempts: BigInt, initialDelayMs: BigInt, maxDelayMs: BigInt, factor: Double): RetryPolicy =
-      js.Dynamic
-        .literal(
-          "maxAttempts"    -> maxAttempts,
-          "initialDelayMs" -> initialDelayMs,
-          "maxDelayMs"     -> maxDelayMs,
-          "factor"         -> factor
-        )
-        .asInstanceOf[RetryPolicy]
+    def apply(
+      maxAttempts: Int,
+      minDelay: BigInt,
+      maxDelay: BigInt,
+      multiplier: Double,
+      maxJitterFactor: js.UndefOr[Double] = js.undefined
+    ): RetryPolicy =
+      JsRetryPolicy(maxAttempts, minDelay, maxDelay, multiplier, maxJitterFactor)
   }
 
   object PersistenceLevel {
     def PersistNothing: PersistenceLevel =
-      tagOnly("persist-nothing").asInstanceOf[PersistenceLevel]
+      JsPersistenceLevel.persistNothing
 
     def PersistRemoteSideEffects: PersistenceLevel =
-      tagOnly("persist-remote-side-effects").asInstanceOf[PersistenceLevel]
+      JsPersistenceLevel.persistRemoteSideEffects
 
     def Smart: PersistenceLevel =
-      tagOnly("smart").asInstanceOf[PersistenceLevel]
+      JsPersistenceLevel.smart
   }
 
   object AgentStatus {
-    def Running: AgentStatus = tagOnly("running").asInstanceOf[AgentStatus]
+    def Running: AgentStatus = "running"
 
-    def Idle: AgentStatus = tagOnly("idle").asInstanceOf[AgentStatus]
+    def Idle: AgentStatus = "idle"
 
-    def Suspended: AgentStatus = tagOnly("suspended").asInstanceOf[AgentStatus]
+    def Suspended: AgentStatus = "suspended"
 
-    def Interrupted: AgentStatus = tagOnly("interrupted").asInstanceOf[AgentStatus]
+    def Interrupted: AgentStatus = "interrupted"
 
-    def Retrying: AgentStatus = tagOnly("retrying").asInstanceOf[AgentStatus]
+    def Retrying: AgentStatus = "retrying"
 
-    def Failed: AgentStatus = tagOnly("failed").asInstanceOf[AgentStatus]
+    def Failed: AgentStatus = "failed"
 
-    def Exited: AgentStatus = tagOnly("exited").asInstanceOf[AgentStatus]
+    def Exited: AgentStatus = "exited"
   }
 
   object UpdateMode {
-    def Automatic: UpdateMode =
-      tagOnly("automatic").asInstanceOf[UpdateMode]
+    def Automatic: UpdateMode = "automatic"
 
-    def SnapshotBased: UpdateMode =
-      tagOnly("snapshot-based").asInstanceOf[UpdateMode]
+    def SnapshotBased: UpdateMode = "snapshot-based"
   }
 
   object FilterComparator {
-    def Equal: FilterComparator = "equal".asInstanceOf[FilterComparator]
+    def Equal: FilterComparator = "equal"
 
-    def NotEqual: FilterComparator = "not-equal".asInstanceOf[FilterComparator]
+    def NotEqual: FilterComparator = "not-equal"
 
-    def GreaterEqual: FilterComparator = "greater-equal".asInstanceOf[FilterComparator]
+    def GreaterEqual: FilterComparator = "greater-equal"
 
-    def Greater: FilterComparator = "greater".asInstanceOf[FilterComparator]
+    def Greater: FilterComparator = "greater"
 
-    def LessEqual: FilterComparator = "less-equal".asInstanceOf[FilterComparator]
+    def LessEqual: FilterComparator = "less-equal"
 
-    def Less: FilterComparator = "less".asInstanceOf[FilterComparator]
+    def Less: FilterComparator = "less"
   }
 
   object StringFilterComparator {
-    def Equal: StringFilterComparator = "equal".asInstanceOf[StringFilterComparator]
+    def Equal: StringFilterComparator = "equal"
 
-    def NotEqual: StringFilterComparator = "not-equal".asInstanceOf[StringFilterComparator]
+    def NotEqual: StringFilterComparator = "not-equal"
 
-    def Like: StringFilterComparator = "like".asInstanceOf[StringFilterComparator]
+    def Like: StringFilterComparator = "like"
 
-    def NotLike: StringFilterComparator = "not-like".asInstanceOf[StringFilterComparator]
+    def NotLike: StringFilterComparator = "not-like"
 
-    def StartsWith: StringFilterComparator = "starts-with".asInstanceOf[StringFilterComparator]
+    def StartsWith: StringFilterComparator = "starts-with"
   }
 
   object AgentNameFilter {
     def apply(comparator: StringFilterComparator, value: String): AgentNameFilter =
-      js.Dynamic
-        .literal(
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentNameFilter]
+      JsAgentNameFilter(comparator, value)
   }
 
   object AgentStatusFilter {
     def apply(comparator: FilterComparator, value: AgentStatus): AgentStatusFilter =
-      js.Dynamic
-        .literal(
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentStatusFilter]
+      JsAgentStatusFilter(comparator, value)
   }
 
   object AgentVersionFilter {
     def apply(comparator: FilterComparator, value: BigInt): AgentVersionFilter =
-      js.Dynamic
-        .literal(
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentVersionFilter]
+      JsAgentVersionFilter(comparator, value)
   }
 
   object AgentCreatedAtFilter {
     def apply(comparator: FilterComparator, value: BigInt): AgentCreatedAtFilter =
-      js.Dynamic
-        .literal(
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentCreatedAtFilter]
+      JsAgentCreatedAtFilter(comparator, value)
   }
 
   object AgentEnvFilter {
     def apply(name: String, comparator: StringFilterComparator, value: String): AgentEnvFilter =
-      js.Dynamic
-        .literal(
-          "name"       -> name,
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentEnvFilter]
+      JsAgentEnvFilter(name, comparator, value)
   }
 
   object AgentConfigVarsFilter {
     def apply(name: String, comparator: StringFilterComparator, value: String): AgentConfigVarsFilter =
-      js.Dynamic
-        .literal(
-          "name"       -> name,
-          "comparator" -> comparator,
-          "value"      -> value
-        )
-        .asInstanceOf[AgentConfigVarsFilter]
+      JsAgentConfigVarsFilter(name, comparator, value)
   }
 
   object AgentPropertyFilter {
     def name(filter: AgentNameFilter): AgentPropertyFilter =
-      tagWithValue("name", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.name(filter)
 
     def status(filter: AgentStatusFilter): AgentPropertyFilter =
-      tagWithValue("status", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.status(filter)
 
     def version(filter: AgentVersionFilter): AgentPropertyFilter =
-      tagWithValue("version", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.version(filter)
 
     def createdAt(filter: AgentCreatedAtFilter): AgentPropertyFilter =
-      tagWithValue("created-at", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.createdAt(filter)
 
     def env(filter: AgentEnvFilter): AgentPropertyFilter =
-      tagWithValue("env", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.env(filter)
 
     def wasiConfigVars(filter: AgentConfigVarsFilter): AgentPropertyFilter =
-      tagWithValue("wasi-config-vars", filter).asInstanceOf[AgentPropertyFilter]
+      JsAgentPropertyFilter.wasiConfigVars(filter)
   }
 
   object AgentAllFilter {
     def apply(filters: List[AgentPropertyFilter]): AgentAllFilter =
-      js.Dynamic
-        .literal(
-          "filters" -> filters.toJSArray
-        )
-        .asInstanceOf[AgentAllFilter]
+      JsAgentAllFilter(filters.toJSArray)
   }
 
   object AgentAnyFilter {
     def apply(filters: List[AgentAllFilter]): AgentAnyFilter =
-      js.Dynamic
-        .literal(
-          "filters" -> filters.toJSArray
-        )
-        .asInstanceOf[AgentAnyFilter]
+      JsAgentAnyFilter(filters.toJSArray)
   }
 
   object RevertAgentTarget {
     def RevertToOplogIndex(index: OplogIndex): RevertAgentTarget =
-      tagWithValue("revert-to-oplog-index", index).asInstanceOf[RevertAgentTarget]
+      JsRevertAgentTarget.revertToOplogIndex(index)
 
     def RevertLastInvocations(count: BigInt): RevertAgentTarget =
-      tagWithValue("revert-last-invocations", count).asInstanceOf[RevertAgentTarget]
+      JsRevertAgentTarget.revertLastInvocations(count)
+  }
+
+  object ComponentIdLiteral {
+    def apply(uuid: UuidLiteral): ComponentIdLiteral =
+      JsComponentId(uuid)
+  }
+
+  object AgentIdLiteral {
+    def apply(componentId: ComponentIdLiteral, agentId: String): AgentIdLiteral =
+      JsAgentId(componentId, agentId)
+  }
+
+  object PromiseIdLiteral {
+    def apply(agentId: AgentIdLiteral, oplogIndex: OplogIndex): PromiseIdLiteral =
+      JsPromiseId(agentId, oplogIndex)
+  }
+
+  object UuidLiteral {
+    def apply(highBits: BigInt, lowBits: BigInt): UuidLiteral =
+      JsUuid(highBits, lowBits)
   }
 
   @js.native
-  @JSImport("golem:api/host@1.3.0", JSImport.Namespace)
+  @JSImport("golem:api/host@1.5.0", JSImport.Namespace)
   private object HostModule extends js.Object {
     def resolveComponentId(componentReference: String): js.Any = js.native
 
@@ -652,14 +438,18 @@ object AgentHostApi {
   }
 
   @js.native
-  @JSImport("golem:agent/host", JSImport.Namespace)
+  @JSImport("golem:agent/host@1.5.0", JSImport.Namespace)
   private object AgentRegistryModule extends js.Object {
     def getAgentType(typeName: String): RegisteredAgentType = js.native
 
     def getAllAgentTypes(): js.Array[RegisteredAgentType] = js.native
 
-    def makeAgentId(agentTypeName: String, input: js.Dynamic, phantom: js.Any): String = js.native
+    def makeAgentId(agentTypeName: String, input: JsDataValue, phantom: js.Any): String = js.native
 
     def parseAgentId(agentId: String): js.Array[js.Any] = js.native
+
+    def createWebhook(promiseId: PromiseIdLiteral): String = js.native
+
+    def getConfigValue(key: js.Array[String], expectedType: JsWitType): JsWitValue = js.native
   }
 }

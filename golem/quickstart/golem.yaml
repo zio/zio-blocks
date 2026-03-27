@@ -1,9 +1,0 @@
-app: scala-quickstart
-
-environments:
-  local:
-    server: local
-
-includes:
-- .generated/scala-js-template.yaml
-- components-*/*/golem.yaml

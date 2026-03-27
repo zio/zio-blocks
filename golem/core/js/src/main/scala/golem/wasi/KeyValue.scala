@@ -16,6 +16,8 @@
 
 package golem.wasi
 
+import golem.host.js._
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 import scala.scalajs.js.typedarray.Uint8Array
@@ -71,12 +73,20 @@ object KeyValue {
   }
 
   @js.native
-  @JSImport("wasi:keyvalue/types@0.1.0", JSImport.Namespace)
-  private object TypesModule extends js.Object {
-    val Bucket: js.Dynamic        = js.native
-    val OutgoingValue: js.Dynamic = js.native
-    val IncomingValue: js.Dynamic = js.native
+  @JSImport("wasi:keyvalue/types@0.1.0", "Bucket")
+  private object KvBucketClass extends js.Object {
+    def openBucket(name: String): js.Any = js.native
   }
+
+  @js.native
+  @JSImport("wasi:keyvalue/types@0.1.0", "OutgoingValue")
+  private object KvOutgoingValueClass extends js.Object {
+    def newOutgoingValue(): JsKvOutgoingValue = js.native
+  }
+
+  @js.native
+  @JSImport("wasi:keyvalue/types@0.1.0", JSImport.Namespace)
+  private object TypesModule extends js.Object
 
   @js.native
   @JSImport("wasi:keyvalue/wasi-keyvalue-error@0.1.0", JSImport.Namespace)
@@ -90,7 +100,7 @@ object KeyValue {
       val result = EventualModule.get(underlying, key)
       if (js.isUndefined(result) || result == null) None
       else {
-        val iv = new IncomingValue(result)
+        val iv = new IncomingValue(result.asInstanceOf[JsKvIncomingValue])
         Some(iv.consumeSync())
       }
     }
@@ -114,7 +124,7 @@ object KeyValue {
       val arr = js.Array(keys: _*)
       EventualBatchModule.getMany(underlying, arr).toList.map { result =>
         if (js.isUndefined(result) || result == null) None
-        else Some(new IncomingValue(result).consumeSync())
+        else Some(new IncomingValue(result.asInstanceOf[JsKvIncomingValue]).consumeSync())
       }
     }
 
@@ -124,41 +134,38 @@ object KeyValue {
 
   object Bucket {
     def open(name: String): Bucket = {
-      val raw = TypesModule.Bucket.openBucket(name)
+      val raw = KvBucketClass.openBucket(name)
       new Bucket(raw)
     }
   }
 
   // --- OutgoingValue resource ---
 
-  final class OutgoingValue private[KeyValue] (private[golem] val underlying: js.Any) {
+  final class OutgoingValue private[KeyValue] (private[golem] val underlying: JsKvOutgoingValue) {
 
     def writeSync(data: Array[Byte]): Unit = {
-      val dyn   = underlying.asInstanceOf[js.Dynamic]
       val jsArr = js.Array[Short]()
       data.foreach(b => jsArr.push((b.toInt & 0xff).toShort))
       val bytes = new Uint8Array(jsArr.asInstanceOf[js.Iterable[Short]])
-      dyn.outgoingValueWriteBodySync(bytes)
+      underlying.outgoingValueWriteBodySync(bytes)
     }
   }
 
   object OutgoingValue {
     def create(): OutgoingValue = {
-      val raw = TypesModule.OutgoingValue.newOutgoingValue()
+      val raw = KvOutgoingValueClass.newOutgoingValue()
       new OutgoingValue(raw)
     }
   }
 
   // --- IncomingValue resource ---
 
-  final class IncomingValue private[KeyValue] (private[golem] val underlying: js.Any) {
+  final class IncomingValue private[KeyValue] (private[golem] val underlying: JsKvIncomingValue) {
 
     def consumeSync(): Array[Byte] = {
-      val dyn    = underlying.asInstanceOf[js.Dynamic]
-      val result = dyn.incomingValueConsumeSync()
-      val arr    = result.asInstanceOf[Uint8Array]
-      val bytes  = new Array[Byte](arr.length)
-      var i      = 0
+      val arr   = underlying.incomingValueConsumeSync()
+      val bytes = new Array[Byte](arr.length)
+      var i     = 0
       while (i < arr.length) {
         bytes(i) = arr(i).toByte
         i += 1
@@ -167,9 +174,10 @@ object KeyValue {
     }
 
     def size(): Long = {
-      val dyn = underlying.asInstanceOf[js.Dynamic]
-      val s   = dyn.incomingValueSize()
-      s.asInstanceOf[Double].toLong
+      val sizeBigInt = BigInt(underlying.incomingValueSize().toString)
+      if (!sizeBigInt.isValidLong)
+        throw new IllegalArgumentException(s"Incoming value size $sizeBigInt does not fit into a Long")
+      sizeBigInt.toLong
     }
   }
 

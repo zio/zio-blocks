@@ -1,3 +1,0 @@
-let demo = agent-registry-demo("query-test");
-let result = demo.explore-agent-query();
-result

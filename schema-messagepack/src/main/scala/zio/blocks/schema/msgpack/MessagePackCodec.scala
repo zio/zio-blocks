@@ -185,99 +185,93 @@ abstract class MessagePackCodec[A] extends BinaryCodec[A] {
 }
 
 object MessagePackCodec {
+  private val readerPool: ThreadLocal[MessagePackReader] = new ThreadLocal[MessagePackReader] {
+    override def initialValue(): MessagePackReader = new MessagePackReader(null, 0, 0)
+  }
+  private val writerPool: ThreadLocal[MessagePackWriter] = new ThreadLocal[MessagePackWriter] {
+    override def initialValue(): MessagePackWriter = new MessagePackWriter(new Array[Byte](32768), -1)
+  }
   val unitCodec: MessagePackCodec[Unit] = new MessagePackCodec[Unit] {
     def decodeValue(in: MessagePackReader): Unit = in.readNil()
 
     def encodeValue(x: Unit, out: MessagePackWriter): Unit = out.writeNil()
   }
-
   val booleanCodec: MessagePackCodec[Boolean] = new MessagePackCodec[Boolean] {
     def decodeValue(in: MessagePackReader): Boolean = in.readBoolean()
 
     def encodeValue(x: Boolean, out: MessagePackWriter): Unit = out.writeBoolean(x)
   }
-
   val byteCodec: MessagePackCodec[Byte] = new MessagePackCodec[Byte] {
     def decodeValue(in: MessagePackReader): Byte = in.readByteValue()
 
     def encodeValue(x: Byte, out: MessagePackWriter): Unit = out.writeByte(x)
   }
-
   val shortCodec: MessagePackCodec[Short] = new MessagePackCodec[Short] {
     def decodeValue(in: MessagePackReader): Short = in.readShortValue()
 
     def encodeValue(x: Short, out: MessagePackWriter): Unit = out.writeShort(x)
   }
-
   val intCodec: MessagePackCodec[Int] = new MessagePackCodec[Int] {
     def decodeValue(in: MessagePackReader): Int = in.readIntValue()
 
     def encodeValue(x: Int, out: MessagePackWriter): Unit = out.writeInt(x)
   }
-
   val longCodec: MessagePackCodec[Long] = new MessagePackCodec[Long] {
     def decodeValue(in: MessagePackReader): Long = in.readLongValue()
 
     def encodeValue(x: Long, out: MessagePackWriter): Unit = out.writeLong(x)
   }
-
   val floatCodec: MessagePackCodec[Float] = new MessagePackCodec[Float] {
     def decodeValue(in: MessagePackReader): Float = in.readFloatValue()
 
     def encodeValue(x: Float, out: MessagePackWriter): Unit = out.writeFloat(x)
   }
-
   val doubleCodec: MessagePackCodec[Double] = new MessagePackCodec[Double] {
     def decodeValue(in: MessagePackReader): Double = in.readDoubleValue()
 
     def encodeValue(x: Double, out: MessagePackWriter): Unit = out.writeDouble(x)
   }
-
   val charCodec: MessagePackCodec[Char] = new MessagePackCodec[Char] {
     def decodeValue(in: MessagePackReader): Char = in.readChar()
 
     def encodeValue(x: Char, out: MessagePackWriter): Unit = out.writeChar(x)
   }
-
   val stringCodec: MessagePackCodec[String] = new MessagePackCodec[String] {
     def decodeValue(in: MessagePackReader): String = in.readString()
 
     def encodeValue(x: String, out: MessagePackWriter): Unit = out.writeString(x)
   }
-
   val bigIntCodec: MessagePackCodec[BigInt] = new MessagePackCodec[BigInt] {
     def decodeValue(in: MessagePackReader): BigInt = in.readBigInt()
 
     def encodeValue(x: BigInt, out: MessagePackWriter): Unit = out.writeBigInt(x)
   }
-
   val bigDecimalCodec: MessagePackCodec[BigDecimal] = new MessagePackCodec[BigDecimal] {
     def decodeValue(in: MessagePackReader): BigDecimal = in.readBigDecimal()
 
     def encodeValue(x: BigDecimal, out: MessagePackWriter): Unit = out.writeBigDecimal(x)
   }
-
   val dayOfWeekCodec: MessagePackCodec[DayOfWeek] = new MessagePackCodec[DayOfWeek] {
     def decodeValue(in: MessagePackReader): DayOfWeek = DayOfWeek.of(in.readIntValue())
 
     def encodeValue(x: DayOfWeek, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
-
   val durationCodec: MessagePackCodec[Duration] = new MessagePackCodec[Duration] {
     def decodeValue(in: MessagePackReader): Duration = {
       val len = in.readMapHeader()
-      if (len != 2) in.decodeError(s"Expected Duration map of 2, got: $len")
+      if (len != 2) error(s"Expected Duration map of 2, got: $len")
       var seconds: Long = 0L
       var nanos: Int    = 0
       var i             = 0
       while (i < 2) {
         if (in.readFieldNameEquals(MessagePackReader.SecondsName)) seconds = in.readLongValue()
         else if (in.readFieldNameEquals(MessagePackReader.NanosName)) nanos = in.readIntValue()
-        else in.decodeError(s"Unexpected Duration field")
+        else error(s"Unexpected Duration field")
         i += 1
       }
       Duration.ofSeconds(seconds, nanos.toLong)
     }
+
     def encodeValue(x: Duration, out: MessagePackWriter): Unit = {
       out.writeMapHeader(2)
       out.writeRaw(MessagePackWriter.SecondsBytes)
@@ -286,68 +280,45 @@ object MessagePackCodec {
       out.writeInt(x.getNano)
     }
   }
-
   val instantCodec: MessagePackCodec[Instant] = new MessagePackCodec[Instant] {
-    def decodeValue(in: MessagePackReader): Instant =
-      Json.instantRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): Instant = Json.instantRawCodec.decodeUnsafe(in.readString())
 
-    def encodeValue(x: Instant, out: MessagePackWriter): Unit =
-      out.writeString(Json.instantRawCodec.encodeToString(x))
+    def encodeValue(x: Instant, out: MessagePackWriter): Unit = out.writeString(Json.instantRawCodec.encodeToString(x))
   }
-
   val localDateCodec: MessagePackCodec[LocalDate] = new MessagePackCodec[LocalDate] {
-    def decodeValue(in: MessagePackReader): LocalDate =
-      Json.localDateRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): LocalDate = Json.localDateRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: LocalDate, out: MessagePackWriter): Unit =
       out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
-
   val localDateTimeCodec: MessagePackCodec[LocalDateTime] = new MessagePackCodec[LocalDateTime] {
-    def decodeValue(in: MessagePackReader): LocalDateTime =
-      Json.localDateTimeRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): LocalDateTime = Json.localDateTimeRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: LocalDateTime, out: MessagePackWriter): Unit =
       out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
-
   val localTimeCodec: MessagePackCodec[LocalTime] = new MessagePackCodec[LocalTime] {
-    def decodeValue(in: MessagePackReader): LocalTime =
-      Json.localTimeRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): LocalTime = Json.localTimeRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: LocalTime, out: MessagePackWriter): Unit =
       out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
-
   val monthCodec: MessagePackCodec[Month] = new MessagePackCodec[Month] {
     def decodeValue(in: MessagePackReader): Month = Month.of(in.readIntValue())
 
     def encodeValue(x: Month, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
-
   val monthDayCodec: MessagePackCodec[MonthDay] = new MessagePackCodec[MonthDay] {
     def decodeValue(in: MessagePackReader): MonthDay = {
       val len = in.readMapHeader()
-      if (len != 2) in.decodeError(s"Expected MonthDay map of 2, got: $len")
+      if (len != 2) error(s"Expected MonthDay map of 2, got: $len")
       var month: Int = 0
       var day: Int   = 0
       var i          = 0
       while (i < 2) {
         if (in.readFieldNameEquals(MessagePackReader.MonthName)) month = in.readIntValue()
         else if (in.readFieldNameEquals(MessagePackReader.DayName)) day = in.readIntValue()
-        else in.decodeError(s"Unexpected MonthDay field")
+        else error(s"Unexpected MonthDay field")
         i += 1
       }
       MonthDay.of(month, day)
@@ -361,33 +332,22 @@ object MessagePackCodec {
       out.writeInt(x.getDayOfMonth)
     }
   }
-
   val offsetDateTimeCodec: MessagePackCodec[OffsetDateTime] = new MessagePackCodec[OffsetDateTime] {
-    def decodeValue(in: MessagePackReader): OffsetDateTime =
-      Json.offsetDateTimeRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): OffsetDateTime = Json.offsetDateTimeRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: OffsetDateTime, out: MessagePackWriter): Unit =
       out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
-
   val offsetTimeCodec: MessagePackCodec[OffsetTime] = new MessagePackCodec[OffsetTime] {
-    def decodeValue(in: MessagePackReader): OffsetTime =
-      Json.offsetTimeRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): OffsetTime = Json.offsetTimeRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: OffsetTime, out: MessagePackWriter): Unit =
       out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
-
   val periodCodec: MessagePackCodec[Period] = new MessagePackCodec[Period] {
     def decodeValue(in: MessagePackReader): Period = {
       val len = in.readMapHeader()
-      if (len != 3) in.decodeError(s"Expected Period map of 3, got: $len")
+      if (len != 3) error(s"Expected Period map of 3, got: $len")
       var years: Int  = 0
       var months: Int = 0
       var days: Int   = 0
@@ -396,7 +356,7 @@ object MessagePackCodec {
         if (in.readFieldNameEquals(MessagePackReader.YearsName)) years = in.readIntValue()
         else if (in.readFieldNameEquals(MessagePackReader.MonthsName)) months = in.readIntValue()
         else if (in.readFieldNameEquals(MessagePackReader.DaysName)) days = in.readIntValue()
-        else in.decodeError(s"Unexpected Period field")
+        else error(s"Unexpected Period field")
         i += 1
       }
       Period.of(years, months, days)
@@ -412,24 +372,22 @@ object MessagePackCodec {
       out.writeInt(x.getDays)
     }
   }
-
   val yearCodec: MessagePackCodec[Year] = new MessagePackCodec[Year] {
     def decodeValue(in: MessagePackReader): Year = Year.of(in.readIntValue())
 
     def encodeValue(x: Year, out: MessagePackWriter): Unit = out.writeInt(x.getValue)
   }
-
   val yearMonthCodec: MessagePackCodec[YearMonth] = new MessagePackCodec[YearMonth] {
     def decodeValue(in: MessagePackReader): YearMonth = {
       val len = in.readMapHeader()
-      if (len != 2) in.decodeError(s"Expected YearMonth map of 2, got: $len")
+      if (len != 2) error(s"Expected YearMonth map of 2, got: $len")
       var year: Int  = 0
       var month: Int = 0
       var i          = 0
       while (i < 2) {
         if (in.readFieldNameEquals(MessagePackReader.YearName)) year = in.readIntValue()
         else if (in.readFieldNameEquals(MessagePackReader.MonthName)) month = in.readIntValue()
-        else in.decodeError(s"Unexpected YearMonth field")
+        else error(s"Unexpected YearMonth field")
         i += 1
       }
       YearMonth.of(year, month)
@@ -443,53 +401,38 @@ object MessagePackCodec {
       out.writeInt(x.getMonthValue)
     }
   }
-
   val zoneIdCodec: MessagePackCodec[ZoneId] = new MessagePackCodec[ZoneId] {
     def decodeValue(in: MessagePackReader): ZoneId = ZoneId.of(in.readString())
 
     def encodeValue(x: ZoneId, out: MessagePackWriter): Unit = out.writeString(x.getId)
   }
-
   val zoneOffsetCodec: MessagePackCodec[ZoneOffset] = new MessagePackCodec[ZoneOffset] {
     def decodeValue(in: MessagePackReader): ZoneOffset = ZoneOffset.ofTotalSeconds(in.readIntValue())
 
     def encodeValue(x: ZoneOffset, out: MessagePackWriter): Unit = out.writeInt(x.getTotalSeconds)
   }
-
   val zonedDateTimeCodec: MessagePackCodec[ZonedDateTime] = new MessagePackCodec[ZonedDateTime] {
-    def decodeValue(in: MessagePackReader): ZonedDateTime =
-      Json.zonedDateTimeRawCodec.decode(in.readString()) match {
-        case Right(v)  => v
-        case Left(err) => throw err
-      }
+    def decodeValue(in: MessagePackReader): ZonedDateTime = Json.zonedDateTimeRawCodec.decodeUnsafe(in.readString())
 
     def encodeValue(x: ZonedDateTime, out: MessagePackWriter): Unit =
       out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
-
   val currencyCodec: MessagePackCodec[Currency] = new MessagePackCodec[Currency] {
     def decodeValue(in: MessagePackReader): Currency = Currency.getInstance(in.readString())
 
     def encodeValue(x: Currency, out: MessagePackWriter): Unit = out.writeString(x.getCurrencyCode)
   }
-
   val uuidCodec: MessagePackCodec[UUID] = new MessagePackCodec[UUID] {
     def decodeValue(in: MessagePackReader): UUID = UUID.fromString(in.readString())
 
     def encodeValue(x: UUID, out: MessagePackWriter): Unit = out.writeString(x.toString)
   }
-
   val binaryCodec: MessagePackCodec[Array[Byte]] = new MessagePackCodec[Array[Byte]] {
     def decodeValue(in: MessagePackReader): Array[Byte] = in.readBinary()
 
     def encodeValue(x: Array[Byte], out: MessagePackWriter): Unit = out.writeBinary(x)
   }
-
-  private val readerPool: ThreadLocal[MessagePackReader] = new ThreadLocal[MessagePackReader] {
-    override def initialValue(): MessagePackReader = new MessagePackReader(null, 0, 0)
-  }
-
-  private val writerPool: ThreadLocal[MessagePackWriter] = new ThreadLocal[MessagePackWriter] {
-    override def initialValue(): MessagePackWriter = new MessagePackWriter(new Array[Byte](32768), -1)
-  }
 }
+
+private case class MessagePackCodecError(spans: List[DynamicOptic.Node], message: String)
+    extends Throwable(message, null, false, false)

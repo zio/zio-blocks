@@ -593,10 +593,9 @@ object Json {
         val v2 = v1.normalize
         if (
           v2 match {
-            case obj: Object  => obj.value.nonEmpty
-            case arr: Array   => arr.value.nonEmpty
-            case _: Null.type => false
-            case _            => true
+            case obj: Object => obj.value.nonEmpty
+            case arr: Array  => arr.value.nonEmpty
+            case _           => v2 ne Null
           }
         ) {
           arr(size) =
@@ -734,10 +733,9 @@ object Json {
         val v = value(idx).normalize
         if (
           v match {
-            case obj: Object  => obj.value.nonEmpty
-            case arr: Array   => arr.value.nonEmpty
-            case _: Null.type => false
-            case _            => true
+            case obj: Object => obj.value.nonEmpty
+            case arr: Array  => arr.value.nonEmpty
+            case _           => v ne Null
           }
         ) {
           arr(size) = v
@@ -1429,13 +1427,14 @@ object Json {
       case arr: Array =>
         val elems = arr.value
         if (elems.isEmpty) Chunk.single((path, arr))
-        else
+        else {
           elems.flatMap {
             var idx = -1
             elem =>
               idx += 1
               toKV(elem, path.at(idx))
           }
+        }
       case leaf => Chunk.single((path, leaf))
     }
 
@@ -1966,11 +1965,9 @@ object Json {
       case _: DynamicOptic.Node.Elements.type =>
         json match {
           case arr: Array =>
-            new Some(if (isLast) {
-              // Delete all elements
+            new Some(if (isLast) { // Delete all elements
               Array.empty
-            } else {
-              // Apply delete to each element
+            } else { // Apply delete to each element
               new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1)))
             })
           case _ => None
@@ -2516,71 +2513,81 @@ object Json {
   private[json] def iterativeTransform(root: Json)(visit: Json => Json): Json = {
     sealed trait Frame
 
-    final case class Visit(value: Json) extends Frame
+    final class Visit(val value: Json) extends Frame
 
-    final case class RebuildObject(original: Object, childCount: Int) extends Frame
+    final class RebuildObject(val original: Object, val childCount: Int) extends Frame
 
-    final case class RebuildArray(original: Array, childCount: Int) extends Frame
+    final class RebuildArray(val original: Array, val childCount: Int) extends Frame
 
     val work    = new java.util.ArrayDeque[Frame]()
     val results = new java.util.ArrayDeque[Json]()
-    work.push(Visit(root))
+    work.push(new Visit(root))
     while (!work.isEmpty) {
       work.pop() match {
-        case Visit(value) =>
-          val visited = visit(value)
+        case v: Visit =>
+          val visited = visit(v.value)
           visited match {
             case obj: Object =>
-              val n = obj.value.length
-              if (n == 0) results.push(visited)
+              val len = obj.value.length
+              if (len == 0) results.push(visited)
               else {
-                work.push(new RebuildObject(obj, n))
-                var i = n
+                work.push(new RebuildObject(obj, len))
+                var idx = len
                 while ({
-                  i -= 1
-                  i >= 0
-                }) work.push(new Visit(obj.value(i)._2))
+                  idx -= 1
+                  idx >= 0
+                }) work.push(new Visit(obj.value(idx)._2))
               }
             case arr: Array =>
-              val n = arr.value.length
-              if (n == 0) results.push(visited)
+              val len = arr.value.length
+              if (len == 0) results.push(visited)
               else {
-                work.push(new RebuildArray(arr, n))
-                var i = n
+                work.push(new RebuildArray(arr, len))
+                var idx = len
                 while ({
-                  i -= 1
-                  i >= 0
-                }) work.push(new Visit(arr.value(i)))
+                  idx -= 1
+                  idx >= 0
+                }) work.push(new Visit(arr.value(idx)))
               }
             case _ => results.push(visited)
           }
-        case RebuildObject(original, childCount) =>
-          var changed = false
-          val fields  = new scala.Array[(java.lang.String, Json)](childCount)
-          var i       = childCount
+        case ro: RebuildObject =>
+          val original   = ro.original
+          val childCount = ro.childCount
+          val fields     = new scala.Array[(java.lang.String, Json)](childCount)
+          var changed    = false
+          var idx        = childCount
           while ({
-            i -= 1
-            i >= 0
+            idx -= 1
+            idx >= 0
           }) {
             val child = results.pop()
-            val value = original.value(i)
-            if (!(child eq value._2)) changed = true
-            fields(i) = (value._1, child)
+            val value = original.value(idx)
+            if (child ne value._2) changed = true
+            fields(idx) = (value._1, child)
           }
-          results.push(if (changed) new Object(Chunk.fromArray(fields)) else original)
-        case RebuildArray(original, childCount) =>
-          var changed = false
-          val elems   = new scala.Array[Json](childCount)
-          var i       = childCount
+          results.push(
+            if (changed) new Object(Chunk.fromArray(fields))
+            else original
+          )
+        case ra: RebuildArray =>
+          val original   = ra.original
+          val childCount = ra.childCount
+          val elems      = new scala.Array[Json](childCount)
+          var changed    = false
+          var idx        = childCount
           while ({
-            i -= 1
-            i >= 0
+            idx -= 1
+            idx >= 0
           }) {
             val child = results.pop()
-            if (!(child eq original.value(i))) changed = true
-            elems(i) = child
+            if (child ne original.value(idx)) changed = true
+            elems(idx) = child
           }
-          results.push(if (changed) new Array(Chunk.fromArray(elems)) else original)
+          results.push(
+            if (changed) new Array(Chunk.fromArray(elems))
+            else original
+          )
       }
     }
     results.pop()
@@ -2632,29 +2639,29 @@ object Json {
       // iterativeTransform handles recursion into remaining children.
       val result = iterativeTransform(json) {
         case obj: Object =>
-          val newFields = obj.value.flatMap { kv =>
-            if (JsonMatch.matches(pattern, kv._2)) {
-              found = true
-              Chunk.empty
-            } else Chunk.single(kv)
+          val fields    = obj.value
+          val newFields = ChunkBuilder.make[(java.lang.String, Json)](fields.length)
+          fields.foreach { kv =>
+            if (JsonMatch.matches(pattern, kv._2)) found = true
+            else newFields.addOne(kv)
           }
-          if (newFields.length != obj.value.length) new Object(newFields)
+          if (newFields.knownSize != fields.length) new Object(newFields.result())
           else obj
         case arr: Array =>
-          val newElems = arr.value.flatMap { e =>
-            if (JsonMatch.matches(pattern, e)) {
-              found = true
-              Chunk.empty
-            } else Chunk.single(e)
+          val elems    = arr.value
+          val newElems = ChunkBuilder.make[Json](elems.length)
+          elems.foreach { e =>
+            if (JsonMatch.matches(pattern, e)) found = true
+            else newElems.addOne(e)
           }
-          if (newElems.length != arr.value.length) new Array(newElems)
+          if (newElems.knownSize != elems.length) new Array(newElems.result())
           else arr
         case other => other
       }
       if (found) new Some(result)
       else None
     } else {
-      // SchemaSearch is not the last node - find matches and continue with remaining path.
+      // SchemaSearch is not the last node - find matches and continue with a remaining path.
       // iterativeTransform visits every node; matching ones get the remaining path applied.
       val result = iterativeTransform(json) { value =>
         if (JsonMatch.matches(pattern, value)) {

@@ -67,10 +67,10 @@ final case class DerivationBuilder[TC[_], A](
    * `typeId`. This is a medium-precision override between optic-based (exact
    * path) and type-based (all occurrences).
    *
-   * The `typeId` refers to the ''parent'' record/variant type, not the field
-   * type. The field type `B` is not statically checked against the actual term
-   * type. If no term with the given name exists in the parent type, the
-   * override is silently ignored.
+   * The `typeId` refers to the parent record/variant type, not the field type.
+   * The field type `B` is not statically checked against the actual term type.
+   * If no term with the given name exists in the parent type, the override is
+   * silently ignored.
    */
   def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides =
@@ -114,8 +114,8 @@ final case class DerivationBuilder[TC[_], A](
   /**
    * Adds a term-level modifier for a field or variant case identified by
    * `termName` inside a parent type identified by `typeId`. The `typeId` refers
-   * to the ''parent'' record/variant type that owns the term, not the term's
-   * own type. If no term with the given name exists in the parent type, the
+   * to the parent record/variant type that owns the term, not the term's own
+   * type. If no term with the given name exists in the parent type, the
    * modifier is silently ignored.
    */
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
@@ -218,7 +218,7 @@ final case class DerivationBuilder[TC[_], A](
                 )
                 term.copy(value = newValue.asInstanceOf[Reflect[G, term.Focus]]).asInstanceOf[Term[G, A0, ?]]
               }
-            case None => term
+            case _ => term
           }
         }
       }

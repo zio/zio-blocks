@@ -114,7 +114,7 @@ val message = result.fold(
 val value: Int = WitResult.ok(42).unwrap()
 
 // Get error value (throws on success)
-val error: String = WitResult.err[Int, String]("oops").unwrapErr()
+val error: String = WitResult.err[String]("oops").unwrapErr()
 ```
 
 ---

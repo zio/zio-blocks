@@ -75,7 +75,7 @@ These are core public API types that users interact with directly. Each needs a 
 **Format codec modules:**
 - [ ] **`BsonEncoder` / `BsonDecoder` / `BsonCodec`** (schema-bson) — Core encoding/decoding types for BSON. **Scope: expand formats.md BSON section**. Source: `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala`
 - [ ] **`MessagePackCodec`** (schema-messagepack) — Public codec for MessagePack. **Scope: expand formats.md MessagePack section**. Source: `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala`
-- [ ] **`ThriftBinaryCodec`** (schema-thrift) — Public codec for Thrift. **Scope: expand formats.md Thrift section**. Source: `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftBinaryCodec.scala`
+- [ ] **`ThriftCodec`** (schema-thrift) — Public codec for Thrift. **Scope: expand formats.md Thrift section**. Source: `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodec.scala`
 - [ ] **`ToonReader` / `ToonWriter`** (schema-toon) — Public codec for TOON. Referenced in 9-10 files. **Scope: expand formats.md TOON section**. Source: `schema-toon/src/main/scala/zio/blocks/schema/toon/`
 
 **markdown module:**
@@ -314,7 +314,7 @@ Ordered TODO checklist grouped by module, with estimated scope.
 
 26. - [ ] Expand **BSON section** in `formats.md` with BsonEncoder/BsonDecoder API — *update existing*
 27. - [ ] Expand **MessagePack section** in `formats.md` with MessagePackCodec API — *update existing*
-28. - [ ] Expand **Thrift section** in `formats.md` with ThriftBinaryCodec API — *update existing*
+28. - [ ] Expand **Thrift section** in `formats.md` with ThriftCodec API — *update existing*
 29. - [ ] Expand **TOON section** in `formats.md` with ToonReader/ToonWriter, Delimiter, config — *update existing*
 
 ### Depth improvements (existing pages)

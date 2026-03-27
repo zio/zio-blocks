@@ -17,9 +17,9 @@
 package golem.host
 
 import golem.HostApi
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
-class DurabilityApiCompileSpec extends AnyFunSuite {
+object DurabilityApiCompileSpec extends ZIOSpecDefault {
   import DurabilityApi._
 
   private val allFunctionTypes: List[DurableFunctionType] = List(
@@ -58,45 +58,47 @@ class DurabilityApiCompileSpec extends AnyFunSuite {
   )
 
   private val invocation: PersistedDurableFunctionInvocation = PersistedDurableFunctionInvocation(
-    timestampSeconds = BigInt(1700000000L),
-    timestampNanos = 500000000L,
+    timestamp = Datetime(BigInt(1700000000L), 500000000),
     functionName = "test-func",
     response = sampleVat,
     functionType = DurableFunctionType.ReadLocal,
     entryVersion = OplogEntryVersion.V1
   )
 
-  test("all DurableFunctionType variants constructed") {
-    assert(allFunctionTypes.size == 8)
-  }
-
-  test("exhaustive DurableFunctionType match compiles") {
-    allFunctionTypes.foreach(ft => assert(describeFunctionType(ft).nonEmpty))
-  }
-
-  test("DurableExecutionState construction") {
-    assert(state.isLive)
-    assert(state.persistenceLevel == HostApi.PersistenceLevel.Smart)
-  }
-
-  test("OplogEntryVersion exhaustive") {
-    entryVersions.foreach {
-      case OplogEntryVersion.V1 => assert(true)
-      case OplogEntryVersion.V2 => assert(true)
+  def spec = suite("DurabilityApiCompileSpec")(
+    test("all DurableFunctionType variants constructed") {
+      assertTrue(allFunctionTypes.size == 8)
+    },
+    test("exhaustive DurableFunctionType match compiles") {
+      allFunctionTypes.foreach(ft => assertTrue(describeFunctionType(ft).nonEmpty))
+      assertTrue(true)
+    },
+    test("DurableExecutionState construction") {
+      assertTrue(
+        state.isLive,
+        state.persistenceLevel == HostApi.PersistenceLevel.Smart
+      )
+    },
+    test("OplogEntryVersion exhaustive") {
+      entryVersions.foreach {
+        case OplogEntryVersion.V1 => ()
+        case OplogEntryVersion.V2 => ()
+      }
+      assertTrue(true)
+    },
+    test("PersistedDurableFunctionInvocation field access") {
+      assertTrue(
+        invocation.timestamp.seconds == BigInt(1700000000L),
+        invocation.timestamp.nanoseconds == 500000000,
+        invocation.functionName == "test-func",
+        invocation.response.value.nodes.nonEmpty,
+        invocation.functionType == DurableFunctionType.ReadLocal,
+        invocation.entryVersion == OplogEntryVersion.V1
+      )
+    },
+    test("OplogIndex type alias") {
+      val idx: OplogIndex = BigInt(99)
+      assertTrue(idx == BigInt(99))
     }
-  }
-
-  test("PersistedDurableFunctionInvocation field access") {
-    assert(invocation.timestampSeconds == BigInt(1700000000L))
-    assert(invocation.timestampNanos == 500000000L)
-    assert(invocation.functionName == "test-func")
-    assert(invocation.response.value.nodes.nonEmpty)
-    assert(invocation.functionType == DurableFunctionType.ReadLocal)
-    assert(invocation.entryVersion == OplogEntryVersion.V1)
-  }
-
-  test("OplogIndex type alias") {
-    val idx: OplogIndex = BigInt(99)
-    assert(idx == BigInt(99))
-  }
+  )
 }

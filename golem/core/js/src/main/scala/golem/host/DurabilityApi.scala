@@ -17,12 +17,13 @@
 package golem.host
 
 import golem.HostApi
+import golem.host.js._
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 
 /**
- * Scala.js facade for `golem:durability/durability@1.3.0`.
+ * Scala.js facade for `golem:durability/durability@1.5.0`.
  *
  * WIT interface:
  * {{{
@@ -63,37 +64,38 @@ object DurabilityApi {
       val tag = "write-remote-transaction"
     }
 
-    def fromDynamic(raw: js.Dynamic): DurableFunctionType = {
-      val tag = raw.tag.asInstanceOf[String]
-      tag match {
+    def fromJs(raw: JsWrappedFunctionType): DurableFunctionType =
+      raw.tag match {
         case "read-local"           => ReadLocal
         case "write-local"          => WriteLocal
         case "read-remote"          => ReadRemote
         case "write-remote"         => WriteRemote
         case "write-remote-batched" =>
-          val v   = raw.selectDynamic("val")
-          val idx = if (js.isUndefined(v) || v == null) None else Some(BigInt(v.toString))
+          val v   = raw.asInstanceOf[JsWrappedFunctionTypeBatched].value
+          val idx = v.toOption.map(bi => BigInt(bi.toString))
           WriteRemoteBatched(idx)
         case "write-remote-transaction" =>
-          val v   = raw.selectDynamic("val")
-          val idx = if (js.isUndefined(v) || v == null) None else Some(BigInt(v.toString))
+          val v   = raw.asInstanceOf[JsWrappedFunctionTypeTransaction].value
+          val idx = v.toOption.map(bi => BigInt(bi.toString))
           WriteRemoteTransaction(idx)
         case other => throw new IllegalArgumentException(s"Unknown DurableFunctionType tag: $other")
       }
+
+    def toJs(ft: DurableFunctionType): JsWrappedFunctionType = ft match {
+      case ReadLocal               => JsWrappedFunctionType.readLocal
+      case WriteLocal              => JsWrappedFunctionType.writeLocal
+      case ReadRemote              => JsWrappedFunctionType.readRemote
+      case WriteRemote             => JsWrappedFunctionType.writeRemote
+      case WriteRemoteBatched(idx) =>
+        JsWrappedFunctionType.writeRemoteBatched(
+          idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString))
+        )
+      case WriteRemoteTransaction(idx) =>
+        JsWrappedFunctionType.writeRemoteTransaction(
+          idx.fold[js.UndefOr[js.BigInt]](js.undefined)(i => js.BigInt(i.toString))
+        )
     }
 
-    def toDynamic(ft: DurableFunctionType): js.Dynamic = ft match {
-      case ReadLocal               => js.Dynamic.literal(tag = "read-local")
-      case WriteLocal              => js.Dynamic.literal(tag = "write-local")
-      case ReadRemote              => js.Dynamic.literal(tag = "read-remote")
-      case WriteRemote             => js.Dynamic.literal(tag = "write-remote")
-      case WriteRemoteBatched(idx) =>
-        val v: js.Any = idx.map(i => js.BigInt(i.toString): js.Any).getOrElse(js.undefined)
-        js.Dynamic.literal(tag = "write-remote-batched", `val` = v)
-      case WriteRemoteTransaction(idx) =>
-        val v: js.Any = idx.map(i => js.BigInt(i.toString): js.Any).getOrElse(js.undefined)
-        js.Dynamic.literal(tag = "write-remote-transaction", `val` = v)
-    }
   }
 
   // --- WIT: durable-execution-state record ---
@@ -119,9 +121,10 @@ object DurabilityApi {
 
   // --- WIT: persisted-durable-function-invocation record ---
 
+  final case class Datetime(seconds: BigInt, nanoseconds: Int)
+
   final case class PersistedDurableFunctionInvocation(
-    timestampSeconds: BigInt,
-    timestampNanos: Long,
+    timestamp: Datetime,
     functionName: String,
     response: WitValueTypes.ValueAndType,
     functionType: DurableFunctionType,
@@ -131,7 +134,7 @@ object DurabilityApi {
   // --- Native bindings ---
 
   @js.native
-  @JSImport("golem:durability/durability@1.3.0", JSImport.Namespace)
+  @JSImport("golem:durability/durability@1.5.0", JSImport.Namespace)
   private object DurabilityModule extends js.Object {
     def observeFunctionCall(iface: String, function: String): Unit                                   = js.native
     def beginDurableFunction(functionType: js.Any): js.BigInt                                        = js.native
@@ -152,20 +155,19 @@ object DurabilityApi {
     DurabilityModule.observeFunctionCall(iface, function)
 
   def beginDurableFunction(functionType: DurableFunctionType): OplogIndex =
-    BigInt(DurabilityModule.beginDurableFunction(DurableFunctionType.toDynamic(functionType)).toString)
+    BigInt(DurabilityModule.beginDurableFunction(DurableFunctionType.toJs(functionType)).toString)
 
   def endDurableFunction(functionType: DurableFunctionType, beginIndex: OplogIndex, forcedCommit: Boolean): Unit =
     DurabilityModule.endDurableFunction(
-      DurableFunctionType.toDynamic(functionType),
+      DurableFunctionType.toJs(functionType),
       js.BigInt(beginIndex.toString),
       forcedCommit
     )
 
   def currentDurableExecutionState(): DurableExecutionState = {
-    val raw   = DurabilityModule.currentDurableExecutionState().asInstanceOf[js.Dynamic]
-    val live  = raw.isLive.asInstanceOf[Boolean]
-    val plRaw = raw.persistenceLevel.asInstanceOf[js.Dynamic]
-    val pl    = HostApi.PersistenceLevel.fromTag(plRaw.tag.asInstanceOf[String])
+    val raw  = DurabilityModule.currentDurableExecutionState().asInstanceOf[JsDurableExecutionState]
+    val live = raw.isLive
+    val pl   = HostApi.PersistenceLevel.fromTag(raw.persistenceLevel.tag)
     DurableExecutionState(live, pl)
   }
 
@@ -177,21 +179,21 @@ object DurabilityApi {
   ): Unit =
     DurabilityModule.persistDurableFunctionInvocation(
       functionName,
-      WitValueTypes.ValueAndType.toDynamic(request),
-      WitValueTypes.ValueAndType.toDynamic(response),
-      DurableFunctionType.toDynamic(functionType)
+      WitValueTypes.ValueAndType.toJs(request),
+      WitValueTypes.ValueAndType.toJs(response),
+      DurableFunctionType.toJs(functionType)
     )
 
   def readPersistedDurableFunctionInvocation(): PersistedDurableFunctionInvocation = {
-    val raw      = DurabilityModule.readPersistedDurableFunctionInvocation().asInstanceOf[js.Dynamic]
-    val ts       = raw.timestamp.asInstanceOf[js.Dynamic]
-    val seconds  = BigInt(ts.seconds.toString)
-    val nanos    = ts.nanoseconds.asInstanceOf[Int].toLong
-    val funcName = raw.functionName.asInstanceOf[String]
-    val response = WitValueTypes.ValueAndType.fromDynamic(raw.response.asInstanceOf[js.Dynamic])
-    val funcType = DurableFunctionType.fromDynamic(raw.functionType)
-    val entryVer = OplogEntryVersion.fromString(raw.entryVersion.asInstanceOf[String])
-    PersistedDurableFunctionInvocation(seconds, nanos, funcName, response, funcType, entryVer)
+    val raw =
+      DurabilityModule.readPersistedDurableFunctionInvocation().asInstanceOf[JsPersistedDurableFunctionInvocation]
+    val ts        = raw.timestamp
+    val timestamp = Datetime(BigInt(ts.seconds.toString), ts.nanoseconds)
+    val funcName  = raw.functionName
+    val response  = WitValueTypes.ValueAndType.fromJs(raw.response)
+    val funcType  = DurableFunctionType.fromJs(raw.functionType)
+    val entryVer  = OplogEntryVersion.fromString(raw.entryVersion)
+    PersistedDurableFunctionInvocation(timestamp, funcName, response, funcType, entryVer)
   }
 
   def raw: Any = DurabilityModule
