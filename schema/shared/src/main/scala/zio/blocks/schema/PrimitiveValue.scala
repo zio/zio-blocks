@@ -1062,121 +1062,183 @@ object PrimitiveValue {
         matchers = Matchers(
           new Matcher[Unit.type] {
             def downcastOrNull(a: Any): Unit.type = a match {
-              case x: Unit.type => x; case _ => null.asInstanceOf[Unit.type]
+              case x: Unit.type => x
+              case _            => null.asInstanceOf[Unit.type]
             }
           },
           new Matcher[Boolean] {
-            def downcastOrNull(a: Any): Boolean = a match { case x: Boolean => x; case _ => null.asInstanceOf[Boolean] }
+            def downcastOrNull(a: Any): Boolean = a match {
+              case x: Boolean => x
+              case _          => null.asInstanceOf[Boolean]
+            }
           },
           new Matcher[Byte] {
-            def downcastOrNull(a: Any): Byte = a match { case x: Byte => x; case _ => null.asInstanceOf[Byte] }
+            def downcastOrNull(a: Any): Byte = a match {
+              case x: Byte => x
+              case _       => null.asInstanceOf[Byte]
+            }
           },
           new Matcher[Short] {
-            def downcastOrNull(a: Any): Short = a match { case x: Short => x; case _ => null.asInstanceOf[Short] }
+            def downcastOrNull(a: Any): Short = a match {
+              case x: Short => x
+              case _        => null.asInstanceOf[Short]
+            }
           },
           new Matcher[Int] {
-            def downcastOrNull(a: Any): Int = a match { case x: Int => x; case _ => null.asInstanceOf[Int] }
+            def downcastOrNull(a: Any): Int = a match {
+              case x: Int => x
+              case _      => null.asInstanceOf[Int]
+            }
           },
           new Matcher[Long] {
-            def downcastOrNull(a: Any): Long = a match { case x: Long => x; case _ => null.asInstanceOf[Long] }
+            def downcastOrNull(a: Any): Long = a match {
+              case x: Long => x
+              case _       => null.asInstanceOf[Long]
+            }
           },
           new Matcher[Float] {
-            def downcastOrNull(a: Any): Float = a match { case x: Float => x; case _ => null.asInstanceOf[Float] }
+            def downcastOrNull(a: Any): Float = a match {
+              case x: Float => x
+              case _        => null.asInstanceOf[Float]
+            }
           },
           new Matcher[Double] {
-            def downcastOrNull(a: Any): Double = a match { case x: Double => x; case _ => null.asInstanceOf[Double] }
+            def downcastOrNull(a: Any): Double = a match {
+              case x: Double => x
+              case _         => null.asInstanceOf[Double]
+            }
           },
           new Matcher[Char] {
-            def downcastOrNull(a: Any): Char = a match { case x: Char => x; case _ => null.asInstanceOf[Char] }
+            def downcastOrNull(a: Any): Char = a match {
+              case x: Char => x
+              case _       => null.asInstanceOf[Char]
+            }
           },
           new Matcher[String] {
-            def downcastOrNull(a: Any): String = a match { case x: String => x; case _ => null.asInstanceOf[String] }
+            def downcastOrNull(a: Any): String = a match {
+              case x: String => x
+              case _         => null.asInstanceOf[String]
+            }
           },
           new Matcher[BigInt] {
-            def downcastOrNull(a: Any): BigInt = a match { case x: BigInt => x; case _ => null.asInstanceOf[BigInt] }
+            def downcastOrNull(a: Any): BigInt = a match {
+              case x: BigInt => x
+              case _         => null.asInstanceOf[BigInt]
+            }
           },
           new Matcher[BigDecimal] {
             def downcastOrNull(a: Any): BigDecimal = a match {
-              case x: BigDecimal => x; case _ => null.asInstanceOf[BigDecimal]
+              case x: BigDecimal => x
+              case _             => null.asInstanceOf[BigDecimal]
             }
           },
           new Matcher[DayOfWeek] {
             def downcastOrNull(a: Any): DayOfWeek = a match {
-              case x: DayOfWeek => x; case _ => null.asInstanceOf[DayOfWeek]
+              case x: DayOfWeek => x
+              case _            => null.asInstanceOf[DayOfWeek]
             }
           },
           new Matcher[Duration] {
             def downcastOrNull(a: Any): Duration = a match {
-              case x: Duration => x; case _ => null.asInstanceOf[Duration]
+              case x: Duration => x
+              case _           => null.asInstanceOf[Duration]
             }
           },
           new Matcher[Instant] {
-            def downcastOrNull(a: Any): Instant = a match { case x: Instant => x; case _ => null.asInstanceOf[Instant] }
+            def downcastOrNull(a: Any): Instant = a match {
+              case x: Instant => x
+              case _          => null.asInstanceOf[Instant]
+            }
           },
           new Matcher[LocalDate] {
             def downcastOrNull(a: Any): LocalDate = a match {
-              case x: LocalDate => x; case _ => null.asInstanceOf[LocalDate]
+              case x: LocalDate => x
+              case _            => null.asInstanceOf[LocalDate]
             }
           },
           new Matcher[LocalDateTime] {
             def downcastOrNull(a: Any): LocalDateTime = a match {
-              case x: LocalDateTime => x; case _ => null.asInstanceOf[LocalDateTime]
+              case x: LocalDateTime => x
+              case _                => null.asInstanceOf[LocalDateTime]
             }
           },
           new Matcher[LocalTime] {
             def downcastOrNull(a: Any): LocalTime = a match {
-              case x: LocalTime => x; case _ => null.asInstanceOf[LocalTime]
+              case x: LocalTime => x
+              case _            => null.asInstanceOf[LocalTime]
             }
           },
           new Matcher[Month] {
-            def downcastOrNull(a: Any): Month = a match { case x: Month => x; case _ => null.asInstanceOf[Month] }
+            def downcastOrNull(a: Any): Month = a match {
+              case x: Month => x
+              case _        => null.asInstanceOf[Month]
+            }
           },
           new Matcher[MonthDay] {
             def downcastOrNull(a: Any): MonthDay = a match {
-              case x: MonthDay => x; case _ => null.asInstanceOf[MonthDay]
+              case x: MonthDay => x
+              case _           => null.asInstanceOf[MonthDay]
             }
           },
           new Matcher[OffsetDateTime] {
             def downcastOrNull(a: Any): OffsetDateTime = a match {
-              case x: OffsetDateTime => x; case _ => null.asInstanceOf[OffsetDateTime]
+              case x: OffsetDateTime => x
+              case _                 => null.asInstanceOf[OffsetDateTime]
             }
           },
           new Matcher[OffsetTime] {
             def downcastOrNull(a: Any): OffsetTime = a match {
-              case x: OffsetTime => x; case _ => null.asInstanceOf[OffsetTime]
+              case x: OffsetTime => x
+              case _             => null.asInstanceOf[OffsetTime]
             }
           },
           new Matcher[Period] {
-            def downcastOrNull(a: Any): Period = a match { case x: Period => x; case _ => null.asInstanceOf[Period] }
+            def downcastOrNull(a: Any): Period = a match {
+              case x: Period => x
+              case _         => null.asInstanceOf[Period]
+            }
           },
           new Matcher[Year] {
-            def downcastOrNull(a: Any): Year = a match { case x: Year => x; case _ => null.asInstanceOf[Year] }
+            def downcastOrNull(a: Any): Year = a match {
+              case x: Year => x
+              case _       => null.asInstanceOf[Year]
+            }
           },
           new Matcher[YearMonth] {
             def downcastOrNull(a: Any): YearMonth = a match {
-              case x: YearMonth => x; case _ => null.asInstanceOf[YearMonth]
+              case x: YearMonth => x
+              case _            => null.asInstanceOf[YearMonth]
             }
           },
           new Matcher[ZoneId] {
-            def downcastOrNull(a: Any): ZoneId = a match { case x: ZoneId => x; case _ => null.asInstanceOf[ZoneId] }
+            def downcastOrNull(a: Any): ZoneId = a match {
+              case x: ZoneId => x
+              case _         => null.asInstanceOf[ZoneId]
+            }
           },
           new Matcher[ZoneOffset] {
             def downcastOrNull(a: Any): ZoneOffset = a match {
-              case x: ZoneOffset => x; case _ => null.asInstanceOf[ZoneOffset]
+              case x: ZoneOffset => x
+              case _             => null.asInstanceOf[ZoneOffset]
             }
           },
           new Matcher[ZonedDateTime] {
             def downcastOrNull(a: Any): ZonedDateTime = a match {
-              case x: ZonedDateTime => x; case _ => null.asInstanceOf[ZonedDateTime]
+              case x: ZonedDateTime => x
+              case _                => null.asInstanceOf[ZonedDateTime]
             }
           },
           new Matcher[Currency] {
             def downcastOrNull(a: Any): Currency = a match {
-              case x: Currency => x; case _ => null.asInstanceOf[Currency]
+              case x: Currency => x
+              case _           => null.asInstanceOf[Currency]
             }
           },
           new Matcher[UUID] {
-            def downcastOrNull(a: Any): UUID = a match { case x: UUID => x; case _ => null.asInstanceOf[UUID] }
+            def downcastOrNull(a: Any): UUID = a match {
+              case x: UUID => x
+              case _       => null.asInstanceOf[UUID]
+            }
           }
         )
       ),

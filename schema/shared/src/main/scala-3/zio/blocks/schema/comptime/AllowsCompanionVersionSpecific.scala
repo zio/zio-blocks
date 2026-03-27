@@ -205,12 +205,16 @@ private[comptime] object AllowsMacroImpl {
     }
 
     def allOrTypes(tpe: TypeRepr): List[TypeRepr] = {
-      val seen                    = scala.collection.mutable.HashSet.empty[TypeRepr]
-      val types                   = scala.collection.mutable.ListBuffer.empty[TypeRepr]
+      val seen  = scala.collection.mutable.HashSet.empty[TypeRepr]
+      val types = scala.collection.mutable.ListBuffer.empty[TypeRepr]
+
       def loop(t: TypeRepr): Unit = t.dealias match {
-        case OrType(l, r) => loop(l); loop(r)
-        case dealiased    => if (seen.add(dealiased)) types += dealiased
+        case OrType(l, r) =>
+          loop(l)
+          loop(r)
+        case dealiased => if (seen.add(dealiased)) types += dealiased
       }
+
       loop(tpe)
       types.toList.sortBy(_.typeSymbol.fullName)
     }

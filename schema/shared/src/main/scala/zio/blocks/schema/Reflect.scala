@@ -1839,8 +1839,7 @@ object Reflect {
    */
   private[schema] def typeSearch[F[_, _]](root: Reflect[F, ?], searchTypeId: TypeId[?]): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
-    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
-
+    val visited                                               = new java.util.IdentityHashMap[AnyRef, Unit]
     def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
       // Check for cycle - if we've visited this Deferred node, skip it
       current match {
@@ -1849,17 +1848,13 @@ object Reflect {
           visited.put(d, ())
         case _ => ()
       }
-
       try {
         // Check if current type matches the search TypeId
         if (current.typeId == searchTypeId) return Some(current)
-
         // Recurse into children based on node type
         current match {
-          case d: Deferred[F, ?] @unchecked =>
-            search(d.value)
-
-          case r: Record[F, ?] @unchecked =>
+          case d: Deferred[F, ?] @unchecked => search(d.value)
+          case r: Record[F, ?] @unchecked   =>
             // Search through all field types
             var i = 0
             while (i < r.fields.length) {
@@ -1868,7 +1863,6 @@ object Reflect {
               i += 1
             }
             None
-
           case v: Variant[F, ?] @unchecked =>
             // Search through all case payload types
             var i = 0
@@ -1878,28 +1872,17 @@ object Reflect {
               i += 1
             }
             None
-
-          case s: Sequence[F, ?, ?] @unchecked =>
-            // Search element type
-            search(s.element)
-
-          case m: Map[F, ?, ?, ?] @unchecked =>
+          case s: Sequence[F, ?, ?] @unchecked => search(s.element) // Search element type
+          case m: Map[F, ?, ?, ?] @unchecked   =>
             // Search key type first, then value type
             val keyResult = search(m.key)
             if (keyResult.isDefined) keyResult
             else search(m.value)
-
-          case w: Wrapper[F, ?, ?] @unchecked =>
-            // Search wrapped type
-            search(w.wrapped)
-
-          case _: Primitive[F, ?] | _: Dynamic[F] =>
-            // Primitives and Dynamic don't have child types to search
-            None
+          case w: Wrapper[F, ?, ?] @unchecked => search(w.wrapped) // Search wrapped type
+          case _                              => None              // Primitives and Dynamic don't have child types to search
         }
       } finally {
-        // Clean up visited set for Deferred nodes
-        current match {
+        current match { // Clean up visited set for Deferred nodes
           case d: Deferred[F, ?] @unchecked => visited.remove(d)
           case _                            => ()
         }
@@ -1923,58 +1906,44 @@ object Reflect {
    */
   private[schema] def schemaSearch[F[_, _]](root: Reflect[F, ?], pattern: SchemaRepr): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
-    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
-
+    val visited                                                              = new java.util.IdentityHashMap[AnyRef, Unit]
     def matchesSchemaRepr(reflect: Reflect[F, ?], repr: SchemaRepr): Boolean = repr match {
-      case SchemaRepr.Wildcard => true
-
-      case SchemaRepr.Nominal(name) =>
-        reflect.typeId.name == name
-
-      case SchemaRepr.Primitive(name) =>
+      case SchemaRepr.Wildcard       => true
+      case srn: SchemaRepr.Nominal   => reflect.typeId.name == srn.name
+      case srp: SchemaRepr.Primitive =>
         reflect.asPrimitive match {
-          case Some(p) => primitiveTypeNameMatches(name, p.primitiveType)
-          case None    => false
+          case Some(p) => primitiveTypeNameMatches(srp.name, p.primitiveType)
+          case _       => false
         }
-
-      case SchemaRepr.Record(patternFields) =>
+      case srr: SchemaRepr.Record =>
         reflect.asRecord match {
-          case Some(r) =>
-            // Subset matching: all pattern fields must exist with matching types
-            patternFields.forall { case (patternFieldName, patternFieldType) =>
+          case Some(r) => // Subset matching: all pattern fields must exist with matching types
+            srr.fields.forall { case (patternFieldName, patternFieldType) =>
               r.fieldByName(patternFieldName).exists(field => matchesSchemaRepr(field.value, patternFieldType))
             }
-          case None => false
+          case _ => false
         }
-
-      case SchemaRepr.Variant(patternCases) =>
+      case srv: SchemaRepr.Variant =>
         reflect.asVariant match {
-          case Some(v) =>
-            // All pattern cases must exist with matching payload types
-            patternCases.forall { case (patternCaseName, patternCaseType) =>
+          case Some(v) => // All pattern cases must exist with matching payload types
+            srv.cases.forall { case (patternCaseName, patternCaseType) =>
               v.caseByName(patternCaseName).exists(case_ => matchesSchemaRepr(case_.value, patternCaseType))
             }
-          case None => false
+          case _ => false
         }
-
-      case SchemaRepr.Sequence(elemPattern) =>
+      case srs: SchemaRepr.Sequence =>
         reflect.asSequenceUnknown match {
-          case Some(s) => matchesSchemaRepr(s.sequence.element, elemPattern)
-          case None    => false
+          case Some(s) => matchesSchemaRepr(s.sequence.element, srs.element)
+          case _       => false
         }
-
-      case SchemaRepr.Map(keyPattern, valuePattern) =>
+      case srm: SchemaRepr.Map =>
         reflect.asMapUnknown match {
-          case Some(m) =>
-            matchesSchemaRepr(m.map.key, keyPattern) && matchesSchemaRepr(m.map.value, valuePattern)
-          case None => false
+          case Some(m) => matchesSchemaRepr(m.map.key, srm.key) && matchesSchemaRepr(m.map.value, srm.value)
+          case _       => false
         }
-
-      case SchemaRepr.Optional(innerPattern) =>
+      case sro: SchemaRepr.Optional =>
         // Check if this is an Option type (variant with None/Some cases)
-        if (reflect.isOption) {
-          reflect.optionInnerType.exists(inner => matchesSchemaRepr(inner, innerPattern))
-        } else false
+        reflect.isOption && reflect.optionInnerType.exists(inner => matchesSchemaRepr(inner, sro.inner))
     }
 
     def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
@@ -1985,17 +1954,13 @@ object Reflect {
           visited.put(d, ())
         case _ => ()
       }
-
       try {
         // Check if current type matches the pattern
         if (matchesSchemaRepr(current, pattern)) return Some(current)
-
         // Recurse into children based on node type
         current match {
-          case d: Deferred[F, ?] @unchecked =>
-            search(d.value)
-
-          case r: Record[F, ?] @unchecked =>
+          case d: Deferred[F, ?] @unchecked => search(d.value)
+          case r: Record[F, ?] @unchecked   =>
             var i = 0
             while (i < r.fields.length) {
               val result = search(r.fields(i).value)
@@ -2003,7 +1968,6 @@ object Reflect {
               i += 1
             }
             None
-
           case v: Variant[F, ?] @unchecked =>
             var i = 0
             while (i < v.cases.length) {
@@ -2012,20 +1976,13 @@ object Reflect {
               i += 1
             }
             None
-
-          case s: Sequence[F, ?, ?] @unchecked =>
-            search(s.element)
-
-          case m: Map[F, ?, ?, ?] @unchecked =>
+          case s: Sequence[F, ?, ?] @unchecked => search(s.element)
+          case m: Map[F, ?, ?, ?] @unchecked   =>
             val keyResult = search(m.key)
             if (keyResult.isDefined) keyResult
             else search(m.value)
-
-          case w: Wrapper[F, ?, ?] @unchecked =>
-            search(w.wrapped)
-
-          case _: Primitive[F, ?] | _: Dynamic[F] =>
-            None
+          case w: Wrapper[F, ?, ?] @unchecked => search(w.wrapped)
+          case _                              => None
         }
       } finally {
         current match {

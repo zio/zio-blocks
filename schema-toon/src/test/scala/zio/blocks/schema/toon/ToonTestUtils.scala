@@ -326,7 +326,7 @@ object ToonTestUtils {
         case Variant(caseName, v) =>
           discriminatorField match {
             case Some(_) => Variant(caseName, normalize(v, discriminatorField))
-            case None    => Record(Chunk((caseName, normalize(v, discriminatorField))))
+            case _       => Record(Chunk((caseName, normalize(v, discriminatorField))))
           }
         case DynamicValue.Map(entries) =>
           val fields = entries.map { case (k, v) =>

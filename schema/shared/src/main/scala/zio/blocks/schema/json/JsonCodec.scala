@@ -1480,7 +1480,9 @@ object JsonCodec {
     def encodeValue(x: DynamicValue, out: JsonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.writeObjectStart(); out.writeObjectEnd()
+          case _: PrimitiveValue.Unit.type =>
+            out.writeObjectStart()
+            out.writeObjectEnd()
           case v: PrimitiveValue.Boolean        => out.writeVal(v.value)
           case v: PrimitiveValue.Byte           => out.writeVal(v.value)
           case v: PrimitiveValue.Short          => out.writeVal(v.value)

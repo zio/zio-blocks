@@ -853,14 +853,12 @@ object ToonCodec {
             case Some((_, DynamicValue.Primitive(PrimitiveValue.String(caseName)))) =>
               val otherFields = record.fields.filterNot(_._1 == fieldName)
               otherFields match {
-                case Chunk(("value", innerValue)) =>
-                  new DynamicValue.Variant(caseName, innerValue)
-                case _ =>
-                  new DynamicValue.Variant(caseName, new DynamicValue.Record(otherFields))
+                case Chunk(("value", innerValue)) => new DynamicValue.Variant(caseName, innerValue)
+                case _                            => new DynamicValue.Variant(caseName, new DynamicValue.Record(otherFields))
               }
             case _ => record
           }
-        case None => record
+        case _ => record
       }
 
     private[this] def expandDottedKey(key: String, value: DynamicValue): (String, DynamicValue) =
@@ -882,14 +880,13 @@ object ToonCodec {
       map: scala.collection.mutable.LinkedHashMap[String, DynamicValue],
       key: String,
       value: DynamicValue
-    ): Unit =
+    ): Unit = map.put(
+      key,
       map.get(key) match {
-        case None           => map.put(key, value)
         case Some(existing) =>
           (existing, value) match {
             case (existingRecord: DynamicValue.Record, newRecord: DynamicValue.Record) =>
-              val merged = deepMergeRecords(existingRecord, newRecord, in)
-              map.put(key, merged)
+              deepMergeRecords(existingRecord, newRecord, in)
             case _ =>
               // A conflict is when we would overwrite a non-record with a different value
               if (in.isStrict) {
@@ -897,9 +894,11 @@ object ToonCodec {
                   s"Path expansion conflict at key '$key': cannot overwrite existing value with new value in strict mode"
                 )
               }
-              map.put(key, value)
+              value
           }
+        case _ => value
       }
+    )
 
     private[this] def deepMergeRecords(
       existing: DynamicValue.Record,
@@ -1015,7 +1014,7 @@ object ToonCodec {
       case variant: DynamicValue.Variant =>
         out.discriminatorField match {
           case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-          case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
+          case _               => encodeRecordPlain(variant.caseNameValue, variant.value, out)
         }
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
@@ -1118,7 +1117,7 @@ object ToonCodec {
           out.incrementDepth()
           out.discriminatorField match {
             case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-            case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
+            case _               => encodeRecordPlain(variant.caseNameValue, variant.value, out)
           }
           out.decrementDepth()
         case map: DynamicValue.Map if map.entries.nonEmpty =>
@@ -1382,7 +1381,7 @@ object ToonCodec {
         first = false
         fieldMap.get(it.next()) match {
           case Some(value) => encodePrimitiveInline(value, out)
-          case None        => out.writeNull()
+          case _           => out.writeNull()
         }
       }
     }

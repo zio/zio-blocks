@@ -78,13 +78,13 @@ private[schema] trait MacroUtils(using val quotes: Quotes) {
   // === Path-dependent type info classes ===
 
   /** Information about a field in a product type */
-  protected case class FieldInfo(
-    name: String,
-    tpe: TypeRepr,
-    index: Int,
-    getter: Symbol,
-    hasDefault: Boolean = false,
-    defaultValue: Option[Term] = None
+  protected class FieldInfo(
+    val name: String,
+    val tpe: TypeRepr,
+    val index: Int,
+    val getter: Symbol,
+    val hasDefault: Boolean = false,
+    val defaultValue: Option[Term] = None
   )
 
   /**

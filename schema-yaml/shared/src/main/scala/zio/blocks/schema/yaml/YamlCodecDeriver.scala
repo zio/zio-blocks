@@ -238,17 +238,16 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
                     case Some(Yaml.Scalar(k, _)) if k == "Some" =>
                       entries.headOption.map(_._2) match {
                         case Some(v) => innerCodec.decodeValue(v).map(Some(_))
-                        case None    => Left(YamlError.parseError("Expected value in Some", 0, 0))
+                        case _       => Left(YamlError.parseError("Expected value in Some", 0, 0))
                       }
                     case _ => innerCodec.decodeValue(yaml).map(Some(_))
                   }
-                case other =>
-                  innerCodec.decodeValue(other).map(Some(_))
+                case other => innerCodec.decodeValue(other).map(Some(_))
               }
 
               override def encodeValue(x: Option[Any]): Yaml = x match {
-                case None        => Yaml.NullValue
                 case Some(value) => innerCodec.encodeValue(value)
+                case _           => Yaml.NullValue
               }
             }
           case _ =>
@@ -271,12 +270,11 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
                     case Yaml.Scalar(caseName, _) =>
                       codecMap.get(caseName) match {
                         case Some(codec) => codec.decodeValue(value)
-                        case None        => Left(YamlError.parseError(s"Unknown variant case: $caseName", 0, 0))
+                        case _           => Left(YamlError.parseError(s"Unknown variant case: $caseName", 0, 0))
                       }
                     case _ => Left(YamlError.parseError("Expected string key for variant", 0, 0))
                   }
-                case _ =>
-                  Left(YamlError.parseError("Expected mapping with single key for variant", 0, 0))
+                case _ => Left(YamlError.parseError("Expected mapping with single key for variant", 0, 0))
               }
 
               override def encodeValue(x: A): Yaml = {
@@ -430,7 +428,7 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
                         }
                       case Left(err) => error = err
                     }
-                  case None =>
+                  case _ =>
                     if (fieldInfo.isOptional) regs.setObject(offset, None)
                     else {
                       val defaultVal = getDefaultValue(fields(idx).value)
@@ -448,7 +446,7 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
                             case 8 => regs.setShort(offset, v.asInstanceOf[Short])
                             case _ => ()
                           }
-                        case None => error = YamlError.parseError(s"Missing required field: ${fieldInfo.name}", 0, 0)
+                        case _ => error = YamlError.parseError(s"Missing required field: ${fieldInfo.name}", 0, 0)
                       }
                     }
                 }
