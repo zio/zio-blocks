@@ -19,25 +19,27 @@ package zio.blocks.otel
 /**
  * An immutable collection of typed key-value attribute pairs.
  *
- * Backed by an array of (String, AttributeValue) tuples for efficient storage
- * of small attribute sets (typical spans have <10 attributes).
+ * Backed by parallel arrays of keys and values for efficient storage of small
+ * attribute sets (typical spans have <10 attributes).
  *
  * Attributes are accessed via typed keys (AttributeKey[A]) for compile-time
  * type safety.
  */
 final class Attributes private (
-  private val entries: Array[(String, AttributeValue)]
+  private[otel] val keys: Array[String],
+  private[otel] val values: Array[AttributeValue],
+  private[otel] val len: Int
 ) {
 
   /**
    * Number of attributes in this collection.
    */
-  def size: Int = entries.length
+  def size: Int = len
 
   /**
    * True if this collection contains no attributes.
    */
-  def isEmpty: Boolean = entries.length == 0
+  def isEmpty: Boolean = len == 0
 
   /**
    * Retrieves a typed attribute by key, returning None if not found.
@@ -50,11 +52,10 @@ final class Attributes private (
    *   Some(value) if found, None otherwise
    */
   def get[A](key: AttributeKey[A]): Option[A] = {
-    var i = entries.length - 1
+    var i = len - 1
     while (i >= 0) {
-      val (k, v) = entries(i)
-      if (k == key.name) {
-        return Some(valueToType(v).asInstanceOf[A])
+      if (keys(i) == key.name) {
+        return Some(valueToType(values(i)).asInstanceOf[A])
       }
       i -= 1
     }
@@ -66,9 +67,8 @@ final class Attributes private (
    */
   def foreach(f: (String, AttributeValue) => Unit): Unit = {
     var i = 0
-    while (i < entries.length) {
-      val (k, v) = entries(i)
-      f(k, v)
+    while (i < len) {
+      f(keys(i), values(i))
       i += 1
     }
   }
@@ -83,14 +83,13 @@ final class Attributes private (
     } else if (this.isEmpty) {
       other
     } else {
-      var result = this
-      var i      = 0
-      while (i < other.entries.length) {
-        val (k, v) = other.entries(i)
-        result = result.updated(k, v)
-        i += 1
-      }
-      result
+      val newKeys = new Array[String](len + other.len)
+      val newVals = new Array[AttributeValue](len + other.len)
+      System.arraycopy(keys, 0, newKeys, 0, len)
+      System.arraycopy(values, 0, newVals, 0, len)
+      System.arraycopy(other.keys, 0, newKeys, len, other.len)
+      System.arraycopy(other.values, 0, newVals, len, other.len)
+      new Attributes(newKeys, newVals, len + other.len)
     }
 
   /**
@@ -100,43 +99,11 @@ final class Attributes private (
   def toMap: Map[String, AttributeValue] = {
     var map = Map.empty[String, AttributeValue]
     var i   = 0
-    while (i < entries.length) {
-      val (k, v) = entries(i)
-      map = map + ((k, v))
+    while (i < len) {
+      map = map + ((keys(i), values(i)))
       i += 1
     }
     map
-  }
-
-  /**
-   * Internal: updates or adds an attribute by key name.
-   */
-  private def updated(key: String, value: AttributeValue): Attributes = {
-    var found = false
-    var i     = 0
-    while (i < entries.length && !found) {
-      if (entries(i)._1 == key) found = true
-      i += 1
-    }
-    if (found) {
-      val newEntries = new Array[(String, AttributeValue)](entries.length)
-      var j          = 0
-      var k          = 0
-      while (j < entries.length) {
-        if (entries(j)._1 != key) {
-          newEntries(k) = entries(j)
-          k += 1
-        }
-        j += 1
-      }
-      newEntries(k) = (key, value)
-      new Attributes(newEntries)
-    } else {
-      val newEntries = new Array[(String, AttributeValue)](entries.length + 1)
-      System.arraycopy(entries, 0, newEntries, 0, entries.length)
-      newEntries(entries.length) = (key, value)
-      new Attributes(newEntries)
-    }
   }
 
   /**
@@ -152,6 +119,37 @@ final class Attributes private (
     case AttributeValue.DoubleSeqValue(seq)  => seq
     case AttributeValue.BooleanSeqValue(seq) => seq
   }
+
+  override def hashCode(): Int = {
+    var h = 1
+    var i = 0
+    while (i < len) {
+      h = 31 * h + keys(i).hashCode
+      h = 31 * h + values(i).hashCode
+      i += 1
+    }
+    h
+  }
+
+  override def equals(obj: Any): Boolean = obj match {
+    case other: Attributes =>
+      if (len != other.len) false
+      else {
+        var i = 0
+        while (i < len) {
+          var found = false
+          var j     = 0
+          while (j < other.len && !found) {
+            if (keys(i) == other.keys(j) && values(i) == other.values(j)) found = true
+            j += 1
+          }
+          if (!found) return false
+          i += 1
+        }
+        true
+      }
+    case _ => false
+  }
 }
 
 object Attributes {
@@ -159,14 +157,14 @@ object Attributes {
   /**
    * An empty Attributes collection.
    */
-  val empty: Attributes = new Attributes(Array.empty)
+  val empty: Attributes = new Attributes(Array.empty, Array.empty, 0)
 
   /**
    * Creates an Attributes collection with a single typed attribute.
    */
   def of[A](key: AttributeKey[A], value: A): Attributes = {
     val attrValue = typeToValue(value)
-    new Attributes(Array((key.name, attrValue)))
+    new Attributes(Array(key.name), Array(attrValue), 1)
   }
 
   /**
@@ -209,7 +207,9 @@ object Attributes {
    * Mutable builder for Attributes.
    */
   class AttributesBuilder private[Attributes] () {
-    private var entries: Array[(String, AttributeValue)] = Array.empty
+    private var keys: Array[String]         = new Array[String](8)
+    private var vals: Array[AttributeValue] = new Array[AttributeValue](8)
+    private var len: Int                    = 0
 
     /**
      * Adds or updates a typed attribute.
@@ -254,44 +254,46 @@ object Attributes {
     /**
      * Resets the builder to empty, allowing reuse without allocation.
      */
-    def clear(): Unit =
-      entries = Array.empty
+    def clear(): Unit = {
+      var i = 0
+      while (i < len) { keys(i) = null; vals(i) = null; i += 1 }
+      len = 0
+    }
 
     /**
      * Builds and returns the immutable Attributes.
      */
     def build: Attributes =
-      new Attributes(entries)
+      if (len == 0) Attributes.empty
+      else {
+        val k = new Array[String](len)
+        val v = new Array[AttributeValue](len)
+        System.arraycopy(keys, 0, k, 0, len)
+        System.arraycopy(vals, 0, v, 0, len)
+        new Attributes(k, v, len)
+      }
 
     /**
      * Internal: updates or adds an entry by key.
      */
     private def putInternal(key: String, value: AttributeValue): Unit = {
-      var found = false
-      var i     = 0
-      while (i < entries.length && !found) {
-        if (entries(i)._1 == key) found = true
+      var i = 0
+      while (i < len) {
+        if (keys(i) == key) { vals(i) = value; return }
         i += 1
       }
-      if (found) {
-        var j          = 0
-        var k          = 0
-        val newEntries = new Array[(String, AttributeValue)](entries.length)
-        while (j < entries.length) {
-          if (entries(j)._1 != key) {
-            newEntries(k) = entries(j)
-            k += 1
-          }
-          j += 1
-        }
-        newEntries(k) = (key, value)
-        entries = newEntries
-      } else {
-        val newEntries = new Array[(String, AttributeValue)](entries.length + 1)
-        System.arraycopy(entries, 0, newEntries, 0, entries.length)
-        newEntries(entries.length) = (key, value)
-        entries = newEntries
+      if (len >= keys.length) {
+        val newCap  = keys.length * 2
+        val newKeys = new Array[String](newCap)
+        val newVals = new Array[AttributeValue](newCap)
+        System.arraycopy(keys, 0, newKeys, 0, len)
+        System.arraycopy(vals, 0, newVals, 0, len)
+        keys = newKeys
+        vals = newVals
       }
+      keys(len) = key
+      vals(len) = value
+      len += 1
     }
   }
 }

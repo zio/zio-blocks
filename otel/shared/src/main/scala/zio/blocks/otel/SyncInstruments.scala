@@ -37,15 +37,15 @@ final class Counter(
   val description: String,
   val unit: String
 ) {
-  private val adders = new ConcurrentHashMap[Map[String, AttributeValue], LongAdder]()
+  private val adders = new ConcurrentHashMap[Attributes, LongAdder]()
 
   /**
    * Adds a non-negative value to the counter for the given attributes.
    */
   def add(value: Long, attributes: Attributes): Unit =
     if (value >= 0) {
-      val key   = attributes.toMap
-      val adder = adders.computeIfAbsent(key, _ => new LongAdder())
+
+      val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
       adder.add(value)
     }
 
@@ -55,8 +55,7 @@ final class Counter(
   def collect(): MetricData = {
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[SumDataPoint]()
-    adders.forEach { (key, adder) =>
-      val attrs = SyncInstrumentsHelper.mapToAttributes(key)
+    adders.forEach { (attrs, adder) =>
       points.add(SumDataPoint(attrs, 0L, now, adder.sum()))
     }
     MetricData.SumData(SyncInstrumentsHelper.listFromJava(points))
@@ -86,15 +85,15 @@ final class UpDownCounter(
   val description: String,
   val unit: String
 ) {
-  private val adders = new ConcurrentHashMap[Map[String, AttributeValue], LongAdder]()
+  private val adders = new ConcurrentHashMap[Attributes, LongAdder]()
 
   /**
    * Adds a value (positive or negative) to the counter for the given
    * attributes.
    */
   def add(value: Long, attributes: Attributes): Unit = {
-    val key   = attributes.toMap
-    val adder = adders.computeIfAbsent(key, _ => new LongAdder())
+
+    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
     adder.add(value)
   }
 
@@ -104,8 +103,7 @@ final class UpDownCounter(
   def collect(): MetricData = {
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[SumDataPoint]()
-    adders.forEach { (key, adder) =>
-      val attrs = SyncInstrumentsHelper.mapToAttributes(key)
+    adders.forEach { (attrs, adder) =>
       points.add(SumDataPoint(attrs, 0L, now, adder.sum()))
     }
     MetricData.SumData(SyncInstrumentsHelper.listFromJava(points))
@@ -138,14 +136,14 @@ final class Histogram(
   val unit: String,
   val boundaries: Array[Double]
 ) {
-  private val states = new ConcurrentHashMap[Map[String, AttributeValue], Histogram.State]()
+  private val states = new ConcurrentHashMap[Attributes, Histogram.State]()
 
   /**
    * Records a value into the histogram for the given attributes.
    */
   def record(value: Double, attributes: Attributes): Unit = {
-    val key   = attributes.toMap
-    val state = states.computeIfAbsent(key, _ => new Histogram.State(boundaries.length + 1))
+
+    val state = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
     state.synchronized {
       state.count += 1
       state.sum += value
@@ -162,9 +160,8 @@ final class Histogram(
   def collect(): MetricData = {
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[HistogramDataPoint]()
-    states.forEach { (key, state) =>
+    states.forEach { (attrs, state) =>
       state.synchronized {
-        val attrs = SyncInstrumentsHelper.mapToAttributes(key)
         points.add(
           HistogramDataPoint(
             attrs,
@@ -230,15 +227,15 @@ final class Gauge(
   val unit: String
 ) {
   private val values =
-    new ConcurrentHashMap[Map[String, AttributeValue], AtomicReference[java.lang.Double]]()
+    new ConcurrentHashMap[Attributes, AtomicReference[java.lang.Double]]()
 
   /**
    * Records the current value for the given attributes, replacing any previous
    * value.
    */
   def record(value: Double, attributes: Attributes): Unit = {
-    val key = attributes.toMap
-    val ref = values.computeIfAbsent(key, _ => new AtomicReference[java.lang.Double](0.0))
+
+    val ref = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
     ref.set(value)
   }
 
@@ -248,8 +245,7 @@ final class Gauge(
   def collect(): MetricData = {
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[GaugeDataPoint]()
-    values.forEach { (key, ref) =>
-      val attrs = SyncInstrumentsHelper.mapToAttributes(key)
+    values.forEach { (attrs, ref) =>
       points.add(GaugeDataPoint(attrs, now, ref.get()))
     }
     MetricData.GaugeData(SyncInstrumentsHelper.listFromJava(points))

@@ -32,10 +32,10 @@ object LogEnrichment {
       val builder = Attributes.builder
       builder.put("exception.type", value.getClass.getName)
       builder.put("exception.message", if (value.getMessage != null) value.getMessage else "")
-      val sw = new java.io.StringWriter()
-      value.printStackTrace(new java.io.PrintWriter(sw))
-      builder.put("exception.stacktrace", sw.toString)
-      record.copy(attributes = record.attributes ++ builder.build)
+      record.copy(
+        attributes = record.attributes ++ builder.build,
+        throwable = Some(value)
+      )
     }
   }
 

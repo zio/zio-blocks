@@ -496,10 +496,20 @@ object OtlpJsonEncoder {
     sb.append('}')
     sb.append(',')
 
-    // attributes
+    // attributes (including deferred throwable stacktrace)
     writeKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, log.attributes)
+    log.throwable.foreach { t =>
+      if (!log.attributes.isEmpty) sb.append(',')
+      val sw = new java.io.StringWriter()
+      t.printStackTrace(new java.io.PrintWriter(sw))
+      sb.append("{\"key\":")
+      writeJsonString(sb, "exception.stacktrace")
+      sb.append(",\"value\":{")
+      writeKeyString(sb, "stringValue", sw.toString)
+      sb.append("}}")
+    }
     sb.append(']')
     sb.append(',')
 

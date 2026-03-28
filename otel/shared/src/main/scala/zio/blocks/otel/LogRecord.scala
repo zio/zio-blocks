@@ -46,6 +46,8 @@ package zio.blocks.otel
  *   The resource that generated this log record
  * @param instrumentationScope
  *   The instrumentation scope (library/tool) that generated this log record
+ * @param throwable
+ *   Optional throwable whose stack trace is deferred to export time
  */
 final case class LogRecord(
   timestampNanos: Long,
@@ -58,7 +60,8 @@ final case class LogRecord(
   spanId: Option[SpanId],
   traceFlags: Option[TraceFlags],
   resource: Resource,
-  instrumentationScope: InstrumentationScope
+  instrumentationScope: InstrumentationScope,
+  throwable: Option[Throwable] = None
 )
 
 object LogRecord {

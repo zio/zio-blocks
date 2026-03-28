@@ -24,7 +24,11 @@ final class Logger(
 ) {
 
   def emit(logRecord: LogRecord): Unit =
-    processors.foreach(_.onEmit(logRecord))
+    try processors.foreach(_.onEmit(logRecord))
+    catch {
+      case e: Throwable =>
+        System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+    }
 
   def trace(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Trace, body, attrs)

@@ -50,41 +50,222 @@ private[otel] object LogMacros {
             }
           }
         } else {
-          val enrichmentChain: Expr[LogRecord] => Expr[LogRecord] =
-            enrichmentExprs.foldLeft(identity[Expr[LogRecord]]) { (chain, enrichmentExpr) =>
-              val tpe = enrichmentExpr.asTerm.tpe.widen
-              tpe.asType match {
-                case '[t] =>
-                  Expr.summon[LogEnrichment[t]] match {
-                    case Some(inst) =>
-                      (prev: Expr[LogRecord]) => '{ $inst.enrich(${ chain(prev) }, ${ enrichmentExpr.asExprOf[t] }) }
-                    case None =>
-                      report.errorAndAbort(
-                        s"No LogEnrichment instance found for type ${Type.show[t]}. " +
-                          s"Provide an implicit LogEnrichment[${Type.show[t]}] instance.",
-                        enrichmentExpr.asTerm.pos
-                      )
-                  }
-              }
-            }
-
-          '{
-            val state = GlobalLogState.get()
-            if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
-              val record = $self.baseRecord(
-                $severity,
-                $message,
-                SourceLocation($filePath, $namespace, $methodName, $lineNumber)
-              )
-              state.logger.emit(${ enrichmentChain('record) })
-            }
-          }
+          generateDirectBuilderPath(
+            message,
+            severity,
+            filePath,
+            namespace,
+            methodName,
+            lineNumber,
+            enrichmentExprs
+          )
         }
 
       case _ =>
         report.errorAndAbort(
           "log methods require explicit arguments, not `args: _*` syntax"
         )
+    }
+  }
+
+  private def generateDirectBuilderPath(
+    message: Expr[String],
+    severity: Expr[Severity],
+    filePath: Expr[String],
+    namespace: Expr[String],
+    methodName: Expr[String],
+    lineNumber: Expr[Int],
+    enrichmentExprs: Seq[Expr[Any]]
+  )(using Quotes): Expr[Unit] = {
+    import quotes.reflect.*
+
+    // Classify each enrichment by type at compile time
+    sealed trait EnrichmentKind
+    case class StringStringKV(idx: Int)  extends EnrichmentKind
+    case class StringLongKV(idx: Int)    extends EnrichmentKind
+    case class StringIntKV(idx: Int)     extends EnrichmentKind
+    case class StringDoubleKV(idx: Int)  extends EnrichmentKind
+    case class StringBooleanKV(idx: Int) extends EnrichmentKind
+    case class ThrowableKind(idx: Int)   extends EnrichmentKind
+    case class SeverityKind(idx: Int)    extends EnrichmentKind
+    case class AttributesKind(idx: Int)  extends EnrichmentKind
+    case class StringBodyKind(idx: Int)  extends EnrichmentKind
+    case class FallbackKind(idx: Int)    extends EnrichmentKind
+
+    val classified: Seq[EnrichmentKind] = enrichmentExprs.zipWithIndex.map { case (enrichmentExpr, idx) =>
+      val tpe = enrichmentExpr.asTerm.tpe.widen
+      tpe.asType match {
+        case '[(String, String)]                    => StringStringKV(idx)
+        case '[(String, Long)]                      => StringLongKV(idx)
+        case '[(String, Int)]                       => StringIntKV(idx)
+        case '[(String, Double)]                    => StringDoubleKV(idx)
+        case '[(String, Boolean)]                   => StringBooleanKV(idx)
+        case '[t] if tpe <:< TypeRepr.of[Throwable] => ThrowableKind(idx)
+        case '[Severity]                            => SeverityKind(idx)
+        case '[Attributes]                          => AttributesKind(idx)
+        case '[String]                              => StringBodyKind(idx)
+        case '[t]                                   =>
+          Expr.summon[LogEnrichment[t]] match {
+            case Some(_) => FallbackKind(idx)
+            case None    =>
+              report.errorAndAbort(
+                s"No LogEnrichment instance found for type ${Type.show[t]}. " +
+                  s"Provide an implicit LogEnrichment[${Type.show[t]}] instance.",
+                enrichmentExpr.asTerm.pos
+              )
+          }
+      }
+    }
+
+    val hasFallbacks = classified.exists(_.isInstanceOf[FallbackKind])
+
+    // Generate a single inline function that applies known enrichments to the builder + vars
+    // This needs to be a single Expr[Unit => Unit]-style or we inline it in the big quote.
+    // The trick: we generate a single expression that sequences all builder.put calls,
+    // throwable/severity/body var mutations. We do this by building a List[Expr[Unit]]
+    // and combining them with Expr.block.
+
+    // For throwable/severity/body we use Expr refs that will be spliced into the big quote
+    // where the vars are defined.
+
+    '{
+      val state = GlobalLogState.get()
+      if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
+        val now     = System.nanoTime()
+        val builder = AttributeBuilderPool.get()
+        builder.put("code.filepath", $filePath)
+        builder.put("code.namespace", $namespace)
+        builder.put("code.function", $methodName)
+        builder.put("code.lineno", $lineNumber.toLong)
+
+        val annotations = LogAnnotations.get()
+        if (annotations.nonEmpty) {
+          annotations.foreach { case (k, v) => builder.put(k, v) }
+        }
+
+        var throwableVar: Option[Throwable] = None
+        var severityVar: Severity           = $severity
+        var severityTextVar: String         = $severity.text
+        var bodyVar: String                 = $message
+
+        // All enrichments applied in-order:
+        ${
+          // Now we're inside a splice, we can build Expr values that reference the
+          // outer quote's variables... but actually we can't — those variables don't exist
+          // as Expr values we can splice into.
+          //
+          // The solution: generate a SINGLE quote block that contains all the statements.
+          // We use Expr.block to sequence them.
+          val stmts: List[Expr[Any]] = classified.flatMap { kind =>
+            kind match {
+              case StringStringKV(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[(String, String)]
+                List('{ val kv = $expr; builder.put(kv._1, kv._2) })
+              case StringLongKV(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[(String, Long)]
+                List('{ val kv = $expr; builder.put(kv._1, kv._2) })
+              case StringIntKV(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[(String, Int)]
+                List('{ val kv = $expr; builder.put(kv._1, kv._2.toLong) })
+              case StringDoubleKV(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[(String, Double)]
+                List('{ val kv = $expr; builder.put(kv._1, kv._2) })
+              case StringBooleanKV(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[(String, Boolean)]
+                List('{ val kv = $expr; builder.put(kv._1, kv._2) })
+              case AttributesKind(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[Attributes]
+                List('{
+                  $expr.foreach { (k, v) =>
+                    v match {
+                      case AttributeValue.StringValue(s)  => builder.put(k, s)
+                      case AttributeValue.LongValue(l)    => builder.put(k, l)
+                      case AttributeValue.DoubleValue(d)  => builder.put(k, d)
+                      case AttributeValue.BooleanValue(b) => builder.put(k, b)
+                      case other                          => builder.put(k, other.toString)
+                    }
+                  }
+                })
+              case ThrowableKind(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[Throwable]
+                List('{
+                  val t = $expr
+                  throwableVar = Some(t)
+                  builder.put("exception.type", t.getClass.getName)
+                  builder.put("exception.message", if (t.getMessage != null) t.getMessage else "")
+                })
+              case SeverityKind(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[Severity]
+                List('{
+                  val s = $expr
+                  severityVar = s
+                  severityTextVar = s.text
+                })
+              case StringBodyKind(idx) =>
+                val expr = enrichmentExprs(idx).asExprOf[String]
+                List('{ bodyVar = $expr })
+              case FallbackKind(_) =>
+                // Handled after record construction
+                Nil
+            }
+          }.toList
+
+          if (stmts.isEmpty) '{ () } else Expr.block(stmts.init, stmts.last.asExprOf[Any])
+        }
+
+        val record = LogRecord(
+          timestampNanos = now,
+          observedTimestampNanos = now,
+          severity = severityVar,
+          severityText = severityTextVar,
+          body = bodyVar,
+          attributes = builder.build,
+          traceId = None,
+          spanId = None,
+          traceFlags = None,
+          resource = Resource.empty,
+          instrumentationScope = InstrumentationScope(name = "zio.blocks.otel.log"),
+          throwable = throwableVar
+        )
+
+        ${
+          if (hasFallbacks) {
+            // Build fallback enrichment chain
+            val fallbackChain: Expr[LogRecord] => Expr[LogRecord] =
+              classified.collect { case FallbackKind(idx) => idx }
+                .foldLeft(identity[Expr[LogRecord]]) { (chain, idx) =>
+                  val enrichmentExpr = enrichmentExprs(idx)
+                  val tpe            = enrichmentExpr.asTerm.tpe.widen
+                  tpe.asType match {
+                    case '[t] =>
+                      Expr.summon[LogEnrichment[t]] match {
+                        case Some(inst) =>
+                          val value = enrichmentExpr.asExprOf[t]
+                          (prev: Expr[LogRecord]) => '{ $inst.enrich(${ chain(prev) }, $value) }
+                        case None => chain
+                      }
+                  }
+                }
+
+            '{
+              val finalRecord = ${ fallbackChain('record) }
+              try state.logger.emit(finalRecord)
+              catch {
+                case e: Throwable =>
+                  System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+              }
+            }
+          } else {
+            '{
+              try state.logger.emit(record)
+              catch {
+                case e: Throwable =>
+                  System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+              }
+            }
+          }
+        }
+      }
     }
   }
 

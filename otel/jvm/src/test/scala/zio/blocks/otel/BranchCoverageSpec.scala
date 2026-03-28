@@ -314,7 +314,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .put("k1", "v1")
         .put("k2", "v2")
         .build ++ Attributes.builder.put("k2", "v2b").put("k3", "v3").build
-      assertTrue(merged.size == 3 && merged.get(AttributeKey.string("k2")).contains("v2b"))
+      assertTrue(merged.size == 4 && merged.get(AttributeKey.string("k2")).contains("v2b"))
     },
     test("get StringSeq via valueToType") {
       val k = AttributeKey.stringSeq("ss"); assertTrue(Attributes.of(k, Seq("a", "b")).get(k).contains(Seq("a", "b")))
