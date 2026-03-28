@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package foo
+package zio.blocks.schema.comptime
 
 object AllowsReproducerOk extends App {
   import zio.blocks.schema.Schema
