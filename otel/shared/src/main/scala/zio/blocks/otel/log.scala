@@ -56,7 +56,11 @@ object log extends LogVersionSpecific {
         instrumentationScope = InstrumentationScope(name = "zio.blocks.otel.log")
       )
 
-      state.logger.emit(record)
+      try state.logger.emit(record)
+      catch {
+        case e: Throwable =>
+          System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+      }
     }
   }
 

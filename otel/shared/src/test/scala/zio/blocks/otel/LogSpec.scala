@@ -176,7 +176,7 @@ object LogSpec extends ZIOSpecDefault {
           processor.emitted.head.body == "failed",
           attrs.get(AttributeKey.string("exception.type")).contains("java.lang.RuntimeException"),
           attrs.get(AttributeKey.string("exception.message")).contains("boom"),
-          attrs.get(AttributeKey.string("exception.stacktrace")).isDefined
+          processor.emitted.head.throwable.contains(ex)
         )
       },
       test("severity enrichment overrides level") {

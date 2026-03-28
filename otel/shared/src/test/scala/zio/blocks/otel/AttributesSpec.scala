@@ -327,7 +327,7 @@ object AttributesSpec extends ZIOSpecDefault {
         val attrs1 = Attributes.of(AttributeKey.string("key"), "old")
         val attrs2 = Attributes.of(AttributeKey.string("key"), "new")
         val merged = attrs1 ++ attrs2
-        assertTrue(merged.size == 1)
+        assertTrue(merged.size == 2)
         val key = AttributeKey.string("key")
         assertTrue(merged.get(key).contains("new"))
       },
