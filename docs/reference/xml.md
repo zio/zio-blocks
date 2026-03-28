@@ -402,7 +402,7 @@ val xml = XmlReader.read("""
     </book>
   </books>
 </library>
-""").toOption.get
+""")
 
 // Navigate to child elements
 val books = xml.select.get("library").get("books")
@@ -414,7 +414,7 @@ val firstBook = books.get("book")(0)
 Extract text content from the first book:
 
 ```scala mdoc
-val title: Either[XmlError, String] = firstBook.get("title").text
+val title: Either[SchemaError, String] = firstBook.get("title").text
 ```
 
 You can also navigate descendants recursively:
@@ -451,19 +451,19 @@ import zio.blocks.schema.xml._
 val selection: XmlSelection = ???
 
 // Get single value (fails if not exactly one)
-val one: Either[XmlError, Xml] = selection.one
+val one: Either[SchemaError, Xml] = selection.one
 
 // Get any value (first of many)
-val any: Either[XmlError, Xml] = selection.any
+val any: Either[SchemaError, Xml] = selection.any
 
 // Get all values as a single XML element
-val all: Either[XmlError, Xml] = selection.all
+val all: Either[SchemaError, Xml] = selection.all
 
 // Convert to chunk
 val chunk = selection.toChunk
 
 // Extract text content
-val text: Either[XmlError, String] = selection.text
+val text: Either[SchemaError, String] = selection.text
 val allText: String = selection.textContent
 ```
 
@@ -552,7 +552,7 @@ val xml: Xml = ???
 val patch = XmlPatch.setAttribute(p".person", "active", "true")
 
 // Apply the patch
-val result: Either[XmlError, Xml] = patch(xml)
+val result: Either[SchemaError, Xml] = patch(xml)
 ```
 
 ### Composing Patches
@@ -572,171 +572,6 @@ val patch2 = XmlPatch.add(
 
 // Compose patches - applies patch1, then patch2
 val combined = patch1 ++ patch2
-```
-
-## XmlEncoder and XmlDecoder
-
-For more fine-grained control over XML serialization, use the separate `XmlEncoder` and `XmlDecoder` traits:
-
-### XmlEncoder
-
-`XmlEncoder[A]` provides type-safe XML encoding:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
-// Automatic derivation from Schema
-case class Person(name: String, age: Int)
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-  implicit val encoder: XmlEncoder[Person] = XmlEncoder.fromSchema
-}
-
-val person = Person("Alice", 30)
-val xml: Xml = XmlEncoder[Person].encode(person)
-```
-
-#### Creating custom encoders
-
-Create custom encoders from functions or using contravariance:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.xml._
-
-// Create from a function
-val customEncoder: XmlEncoder[Int] = XmlEncoder.instance(n =>
-  Xml.Element("number", Xml.Text(n.toString))
-)
-
-// Map with contravariance - encode a wrapper type
-case class UserId(value: Int)
-
-val userIdEncoder: XmlEncoder[UserId] =
-  customEncoder.contramap[UserId](_.value)
-```
-
-#### Using implicit resolution
-
-Leverage implicit resolution for automatic encoder derivation:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
-case class Product(id: String, price: Double)
-object Product {
-  implicit val schema: Schema[Product] = Schema.derived
-}
-
-// No explicit encoder needed - derives automatically
-def encodeProduct[A](value: A)(implicit encoder: XmlEncoder[A]): Xml =
-  encoder.encode(value)
-
-val result = encodeProduct(Product("item-1", 99.99))
-```
-
-### XmlDecoder
-
-`XmlDecoder[A]` provides type-safe XML decoding with error handling:
-
-```scala mdoc:silent:nest
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
-// Automatic derivation from Schema
-case class Person(name: String, age: Int)
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-  implicit val decoder: XmlDecoder[Person] = XmlDecoder.fromSchema
-}
-
-val xml = Xml.Element("Person",
-  Xml.Element("name", Xml.Text("Alice")),
-  Xml.Element("age", Xml.Text("30"))
-)
-```
-
-Decode the XML:
-
-```scala mdoc
-val result: Either[XmlError, Person] = XmlDecoder[Person].decode(xml)
-```
-
-#### Creating custom decoders
-
-Create custom decoders from functions or using covariance:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.xml._
-import zio.blocks.chunk.Chunk
-
-// Create from a function
-val numberDecoder: XmlDecoder[Int] = XmlDecoder.instance { xml =>
-  xml match {
-    case Xml.Element(_, _, Chunk(Xml.Text(text), _*)) =>
-      text.toIntOption.toRight(XmlError("Invalid number"))
-    case _ => Left(XmlError("Expected number element"))
-  }
-}
-
-// Map for covariance - decode to a wrapper type
-case class UserId(value: Int)
-
-val userIdDecoder: XmlDecoder[UserId] =
-  numberDecoder.map(UserId(_))
-```
-
-#### Error handling with decoders
-
-Handle decoding errors gracefully with fallback strategies:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-
-case class Person(name: String, age: Int)
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-}
-
-def decodeWithFallback[A](
-  xml: Xml,
-  fallback: A
-)(implicit decoder: XmlDecoder[A]): A = {
-  decoder.decode(xml).getOrElse(fallback)
-}
-
-val invalidXml = Xml.Element("Empty")
-val defaultPerson = Person("Unknown", 0)
-val result = decodeWithFallback(invalidXml, defaultPerson)
-// Person("Unknown", 0)
-```
-
-#### Combining encoders and decoders
-
-Round-trip values by encoding and decoding:
-
-```scala mdoc:silent:nest
-import zio.blocks.schema._
-import zio.blocks.schema.xml._
-import zio.blocks.schema.xml.syntax._
-
-case class Message(id: String, text: String)
-object Message {
-  implicit val schema: Schema[Message] = Schema.derived
-}
-
-// Round-trip: encode then decode
-val message = Message("msg-1", "Hello")
-val encoded: Xml = message.toXml
-```
-
-Decode the encoded value:
-
-```scala mdoc
-val result: Either[XmlError, Message] =
-  implicitly[XmlDecoder[Message]].decode(encoded)
 ```
 
 ## Extension Syntax
@@ -872,7 +707,7 @@ val person = Person("Alice", 30)
 val xml: Xml = codec.encodeValue(person)
 
 // Decode from Xml directly
-val decoded: Either[XmlError, Person] = codec.decodeValue(xml)
+val decoded: Person = codec.decodeValue(xml)
 ```
 
 **XmlCodec supports all Schema types:**
@@ -886,7 +721,7 @@ val decoded: Either[XmlError, Person] = codec.decodeValue(xml)
 
 ## Error Handling
 
-All decoding operations return `Either[SchemaError, A]` or `Either[XmlError, A]`. The `XmlError` type provides detailed error information:
+All decoding operations return `Either[SchemaError, A]` or `Either[SchemaError, A]`. The `SchemaError` type provides detailed error information:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -911,12 +746,12 @@ result match {
 }
 ```
 
-`XmlError` provides detailed error information for debugging:
+`SchemaError` provides detailed error information for debugging:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
 
-val error = XmlError("Parse failed")
+val error = SchemaError("Parse failed")
 
 // Error message
 val message: String = error.getMessage
@@ -1025,7 +860,7 @@ val xmlString = """
 </library>
 """
 
-val xml = XmlReader.read(xmlString).toOption.get
+val xml = XmlReader.read(xmlString)
 
 // Find all books
 val books = xml.select.get("library").get("books").get("book")

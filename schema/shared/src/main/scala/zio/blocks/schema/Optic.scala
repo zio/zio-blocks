@@ -369,7 +369,7 @@ object Lens {
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = new Right(modify(s, f))
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
+      new DynamicOptic(Chunk.fromArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
     override def toString: String = {
       val sb = new java.lang.StringBuilder("Lens(_")
@@ -556,7 +556,7 @@ object Prism {
     }
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
+      new DynamicOptic(Chunk.fromArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
 
     override def toString: String = {
       val sb = new java.lang.StringBuilder("Prism(_")

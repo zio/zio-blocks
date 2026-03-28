@@ -291,16 +291,12 @@ object XmlSpec extends SchemaBaseSpec {
       test("printPretty renders indented XML") {
         val elem   = Xml.Element("root", Xml.Element("child"))
         val result = elem.printPretty
-        assertTrue(
-          result.contains("<root>"),
-          result.contains("  <child"),
-          result.contains("</root>")
-        )
+        assertTrue(result == "<root>\n  <child/>\n</root>")
       },
       test("print with custom config") {
-        val elem   = Xml.Element("root")
+        val elem   = Xml.Element("root", Xml.Element("child"))
         val result = elem.print(WriterConfig(indentStep = 4))
-        assertTrue(result.contains("<root"))
+        assertTrue(result == "<root>\n    <child/>\n</root>")
       },
       test("Text node equality and hashCode") {
         val t1 = Xml.Text("hello")

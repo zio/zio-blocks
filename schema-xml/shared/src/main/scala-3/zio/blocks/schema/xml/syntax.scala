@@ -20,7 +20,7 @@ import zio.blocks.schema.{Schema, SchemaError}
 
 object syntax {
   extension [A](self: A) {
-    def toXml(using schema: Schema[A]): Xml = XmlEncoder.fromSchema[A].encode(self)
+    def toXml(using schema: Schema[A]): Xml = schema.getInstance(XmlFormat).encodeValue(self)
 
     def toXmlString(using schema: Schema[A]): String = XmlWriter.write(toXml, WriterConfig.default)
 

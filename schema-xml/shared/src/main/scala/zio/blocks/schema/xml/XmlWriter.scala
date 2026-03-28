@@ -18,7 +18,7 @@ package zio.blocks.schema.xml
 
 import zio.blocks.chunk.Chunk
 
-import java.nio.charset.{Charset, UnsupportedCharsetException}
+import java.nio.charset.Charset
 
 /**
  * JVM implementation of XmlWriter for serializing Xml AST nodes to XML strings.
@@ -55,13 +55,8 @@ object XmlWriter {
    * @return
    *   XML byte array in the specified encoding
    */
-  def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] = {
-    val str = write(xml, config)
-    try str.getBytes(Charset.forName(config.encoding))
-    catch {
-      case _: UnsupportedCharsetException => throw XmlError.encodingError(s"Unsupported encoding: ${config.encoding}")
-    }
-  }
+  def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] =
+    write(xml, config).getBytes(Charset.forName(config.encoding))
 
   private[this] def writeNode(xml: Xml, sb: java.lang.StringBuilder, depth: Int, config: WriterConfig): Unit =
     xml match {

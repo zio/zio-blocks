@@ -22,13 +22,11 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.codec.BinaryFormat
-import zio.blocks.schema.derive.{BindingInstance, Deriver}
-import zio.blocks.schema.json.{Json, JsonCodec}
+import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
-import java.time._
-import java.util.{Currency, UUID}
 import scala.annotation.switch
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 object XmlFormat extends BinaryFormat("application/xml", XmlCodecDeriver)
 
@@ -94,31 +92,42 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[XmlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-      val typeName      = typeId.name
-      val namespaceOpt  = xmlNamespace.getNamespace(modifiers)
-      // (fieldName, codec, isOptional, offset, xmlAttrName: Option[String])
-      // xmlAttrName = Some(name) means encode as attribute with that name, None means encode as child element
-      var offset     = 0L
-      val fieldInfos = fields.map { field =>
-        val fieldReflect = field.value
-        val fieldInfo    = new FieldInfo(
-          name = field.name,
-          codec = D.instance(fieldReflect.metadata).force.asInstanceOf[XmlCodec[Any]],
-          offset = offset,
-          typeTag = Reflect.typeTag(fieldReflect),
-          isOptional = isOptionalField(fieldReflect),
-          attrName = getXmlAttributeName(field)
-        )
-        offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
-        fieldInfo
+      val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+      var fieldInfos    =
+        if (isRecursive) recursiveRecordCache.get.get(typeId)
+        else null
+      val deriveCodecs = fieldInfos eq null
+      if (deriveCodecs) {
+        val len = fields.length
+        fieldInfos = new Array[FieldInfo](len)
+        if (isRecursive) recursiveRecordCache.get.put(typeId, fieldInfos)
+        var offset = 0L
+        var idx    = 0
+        while (idx < len) {
+          val field        = fields(idx)
+          val fieldReflect = field.value
+          val name         = field.name
+          fieldInfos(idx) = new FieldInfo(
+            name = name,
+            defaultValue = getDefaultValue(fieldReflect),
+            codec = D.instance(fieldReflect.metadata).force.asInstanceOf[XmlCodec[Any]],
+            offset = offset,
+            typeTag = Reflect.typeTag(fieldReflect),
+            isOptional = fieldReflect.typeId.isOption,
+            attrName = getXmlAttributeName(field),
+            span = new DynamicOptic.Node.Field(name)
+          )
+          offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
+          idx += 1
+        }
       }
       new XmlCodec[A]() {
         private[this] val deconstructor = recordBinding.deconstructor
         private[this] val constructor   = recordBinding.constructor
-        private[this] val recordName    = typeName
-        private[this] val nsInfo        = namespaceOpt
+        private[this] val recordName    = typeId.name
+        private[this] val nsInfo        = xmlNamespace.getNamespace(modifiers)
 
-        override def decodeValue(xml: Xml): Either[XmlError, A] = xml match {
+        override def decodeValue(xml: Xml): A = xml match {
           case e: Xml.Element =>
             val childMap = new java.util.HashMap[String, Xml.Element](e.children.length << 1) {
               e.children.foreach {
@@ -139,13 +148,29 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                 case Some(attrName) =>
                   val attrValue = attrMap.get(attrName)
                   if (attrValue ne null) {
-                    parseAttributeValue(attrValue, fieldInfo.codec, regs, offset, fieldInfo.typeTag) match {
-                      case Some(err) => return new Left(err)
-                      case _         =>
+                    val v =
+                      try {
+                        fieldInfo.codec.decodeValue(
+                          new Xml.Element(XmlName("value"), Chunk.empty, Chunk.single(new Xml.Text(attrValue)))
+                        )
+                      } catch {
+                        case err if NonFatal(err) => error(fieldInfo.span, err)
+                      }
+                    (fieldInfo.typeTag: @switch) match {
+                      case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
+                      case 1 => regs.setInt(offset, v.asInstanceOf[Int])
+                      case 2 => regs.setLong(offset, v.asInstanceOf[Long])
+                      case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
+                      case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
+                      case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
+                      case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
+                      case 7 => regs.setChar(offset, v.asInstanceOf[Char])
+                      case 8 => regs.setShort(offset, v.asInstanceOf[Short])
+                      case _ => ()
                     }
                   } else {
                     if (fieldInfo.isOptional) regs.setObject(offset, None)
-                    else return new Left(XmlError.parseError(s"Missing required attribute: $attrName", 0, 0))
+                    else error(s"Missing required attribute: $attrName")
                   }
                 case _ =>
                   val fieldElem = childMap.get(fieldInfo.name)
@@ -154,26 +179,27 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                     val xmlToDecode        =
                       if (hasElementChildren) fieldElem
                       else new Xml.Element(XmlName("value"), Chunk.empty, fieldElem.children)
-                    fieldInfo.codec.decodeValue(xmlToDecode) match {
-                      case Right(v) =>
-                        (fieldInfo.typeTag: @switch) match {
-                          case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
-                          case 1 => regs.setInt(offset, v.asInstanceOf[Int])
-                          case 2 => regs.setLong(offset, v.asInstanceOf[Long])
-                          case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
-                          case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
-                          case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
-                          case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
-                          case 7 => regs.setChar(offset, v.asInstanceOf[Char])
-                          case 8 => regs.setShort(offset, v.asInstanceOf[Short])
-                          case _ => ()
-                        }
-                      case l => return l.asInstanceOf[Either[XmlError, A]]
+                    val v =
+                      try fieldInfo.codec.decodeValue(xmlToDecode)
+                      catch {
+                        case err if NonFatal(err) => error(fieldInfo.span, err)
+                      }
+                    (fieldInfo.typeTag: @switch) match {
+                      case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
+                      case 1 => regs.setInt(offset, v.asInstanceOf[Int])
+                      case 2 => regs.setLong(offset, v.asInstanceOf[Long])
+                      case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
+                      case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
+                      case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
+                      case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
+                      case 7 => regs.setChar(offset, v.asInstanceOf[Char])
+                      case 8 => regs.setShort(offset, v.asInstanceOf[Short])
+                      case _ => ()
                     }
                   } else {
                     if (fieldInfo.isOptional) regs.setObject(offset, None)
                     else {
-                      getDefaultValue(fields(idx).value) match {
+                      fieldInfo.defaultValue match {
                         case Some(dv) =>
                           (fieldInfo.typeTag: @switch) match {
                             case 0 => regs.setObject(offset, dv.asInstanceOf[AnyRef])
@@ -187,16 +213,15 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                             case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
                             case _ => ()
                           }
-                        case _ =>
-                          return new Left(XmlError.parseError(s"Missing required field: ${fieldInfo.name}", 0, 0))
+                        case _ => error(s"Missing required field: ${fieldInfo.name}")
                       }
                     }
                   }
               }
               idx += 1
             }
-            new Right(constructor.construct(regs, 0))
-          case _ => new Left(XmlError.parseError("Expected element for record", 0, 0))
+            constructor.construct(regs, 0)
+          case _ => error("Expected element for record")
         }
 
         override def encodeValue(x: A): Xml = {
@@ -319,23 +344,21 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
           new XmlCodec[Option[Any]]() {
             private[this] val innerCodec = codec.asInstanceOf[XmlCodec[Any]]
 
-            override def decodeValue(xml: Xml): Either[XmlError, Option[Any]] = xml match {
-              case e: Xml.Element if e.name.localName == "None" && e.children.isEmpty => new Right(None)
-              case e: Xml.Element if e.name.localName == "Some"                       =>
-                e.children.headOption match {
-                  case Some(child) =>
-                    innerCodec.decodeValue(child) match {
-                      case Right(v) => new Right(new Some(v))
-                      case l        => l.asInstanceOf[Either[XmlError, Option[Any]]]
+            override def decodeValue(xml: Xml): Option[Any] =
+              try
+                new Some(innerCodec.decodeValue(xml match {
+                  case e: Xml.Element if e.name.localName == "None" && e.children.isEmpty => return None
+                  case e: Xml.Element if e.name.localName == "Some"                       =>
+                    e.children.headOption match {
+                      case Some(child) => child
+                      case _           => error("Expected child element in Some")
                     }
-                  case _ => Left(XmlError.parseError("Expected child element in Some", 0, 0))
-                }
-              case other =>
-                innerCodec.decodeValue(other) match {
-                  case Right(v) => new Right(new Some(v))
-                  case l        => l.asInstanceOf[Either[XmlError, Option[Any]]]
-                }
-            }
+                  case other => other
+                }))
+              catch {
+                case err if NonFatal(err) =>
+                  error(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), err)
+              }
 
             override def encodeValue(x: Option[Any]): Xml = x match {
               case Some(value) => xmlElement("Some", innerCodec.encodeValue(value))
@@ -354,26 +377,30 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
             private[this] val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
             private[this] val codecMap      = caseCodecs.toMap
 
-            override def decodeValue(xml: Xml): Either[XmlError, A] = xml match {
+            override def decodeValue(xml: Xml): A = xml match {
               case Xml.Element(name, _, children) =>
                 val caseName = name.localName
                 codecMap.get(caseName) match {
                   case Some(codec) =>
-                    children.headOption match {
-                      case Some(e: Xml.Element) if e.name.localName == caseName =>
-                        // Old double-wrapped format: <Dog><Dog>...</Dog></Dog>
-                        codec.decodeValue(e)
-                      case Some(_) =>
-                        // New format: <Dog><name>...</name></Dog>
-                        // Decode the element itself, not its children
-                        codec.decodeValue(xml)
-                      case _ =>
-                        // No children, decode as empty case
-                        codec.decodeValue(xmlElement(caseName))
+                    try
+                      codec.decodeValue(children.headOption match {
+                        case Some(e: Xml.Element) if e.name.localName == caseName =>
+                          // Old double-wrapped format: <Dog><Dog>...</Dog></Dog>
+                          e
+                        case Some(_) =>
+                          // New format: <Dog><name>...</name></Dog>
+                          // Decode the element itself, not its children
+                          xml
+                        case _ =>
+                          // No children, decode as empty case
+                          xmlElement(caseName)
+                      })
+                    catch {
+                      case err if NonFatal(err) => error(new DynamicOptic.Node.Case(caseName), err)
                     }
-                  case _ => new Left(XmlError.parseError(s"Unknown variant case: $caseName", 0, 0))
+                  case _ => error(s"Unknown variant case: $caseName")
                 }
-              case _ => new Left(XmlError.parseError("Expected element for variant", 0, 0))
+              case _ => error("Expected element for variant")
             }
 
             override def encodeValue(x: A): Xml = {
@@ -409,23 +436,27 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
           private[this] val elemCodec     = codec.asInstanceOf[XmlCodec[Elem]]
           private[this] val elemClassTag  = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
-          override def decodeValue(xml: Xml): Either[XmlError, Col[Elem]] = xml match {
+          override def decodeValue(xml: Xml): Col[Elem] = xml match {
             case Xml.Element(_, _, children) =>
               val builder = constructor.newBuilder[Elem](children.length)(elemClassTag)
               val iter    = children.iterator
+              var idx     = 0
               while (iter.hasNext) {
                 iter.next() match {
                   case e: Xml.Element =>
                     val wrappedForDecode = Xml.Element(XmlName("value"), Chunk.empty, e.children)
-                    elemCodec.decodeValue(wrappedForDecode) match {
-                      case Right(v) => constructor.add(builder, v)
-                      case l        => return l.asInstanceOf[Either[XmlError, Col[Elem]]]
-                    }
-                  case _ => ()
+                    val elem             =
+                      try elemCodec.decodeValue(wrappedForDecode)
+                      catch {
+                        case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                      }
+                    idx += 1
+                    constructor.add(builder, elem)
+                  case _ =>
                 }
               }
-              new Right(constructor.result(builder))
-            case _ => new Left(XmlError.parseError("Expected element for sequence", 0, 0))
+              constructor.result(builder)
+            case _ => error("Expected element for sequence")
           }
 
           override def encodeValue(x: Col[Elem]): Xml = {
@@ -457,11 +488,13 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
           private[this] val constructor   = mapBinding.constructor
           private[this] val keyCodec      = codec1.asInstanceOf[XmlCodec[Key]]
           private[this] val valueCodec    = codec2.asInstanceOf[XmlCodec[Value]]
+          private[this] val keyRefl       = key.asInstanceOf[Reflect.Bound[Key]]
 
-          override def decodeValue(xml: Xml): Either[XmlError, Map[Key, Value]] = xml match {
+          override def decodeValue(xml: Xml): Map[Key, Value] = xml match {
             case Xml.Element(_, _, children) =>
               val builder = constructor.newObjectBuilder[Key, Value](children.length)
               val iter    = children.iterator
+              var idx     = 0
               while (iter.hasNext) {
                 iter.next() match {
                   case Xml.Element(name, _, entryChildren) if name.localName == "entry" =>
@@ -480,20 +513,25 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                         new Xml.Element(XmlName("value"), Chunk.empty, keyXml.asInstanceOf[Xml.Element].children)
                       val valWrapped =
                         new Xml.Element(XmlName("value"), Chunk.empty, valueXml.asInstanceOf[Xml.Element].children)
-                      keyCodec.decodeValue(keyWrapped) match {
-                        case Right(k) =>
-                          valueCodec.decodeValue(valWrapped) match {
-                            case Right(v) => constructor.addObject(builder, k, v)
-                            case l        => return l.asInstanceOf[Either[XmlError, Map[Key, Value]]]
-                          }
-                        case l => return l.asInstanceOf[Either[XmlError, Map[Key, Value]]]
-                      }
-                    } else return new Left(XmlError.parseError("Map entry missing key or value", 0, 0))
+                      val k =
+                        try keyCodec.decodeValue(keyWrapped)
+                        catch {
+                          case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
+                        }
+                      val v =
+                        try valueCodec.decodeValue(valWrapped)
+                        catch {
+                          case err if NonFatal(err) =>
+                            error(new DynamicOptic.Node.AtMapKey(keyRefl.toDynamicValue(k)), err)
+                        }
+                      idx += 1
+                      constructor.addObject(builder, k, v)
+                    } else error("Map entry missing key or value")
                   case _ => ()
                 }
               }
-              new Right(constructor.resultObject(builder))
-            case _ => new Left(XmlError.parseError("Expected element for map", 0, 0))
+              constructor.resultObject(builder)
+            case _ => error("Expected element for map")
           }
 
           override def encodeValue(x: Map[Key, Value]): Xml = {
@@ -540,13 +578,22 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
           private[this] val wrap         = wrapperBinding.wrap
           private[this] val wrappedCodec = codec.asInstanceOf[XmlCodec[Wrapped]]
 
-          override def decodeValue(xml: Xml): Either[XmlError, A] = wrappedCodec.decodeValue(xml).map(wrap)
+          override def decodeValue(xml: Xml): A =
+            try wrap(wrappedCodec.decodeValue(xml))
+            catch {
+              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+            }
 
           override def encodeValue(x: A): Xml = wrappedCodec.encodeValue(unwrap(x))
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[XmlCodec[A]]]
+
+  override def instanceOverrides: IndexedSeq[InstanceOverride] = {
+    recursiveRecordCache.remove()
+    super.instanceOverrides
+  }
 
   type Elem
   type Key
@@ -555,6 +602,11 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
   type Col[_]
   type Map[_, _]
   type TC[_]
+
+  private[this] val recursiveRecordCache =
+    new ThreadLocal[java.util.HashMap[TypeId[?], Array[FieldInfo]]] {
+      override def initialValue: java.util.HashMap[TypeId[?], Array[FieldInfo]] = new java.util.HashMap
+    }
 
   private[this] def xmlElement(name: String, children: Xml*): Xml.Element =
     new Xml.Element(XmlName(name), Chunk.empty, Chunk.from(children))
@@ -575,186 +627,23 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
       else field.name
     }
 
-  private[this] def isOptionalField[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.typeId.isOption
-
   private[this] def getDefaultValue[F[_, _], A](reflect: Reflect[F, A]): Option[Any] =
     reflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
 
-  private[this] def parseAttributeValue(
-    attrValue: String,
-    codec: XmlCodec[Any],
-    regs: Registers,
-    offset: RegisterOffset.RegisterOffset,
-    typeTag: Int
-  ): Option[XmlError] =
-    codec.decodeValue(new Xml.Element(XmlName("value"), Chunk.empty, Chunk.single(new Xml.Text(attrValue)))) match {
-      case Right(v) =>
-        (typeTag: @switch) match {
-          case 0 => regs.setObject(offset, v.asInstanceOf[AnyRef])
-          case 1 => regs.setInt(offset, v.asInstanceOf[Int])
-          case 2 => regs.setLong(offset, v.asInstanceOf[Long])
-          case 3 => regs.setFloat(offset, v.asInstanceOf[Float])
-          case 4 => regs.setDouble(offset, v.asInstanceOf[Double])
-          case 5 => regs.setBoolean(offset, v.asInstanceOf[Boolean])
-          case 6 => regs.setByte(offset, v.asInstanceOf[Byte])
-          case 7 => regs.setChar(offset, v.asInstanceOf[Char])
-          case 8 => regs.setShort(offset, v.asInstanceOf[Short])
-          case _ => ()
-        }
-        None
-      case Left(err) => Some(err)
-    }
-
-  private val dayOfWeekCodec: XmlCodec[DayOfWeek] = new XmlCodec[DayOfWeek]() {
-    def decodeValue(xml: Xml): Either[XmlError, DayOfWeek] = decodeText(xml)(s => DayOfWeek.valueOf(s.toUpperCase))
-
-    def encodeValue(x: DayOfWeek): Xml = Xml.Element("value", new Xml.Text(x.toString))
-  }
-
-  private val durationCodec: XmlCodec[Duration] = new XmlCodec[Duration]() {
-    def decodeValue(xml: Xml): Either[XmlError, Duration] = decodeText(xml, Json.durationRawCodec)
-
-    def encodeValue(x: Duration): Xml = Xml.Element("value", new Xml.Text(Json.durationRawCodec.encodeToString(x)))
-  }
-
-  private val instantCodec: XmlCodec[Instant] = new XmlCodec[Instant]() {
-    def decodeValue(xml: Xml): Either[XmlError, Instant] = decodeText(xml, Json.instantRawCodec)
-
-    def encodeValue(x: Instant): Xml = Xml.Element("value", new Xml.Text(Json.instantRawCodec.encodeToString(x)))
-  }
-
-  private val localDateCodec: XmlCodec[LocalDate] = new XmlCodec[LocalDate]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalDate] = decodeText(xml, Json.localDateRawCodec)
-
-    def encodeValue(x: LocalDate): Xml = Xml.Element("value", new Xml.Text(Json.localDateRawCodec.encodeToString(x)))
-  }
-
-  private val localDateTimeCodec: XmlCodec[LocalDateTime] = new XmlCodec[LocalDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalDateTime] = decodeText(xml, Json.localDateTimeRawCodec)
-
-    def encodeValue(x: LocalDateTime): Xml =
-      Xml.Element("value", new Xml.Text(Json.localDateTimeRawCodec.encodeToString(x)))
-  }
-
-  private val localTimeCodec: XmlCodec[LocalTime] = new XmlCodec[LocalTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, LocalTime] = decodeText(xml, Json.localTimeRawCodec)
-
-    def encodeValue(x: LocalTime): Xml = Xml.Element("value", new Xml.Text(Json.localTimeRawCodec.encodeToString(x)))
-  }
-
-  private val monthCodec: XmlCodec[Month] = new XmlCodec[Month]() {
-    def decodeValue(xml: Xml): Either[XmlError, Month] = decodeText(xml)(s => Month.valueOf(s.toUpperCase))
-
-    def encodeValue(x: Month): Xml = Xml.Element("value", new Xml.Text(x.toString))
-  }
-
-  private val monthDayCodec: XmlCodec[MonthDay] = new XmlCodec[MonthDay]() {
-    def decodeValue(xml: Xml): Either[XmlError, MonthDay] = decodeText(xml, Json.monthDayRawCodec)
-
-    def encodeValue(x: MonthDay): Xml = Xml.Element("value", new Xml.Text(Json.monthDayRawCodec.encodeToString(x)))
-  }
-
-  private val offsetDateTimeCodec: XmlCodec[OffsetDateTime] = new XmlCodec[OffsetDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, OffsetDateTime] = decodeText(xml, Json.offsetDateTimeRawCodec)
-
-    def encodeValue(x: OffsetDateTime): Xml =
-      Xml.Element("value", new Xml.Text(Json.offsetDateTimeRawCodec.encodeToString(x)))
-  }
-
-  private val offsetTimeCodec: XmlCodec[OffsetTime] = new XmlCodec[OffsetTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, OffsetTime] = decodeText(xml, Json.offsetTimeRawCodec)
-
-    def encodeValue(x: OffsetTime): Xml = Xml.Element("value", new Xml.Text(Json.offsetTimeRawCodec.encodeToString(x)))
-  }
-
-  private val periodCodec: XmlCodec[Period] = new XmlCodec[Period]() {
-    def decodeValue(xml: Xml): Either[XmlError, Period] = decodeText(xml, Json.periodRawCodec)
-
-    def encodeValue(x: Period): Xml = Xml.Element("value", new Xml.Text(Json.periodRawCodec.encodeToString(x)))
-  }
-
-  private val yearCodec: XmlCodec[Year] = new XmlCodec[Year]() {
-    def decodeValue(xml: Xml): Either[XmlError, Year] = decodeText(xml)(Year.parse)
-
-    def encodeValue(x: Year): Xml = Xml.Element("value", new Xml.Text(x.toString))
-  }
-
-  private val yearMonthCodec: XmlCodec[YearMonth] = new XmlCodec[YearMonth]() {
-    def decodeValue(xml: Xml): Either[XmlError, YearMonth] = decodeText(xml)(YearMonth.parse)
-
-    def encodeValue(x: YearMonth): Xml = Xml.Element("value", new Xml.Text(x.toString))
-  }
-
-  private val zoneIdCodec: XmlCodec[ZoneId] = new XmlCodec[ZoneId]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneId] = decodeText(xml)(ZoneId.of)
-
-    def encodeValue(x: ZoneId): Xml = Xml.Element("value", new Xml.Text(x.getId))
-  }
-
-  private val zoneOffsetCodec: XmlCodec[ZoneOffset] = new XmlCodec[ZoneOffset]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZoneOffset] = decodeText(xml)(ZoneOffset.of)
-
-    def encodeValue(x: ZoneOffset): Xml = Xml.Element("value", new Xml.Text(x.getId))
-  }
-
-  private val zonedDateTimeCodec: XmlCodec[ZonedDateTime] = new XmlCodec[ZonedDateTime]() {
-    def decodeValue(xml: Xml): Either[XmlError, ZonedDateTime] = decodeText(xml, Json.zonedDateTimeRawCodec)
-
-    def encodeValue(x: ZonedDateTime): Xml =
-      Xml.Element("value", new Xml.Text(Json.zonedDateTimeRawCodec.encodeToString(x)))
-  }
-
-  private val currencyCodec: XmlCodec[Currency] = new XmlCodec[Currency]() {
-    def decodeValue(xml: Xml): Either[XmlError, Currency] = decodeText(xml)(Currency.getInstance)
-
-    def encodeValue(x: Currency): Xml = Xml.Element("value", new Xml.Text(x.getCurrencyCode))
-  }
-
-  private val uuidCodec: XmlCodec[UUID] = new XmlCodec[UUID]() {
-    def decodeValue(xml: Xml): Either[XmlError, UUID] = decodeText(xml)(UUID.fromString)
-
-    def encodeValue(x: UUID): Xml = Xml.Element("value", new Xml.Text(x.toString))
-  }
-
-  private val dynamicValueCodec: XmlCodec[DynamicValue] = new XmlCodec[DynamicValue]() {
-    def decodeValue(xml: Xml): Either[XmlError, DynamicValue] =
-      new Left(XmlError.parseError("DynamicValue decoding not supported", 0, 0))
+  private[this] val dynamicValueCodec: XmlCodec[DynamicValue] = new XmlCodec[DynamicValue]() {
+    def decodeValue(xml: Xml): DynamicValue = error("DynamicValue decoding not supported")
 
     def encodeValue(x: DynamicValue): Xml = Xml.Element("dynamic", new Xml.Text(x.toString))
-  }
-
-  private[this] def decodeText[A](xml: Xml)(parse: String => A): Either[XmlError, A] = xml match {
-    case e: Xml.Element if e.name.localName == "value" =>
-      e.children.headOption match {
-        case Some(t: Xml.Text) =>
-          try new Right(parse(t.value.trim))
-          catch {
-            case e: Exception => new Left(XmlError.parseError(s"Invalid value: ${e.getMessage}", 0, 0))
-          }
-        case _ => new Left(XmlError.parseError("Expected text content in <value> element", 0, 0))
-      }
-    case _ => new Left(XmlError.parseError("Expected <value> element", 0, 0))
-  }
-
-  private[this] def decodeText[A](xml: Xml, codec: JsonCodec[A]): Either[XmlError, A] = xml match {
-    case e: Xml.Element if e.name.localName == "value" =>
-      e.children.headOption match {
-        case Some(t: Xml.Text) =>
-          codec.decode(t.value.trim) match {
-            case Left(e) => new Left(XmlError.parseError(s"Invalid value: ${e.getMessage}", 0, 0))
-            case r       => r.asInstanceOf[Either[XmlError, A]]
-          }
-        case _ => new Left(XmlError.parseError("Expected text content in <value> element", 0, 0))
-      }
-    case _ => new Left(XmlError.parseError("Expected <value> element", 0, 0))
   }
 }
 
 private class FieldInfo(
   val name: String,
+  val defaultValue: Option[?],
   val codec: XmlCodec[Any],
   val offset: RegisterOffset,
   val typeTag: Int,
   val isOptional: Boolean,
-  val attrName: Option[String]
+  val attrName: Option[String],
+  val span: DynamicOptic.Node.Field
 )

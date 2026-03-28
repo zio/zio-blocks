@@ -43,10 +43,7 @@ object XmlCodecDeriverScala3Spec extends SchemaBaseSpec {
       test("simple enum encode produces valid XML") {
         val codec = Schema[TrafficLight].derive(XmlCodecDeriver)
         val xml   = codec.encodeToString(TrafficLight.Red)
-        assertTrue(
-          xml.contains("Red") ||
-            xml.contains("TrafficLight")
-        )
+        assertTrue(xml == "<Red/>")
       }
     ),
     suite("generic tuples")(
@@ -114,7 +111,7 @@ object XmlCodecDeriverScala3Spec extends SchemaBaseSpec {
         val codec   = Schema[MySealedTrait].derive(XmlCodecDeriver)
         val variant = MySealedTrait.Foo(1)
         val xml     = codec.encodeToString(variant)
-        assertTrue(xml.contains("Foo") || xml.contains("value"))
+        assertTrue(xml == "<Foo><value>1</value></Foo>")
       }
     )
   )

@@ -18,6 +18,7 @@ package zio.blocks.schema.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder, DecoderFactory, DirectBinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.codec.BinaryCodec
@@ -26,7 +27,6 @@ import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
 import java.time._
 import java.util.{Currency, UUID}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 abstract class AvroCodec[A] extends BinaryCodec[A] {
@@ -111,7 +111,7 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
             idx += 1
             list = list.tail
           }
-          new ExpectationMismatch(new DynamicOptic(ArraySeq.unsafeWrapArray(array)), e.getMessage)
+          new ExpectationMismatch(new DynamicOptic(Chunk.fromArray(array)), e.getMessage)
         case _ => new ExpectationMismatch(DynamicOptic.root, getMessage(error))
       },
       Nil

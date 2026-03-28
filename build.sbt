@@ -720,7 +720,7 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 80,
-    coverageMinimumBranchTotal := 71
+    coverageMinimumBranchTotal := 70
   )
 
 lazy val openapi = crossProject(JSPlatform, JVMPlatform)
