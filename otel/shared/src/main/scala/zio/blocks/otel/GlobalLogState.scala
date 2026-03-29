@@ -41,6 +41,8 @@ final class LogState(
 
 object GlobalLogState {
 
+  @volatile private[otel] var globalMinLevel: Int = 1
+
   private val ref: AtomicReference[LogState] = new AtomicReference[LogState](null)
 
   private lazy val defaultState: LogState = {
@@ -60,17 +62,25 @@ object GlobalLogState {
     if (state != null) state else defaultState
   }
 
-  def set(state: LogState): Unit = ref.set(state)
+  def set(state: LogState): Unit = {
+    ref.set(state)
+    updateGlobalMinLevel()
+  }
 
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit =
+  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit = {
     ref.set(new LogState(logger, minSeverity.number, Map.empty))
+    updateGlobalMinLevel()
+  }
 
   def setLevel(prefix: String, severity: Severity): Unit = {
     var current = ref.get()
     while (current != null) {
       val updated =
         new LogState(current.logger, current.minSeverity, current.levelOverrides + (prefix -> severity.number))
-      if (ref.compareAndSet(current, updated)) return
+      if (ref.compareAndSet(current, updated)) {
+        updateGlobalMinLevel()
+        return
+      }
       current = ref.get()
     }
   }
@@ -79,7 +89,10 @@ object GlobalLogState {
     var current = ref.get()
     while (current != null) {
       val updated = new LogState(current.logger, current.minSeverity, current.levelOverrides - prefix)
-      if (ref.compareAndSet(current, updated)) return
+      if (ref.compareAndSet(current, updated)) {
+        updateGlobalMinLevel()
+        return
+      }
       current = ref.get()
     }
   }
@@ -88,10 +101,28 @@ object GlobalLogState {
     var current = ref.get()
     while (current != null) {
       val updated = new LogState(current.logger, current.minSeverity, Map.empty)
-      if (ref.compareAndSet(current, updated)) return
+      if (ref.compareAndSet(current, updated)) {
+        updateGlobalMinLevel()
+        return
+      }
       current = ref.get()
     }
   }
 
-  def uninstall(): Unit = ref.set(null)
+  def uninstall(): Unit = {
+    ref.set(null)
+    globalMinLevel = 1
+  }
+
+  private def updateGlobalMinLevel(): Unit = {
+    val state = ref.get()
+    if (state == null) { globalMinLevel = 1; return }
+    var min  = state.minSeverity
+    val iter = state.levelOverrides.valuesIterator
+    while (iter.hasNext) {
+      val v = iter.next()
+      if (v < min) min = v
+    }
+    globalMinLevel = min
+  }
 }
