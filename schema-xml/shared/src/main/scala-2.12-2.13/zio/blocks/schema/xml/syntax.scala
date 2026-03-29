@@ -20,7 +20,7 @@ import zio.blocks.schema.{Schema, SchemaError}
 
 object syntax {
   implicit final class XmlValueOps[A](private val self: A) extends AnyVal {
-    def toXml(implicit schema: Schema[A]): Xml = XmlEncoder.fromSchema[A].encode(self)
+    def toXml(implicit schema: Schema[A]): Xml = schema.getInstance(XmlFormat).encodeValue(self)
 
     def toXmlString(implicit schema: Schema[A]): String = XmlWriter.write(toXml, WriterConfig.default)
 

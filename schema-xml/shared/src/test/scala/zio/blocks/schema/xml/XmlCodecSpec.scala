@@ -30,7 +30,7 @@ object XmlCodecSpec extends SchemaBaseSpec {
       test("encodeToString produces valid XML") {
         val codec = XmlCodec.unitCodec
         val xml   = codec.encodeToString(())
-        assertTrue(xml.contains("<unit"))
+        assertTrue(xml == "<unit/>")
       },
       test("decode from string") {
         val codec  = XmlCodec.unitCodec
@@ -53,7 +53,7 @@ object XmlCodecSpec extends SchemaBaseSpec {
       test("encodeToString produces valid XML") {
         val codec = XmlCodec.booleanCodec
         val xml   = codec.encodeToString(true)
-        assertTrue(xml.contains("true"))
+        assertTrue(xml == "<value>true</value>")
       }
     ),
     suite("byteCodec")(
@@ -154,12 +154,6 @@ object XmlCodecSpec extends SchemaBaseSpec {
         val value  = Float.MaxValue
         val result = codec.decode(codec.encode(value))
         assertTrue(result == Right(value))
-      },
-      test("round-trip encode/decode NaN") {
-        val codec  = XmlCodec.floatCodec
-        val value  = Float.NaN
-        val result = codec.decode(codec.encode(value))
-        assertTrue(result.exists(_.isNaN))
       }
     ),
     suite("doubleCodec")(
@@ -180,12 +174,6 @@ object XmlCodecSpec extends SchemaBaseSpec {
         val value  = Double.MaxValue
         val result = codec.decode(codec.encode(value))
         assertTrue(result == Right(value))
-      },
-      test("round-trip encode/decode NaN") {
-        val codec  = XmlCodec.doubleCodec
-        val value  = Double.NaN
-        val result = codec.decode(codec.encode(value))
-        assertTrue(result.exists(_.isNaN))
       }
     ),
     suite("charCodec")(

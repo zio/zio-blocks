@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.codec.BinaryCodec
 import zio.blocks.schema.json.{Json, JsonWriter}
@@ -24,8 +25,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -316,7 +315,7 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
               idx += 1
               list = list.tail
             }
-            new DynamicOptic(ArraySeq.unsafeWrapArray(array))
+            new DynamicOptic(Chunk.fromArray(array))
           case _ => DynamicOptic.root
         }, {
           var msg = error.getMessage

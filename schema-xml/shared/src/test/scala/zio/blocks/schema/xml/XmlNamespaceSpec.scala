@@ -31,8 +31,7 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val item  = Item("test")
       val codec = Schema[Item].derive(XmlFormat)
       val xml   = codec.encodeToString(item)
-
-      assertTrue(xml.contains("""xmlns="http://example.com/ns""""))
+      assertTrue(xml == "<Item xmlns=\"http://example.com/ns\"><name>test</name></Item>")
     },
     test("prefixed namespace") {
       @Modifier.config("xml.namespace.uri", "http://example.com/ns")
@@ -45,11 +44,7 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val item  = Item("test")
       val codec = Schema[Item].derive(XmlFormat)
       val xml   = codec.encodeToString(item)
-
-      assertTrue(
-        xml.contains("""xmlns:ex="http://example.com/ns""""),
-        xml.contains("<ex:Item")
-      )
+      assertTrue(xml == "<ex:Item xmlns:ex=\"http://example.com/ns\"><name>test</name></ex:Item>")
     },
     test("round-trip with default namespace") {
       @Modifier.config("xml.namespace.uri", "http://example.com/ns")
@@ -61,7 +56,6 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val data   = Data(42)
       val codec  = Schema[Data].derive(XmlFormat)
       val result = codec.decode(codec.encode(data))
-
       assertTrue(result == Right(data))
     },
     test("round-trip with prefixed namespace") {
@@ -75,7 +69,6 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val data   = Data(42)
       val codec  = Schema[Data].derive(XmlFormat)
       val result = codec.decode(codec.encode(data))
-
       assertTrue(result == Right(data))
     },
     test("namespace with multiple fields") {
@@ -88,11 +81,8 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val feed  = Feed("My Feed", "John Doe", "2024-01-01")
       val codec = Schema[Feed].derive(XmlFormat)
       val xml   = codec.encodeToString(feed)
-
       assertTrue(
-        xml.contains("""xmlns="http://www.w3.org/2005/Atom""""),
-        xml.contains("<title>My Feed</title>"),
-        xml.contains("<author>John Doe</author>")
+        xml == "<Feed xmlns=\"http://www.w3.org/2005/Atom\"><title>My Feed</title><author>John Doe</author><updated>2024-01-01</updated></Feed>"
       )
     },
     test("namespace with attributes") {
@@ -108,11 +98,8 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val doc   = Document("doc-123", "Hello World")
       val codec = Schema[Document].derive(XmlFormat)
       val xml   = codec.encodeToString(doc)
-
       assertTrue(
-        xml.contains("""xmlns="http://example.com/ns""""),
-        xml.contains("""id="doc-123""""),
-        xml.contains("<content>Hello World</content>")
+        xml == "<Document xmlns=\"http://example.com/ns\" id=\"doc-123\"><content>Hello World</content></Document>"
       )
     },
     test("prefixed namespace with attributes") {
@@ -129,11 +116,8 @@ object XmlNamespaceSpec extends SchemaBaseSpec {
       val doc   = Document("doc-456", "Content here")
       val codec = Schema[Document].derive(XmlFormat)
       val xml   = codec.encodeToString(doc)
-
       assertTrue(
-        xml.contains("""xmlns:ex="http://example.com/ns""""),
-        xml.contains("<ex:Document"),
-        xml.contains("""id="doc-456"""")
+        xml == "<ex:Document xmlns:ex=\"http://example.com/ns\" id=\"doc-456\"><content>Content here</content></ex:Document>"
       )
     }
   )

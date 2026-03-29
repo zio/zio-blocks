@@ -17,11 +17,11 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 
 /**
- * A wrapper around `Either[XmlError, Chunk[Xml]]` that provides fluent chaining
- * for XML navigation and querying operations.
+ * A wrapper around `Either[SchemaError, Chunk[Xml]]` that provides fluent
+ * chaining for XML navigation and querying operations.
  *
  * XmlSelection enables a fluent API style for navigating through XML
  * structures:
@@ -32,7 +32,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue}
  * The selection can contain zero, one, or multiple XML values, supporting both
  * single-value navigation and multi-value queries.
  */
-final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyVal {
+final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends AnyVal {
 
   // ─────────────────────────────────────────────────────────────────────────
   // Basic operations
@@ -45,7 +45,7 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
   def isFailure: Boolean = either.isLeft
 
   /** Returns the error if this is a failure, otherwise None. */
-  def error: Option[XmlError] = either match {
+  def error: Option[SchemaError] = either match {
     case Left(e) => new Some(e)
     case _       => None
   }
@@ -63,15 +63,15 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
   }
 
   /**
-   * Returns the single selected value, or fails if there are 0 or more than 1
+   * Returns the single selected value or fails if there are 0 or more than 1
    * values.
    */
-  def one: Either[XmlError, Xml] = either match {
+  def one: Either[SchemaError, Xml] = either match {
     case Right(v) =>
       val len = v.length
       if (len == 1) new Right(v.head)
-      else new Left(XmlError(s"Expected single value but got $len"))
-    case l => l.asInstanceOf[Either[XmlError, Xml]]
+      else new Left(SchemaError(s"Expected single value but got $len"))
+    case l => l.asInstanceOf[Either[SchemaError, Xml]]
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -101,11 +101,11 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    * Returns any single value from the selection. Fails if the selection is
    * empty or an error.
    */
-  def any: Either[XmlError, Xml] = either match {
+  def any: Either[SchemaError, Xml] = either match {
     case Right(v) =>
-      if (v.isEmpty) new Left(XmlError("Expected at least one value but got none"))
+      if (v.isEmpty) new Left(SchemaError("Expected at least one value but got none"))
       else new Right(v.head)
-    case l => l.asInstanceOf[Either[XmlError, Xml]]
+    case l => l.asInstanceOf[Either[SchemaError, Xml]]
   }
 
   /**
@@ -113,24 +113,24 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    * multiple values, wraps them in an element. Fails if the selection is empty
    * or an error.
    */
-  def all: Either[XmlError, Xml] = either match {
+  def all: Either[SchemaError, Xml] = either match {
     case Right(v) =>
-      if (v.isEmpty) new Left(XmlError("Expected at least one value but got none"))
+      if (v.isEmpty) new Left(SchemaError("Expected at least one value but got none"))
       else {
         new Right({
           if (v.length == 1) v.head
           else Xml.Element(XmlName("root"), Chunk.empty, v)
         })
       }
-    case l => l.asInstanceOf[Either[XmlError, Xml]]
+    case l => l.asInstanceOf[Either[SchemaError, Xml]]
   }
 
   /**
    * Returns all selected values as an XML element with children.
    */
-  def toArray: Either[XmlError, Xml] = either match {
+  def toArray: Either[SchemaError, Xml] = either match {
     case Right(v) => new Right(Xml.Element(XmlName("root"), Chunk.empty, v))
-    case l        => l.asInstanceOf[Either[XmlError, Xml]]
+    case l        => l.asInstanceOf[Either[SchemaError, Xml]]
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    * nodes, returns the content directly. For Element nodes, returns
    * concatenated text of all child text nodes.
    */
-  def text: Either[XmlError, String] = one.flatMap {
+  def text: Either[SchemaError, String] = one.flatMap {
     case t: Xml.Text    => new Right(t.value)
     case cd: Xml.CData  => new Right(cd.value)
     case e: Xml.Element =>
@@ -232,8 +232,8 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
         case cd: Xml.CData => cd.value
       }
       if (texts.nonEmpty) new Right(texts.mkString)
-      else new Left(XmlError("No text content found"))
-    case other => new Left(XmlError(s"Expected text content but got ${other.xmlType}"))
+      else new Left(SchemaError("No text content found"))
+    case other => new Left(SchemaError(s"Expected text content but got ${other.xmlType}"))
   }
 
   /**
@@ -323,9 +323,9 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
    * Narrows the single selected value to the specified XML type. Fails if there
    * are 0 or more than 1 values, or if the value doesn't match.
    */
-  def as(xmlType: XmlType): Either[XmlError, xmlType.Type] = either match {
+  def as(xmlType: XmlType): Either[SchemaError, xmlType.Type] = either match {
     case Right(v) =>
-      new Left(XmlError {
+      new Left(SchemaError {
         val len = v.length
         if (len == 1) {
           val xml = v.head
@@ -333,16 +333,16 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
           else s"Expected $xmlType but got ${xml.xmlType}"
         } else s"Expected single value but got $len"
       })
-    case l => l.asInstanceOf[Either[XmlError, xmlType.Type]]
+    case l => l.asInstanceOf[Either[SchemaError, xmlType.Type]]
   }
 
   /**
    * Extracts the underlying Scala value from the single selected XML value.
    * Fails if there are 0 or more than 1 values, or if the value doesn't match.
    */
-  def unwrap(xmlType: XmlType): Either[XmlError, xmlType.Unwrap] = either match {
+  def unwrap(xmlType: XmlType): Either[SchemaError, xmlType.Unwrap] = either match {
     case Right(v) =>
-      new Left(XmlError {
+      new Left(SchemaError {
         val len = v.length
         if (len == 1) {
           val xml = v.head
@@ -352,7 +352,7 @@ final case class XmlSelection(either: Either[XmlError, Chunk[Xml]]) extends AnyV
           }
         } else s"Expected single value but got $len"
       })
-    case l => l.asInstanceOf[Either[XmlError, xmlType.Unwrap]]
+    case l => l.asInstanceOf[Either[SchemaError, xmlType.Unwrap]]
   }
 }
 
@@ -365,7 +365,7 @@ object XmlSelection {
   def succeedMany(xmls: Chunk[Xml]): XmlSelection = new XmlSelection(new Right(xmls))
 
   /** Creates a failed selection with an error. */
-  def fail(error: XmlError): XmlSelection = new XmlSelection(new Left(error))
+  def fail(error: SchemaError): XmlSelection = new XmlSelection(new Left(error))
 
   /** An empty successful selection. */
   val empty: XmlSelection = new XmlSelection(new Right(Chunk.empty))

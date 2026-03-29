@@ -56,14 +56,14 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
    * type.
    */
   def search[A](implicit typeId: TypeId[A]): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.TypeSearch(typeId))
+    new DynamicOptic(nodes.appended(new Node.TypeSearch(typeId)))
 
   /**
    * Appends a search node that matches all values matching the specified schema
    * pattern.
    */
   def searchSchema(schemaRepr: SchemaRepr): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.SchemaSearch(schemaRepr))
+    new DynamicOptic(nodes.appended(new Node.SchemaSearch(schemaRepr)))
 
   override lazy val toString: String = {
     val sb = new java.lang.StringBuilder
@@ -82,7 +82,6 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     DynamicOptic.renderScalaString(sb, nodes)
     sb.toString
   }
-
 }
 
 object DynamicOptic {

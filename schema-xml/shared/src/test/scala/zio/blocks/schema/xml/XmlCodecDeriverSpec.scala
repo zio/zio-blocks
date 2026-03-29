@@ -63,22 +63,36 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[OptionalField] = Schema.derived
   }
 
+  case class Recursive(value: String, next: Option[Recursive])
+  object Recursive {
+    implicit val schema: Schema[Recursive] = Schema.derived
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("XmlCodecDeriverSpec")(
     suite("record derivation")(
       test("encode simple case class") {
         val codec  = Schema[Person].derive(XmlCodecDeriver)
         val person = Person("Alice", 30)
         val xml    = codec.encodeToString(person)
-        assertTrue(
-          xml.contains("<name>Alice</name>") &&
-            xml.contains("<age>30</age>")
-        )
+        assertTrue(xml == "<Person><name>Alice</name><age>30</age></Person>")
       },
       test("decode simple case class") {
         val codec  = Schema[Person].derive(XmlCodecDeriver)
         val xml    = "<Person><name>Bob</name><age>25</age></Person>"
         val result = codec.decode(xml)
         assertTrue(result == Right(Person("Bob", 25)))
+      },
+      test("decode error for missing field") {
+        val codec  = Schema[Person].derive(XmlCodecDeriver)
+        val xml    = "<Person><name>Bob</name></Person>"
+        val result = codec.decode(xml)
+        assertTrue(result.swap.toOption.get.getMessage == "Missing required field: age at: .")
+      },
+      test("decode error for illegal value") {
+        val codec  = Schema[Person].derive(XmlCodecDeriver)
+        val xml    = "<Person><name>Bob</name><age>Bob</age></Person>"
+        val result = codec.decode(xml)
+        assertTrue(result.swap.toOption.get.getMessage == "Invalid short value: Bob at: .age")
       },
       test("round-trip simple case class") {
         val codec  = Schema[Person].derive(XmlCodecDeriver)
@@ -91,10 +105,7 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val person = PersonWithAddress("Alice", Address("123 Main St", "Springfield"))
         val xml    = codec.encodeToString(person)
         assertTrue(
-          xml.contains("<name>Alice</name>") &&
-            xml.contains("<address>") &&
-            xml.contains("<street>123 Main St</street>") &&
-            xml.contains("<city>Springfield</city>")
+          xml == "<PersonWithAddress><name>Alice</name><address><street>123 Main St</street><city>Springfield</city></address></PersonWithAddress>"
         )
       },
       test("round-trip nested case class") {
@@ -102,6 +113,12 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val person = PersonWithAddress("Bob", Address("456 Oak Ave", "Shelbyville"))
         val result = codec.decode(codec.encode(person))
         assertTrue(result == Right(person))
+      },
+      test("round-trip nested recursive") {
+        val codec     = Schema[Recursive].derive(XmlCodecDeriver)
+        val recursive = Recursive("Bob", Some(Recursive("Alice", None)))
+        val result    = codec.decode(codec.encode(recursive))
+        assertTrue(result == Right(recursive))
       }
     ),
     suite("variant derivation")(
@@ -109,20 +126,13 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val codec          = Schema[Animal].derive(XmlCodecDeriver)
         val animal: Animal = Dog("Rex")
         val xml            = codec.encodeToString(animal)
-        assertTrue(
-          xml.contains("<Dog>") &&
-            xml.contains("<name>Rex</name>")
-        )
+        assertTrue(xml == "<Dog><name>Rex</name></Dog>")
       },
       test("encode sealed trait case - Cat") {
         val codec          = Schema[Animal].derive(XmlCodecDeriver)
         val animal: Animal = Cat("Whiskers", 9)
         val xml            = codec.encodeToString(animal)
-        assertTrue(
-          xml.contains("<Cat>") &&
-            xml.contains("<name>Whiskers</name>") &&
-            xml.contains("<lives>9</lives>")
-        )
+        assertTrue(xml == "<Cat><name>Whiskers</name><lives>9</lives></Cat>")
       },
       test("round-trip sealed trait - Dog") {
         val codec          = Schema[Animal].derive(XmlCodecDeriver)
@@ -135,6 +145,11 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val animal: Animal = Cat("Mittens", 7)
         val result         = codec.decode(codec.encode(animal))
         assertTrue(result == Right(animal))
+      },
+      test("decode error for invalid case") {
+        val codec  = Schema[Animal].derive(XmlCodecDeriver)
+        val result = codec.decode("<Octocat><name>Whiskers</name><lives>9</lives></Octocat>")
+        assertTrue(result.swap.toOption.get.getMessage == "Unknown variant case: Octocat at: .")
       }
     ),
     suite("sequence derivation")(
@@ -142,12 +157,7 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Schema[Team].derive(XmlCodecDeriver)
         val team  = Team(List("Alice", "Bob", "Charlie"))
         val xml   = codec.encodeToString(team)
-        assertTrue(
-          xml.contains("<members>") &&
-            xml.contains("<item>Alice</item>") &&
-            xml.contains("<item>Bob</item>") &&
-            xml.contains("<item>Charlie</item>")
-        )
+        assertTrue(xml == "<Team><members><item>Alice</item><item>Bob</item><item>Charlie</item></members></Team>")
       },
       test("round-trip list of strings") {
         val codec  = Schema[Team].derive(XmlCodecDeriver)
@@ -159,13 +169,18 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Schema[Team].derive(XmlCodecDeriver)
         val team  = Team(List.empty)
         val xml   = codec.encodeToString(team)
-        assertTrue(xml.contains("<members"))
+        assertTrue(xml == "<Team><members/></Team>")
       },
       test("round-trip empty list") {
         val codec  = Schema[Team].derive(XmlCodecDeriver)
         val team   = Team(List.empty)
         val result = codec.decode(codec.encode(team))
         assertTrue(result == Right(team))
+      },
+      test("decode error") {
+        val codec  = Schema[Team].derive(XmlCodecDeriver)
+        val result = codec.decode("<Team><members><item>Alice</item><item><unit/></item></members></Team>")
+        assertTrue(result.swap.toOption.get.getMessage == "Expected text content in <value> element at: .members.at(1)")
       }
     ),
     suite("map derivation")(
@@ -174,10 +189,7 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val config = Config(Map("timeout" -> 30, "retries" -> 3))
         val xml    = codec.encodeToString(config)
         assertTrue(
-          xml.contains("<settings>") &&
-            xml.contains("<entry>") &&
-            xml.contains("<key>") &&
-            xml.contains("<value>")
+          xml == "<Config><settings><entry><key>timeout</key><value>30.0</value></entry><entry><key>retries</key><value>3.0</value></entry></settings></Config>"
         )
       },
       test("round-trip map of string to int") {
@@ -190,13 +202,25 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val codec  = Schema[Config].derive(XmlCodecDeriver)
         val config = Config(Map.empty)
         val xml    = codec.encodeToString(config)
-        assertTrue(xml.contains("<settings"))
+        assertTrue(xml == "<Config><settings/></Config>")
       },
       test("round-trip empty map") {
         val codec  = Schema[Config].derive(XmlCodecDeriver)
         val config = Config(Map.empty)
         val result = codec.decode(codec.encode(config))
         assertTrue(result == Right(config))
+      },
+      test("decode error for key") {
+        val codec  = Schema[Config].derive(XmlCodecDeriver)
+        val result = codec.decode("<Config><settings><entry><key><x/></key><value></value></entry></settings></Config>")
+        assertTrue(
+          result.swap.toOption.get.getMessage == "Expected text content in <value> element at: .settings.at(0)"
+        )
+      },
+      test("decode error for value") {
+        val codec  = Schema[Config].derive(XmlCodecDeriver)
+        val result = codec.decode("<Config><settings><entry><key>x</key><value>y</value></entry></settings></Config>")
+        assertTrue(result.swap.toOption.get.getMessage == "Invalid float value: y at: .settings.atKey(\"x\")")
       }
     ),
     suite("optional field handling")(
@@ -204,16 +228,13 @@ object XmlCodecDeriverSpec extends SchemaBaseSpec {
         val codec = Schema[OptionalField].derive(XmlCodecDeriver)
         val value = OptionalField("Alice", Some("Ali"))
         val xml   = codec.encodeToString(value)
-        assertTrue(
-          xml.contains("<name>Alice</name>") &&
-            xml.contains("<nickname>Ali</nickname>")
-        )
+        assertTrue(xml == "<OptionalField><name>Alice</name><nickname>Ali</nickname></OptionalField>")
       },
       test("encode with None value") {
         val codec = Schema[OptionalField].derive(XmlCodecDeriver)
         val value = OptionalField("Bob", None)
         val xml   = codec.encodeToString(value)
-        assertTrue(xml.contains("<name>Bob</name>"))
+        assertTrue(xml == "<OptionalField><name>Bob</name></OptionalField>")
       },
       test("round-trip with Some value") {
         val codec  = Schema[OptionalField].derive(XmlCodecDeriver)

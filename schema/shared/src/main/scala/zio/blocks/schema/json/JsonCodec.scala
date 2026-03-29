@@ -25,7 +25,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -46,7 +45,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    * value of this type.
    *
    * @param in
-   *   an instance of `JsonReader` which provides access to the JSON input to
+   *   an instance of `JsonReader` that provides access to the JSON input to
    *   parse a JSON value to value of type `A`
    */
   def decodeValue(in: JsonReader): A
@@ -59,7 +58,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    * @param x
    *   the value provided for serialization
    * @param out
-   *   an instance of `JsonWriter` which provides access to JSON output to
+   *   an instance of `JsonWriter` that provides access to JSON output to
    *   serialize the specified value as a JSON value
    */
   def encodeValue(x: A, out: JsonWriter): Unit
@@ -80,7 +79,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    * not encode a value of this type.
    *
    * @param in
-   *   an instance of `JsonReader` which provides access to the JSON input to
+   *   an instance of `JsonReader` that provides access to the JSON input to
    *   parse a JSON key to value of type `A`
    */
   def decodeKey(in: JsonReader): A = decodeUnsafe(in.readKeyAsString())
@@ -93,7 +92,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    * @param x
    *   the value provided for serialization
    * @param out
-   *   an instance of `JsonWriter` which provides access to JSON output to
+   *   an instance of `JsonWriter` that provides access to JSON output to
    *   serialize the specified value as a JSON key
    */
   def encodeKey(x: A, out: JsonWriter): Unit = out.writeKey(encodeToString(x))
@@ -526,7 +525,7 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
               idx += 1
               list = list.tail
             }
-            new DynamicOptic(ArraySeq.unsafeWrapArray(array))
+            new DynamicOptic(Chunk.fromArray(array))
           case _ => DynamicOptic.root
         }, {
           var msg = error.getMessage

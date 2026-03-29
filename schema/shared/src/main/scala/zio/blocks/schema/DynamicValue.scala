@@ -1848,7 +1848,7 @@ object DynamicValue {
         merged(idx) = kv
         idx += 1
       } else {
-        val path_ = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(key))
+        val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
         merged(pos) = (key, merge(path_, merged(pos)._2, kv._2, s))
       }
     }
@@ -1934,8 +1934,8 @@ object DynamicValue {
         })
       case m: Map =>
         new Map(m.entries.map { case (k, v) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           (transformUp(k, keyPath, f), transformUp(v, valuePath, f))
         })
       case v: Variant => new Variant(v.caseNameValue, transformUp(v.value, path.caseOf(v.caseNameValue), f))
@@ -1961,8 +1961,8 @@ object DynamicValue {
         })
       case m: Map =>
         new Map(m.entries.map { case (k, v) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           (transformDown(k, keyPath, f), transformDown(v, valuePath, f))
         })
       case v: Variant => new Variant(v.caseNameValue, transformDown(v.value, path.caseOf(v.caseNameValue), f))
@@ -2010,7 +2010,11 @@ object DynamicValue {
       })
     case m: Map =>
       new Map(m.entries.map { kv =>
-        (f(new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), kv._1), transformMapKeys(kv._2, path, f))
+        val k = kv._1
+        (
+          f(new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), kv._1),
+          transformMapKeys(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k))), f)
+        )
       })
     case v: Variant => new Variant(v.caseNameValue, transformMapKeys(v.value, path.caseOf(v.caseNameValue), f))
     case other      => other
@@ -2045,7 +2049,7 @@ object DynamicValue {
     case m: Map =>
       val newEntries = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
       m.entries.foreach { case (k, v) =>
-        val childPath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+        val childPath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
         if (!p(childPath, v)) newEntries.addOne((prune(k, path, p), prune(v, childPath, p)))
       }
       new Map(newEntries.result())
@@ -2081,7 +2085,7 @@ object DynamicValue {
       case m: Map =>
         val newEntries = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
         m.entries.foreach { case (k, v) =>
-          val childPath = new DynamicOptic(currentPath.nodes :+ DynamicOptic.Node.AtMapKey(k))
+          val childPath = new DynamicOptic(currentPath.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           val retained  = retainRec(v, childPath)
           if (p(childPath, v) || hasContent(retained)) newEntries.addOne((k, retained))
         }
@@ -2141,9 +2145,8 @@ object DynamicValue {
         }
       case m: Map =>
         m.entries.foldLeft(z) { case (acc, (k, v)) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          foldUp(v, valuePath, foldUp(k, keyPath, acc, f), f)
+          val z = foldUp(k, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), acc, f)
+          foldUp(v, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k))), z, f)
         }
       case v: Variant => foldUp(v.value, path.caseOf(v.caseNameValue), z, f)
       case _          => z
@@ -2169,8 +2172,8 @@ object DynamicValue {
         }
       case m: Map =>
         m.entries.foldLeft(acc) { (a, kv) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(kv._1))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1)))
           foldDown(kv._2, valuePath, foldDown(kv._1, keyPath, a, f), f)
         }
       case v: Variant => foldDown(v.value, path.caseOf(v.caseNameValue), acc, f)
@@ -2224,9 +2227,10 @@ object DynamicValue {
           while (idx < len) {
             val kv  = entries(idx)
             val key = kv._1
-            foldUpOrFail(key, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), b, f) match {
+            foldUpOrFail(key, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), b, f) match {
               case Right(a1) =>
-                foldUpOrFail(kv._2, new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(key)), a1, f) match {
+                val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
+                foldUpOrFail(kv._2, path_, a1, f) match {
                   case Right(b1) => b = b1
                   case l         => return l
                 }
@@ -2289,9 +2293,10 @@ object DynamicValue {
             while (idx < len) {
               val kv  = entries(idx)
               val key = kv._1
-              foldDownOrFail(key, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), b, f) match {
+              foldDownOrFail(key, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), b, f) match {
                 case Right(a1) =>
-                  foldDownOrFail(kv._2, new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(key)), a1, f) match {
+                  val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
+                  foldDownOrFail(kv._2, path_, a1, f) match {
                     case Right(b1) => b = b1
                     case l         => return l
                   }
@@ -2316,7 +2321,7 @@ object DynamicValue {
           toKV(e, path.at(idx))
       }
     case m: Map =>
-      m.entries.flatMap(kv => toKV(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1))))
+      m.entries.flatMap(kv => toKV(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1)))))
     case v: Variant => toKV(v.value, path.caseOf(v.caseNameValue))
     case other      => Chunk.single((path, other))
   }
@@ -2499,7 +2504,7 @@ object DynamicValue {
         }
       case m: Map =>
         m.entries.foreach { kv =>
-          children.addAll(query(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1)), p))
+          children.addAll(query(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1))), p))
         }
       case v: Variant => children.addAll(query(v.value, path.caseOf(v.caseNameValue), p))
       case _          =>

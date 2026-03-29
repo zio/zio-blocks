@@ -35,11 +35,7 @@ object xmlAttributeSpec extends SchemaBaseSpec {
       val codec  = Schema[Person].derive(XmlFormat)
       val xml    = codec.encodeToString(person)
 
-      assertTrue(xml.contains("""id="123"""")) &&
-      assertTrue(xml.contains("""age="30"""")) &&
-      assertTrue(xml.contains("<name>John</name>")) &&
-      assertTrue(!xml.contains("<id>")) &&
-      assertTrue(!xml.contains("<age>"))
+      assertTrue(xml == "<Person id=\"123\" age=\"30\"><name>John</name></Person>")
     },
     test("round-trip with xml attributes") {
       case class Book(
@@ -72,10 +68,7 @@ object xmlAttributeSpec extends SchemaBaseSpec {
       val codec   = Schema[Product].derive(XmlFormat)
       val xml     = codec.encodeToString(product)
 
-      assertTrue(xml.contains("""product-id="P456"""")) &&
-      assertTrue(xml.contains("""product-code="789"""")) &&
-      assertTrue(!xml.contains(""" id="P456"""")) &&
-      assertTrue(!xml.contains(""" code="789""""))
+      assertTrue(xml == "<Product product-id=\"P456\" product-code=\"789\"><name>Widget</name></Product>")
     },
     test("round-trip with custom attribute names") {
       case class Item(
@@ -111,11 +104,9 @@ object xmlAttributeSpec extends SchemaBaseSpec {
       val result = codec.decode(xml)
 
       assertTrue(result == Right(doc)) &&
-      assertTrue(xml.contains("""version="1.0"""")) &&
-      assertTrue(xml.contains("""encoding="UTF-8"""")) &&
-      assertTrue(xml.contains("""author="Author"""")) &&
-      assertTrue(xml.contains("<title>My Doc</title>")) &&
-      assertTrue(xml.contains("<content>Content here</content>"))
+      assertTrue(
+        xml == "<Document version=\"1.0\" encoding=\"UTF-8\" author=\"Author\"><title>My Doc</title><content>Content here</content></Document>"
+      )
     },
     test("all primitive types as attributes") {
       case class AllTypes(
