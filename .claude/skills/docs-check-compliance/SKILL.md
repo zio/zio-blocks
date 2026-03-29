@@ -14,6 +14,10 @@ allowed-tools: Skill, Read, Grep, Edit, Bash
 1. **docs-file** — Path to documentation file (e.g., `docs/reference/xml.md`)
 2. **rule-skill** — Rule skill name (e.g., `docs-writing-style`, `docs-mdoc-conventions`)
 
+## CRITICAL REQUIREMENT
+
+**YOU MUST create a comprehensive checklist of all rules from the rule skill and systematically verify each rule step by step until ensuring complete compliance with zero violations.** Do not skip rules, do not assume compliance without verification, and do not move forward until each rule is fully checked and any violations are fixed.
+
 ## Workflow
 
 ### Step 1: Load Rule Skill
@@ -42,9 +46,11 @@ Note: Always use absolute paths (starting from `/home/milad/sources/scala/zio-bl
 
 ### Step 3: Check and Fix Each Rule
 
-Create a checklist of all rules defined by the rule skill. **Process each rule sequentially, ensuring zero violations before moving to the next.**
+**MUST: Create a comprehensive checklist of ALL rules defined by the rule skill.** Number each rule and list it with its full name and description. Display this checklist to the user so they see exactly what will be checked.
 
-For each rule:
+**Then, process each rule from the checklist sequentially, ensuring zero violations before moving to the next rule.** Do not skip any rule. Do not assume compliance without verification.
+
+For each rule in your checklist:
 
 1. **Identify violations** — Use adversarial verification: assume the document fully complies with THIS RULE, then prove yourself wrong by finding evidence of violations. Cite exact line numbers, quote problematic text, and explain why it violates THIS RULE. If you cannot find evidence, this rule has zero violations.
 
