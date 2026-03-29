@@ -42,7 +42,7 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         val result = propagator.extract(headers, getter)
         assertTrue(
           result.isDefined &&
-            result.get.traceId.toHex == "4bf92f3577b34da6a3ce929d0e0e4736" &&
+            result.get.traceIdHex == "4bf92f3577b34da6a3ce929d0e0e4736" &&
             result.get.spanId.toHex == "00f067aa0ba902b7" &&
             result.get.traceFlags.isSampled &&
             result.get.isRemote
@@ -147,7 +147,7 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         val result = propagator.extract(headers, getter)
         assertTrue(
           result.isDefined &&
-            result.get.traceId.toHex == "4bf92f3577b34da6a3ce929d0e0e4736" &&
+            result.get.traceIdHex == "4bf92f3577b34da6a3ce929d0e0e4736" &&
             result.get.spanId.toHex == "00f067aa0ba902b7"
         )
       },
@@ -170,19 +170,20 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
     ),
     suite("inject")(
       test("formats traceparent correctly") {
-        val traceId = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId  = SpanId.fromHex("00f067aa0ba902b7").get
-        val ctx     = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
         val headers = propagator.inject(ctx, Map.empty[String, String], setter)
         assertTrue(headers("traceparent") == "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
       },
       test("injects tracestate when non-empty") {
-        val traceId = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId  = SpanId.fromHex("00f067aa0ba902b7").get
-        val ctx     =
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val ctx            =
           SpanContext.create(
-            traceId,
+            tidHi,
+            tidLo,
             spanId,
             TraceFlags.sampled,
             "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7",
@@ -196,9 +197,9 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         )
       },
       test("does not inject tracestate when empty") {
-        val traceId = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId  = SpanId.fromHex("00f067aa0ba902b7").get
-        val ctx     = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
         val headers = propagator.inject(ctx, Map.empty[String, String], setter)
         assertTrue(
@@ -207,9 +208,9 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         )
       },
       test("formats unsampled flags as 00") {
-        val traceId = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId  = SpanId.fromHex("00f067aa0ba902b7").get
-        val ctx     = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
         val headers = propagator.inject(ctx, Map.empty[String, String], setter)
         assertTrue(headers("traceparent") == "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00")
@@ -221,17 +222,17 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
     ),
     suite("roundtrip")(
       test("inject then extract produces equivalent SpanContext") {
-        val traceId  = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId   = SpanId.fromHex("00f067aa0ba902b7").get
-        val original =
-          SpanContext.create(traceId, spanId, TraceFlags.sampled, "congo=t61rcWkgMzE", isRemote = false)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val original       =
+          SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "congo=t61rcWkgMzE", isRemote = false)
 
         val headers  = propagator.inject(original, Map.empty[String, String], setter)
         val restored = propagator.extract(headers, getter)
 
         assertTrue(
           restored.isDefined &&
-            restored.get.traceId == original.traceId &&
+            restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
             restored.get.spanId == original.spanId &&
             restored.get.traceFlags == original.traceFlags &&
             restored.get.traceState == original.traceState &&
@@ -239,27 +240,27 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         )
       },
       test("roundtrip with empty tracestate") {
-        val traceId  = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId   = SpanId.fromHex("00f067aa0ba902b7").get
-        val original = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val original       = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
         val headers  = propagator.inject(original, Map.empty[String, String], setter)
         val restored = propagator.extract(headers, getter)
 
         assertTrue(
           restored.isDefined &&
-            restored.get.traceId == original.traceId &&
+            restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
             restored.get.spanId == original.spanId &&
             restored.get.traceFlags == original.traceFlags &&
             restored.get.traceState == ""
         )
       },
       test("roundtrip with multiple tracestate entries") {
-        val traceId  = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
-        val spanId   = SpanId.fromHex("00f067aa0ba902b7").get
-        val state    = "vendor1=value1,vendor2=value2,vendor3=value3"
-        val original =
-          SpanContext.create(traceId, spanId, TraceFlags.sampled, state, isRemote = true)
+        val (tidHi, tidLo) = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val spanId         = SpanId.fromHex("00f067aa0ba902b7").get
+        val state          = "vendor1=value1,vendor2=value2,vendor3=value3"
+        val original       =
+          SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, state, isRemote = true)
 
         val headers  = propagator.inject(original, Map.empty[String, String], setter)
         val restored = propagator.extract(headers, getter)
@@ -278,7 +279,7 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         val result = propagator.extract(headers, getter)
         assertTrue(
           result.isDefined &&
-            result.get.traceId.toHex == "4bf92f3577b34da6a3ce929d0e0e4736"
+            result.get.traceIdHex == "4bf92f3577b34da6a3ce929d0e0e4736"
         )
       },
       test("extract with whitespace-trimmed tracestate") {
@@ -293,9 +294,9 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         )
       },
       test("inject preserves existing carrier entries") {
-        val traceId         = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
+        val (tidHi, tidLo)  = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736").get
         val spanId          = SpanId.fromHex("00f067aa0ba902b7").get
-        val ctx             = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+        val ctx             = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
         val existingHeaders = Map("x-custom" -> "keep-me")
 
         val headers = propagator.inject(ctx, existingHeaders, setter)

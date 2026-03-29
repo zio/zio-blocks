@@ -19,11 +19,13 @@ package zio.blocks.otel
 /**
  * Represents an OpenTelemetry SpanContext - the propagatable part of a span.
  *
- * Composes TraceId, SpanId, TraceFlags, and trace state into a context that can
- * be propagated across process boundaries.
+ * The trace ID is inlined as two Long fields (traceIdHi, traceIdLo) for zero
+ * heap allocation. SpanId and TraceFlags are AnyVal types, also zero-alloc.
  *
- * @param traceId
- *   the trace identifier
+ * @param traceIdHi
+ *   the high 64 bits of the trace identifier
+ * @param traceIdLo
+ *   the low 64 bits of the trace identifier
  * @param spanId
  *   the span identifier
  * @param traceFlags
@@ -34,7 +36,8 @@ package zio.blocks.otel
  *   whether this context originates from a remote parent
  */
 final case class SpanContext(
-  traceId: TraceId,
+  traceIdHi: Long,
+  traceIdLo: Long,
   spanId: SpanId,
   traceFlags: TraceFlags,
   traceState: String,
@@ -46,7 +49,7 @@ final case class SpanContext(
    *
    * A span context is valid if both its trace ID and span ID are valid.
    */
-  def isValid: Boolean = traceId.isValid && spanId.isValid
+  def isValid: Boolean = TraceId.isValid(traceIdHi, traceIdLo) && spanId.isValid
 
   /**
    * Checks if this span context is sampled.
@@ -54,6 +57,11 @@ final case class SpanContext(
    * Returns true if the sampled flag in traceFlags is set.
    */
   def isSampled: Boolean = traceFlags.isSampled
+
+  /**
+   * Returns the trace ID as a 32-character lowercase hex string.
+   */
+  def traceIdHex: String = TraceId.toHex(traceIdHi, traceIdLo)
 }
 
 object SpanContext {
@@ -64,7 +72,8 @@ object SpanContext {
    * All identifiers are zero, traceState is empty, and isRemote is false.
    */
   val invalid: SpanContext = SpanContext(
-    traceId = TraceId.invalid,
+    traceIdHi = 0L,
+    traceIdLo = 0L,
     spanId = SpanId.invalid,
     traceFlags = TraceFlags.none,
     traceState = "",
@@ -75,21 +84,19 @@ object SpanContext {
    * Creates a new SpanContext with the provided values.
    */
   def create(
-    traceId: TraceId,
+    traceIdHi: Long,
+    traceIdLo: Long,
     spanId: SpanId,
     traceFlags: TraceFlags,
     traceState: String,
     isRemote: Boolean
   ): SpanContext =
     SpanContext(
-      traceId = traceId,
+      traceIdHi = traceIdHi,
+      traceIdLo = traceIdLo,
       spanId = spanId,
       traceFlags = traceFlags,
       traceState = traceState,
       isRemote = isRemote
     )
-
-  /**
-   * Unscoped instance - SpanContext is a safe data type that can escape scopes.
-   */
 }

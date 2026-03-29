@@ -56,7 +56,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result  = B3Propagator.single.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == traceIdHex &&
+          result.get.traceIdHex == traceIdHex &&
           result.get.spanId.toHex == spanIdHex &&
           result.get.traceFlags.isSampled &&
           result.get.isRemote
@@ -67,7 +67,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result  = B3Propagator.single.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == traceIdHex &&
+          result.get.traceIdHex == traceIdHex &&
           result.get.spanId.toHex == spanIdHex &&
           !result.get.traceFlags.isSampled &&
           result.get.isRemote
@@ -87,7 +87,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result       = B3Propagator.single.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == "0000000000000000a3ce929d0e0e4736"
+          result.get.traceIdHex == "0000000000000000a3ce929d0e0e4736"
       )
     },
     test("parses deny/drop single value '0'") {
@@ -156,7 +156,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result  = B3Propagator.single.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == traceIdHex &&
+          result.get.traceIdHex == traceIdHex &&
           result.get.spanId.toHex == spanIdHex
       )
     },
@@ -169,17 +169,17 @@ object B3PropagatorSpec extends ZIOSpecDefault {
 
   private val singleInjectSuite = suite("inject")(
     test("formats correctly with sampled flag") {
-      val traceId = TraceId.fromHex(traceIdHex).get
-      val spanId  = SpanId.fromHex(spanIdHex).get
-      val ctx     = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
       val headers = B3Propagator.single.inject(ctx, Map.empty[String, String], setter)
       assertTrue(headers("b3") == s"$traceIdHex-$spanIdHex-1")
     },
     test("formats correctly with unsampled flag") {
-      val traceId = TraceId.fromHex(traceIdHex).get
-      val spanId  = SpanId.fromHex(spanIdHex).get
-      val ctx     = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
       val headers = B3Propagator.single.inject(ctx, Map.empty[String, String], setter)
       assertTrue(headers("b3") == s"$traceIdHex-$spanIdHex-0")
@@ -189,9 +189,9 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       assertTrue(headers.isEmpty)
     },
     test("preserves existing carrier entries") {
-      val traceId         = TraceId.fromHex(traceIdHex).get
+      val (tidHi, tidLo)  = TraceId.fromHex(traceIdHex).get
       val spanId          = SpanId.fromHex(spanIdHex).get
-      val ctx             = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val ctx             = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
       val existingHeaders = Map("x-custom" -> "keep-me")
 
       val headers = B3Propagator.single.inject(ctx, existingHeaders, setter)
@@ -204,32 +204,32 @@ object B3PropagatorSpec extends ZIOSpecDefault {
 
   private val singleRoundtripSuite = suite("roundtrip")(
     test("inject then extract produces equivalent SpanContext") {
-      val traceId  = TraceId.fromHex(traceIdHex).get
-      val spanId   = SpanId.fromHex(spanIdHex).get
-      val original = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val original       = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
       val headers  = B3Propagator.single.inject(original, Map.empty[String, String], setter)
       val restored = B3Propagator.single.extract(headers, getter)
 
       assertTrue(
         restored.isDefined &&
-          restored.get.traceId == original.traceId &&
+          restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
           restored.get.spanId == original.spanId &&
           restored.get.traceFlags == original.traceFlags &&
           restored.get.isRemote
       )
     },
     test("roundtrip with unsampled") {
-      val traceId  = TraceId.fromHex(traceIdHex).get
-      val spanId   = SpanId.fromHex(spanIdHex).get
-      val original = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val original       = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
       val headers  = B3Propagator.single.inject(original, Map.empty[String, String], setter)
       val restored = B3Propagator.single.extract(headers, getter)
 
       assertTrue(
         restored.isDefined &&
-          restored.get.traceId == original.traceId &&
+          restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
           restored.get.spanId == original.spanId &&
           !restored.get.traceFlags.isSampled
       )
@@ -261,7 +261,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result = B3Propagator.multi.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == traceIdHex &&
+          result.get.traceIdHex == traceIdHex &&
           result.get.spanId.toHex == spanIdHex &&
           result.get.traceFlags.isSampled &&
           result.get.isRemote
@@ -371,7 +371,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result = B3Propagator.multi.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == "0000000000000000a3ce929d0e0e4736"
+          result.get.traceIdHex == "0000000000000000a3ce929d0e0e4736"
       )
     },
     test("handles uppercase hex") {
@@ -383,7 +383,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val result = B3Propagator.multi.extract(headers, getter)
       assertTrue(
         result.isDefined &&
-          result.get.traceId.toHex == traceIdHex &&
+          result.get.traceIdHex == traceIdHex &&
           result.get.spanId.toHex == spanIdHex
       )
     },
@@ -400,9 +400,9 @@ object B3PropagatorSpec extends ZIOSpecDefault {
 
   private val multiInjectSuite = suite("inject")(
     test("sets correct headers with sampled") {
-      val traceId = TraceId.fromHex(traceIdHex).get
-      val spanId  = SpanId.fromHex(spanIdHex).get
-      val ctx     = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
       val headers = B3Propagator.multi.inject(ctx, Map.empty[String, String], setter)
       assertTrue(
@@ -412,9 +412,9 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       )
     },
     test("sets correct headers with unsampled") {
-      val traceId = TraceId.fromHex(traceIdHex).get
-      val spanId  = SpanId.fromHex(spanIdHex).get
-      val ctx     = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val ctx            = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
       val headers = B3Propagator.multi.inject(ctx, Map.empty[String, String], setter)
       assertTrue(
@@ -428,9 +428,9 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       assertTrue(headers.isEmpty)
     },
     test("preserves existing carrier entries") {
-      val traceId         = TraceId.fromHex(traceIdHex).get
+      val (tidHi, tidLo)  = TraceId.fromHex(traceIdHex).get
       val spanId          = SpanId.fromHex(spanIdHex).get
-      val ctx             = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val ctx             = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
       val existingHeaders = Map("x-custom" -> "keep-me")
 
       val headers = B3Propagator.multi.inject(ctx, existingHeaders, setter)
@@ -443,32 +443,32 @@ object B3PropagatorSpec extends ZIOSpecDefault {
 
   private val multiRoundtripSuite = suite("roundtrip")(
     test("inject then extract produces equivalent SpanContext") {
-      val traceId  = TraceId.fromHex(traceIdHex).get
-      val spanId   = SpanId.fromHex(spanIdHex).get
-      val original = SpanContext.create(traceId, spanId, TraceFlags.sampled, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val original       = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.sampled, "", isRemote = false)
 
       val headers  = B3Propagator.multi.inject(original, Map.empty[String, String], setter)
       val restored = B3Propagator.multi.extract(headers, getter)
 
       assertTrue(
         restored.isDefined &&
-          restored.get.traceId == original.traceId &&
+          restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
           restored.get.spanId == original.spanId &&
           restored.get.traceFlags == original.traceFlags &&
           restored.get.isRemote
       )
     },
     test("roundtrip with unsampled") {
-      val traceId  = TraceId.fromHex(traceIdHex).get
-      val spanId   = SpanId.fromHex(spanIdHex).get
-      val original = SpanContext.create(traceId, spanId, TraceFlags.none, "", isRemote = false)
+      val (tidHi, tidLo) = TraceId.fromHex(traceIdHex).get
+      val spanId         = SpanId.fromHex(spanIdHex).get
+      val original       = SpanContext.create(tidHi, tidLo, spanId, TraceFlags.none, "", isRemote = false)
 
       val headers  = B3Propagator.multi.inject(original, Map.empty[String, String], setter)
       val restored = B3Propagator.multi.extract(headers, getter)
 
       assertTrue(
         restored.isDefined &&
-          restored.get.traceId == original.traceId &&
+          restored.get.traceIdHi == original.traceIdHi && restored.get.traceIdLo == original.traceIdLo &&
           restored.get.spanId == original.spanId &&
           !restored.get.traceFlags.isSampled
       )

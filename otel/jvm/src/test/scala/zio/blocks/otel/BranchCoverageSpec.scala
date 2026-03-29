@@ -167,7 +167,8 @@ object BranchCoverageSpec extends ZIOSpecDefault {
   private def mkSampler(decision: SamplingDecision, attrs: Attributes, ts: String = ""): Sampler = new Sampler {
     def shouldSample(
       pc: Option[SpanContext],
-      tid: TraceId,
+      tidHi: Long,
+      tidLo: Long,
       n: String,
       k: SpanKind,
       a: Attributes,

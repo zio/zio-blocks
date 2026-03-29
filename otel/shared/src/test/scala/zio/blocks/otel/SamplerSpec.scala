@@ -20,11 +20,13 @@ import zio.test._
 
 object SamplerSpec extends ZIOSpecDefault {
 
-  private val validTraceId = TraceId(hi = 1L, lo = 2L)
-  private val validSpanId  = SpanId(value = 42L)
+  private val validTraceIdHi = 1L
+  private val validTraceIdLo = 2L
+  private val validSpanId    = SpanId(42L)
 
   private val sampledParent = SpanContext(
-    traceId = validTraceId,
+    traceIdHi = validTraceIdHi,
+    traceIdLo = validTraceIdLo,
     spanId = validSpanId,
     traceFlags = TraceFlags.sampled,
     traceState = "",
@@ -32,7 +34,8 @@ object SamplerSpec extends ZIOSpecDefault {
   )
 
   private val unsampledParent = SpanContext(
-    traceId = validTraceId,
+    traceIdHi = validTraceIdHi,
+    traceIdLo = validTraceIdLo,
     spanId = validSpanId,
     traceFlags = TraceFlags.none,
     traceState = "",
@@ -44,7 +47,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("always returns RecordAndSample") {
         val result = AlwaysOnSampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,
@@ -55,7 +59,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("returns RecordAndSample regardless of parent context") {
         val result = AlwaysOnSampler.shouldSample(
           parentContext = Some(unsampledParent),
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Server,
           attributes = Attributes.empty,
@@ -66,7 +71,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("returns empty attributes and trace state") {
         val result = AlwaysOnSampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,
@@ -82,7 +88,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("always returns Drop") {
         val result = AlwaysOffSampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,
@@ -93,7 +100,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("returns Drop regardless of parent context") {
         val result = AlwaysOffSampler.shouldSample(
           parentContext = Some(sampledParent),
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Client,
           attributes = Attributes.empty,
@@ -104,7 +112,8 @@ object SamplerSpec extends ZIOSpecDefault {
       test("returns empty attributes and trace state") {
         val result = AlwaysOffSampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "test-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,
@@ -121,7 +130,8 @@ object SamplerSpec extends ZIOSpecDefault {
         val sampler = ParentBasedSampler(root = AlwaysOnSampler)
         val result  = sampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "root-span",
           kind = SpanKind.Server,
           attributes = Attributes.empty,
@@ -133,7 +143,8 @@ object SamplerSpec extends ZIOSpecDefault {
         val sampler = ParentBasedSampler(root = AlwaysOffSampler)
         val result  = sampler.shouldSample(
           parentContext = None,
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "root-span",
           kind = SpanKind.Server,
           attributes = Attributes.empty,
@@ -145,7 +156,8 @@ object SamplerSpec extends ZIOSpecDefault {
         val sampler = ParentBasedSampler(root = AlwaysOffSampler)
         val result  = sampler.shouldSample(
           parentContext = Some(sampledParent),
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "child-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,
@@ -157,7 +169,8 @@ object SamplerSpec extends ZIOSpecDefault {
         val sampler = ParentBasedSampler(root = AlwaysOnSampler)
         val result  = sampler.shouldSample(
           parentContext = Some(unsampledParent),
-          traceId = validTraceId,
+          traceIdHi = validTraceIdHi,
+          traceIdLo = validTraceIdLo,
           name = "child-span",
           kind = SpanKind.Internal,
           attributes = Attributes.empty,

@@ -185,9 +185,10 @@ object LogRecordSpec extends ZIOSpecDefault {
             severityText = "INFO",
             body = "Test log",
             attributes = Attributes.empty,
-            traceId = None,
-            spanId = None,
-            traceFlags = None,
+            traceIdHi = 0L,
+            traceIdLo = 0L,
+            spanId = 0L,
+            traceFlags = 0,
             resource = Resource.empty,
             instrumentationScope = InstrumentationScope(name = "unknown")
           )
@@ -202,9 +203,9 @@ object LogRecordSpec extends ZIOSpecDefault {
               record.severityText == "INFO" &&
               record.body == "" &&
               record.attributes == Attributes.empty &&
-              record.traceId.isEmpty &&
-              record.spanId.isEmpty &&
-              record.traceFlags.isEmpty
+              !record.hasTraceId &&
+              !record.hasSpanId &&
+              record.traceFlags == 0
           )
         },
         test("builder setTimestamp") {
@@ -238,19 +239,18 @@ object LogRecordSpec extends ZIOSpecDefault {
           )
         },
         test("builder setTraceId") {
-          val traceId = TraceId.random
-          val record  = LogRecord.builder.setTraceId(traceId).build
-          assertTrue(record.traceId == Some(traceId))
+          val (hi, lo) = TraceId.random()
+          val record   = LogRecord.builder.setTraceId(hi, lo).build
+          assertTrue(record.traceIdHi == hi && record.traceIdLo == lo && record.hasTraceId)
         },
         test("builder setSpanId") {
-          val spanId = SpanId.random
-          val record = LogRecord.builder.setSpanId(spanId).build
-          assertTrue(record.spanId == Some(spanId))
+          val sid    = SpanId.random
+          val record = LogRecord.builder.setSpanId(sid.value).build
+          assertTrue(record.spanId == sid.value && record.hasSpanId)
         },
         test("builder setTraceFlags") {
-          val flags  = TraceFlags.sampled
-          val record = LogRecord.builder.setTraceFlags(flags).build
-          assertTrue(record.traceFlags == Some(flags))
+          val record = LogRecord.builder.setTraceFlags(TraceFlags.sampled.byte).build
+          assertTrue(record.traceFlags == TraceFlags.sampled.byte)
         },
         test("builder setResource") {
           val resource = Resource.empty
@@ -263,21 +263,22 @@ object LogRecordSpec extends ZIOSpecDefault {
           assertTrue(record.instrumentationScope == scope)
         },
         test("builder chains multiple calls") {
-          val traceId = TraceId.random
-          val spanId  = SpanId.random
-          val record  = LogRecord.builder
+          val (hi, lo) = TraceId.random()
+          val sid      = SpanId.random
+          val record   = LogRecord.builder
             .setTimestamp(1000L)
             .setSeverity(Severity.Warn)
             .setBody("Warning message")
-            .setTraceId(traceId)
-            .setSpanId(spanId)
+            .setTraceId(hi, lo)
+            .setSpanId(sid.value)
             .build
           assertTrue(
             record.timestampNanos == 1000L &&
               record.severity == Severity.Warn &&
               record.body == "Warning message" &&
-              record.traceId == Some(traceId) &&
-              record.spanId == Some(spanId)
+              record.traceIdHi == hi &&
+              record.traceIdLo == lo &&
+              record.spanId == sid.value
           )
         }
       ),
@@ -290,9 +291,10 @@ object LogRecordSpec extends ZIOSpecDefault {
             severityText = "INFO",
             body = "Test",
             attributes = Attributes.empty,
-            traceId = None,
-            spanId = None,
-            traceFlags = None,
+            traceIdHi = 0L,
+            traceIdLo = 0L,
+            spanId = 0L,
+            traceFlags = 0,
             resource = Resource.empty,
             instrumentationScope = InstrumentationScope(name = "unknown")
           )
@@ -302,26 +304,28 @@ object LogRecordSpec extends ZIOSpecDefault {
       ),
       suite("trace correlation")(
         test("LogRecord preserves trace context") {
-          val traceId = TraceId.random
-          val spanId  = SpanId.random
-          val flags   = TraceFlags.sampled
-          val record  = LogRecord(
+          val (hi, lo) = TraceId.random()
+          val sid      = SpanId.random
+          val flags    = TraceFlags.sampled
+          val record   = LogRecord(
             timestampNanos = 1000L,
             observedTimestampNanos = 2000L,
             severity = Severity.Error,
             severityText = "ERROR",
             body = "Error occurred",
             attributes = Attributes.empty,
-            traceId = Some(traceId),
-            spanId = Some(spanId),
-            traceFlags = Some(flags),
+            traceIdHi = hi,
+            traceIdLo = lo,
+            spanId = sid.value,
+            traceFlags = flags.byte,
             resource = Resource.empty,
             instrumentationScope = InstrumentationScope(name = "unknown")
           )
           assertTrue(
-            record.traceId == Some(traceId) &&
-              record.spanId == Some(spanId) &&
-              record.traceFlags == Some(flags)
+            record.traceIdHi == hi &&
+              record.traceIdLo == lo &&
+              record.spanId == sid.value &&
+              record.traceFlags == flags.byte
           )
         }
       )

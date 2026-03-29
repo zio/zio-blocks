@@ -20,10 +20,13 @@ package zio.blocks.otel
  * Represents OpenTelemetry trace flags - a single byte where bit 0 represents
  * the sampled flag.
  *
+ * Implemented as an AnyVal for zero heap allocation when used as a field in a
+ * case class.
+ *
  * @param byte
  *   the underlying byte value
  */
-final case class TraceFlags(byte: Byte) {
+final class TraceFlags(val byte: Byte) extends AnyVal {
 
   /**
    * Checks if the sampled flag (bit 0) is set.
@@ -37,7 +40,7 @@ final case class TraceFlags(byte: Byte) {
     val newByte =
       if (sampled) (byte | 0x01).toByte
       else (byte & 0xfe).toByte
-    TraceFlags(byte = newByte)
+    new TraceFlags(newByte)
   }
 
   /**
@@ -49,19 +52,23 @@ final case class TraceFlags(byte: Byte) {
    * Returns the underlying byte value.
    */
   def toByte: Byte = byte
+
+  override def toString: String = s"TraceFlags(${toHex})"
 }
 
 object TraceFlags {
 
+  def apply(byte: Byte): TraceFlags = new TraceFlags(byte)
+
   /**
    * TraceFlags with no flags set (0x00).
    */
-  val none: TraceFlags = TraceFlags(byte = 0x00.toByte)
+  val none: TraceFlags = new TraceFlags(0x00.toByte)
 
   /**
    * TraceFlags with the sampled flag set (0x01).
    */
-  val sampled: TraceFlags = TraceFlags(byte = 0x01.toByte)
+  val sampled: TraceFlags = new TraceFlags(0x01.toByte)
 
   /**
    * Parses a 2-character hexadecimal string into TraceFlags.
@@ -74,13 +81,9 @@ object TraceFlags {
     else {
       try {
         val value = java.lang.Integer.parseInt(s, 16) & 0xff
-        Some(TraceFlags(byte = value.toByte))
+        Some(new TraceFlags(value.toByte))
       } catch {
         case _: NumberFormatException => None
       }
     }
-
-  /**
-   * Unscoped instance - TraceFlags is a safe data type that can escape scopes.
-   */
 }

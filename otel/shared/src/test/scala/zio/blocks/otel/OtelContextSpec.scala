@@ -29,7 +29,9 @@ object OtelContextSpec extends ZIOSpecDefault {
         assertTrue(otelCtx.spanContext.isEmpty)
       },
       test("current snapshots the active SpanContext") {
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val sc = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val storage = ContextStorage.create[Option[SpanContext]](None)
         storage.set(Some(sc))
         val otelCtx = OtelContext.current(storage)
@@ -43,21 +45,27 @@ object OtelContextSpec extends ZIOSpecDefault {
         assertTrue(otelCtx.spanContext.isEmpty)
       },
       test("returns Some when constructed with active span") {
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val sc = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val otelCtx = OtelContext(Some(sc))
         assertTrue(otelCtx.spanContext.contains(sc) && otelCtx.spanContext.get.isValid)
       }
     ),
     suite("Context[R] integration")(
       test("store and retrieve OtelContext via Context.apply") {
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val sc = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val otelCtx = OtelContext(Some(sc))
         val ctx     = Context(otelCtx)
         val got     = ctx.get[OtelContext]
         assertTrue(got.spanContext.contains(sc))
       },
       test("store and retrieve via Context.empty.add") {
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val sc = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val otelCtx = OtelContext(Some(sc))
         val ctx     = Context.empty.add(otelCtx)
         val got     = ctx.get[OtelContext]
@@ -73,7 +81,9 @@ object OtelContextSpec extends ZIOSpecDefault {
         assertTrue(ctx.getOption[OtelContext].isEmpty)
       },
       test("OtelContext coexists with other types in Context") {
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val sc = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val otelCtx = OtelContext(Some(sc))
         val ctx     = Context.empty.add(otelCtx).add("hello")
         assertTrue(
@@ -85,8 +95,10 @@ object OtelContextSpec extends ZIOSpecDefault {
     suite("withSpan")(
       test("makes span's context current during execution") {
         val storage = ContextStorage.create[Option[SpanContext]](None)
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span    = makeSpan(sc)
+        val sc      = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = makeSpan(sc)
 
         val captured = OtelContext.withSpan(span, storage) {
           storage.get()
@@ -96,8 +108,10 @@ object OtelContextSpec extends ZIOSpecDefault {
       },
       test("restores previous context after execution") {
         val storage = ContextStorage.create[Option[SpanContext]](None)
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span    = makeSpan(sc)
+        val sc      = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = makeSpan(sc)
 
         OtelContext.withSpan(span, storage) {
           ()
@@ -107,8 +121,10 @@ object OtelContextSpec extends ZIOSpecDefault {
       },
       test("restores context after exception") {
         val storage = ContextStorage.create[Option[SpanContext]](None)
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span    = makeSpan(sc)
+        val sc      = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = makeSpan(sc)
 
         try {
           OtelContext.withSpan(span, storage) {
@@ -122,8 +138,10 @@ object OtelContextSpec extends ZIOSpecDefault {
       },
       test("returns the block's result") {
         val storage = ContextStorage.create[Option[SpanContext]](None)
-        val sc      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span    = makeSpan(sc)
+        val sc      = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = makeSpan(sc)
 
         val result = OtelContext.withSpan(span, storage) {
           42

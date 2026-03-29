@@ -31,13 +31,15 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
     version = Some("1.0.0")
   )
 
-  private val testTraceId = TraceId(hi = 0x0123456789abcdefL, lo = 0xfedcba9876543210L)
-  private val testSpanId  = SpanId(value = 0x0123456789abcdefL)
+  private val testTraceIdHi = 0x0123456789abcdefL
+  private val testTraceIdLo = 0xfedcba9876543210L
+  private val testSpanId    = SpanId(0x0123456789abcdefL)
 
-  private val parentSpanId = SpanId(value = 0xfedcba9876543210L)
+  private val parentSpanId = SpanId(0xfedcba9876543210L)
 
   private val testSpanContext = SpanContext(
-    traceId = testTraceId,
+    traceIdHi = testTraceIdHi,
+    traceIdLo = testTraceIdLo,
     spanId = testSpanId,
     traceFlags = TraceFlags.sampled,
     traceState = "",
@@ -45,7 +47,8 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
   )
 
   private val parentSpanContext = SpanContext(
-    traceId = testTraceId,
+    traceIdHi = testTraceIdHi,
+    traceIdLo = testTraceIdLo,
     spanId = parentSpanId,
     traceFlags = TraceFlags.sampled,
     traceState = "",
@@ -174,8 +177,9 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
       },
       test("encodes span with links") {
         val linkedContext = SpanContext(
-          traceId = TraceId(hi = 0xaabbccddeeff0011L, lo = 0x2233445566778899L),
-          spanId = SpanId(value = 0xaabbccddeeff0011L),
+          traceIdHi = 0xaabbccddeeff0011L,
+          traceIdLo = 0x2233445566778899L,
+          spanId = SpanId(0xaabbccddeeff0011L),
           traceFlags = TraceFlags.sampled,
           traceState = "",
           isRemote = true
@@ -355,9 +359,10 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           severityText = "INFO",
           body = "User logged in",
           attributes = Attributes.empty,
-          traceId = Some(testTraceId),
-          spanId = Some(testSpanId),
-          traceFlags = Some(TraceFlags.sampled),
+          traceIdHi = testTraceIdHi,
+          traceIdLo = testTraceIdLo,
+          spanId = testSpanId.value,
+          traceFlags = TraceFlags.sampled.byte,
           resource = testResource,
           instrumentationScope = testScope
         )
@@ -384,9 +389,10 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           severityText = "ERROR",
           body = "disk full",
           attributes = Attributes.empty,
-          traceId = None,
-          spanId = None,
-          traceFlags = None,
+          traceIdHi = 0L,
+          traceIdLo = 0L,
+          spanId = 0L,
+          traceFlags = 0,
           resource = testResource,
           instrumentationScope = testScope
         )
@@ -413,9 +419,10 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           severityText = "WARN",
           body = "slow request",
           attributes = attrs,
-          traceId = None,
-          spanId = None,
-          traceFlags = None,
+          traceIdHi = 0L,
+          traceIdLo = 0L,
+          spanId = 0L,
+          traceFlags = 0,
           resource = testResource,
           instrumentationScope = testScope
         )

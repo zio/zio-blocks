@@ -18,6 +18,7 @@ package zio.blocks.otel
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.{AtomicReference, LongAdder}
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * A monotonic sum instrument that only allows non-negative additions.
@@ -182,8 +183,9 @@ final class BoundUpDownCounter private[otel] (private val adder: LongAdder) {
 /**
  * A histogram instrument that records value distributions.
  *
- * Thread-safe: uses synchronized blocks per attribute set for consistent
- * bucket, count, and statistics updates.
+ * Thread-safe: uses ReentrantLock per attribute set for consistent bucket,
+ * count, and statistics updates. ReentrantLock avoids virtual thread pinning
+ * unlike synchronized blocks.
  *
  * @param name
  *   instrument name
@@ -232,15 +234,19 @@ final class Histogram(
     new BoundHistogram(state, this)
   }
 
-  private[otel] def recordInternal(value: Double, state: Histogram.State): Unit =
-    state.synchronized {
+  private[otel] def recordInternal(value: Double, state: Histogram.State): Unit = {
+    state.lock.lock()
+    try {
       state.count += 1
       state.sum += value
       if (value < state.min) state.min = value
       if (value > state.max) state.max = value
       val idx = findBucketIndex(value)
       state.bucketCounts(idx) += 1
+    } finally {
+      state.lock.unlock()
     }
+  }
 
   /**
    * Collects a snapshot of current histogram data.
@@ -249,7 +255,8 @@ final class Histogram(
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[HistogramDataPoint]()
     states.forEach { (attrs, state) =>
-      state.synchronized {
+      state.lock.lock()
+      try {
         points.add(
           HistogramDataPoint(
             attrs,
@@ -263,6 +270,8 @@ final class Histogram(
             boundaries.clone()
           )
         )
+      } finally {
+        state.lock.unlock()
       }
     }
     MetricData.HistogramData(SyncInstrumentsHelper.listFromJava(points))
@@ -288,6 +297,7 @@ object Histogram {
     var min: Double               = Double.MaxValue
     var max: Double               = Double.MinValue
     val bucketCounts: Array[Long] = new Array[Long](bucketCount)
+    val lock: ReentrantLock       = new ReentrantLock()
   }
 
   def apply(name: String, description: String, unit: String): Histogram =

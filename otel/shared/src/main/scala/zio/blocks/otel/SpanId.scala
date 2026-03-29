@@ -21,10 +21,13 @@ import scala.util.Random
 /**
  * Represents an OpenTelemetry SpanId - a 64-bit identifier for a span.
  *
+ * Implemented as an AnyVal for zero heap allocation when used as a field in a
+ * case class.
+ *
  * @param value
  *   the span ID as a 64-bit long
  */
-final case class SpanId(value: Long) {
+final class SpanId(val value: Long) extends AnyVal {
 
   /**
    * Checks if this span ID is valid (not zero).
@@ -51,14 +54,18 @@ final case class SpanId(value: Long) {
     bytes(7) = (value & 0xff).toByte
     bytes
   }
+
+  override def toString: String = s"SpanId(${toHex})"
 }
 
 object SpanId {
 
+  def apply(value: Long): SpanId = new SpanId(value)
+
   /**
    * The invalid/zero span ID (represents "no span").
    */
-  val invalid: SpanId = SpanId(value = 0L)
+  val invalid: SpanId = new SpanId(0L)
 
   /**
    * Generates a random valid span ID.
@@ -70,7 +77,7 @@ object SpanId {
     while (value == 0L) {
       value = Random.nextLong()
     }
-    SpanId(value = value)
+    new SpanId(value)
   }
 
   /**
@@ -84,13 +91,9 @@ object SpanId {
     else {
       try {
         val value = java.lang.Long.parseUnsignedLong(s, 16)
-        Some(SpanId(value = value))
+        Some(new SpanId(value))
       } catch {
         case _: NumberFormatException => None
       }
     }
-
-  /**
-   * Unscoped instance - SpanId is a safe data type that can escape scopes.
-   */
 }

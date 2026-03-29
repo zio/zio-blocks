@@ -45,7 +45,7 @@ object B3Propagator {
    * Normalizes a trace ID hex string. Accepts 16 or 32 hex characters. 16-char
    * IDs are left-padded with zeros to 32 characters.
    */
-  private[otel] def normalizeTraceId(hex: String): Option[TraceId] = {
+  private[otel] def normalizeTraceId(hex: String): Option[(Long, Long)] = {
     val lower  = hex.toLowerCase
     val padded =
       if (lower.length == 16) "0000000000000000" + lower
@@ -61,15 +61,15 @@ object B3Propagator {
 
     override def extract[C](carrier: C, getter: (C, String) => Option[String]): Option[SpanContext] =
       for {
-        raw     <- getter(carrier, B3Header)
-        value    = raw.trim
-        _       <- if (value.isEmpty || value == "0") None else Some(())
-        parts    = value.split('-')
-        _       <- if (parts.length >= 2) Some(()) else None
-        traceId <- normalizeTraceId(parts(0))
-        _       <- if (traceId.isValid) Some(()) else None
-        spanId  <- SpanId.fromHex(parts(1).toLowerCase)
-        _       <- if (spanId.isValid) Some(()) else None
+        raw            <- getter(carrier, B3Header)
+        value           = raw.trim
+        _              <- if (value.isEmpty || value == "0") None else Some(())
+        parts           = value.split('-')
+        _              <- if (parts.length >= 2) Some(()) else None
+        (tidHi, tidLo) <- normalizeTraceId(parts(0))
+        _              <- if (TraceId.isValid(tidHi, tidLo)) Some(()) else None
+        spanId         <- SpanId.fromHex(parts(1).toLowerCase)
+        _              <- if (spanId.isValid) Some(()) else None
       } yield {
         val flags = if (parts.length >= 3) {
           parts(2) match {
@@ -78,14 +78,14 @@ object B3Propagator {
             case _         => TraceFlags.none
           }
         } else TraceFlags.none
-        SpanContext.create(traceId, spanId, flags, traceState = "", isRemote = true)
+        SpanContext.create(tidHi, tidLo, spanId, flags, traceState = "", isRemote = true)
       }
 
     override def inject[C](spanContext: SpanContext, carrier: C, setter: (C, String, String) => C): C =
       if (!spanContext.isValid) carrier
       else {
         val sampling = if (spanContext.traceFlags.isSampled) "1" else "0"
-        val value    = s"${spanContext.traceId.toHex}-${spanContext.spanId.toHex}-$sampling"
+        val value    = s"${spanContext.traceIdHex}-${spanContext.spanId.toHex}-$sampling"
         setter(carrier, B3Header, value)
       }
   }
@@ -101,24 +101,24 @@ object B3Propagator {
 
     override def extract[C](carrier: C, getter: (C, String) => Option[String]): Option[SpanContext] =
       for {
-        traceIdRaw <- getter(carrier, TraceIdHeader)
-        traceId    <- normalizeTraceId(traceIdRaw.trim)
-        _          <- if (traceId.isValid) Some(()) else None
-        spanIdRaw  <- getter(carrier, SpanIdHeader)
-        spanId     <- SpanId.fromHex(spanIdRaw.trim.toLowerCase)
-        _          <- if (spanId.isValid) Some(()) else None
+        traceIdRaw     <- getter(carrier, TraceIdHeader)
+        (tidHi, tidLo) <- normalizeTraceId(traceIdRaw.trim)
+        _              <- if (TraceId.isValid(tidHi, tidLo)) Some(()) else None
+        spanIdRaw      <- getter(carrier, SpanIdHeader)
+        spanId         <- SpanId.fromHex(spanIdRaw.trim.toLowerCase)
+        _              <- if (spanId.isValid) Some(()) else None
       } yield {
         val debug   = getter(carrier, FlagsHeader).exists(_.trim == "1")
         val sampled = debug || getter(carrier, SampledHeader).exists(_.trim == "1")
         val flags   = if (sampled) TraceFlags.sampled else TraceFlags.none
-        SpanContext.create(traceId, spanId, flags, traceState = "", isRemote = true)
+        SpanContext.create(tidHi, tidLo, spanId, flags, traceState = "", isRemote = true)
       }
 
     override def inject[C](spanContext: SpanContext, carrier: C, setter: (C, String, String) => C): C =
       if (!spanContext.isValid) carrier
       else {
         val sampling = if (spanContext.traceFlags.isSampled) "1" else "0"
-        val c1       = setter(carrier, TraceIdHeader, spanContext.traceId.toHex)
+        val c1       = setter(carrier, TraceIdHeader, spanContext.traceIdHex)
         val c2       = setter(c1, SpanIdHeader, spanContext.spanId.toHex)
         setter(c2, SampledHeader, sampling)
       }
