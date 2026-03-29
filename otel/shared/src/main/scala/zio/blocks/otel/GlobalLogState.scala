@@ -41,12 +41,24 @@ final class LogState(
 
 object GlobalLogState {
 
-  /**
-   */
-
   private val ref: AtomicReference[LogState] = new AtomicReference[LogState](null)
 
-  def get(): LogState = ref.get()
+  private lazy val defaultState: LogState = {
+    val processor = new StdoutLogRecordProcessor
+    val cs        = ContextStorage.create[Option[SpanContext]](None)
+    val logger    = new Logger(
+      InstrumentationScope(name = "default"),
+      Resource.empty,
+      Seq(processor),
+      cs
+    )
+    new LogState(logger, Severity.Trace.number, Map.empty)
+  }
+
+  def get(): LogState = {
+    val state = ref.get()
+    if (state != null) state else defaultState
+  }
 
   def set(state: LogState): Unit = ref.set(state)
 
