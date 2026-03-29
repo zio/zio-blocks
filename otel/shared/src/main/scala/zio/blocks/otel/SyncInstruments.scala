@@ -50,6 +50,27 @@ final class Counter(
     }
 
   /**
+   * Adds a non-negative value with inline key-value attributes.
+   *
+   * Usage: `counter.add(1L, "method" -> "GET", "status" -> 200L)`
+   */
+  def add(value: Long, attrs: (String, Any)*): Unit =
+    if (value >= 0 && attrs.nonEmpty) {
+      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
+      adder.add(value)
+    }
+
+  /**
+   * Returns a pre-bound handle for zero-lookup repeated use with the given
+   * attributes.
+   */
+  def bind(attributes: Attributes): BoundCounter = {
+    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+    new BoundCounter(adder)
+  }
+
+  /**
    * Collects a snapshot of current counter data as SumData.
    */
   def collect(): MetricData = {
@@ -65,6 +86,17 @@ final class Counter(
 object Counter {
   def apply(name: String, description: String, unit: String): Counter =
     new Counter(name, description, unit)
+}
+
+/**
+ * A pre-bound counter handle for zero-lookup repeated use.
+ */
+final class BoundCounter private[otel] (private val adder: LongAdder) {
+
+  /**
+   * Adds a non-negative value without attribute lookup.
+   */
+  def add(value: Long): Unit = if (value >= 0) adder.add(value)
 }
 
 /**
@@ -98,6 +130,27 @@ final class UpDownCounter(
   }
 
   /**
+   * Adds a value with inline key-value attributes.
+   *
+   * Usage: `upDownCounter.add(-3L, "queue" -> "main")`
+   */
+  def add(value: Long, attrs: (String, Any)*): Unit =
+    if (attrs.nonEmpty) {
+      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
+      adder.add(value)
+    }
+
+  /**
+   * Returns a pre-bound handle for zero-lookup repeated use with the given
+   * attributes.
+   */
+  def bind(attributes: Attributes): BoundUpDownCounter = {
+    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+    new BoundUpDownCounter(adder)
+  }
+
+  /**
    * Collects a snapshot of current counter data as SumData.
    */
   def collect(): MetricData = {
@@ -113,6 +166,17 @@ final class UpDownCounter(
 object UpDownCounter {
   def apply(name: String, description: String, unit: String): UpDownCounter =
     new UpDownCounter(name, description, unit)
+}
+
+/**
+ * A pre-bound up-down counter handle for zero-lookup repeated use.
+ */
+final class BoundUpDownCounter private[otel] (private val adder: LongAdder) {
+
+  /**
+   * Adds a value (positive or negative) without attribute lookup.
+   */
+  def add(value: Long): Unit = adder.add(value)
 }
 
 /**
@@ -144,6 +208,31 @@ final class Histogram(
   def record(value: Double, attributes: Attributes): Unit = {
 
     val state = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+    recordInternal(value, state)
+  }
+
+  /**
+   * Records a value with inline key-value attributes.
+   *
+   * Usage: `histogram.record(3.14, "method" -> "GET")`
+   */
+  def record(value: Double, attrs: (String, Any)*): Unit =
+    if (attrs.nonEmpty) {
+      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val state      = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+      recordInternal(value, state)
+    }
+
+  /**
+   * Returns a pre-bound handle for zero-lookup repeated use with the given
+   * attributes.
+   */
+  def bind(attributes: Attributes): BoundHistogram = {
+    val state = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+    new BoundHistogram(state, this)
+  }
+
+  private[otel] def recordInternal(value: Double, state: Histogram.State): Unit =
     state.synchronized {
       state.count += 1
       state.sum += value
@@ -152,7 +241,6 @@ final class Histogram(
       val idx = findBucketIndex(value)
       state.bucketCounts(idx) += 1
     }
-  }
 
   /**
    * Collects a snapshot of current histogram data.
@@ -210,6 +298,20 @@ object Histogram {
 }
 
 /**
+ * A pre-bound histogram handle for zero-lookup repeated use.
+ */
+final class BoundHistogram private[otel] (
+  private val state: Histogram.State,
+  private val histogram: Histogram
+) {
+
+  /**
+   * Records a value without attribute lookup.
+   */
+  def record(value: Double): Unit = histogram.recordInternal(value, state)
+}
+
+/**
  * A gauge instrument that records the latest observed value.
  *
  * Thread-safe: uses AtomicReference per attribute set for lock-free updates.
@@ -240,6 +342,27 @@ final class Gauge(
   }
 
   /**
+   * Records a value with inline key-value attributes.
+   *
+   * Usage: `gauge.record(42.0, "method" -> "GET")`
+   */
+  def record(value: Double, attrs: (String, Any)*): Unit =
+    if (attrs.nonEmpty) {
+      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val ref        = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
+      ref.set(value)
+    }
+
+  /**
+   * Returns a pre-bound handle for zero-lookup repeated use with the given
+   * attributes.
+   */
+  def bind(attributes: Attributes): BoundGauge = {
+    val ref = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
+    new BoundGauge(ref)
+  }
+
+  /**
    * Collects a snapshot of current gauge data.
    */
   def collect(): MetricData = {
@@ -257,7 +380,34 @@ object Gauge {
     new Gauge(name, description, unit)
 }
 
+/**
+ * A pre-bound gauge handle for zero-lookup repeated use.
+ */
+final class BoundGauge private[otel] (private val ref: AtomicReference[java.lang.Double]) {
+
+  /**
+   * Records a value without attribute lookup.
+   */
+  def record(value: Double): Unit = ref.set(value)
+}
+
 private[otel] object SyncInstrumentsHelper {
+
+  def buildAttributes(attrs: Seq[(String, Any)]): Attributes = {
+    val builder = Attributes.builder
+    attrs.foreach { case (k, v) =>
+      v match {
+        case s: String  => builder.put(k, s)
+        case l: Long    => builder.put(k, l)
+        case i: Int     => builder.put(k, i.toLong)
+        case d: Double  => builder.put(k, d)
+        case b: Boolean => builder.put(k, b)
+        case other      => builder.put(k, other.toString)
+      }
+    }
+    builder.build
+  }
+
   def mapToAttributes(map: Map[String, AttributeValue]): Attributes = {
     val builder = Attributes.builder
     map.foreach { case (k, v) =>

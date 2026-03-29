@@ -16,20 +16,41 @@
 
 package zio.blocks.otel
 
+import Attributes._
+
 /**
  * An immutable collection of typed key-value attribute pairs.
  *
- * Backed by parallel arrays of keys and values for efficient storage of small
- * attribute sets (typical spans have <10 attributes).
+ * Backed by parallel arrays with dual-slot storage: primitive values (Long,
+ * Double, Boolean) are stored unboxed in a `Long` array, while String values
+ * use a separate `String` array. A `Byte` type discriminator array selects the
+ * slot. Seq values use a separate `AnyRef` array for rare cases.
  *
- * Attributes are accessed via typed keys (AttributeKey[A]) for compile-time
- * type safety.
+ * This design eliminates `AttributeValue` boxing for the common primitive
+ * cases, reducing GC pressure on hot paths.
  */
 final class Attributes private (
   private[otel] val keys: Array[String],
-  private[otel] val values: Array[AttributeValue],
+  private[otel] val types: Array[Byte],
+  private[otel] val longs: Array[Long],
+  private[otel] val strings: Array[String],
+  private[otel] val seqs: Array[AnyRef],
   private[otel] val len: Int
 ) {
+
+  private val cachedHash: Int = {
+    var h = 1
+    var i = 0
+    while (i < len) {
+      h = 31 * h + keys(i).hashCode
+      h = 31 * h + types(i)
+      h = 31 * h + java.lang.Long.hashCode(longs(i))
+      if (strings(i) != null) h = 31 * h + strings(i).hashCode
+      if (seqs(i) != null) h = 31 * h + seqs(i).hashCode
+      i += 1
+    }
+    h
+  }
 
   /**
    * Number of attributes in this collection.
@@ -55,7 +76,18 @@ final class Attributes private (
     var i = len - 1
     while (i >= 0) {
       if (keys(i) == key.name) {
-        return Some(valueToType(values(i)).asInstanceOf[A])
+        val value: Any = types(i) match {
+          case T_STRING      => strings(i)
+          case T_LONG        => longs(i)
+          case T_DOUBLE      => java.lang.Double.longBitsToDouble(longs(i))
+          case T_BOOLEAN     => longs(i) != 0L
+          case T_STRING_SEQ  => seqs(i)
+          case T_LONG_SEQ    => seqs(i)
+          case T_DOUBLE_SEQ  => seqs(i)
+          case T_BOOLEAN_SEQ => seqs(i)
+          case _             => strings(i)
+        }
+        return Some(value.asInstanceOf[A])
       }
       i -= 1
     }
@@ -63,12 +95,47 @@ final class Attributes private (
   }
 
   /**
-   * Invokes a function for each attribute.
+   * Invokes a visitor for each attribute without boxing primitives.
+   */
+  def accept(visitor: AttributeVisitor): Unit = {
+    var i = 0
+    while (i < len) {
+      types(i) match {
+        case T_STRING      => visitor.visitString(keys(i), strings(i))
+        case T_LONG        => visitor.visitLong(keys(i), longs(i))
+        case T_DOUBLE      => visitor.visitDouble(keys(i), java.lang.Double.longBitsToDouble(longs(i)))
+        case T_BOOLEAN     => visitor.visitBoolean(keys(i), longs(i) != 0L)
+        case T_STRING_SEQ  => visitor.visitStringSeq(keys(i), seqs(i).asInstanceOf[Seq[String]])
+        case T_LONG_SEQ    => visitor.visitLongSeq(keys(i), seqs(i).asInstanceOf[Seq[Long]])
+        case T_DOUBLE_SEQ  => visitor.visitDoubleSeq(keys(i), seqs(i).asInstanceOf[Seq[Double]])
+        case T_BOOLEAN_SEQ =>
+          visitor.visitBooleanSeq(keys(i), seqs(i).asInstanceOf[Seq[Boolean]])
+        case _ => ()
+      }
+      i += 1
+    }
+  }
+
+  /**
+   * Invokes a function for each attribute. Creates `AttributeValue` wrappers
+   * lazily, so callers that need unboxed access should prefer `accept`.
    */
   def foreach(f: (String, AttributeValue) => Unit): Unit = {
     var i = 0
     while (i < len) {
-      f(keys(i), values(i))
+      val value: AttributeValue = types(i) match {
+        case T_STRING      => AttributeValue.StringValue(strings(i))
+        case T_LONG        => AttributeValue.LongValue(longs(i))
+        case T_DOUBLE      => AttributeValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
+        case T_BOOLEAN     => AttributeValue.BooleanValue(longs(i) != 0L)
+        case T_STRING_SEQ  => AttributeValue.StringSeqValue(seqs(i).asInstanceOf[Seq[String]])
+        case T_LONG_SEQ    => AttributeValue.LongSeqValue(seqs(i).asInstanceOf[Seq[Long]])
+        case T_DOUBLE_SEQ  => AttributeValue.DoubleSeqValue(seqs(i).asInstanceOf[Seq[Double]])
+        case T_BOOLEAN_SEQ =>
+          AttributeValue.BooleanSeqValue(seqs(i).asInstanceOf[Seq[Boolean]])
+        case _ => AttributeValue.StringValue("")
+      }
+      f(keys(i), value)
       i += 1
     }
   }
@@ -83,13 +150,23 @@ final class Attributes private (
     } else if (this.isEmpty) {
       other
     } else {
-      val newKeys = new Array[String](len + other.len)
-      val newVals = new Array[AttributeValue](len + other.len)
-      System.arraycopy(keys, 0, newKeys, 0, len)
-      System.arraycopy(values, 0, newVals, 0, len)
-      System.arraycopy(other.keys, 0, newKeys, len, other.len)
-      System.arraycopy(other.values, 0, newVals, len, other.len)
-      new Attributes(newKeys, newVals, len + other.len)
+      val newLen = len + other.len
+      val k      = new Array[String](newLen)
+      val t      = new Array[Byte](newLen)
+      val l      = new Array[Long](newLen)
+      val s      = new Array[String](newLen)
+      val sq     = new Array[AnyRef](newLen)
+      System.arraycopy(keys, 0, k, 0, len)
+      System.arraycopy(types, 0, t, 0, len)
+      System.arraycopy(longs, 0, l, 0, len)
+      System.arraycopy(strings, 0, s, 0, len)
+      System.arraycopy(seqs, 0, sq, 0, len)
+      System.arraycopy(other.keys, 0, k, len, other.len)
+      System.arraycopy(other.types, 0, t, len, other.len)
+      System.arraycopy(other.longs, 0, l, len, other.len)
+      System.arraycopy(other.strings, 0, s, len, other.len)
+      System.arraycopy(other.seqs, 0, sq, len, other.len)
+      new Attributes(k, t, l, s, sq, newLen)
     }
 
   /**
@@ -98,73 +175,71 @@ final class Attributes private (
    */
   def toMap: Map[String, AttributeValue] = {
     var map = Map.empty[String, AttributeValue]
-    var i   = 0
-    while (i < len) {
-      map = map + ((keys(i), values(i)))
-      i += 1
-    }
+    foreach { (k, v) => map = map + ((k, v)) }
     map
   }
 
-  /**
-   * Internal: extracts the typed value from an AttributeValue.
-   */
-  private def valueToType(v: AttributeValue): Any = v match {
-    case AttributeValue.StringValue(s)       => s
-    case AttributeValue.BooleanValue(b)      => b
-    case AttributeValue.LongValue(l)         => l
-    case AttributeValue.DoubleValue(d)       => d
-    case AttributeValue.StringSeqValue(seq)  => seq
-    case AttributeValue.LongSeqValue(seq)    => seq
-    case AttributeValue.DoubleSeqValue(seq)  => seq
-    case AttributeValue.BooleanSeqValue(seq) => seq
-  }
+  override def hashCode(): Int = cachedHash
 
-  override def hashCode(): Int = {
-    var h = 1
-    var i = 0
-    while (i < len) {
-      h = 31 * h + keys(i).hashCode
-      h = 31 * h + values(i).hashCode
-      i += 1
-    }
-    h
-  }
-
-  override def equals(obj: Any): Boolean = obj match {
-    case other: Attributes =>
-      if (len != other.len) false
-      else {
-        var i = 0
-        while (i < len) {
-          var found = false
-          var j     = 0
-          while (j < other.len && !found) {
-            if (keys(i) == other.keys(j) && values(i) == other.values(j)) found = true
-            j += 1
+  override def equals(obj: Any): Boolean =
+    (this eq obj.asInstanceOf[AnyRef]) || (obj match {
+      case other: Attributes =>
+        if (len != other.len) false
+        else {
+          var i = 0
+          while (i < len) {
+            var found = false
+            var j     = 0
+            while (j < other.len && !found) {
+              if (
+                keys(i) == other.keys(j) && types(i) == other.types(j) &&
+                longs(i) == other.longs(j) &&
+                strings(i) == other.strings(j) &&
+                seqs(i) == other.seqs(j)
+              ) found = true
+              j += 1
+            }
+            if (!found) return false
+            i += 1
           }
-          if (!found) return false
-          i += 1
+          true
         }
-        true
-      }
-    case _ => false
-  }
+      case _ => false
+    })
 }
 
 object Attributes {
 
+  // Type discriminator constants — inlined as literal Byte values for
+  // tableswitch compatibility across Scala 2 and 3.
+  private[otel] final val T_STRING: Byte      = 0
+  private[otel] final val T_LONG: Byte        = 1
+  private[otel] final val T_DOUBLE: Byte      = 2
+  private[otel] final val T_BOOLEAN: Byte     = 3
+  private[otel] final val T_STRING_SEQ: Byte  = 4
+  private[otel] final val T_LONG_SEQ: Byte    = 5
+  private[otel] final val T_DOUBLE_SEQ: Byte  = 6
+  private[otel] final val T_BOOLEAN_SEQ: Byte = 7
+
   /**
    * An empty Attributes collection.
    */
-  val empty: Attributes = new Attributes(Array.empty, Array.empty, 0)
+  val empty: Attributes = new Attributes(
+    Array.empty,
+    Array.empty,
+    Array.empty,
+    Array.empty,
+    Array.empty,
+    0
+  )
 
   /**
    * Creates an Attributes collection with a single typed attribute.
    */
   def of[A](key: AttributeKey[A], value: A): Attributes = {
-    val attrValue = typeToValue(value)
-    new Attributes(Array(key.name), Array(attrValue), 1)
+    val b = new AttributesBuilder()
+    b.put(key, value)
+    b.build
   }
 
   /**
@@ -184,38 +259,30 @@ object Attributes {
   val ServiceVersion: AttributeKey[String] = AttributeKey.string("service.version")
 
   /**
-   * Internal: converts a typed value to an AttributeValue.
-   */
-  private def typeToValue[A](value: A): AttributeValue =
-    value match {
-      case s: String   => AttributeValue.StringValue(s)
-      case b: Boolean  => AttributeValue.BooleanValue(b)
-      case l: Long     => AttributeValue.LongValue(l)
-      case d: Double   => AttributeValue.DoubleValue(d)
-      case seq: Seq[_] =>
-        seq.headOption match {
-          case Some(_: String)  => AttributeValue.StringSeqValue(seq.asInstanceOf[Seq[String]])
-          case Some(_: Long)    => AttributeValue.LongSeqValue(seq.asInstanceOf[Seq[Long]])
-          case Some(_: Double)  => AttributeValue.DoubleSeqValue(seq.asInstanceOf[Seq[Double]])
-          case Some(_: Boolean) => AttributeValue.BooleanSeqValue(seq.asInstanceOf[Seq[Boolean]])
-          case _                => AttributeValue.StringSeqValue(Seq.empty)
-        }
-      case _ => AttributeValue.StringValue(value.toString)
-    }
-
-  /**
    * Mutable builder for Attributes.
    */
   class AttributesBuilder private[Attributes] () {
-    private var keys: Array[String]         = new Array[String](8)
-    private var vals: Array[AttributeValue] = new Array[AttributeValue](8)
-    private var len: Int                    = 0
+    private var _keys: Array[String]    = new Array[String](8)
+    private var _types: Array[Byte]     = new Array[Byte](8)
+    private var _longs: Array[Long]     = new Array[Long](8)
+    private var _strings: Array[String] = new Array[String](8)
+    private var _seqs: Array[AnyRef]    = new Array[AnyRef](8)
+    private var _len: Int               = 0
 
     /**
      * Adds or updates a typed attribute.
      */
     def put[A](key: AttributeKey[A], value: A): AttributesBuilder = {
-      putInternal(key.name, typeToValue(value))
+      key.`type` match {
+        case AttributeType.StringType     => put(key.name, value.asInstanceOf[String])
+        case AttributeType.LongType       => put(key.name, value.asInstanceOf[Long])
+        case AttributeType.DoubleType     => put(key.name, value.asInstanceOf[Double])
+        case AttributeType.BooleanType    => put(key.name, value.asInstanceOf[Boolean])
+        case AttributeType.StringSeqType  => putSeq(key.name, T_STRING_SEQ, value.asInstanceOf[AnyRef])
+        case AttributeType.LongSeqType    => putSeq(key.name, T_LONG_SEQ, value.asInstanceOf[AnyRef])
+        case AttributeType.DoubleSeqType  => putSeq(key.name, T_DOUBLE_SEQ, value.asInstanceOf[AnyRef])
+        case AttributeType.BooleanSeqType => putSeq(key.name, T_BOOLEAN_SEQ, value.asInstanceOf[AnyRef])
+      }
       this
     }
 
@@ -223,7 +290,11 @@ object Attributes {
      * Adds or updates a string attribute.
      */
     def put(key: String, value: String): AttributesBuilder = {
-      putInternal(key, AttributeValue.StringValue(value))
+      val i = findOrAdd(key)
+      _types(i) = T_STRING
+      _strings(i) = value
+      _longs(i) = 0L
+      _seqs(i) = null
       this
     }
 
@@ -231,7 +302,11 @@ object Attributes {
      * Adds or updates a long attribute.
      */
     def put(key: String, value: Long): AttributesBuilder = {
-      putInternal(key, AttributeValue.LongValue(value))
+      val i = findOrAdd(key)
+      _types(i) = T_LONG
+      _longs(i) = value
+      _strings(i) = null
+      _seqs(i) = null
       this
     }
 
@@ -239,7 +314,11 @@ object Attributes {
      * Adds or updates a double attribute.
      */
     def put(key: String, value: Double): AttributesBuilder = {
-      putInternal(key, AttributeValue.DoubleValue(value))
+      val i = findOrAdd(key)
+      _types(i) = T_DOUBLE
+      _longs(i) = java.lang.Double.doubleToRawLongBits(value)
+      _strings(i) = null
+      _seqs(i) = null
       this
     }
 
@@ -247,8 +326,20 @@ object Attributes {
      * Adds or updates a boolean attribute.
      */
     def put(key: String, value: Boolean): AttributesBuilder = {
-      putInternal(key, AttributeValue.BooleanValue(value))
+      val i = findOrAdd(key)
+      _types(i) = T_BOOLEAN
+      _longs(i) = if (value) 1L else 0L
+      _strings(i) = null
+      _seqs(i) = null
       this
+    }
+
+    private def putSeq(key: String, tpe: Byte, seq: AnyRef): Unit = {
+      val i = findOrAdd(key)
+      _types(i) = tpe
+      _longs(i) = 0L
+      _strings(i) = null
+      _seqs(i) = seq
     }
 
     /**
@@ -256,44 +347,49 @@ object Attributes {
      */
     def clear(): Unit = {
       var i = 0
-      while (i < len) { keys(i) = null; vals(i) = null; i += 1 }
-      len = 0
+      while (i < _len) {
+        _keys(i) = null
+        _strings(i) = null
+        _seqs(i) = null
+        i += 1
+      }
+      _len = 0
     }
 
     /**
      * Builds and returns the immutable Attributes.
      */
     def build: Attributes =
-      if (len == 0) Attributes.empty
+      if (_len == 0) Attributes.empty
       else {
-        val k = new Array[String](len)
-        val v = new Array[AttributeValue](len)
-        System.arraycopy(keys, 0, k, 0, len)
-        System.arraycopy(vals, 0, v, 0, len)
-        new Attributes(k, v, len)
+        val k  = java.util.Arrays.copyOf(_keys, _len)
+        val t  = java.util.Arrays.copyOf(_types, _len)
+        val l  = java.util.Arrays.copyOf(_longs, _len)
+        val s  = java.util.Arrays.copyOf(_strings, _len)
+        val sq = java.util.Arrays.copyOf(_seqs, _len)
+        new Attributes(k, t, l, s, sq, _len)
       }
 
-    /**
-     * Internal: updates or adds an entry by key.
-     */
-    private def putInternal(key: String, value: AttributeValue): Unit = {
+    private def findOrAdd(key: String): Int = {
       var i = 0
-      while (i < len) {
-        if (keys(i) == key) { vals(i) = value; return }
+      while (i < _len) {
+        if (_keys(i) == key) return i
         i += 1
       }
-      if (len >= keys.length) {
-        val newCap  = keys.length * 2
-        val newKeys = new Array[String](newCap)
-        val newVals = new Array[AttributeValue](newCap)
-        System.arraycopy(keys, 0, newKeys, 0, len)
-        System.arraycopy(vals, 0, newVals, 0, len)
-        keys = newKeys
-        vals = newVals
-      }
-      keys(len) = key
-      vals(len) = value
-      len += 1
+      ensureCapacity()
+      _keys(_len) = key
+      _len += 1
+      _len - 1
     }
+
+    private def ensureCapacity(): Unit =
+      if (_len >= _keys.length) {
+        val newCap = _keys.length * 2
+        _keys = java.util.Arrays.copyOf(_keys, newCap)
+        _types = java.util.Arrays.copyOf(_types, newCap)
+        _longs = java.util.Arrays.copyOf(_longs, newCap)
+        _strings = java.util.Arrays.copyOf(_strings, newCap)
+        _seqs = java.util.Arrays.copyOf(_seqs, newCap)
+      }
   }
 }
