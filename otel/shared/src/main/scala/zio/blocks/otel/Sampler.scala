@@ -72,8 +72,10 @@ trait Sampler {
    *
    * @param parentContext
    *   the parent span context, if any
-   * @param traceId
-   *   the trace ID of the span being created
+   * @param traceIdHi
+   *   the high 64 bits of the trace ID
+   * @param traceIdLo
+   *   the low 64 bits of the trace ID
    * @param name
    *   the name of the span being created
    * @param kind
@@ -87,7 +89,8 @@ trait Sampler {
    */
   def shouldSample(
     parentContext: Option[SpanContext],
-    traceId: TraceId,
+    traceIdHi: Long,
+    traceIdLo: Long,
     name: String,
     kind: SpanKind,
     attributes: Attributes,
@@ -110,7 +113,8 @@ object AlwaysOnSampler extends Sampler {
 
   def shouldSample(
     parentContext: Option[SpanContext],
-    traceId: TraceId,
+    traceIdHi: Long,
+    traceIdLo: Long,
     name: String,
     kind: SpanKind,
     attributes: Attributes,
@@ -130,7 +134,8 @@ object AlwaysOffSampler extends Sampler {
 
   def shouldSample(
     parentContext: Option[SpanContext],
-    traceId: TraceId,
+    traceIdHi: Long,
+    traceIdLo: Long,
     name: String,
     kind: SpanKind,
     attributes: Attributes,
@@ -159,14 +164,15 @@ final case class ParentBasedSampler(root: Sampler) extends Sampler {
 
   def shouldSample(
     parentContext: Option[SpanContext],
-    traceId: TraceId,
+    traceIdHi: Long,
+    traceIdLo: Long,
     name: String,
     kind: SpanKind,
     attributes: Attributes,
     links: Seq[SpanLink]
   ): SamplingResult =
     parentContext match {
-      case None         => root.shouldSample(parentContext, traceId, name, kind, attributes, links)
+      case None         => root.shouldSample(parentContext, traceIdHi, traceIdLo, name, kind, attributes, links)
       case Some(parent) => if (parent.isSampled) sampledResult else droppedResult
     }
 

@@ -18,6 +18,9 @@ package zio.blocks.otel
 
 object log extends LogVersionSpecific {
 
+  private[otel] val logInstrumentationScope: InstrumentationScope =
+    InstrumentationScope(name = "zio.blocks.otel.log")
+
   /**
    * Run a block with additional contextual annotations attached to all log
    * records.
@@ -49,11 +52,12 @@ object log extends LogVersionSpecific {
         severityText = severity.text,
         body = message,
         attributes = builder.build,
-        traceId = None,
-        spanId = None,
-        traceFlags = None,
+        traceIdHi = 0L,
+        traceIdLo = 0L,
+        spanId = 0L,
+        traceFlags = 0,
         resource = Resource.empty,
-        instrumentationScope = InstrumentationScope(name = "zio.blocks.otel.log")
+        instrumentationScope = logInstrumentationScope
       )
 
       try state.logger.emit(record)
@@ -90,11 +94,12 @@ object log extends LogVersionSpecific {
       severityText = severity.text,
       body = message,
       attributes = builder.build,
-      traceId = None,
-      spanId = None,
-      traceFlags = None,
+      traceIdHi = 0L,
+      traceIdLo = 0L,
+      spanId = 0L,
+      traceFlags = 0,
       resource = Resource.empty,
-      instrumentationScope = InstrumentationScope(name = "zio.blocks.otel.log")
+      instrumentationScope = logInstrumentationScope
     )
   }
 }

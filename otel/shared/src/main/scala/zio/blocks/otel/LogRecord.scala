@@ -20,8 +20,9 @@ package zio.blocks.otel
  * Represents an immutable log record with trace correlation support.
  *
  * A LogRecord contains a log message, its severity level, timing information,
- * and optional trace context (traceId, spanId, traceFlags) for distributed
- * tracing correlation.
+ * and optional trace context for distributed tracing correlation. Trace fields
+ * use primitive sentinel values (0 = absent) instead of Option wrappers for
+ * zero allocation on the logging hot path.
  *
  * @param timestampNanos
  *   The time when the event occurred, in nanoseconds since Unix epoch
@@ -36,12 +37,14 @@ package zio.blocks.otel
  *   The log message body
  * @param attributes
  *   Additional attributes/metadata associated with the log record
- * @param traceId
- *   Optional trace ID for correlation with distributed traces
+ * @param traceIdHi
+ *   High 64 bits of trace ID (0 with traceIdLo == 0 means absent)
+ * @param traceIdLo
+ *   Low 64 bits of trace ID (0 with traceIdHi == 0 means absent)
  * @param spanId
- *   Optional span ID for correlation with distributed traces
+ *   Span ID as Long (0 means absent)
  * @param traceFlags
- *   Optional trace flags (e.g., sampled flag)
+ *   Trace flags as Byte (0 means none/absent)
  * @param resource
  *   The resource that generated this log record
  * @param instrumentationScope
@@ -56,13 +59,25 @@ final case class LogRecord(
   severityText: String,
   body: String,
   attributes: Attributes,
-  traceId: Option[TraceId],
-  spanId: Option[SpanId],
-  traceFlags: Option[TraceFlags],
+  traceIdHi: Long,
+  traceIdLo: Long,
+  spanId: Long,
+  traceFlags: Byte,
   resource: Resource,
   instrumentationScope: InstrumentationScope,
   throwable: Option[Throwable] = None
-)
+) {
+
+  /**
+   * Whether this log record has a trace ID set.
+   */
+  def hasTraceId: Boolean = traceIdHi != 0L || traceIdLo != 0L
+
+  /**
+   * Whether this log record has a span ID set.
+   */
+  def hasSpanId: Boolean = spanId != 0L
+}
 
 object LogRecord {
 
@@ -81,7 +96,7 @@ object LogRecord {
  *   - severityText defaults to "INFO"
  *   - body defaults to empty string
  *   - attributes defaults to empty Attributes
- *   - trace fields (traceId, spanId, traceFlags) default to None
+ *   - trace fields default to 0 (absent)
  *   - resource defaults to Resource.empty
  *   - instrumentationScope defaults to InstrumentationScope with name "unknown"
  */
@@ -91,123 +106,70 @@ final case class LogRecordBuilder(
   severity: Severity = Severity.Info,
   body: String = "",
   attributes: Attributes = Attributes.empty,
-  traceId: Option[TraceId] = None,
-  spanId: Option[SpanId] = None,
-  traceFlags: Option[TraceFlags] = None,
+  traceIdHi: Long = 0L,
+  traceIdLo: Long = 0L,
+  spanId: Long = 0L,
+  traceFlags: Byte = 0,
   resource: Resource = Resource.empty,
   instrumentationScope: InstrumentationScope = InstrumentationScope(name = "unknown")
 ) {
 
   /**
    * Sets the timestamp (time when the event occurred).
-   *
-   * @param nanos
-   *   The timestamp in nanoseconds since Unix epoch
-   * @return
-   *   This builder for method chaining
    */
   def setTimestamp(nanos: Long): LogRecordBuilder =
     copy(timestampNanos = Some(nanos))
 
   /**
    * Sets the observed timestamp (time when the event was recorded).
-   *
-   * @param nanos
-   *   The observed timestamp in nanoseconds since Unix epoch
-   * @return
-   *   This builder for method chaining
    */
   def setObservedTimestamp(nanos: Long): LogRecordBuilder =
     copy(observedTimestampNanos = Some(nanos))
 
   /**
    * Sets the severity level of the log record.
-   *
-   * Also updates the severityText to match the severity's text representation.
-   *
-   * @param sev
-   *   The severity level
-   * @return
-   *   This builder for method chaining
    */
   def setSeverity(sev: Severity): LogRecordBuilder =
     copy(severity = sev)
 
   /**
    * Sets the log message body.
-   *
-   * @param msg
-   *   The log message
-   * @return
-   *   This builder for method chaining
    */
   def setBody(msg: String): LogRecordBuilder =
     copy(body = msg)
 
   /**
    * Adds an attribute to the log record.
-   *
-   * @param key
-   *   The attribute key
-   * @param value
-   *   The attribute value
-   * @return
-   *   This builder for method chaining
    */
   def setAttribute[A](key: AttributeKey[A], value: A): LogRecordBuilder =
     copy(attributes = attributes ++ Attributes.of(key, value))
 
   /**
    * Sets the trace ID for correlation with distributed traces.
-   *
-   * @param id
-   *   The trace ID
-   * @return
-   *   This builder for method chaining
    */
-  def setTraceId(id: TraceId): LogRecordBuilder =
-    copy(traceId = Some(id))
+  def setTraceId(hi: Long, lo: Long): LogRecordBuilder =
+    copy(traceIdHi = hi, traceIdLo = lo)
 
   /**
    * Sets the span ID for correlation with distributed traces.
-   *
-   * @param id
-   *   The span ID
-   * @return
-   *   This builder for method chaining
    */
-  def setSpanId(id: SpanId): LogRecordBuilder =
-    copy(spanId = Some(id))
+  def setSpanId(id: Long): LogRecordBuilder =
+    copy(spanId = id)
 
   /**
    * Sets the trace flags (e.g., sampled flag).
-   *
-   * @param flags
-   *   The trace flags
-   * @return
-   *   This builder for method chaining
    */
-  def setTraceFlags(flags: TraceFlags): LogRecordBuilder =
-    copy(traceFlags = Some(flags))
+  def setTraceFlags(flags: Byte): LogRecordBuilder =
+    copy(traceFlags = flags)
 
   /**
    * Sets the resource that generated this log record.
-   *
-   * @param res
-   *   The resource
-   * @return
-   *   This builder for method chaining
    */
   def setResource(res: Resource): LogRecordBuilder =
     copy(resource = res)
 
   /**
    * Sets the instrumentation scope.
-   *
-   * @param scope
-   *   The instrumentation scope
-   * @return
-   *   This builder for method chaining
    */
   def setInstrumentationScope(scope: InstrumentationScope): LogRecordBuilder =
     copy(instrumentationScope = scope)
@@ -216,9 +178,6 @@ final case class LogRecordBuilder(
    * Builds the final LogRecord.
    *
    * Uses current system time for any timestamps not explicitly set.
-   *
-   * @return
-   *   The constructed LogRecord
    */
   def build: LogRecord = {
     val now = System.nanoTime()
@@ -229,7 +188,8 @@ final case class LogRecordBuilder(
       severityText = severity.text,
       body = body,
       attributes = attributes,
-      traceId = traceId,
+      traceIdHi = traceIdHi,
+      traceIdLo = traceIdLo,
       spanId = spanId,
       traceFlags = traceFlags,
       resource = resource,

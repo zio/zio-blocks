@@ -38,14 +38,18 @@ object SpanSpec extends ZIOSpecDefault {
     ),
     suite("SpanLink")(
       test("stores span context and attributes") {
-        val ctx  = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val ctx = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val link = SpanLink(ctx, Attributes.empty)
         assertTrue(link.spanContext.isValid && link.attributes.isEmpty)
       }
     ),
     suite("SpanData")(
       test("is an immutable snapshot") {
-        val ctx      = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
+        val ctx = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
         val spanData = SpanData(
           name = "test-span",
           kind = SpanKind.Internal,
@@ -160,25 +164,29 @@ object SpanSpec extends ZIOSpecDefault {
         )
       },
       test("spanContext is valid and has correct trace ID from parent") {
-        val parentCtx = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span      = SpanBuilder("child-span")
+        val parentCtx = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = SpanBuilder("child-span")
           .setParent(parentCtx)
           .startSpan()
         span.end()
         assertTrue(
           span.spanContext.isValid &&
-            span.spanContext.traceId == parentCtx.traceId &&
+            span.spanContext.traceIdHi == parentCtx.traceIdHi && span.spanContext.traceIdLo == parentCtx.traceIdLo &&
             span.spanContext.spanId != parentCtx.spanId
         )
       },
       test("spanContext gets new trace ID when no parent") {
         val span = SpanBuilder("root-span").startSpan()
         span.end()
-        assertTrue(span.spanContext.isValid && span.spanContext.traceId.isValid)
+        assertTrue(span.spanContext.isValid && TraceId.isValid(span.spanContext.traceIdHi, span.spanContext.traceIdLo))
       },
       test("toSpanData captures parent span context") {
-        val parentCtx = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val span      = SpanBuilder("child").setParent(parentCtx).startSpan()
+        val parentCtx = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val span = SpanBuilder("child").setParent(parentCtx).startSpan()
         span.end()
         val data = span.toSpanData
         assertTrue(data.parentSpanContext == parentCtx)
@@ -241,9 +249,11 @@ object SpanSpec extends ZIOSpecDefault {
     ),
     suite("SpanBuilder")(
       test("fluent API builds a span") {
-        val parentCtx = SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false)
-        val link      = SpanLink(
-          SpanContext.create(TraceId.random, SpanId.random, TraceFlags.sampled, "", false),
+        val parentCtx = {
+          val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false)
+        }
+        val link = SpanLink(
+          { val (h, l) = TraceId.random(); SpanContext.create(h, l, SpanId.random, TraceFlags.sampled, "", false) },
           Attributes.empty
         )
         val span = SpanBuilder("built-span")
@@ -259,7 +269,7 @@ object SpanSpec extends ZIOSpecDefault {
           data.name == "built-span" &&
             data.kind == SpanKind.Client &&
             data.parentSpanContext == parentCtx &&
-            data.spanContext.traceId == parentCtx.traceId &&
+            data.spanContext.traceIdHi == parentCtx.traceIdHi && data.spanContext.traceIdLo == parentCtx.traceIdLo &&
             data.attributes.get(AttributeKey.string("builder-attr")).contains("val") &&
             data.links.size == 1
         )

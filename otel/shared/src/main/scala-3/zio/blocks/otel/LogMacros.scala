@@ -51,6 +51,7 @@ private[otel] object LogMacros {
           }
         } else {
           generateDirectBuilderPath(
+            self,
             message,
             severity,
             filePath,
@@ -69,6 +70,7 @@ private[otel] object LogMacros {
   }
 
   private def generateDirectBuilderPath(
+    self: Expr[log.type],
     message: Expr[String],
     severity: Expr[Severity],
     filePath: Expr[String],
@@ -119,15 +121,6 @@ private[otel] object LogMacros {
 
     val hasFallbacks = classified.exists(_.isInstanceOf[FallbackKind])
 
-    // Generate a single inline function that applies known enrichments to the builder + vars
-    // This needs to be a single Expr[Unit => Unit]-style or we inline it in the big quote.
-    // The trick: we generate a single expression that sequences all builder.put calls,
-    // throwable/severity/body var mutations. We do this by building a List[Expr[Unit]]
-    // and combining them with Expr.block.
-
-    // For throwable/severity/body we use Expr refs that will be spliced into the big quote
-    // where the vars are defined.
-
     '{
       val state = GlobalLogState.get()
       if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
@@ -150,12 +143,6 @@ private[otel] object LogMacros {
 
         // All enrichments applied in-order:
         ${
-          // Now we're inside a splice, we can build Expr values that reference the
-          // outer quote's variables... but actually we can't — those variables don't exist
-          // as Expr values we can splice into.
-          //
-          // The solution: generate a SINGLE quote block that contains all the statements.
-          // We use Expr.block to sequence them.
           val stmts: List[Expr[Any]] = classified.flatMap { kind =>
             kind match {
               case StringStringKV(idx) =>
@@ -220,11 +207,12 @@ private[otel] object LogMacros {
           severityText = severityTextVar,
           body = bodyVar,
           attributes = builder.build,
-          traceId = None,
-          spanId = None,
-          traceFlags = None,
+          traceIdHi = 0L,
+          traceIdLo = 0L,
+          spanId = 0L,
+          traceFlags = 0,
           resource = Resource.empty,
-          instrumentationScope = InstrumentationScope(name = "zio.blocks.otel.log"),
+          instrumentationScope = $self.logInstrumentationScope,
           throwable = throwableVar
         )
 

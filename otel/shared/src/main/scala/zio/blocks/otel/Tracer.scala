@@ -37,15 +37,16 @@ final class Tracer(
     span(name, kind, Attributes.empty)(f)
 
   def span[A](name: String, kind: SpanKind, attributes: Attributes)(f: Span => A): A = {
-    val parentCtx = contextStorage.get()
-    val traceId   = parentCtx match {
-      case Some(p) if p.isValid => p.traceId
-      case _                    => TraceId.random
+    val parentCtx              = contextStorage.get()
+    val (traceIdHi, traceIdLo) = parentCtx match {
+      case Some(p) if p.isValid => (p.traceIdHi, p.traceIdLo)
+      case _                    => TraceId.random()
     }
 
     val result = sampler.shouldSample(
       parentCtx,
-      traceId,
+      traceIdHi,
+      traceIdLo,
       name,
       kind,
       attributes,

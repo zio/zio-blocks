@@ -70,9 +70,9 @@ final class SpanBuilder private (
   }
 
   def startSpan(): Span = {
-    val traceId =
-      if (parentContext.isValid) parentContext.traceId
-      else TraceId.random
+    val (traceIdHi, traceIdLo) =
+      if (parentContext.isValid) (parentContext.traceIdHi, parentContext.traceIdLo)
+      else TraceId.random()
 
     val spanId = SpanId.random
 
@@ -81,7 +81,8 @@ final class SpanBuilder private (
       else TraceFlags.sampled
 
     val spanContext = SpanContext.create(
-      traceId = traceId,
+      traceIdHi = traceIdHi,
+      traceIdLo = traceIdLo,
       spanId = spanId,
       traceFlags = traceFlags,
       traceState = if (parentContext.isValid) parentContext.traceState else "",

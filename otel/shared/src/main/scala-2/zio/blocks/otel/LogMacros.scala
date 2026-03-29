@@ -66,11 +66,12 @@ private[otel] object LogMacros {
         }
       """)
     } else {
-      generateDirectBuilderPath(c)(message, enrichments, severity, filePath, lineNo, methodName, namespace)
+      generateDirectBuilderPath(c)(self, message, enrichments, severity, filePath, lineNo, methodName, namespace)
     }
   }
 
   private def generateDirectBuilderPath(c: blackbox.Context)(
+    self: c.universe.Tree,
     message: c.Expr[String],
     enrichments: Seq[c.Expr[Any]],
     severity: c.Expr[Severity],
@@ -240,7 +241,7 @@ private[otel] object LogMacros {
             spanId = _root_.scala.None,
             traceFlags = _root_.scala.None,
             resource = _root_.zio.blocks.otel.Resource.empty,
-            instrumentationScope = _root_.zio.blocks.otel.InstrumentationScope(name = "zio.blocks.otel.log"),
+            instrumentationScope = $self.logInstrumentationScope,
             throwable = throwableVar
           )
 

@@ -42,26 +42,26 @@ object W3CTraceContextPropagator extends Propagator {
       _          <- if (traceparent.length == TraceparentLength) Some(()) else None
       _          <- if (traceparent.charAt(2) == '-' && traceparent.charAt(35) == '-' && traceparent.charAt(52) == '-') Some(())
            else None
-      version    = traceparent.substring(0, 2)
-      _         <- if (version == Version) Some(()) else None
-      traceIdHex = traceparent.substring(3, 35).toLowerCase
-      traceId   <- TraceId.fromHex(traceIdHex)
-      _         <- if (traceId.isValid) Some(()) else None
-      spanIdHex  = traceparent.substring(36, 52).toLowerCase
-      spanId    <- SpanId.fromHex(spanIdHex)
-      _         <- if (spanId.isValid) Some(()) else None
-      flagsHex   = traceparent.substring(53, 55).toLowerCase
-      flags     <- TraceFlags.fromHex(flagsHex)
+      version         = traceparent.substring(0, 2)
+      _              <- if (version == Version) Some(()) else None
+      traceIdHex      = traceparent.substring(3, 35).toLowerCase
+      (tidHi, tidLo) <- TraceId.fromHex(traceIdHex)
+      _              <- if (TraceId.isValid(tidHi, tidLo)) Some(()) else None
+      spanIdHex       = traceparent.substring(36, 52).toLowerCase
+      spanId         <- SpanId.fromHex(spanIdHex)
+      _              <- if (spanId.isValid) Some(()) else None
+      flagsHex        = traceparent.substring(53, 55).toLowerCase
+      flags          <- TraceFlags.fromHex(flagsHex)
     } yield {
       val traceState = getter(carrier, TracestateHeader).map(_.trim).getOrElse("")
-      SpanContext.create(traceId, spanId, flags, traceState, isRemote = true)
+      SpanContext.create(tidHi, tidLo, spanId, flags, traceState, isRemote = true)
     }
 
   override def inject[C](spanContext: SpanContext, carrier: C, setter: (C, String, String) => C): C =
     if (!spanContext.isValid) carrier
     else {
       val traceparent =
-        s"$Version-${spanContext.traceId.toHex}-${spanContext.spanId.toHex}-${spanContext.traceFlags.toHex}"
+        s"$Version-${spanContext.traceIdHex}-${spanContext.spanId.toHex}-${spanContext.traceFlags.toHex}"
       val withParent = setter(carrier, TraceparentHeader, traceparent)
       if (spanContext.traceState.nonEmpty) setter(withParent, TracestateHeader, spanContext.traceState)
       else withParent

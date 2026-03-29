@@ -278,7 +278,7 @@ object OtlpJsonEncoder {
 
   private def writeSpan(sb: StringBuilder, span: SpanData): Unit = {
     sb.append('{')
-    writeKeyString(sb, "traceId", span.spanContext.traceId.toHex)
+    writeKeyString(sb, "traceId", span.spanContext.traceIdHex)
     sb.append(',')
     writeKeyString(sb, "spanId", span.spanContext.spanId.toHex)
     sb.append(',')
@@ -344,7 +344,7 @@ object OtlpJsonEncoder {
 
   private def writeSpanLink(sb: StringBuilder, link: SpanLink): Unit = {
     sb.append('{')
-    writeKeyString(sb, "traceId", link.spanContext.traceId.toHex)
+    writeKeyString(sb, "traceId", link.spanContext.traceIdHex)
     sb.append(',')
     writeKeyString(sb, "spanId", link.spanContext.spanId.toHex)
     sb.append(',')
@@ -514,11 +514,11 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // trace correlation
-    writeKeyString(sb, "traceId", log.traceId.map(_.toHex).getOrElse(""))
+    writeKeyString(sb, "traceId", if (log.hasTraceId) TraceId.toHex(log.traceIdHi, log.traceIdLo) else "")
     sb.append(',')
-    writeKeyString(sb, "spanId", log.spanId.map(_.toHex).getOrElse(""))
+    writeKeyString(sb, "spanId", if (log.hasSpanId) String.format("%016x", log.spanId) else "")
     sb.append(',')
-    writeKeyInt(sb, "flags", log.traceFlags.map(f => f.toByte.toInt & 0xff).getOrElse(0))
+    writeKeyInt(sb, "flags", log.traceFlags.toInt & 0xff)
 
     sb.append('}')
   }

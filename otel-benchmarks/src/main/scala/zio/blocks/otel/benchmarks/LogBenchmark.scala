@@ -43,6 +43,7 @@ class LogBenchmark {
       .build()
     val logger = provider.get("benchmark")
     GlobalLogState.install(logger, Severity.Info)
+    GlobalLogState.setLevel("zio.blocks.otel.benchmarks", Severity.Info)
   }
 
   @TearDown(Level.Trial)
@@ -56,6 +57,11 @@ class LogBenchmark {
   @Benchmark
   def disabledLevel(): Unit =
     log.trace("skip")
+
+  /** Disabled level with enrichments — verify args aren't evaluated */
+  @Benchmark
+  def disabledWithEnrichments(): Unit =
+    log.trace("skip", "key" -> 42L, "other" -> "val")
 
   @Benchmark
   def enabledSimple(): Unit =
@@ -78,4 +84,17 @@ class LogBenchmark {
     log.annotated("rid" -> "123") {
       log.info("msg")
     }
+
+  /** Multiple nested annotation scopes */
+  @Benchmark
+  def enabledNestedAnnotations(): Unit =
+    log.annotated("a" -> "1") {
+      log.annotated("b" -> "2") {
+        log.info("msg")
+      }
+    }
+
+  @Benchmark
+  def enabledWithHierarchicalLevel(): Unit =
+    log.info("msg")
 }

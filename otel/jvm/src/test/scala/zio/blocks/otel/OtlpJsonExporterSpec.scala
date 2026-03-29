@@ -52,13 +52,17 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
   private def sampleSpanData(): SpanData = SpanData(
     name = "test-span",
     kind = SpanKind.Server,
-    spanContext = SpanContext(
-      traceId = TraceId.fromHex("0af7651916cd43dd8448eb211c80319c").get,
-      spanId = SpanId.fromHex("b7ad6b7169203331").get,
-      traceFlags = TraceFlags.sampled,
-      traceState = "",
-      isRemote = false
-    ),
+    spanContext = {
+      val (hi, lo) = TraceId.fromHex("0af7651916cd43dd8448eb211c80319c").get
+      SpanContext(
+        traceIdHi = hi,
+        traceIdLo = lo,
+        spanId = SpanId.fromHex("b7ad6b7169203331").get,
+        traceFlags = TraceFlags.sampled,
+        traceState = "",
+        isRemote = false
+      )
+    },
     parentSpanContext = SpanContext.invalid,
     startTimeNanos = 1000000L,
     endTimeNanos = 2000000L,
@@ -77,9 +81,10 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     severityText = "INFO",
     body = "test log message",
     attributes = Attributes.empty,
-    traceId = None,
-    spanId = None,
-    traceFlags = None,
+    traceIdHi = 0L,
+    traceIdLo = 0L,
+    spanId = 0L,
+    traceFlags = 0,
     resource = testResource,
     instrumentationScope = testScope
   )

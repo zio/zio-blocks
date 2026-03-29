@@ -63,11 +63,11 @@ final class Logger(
       }
     }
 
-    val (traceId, spanId, traceFlags) = spanCtxOpt match {
+    val (tidHi, tidLo, sid, tf) = spanCtxOpt match {
       case Some(ctx) if ctx.isValid =>
-        (Some(ctx.traceId), Some(ctx.spanId), Some(ctx.traceFlags))
+        (ctx.traceIdHi, ctx.traceIdLo, ctx.spanId.value, ctx.traceFlags.byte)
       case _ =>
-        (None, None, None)
+        (0L, 0L, 0L, 0.toByte)
     }
 
     val record = LogRecord(
@@ -77,9 +77,10 @@ final class Logger(
       severityText = severity.text,
       body = body,
       attributes = attrBuilder.build,
-      traceId = traceId,
-      spanId = spanId,
-      traceFlags = traceFlags,
+      traceIdHi = tidHi,
+      traceIdLo = tidLo,
+      spanId = sid,
+      traceFlags = tf,
       resource = resource,
       instrumentationScope = instrumentationScope
     )

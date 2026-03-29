@@ -255,9 +255,9 @@ object LoggerSpec extends ZIOSpecDefault {
           logger.info("inside span")
           val record = logProcessor.emitted.head
           assertTrue(
-            record.traceId.contains(span.spanContext.traceId) &&
-              record.spanId.contains(span.spanContext.spanId) &&
-              record.traceFlags.contains(span.spanContext.traceFlags)
+            record.traceIdHi == span.spanContext.traceIdHi && record.traceIdLo == span.spanContext.traceIdLo && record.hasTraceId &&
+              record.spanId == span.spanContext.spanId.value &&
+              record.traceFlags == span.spanContext.traceFlags.byte
           )
         }
       },
@@ -269,9 +269,9 @@ object LoggerSpec extends ZIOSpecDefault {
 
         val record = logProcessor.emitted.head
         assertTrue(
-          record.traceId.isEmpty &&
-            record.spanId.isEmpty &&
-            record.traceFlags.isEmpty
+          !record.hasTraceId &&
+            !record.hasSpanId &&
+            record.traceFlags == 0
         )
       }
     ),

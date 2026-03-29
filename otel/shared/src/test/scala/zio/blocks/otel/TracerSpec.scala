@@ -95,7 +95,7 @@ object TracerSpec extends ZIOSpecDefault {
         assertTrue(
           captured != null &&
             captured.spanContext.isValid &&
-            captured.spanContext.traceId.isValid &&
+            TraceId.isValid(captured.spanContext.traceIdHi, captured.spanContext.traceIdLo) &&
             captured.spanContext.spanId.isValid &&
             captured.name == "my-op"
         )
@@ -194,7 +194,7 @@ object TracerSpec extends ZIOSpecDefault {
         }
 
         assertTrue(
-          parentCtx.traceId == childCtx.traceId &&
+          parentCtx.traceIdHi == childCtx.traceIdHi && parentCtx.traceIdLo == childCtx.traceIdLo &&
             parentCtx.spanId != childCtx.spanId
         )
       },
@@ -256,7 +256,8 @@ object TracerSpec extends ZIOSpecDefault {
         val recordOnlySampler = new Sampler {
           def shouldSample(
             parentContext: Option[SpanContext],
-            traceId: TraceId,
+            traceIdHi: Long,
+            traceIdLo: Long,
             name: String,
             kind: SpanKind,
             attributes: Attributes,
