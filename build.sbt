@@ -420,7 +420,17 @@ lazy val otel = crossProject(JSPlatform, JVMPlatform)
       else Nil
     }
   )
-  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      // Target JDK 25 for direct ScopedValue and virtual thread API access
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if (opt == "11" && i > 0 && base(i - 1) == "-release") Seq("25")
+        else Seq(opt)
+      }
+    }
+  )
   .jsSettings(jsSettings)
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)

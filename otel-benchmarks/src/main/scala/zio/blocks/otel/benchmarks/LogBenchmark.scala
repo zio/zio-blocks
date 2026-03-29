@@ -97,4 +97,12 @@ class LogBenchmark {
   @Benchmark
   def enabledWithHierarchicalLevel(): Unit =
     log.info("msg")
+
+  @Benchmark
+  def systemNanoTime(bh: Blackhole): Unit =
+    bh.consume(System.nanoTime())
+
+  @Benchmark
+  def systemCurrentTimeMillis(bh: Blackhole): Unit =
+    bh.consume(System.currentTimeMillis())
 }

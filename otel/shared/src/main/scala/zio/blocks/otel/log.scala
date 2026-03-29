@@ -21,52 +21,49 @@ object log extends LogVersionSpecific {
   private[otel] val logInstrumentationScope: InstrumentationScope =
     InstrumentationScope(name = "zio.blocks.otel.log")
 
-  /**
-   * Run a block with additional contextual annotations attached to all log
-   * records.
-   */
   def annotated[A](annotations: (String, String)*)(f: => A): A =
     LogAnnotations.scoped(annotations.toMap)(f)
 
-  private[otel] def emit(severity: Severity, message: String, location: SourceLocation): Unit = {
-    val state = GlobalLogState.get()
-    if (state != null && severity.number >= state.effectiveLevel(location.namespace)) {
-      val now     = System.nanoTime()
-      val builder = AttributeBuilderPool
-        .get()
-        .put("code.filepath", location.filePath)
-        .put("code.namespace", location.namespace)
-        .put("code.function", location.methodName)
-        .put("code.lineno", location.lineNumber.toLong)
+  private[otel] def emit(severity: Severity, message: String, location: SourceLocation): Unit =
+    if (severity.number >= GlobalLogState.globalMinLevel) {
+      val state = GlobalLogState.get()
+      if (state != null && severity.number >= state.effectiveLevel(location.namespace)) {
+        val now     = System.nanoTime()
+        val builder = AttributeBuilderPool
+          .get()
+          .put("code.filepath", location.filePath)
+          .put("code.namespace", location.namespace)
+          .put("code.function", location.methodName)
+          .put("code.lineno", location.lineNumber.toLong)
 
-      // Merge scoped annotations
-      val annotations = LogAnnotations.get()
-      if (annotations.nonEmpty) {
-        annotations.foreach { case (k, v) => builder.put(k, v) }
-      }
+        // Merge scoped annotations
+        val annotations = LogAnnotations.get()
+        if (annotations.nonEmpty) {
+          annotations.foreach { case (k, v) => builder.put(k, v) }
+        }
 
-      val record = LogRecord(
-        timestampNanos = now,
-        observedTimestampNanos = now,
-        severity = severity,
-        severityText = severity.text,
-        body = message,
-        attributes = builder.build,
-        traceIdHi = 0L,
-        traceIdLo = 0L,
-        spanId = 0L,
-        traceFlags = 0,
-        resource = Resource.empty,
-        instrumentationScope = logInstrumentationScope
-      )
+        val record = LogRecord(
+          timestampNanos = now,
+          observedTimestampNanos = now,
+          severity = severity,
+          severityText = severity.text,
+          body = message,
+          attributes = builder.buildAndReset(),
+          traceIdHi = 0L,
+          traceIdLo = 0L,
+          spanId = 0L,
+          traceFlags = 0,
+          resource = Resource.empty,
+          instrumentationScope = logInstrumentationScope
+        )
 
-      try state.logger.emit(record)
-      catch {
-        case e: Throwable =>
-          System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+        try state.logger.emit(record)
+        catch {
+          case e: Throwable =>
+            System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+        }
       }
     }
-  }
 
   private[otel] def baseRecord(
     severity: Severity,
@@ -93,7 +90,7 @@ object log extends LogVersionSpecific {
       severity = severity,
       severityText = severity.text,
       body = message,
-      attributes = builder.build,
+      attributes = builder.buildAndReset(),
       traceIdHi = 0L,
       traceIdLo = 0L,
       spanId = 0L,

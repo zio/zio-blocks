@@ -17,7 +17,7 @@
 package zio.blocks.otel
 
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.{AtomicReference, LongAdder}
+import java.util.concurrent.atomic.{AtomicLong, LongAdder}
 import java.util.concurrent.locks.ReentrantLock
 
 /**
@@ -57,7 +57,7 @@ final class Counter(
    */
   def add(value: Long, attrs: (String, Any)*): Unit =
     if (value >= 0 && attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
       val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
       adder.add(value)
     }
@@ -137,7 +137,7 @@ final class UpDownCounter(
    */
   def add(value: Long, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
       val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
       adder.add(value)
     }
@@ -220,7 +220,7 @@ final class Histogram(
    */
   def record(value: Double, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
+      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
       val state      = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
       recordInternal(value, state)
     }
@@ -324,7 +324,8 @@ final class BoundHistogram private[otel] (
 /**
  * A gauge instrument that records the latest observed value.
  *
- * Thread-safe: uses AtomicReference per attribute set for lock-free updates.
+ * Thread-safe: uses AtomicLong per attribute set for lock-free updates. Values
+ * are stored as raw long bits via `doubleToRawLongBits` to avoid Double boxing.
  *
  * @param name
  *   instrument name
@@ -338,8 +339,7 @@ final class Gauge(
   val description: String,
   val unit: String
 ) {
-  private val values =
-    new ConcurrentHashMap[Attributes, AtomicReference[java.lang.Double]]()
+  private val values = new ConcurrentHashMap[Attributes, AtomicLong]()
 
   /**
    * Records the current value for the given attributes, replacing any previous
@@ -347,8 +347,8 @@ final class Gauge(
    */
   def record(value: Double, attributes: Attributes): Unit = {
 
-    val ref = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
-    ref.set(value)
+    val ref = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
+    ref.set(java.lang.Double.doubleToRawLongBits(value))
   }
 
   /**
@@ -358,9 +358,9 @@ final class Gauge(
    */
   def record(value: Double, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildAttributes(attrs)
-      val ref        = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
-      ref.set(value)
+      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
+      val ref        = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
+      ref.set(java.lang.Double.doubleToRawLongBits(value))
     }
 
   /**
@@ -368,7 +368,7 @@ final class Gauge(
    * attributes.
    */
   def bind(attributes: Attributes): BoundGauge = {
-    val ref = values.computeIfAbsent(attributes, _ => new AtomicReference[java.lang.Double](0.0))
+    val ref = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
     new BoundGauge(ref)
   }
 
@@ -379,7 +379,7 @@ final class Gauge(
     val now    = System.nanoTime()
     val points = new java.util.ArrayList[GaugeDataPoint]()
     values.forEach { (attrs, ref) =>
-      points.add(GaugeDataPoint(attrs, now, ref.get()))
+      points.add(GaugeDataPoint(attrs, now, java.lang.Double.longBitsToDouble(ref.get())))
     }
     MetricData.GaugeData(SyncInstrumentsHelper.listFromJava(points))
   }
@@ -393,19 +393,21 @@ object Gauge {
 /**
  * A pre-bound gauge handle for zero-lookup repeated use.
  */
-final class BoundGauge private[otel] (private val ref: AtomicReference[java.lang.Double]) {
+final class BoundGauge private[otel] (private val ref: AtomicLong) {
 
   /**
    * Records a value without attribute lookup.
    */
-  def record(value: Double): Unit = ref.set(value)
+  def record(value: Double): Unit = ref.set(java.lang.Double.doubleToRawLongBits(value))
 }
 
 private[otel] object SyncInstrumentsHelper {
 
-  def buildAttributes(attrs: Seq[(String, Any)]): Attributes = {
-    val builder = Attributes.builder
-    attrs.foreach { case (k, v) =>
+  def buildPooledAttributes(attrs: Seq[(String, Any)]): Attributes = {
+    val builder = AttributeBuilderPool.get()
+    var i       = 0
+    while (i < attrs.length) {
+      val (k, v) = attrs(i)
       v match {
         case s: String  => builder.put(k, s)
         case l: Long    => builder.put(k, l)
@@ -414,6 +416,7 @@ private[otel] object SyncInstrumentsHelper {
         case b: Boolean => builder.put(k, b)
         case other      => builder.put(k, other.toString)
       }
+      i += 1
     }
     builder.build
   }

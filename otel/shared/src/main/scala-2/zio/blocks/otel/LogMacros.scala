@@ -21,27 +21,29 @@ import scala.reflect.macros.blackbox
 private[otel] object LogMacros {
 
   def traceImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Trace))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Trace), "TRACE", 1)
 
   def debugImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Debug))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Debug), "DEBUG", 5)
 
   def infoImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Info))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Info), "INFO", 9)
 
   def warnImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Warn))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Warn), "WARN", 13)
 
   def errorImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Error))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Error), "ERROR", 17)
 
   def fatalImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
-    logImpl(c)(message, enrichments, c.universe.reify(Severity.Fatal))
+    logImpl(c)(message, enrichments, c.universe.reify(Severity.Fatal), "FATAL", 21)
 
   private def logImpl(c: blackbox.Context)(
     message: c.Expr[String],
     enrichments: Seq[c.Expr[Any]],
-    severity: c.Expr[Severity]
+    severity: c.Expr[Severity],
+    severityTextLiteral: String,
+    severityNumber: Int
   ): c.Expr[Unit] = {
     import c.universe._
 
@@ -52,22 +54,18 @@ private[otel] object LogMacros {
     val namespace  = Literal(Constant(findEnclosingClass(c)))
     val self       = c.prefix.tree
 
-    if (enrichments.isEmpty) {
-      c.Expr[Unit](q"""
-        {
-          val state = _root_.zio.blocks.otel.GlobalLogState.get()
-          if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
-            $self.emit(
-              $severity,
-              $message,
-              _root_.zio.blocks.otel.SourceLocation($filePath, $namespace, $methodName, $lineNo)
-            )
-          }
-        }
-      """)
-    } else {
-      generateDirectBuilderPath(c)(self, message, enrichments, severity, filePath, lineNo, methodName, namespace)
-    }
+    generateDirectBuilderPath(c)(
+      self,
+      message,
+      enrichments,
+      severity,
+      severityTextLiteral,
+      severityNumber,
+      filePath,
+      lineNo,
+      methodName,
+      namespace
+    )
   }
 
   private def generateDirectBuilderPath(c: blackbox.Context)(
@@ -75,6 +73,8 @@ private[otel] object LogMacros {
     message: c.Expr[String],
     enrichments: Seq[c.Expr[Any]],
     severity: c.Expr[Severity],
+    severityTextLiteral: String,
+    severityNumber: Int,
     filePath: c.universe.Tree,
     lineNo: c.universe.Tree,
     methodName: c.universe.Tree,
@@ -209,43 +209,48 @@ private[otel] object LogMacros {
       """
     }
 
+    val sevNum = Literal(Constant(severityNumber))
+
     c.Expr[Unit](q"""
       {
-        val state = _root_.zio.blocks.otel.GlobalLogState.get()
-        if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
-          val now = _root_.java.lang.System.nanoTime()
-          val builder = _root_.zio.blocks.otel.AttributeBuilderPool.get()
-          builder.put("code.filepath", $filePath)
-          builder.put("code.namespace", $namespace)
-          builder.put("code.function", $methodName)
-          builder.put("code.lineno", $lineNo.toLong)
+        if ($sevNum >= _root_.zio.blocks.otel.GlobalLogState.globalMinLevel) {
+          val state = _root_.zio.blocks.otel.GlobalLogState.get()
+          if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
+            val now = _root_.java.lang.System.nanoTime()
+            val builder = _root_.zio.blocks.otel.AttributeBuilderPool.get()
+            builder.put("code.filepath", $filePath)
+            builder.put("code.namespace", $namespace)
+            builder.put("code.function", $methodName)
+            builder.put("code.lineno", $lineNo.toLong)
 
-          val annotations = _root_.zio.blocks.otel.LogAnnotations.get()
-          if (annotations.nonEmpty) annotations.foreach { case (k, v) => builder.put(k, v) }
+            val annotations = _root_.zio.blocks.otel.LogAnnotations.get()
+            if (annotations.nonEmpty) annotations.foreach { case (k, v) => builder.put(k, v) }
 
-          var bodyVar: _root_.scala.Predef.String = $message
-          var severityVar: _root_.zio.blocks.otel.Severity = $severity
-          var severityTextVar: _root_.scala.Predef.String = $severity.text
-          var throwableVar: _root_.scala.Option[_root_.java.lang.Throwable] = _root_.scala.None
+            var bodyVar: _root_.scala.Predef.String = $message
+            var severityVar: _root_.zio.blocks.otel.Severity = $severity
+            var severityTextVar: _root_.scala.Predef.String = ${Literal(Constant(severityTextLiteral))}
+            var throwableVar: _root_.scala.Option[_root_.java.lang.Throwable] = _root_.scala.None
 
-          ..$enrichStmts
+            ..$enrichStmts
 
-          val record = _root_.zio.blocks.otel.LogRecord(
-            timestampNanos = now,
-            observedTimestampNanos = now,
-            severity = severityVar,
-            severityText = severityTextVar,
-            body = bodyVar,
-            attributes = builder.build,
-            traceId = _root_.scala.None,
-            spanId = _root_.scala.None,
-            traceFlags = _root_.scala.None,
-            resource = _root_.zio.blocks.otel.Resource.empty,
-            instrumentationScope = $self.logInstrumentationScope,
-            throwable = throwableVar
-          )
+            val record = _root_.zio.blocks.otel.LogRecord(
+              timestampNanos = now,
+              observedTimestampNanos = now,
+              severity = severityVar,
+              severityText = severityTextVar,
+              body = bodyVar,
+              attributes = builder.buildAndReset(),
+              traceIdHi = 0L,
+              traceIdLo = 0L,
+              spanId = 0L,
+              traceFlags = 0,
+              resource = _root_.zio.blocks.otel.Resource.empty,
+              instrumentationScope = $self.logInstrumentationScope,
+              throwable = throwableVar
+            )
 
-          $emitTree
+            $emitTree
+          }
         }
       }
     """)

@@ -362,10 +362,10 @@ object BranchCoverageSpec extends ZIOSpecDefault {
   )
 
   private val ctxSuite = suite("ContextStorage branch coverage")(
-    test("hasLoom matches implementationName") {
+    test("hasLoom is true and implementationName is ScopedValue") {
       assertTrue(
-        (ContextStorage.hasLoom && ContextStorage.implementationName == "ScopedValue") ||
-          (!ContextStorage.hasLoom && ContextStorage.implementationName == "ThreadLocal")
+        ContextStorage.hasLoom &&
+          ContextStorage.implementationName == "ScopedValue"
       )
     },
     test("scoped restores on normal exit") {

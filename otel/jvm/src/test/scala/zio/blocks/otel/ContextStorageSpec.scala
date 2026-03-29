@@ -26,17 +26,11 @@ object ContextStorageSpec extends ZIOSpecDefault {
         val storage = ContextStorage.create("initial")
         assertTrue(storage != null)
       },
-      test("implementationName is ScopedValue or ThreadLocal") {
-        val name = ContextStorage.implementationName
-        assertTrue(name == "ScopedValue" || name == "ThreadLocal")
+      test("implementationName is ScopedValue") {
+        assertTrue(ContextStorage.implementationName == "ScopedValue")
       },
-      test("hasLoom is consistent with implementationName") {
-        val hasLoom = ContextStorage.hasLoom
-        val name    = ContextStorage.implementationName
-        assertTrue(
-          (hasLoom && name == "ScopedValue") ||
-            (!hasLoom && name == "ThreadLocal")
-        )
+      test("hasLoom is always true on JDK 25+") {
+        assertTrue(ContextStorage.hasLoom)
       }
     ),
     suite("get")(
@@ -123,9 +117,7 @@ object ContextStorageSpec extends ZIOSpecDefault {
     ),
     suite("cross-thread isolation")(
       test("implementationName reports correctly") {
-        // Verifies that the storage detects the correct JVM capability
-        val name = ContextStorage.implementationName
-        assertTrue(name == "ScopedValue" || name == "ThreadLocal")
+        assertTrue(ContextStorage.implementationName == "ScopedValue")
       },
       test("set on one storage does not affect another") {
         val s1 = ContextStorage.create("a")

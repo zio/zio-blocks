@@ -17,11 +17,15 @@
 package zio.blocks.otel
 
 private[otel] object LogAnnotations {
+  private var everUsed: Boolean            = false
   private var current: Map[String, String] = Map.empty
 
-  def get(): Map[String, String] = current
+  def get(): Map[String, String] =
+    if (!everUsed) Map.empty
+    else current
 
   def scoped[A](annotations: Map[String, String])(f: => A): A = {
+    everUsed = true
     val prev = current
     current = prev ++ annotations
     try f

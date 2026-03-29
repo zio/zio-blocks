@@ -75,9 +75,6 @@ object PlatformExecutorSpec extends ZIOSpecDefault {
         val countAfterWait = counter.get()
         assertTrue(ok && countAfterWait <= countAtCancel + 1)
       } finally pe.shutdown()
-    },
-    test("hasLoom is consistent with ContextStorage.hasLoom") {
-      assertTrue(PlatformExecutor.hasLoom == ContextStorage.hasLoom)
     }
   ) @@ TestAspect.sequential
 }

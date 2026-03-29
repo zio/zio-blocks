@@ -17,6 +17,8 @@
 package zio.blocks.otel
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -42,6 +44,13 @@ final class BatchProcessor[A](
   private val queue: ConcurrentLinkedQueue[A] = new ConcurrentLinkedQueue[A]()
   private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
+
+  /**
+   * Virtual thread executor for export tasks. Retry sleeps won't pin platform
+   * threads.
+   */
+  private val exportExecutor: ExecutorService =
+    Executors.newVirtualThreadPerTaskExecutor()
 
   private val flushTask: Runnable = new Runnable {
     def run(): Unit = doFlush()
@@ -71,6 +80,7 @@ final class BatchProcessor[A](
     if (isShutdown.compareAndSet(false, true)) {
       scheduledFuture.cancel(false)
       doFlush()
+      exportExecutor.shutdown()
     }
 
   private def doFlush(): Unit = {
@@ -78,7 +88,12 @@ final class BatchProcessor[A](
     while (hasMore) {
       val batch = drain(maxBatchSize)
       hasMore = batch.nonEmpty
-      if (hasMore) exportWithRetry(batch, 0)
+      if (hasMore) {
+        val future = exportExecutor.submit(new Runnable {
+          def run(): Unit = exportWithRetry(batch, 0)
+        })
+        future.get() // wait for export to complete
+      }
     }
   }
 

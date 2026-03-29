@@ -46,7 +46,7 @@ final class Attributes private (
       h = 31 * h + types(i)
       h = 31 * h + java.lang.Long.hashCode(longs(i))
       if (strings(i) != null) h = 31 * h + strings(i).hashCode
-      if (seqs(i) != null) h = 31 * h + seqs(i).hashCode
+      if (seqs != null && seqs(i) != null) h = 31 * h + seqs(i).hashCode
       i += 1
     }
     h
@@ -105,11 +105,11 @@ final class Attributes private (
         case T_LONG        => visitor.visitLong(keys(i), longs(i))
         case T_DOUBLE      => visitor.visitDouble(keys(i), java.lang.Double.longBitsToDouble(longs(i)))
         case T_BOOLEAN     => visitor.visitBoolean(keys(i), longs(i) != 0L)
-        case T_STRING_SEQ  => visitor.visitStringSeq(keys(i), seqs(i).asInstanceOf[Seq[String]])
-        case T_LONG_SEQ    => visitor.visitLongSeq(keys(i), seqs(i).asInstanceOf[Seq[Long]])
-        case T_DOUBLE_SEQ  => visitor.visitDoubleSeq(keys(i), seqs(i).asInstanceOf[Seq[Double]])
+        case T_STRING_SEQ  => if (seqs != null) visitor.visitStringSeq(keys(i), seqs(i).asInstanceOf[Seq[String]])
+        case T_LONG_SEQ    => if (seqs != null) visitor.visitLongSeq(keys(i), seqs(i).asInstanceOf[Seq[Long]])
+        case T_DOUBLE_SEQ  => if (seqs != null) visitor.visitDoubleSeq(keys(i), seqs(i).asInstanceOf[Seq[Double]])
         case T_BOOLEAN_SEQ =>
-          visitor.visitBooleanSeq(keys(i), seqs(i).asInstanceOf[Seq[Boolean]])
+          if (seqs != null) visitor.visitBooleanSeq(keys(i), seqs(i).asInstanceOf[Seq[Boolean]])
         case _ => ()
       }
       i += 1
@@ -124,15 +124,22 @@ final class Attributes private (
     var i = 0
     while (i < len) {
       val value: AttributeValue = types(i) match {
-        case T_STRING      => AttributeValue.StringValue(strings(i))
-        case T_LONG        => AttributeValue.LongValue(longs(i))
-        case T_DOUBLE      => AttributeValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
-        case T_BOOLEAN     => AttributeValue.BooleanValue(longs(i) != 0L)
-        case T_STRING_SEQ  => AttributeValue.StringSeqValue(seqs(i).asInstanceOf[Seq[String]])
-        case T_LONG_SEQ    => AttributeValue.LongSeqValue(seqs(i).asInstanceOf[Seq[Long]])
-        case T_DOUBLE_SEQ  => AttributeValue.DoubleSeqValue(seqs(i).asInstanceOf[Seq[Double]])
+        case T_STRING     => AttributeValue.StringValue(strings(i))
+        case T_LONG       => AttributeValue.LongValue(longs(i))
+        case T_DOUBLE     => AttributeValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
+        case T_BOOLEAN    => AttributeValue.BooleanValue(longs(i) != 0L)
+        case T_STRING_SEQ =>
+          if (seqs != null) AttributeValue.StringSeqValue(seqs(i).asInstanceOf[Seq[String]])
+          else AttributeValue.StringValue("")
+        case T_LONG_SEQ =>
+          if (seqs != null) AttributeValue.LongSeqValue(seqs(i).asInstanceOf[Seq[Long]])
+          else AttributeValue.LongValue(0L)
+        case T_DOUBLE_SEQ =>
+          if (seqs != null) AttributeValue.DoubleSeqValue(seqs(i).asInstanceOf[Seq[Double]])
+          else AttributeValue.DoubleValue(0.0)
         case T_BOOLEAN_SEQ =>
-          AttributeValue.BooleanSeqValue(seqs(i).asInstanceOf[Seq[Boolean]])
+          if (seqs != null) AttributeValue.BooleanSeqValue(seqs(i).asInstanceOf[Seq[Boolean]])
+          else AttributeValue.BooleanValue(false)
         case _ => AttributeValue.StringValue("")
       }
       f(keys(i), value)
@@ -155,17 +162,20 @@ final class Attributes private (
       val t      = new Array[Byte](newLen)
       val l      = new Array[Long](newLen)
       val s      = new Array[String](newLen)
-      val sq     = new Array[AnyRef](newLen)
+      val sq     = if (seqs != null || other.seqs != null) {
+        val arr = new Array[AnyRef](newLen)
+        if (seqs != null) System.arraycopy(seqs, 0, arr, 0, len)
+        if (other.seqs != null) System.arraycopy(other.seqs, 0, arr, len, other.len)
+        arr
+      } else null
       System.arraycopy(keys, 0, k, 0, len)
       System.arraycopy(types, 0, t, 0, len)
       System.arraycopy(longs, 0, l, 0, len)
       System.arraycopy(strings, 0, s, 0, len)
-      System.arraycopy(seqs, 0, sq, 0, len)
       System.arraycopy(other.keys, 0, k, len, other.len)
       System.arraycopy(other.types, 0, t, len, other.len)
       System.arraycopy(other.longs, 0, l, len, other.len)
       System.arraycopy(other.strings, 0, s, len, other.len)
-      System.arraycopy(other.seqs, 0, sq, len, other.len)
       new Attributes(k, t, l, s, sq, newLen)
     }
 
@@ -195,7 +205,7 @@ final class Attributes private (
                 keys(i) == other.keys(j) && types(i) == other.types(j) &&
                 longs(i) == other.longs(j) &&
                 strings(i) == other.strings(j) &&
-                seqs(i) == other.seqs(j)
+                (seqs == null && other.seqs == null || seqs != null && other.seqs != null && seqs(i) == other.seqs(j))
               ) found = true
               j += 1
             }
@@ -229,7 +239,7 @@ object Attributes {
     Array.empty,
     Array.empty,
     Array.empty,
-    Array.empty,
+    null,
     0
   )
 
@@ -266,8 +276,13 @@ object Attributes {
     private var _types: Array[Byte]     = new Array[Byte](8)
     private var _longs: Array[Long]     = new Array[Long](8)
     private var _strings: Array[String] = new Array[String](8)
-    private var _seqs: Array[AnyRef]    = new Array[AnyRef](8)
+    private var _seqs: Array[AnyRef]    = null
     private var _len: Int               = 0
+
+    private def ensureSeqs(): Unit =
+      if (_seqs == null) {
+        _seqs = new Array[AnyRef](_keys.length)
+      }
 
     /**
      * Adds or updates a typed attribute.
@@ -293,8 +308,6 @@ object Attributes {
       val i = findOrAdd(key)
       _types(i) = T_STRING
       _strings(i) = value
-      _longs(i) = 0L
-      _seqs(i) = null
       this
     }
 
@@ -305,8 +318,6 @@ object Attributes {
       val i = findOrAdd(key)
       _types(i) = T_LONG
       _longs(i) = value
-      _strings(i) = null
-      _seqs(i) = null
       this
     }
 
@@ -317,8 +328,6 @@ object Attributes {
       val i = findOrAdd(key)
       _types(i) = T_DOUBLE
       _longs(i) = java.lang.Double.doubleToRawLongBits(value)
-      _strings(i) = null
-      _seqs(i) = null
       this
     }
 
@@ -329,12 +338,11 @@ object Attributes {
       val i = findOrAdd(key)
       _types(i) = T_BOOLEAN
       _longs(i) = if (value) 1L else 0L
-      _strings(i) = null
-      _seqs(i) = null
       this
     }
 
     private def putSeq(key: String, tpe: Byte, seq: AnyRef): Unit = {
+      ensureSeqs()
       val i = findOrAdd(key)
       _types(i) = tpe
       _longs(i) = 0L
@@ -350,7 +358,7 @@ object Attributes {
       while (i < _len) {
         _keys(i) = null
         _strings(i) = null
-        _seqs(i) = null
+        if (_seqs != null) _seqs(i) = null
         i += 1
       }
       _len = 0
@@ -366,8 +374,27 @@ object Attributes {
         val t  = java.util.Arrays.copyOf(_types, _len)
         val l  = java.util.Arrays.copyOf(_longs, _len)
         val s  = java.util.Arrays.copyOf(_strings, _len)
-        val sq = java.util.Arrays.copyOf(_seqs, _len)
+        val sq = if (_seqs != null) java.util.Arrays.copyOf(_seqs, _len) else null
         new Attributes(k, t, l, s, sq, _len)
+      }
+
+    /**
+     * Builds Attributes by handing off internal arrays (zero copy). After
+     * calling this, the builder's arrays are reset to fresh allocations. Use
+     * this when the builder is obtained from a pool and will be reused.
+     */
+    def buildAndReset(): Attributes =
+      if (_len == 0) Attributes.empty
+      else {
+        val a   = new Attributes(_keys, _types, _longs, _strings, _seqs, _len)
+        val cap = 8
+        _keys = new Array[String](cap)
+        _types = new Array[Byte](cap)
+        _longs = new Array[Long](cap)
+        _strings = new Array[String](cap)
+        _seqs = null
+        _len = 0
+        a
       }
 
     private def findOrAdd(key: String): Int = {
@@ -389,7 +416,7 @@ object Attributes {
         _types = java.util.Arrays.copyOf(_types, newCap)
         _longs = java.util.Arrays.copyOf(_longs, newCap)
         _strings = java.util.Arrays.copyOf(_strings, newCap)
-        _seqs = java.util.Arrays.copyOf(_seqs, newCap)
+        if (_seqs != null) _seqs = java.util.Arrays.copyOf(_seqs, newCap)
       }
   }
 }

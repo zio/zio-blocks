@@ -20,20 +20,33 @@ package zio.blocks.otel
  * Internal storage for scoped log annotations. Annotations are key-value pairs
  * that automatically attach to all log records within a `log.annotated` block.
  *
- * Uses ThreadLocal for thread-safe, fiber-unaware scoping on JVM. Will be
- * replaced with a platform-specific implementation when cross-compiling for JS.
+ * Uses ScopedValue for scoped bindings (virtual-thread-friendly) with
+ * ThreadLocal fallback for reads outside a scoped block.
  */
 private[otel] object LogAnnotations {
-  private val storage: ThreadLocal[Map[String, String]] = new ThreadLocal[Map[String, String]] {
+  @volatile private var everUsed: Boolean                   = false
+  private val scopedVal: ScopedValue[Map[String, String]]   = ScopedValue.newInstance()
+  private val threadLocal: ThreadLocal[Map[String, String]] = new ThreadLocal[Map[String, String]] {
     override def initialValue(): Map[String, String] = Map.empty
   }
 
-  def get(): Map[String, String] = storage.get()
+  def get(): Map[String, String] =
+    if (!everUsed) Map.empty
+    else if (scopedVal.isBound) scopedVal.get()
+    else threadLocal.get()
 
   def scoped[A](annotations: Map[String, String])(f: => A): A = {
-    val prev = storage.get()
-    storage.set(prev ++ annotations)
-    try f
-    finally storage.set(prev)
+    everUsed = true
+    val merged            = get() ++ annotations
+    var result: A         = null.asInstanceOf[A]
+    var thrown: Throwable = null
+    ScopedValue
+      .where(scopedVal, merged)
+      .run(() =>
+        try result = f
+        catch { case t: Throwable => thrown = t }
+      )
+    if (thrown != null) throw thrown
+    result
   }
 }

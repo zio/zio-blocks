@@ -20,6 +20,8 @@ trait LogRecordProcessor {
   def onEmit(logRecord: LogRecord): Unit
   def shutdown(): Unit
   def forceFlush(): Unit
+
+  def minimumLevel: Int = 1
 }
 
 object LogRecordProcessor {

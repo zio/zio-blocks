@@ -23,11 +23,25 @@ final class Logger(
   contextStorage: ContextStorage[Option[SpanContext]]
 ) {
 
+  private val processorMinLevel: Int =
+    if (processors.isEmpty) Int.MaxValue
+    else {
+      var min  = Int.MaxValue
+      val iter = processors.iterator
+      while (iter.hasNext) {
+        val level = iter.next().minimumLevel
+        if (level < min) min = level
+      }
+      min
+    }
+
   def emit(logRecord: LogRecord): Unit =
-    try processors.foreach(_.onEmit(logRecord))
-    catch {
-      case e: Throwable =>
-        System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+    if (logRecord.severity.number >= processorMinLevel) {
+      try processors.foreach(_.onEmit(logRecord))
+      catch {
+        case e: Throwable =>
+          System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
+      }
     }
 
   def trace(body: String, attrs: (String, AttributeValue)*): Unit =
