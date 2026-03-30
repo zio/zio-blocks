@@ -16,9 +16,10 @@
 
 package zio.blocks.schema.yaml
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
-object YamlContextDetectorSpec extends YamlBaseSpec {
+object YamlContextDetectorSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("YamlContextDetector")(
     suite("detectContexts")(

@@ -61,19 +61,17 @@ object Yaml {
   object Mapping {
     val empty: Mapping = Mapping(Chunk.empty)
 
-    def apply(entries: (Yaml, Yaml)*): Mapping =
-      new Mapping(Chunk.from(entries))
+    def apply(entries: (Yaml, Yaml)*): Mapping = new Mapping(Chunk.from(entries))
 
     /** Creates a [[Mapping]] from string-keyed entries. */
     def fromStringKeys(entries: (String, Yaml)*): Mapping =
-      new Mapping(Chunk.from(entries.map { case (k, v) => (Scalar(k): Yaml, v) }))
+      new Mapping(Chunk.from(entries.map { case (k, v) => (new Scalar(k), v) }))
   }
 
   object Sequence {
     val empty: Sequence = Sequence(Chunk.empty)
 
-    def apply(elements: Yaml*): Sequence =
-      new Sequence(Chunk.from(elements))
+    def apply(elements: Yaml*): Sequence = new Sequence(Chunk.from(elements))
   }
 
   /** Converts a [[zio.blocks.schema.json.Json]] value to a [[Yaml]] node. */
