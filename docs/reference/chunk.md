@@ -790,7 +790,6 @@ import zio.blocks.chunk.Chunk
 val chunk = Chunk(1, 2, 3)
 
 chunk.toSeq         // Vector(1, 2, 3)
-chunk.toIterable    // same as toSeq
 chunk.toIndexedSeq  // IndexedSeq(1, 2, 3)
 ```
 
@@ -959,13 +958,13 @@ import zio.blocks.schema.json.Json
 val data = Chunk(1, 2, 3)
 
 // Encoding to JSON
-val json = Json.Array(data.map(i => Json.Number(i)): _*)
+val json = Json.Array(data.map(i => Json.Number(i))*)
 
 // Decoding from JSON
 val decoded: Option[Chunk[Int]] = json match {
   case Json.Array(elements) =>
     Some(Chunk.fromIterable(elements.collect { case Json.Number(n) => n.toInt }))
-  case _ => None
+  case null => None
 }
 ```
 
