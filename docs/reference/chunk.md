@@ -860,6 +860,12 @@ val materialized = built.materialize
 
 Convert a chunk of bytes into a chunk of individual bits:
 
+```scala
+trait Chunk[+A] {
+  def asBitsByte: Chunk[Boolean]
+}
+```
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
