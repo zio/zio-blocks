@@ -958,14 +958,24 @@ val indexed = chunk.zipWithIndexFrom(10)
 
 Return the chunk if non-empty, otherwise return an alternative:
 
+```scala
+trait NonEmptyChunk[+A] {
+  def nonEmptyOrElse[B](ifEmpty: => B)(fn: NonEmptyChunk[A] => B): B
+}
+```
+
 ```scala mdoc:reset
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
 
 val chunk = Chunk(1, 2, 3)
-val result = chunk.nonEmptyOrElse(Chunk(0))
+val nonEmpty = NonEmptyChunk(1, 2, 3)
+val result = nonEmpty.nonEmptyOrElse(Chunk.empty[Int])(identity)
 
 val empty = Chunk.empty[Int]
-val result2 = empty.nonEmptyOrElse(Chunk(99))
+val result2 = empty match {
+  case c if c.isEmpty => Chunk(99)
+  case c => c
+}
 ```
 
 ## Subtypes and Variants
