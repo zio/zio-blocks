@@ -127,7 +127,7 @@ val singleInt = Chunk.single(42)
 
 ### From Array with `Chunk.fromArray`
 
-Create a chunk from an array. **Warning**: The array must not be mutated after creating the chunk.
+Create a chunk from an array (**Warning**: The array must not be mutated after creating the chunk):
 
 ```scala
 object Chunk {
