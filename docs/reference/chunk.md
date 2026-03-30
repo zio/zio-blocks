@@ -979,7 +979,7 @@ val indexed = chunk.zipWithIndexFrom(10)
 Return the chunk if non-empty, otherwise return an alternative:
 
 ```scala
-trait NonEmptyChunk[+A] {
+trait Chunk[+A] {
   def nonEmptyOrElse[B](ifEmpty: => B)(fn: NonEmptyChunk[A] => B): B
 }
 ```
