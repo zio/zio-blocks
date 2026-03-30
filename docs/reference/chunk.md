@@ -79,10 +79,8 @@ object Chunk {
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5)
-// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5)
 
 val strings = Chunk("alice", "bob", "charlie")
-// res1: Chunk[String] = Chunk(alice, bob, charlie)
 ```
 
 ### Empty Chunk with `Chunk.empty`
@@ -99,10 +97,8 @@ object Chunk {
 import zio.blocks.chunk.Chunk
 
 val empty = Chunk.empty[Int]
-// res0: Chunk[Int] = Chunk()
 
 empty.length
-// res1: Int = 0
 ```
 
 ### Single Element with `Chunk.single`
@@ -119,10 +115,8 @@ object Chunk {
 import zio.blocks.chunk.Chunk
 
 val one = Chunk.single("hello")
-// res0: Chunk[String] = Chunk(hello)
 
 val singleInt = Chunk.single(42)
-// res1: Chunk[Int] = Chunk(42)
 ```
 
 ### From Array with `Chunk.fromArray`
@@ -140,7 +134,6 @@ import zio.blocks.chunk.Chunk
 
 val arr = Array(10, 20, 30)
 val chunk = Chunk.fromArray(arr)
-// res0: Chunk[Int] = Chunk(10, 20, 30)
 
 // Do NOT mutate the array after creating the chunk
 ```
@@ -160,11 +153,9 @@ import zio.blocks.chunk.Chunk
 
 val list = List(1, 2, 3)
 val chunk = Chunk.fromIterable(list)
-// res0: Chunk[Int] = Chunk(1, 2, 3)
 
 val vector = Vector("x", "y", "z")
 val chunkFromVec = Chunk.fromIterable(vector)
-// res1: Chunk[String] = Chunk(x, y, z)
 ```
 
 ### From Iterator with `Chunk.fromIterator`
@@ -182,7 +173,6 @@ import zio.blocks.chunk.Chunk
 
 val iter = Iterator(5, 10, 15)
 val chunk = Chunk.fromIterator(iter)
-// res0: Chunk[Int] = Chunk(5, 10, 15)
 ```
 
 ### From `java.nio` Buffers
@@ -207,7 +197,6 @@ import java.nio.ByteBuffer
 
 val buffer = ByteBuffer.wrap(Array[Byte](1, 2, 3))
 val chunk = Chunk.fromByteBuffer(buffer)
-// res0: Chunk[Byte] = Chunk(1, 2, 3)
 ```
 
 ### Fill with `Chunk.fill`
@@ -224,10 +213,8 @@ object Chunk {
 import zio.blocks.chunk.Chunk
 
 val repeated = Chunk.fill(5)("x")
-// res0: Chunk[String] = Chunk(x, x, x, x, x)
 
 val zeros = Chunk.fill(3)(0)
-// res1: Chunk[Int] = Chunk(0, 0, 0)
 ```
 
 ### Iterate with `Chunk.iterate`
@@ -244,10 +231,8 @@ object Chunk {
 import zio.blocks.chunk.Chunk
 
 val powers = Chunk.iterate(1, 5)(_ * 2)
-// res0: Chunk[Int] = Chunk(1, 2, 4, 8, 16)
 
 val alphabet = Chunk.iterate('a', 3)(c => (c + 1).toChar)
-// res1: Chunk[Char] = Chunk(a, b, c)
 ```
 
 ### Unfold with `Chunk.unfold`
@@ -267,13 +252,11 @@ import zio.blocks.chunk.Chunk
 val counted = Chunk.unfold(1) { n =>
   if (n <= 5) Some((n, n + 1)) else None
 }
-// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5)
 
 // Generate fibonacci-like sequence
 val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
   if (a <= 50) Some((a, (b, a + b))) else None
 }
-// res1: Chunk[Int] = Chunk(1, 1, 2, 3, 5, 8, 13, 21, 34)
 ```
 
 ### Using ChunkBuilder for Incremental Construction
@@ -295,13 +278,11 @@ builder.addOne(1)
 builder.addOne(2)
 builder.addOne(3)
 val chunk = builder.result()
-// res0: Chunk[Int] = Chunk(1, 2, 3)
 
 // With capacity hint for better performance
 val builder2 = ChunkBuilder.make[String](100)
 builder2.addAll(List("a", "b", "c").iterator)
 val result = builder2.result()
-// res1: Chunk[String] = Chunk(a, b, c)
 ```
 
 ## Core Operations
@@ -385,11 +366,9 @@ import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4)
 val doubled = numbers.map(_ * 2)
-// res0: Chunk[Int] = Chunk(2, 4, 6, 8)
 
 val strings = Chunk("hello", "world")
 val lengths = strings.map(_.length)
-// res1: Chunk[Int] = Chunk(5, 5)
 ```
 
 #### `Chunk#flatMap` — Flat Transformation
@@ -407,7 +386,6 @@ import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3)
 val expanded = numbers.flatMap(n => Chunk(n, n * 10))
-// res0: Chunk[Int] = Chunk(1, 10, 2, 20, 3, 30)
 ```
 
 #### `Chunk#filter` — Keep Matching Elements
@@ -425,11 +403,9 @@ import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5, 6)
 val evens = numbers.filter(_ % 2 == 0)
-// res0: Chunk[Int] = Chunk(2, 4, 6)
 
 val longWords = Chunk("a", "hello", "b", "world")
 val filtered = longWords.filter(_.length > 1)
-// res1: Chunk[String] = Chunk(hello, world)
 ```
 
 #### `Chunk#collect` — Filter-Map Combined
@@ -447,7 +423,6 @@ import zio.blocks.chunk.Chunk
 
 val values: Chunk[Any] = Chunk(1, "hello", 2, "world", 3)
 val onlyInts = values.collect { case n: Int => n * 10 }
-// res0: Chunk[Int] = Chunk(10, 20, 30)
 ```
 
 #### `Chunk#sorted` — Sort Elements
@@ -465,11 +440,9 @@ import zio.blocks.chunk.Chunk
 
 val unsorted = Chunk(3, 1, 4, 1, 5, 9, 2, 6)
 val sorted = unsorted.sorted
-// res0: Chunk[Int] = Chunk(1, 1, 2, 3, 4, 5, 6, 9)
 
 val strings = Chunk("zebra", "apple", "banana")
 val sortedStrings = strings.sorted
-// res1: Chunk[String] = Chunk(apple, banana, zebra)
 ```
 
 ### Combining Chunks
@@ -490,13 +463,11 @@ import zio.blocks.chunk.Chunk
 val chunk1 = Chunk(1, 2, 3)
 val chunk2 = Chunk(4, 5, 6)
 val combined = chunk1 ++ chunk2
-// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5, 6)
 
 // Efficient even with many concatenations
 val many = (1 to 100).foldLeft(Chunk.empty[Int]) { (acc, i) =>
   acc ++ Chunk(i)
 }
-// res1: Chunk[Int] = Chunk(1, 2, 3, ...)
 ```
 
 #### `Chunk#:+(a)` — Append Element
@@ -514,7 +485,6 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
 val appended = chunk :+ 4
-// res0: Chunk[Int] = Chunk(1, 2, 3, 4)
 ```
 
 #### `Chunk#+:(a)` — Prepend Element
@@ -532,7 +502,6 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(2, 3, 4)
 val prepended = 1 +: chunk
-// res0: Chunk[Int] = Chunk(1, 2, 3, 4)
 ```
 
 #### `Chunk#zip` and `Chunk#zipWith` — Combine Parallel Chunks
@@ -553,10 +522,8 @@ val numbers = Chunk(1, 2, 3)
 val letters = Chunk("a", "b", "c")
 
 val zipped = numbers.zip(letters)
-// res0: Chunk[(Int, String)] = Chunk((1,a), (2,b), (3,c))
 
 val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
-// res1: Chunk[String] = Chunk(a1, b2, c3)
 ```
 
 ### Slicing and Partitioning
@@ -636,7 +603,6 @@ import zio.blocks.chunk.Chunk
 val chunk = Chunk(1, 2, 3, 4, 5, 6)
 
 val splitAt3 = chunk.split(3)
-// res0: Chunk[Chunk[Int]] = Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
 ```
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
@@ -682,13 +648,10 @@ import zio.blocks.chunk.Chunk
 val numbers = Chunk(1, 2, 3, 4, 5)
 
 val sum = numbers.foldLeft(0)(_ + _)
-// res0: Int = 15
 
 val product = numbers.foldLeft(1)(_ * _)
-// res1: Int = 120
 
 val concat = Chunk("a", "b", "c").foldLeft("")(_ + _)
-// res2: String = abc
 ```
 
 #### `Chunk#foldRight` — Right Fold
@@ -706,7 +669,6 @@ import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4)
 val result = numbers.foldRight(List[Int]())(_ :: _)
-// res0: List[Int] = List(1, 2, 3, 4)
 ```
 
 #### `Chunk#exists` and `Chunk#forall` — Predicates
@@ -791,7 +753,6 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4)
 val array: Array[Int] = chunk.toArray
-// res0: Array[Int] = Array(1, 2, 3, 4)
 ```
 
 #### `Chunk#toList` — To List
@@ -809,7 +770,6 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk("a", "b", "c")
 val list = chunk.toList
-// res0: List[String] = List(a, b, c)
 ```
 
 #### `Chunk#toSeq`, `Chunk#toIterable`, `Chunk#toIndexedSeq` — Standard Collections
@@ -914,7 +874,6 @@ Create a `NonEmptyChunk` by wrapping a non-empty `Chunk`:
 ```scala
 val chunk = Chunk(1, 2, 3)
 val nonEmpty = NonEmptyChunk(chunk)
-// res0: NonEmptyChunk[Int]
 
 // Access head safely without the risk of IndexOutOfBoundsException
 val first = nonEmpty.head  // 1
@@ -928,7 +887,6 @@ val chunk2 = Chunk(4, 5, 6)
 
 val nonEmpty1 = NonEmptyChunk(chunk1)
 val result = nonEmpty1 ++ chunk2
-// res0: NonEmptyChunk[Int] - concatenation preserves non-empty guarantee
 ```
 
 ## Comparison with Other Sequence Types
