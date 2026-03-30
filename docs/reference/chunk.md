@@ -938,17 +938,22 @@ val values: Chunk[Any] = Chunk(1, 2, "x", 3, 4)
 val collected = values.collectWhile { case n: Int => n * 10 }
 ```
 
-#### `Chunk#partitionMap` — Partition by Partial Function
+#### `Chunk#partitionMap` — Partition into Two Chunks by Either Result
 
-Partition elements by applying a partial function that returns `Either`:
+Partition elements by applying a total function that returns `Either`:
+
+```scala
+trait Chunk[+A] {
+  def partitionMap[B, C](f: A => Either[B, C]): (Chunk[B], Chunk[C])
+}
+```
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val values: Chunk[Any] = Chunk(1, "hello", 2, "world")
-val (ints, strings) = values.partitionMap {
-  case n: Int => Left(n)
-  case s: String => Right(s)
+val numbers = Chunk(1, 2, 3, 4, 5)
+val (evens, odds) = numbers.partitionMap { n =>
+  if (n % 2 == 0) Left(n) else Right(n)
 }
 ```
 
