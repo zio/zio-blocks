@@ -591,6 +591,8 @@ chunk.slice(2, 5)  // Chunk(30, 40, 50)
 
 Split the chunk into N equally-sized chunks. When the chunk size is not evenly divisible, remainder elements are distributed into earlier chunks. If n exceeds the chunk's length, the result contains at most chunk.length single-element chunks.
 
+Note: Passing n ≤ 0 throws ArithmeticException; n must be a positive integer.
+
 ```scala
 trait Chunk[+A] {
   def split(n: Int): Chunk[Chunk[A]]
