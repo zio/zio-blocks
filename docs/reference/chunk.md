@@ -724,7 +724,7 @@ Check if the chunk contains a specific element:
 
 ```scala
 trait Chunk[+A] {
-  def contains(a: A)(implicit ev: A => Equals): Boolean
+  def contains[A1 >: A](elem: A1): Boolean
 }
 ```
 
