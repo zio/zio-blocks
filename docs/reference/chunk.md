@@ -905,18 +905,21 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 #### `Chunk#asString` — Convert to String
 
-Convert a chunk of characters into a string:
+Convert a chunk of bytes or characters into a string. Supports `Chunk[Byte]`, `Chunk[Char]`, and `Chunk[String]`:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val chars = Chunk('H', 'i')
 val str = chars.asString
+
+val bytes = Chunk(72.toByte, 105.toByte)  // 'H', 'i' in ASCII
+val strFromBytes = bytes.asString
 ```
 
 #### `Chunk#asBase64String` — Encode as Base64
 
-Convert a chunk of bytes to a Base64-encoded string:
+Convert a chunk of bytes or characters to a Base64-encoded string:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
