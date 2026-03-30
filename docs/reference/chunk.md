@@ -587,9 +587,9 @@ chunk.slice(1, 4)  // Chunk(20, 30, 40)
 chunk.slice(2, 5)  // Chunk(30, 40, 50)
 ```
 
-#### `Chunk#split` — Split into Chunks
+#### `Chunk#split` — Split into Equally-Sized Chunks
 
-Split the chunk at a given index:
+Split the chunk into N equally-sized chunks:
 
 ```scala
 trait Chunk[+A] {
@@ -602,7 +602,8 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5, 6)
 
-val splitAt3 = chunk.split(3)
+val splitInto2 = chunk.split(2)
+// splitInto2: Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
 ```
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
