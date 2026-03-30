@@ -1,3 +1,0 @@
-let explorer = host-api-explorer("explorer2");
-let result = explorer.explore-config();
-result

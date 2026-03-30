@@ -17,7 +17,7 @@
 package golem.runtime.macros
 
 // Macro annotations live in a separate module; do not depend on them here.
-import golem.runtime.agenttype.AgentType
+import golem.runtime.AgentType
 import golem.AgentApi
 
 import scala.quoted.*
@@ -33,9 +33,6 @@ object AgentSdkMacro {
 
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
 
     def extractTypeNameFromAgentDefinition(sym: Symbol): Option[String] =
       sym.annotations.collectFirst {
@@ -77,7 +74,7 @@ object AgentSdkMacro {
       case '[ctor] =>
         '{
           new AgentApi[Trait] {
-            override type Constructor = ctor
+            override type Id = ctor
             override val typeName: String                  = $typeNameExpr
             override val agentType: AgentType[Trait, ctor] =
               golem.runtime.macros.AgentClientMacro

@@ -45,7 +45,10 @@ trait UnapplySeq[X] {
 }
 
 object UnapplySeq extends UnapplySeqLowPriority {
-  type Aux[X, C0[_], A0] = UnapplySeq[X] { type C[x] = C0[x]; type A = A0 }
+  type Aux[X, C0[_], A0] = UnapplySeq[X] {
+    type C[x] = C0[x]
+    type A    = A0
+  }
 
   implicit def setInstance[A0]: UnapplySeq.Aux[Set[A0], Set, A0] =
     new UnapplySeq[Set[A0]] {
@@ -126,7 +129,11 @@ trait UnapplyMap[X] {
 }
 
 object UnapplyMap {
-  type Aux[X, M0[_, _], K0, V0] = UnapplyMap[X] { type M[k, v] = M0[k, v]; type K = K0; type V = V0 }
+  type Aux[X, M0[_, _], K0, V0] = UnapplyMap[X] {
+    type M[k, v] = M0[k, v]
+    type K       = K0
+    type V       = V0
+  }
 
   implicit def mapInstance[K0, V0]: UnapplyMap.Aux[Map[K0, V0], Map, K0, V0] =
     new UnapplyMap[Map[K0, V0]] {

@@ -1,3 +1,0 @@
-let demo = fork-demo("demo-json");
-let result = demo.run-fork-json();
-result

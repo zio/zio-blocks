@@ -28,5 +28,11 @@ import scala.annotation.StaticAnnotation
 @Target(Array(ElementType.TYPE))
 final class agentDefinition(
   val typeName: String = "",
-  val mode: DurabilityMode = DurabilityMode.Durable
+  val mode: DurabilityMode = DurabilityMode.Durable,
+  val mount: String = "",
+  val auth: Boolean = false,
+  val cors: Array[String] = Array.empty,
+  val phantomAgent: Boolean = false,
+  val webhookSuffix: String = "",
+  val snapshotting: String = "disabled"
 ) extends StaticAnnotation

@@ -1,3 +1,0 @@
-let demo = transactions-demo("infallible-test");
-let result = demo.infallible-demo();
-result

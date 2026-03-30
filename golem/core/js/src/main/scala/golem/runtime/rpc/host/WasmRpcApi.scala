@@ -17,75 +17,129 @@
 package golem.runtime.rpc.host
 
 import golem.Datetime
+import golem.host.js._
+
 import scala.annotation.unused
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
 
 private[golem] object WasmRpcApi {
-  def newClient(componentId: js.Dynamic, agentId: String): WasmRpcClient = {
-    // golem:rpc/types@0.2.2 expects AgentId { componentId: ComponentId, agentId: string }
-    val agentRef = js.Dynamic.literal(
-      "componentId" -> componentId,
-      "agentId"     -> agentId
-    )
-    new WasmRpcClient(new RawWasmRpc(agentRef))
+  def newClient(
+    agentTypeName: String,
+    constructorPayload: JsDataValue,
+    phantomId: js.UndefOr[JsUuid],
+    agentConfig: js.Array[JsTypedAgentConfigValue]
+  ): WasmRpcClient = {
+    val phantomArg: js.Any = phantomId.getOrElse(js.undefined)
+    new WasmRpcClient(new RawWasmRpc(agentTypeName, constructorPayload, phantomArg, agentConfig))
   }
 
-  private def decodeRpcError(value: js.Dynamic): RpcError =
-    value.selectDynamic("tag").asInstanceOf[String] match {
-      case "protocol-error"        => RpcError("protocol-error", Some(value.selectDynamic("val").asInstanceOf[String]))
-      case "denied"                => RpcError("denied", Some(value.selectDynamic("val").asInstanceOf[String]))
-      case "not-found"             => RpcError("not-found", Some(value.selectDynamic("val").asInstanceOf[String]))
-      case "remote-internal-error" =>
-        RpcError("remote-internal-error", Some(value.selectDynamic("val").asInstanceOf[String]))
-      case other => RpcError(other, None)
+  private def datetimeToJs(datetime: Datetime): JsDatetime = {
+    val totalMs = datetime.epochMillis
+    val seconds = js.BigInt((totalMs / 1000.0).toLong.toString)
+    val nanos   = ((totalMs % 1000.0) * 1e6).toInt
+    JsDatetime(seconds, nanos)
+  }
+
+  private def decodeRpcError(thrown: Any): RpcError =
+    try {
+      val value = thrown.asInstanceOf[JsRpcError]
+      value.tag match {
+        case "protocol-error" =>
+          RpcError("protocol-error", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "denied" =>
+          RpcError("denied", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "not-found" =>
+          RpcError("not-found", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "remote-internal-error" =>
+          RpcError("remote-internal-error", Some(value.asInstanceOf[JsRpcErrorString].value))
+        case "remote-agent-error" =>
+          RpcError("remote-agent-error", None, Some(value.asInstanceOf[JsRpcErrorRemoteAgent].value))
+        case other =>
+          RpcError(other, None)
+      }
+    } catch {
+      case _: Exception =>
+        RpcError("unknown", Some(String.valueOf(thrown)))
     }
 
   final class WasmRpcClient private[host] (private val underlying: js.Object) {
-    def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): Either[RpcError, js.Dynamic] =
-      try Right(raw.invokeAndAwait(functionName, params))
+    def invokeAndAwait(functionName: String, input: JsDataValue): Either[RpcError, JsDataValue] =
+      try Right(raw.invokeAndAwait(functionName, input))
       catch {
         case js.JavaScriptException(e) =>
-          Left(decodeRpcError(e.asInstanceOf[js.Dynamic]))
+          Left(decodeRpcError(e))
       }
 
-    def trigger(functionName: String, params: js.Array[js.Dynamic]): Either[RpcError, Unit] =
+    def invoke(functionName: String, input: JsDataValue): Either[RpcError, Unit] =
       try {
-        raw.invoke(functionName, params)
+        raw.invoke(functionName, input)
         Right(())
       } catch {
         case js.JavaScriptException(e) =>
-          Left(decodeRpcError(e.asInstanceOf[js.Dynamic]))
+          Left(decodeRpcError(e))
       }
 
-    private def raw: RawWasmRpc =
-      underlying.asInstanceOf[RawWasmRpc]
+    def asyncInvokeAndAwait(functionName: String, input: JsDataValue): Either[RpcError, JsDataValue] =
+      try Right(raw.asyncInvokeAndAwait(functionName, input))
+      catch {
+        case js.JavaScriptException(e) =>
+          Left(decodeRpcError(e))
+      }
 
     def scheduleInvocation(
       datetime: Datetime,
       functionName: String,
-      params: js.Array[js.Dynamic]
+      input: JsDataValue
     ): Either[RpcError, Unit] =
       try {
-        // Host expects a Datetime value; currently represented as `{ ts: <epochMillis> }`.
-        raw.scheduleInvocation(js.Dynamic.literal("ts" -> datetime.epochMillis), functionName, params)
+        raw.scheduleInvocation(datetimeToJs(datetime), functionName, input)
         Right(())
       } catch {
         case js.JavaScriptException(e) =>
-          Left(decodeRpcError(e.asInstanceOf[js.Dynamic]))
+          Left(decodeRpcError(e))
+      }
+
+    def scheduleCancelableInvocation(
+      datetime: Datetime,
+      functionName: String,
+      input: JsDataValue
+    ): Either[RpcError, js.Any] =
+      try Right(raw.scheduleCancelableInvocation(datetimeToJs(datetime), functionName, input))
+      catch {
+        case js.JavaScriptException(e) =>
+          Left(decodeRpcError(e))
+      }
+
+    private def raw: RawWasmRpc =
+      underlying.asInstanceOf[RawWasmRpc]
+  }
+
+  final case class RpcError(
+    kind: String,
+    message: Option[String] = None,
+    agentError: Option[JsAgentError] = None
+  ) {
+    override def toString: String =
+      agentError match {
+        case Some(err) => s"$kind: ${js.JSON.stringify(err.asInstanceOf[js.Any])}"
+        case None      => message.fold(kind)(text => s"$kind: $text")
       }
   }
 
-  final case class RpcError(kind: String, message: Option[String]) {
-    override def toString: String =
-      message.fold(kind)(text => s"$kind: $text")
-  }
-
   @js.native
-  @JSImport("golem:rpc/types@0.2.2", "WasmRpc")
-  private final class RawWasmRpc(@unused agentId: js.Dynamic) extends js.Object {
-    def invokeAndAwait(functionName: String, params: js.Array[js.Dynamic]): js.Dynamic                     = js.native
-    def invoke(functionName: String, params: js.Array[js.Dynamic]): Unit                                   = js.native
-    def scheduleInvocation(datetime: js.Dynamic, functionName: String, params: js.Array[js.Dynamic]): Unit = js.native
+  @JSImport("golem:agent/host@1.5.0", "WasmRpc")
+  private final class RawWasmRpc(
+    @unused agentTypeName: String,
+    @unused constructor_ : JsDataValue,
+    @unused phantomId: js.Any,
+    @unused agentConfig: js.Array[JsTypedAgentConfigValue]
+  ) extends js.Object {
+    def invokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                     = js.native
+    def invoke(methodName: String, input: JsDataValue): Unit                                                    = js.native
+    def asyncInvokeAndAwait(methodName: String, input: JsDataValue): JsDataValue                                = js.native
+    def scheduleInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): Unit             = js.native
+    def scheduleCancelableInvocation(scheduledTime: JsDatetime, methodName: String, input: JsDataValue): js.Any =
+      js.native
   }
 }

@@ -233,7 +233,7 @@ final class ChunkMap[K, +V] private (
           val k = _keys(idx)
           otherMap.get(k) match {
             case Some(otherVal) => eq = _values(idx) == otherVal
-            case None           => eq = false
+            case _              => eq = false
           }
           idx += 1
         }
@@ -249,7 +249,7 @@ final class ChunkMap[K, +V] private (
           val k = _keys(idx)
           otherMap.get(k) match {
             case Some(otherVal) => eq = _values(idx) == otherVal
-            case None           => eq = false
+            case _              => eq = false
           }
           idx += 1
         }

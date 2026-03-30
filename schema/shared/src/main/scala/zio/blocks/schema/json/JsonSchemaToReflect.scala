@@ -82,11 +82,11 @@ private[schema] object JsonSchemaToReflect {
     case _: JsonSchema.False.type => Shape.Dynamic
     case obj: JsonSchema.Object   =>
       analyzeEnum(obj)
+        .orElse(analyzeSequence(obj))
+        .orElse(analyzeMapOrRecord(obj))
         .orElse(analyzeOption(obj))
         .orElse(analyzeVariant(obj))
         .orElse(analyzeTuple(obj))
-        .orElse(analyzeSequence(obj))
-        .orElse(analyzeMapOrRecord(obj))
         .orElse(analyzePrimitive(obj))
         .getOrElse(Shape.Dynamic)
   }
@@ -203,16 +203,14 @@ private[schema] object JsonSchemaToReflect {
   }
 
   private[this] def analyzeMapOrRecord(obj: JsonSchema.Object): Option[Shape] = {
-    val hasProperties          = obj.properties.exists(_.nonEmpty)
-    val hasOnlyAdditionalProps = !hasProperties &&
-      obj.additionalProperties.isDefined &&
-      (obj.additionalProperties.get ne JsonSchema.False)
-    if (hasOnlyAdditionalProps) new Some(Shape.MapShape(obj.additionalProperties.get))
-    else if (hasProperties) {
+    val hasProperties = obj.properties.exists(_.nonEmpty)
+    if (!hasProperties && obj.additionalProperties.isDefined && (obj.additionalProperties.get ne JsonSchema.False)) {
+      new Some(new Shape.MapShape(obj.additionalProperties.get))
+    } else if (hasProperties) {
       val props    = obj.properties.getOrElse(ChunkMap.empty)
       val required = obj.required.getOrElse(Set.empty)
       val closed   = obj.additionalProperties.contains(JsonSchema.False)
-      new Some(Shape.Record(props, required, closed))
+      new Some(new Shape.Record(props, required, closed))
     } else None
   }
 
@@ -324,23 +322,23 @@ private[schema] object JsonSchemaToReflect {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = fieldCount)
 
         def construct(in: Registers, offset: RegisterOffset): DynamicValue = {
-          val builder = ChunkBuilder.make[(String, DynamicValue)]()
-          var idx     = 0
+          val result = new Array[(String, DynamicValue)](fieldCount)
+          var idx    = 0
           while (idx < fieldCount) {
             var elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
             if (elem eq null) elem = DynamicValue.Null
-            builder.addOne((fieldNames(idx), elem))
+            result(idx) = (fieldNames(idx), elem)
             idx += 1
           }
-          new DynamicValue.Record(builder.result())
+          new DynamicValue.Record(Chunk.fromArray(result))
         }
       },
       deconstructor = new Deconstructor[DynamicValue] {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = fieldCount)
 
         def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicValue): Unit = in match {
-          case DynamicValue.Record(recordFields) =>
-            val fieldMap = recordFields.toMap
+          case r: DynamicValue.Record =>
+            val fieldMap = r.fields.toMap
             var idx      = 0
             while (idx < fieldCount) {
               val value = fieldMap.getOrElse(fieldNames(idx), DynamicValue.Null)
@@ -368,21 +366,21 @@ private[schema] object JsonSchemaToReflect {
     val wrapperBinding = new Binding.Wrapper[DynamicValue, Map[DynamicValue, DynamicValue]](
       wrap = map => new DynamicValue.Map(Chunk.from(map)),
       unwrap = {
-        case DynamicValue.Map(entries) => entries.toMap
-        case _                         => Map.empty
+        case m: DynamicValue.Map => m.entries.toMap
+        case _                   => Map.empty
       }
     )
     new Reflect.Wrapper(mapReflect, TypeId.of[DynamicValue], wrapperBinding)
   }
 
   private[this] def buildSequence(itemsSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
-    val elementReflect                                    = toReflect(itemsSchema)
-    val seqReflect: Reflect[Binding, Chunk[DynamicValue]] = Reflect.chunk[Binding, DynamicValue](elementReflect)
-    val wrapperBinding                                    = new Binding.Wrapper[DynamicValue, Chunk[DynamicValue]](
-      wrap = chunk => DynamicValue.Sequence(chunk),
+    val elementReflect = toReflect(itemsSchema)
+    val seqReflect     = Reflect.chunk[Binding, DynamicValue](elementReflect)
+    val wrapperBinding = new Binding.Wrapper[DynamicValue, Chunk[DynamicValue]](
+      wrap = chunk => new DynamicValue.Sequence(chunk),
       unwrap = {
-        case DynamicValue.Sequence(elements) => elements
-        case _                               => Chunk.empty
+        case s: DynamicValue.Sequence => s.elements
+        case _                        => Chunk.empty
       }
     )
     new Reflect.Wrapper(seqReflect, TypeId.of[DynamicValue], wrapperBinding)
@@ -404,8 +402,9 @@ private[schema] object JsonSchemaToReflect {
           val builder = ChunkBuilder.make[DynamicValue](tupleSize)
           var idx     = 0
           while (idx < tupleSize) {
-            val elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
-            builder.addOne(if (elem != null) elem else DynamicValue.Null)
+            var elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
+            if (elem eq null) elem = DynamicValue.Null
+            builder.addOne(elem)
             idx += 1
           }
           new DynamicValue.Sequence(builder.result())
@@ -418,7 +417,9 @@ private[schema] object JsonSchemaToReflect {
           case DynamicValue.Sequence(elements) =>
             var idx = 0
             while (idx < tupleSize) {
-              val elem = if (idx < elements.length) elements(idx) else DynamicValue.Null
+              val elem =
+                if (idx < elements.length) elements(idx)
+                else DynamicValue.Null
               out.setObject(offset + idx, elem.asInstanceOf[AnyRef])
               idx += 1
             }
@@ -454,8 +455,8 @@ private[schema] object JsonSchemaToReflect {
     val variantBinding = new Binding.Variant[DynamicValue](
       discriminator = new Discriminator[DynamicValue] {
         def discriminate(a: DynamicValue): Int = a match {
-          case DynamicValue.Variant(name, _) =>
-            val idx = caseNames.indexOf(name)
+          case v: DynamicValue.Variant =>
+            val idx = caseNames.indexOf(v.caseNameValue)
             if (idx >= 0) idx else 0
           case _ => 0
         }
@@ -464,7 +465,7 @@ private[schema] object JsonSchemaToReflect {
         Chunk.fromArray(caseNames.map { cn =>
           new Matcher[DynamicValue] {
             override def downcastOrNull(any: Any): DynamicValue = any match {
-              case dv @ DynamicValue.Variant(name, _) if name == cn => dv
+              case v: DynamicValue.Variant if v.caseNameValue == cn => v
               case _                                                => null.asInstanceOf[DynamicValue]
             }
           }
@@ -494,8 +495,8 @@ private[schema] object JsonSchemaToReflect {
     val variantBinding = new Binding.Variant[DynamicValue](
       discriminator = new Discriminator[DynamicValue] {
         def discriminate(a: DynamicValue): Int = a match {
-          case DynamicValue.Variant(name, _) =>
-            val idx = caseNames.indexOf(name)
+          case v: DynamicValue.Variant =>
+            val idx = caseNames.indexOf(v.caseNameValue)
             if (idx >= 0) idx else 0
           case _ => 0
         }
@@ -504,7 +505,7 @@ private[schema] object JsonSchemaToReflect {
         Chunk.fromArray(caseNames.map { cn =>
           new Matcher[DynamicValue] {
             override def downcastOrNull(any: Any): DynamicValue = any match {
-              case dv @ DynamicValue.Variant(name, _) if name == cn => dv
+              case v: DynamicValue.Variant if v.caseNameValue == cn => v
               case _                                                => null.asInstanceOf[DynamicValue]
             }
           }
@@ -525,29 +526,27 @@ private[schema] object JsonSchemaToReflect {
     shape: Shape,
     built: Reflect[Binding, DynamicValue]
   ): Reflect[Binding, DynamicValue] = shape match {
-    case Shape.Tuple(prefixItems) => wrapTupleWithValidation(prefixItems.length, built)
-    case _                        => built
+    case t: Shape.Tuple => wrapTupleWithValidation(t.prefixItems.length, built)
+    case _              => built
   }
 
   private[this] def wrapTupleWithValidation(
     expectedLength: Int,
     inner: Reflect[Binding, DynamicValue]
-  ): Reflect[Binding, DynamicValue] = {
-    val validatingBinding = new Binding.Wrapper[DynamicValue, DynamicValue](
-      wrap = dv => {
-        validateTuple(dv, expectedLength) match {
-          case Some(error) => throw error
-          case _           => dv
-        }
-      },
-      unwrap = dv => dv
-    )
+  ): Reflect[Binding, DynamicValue] =
     new Reflect.Wrapper[Binding, DynamicValue, DynamicValue](
       wrapped = inner,
       typeId = TypeId.of[DynamicValue],
-      wrapperBinding = validatingBinding
+      wrapperBinding = new Binding.Wrapper[DynamicValue, DynamicValue](
+        wrap = dv => {
+          validateTuple(dv, expectedLength) match {
+            case Some(error) => throw error
+            case _           => dv
+          }
+        },
+        unwrap = dv => dv
+      )
     )
-  }
 
   private[this] def validateTuple(dv: DynamicValue, expectedLength: Int): Option[SchemaError] = dv match {
     case DynamicValue.Sequence(elements) =>

@@ -234,7 +234,7 @@ object AvroFormatSpec extends SchemaBaseSpec {
       },
       test("nested record") {
         avroSchema[Record2](
-          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}"
+          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}"
         ) &&
         roundTrip(
           Record2(
@@ -262,12 +262,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -282,12 +282,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             TypeId.int,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -302,12 +302,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.hidden,
-            new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
+            new AvroCodec[Unit] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Unit = decoder.readString()
+              def decodeValue(decoder: BinaryDecoder): Unit = decoder.readString()
 
-              def encode(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
+              def encodeValue(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -322,15 +322,15 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.optKey_None,
-            new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
+            new AvroCodec[None.type] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): None.type = {
+              def decodeValue(decoder: BinaryDecoder): None.type = {
                 val _ = decoder.readString()
                 None
               }
 
-              def encode(value: None.type, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
+              def encodeValue(value: None.type, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -342,23 +342,23 @@ object AvroFormatSpec extends SchemaBaseSpec {
         roundTrip(Record4((), None), 5, codec)
       },
       test("record with a custom codec for nested record injected by optic") {
-        val codec1 = new AvroBinaryCodec[Record1]() {
+        val codec1 = new AvroCodec[Record1]() {
           private val codec = Record1.schema.derive(AvroFormat)
 
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-          def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
+          def decodeValue(decoder: BinaryDecoder): Record1 = {
             val idx = decoder.readInt()
             if (idx == 0) null
-            else codec.decodeUnsafe(decoder)
+            else codec.decodeValue(decoder)
           }
 
-          def encode(value: Record1, encoder: BinaryEncoder): Unit =
+          def encodeValue(value: Record1, encoder: BinaryEncoder): Unit =
             if (value eq null) encoder.writeInt(0)
             else {
               encoder.writeInt(1)
-              codec.encode(value, encoder)
+              codec.encodeValue(value, encoder)
             }
         }
         val codec2 = Record2.schema
@@ -385,27 +385,27 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             TypeId.int,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .instance(
             Record2.r1_2_i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
+              def decodeValue(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
             }
           )
           .derive
         avroSchema(
-          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"string\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"double\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}",
+          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"string\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"double\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}",
           codec
         ) &&
         roundTrip(
@@ -422,23 +422,23 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.schema.reflect.typeId,
-            new AvroBinaryCodec[Record1]() {
+            new AvroCodec[Record1]() {
               private val codec = Record1.schema.derive(AvroFormat)
 
               val avroSchema: AvroSchema =
                 AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
+              def decodeValue(decoder: BinaryDecoder): Record1 = {
                 val idx = decoder.readInt()
                 if (idx == 0) null
-                else codec.decodeUnsafe(decoder)
+                else codec.decodeValue(decoder)
               }
 
-              def encode(value: Record1, encoder: BinaryEncoder): Unit =
+              def encodeValue(value: Record1, encoder: BinaryEncoder): Unit =
                 if (value eq null) encoder.writeInt(0)
                 else {
                   encoder.writeInt(1)
-                  codec.encode(value, encoder)
+                  codec.encodeValue(value, encoder)
                 }
             }
           )
@@ -462,12 +462,12 @@ object AvroFormatSpec extends SchemaBaseSpec {
           .deriving(AvroFormat.deriver)
           .instance(
             Recursive.i,
-            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+            new AvroCodec[Int] {
               val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeValue(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
+              def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -932,23 +932,23 @@ object AvroFormatSpec extends SchemaBaseSpec {
             )
           )
         )
-        val codec1 = new AvroBinaryCodec[DynamicValue]() {
+        val codec1 = new AvroCodec[DynamicValue]() {
           private val codec = Schema[DynamicValue].derive(AvroFormat)
 
           val avroSchema: AvroSchema =
             AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-          def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = {
+          def decodeValue(decoder: BinaryDecoder): DynamicValue = {
             val idx = decoder.readInt()
             if (idx == 0) null
-            else codec.decodeUnsafe(decoder)
+            else codec.decodeValue(decoder)
           }
 
-          def encode(value: DynamicValue, encoder: BinaryEncoder): Unit =
+          def encodeValue(value: DynamicValue, encoder: BinaryEncoder): Unit =
             if (value eq null) encoder.writeInt(0)
             else {
               encoder.writeInt(1)
-              codec.encode(value, encoder)
+              codec.encodeValue(value, encoder)
             }
         }
         val codec2 = Schema[Dynamic]

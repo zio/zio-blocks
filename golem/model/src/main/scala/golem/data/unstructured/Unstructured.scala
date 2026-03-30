@@ -126,6 +126,18 @@ object TextSegment {
           case other =>
             Left(s"Expected unstructured-text element, found $other")
         }
+
+      override def elementSchema: ElementSchema =
+        ElementSchema.UnstructuredText(allowed.codes)
+
+      override def encodeElement(value: TextSegment[Lang]): Either[String, ElementValue] =
+        Right(ElementValue.UnstructuredText(value.value))
+
+      override def decodeElement(value: ElementValue): Either[String, TextSegment[Lang]] =
+        value match {
+          case ElementValue.UnstructuredText(v) => Right(TextSegment(v))
+          case other                            => Left(s"Expected unstructured-text element, found: ${other.getClass.getSimpleName}")
+        }
     }
 }
 
@@ -187,6 +199,18 @@ object BinarySegment {
             Right(BinarySegment(binaryValue))
           case other =>
             Left(s"Expected unstructured-binary element, found $other")
+        }
+
+      override def elementSchema: ElementSchema =
+        ElementSchema.UnstructuredBinary(allowed.mimeTypes)
+
+      override def encodeElement(value: BinarySegment[Descriptor]): Either[String, ElementValue] =
+        Right(ElementValue.UnstructuredBinary(value.value))
+
+      override def decodeElement(value: ElementValue): Either[String, BinarySegment[Descriptor]] =
+        value match {
+          case ElementValue.UnstructuredBinary(v) => Right(BinarySegment(v))
+          case other                              => Left(s"Expected unstructured-binary element, found: ${other.getClass.getSimpleName}")
         }
     }
 }

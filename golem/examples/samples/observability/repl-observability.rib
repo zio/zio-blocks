@@ -1,3 +1,0 @@
-let demo = observability-demo("demo");
-let trace = demo.trace-demo();
-trace

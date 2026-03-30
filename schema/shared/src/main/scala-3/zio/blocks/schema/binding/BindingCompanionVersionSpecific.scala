@@ -144,12 +144,12 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
 
   private def isIterator(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Iterator[?]]
 
-  private case class SmartConstructorInfo(
-    companionRef: Term,
-    applyMethod: Symbol,
-    underlyingType: TypeRepr,
-    errorType: TypeRepr,
-    unwrapFieldName: String
+  private class SmartConstructorInfo(
+    val companionRef: Term,
+    val applyMethod: Symbol,
+    val underlyingType: TypeRepr,
+    val errorType: TypeRepr,
+    val unwrapFieldName: String
   )
 
   private def findSmartConstructor(tpe: TypeRepr): Option[SmartConstructorInfo] = {
@@ -962,7 +962,11 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
     else RegisterOffset(objects = 1)
   }
 
-  private case class TupleFieldInfo(index: Int, tpe: TypeRepr, usedRegisters: RegisterOffset.RegisterOffset)
+  private class TupleFieldInfo(
+    val index: Int,
+    val tpe: TypeRepr,
+    val usedRegisters: RegisterOffset.RegisterOffset
+  )
 
   private def tupleFieldConstructor(
     in: Expr[Registers],
@@ -1306,7 +1310,12 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
       case "object"  => '{ RegisterOffset(objects = 1) }
     }
 
-  private case class StructuralFieldForGen(name: String, memberTpe: TypeRepr, kind: String, index: Int)
+  private class StructuralFieldForGen(
+    val name: String,
+    val memberTpe: TypeRepr,
+    val kind: String,
+    val index: Int
+  )
 
   private def deriveStructuralRecordBindingSimple[A: Type](tpe: TypeRepr): Expr[Any] = {
     if (!Platform.supportsReflection) {

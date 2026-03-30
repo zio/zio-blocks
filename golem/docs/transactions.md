@@ -82,7 +82,7 @@ import golem.Transactions
 import golem.Transactions.TransactionFailure
 
 val result: Either[TransactionFailure[String], Int] =
-  Transactions.fallibleTransaction[String, Int] { tx =>
+  Transactions.fallibleTransaction[Int, String] { tx =>
     val increment = Transactions.operation[Int, Int, String](
       in => Right(in + 1)
     )(
@@ -176,7 +176,7 @@ Transactions.infallibleTransaction { tx =>
 Compensation failures are captured in the return type:
 
 ```scala
-Transactions.fallibleTransaction[String, Int] { tx =>
+Transactions.fallibleTransaction[Int, String] { tx =>
   // If compensation fails, result is FailedAndRolledBackPartially
   ???
 }
@@ -220,7 +220,7 @@ val badOp = Transactions.operation[Unit, String, String](
 Put easily-reversible operations first:
 
 ```scala
-Transactions.fallibleTransaction[String, Unit] { tx =>
+Transactions.fallibleTransaction[Unit, String] { tx =>
   // Easy to reverse (just delete)
   tx.execute(createTempFile, ())
 
@@ -248,7 +248,7 @@ Transactions.infallibleTransaction { tx =>
 For debugging, log when transactions start and complete:
 
 ```scala
-Transactions.fallibleTransaction[String, Int] { tx =>
+Transactions.fallibleTransaction[Int, String] { tx =>
   console.log("Transaction started")
   val result = tx.execute(operation, input)
   console.log(s"Transaction completed: $result")

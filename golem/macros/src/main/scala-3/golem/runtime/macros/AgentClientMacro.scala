@@ -17,8 +17,7 @@
 package golem.runtime.macros
 
 import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
-import golem.runtime.MethodMetadata
-import golem.runtime.agenttype.{AgentMethod, AgentType, ConstructorType, MethodInvocation}
+import golem.runtime.{AgentMethod, AgentType, ConstructorType, MethodInvocation, MethodMetadata}
 // Macro annotations live in a separate module; do not depend on them here.
 
 import scala.quoted.*
@@ -99,9 +98,6 @@ object AgentClientMacro {
     import quotes.reflect.*
     def defaultTypeNameFromTrait(sym: Symbol): String =
       sym.name
-        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
-        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
-        .toLowerCase
 
     def extractTypeName(args: List[Term]): Option[String] =
       args.collectFirst {
@@ -137,13 +133,46 @@ object AgentClientMacro {
     traitRepr: quotes.reflect.TypeRepr
   ): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
-    val baseSym = traitRepr.baseClasses.find(_.fullName == "golem.BaseAgent").getOrElse(Symbol.noSymbol)
-    if (baseSym == Symbol.noSymbol) TypeRepr.of[Unit]
-    else
-      traitRepr.baseType(baseSym) match {
-        case AppliedType(_, List(arg)) => arg
-        case _                         => TypeRepr.of[Unit]
+    val typeSymbol = traitRepr.typeSymbol
+
+    val idFQN = "golem.runtime.annotations.id"
+
+    def hasIdAnnotation(sym: Symbol): Boolean =
+      sym.annotations.exists {
+        case Apply(Select(New(tpt), _), _) => tpt.tpe.dealias.typeSymbol.fullName == idFQN
+        case _                             => false
       }
+
+    val constructorClass = typeSymbol.declarations.find { sym =>
+      sym.isClassDef && hasIdAnnotation(sym)
+    }.orElse {
+      typeSymbol.declarations.find { sym =>
+        sym.isClassDef && sym.name == "Id"
+      }
+    }
+
+    constructorClass match {
+      case None =>
+        report.errorAndAbort(
+          s"Agent trait ${typeSymbol.name} must define a `class Id(...)` to declare its constructor parameters. Use `class Id()` for agents with no constructor parameters."
+        )
+      case Some(classSym) =>
+        val primaryCtor = classSym.primaryConstructor
+        val params      = primaryCtor.paramSymss.flatten.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => v.tpt.tpe
+              case _         => TypeRepr.of[Nothing]
+            }
+        }
+        params match {
+          case Nil      => TypeRepr.of[Unit]
+          case p :: Nil => p
+          case ps       =>
+            val tupleClass = Symbol.requiredClass(s"scala.Tuple${ps.length}")
+            tupleClass.typeRef.appliedTo(ps)
+        }
+    }
   }
 
   private def buildMethod[Trait: Type](using
@@ -153,8 +182,7 @@ object AgentClientMacro {
   ): Expr[AgentMethod[Trait, ?, ?]] = {
 
     val metadataExpr = methodMetadata(method)
-    val agentType    = agentTypeNameOrDefault(method.owner)
-    val functionName = Expr(s"$agentType.{${method.name}}")
+    val functionName = Expr(method.name)
 
     val parameters                   = extractParameters(method)
     val accessMode                   = methodAccess(parameters)
@@ -234,27 +262,16 @@ object AgentClientMacro {
     }
   }
 
-  private def elementSchemaExpr(using Quotes)(paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
+  private def elementSchemaExpr(using
+    Quotes
+  )(@scala.annotation.unused paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
     import quotes.reflect.*
 
     tpe.asType match {
       case '[t] =>
         Expr.summon[GolemSchema[t]] match {
           case Some(schemaExpr) =>
-            '{
-              $schemaExpr.schema match {
-                case StructuredSchema.Tuple(elements) if elements.length == 1 =>
-                  elements.head.schema
-                case StructuredSchema.Tuple(_) =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} expands to multiple elements; wrap it in a case class"
-                  )
-                case StructuredSchema.Multimodal(_) =>
-                  throw new IllegalArgumentException(
-                    s"Parameter ${${ Expr(paramName) }} is multimodal; use a single multimodal wrapper parameter"
-                  )
-              }
-            }
+            '{ $schemaExpr.elementSchema }
           case None =>
             report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}.$schemaHint")
         }
@@ -312,7 +329,7 @@ object AgentClientMacro {
               case v: ValDef => (sym.name, v.tpt.tpe)
               case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
             }
-        }
+        }.filter { case (_, tpe) => tpe.dealias.typeSymbol.fullName != "golem.Principal" }
     }.getOrElse(Nil)
   }
 
@@ -396,14 +413,7 @@ object AgentClientMacro {
           var idx     = 0
           while (idx < params.length) {
             val (paramName, codec) = params(idx)
-            codec.schema match {
-              case _root_.golem.data.StructuredSchema.Tuple(elements) if elements.length == 1 =>
-                builder += _root_.golem.data.NamedElementSchema(paramName, elements.head.schema)
-              case other =>
-                throw new IllegalArgumentException(
-                  s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element, found: $other"
-                )
-            }
+            builder += _root_.golem.data.NamedElementSchema(paramName, codec.elementSchema)
             idx += 1
           }
           _root_.golem.data.StructuredSchema.Tuple(builder.result())
@@ -419,22 +429,11 @@ object AgentClientMacro {
             var idx     = 0
             while (idx < params.length) {
               val (paramName, codec) = params(idx)
-              codec.encode(value(idx)) match {
+              codec.encodeElement(value(idx)) match {
                 case Left(err) =>
                   return Left(s"Failed to encode parameter '$paramName' in method '${$methodNameExpr}': $err")
-                case Right(_root_.golem.data.StructuredValue.Tuple(elements)) =>
-                  elements match {
-                    case _root_.golem.data.NamedElementValue(_, elementValue) :: Nil =>
-                      builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
-                    case _ =>
-                      return Left(
-                        s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element value"
-                      )
-                  }
-                case Right(other) =>
-                  return Left(
-                    s"Parameter '$paramName' in method '${$methodNameExpr}' produced unexpected structured value: $other"
-                  )
+                case Right(elementValue) =>
+                  builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
               }
               idx += 1
             }
@@ -463,7 +462,7 @@ object AgentClientMacro {
                       s"Structured element name mismatch for method '${$methodNameExpr}'. Expected '$paramName', found '${element.name}'"
                     )
                   else {
-                    codec.decode(_root_.golem.data.StructuredValue.single(element.value)) match {
+                    codec.decodeElement(element.value) match {
                       case Left(err) =>
                         failure = Some(s"Failed to decode parameter '$paramName' in method '${$methodNameExpr}': $err")
                       case Right(decoded) =>
@@ -478,6 +477,15 @@ object AgentClientMacro {
             case other =>
               Left(s"Structured value mismatch for method '${$methodNameExpr}'. Expected tuple payload, found: $other")
           }
+
+        override def elementSchema: _root_.golem.data.ElementSchema =
+          throw new UnsupportedOperationException("Multi-param schema cannot be used as a single element")
+
+        override def encodeElement(value: Vector[Any]): Either[String, _root_.golem.data.ElementValue] =
+          Left("Multi-param schema cannot be encoded as a single element")
+
+        override def decodeElement(value: _root_.golem.data.ElementValue): Either[String, Vector[Any]] =
+          Left("Multi-param schema cannot be decoded from a single element")
       }
     }
   }

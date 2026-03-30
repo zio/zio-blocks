@@ -1,3 +1,0 @@
-let demo = storage-demo("demo");
-let config = demo.config-demo();
-config

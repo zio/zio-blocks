@@ -137,8 +137,7 @@ object CompanionClass {
                 }
               }
           }
-      case None =>
-        report.errorAndAbort(s"Cannot find class symbol for ${Type.show[A]}")
+      case _ => report.errorAndAbort(s"Cannot find class symbol for ${Type.show[A]}")
     }
   }
 }
@@ -240,7 +239,7 @@ object DerivedOptics {
                 (r: Registers, o: RegisterOffset, v: Any) => r.setObject(o, v.asInstanceOf[AnyRef])
               )
           }
-        case None =>
+        case _ =>
           (
             RegisterOffset(objects = 1),
             (r: Registers, o: RegisterOffset) => r.getObject(o).asInstanceOf[B],
@@ -335,21 +334,19 @@ private[schema] object DerivedOpticsMacros {
 
     // Get the type of `this` (e.g., Person.type)
     val selfType = self.asTerm.tpe.widen
-
     // Find the companion class
     val classSymOpt    = selfType.classSymbol
     val companionClass = classSymOpt
       .map(_.companionClass)
       .filter(!_.isNoSymbol)
       .getOrElse(report.errorAndAbort(s"Cannot find companion class for ${selfType.show}"))
-
     val companionType = companionClass.typeRef
     companionType.asType match {
       case '[s] =>
         // Look for implicit Schema[s] in scope
         Expr.summon[Schema[s]] match {
           case Some(schema) => opticsImpl[s](schema, false)
-          case None         =>
+          case _            =>
             report.errorAndAbort(
               s"Cannot find implicit Schema[${Type.show[s]}]. " +
                 s"Make sure you have defined: given schema: Schema[${companionClass.name}] = Schema.derived"
@@ -375,15 +372,10 @@ private[schema] object DerivedOpticsMacros {
     val isCaseClass = caseClassSym.flags.is(Flags.Case)
     val isSealed    = caseClassSym.flags.is(Flags.Sealed)
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
-    if (isCaseClass) {
-      buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
-    } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
-    } else if (isPrelude) {
-      buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
-    } else {
-      buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
-    }
+    if (isCaseClass) buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
+    else if (isSealed || isEnum) buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
+    else if (isPrelude) buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
+    else buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
   }
 
   private def buildWrapperOptics[S: Type](
@@ -416,9 +408,7 @@ private[schema] object DerivedOpticsMacros {
                     // Create Lens from Fake Record (field index 0)
                     val lens = Lens(record, record.fields(0).asInstanceOf[zio.blocks.schema.Term.Bound[S, u]])
                     Map(${ Expr(fieldName) } -> lens)
-                  } else {
-                    Map.empty
-                  }
+                  } else Map.empty
                   new OpticsHolder(opticsMap)
                 }
               ).asInstanceOf[rt]
@@ -458,15 +448,11 @@ private[schema] object DerivedOpticsMacros {
                   val w = reflectData.asInstanceOf[Reflect.Wrapper.Bound[S, Any]]
                   DerivedOptics.wrapperAsRecord(w)
                 }
-              }.getOrElse(
-                throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
-              )
+              }.getOrElse(throw new RuntimeException(s"Expected a record schema for ${$cacheKey}"))
               val members = record.fields.zipWithIndex.map { case (term, idx) =>
                 val lens = record
                   .lensByIndex(idx)
-                  .getOrElse(
-                    throw new RuntimeException(s"Cannot find lens for field ${term.name}")
-                  )
+                  .getOrElse(throw new RuntimeException(s"Cannot find lens for field ${term.name}"))
                 val name = NameTransformer.encode(if ($prefixUnderscoreExpr) "_" + term.name else term.name)
                 name -> lens
               }.toMap
@@ -495,11 +481,8 @@ private[schema] object DerivedOpticsMacros {
         // This handles the common pattern: sealed trait T[A]; case class C[A](...) extends T[A]
         // We check primaryConstructor paramSymss to detect type parameters
         val hasTypeParams = child.primaryConstructor.paramSymss.headOption.exists(_.exists(_.isType))
-        if (hasTypeParams && tpeCast.typeArgs.nonEmpty) {
-          child.typeRef.appliedTo(tpeCast.typeArgs)
-        } else {
-          child.typeRef
-        }
+        if (hasTypeParams && tpeCast.typeArgs.nonEmpty) child.typeRef.appliedTo(tpeCast.typeArgs)
+        else child.typeRef
       } else {
         // For case objects / enum singletons, use termRef without widening
         // to preserve the singleton type (e.g., Status.Active.type instead of Status)
@@ -524,9 +507,7 @@ private[schema] object DerivedOpticsMacros {
               val members  = variant.cases.zipWithIndex.map { case (term, idx) =>
                 val prism = variant
                   .prismByIndex(idx)
-                  .getOrElse(
-                    throw new RuntimeException(s"Cannot find prism for case ${term.name}")
-                  )
+                  .getOrElse(throw new RuntimeException(s"Cannot find prism for case ${term.name}"))
                 val baseName = lowerFirst(term.name)
                 val name     = NameTransformer.encode(if (prefixUs) "_" + baseName else baseName)
                 name -> prism

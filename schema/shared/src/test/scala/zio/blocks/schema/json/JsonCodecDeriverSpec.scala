@@ -1703,7 +1703,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
               def encodeValue(x: BigInt, out: JsonWriter): Unit = out.writeValAsString(x)
 
               override def decodeValue(json: Json): BigInt = json match {
-                case s: Json.String => BigInt(s.value)
+                case s: Json.String => BigInt(s.value) // unsafe, use for trusted input only
                 case _              => error("expected Json.String")
               }
 
@@ -1719,7 +1719,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
               def encodeValue(x: BigDecimal, out: JsonWriter): Unit = out.writeValAsString(x)
 
               override def decodeValue(json: Json): BigDecimal = json match {
-                case s: Json.String => BigDecimal(s.value)
+                case s: Json.String => BigDecimal(s.value) // unsafe, use for trusted input only
                 case _              => error("expected Json.String")
               }
 
@@ -3074,7 +3074,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
                     case _        => ()
                   }
                 }
-                in.decodeError("illegal offset date time")
+                error("illegal offset date time")
               }
 
               def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)
@@ -3291,6 +3291,35 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[RGBColor]("""{"Mixed":{"color":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
         decodeError[RGBColor]("""{"Mixed":{"color":1193046}]""", "expected '}' or ',' at: .") &&
         decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}}""", "missing required field \"color\" at: .when[Mix]")
+      },
+      test("ADT with discriminator field and case key renaming and aliasing using annotation") {
+        val codec = RGBColor.schema
+          .deriving(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type")))
+          .derive
+        roundTrip[RGBColor](RGBColor.Green, """{"$type":"Green"}""", codec) &&
+        roundTrip[RGBColor](RGBColor.Yellow, """{"$type":"Yellow"}""", codec) &&
+        roundTrip[RGBColor](RGBColor.Orаnge, """{"$type":"Orаnge"}""", codec) &&
+        roundTrip[RGBColor](RGBColor.Red, """{"$type":"Red"}""", codec) &&
+        roundTrip[RGBColor](RGBColor.Mix(0x123456), """{"$type":"Mixed","color":1193046}""", codec) &&
+        decode[RGBColor]("""{"$type":"Azure"}""", RGBColor.Blue, codec) &&
+        decode[RGBColor]("""{"$type":"Blue"}""", RGBColor.Blue, codec) &&
+        decode[RGBColor]("""{"$type":"Indigo"}""", RGBColor.Blue, codec) &&
+        decode[RGBColor]("""{"$type":"Navy"}""", RGBColor.Blue, codec) &&
+        decode[RGBColor]("""{"$type":"Periwinkle"}""", RGBColor.Blue, codec) &&
+        decode[RGBColor]("""{"$type":"Ultramarine"}""", RGBColor.Blue, codec) &&
+        decodeError[RGBColor]("""null""", "expected '{' at: .", codec) &&
+        decodeError[RGBColor]("""{"$type":"Pink"}""", "illegal value of discriminator field \"$type\" at: .", codec) &&
+        decodeError[RGBColor]("""{"$type":"Mixed","color":1]""", "expected '}' or ',' at: .when[Mix]", codec) &&
+        decodeError[RGBColor](
+          """{"$type":"Mixed","color":01}""",
+          "illegal number with leading zero at: .when[Mix].rgb",
+          codec
+        ) &&
+        decodeError[RGBColor](
+          """{"$type":"Mixed","rgb":1193046}""",
+          "missing required field \"color\" at: .when[Mix]",
+          codec
+        )
       },
       test("option") {
         roundTrip(Option(42), """42""") &&
@@ -3779,7 +3808,6 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
 
   object Email {
     private[this] val EmailRegex       = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".r
-    implicit val typeId: TypeId[Email] = TypeId.of[Email]
     implicit val schema: Schema[Email] =
       Schema[String].transform[Email](
         {

@@ -17,7 +17,7 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.{DynamicOptic, SchemaError}
 
 /**
  * An immutable patch for XML modification operations.
@@ -39,7 +39,7 @@ final case class XmlPatch(ops: Chunk[XmlPatch.Op]) {
    * @return
    *   Either an error or the patched XML value
    */
-  def apply(xml: Xml): Either[XmlError, Xml] = {
+  def apply(xml: Xml): Either[SchemaError, Xml] = {
     var current = xml
     val len     = ops.length
     var idx     = 0
@@ -234,7 +234,7 @@ object XmlPatch {
     value: Xml,
     path: IndexedSeq[DynamicOptic.Node],
     operation: Operation
-  ): Either[XmlError, Xml] =
+  ): Either[SchemaError, Xml] =
     if (path.isEmpty) applyOperation(value, operation, Nil)
     else navigateAndApply(value, path, 0, operation, Nil)
 
@@ -248,7 +248,7 @@ object XmlPatch {
     pathIdx: Int,
     operation: Operation,
     trace: List[DynamicOptic.Node]
-  ): Either[XmlError, Xml] = {
+  ): Either[SchemaError, Xml] = {
     val node   = path(pathIdx)
     val isLast = pathIdx == path.length - 1
     node match {
@@ -261,7 +261,7 @@ object XmlPatch {
               case e: Xml.Element => e.name.localName == name
               case _              => false
             }
-            if (childIdx < 0) new Left(XmlError.patchError(s"Element '$name' not found").atSpan(f))
+            if (childIdx < 0) new Left(SchemaError(s"Element '$name' not found"))
             else {
               val newTrace = f :: trace
               if (isLast) {
@@ -287,7 +287,7 @@ object XmlPatch {
                 }
               }
             }
-          case _ => new Left(XmlError.patchError(s"Expected Element but got ${value.xmlType}"))
+          case _ => new Left(SchemaError(s"Expected Element but got ${value.xmlType}"))
         }
       case ai: DynamicOptic.Node.AtIndex =>
         val index = ai.index
@@ -295,7 +295,7 @@ object XmlPatch {
           case elem: Xml.Element =>
             val children = elem.children
             if (index < 0 || index >= children.length) {
-              new Left(XmlError.patchError(s"Index $index out of bounds for element with ${children.length} children"))
+              new Left(SchemaError(s"Index $index out of bounds for element with ${children.length} children"))
             } else {
               val newTrace = ai :: trace
               if (isLast) {
@@ -319,9 +319,9 @@ object XmlPatch {
                 }
               }
             }
-          case _ => new Left(XmlError.patchError(s"Expected Element but got ${value.xmlType}"))
+          case _ => new Left(SchemaError(s"Expected Element but got ${value.xmlType}"))
         }
-      case _ => new Left(XmlError.patchError(s"Unsupported path node: $node"))
+      case _ => new Left(SchemaError(s"Unsupported path node: $node"))
     }
   }
 
@@ -332,10 +332,10 @@ object XmlPatch {
     value: Xml,
     operation: Operation,
     @scala.annotation.unused _trace: List[DynamicOptic.Node]
-  ): Either[XmlError, Xml] = operation match {
+  ): Either[SchemaError, Xml] = operation match {
     case a: Operation.Add         => applyAdd(value, a.content, a.position)
     case _: Operation.Remove.type =>
-      new Left(XmlError.patchError("Remove operation requires parent context"))
+      new Left(SchemaError("Remove operation requires parent context"))
     case r: Operation.Replace          => new Right(r.content)
     case sa: Operation.SetAttribute    => applySetAttribute(value, sa.name, sa.value)
     case ra: Operation.RemoveAttribute => applyRemoveAttribute(value, ra.name)
@@ -348,7 +348,7 @@ object XmlPatch {
     value: Xml,
     content: Xml,
     position: Position
-  ): Either[XmlError, Xml] = position match {
+  ): Either[SchemaError, Xml] = position match {
     case Position.PrependChild | Position.AppendChild =>
       value match {
         case e: Xml.Element =>
@@ -357,9 +357,9 @@ object XmlPatch {
             case Position.AppendChild  => e.children :+ content
             case _                     => e.children
           }))
-        case _ => new Left(XmlError.patchError("Add with PrependChild/AppendChild requires Element target"))
+        case _ => new Left(SchemaError("Add with PrependChild/AppendChild requires Element target"))
       }
-    case _ => new Left(XmlError.patchError("Add with Before/After requires parent context"))
+    case _ => new Left(SchemaError("Add with Before/After requires parent context"))
   }
 
   /**
@@ -369,7 +369,7 @@ object XmlPatch {
     value: Xml,
     name: String,
     attrValue: String
-  ): Either[XmlError, Xml] = value match {
+  ): Either[SchemaError, Xml] = value match {
     case elem: Xml.Element =>
       val attrName    = XmlName(name)
       val existingIdx = elem.attributes.indexWhere { case (n, _) => n.localName == name }
@@ -377,19 +377,19 @@ object XmlPatch {
         if (existingIdx >= 0) elem.attributes.updated(existingIdx, (attrName, attrValue))
         else elem.attributes :+ (attrName, attrValue)
       new Right(elem.copy(attributes = newAttrs))
-    case _ => new Left(XmlError.patchError("SetAttribute requires Element target"))
+    case _ => new Left(SchemaError("SetAttribute requires Element target"))
   }
 
   /**
    * Apply a RemoveAttribute operation.
    */
-  private[this] def applyRemoveAttribute(value: Xml, name: String): Either[XmlError, Xml] = value match {
+  private[this] def applyRemoveAttribute(value: Xml, name: String): Either[SchemaError, Xml] = value match {
     case elem: Xml.Element =>
       val existingIdx = elem.attributes.indexWhere { case (n, _) => n.localName == name }
-      if (existingIdx < 0) new Left(XmlError.patchError(s"Attribute '$name' not found"))
+      if (existingIdx < 0) new Left(SchemaError(s"Attribute '$name' not found"))
       else {
         new Right(elem.copy(attributes = elem.attributes.take(existingIdx) ++ elem.attributes.drop(existingIdx + 1)))
       }
-    case _ => new Left(XmlError.patchError("RemoveAttribute requires Element target"))
+    case _ => new Left(SchemaError("RemoveAttribute requires Element target"))
   }
 }

@@ -21,57 +21,59 @@ import golem.data.UnstructuredBinaryValue
 import golem.data.UnstructuredTextValue
 import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
 import golem.runtime.autowire.AgentImplementation
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
 
-final class AgentDefinitionCompileSpec extends AnyFunSuite {
+object AgentDefinitionCompileSpec extends ZIOSpecDefault {
 
   // ---------------------------------------------------------------------------
   // Constructor patterns
   // ---------------------------------------------------------------------------
 
   @agentDefinition("unit-ctor-agent", mode = DurabilityMode.Durable)
-  trait UnitCtorAgent extends BaseAgent[Unit] {
+  trait UnitCtorAgent extends BaseAgent {
+    class Id()
     def ping(): Future[String]
   }
 
   @agentDefinition("string-ctor-agent")
-  trait StringCtorAgent extends BaseAgent[String] {
+  trait StringCtorAgent extends BaseAgent {
+    class Id(val value: String)
     def echo(): Future[String]
   }
 
-  @agentDefinition("int-ctor-agent")
-  trait IntCtorAgent extends BaseAgent[Int] {
-    def value(): Future[Int]
+  @agentDefinition("case-class-ctor-agent")
+  trait CaseClassCtorAgent extends BaseAgent {
+    class Id(val host: String, val port: Int)
+    def info(): Future[String]
   }
 
   final case class MyConfig(host: String, port: Int)
   object MyConfig { implicit val schema: Schema[MyConfig] = Schema.derived }
 
-  @agentDefinition("case-class-ctor-agent")
-  trait CaseClassCtorAgent extends BaseAgent[MyConfig] {
-    def info(): Future[String]
-  }
-
   @agentDefinition("tuple2-ctor-agent")
-  trait Tuple2CtorAgent extends BaseAgent[(String, Int)] {
+  trait Tuple2CtorAgent extends BaseAgent {
+    class Id(val arg0: String, val arg1: Int)
     def combined(): Future[String]
   }
 
   @agentDefinition("tuple3-ctor-agent")
-  trait Tuple3CtorAgent extends BaseAgent[(String, Int, Boolean)] {
+  trait Tuple3CtorAgent extends BaseAgent {
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean)
     def all(): Future[String]
   }
 
   @agentDefinition("tuple4-ctor-agent")
-  trait Tuple4CtorAgent extends BaseAgent[(String, Int, Boolean, Double)] {
+  trait Tuple4CtorAgent extends BaseAgent {
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double)
     def data(): Future[String]
   }
 
   @agentDefinition("tuple5-ctor-agent")
-  trait Tuple5CtorAgent extends BaseAgent[(String, Int, Boolean, Double, Long)] {
+  trait Tuple5CtorAgent extends BaseAgent {
+    class Id(val arg0: String, val arg1: Int, val arg2: Boolean, val arg3: Double, val arg4: Long)
     def data(): Future[String]
   }
 
@@ -80,7 +82,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   // ---------------------------------------------------------------------------
 
   @agentDefinition("return-types-agent")
-  trait ReturnTypesAgent extends BaseAgent[Unit] {
+  trait ReturnTypesAgent extends BaseAgent {
+    class Id()
     def asyncString(): Future[String]
     def asyncInt(): Future[Int]
     def asyncOption(): Future[Option[String]]
@@ -99,7 +102,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   object Nested { implicit val schema: Schema[Nested] = Schema.derived }
 
   @agentDefinition("param-types-agent")
-  trait ParamTypesAgent extends BaseAgent[Unit] {
+  trait ParamTypesAgent extends BaseAgent {
+    class Id()
     def singlePrimitive(s: String): Future[String]
     def multipleParams(a: String, b: Int, c: Boolean): Future[String]
     def caseClassParam(config: MyConfig): Future[String]
@@ -117,7 +121,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
 
   @agentDefinition("kitchen-sink-agent")
   @description("Agent with many method signature patterns.")
-  trait KitchenSinkAgent extends BaseAgent[String] {
+  trait KitchenSinkAgent extends BaseAgent {
+    class Id(val value: String)
     def echoString(message: String): Future[String]
     def echoInt(value: Int): Future[Int]
     def echoBoolean(flag: Boolean): Future[Boolean]
@@ -171,16 +176,18 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   // Annotation patterns
   // ---------------------------------------------------------------------------
 
-  @agentDefinition(typeName = "explicit-name-agent")
+  @agentDefinition("explicit-name-agent")
   @description("An agent with explicit type name.")
-  trait ExplicitNameAgent extends BaseAgent[Unit] {
+  trait ExplicitNameAgent extends BaseAgent {
+    class Id()
     @description("Says hello.")
     @prompt("Greet the user warmly.")
     def greet(name: String): Future[String]
   }
 
-  @agentDefinition(mode = DurabilityMode.Ephemeral)
-  trait EphemeralAgent extends BaseAgent[String] {
+  @agentDefinition("ephemeral-agent", mode = DurabilityMode.Ephemeral)
+  trait EphemeralAgent extends BaseAgent {
+    class Id(val value: String)
     def process(): Future[String]
   }
 
@@ -199,8 +206,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   }
 
   @agentImplementation()
-  final class CaseClassCtorAgentImpl(private val config: MyConfig) extends CaseClassCtorAgent {
-    override def info(): Future[String] = Future.successful(s"${config.host}:${config.port}")
+  final class CaseClassCtorAgentImpl(private val host: String, private val port: Int) extends CaseClassCtorAgent {
+    override def info(): Future[String] = Future.successful(s"$host:$port")
   }
 
   @agentImplementation()
@@ -221,161 +228,39 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
   }
 
   // ---------------------------------------------------------------------------
-  // Tests: Constructor patterns compile
-  // ---------------------------------------------------------------------------
-
-  test("BaseAgent[Unit] constructor compiles") {
-    val impl = new UnitCtorAgentImpl()
-    val defn = AgentImplementation.register[UnitCtorAgent]("unit-ctor-agent")(impl)
-    assert(defn.methodMetadata.nonEmpty)
-  }
-
-  test("BaseAgent[String] constructor compiles") {
-    val impl = new StringCtorAgentImpl("test")
-    val defn = AgentImplementation.register[StringCtorAgent]("string-ctor-agent")(impl)
-    assert(defn.methodMetadata.nonEmpty)
-  }
-
-  test("BaseAgent[CaseClass] constructor compiles") {
-    val impl = new CaseClassCtorAgentImpl(MyConfig("localhost", 8080))
-    val defn = AgentImplementation.register[CaseClassCtorAgent]("case-class-ctor-agent")(impl)
-    assert(defn.methodMetadata.nonEmpty)
-  }
-
-  test("BaseAgent[(String, Int)] constructor compiles") {
-    val impl = new Tuple2CtorAgentImpl("test", 42)
-    val defn = AgentImplementation.register[Tuple2CtorAgent]("tuple2-ctor-agent")(impl)
-    assert(defn.methodMetadata.nonEmpty)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Method return types compile
-  // ---------------------------------------------------------------------------
-
-  test("async and sync return types compile") {
-    val impl        = new ReturnTypesAgentImpl()
-    val defn        = AgentImplementation.register[ReturnTypesAgent]("return-types-agent")(impl)
-    val methodNames = defn.methodMetadata.map(_.metadata.name).toSet
-    assert(methodNames.contains("asyncString"))
-    assert(methodNames.contains("asyncInt"))
-    assert(methodNames.contains("asyncOption"))
-    assert(methodNames.contains("asyncList"))
-    assert(methodNames.contains("asyncCaseClass"))
-    assert(methodNames.contains("syncString"))
-    assert(methodNames.contains("syncInt"))
-    assert(methodNames.contains("syncUnit"))
-  }
-
-  test("method count is correct for ReturnTypesAgent") {
-    val impl = new ReturnTypesAgentImpl()
-    val defn = AgentImplementation.register[ReturnTypesAgent]("return-types-agent-2")(impl)
-    assert(defn.methodMetadata.size == 8)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Kitchen-sink agent compiles and registers
-  // ---------------------------------------------------------------------------
-
-  test("kitchen-sink agent with 18 methods registers correctly") {
-    val impl = new KitchenSinkAgentImpl("test")
-    val defn = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent")(impl)
-    assert(defn.methodMetadata.size == 18)
-  }
-
-  test("kitchen-sink agent method names are all present") {
-    val impl        = new KitchenSinkAgentImpl("test")
-    val defn        = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent-names")(impl)
-    val methodNames = defn.methodMetadata.map(_.metadata.name).toSet
-    val expected    = Set(
-      "echoString",
-      "echoInt",
-      "echoBoolean",
-      "echoLong",
-      "echoDouble",
-      "echoFloat",
-      "echoOption",
-      "echoOptionInt",
-      "echoList",
-      "echoListInt",
-      "echoCaseClass",
-      "echoNested",
-      "multiParam",
-      "multiParamComplex",
-      "syncVoid",
-      "syncReturn",
-      "asyncVoid",
-      "describedMethod"
-    )
-    assert(methodNames == expected)
-  }
-
-  test("kitchen-sink agent described method has annotations") {
-    val impl = new KitchenSinkAgentImpl("test")
-    val defn = AgentImplementation.register[KitchenSinkAgent]("kitchen-sink-agent-ann")(impl)
-    val m    = defn.methodMetadata.find(_.metadata.name == "describedMethod").get
-    assert(m.metadata.description.contains("A described method."))
-    assert(m.metadata.prompt.contains("Use this to echo with metadata."))
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Annotation field access
-  // ---------------------------------------------------------------------------
-
-  test("@agentDefinition mode defaults and overrides") {
-    assert(new agentDefinition(mode = DurabilityMode.Durable).mode == DurabilityMode.Durable)
-    assert(new agentDefinition(mode = DurabilityMode.Ephemeral).mode == DurabilityMode.Ephemeral)
-  }
-
-  test("@description and @prompt store their values") {
-    assert(new description("test description").value == "test description")
-    assert(new prompt("test prompt").value == "test prompt")
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tests: Factory constructor pattern (register with Ctor => Trait)
+  // Factory constructor pattern
   // ---------------------------------------------------------------------------
 
   @agentDefinition("factory-ctor-agent")
-  trait FactoryCtorAgent extends BaseAgent[MyConfig] {
+  trait FactoryCtorAgent extends BaseAgent {
+    class Id(val host: String, val port: Int)
     def info(): Future[String]
   }
 
   @agentImplementation()
-  final class FactoryCtorAgentImpl(private val config: MyConfig) extends FactoryCtorAgent {
-    override def info(): Future[String] = Future.successful(s"${config.host}:${config.port}")
-  }
-
-  test("register with factory constructor (Ctor => Trait) compiles") {
-    val defn = AgentImplementation.register[FactoryCtorAgent, MyConfig] { config =>
-      new FactoryCtorAgentImpl(config)
-    }
-    assert(defn.methodMetadata.nonEmpty)
-    assert(defn.typeName == "factory-ctor-agent")
+  final class FactoryCtorAgentImpl(private val host: String, private val port: Int) extends FactoryCtorAgent {
+    override def info(): Future[String] = Future.successful(s"$host:$port")
   }
 
   // ---------------------------------------------------------------------------
-  // Agent with zero methods (only constructor, like Rust's AgentWithOnlyConstructor)
+  // Agent with zero methods
   // ---------------------------------------------------------------------------
 
   @agentDefinition("no-methods-agent")
-  trait NoMethodsAgent extends BaseAgent[String]
+  trait NoMethodsAgent extends BaseAgent {
+    class Id(val value: String)
+  }
 
   @agentImplementation()
   final class NoMethodsAgentImpl(private val name: String) extends NoMethodsAgent
 
-  test("agent with zero methods (only constructor) compiles and registers") {
-    val impl = new NoMethodsAgentImpl("test")
-    val defn = AgentImplementation.register[NoMethodsAgent]("no-methods-agent")(impl)
-    assert(defn.methodMetadata.isEmpty)
-    assert(defn.typeName == "no-methods-agent")
-  }
-
   // ---------------------------------------------------------------------------
-  // Agent with single method (boundary case)
+  // Agent with single method
   // ---------------------------------------------------------------------------
 
   @agentDefinition("single-method-agent")
-  trait SingleMethodAgent extends BaseAgent[Unit] {
+  trait SingleMethodAgent extends BaseAgent {
+    class Id()
     def only(): Future[String]
   }
 
@@ -384,16 +269,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
     override def only(): Future[String] = Future.successful("only")
   }
 
-  test("agent with single method compiles and registers") {
-    val impl = new SingleMethodAgentImpl()
-    val defn = AgentImplementation.register[SingleMethodAgent]("single-method-agent")(impl)
-    assert(defn.methodMetadata.size == 1)
-    assert(defn.methodMetadata.head.metadata.name == "only")
-  }
-
   // ---------------------------------------------------------------------------
   // Agent with Multimodal, TextSegment, BinarySegment method parameters
-  // (mirrors Rust SDK's echo_multimodal, echo_unstructured_text, etc.)
   // ---------------------------------------------------------------------------
 
   final case class MultimodalPayload(text: String, count: Int)
@@ -415,7 +292,8 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
 
   @agentDefinition("multimodal-agent")
   @description("Agent with multimodal and unstructured type methods.")
-  trait MultimodalAgent extends BaseAgent[Unit] {
+  trait MultimodalAgent extends BaseAgent {
+    class Id()
     def echoMultimodal(input: Multimodal[MultimodalPayload]): Future[Multimodal[MultimodalPayload]]
     def echoText(input: TextSegment[SupportedLang]): Future[TextSegment[SupportedLang]]
     def echoTextAny(input: TextSegment[AllowedLanguages.Any]): Future[TextSegment[AllowedLanguages.Any]]
@@ -439,53 +317,159 @@ final class AgentDefinitionCompileSpec extends AnyFunSuite {
       Future.successful(input)
   }
 
-  test("multimodal agent compiles and registers with 5 methods") {
-    val impl = new MultimodalAgentImpl()
-    val defn = AgentImplementation.register[MultimodalAgent]("multimodal-agent")(impl)
-    assert(defn.methodMetadata.size == 5)
-    val names = defn.methodMetadata.map(_.metadata.name).toSet
-    assert(names == Set("echoMultimodal", "echoText", "echoTextAny", "echoBinary", "echoBinaryAny"))
-  }
+  // ---------------------------------------------------------------------------
+  // Shared registrations (each agent type can only be registered once)
+  // ---------------------------------------------------------------------------
 
-  test("Multimodal wraps and unwraps payload") {
-    val payload = MultimodalPayload("hello", 1)
-    val mm      = Multimodal(payload)
-    assert(mm.value == payload)
-  }
+  private lazy val unitCtorDefn      = AgentImplementation.registerClass[UnitCtorAgent, UnitCtorAgentImpl]
+  private lazy val stringCtorDefn    = AgentImplementation.registerClass[StringCtorAgent, StringCtorAgentImpl]
+  private lazy val caseClassCtorDefn = AgentImplementation.registerClass[CaseClassCtorAgent, CaseClassCtorAgentImpl]
+  private lazy val tuple2CtorDefn    = AgentImplementation.registerClass[Tuple2CtorAgent, Tuple2CtorAgentImpl]
+  private lazy val returnTypesDefn   = AgentImplementation.registerClass[ReturnTypesAgent, ReturnTypesAgentImpl]
+  private lazy val kitchenSinkDefn   = AgentImplementation.registerClass[KitchenSinkAgent, KitchenSinkAgentImpl]
+  private lazy val factoryCtorDefn   = AgentImplementation.registerClass[FactoryCtorAgent, FactoryCtorAgentImpl]
+  private lazy val noMethodsDefn     = AgentImplementation.registerClass[NoMethodsAgent, NoMethodsAgentImpl]
+  private lazy val singleMethodDefn  = AgentImplementation.registerClass[SingleMethodAgent, SingleMethodAgentImpl]
+  private lazy val multimodalDefn    = AgentImplementation.registerClass[MultimodalAgent, MultimodalAgentImpl]
 
-  test("TextSegment.inline sets data and language code") {
-    val seg = TextSegment.inline[SupportedLang]("hello", Some("en"))
-    seg.value match {
-      case UnstructuredTextValue.Inline(data, lang) =>
-        assert(data == "hello")
-        assert(lang.contains("en"))
-      case _ => fail("expected Inline")
+  // ---------------------------------------------------------------------------
+  // Tests
+  // ---------------------------------------------------------------------------
+
+  def spec = suite("AgentDefinitionCompileSpec")(
+    test("no-arg constructor compiles") {
+      assertTrue(unitCtorDefn.methodMetadata.nonEmpty)
+    },
+    test("single-param Constructor compiles") {
+      assertTrue(stringCtorDefn.methodMetadata.nonEmpty)
+    },
+    test("multi-param Constructor compiles") {
+      assertTrue(caseClassCtorDefn.methodMetadata.nonEmpty)
+    },
+    test("tuple-style Constructor compiles") {
+      assertTrue(tuple2CtorDefn.methodMetadata.nonEmpty)
+    },
+    test("async and sync return types compile") {
+      val methodNames = returnTypesDefn.methodMetadata.map(_.metadata.name).toSet
+      assertTrue(
+        methodNames.contains("asyncString"),
+        methodNames.contains("asyncInt"),
+        methodNames.contains("asyncOption"),
+        methodNames.contains("asyncList"),
+        methodNames.contains("asyncCaseClass"),
+        methodNames.contains("syncString"),
+        methodNames.contains("syncInt"),
+        methodNames.contains("syncUnit")
+      )
+    },
+    test("method count is correct for ReturnTypesAgent") {
+      assertTrue(returnTypesDefn.methodMetadata.size == 8)
+    },
+    test("kitchen-sink agent with 18 methods registers correctly") {
+      assertTrue(kitchenSinkDefn.methodMetadata.size == 18)
+    },
+    test("kitchen-sink agent method names are all present") {
+      val methodNames = kitchenSinkDefn.methodMetadata.map(_.metadata.name).toSet
+      val expected    = Set(
+        "echoString",
+        "echoInt",
+        "echoBoolean",
+        "echoLong",
+        "echoDouble",
+        "echoFloat",
+        "echoOption",
+        "echoOptionInt",
+        "echoList",
+        "echoListInt",
+        "echoCaseClass",
+        "echoNested",
+        "multiParam",
+        "multiParamComplex",
+        "syncVoid",
+        "syncReturn",
+        "asyncVoid",
+        "describedMethod"
+      )
+      assertTrue(methodNames == expected)
+    },
+    test("kitchen-sink agent described method has annotations") {
+      val m = kitchenSinkDefn.methodMetadata.find(_.metadata.name == "describedMethod").get
+      assertTrue(
+        m.metadata.description.contains("A described method."),
+        m.metadata.prompt.contains("Use this to echo with metadata.")
+      )
+    },
+    test("@agentDefinition mode defaults and overrides") {
+      assertTrue(
+        new agentDefinition(mode = DurabilityMode.Durable).mode == DurabilityMode.Durable,
+        new agentDefinition(mode = DurabilityMode.Ephemeral).mode == DurabilityMode.Ephemeral
+      )
+    },
+    test("@description and @prompt store their values") {
+      assertTrue(
+        new description("test description").value == "test description",
+        new prompt("test prompt").value == "test prompt"
+      )
+    },
+    test("register with factory constructor compiles") {
+      assertTrue(
+        factoryCtorDefn.methodMetadata.nonEmpty,
+        factoryCtorDefn.typeName == "factory-ctor-agent"
+      )
+    },
+    test("agent with zero methods (only constructor) compiles and registers") {
+      assertTrue(
+        noMethodsDefn.methodMetadata.isEmpty,
+        noMethodsDefn.typeName == "no-methods-agent"
+      )
+    },
+    test("agent with single method compiles and registers") {
+      assertTrue(
+        singleMethodDefn.methodMetadata.size == 1,
+        singleMethodDefn.methodMetadata.head.metadata.name == "only"
+      )
+    },
+    test("multimodal agent compiles and registers with 5 methods") {
+      val names = multimodalDefn.methodMetadata.map(_.metadata.name).toSet
+      assertTrue(
+        multimodalDefn.methodMetadata.size == 5,
+        names == Set("echoMultimodal", "echoText", "echoTextAny", "echoBinary", "echoBinaryAny")
+      )
+    },
+    test("Multimodal wraps and unwraps payload") {
+      val payload = MultimodalPayload("hello", 1)
+      val mm      = Multimodal(payload)
+      assertTrue(mm.value == payload)
+    },
+    test("TextSegment.inline sets data and language code") {
+      val seg = TextSegment.inline[SupportedLang]("hello", Some("en"))
+      seg.value match {
+        case UnstructuredTextValue.Inline(data, lang) =>
+          assertTrue(data == "hello", lang.contains("en"))
+        case _ => throw new RuntimeException("expected Inline")
+      }
+    },
+    test("TextSegment.url sets URL") {
+      val seg = TextSegment.url[SupportedLang]("http://example.com/text.txt")
+      seg.value match {
+        case UnstructuredTextValue.Url(u) => assertTrue(u == "http://example.com/text.txt")
+        case _                            => throw new RuntimeException("expected Url")
+      }
+    },
+    test("BinarySegment.inline sets data and MIME type") {
+      val seg = BinarySegment.inline[SupportedMime](Array[Byte](1, 2), "image/png")
+      seg.value match {
+        case UnstructuredBinaryValue.Inline(data, mime) =>
+          assertTrue(data.toList == List[Byte](1, 2), mime == "image/png")
+        case _ => throw new RuntimeException("expected Inline")
+      }
+    },
+    test("BinarySegment.url sets URL") {
+      val seg = BinarySegment.url[SupportedMime]("http://example.com/data.png")
+      seg.value match {
+        case UnstructuredBinaryValue.Url(u) => assertTrue(u == "http://example.com/data.png")
+        case _                              => throw new RuntimeException("expected Url")
+      }
     }
-  }
-
-  test("TextSegment.url sets URL") {
-    val seg = TextSegment.url[SupportedLang]("http://example.com/text.txt")
-    seg.value match {
-      case UnstructuredTextValue.Url(u) => assert(u == "http://example.com/text.txt")
-      case _                            => fail("expected Url")
-    }
-  }
-
-  test("BinarySegment.inline sets data and MIME type") {
-    val seg = BinarySegment.inline[SupportedMime](Array[Byte](1, 2), "image/png")
-    seg.value match {
-      case UnstructuredBinaryValue.Inline(data, mime) =>
-        assert(data.toList == List[Byte](1, 2))
-        assert(mime == "image/png")
-      case _ => fail("expected Inline")
-    }
-  }
-
-  test("BinarySegment.url sets URL") {
-    val seg = BinarySegment.url[SupportedMime]("http://example.com/data.png")
-    seg.value match {
-      case UnstructuredBinaryValue.Url(u) => assert(u == "http://example.com/data.png")
-      case _                              => fail("expected Url")
-    }
-  }
+  )
 }

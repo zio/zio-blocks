@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import scala.collection.immutable.ArraySeq
+import zio.blocks.chunk.Chunk
 import scala.util.control.NoStackTrace
 
 final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception with NoStackTrace {
@@ -113,7 +113,7 @@ object SchemaError {
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
     reverse(nodes)
-    new DynamicOptic(ArraySeq.unsafeWrapArray(nodes))
+    new DynamicOptic(Chunk.fromArray(nodes))
   }
 
   private[this] def reverse(nodes: Array[DynamicOptic.Node]): Unit =

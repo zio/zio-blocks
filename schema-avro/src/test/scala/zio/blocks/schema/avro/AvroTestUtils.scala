@@ -29,23 +29,23 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.immutable.ArraySeq
 
 object AvroTestUtils {
-  private[this] val codecs = new ConcurrentHashMap[Schema[?], AvroBinaryCodec[?]]()
+  private[this] val codecs = new ConcurrentHashMap[Schema[?], AvroCodec[?]]()
 
-  private[this] def codec[A](schema: Schema[A]): AvroBinaryCodec[A] =
+  private[this] def codec[A](schema: Schema[A]): AvroCodec[A] =
     codecs
       .computeIfAbsent(schema, (s: Schema[?]) => s.deriving(AvroFormat.deriver).derive)
-      .asInstanceOf[AvroBinaryCodec[A]]
+      .asInstanceOf[AvroCodec[A]]
 
   def avroSchema[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
     avroSchema(expectedAvroSchemaJson, codec(schema))
 
-  def avroSchema[A](expectedAvroSchemaJson: String, codec: AvroBinaryCodec[A]): TestResult =
+  def avroSchema[A](expectedAvroSchemaJson: String, codec: AvroCodec[A]): TestResult =
     assert(codec.avroSchema.toString)(equalTo(expectedAvroSchemaJson))
 
   def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedLength, codec(schema))
 
-  def roundTrip[A](value: A, expectedLength: Int, codec: AvroBinaryCodec[A]): TestResult = {
+  def roundTrip[A](value: A, expectedLength: Int, codec: AvroCodec[A]): TestResult = {
     val heapByteBuffer = ByteBuffer.allocate(maxBufSize)
     codec.encode(value, heapByteBuffer)
     val encodedBySchema1 = util.Arrays.copyOf(heapByteBuffer.array, heapByteBuffer.position)
@@ -87,7 +87,7 @@ object AvroTestUtils {
   def decodeError[A](bytes: Array[Byte], error: String)(implicit schema: Schema[A]): TestResult =
     decodeError(bytes, codec(schema), error)
 
-  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], error: String): TestResult =
+  def decodeError[A](bytes: Array[Byte], codec: AvroCodec[A], error: String): TestResult =
     assert(codec.decode(bytes))(isLeft(hasError(error))) &&
       assert(codec.decode(toInputStream(bytes)))(isLeft(hasError(error))) &&
       assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(hasError(error))) &&

@@ -99,10 +99,10 @@ sealed abstract class Allows[A, S <: Allows.Structural]
 object Allows extends AllowsCompanionVersionSpecific {
 
   /**
-   * Single private singleton reused by the macro at every successful call site
+   * Single public singleton reused by the macro at every successful call site
    * via a cast. This eliminates any per-call-site allocation.
    */
-  private[comptime] val instance: Allows[Any, Structural] = new Allows[Any, Structural] {}
+  val instance: Allows[Any, Structural] = new Allows[Any, Structural] {}
 
   /** Root of the grammar type hierarchy. All shape descriptors extend this. */
   sealed abstract class Structural

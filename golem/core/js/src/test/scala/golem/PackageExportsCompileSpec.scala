@@ -16,36 +16,41 @@
 
 package golem
 
-import org.scalatest.funsuite.AnyFunSuite
+import zio.test._
 
-final class PackageExportsCompileSpec extends AnyFunSuite {
+object PackageExportsCompileSpec extends ZIOSpecDefault {
 
-  test("DurabilityMode.wireValue returns correct strings") {
-    assert(golem.DurabilityMode.Durable.wireValue() == "durable")
-    assert(golem.DurabilityMode.Ephemeral.wireValue() == "ephemeral")
-  }
-
-  test("DurabilityMode.fromWireValue parses durable") {
-    assert(golem.DurabilityMode.fromWireValue("durable").contains(golem.DurabilityMode.Durable))
-  }
-
-  test("DurabilityMode.fromWireValue parses ephemeral") {
-    assert(golem.DurabilityMode.fromWireValue("ephemeral").contains(golem.DurabilityMode.Ephemeral))
-  }
-
-  test("DurabilityMode.fromWireValue is case-insensitive") {
-    assert(golem.DurabilityMode.fromWireValue("DURABLE").contains(golem.DurabilityMode.Durable))
-    assert(golem.DurabilityMode.fromWireValue("Ephemeral").contains(golem.DurabilityMode.Ephemeral))
-  }
-
-  test("DurabilityMode.fromWireValue returns None for unknown") {
-    assert(golem.DurabilityMode.fromWireValue("unknown").isEmpty)
-    assert(golem.DurabilityMode.fromWireValue("").isEmpty)
-    assert(golem.DurabilityMode.fromWireValue(null).isEmpty)
-  }
-
-  test("DurabilityMode.toString matches wireValue") {
-    assert(golem.DurabilityMode.Durable.toString == "durable")
-    assert(golem.DurabilityMode.Ephemeral.toString == "ephemeral")
-  }
+  def spec = suite("PackageExportsCompileSpec")(
+    test("DurabilityMode.wireValue returns correct strings") {
+      assertTrue(
+        golem.DurabilityMode.Durable.wireValue() == "durable",
+        golem.DurabilityMode.Ephemeral.wireValue() == "ephemeral"
+      )
+    },
+    test("DurabilityMode.fromWireValue parses durable") {
+      assertTrue(golem.DurabilityMode.fromWireValue("durable").contains(golem.DurabilityMode.Durable))
+    },
+    test("DurabilityMode.fromWireValue parses ephemeral") {
+      assertTrue(golem.DurabilityMode.fromWireValue("ephemeral").contains(golem.DurabilityMode.Ephemeral))
+    },
+    test("DurabilityMode.fromWireValue is case-insensitive") {
+      assertTrue(
+        golem.DurabilityMode.fromWireValue("DURABLE").contains(golem.DurabilityMode.Durable),
+        golem.DurabilityMode.fromWireValue("Ephemeral").contains(golem.DurabilityMode.Ephemeral)
+      )
+    },
+    test("DurabilityMode.fromWireValue returns None for unknown") {
+      assertTrue(
+        golem.DurabilityMode.fromWireValue("unknown").isEmpty,
+        golem.DurabilityMode.fromWireValue("").isEmpty,
+        golem.DurabilityMode.fromWireValue(null).isEmpty
+      )
+    },
+    test("DurabilityMode.toString matches wireValue") {
+      assertTrue(
+        golem.DurabilityMode.Durable.toString == "durable",
+        golem.DurabilityMode.Ephemeral.toString == "ephemeral"
+      )
+    }
+  )
 }

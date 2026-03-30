@@ -80,7 +80,7 @@ object SeqConstructor {
   }
 
   private[binding] abstract class PrimitiveArraySeqConstructor[C[_]] extends SeqConstructor[C] {
-    case class ArrayBuilder[A](var buffer: Array[A], var size: Int, ct: ClassTag[A])
+    class ArrayBuilder[A](var buffer: Array[A], var size: Int, val ct: ClassTag[A])
 
     type Builder[A] = ArrayBuilder[A]
 

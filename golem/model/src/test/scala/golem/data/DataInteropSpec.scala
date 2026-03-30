@@ -61,6 +61,12 @@ object DataInteropSpec extends ZIOSpecDefault {
   )
   implicit val primitivesSchema: Schema[Primitives] = Schema.derived
 
+  sealed trait Color
+  case object Red   extends Color
+  case object Green extends Color
+  case object Blue  extends Color
+  implicit val colorSchema: Schema[Color] = Schema.derived
+
   final case class NarrowPrimitives(byte: Byte, short: Short, float: Float)
   implicit val narrowPrimitivesSchema: Schema[NarrowPrimitives] = Schema.derived
 
@@ -179,9 +185,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         val bigType   = DataInterop.schemaToDataType(Schema[BigDecimal])
         val uuidType  = DataInterop.schemaToDataType(Schema[java.util.UUID])
 
-        assertTrue(byteType == DataType.IntType) &&
-        assertTrue(shortType == DataType.IntType) &&
-        assertTrue(floatType == DataType.DoubleType) &&
+        assertTrue(byteType == DataType.ByteType) &&
+        assertTrue(shortType == DataType.ShortType) &&
+        assertTrue(floatType == DataType.FloatType) &&
         assertTrue(unitType == DataType.UnitType) &&
         assertTrue(strType == DataType.StringType) &&
         assertTrue(boolType == DataType.BoolType) &&
@@ -218,9 +224,9 @@ object DataInteropSpec extends ZIOSpecDefault {
         val dt = DataInterop.schemaToDataType(Schema[UserId])
         assertTrue(dt == DataType.LongType)
       },
-      test("rejects non-string map keys") {
-        val attempt = scala.util.Try(DataInterop.schemaToDataType(Schema[Map[Int, String]]))
-        assertTrue(attempt.isFailure)
+      test("supports arbitrary map key types") {
+        val dt = DataInterop.schemaToDataType(Schema[Map[Int, String]])
+        assertTrue(dt == DataType.MapType(DataType.IntType, DataType.StringType))
       },
       test("rejects invalid data values for option and tuple schemas") {
         val optionAttempt = scala.util.Try(DataInterop.fromData[Option[Int]](DataValue.StringValue("oops")))
@@ -247,20 +253,22 @@ object DataInteropSpec extends ZIOSpecDefault {
         assertTrue(arityAttempt.isFailure) &&
         assertTrue(recordAttempt.isFailure)
       },
-      test("rejects unsupported primitive schemas and values") {
-        val charSchemaAttempt   = scala.util.Try(DataInterop.schemaToDataType(Schema[Char]))
-        val bigIntSchemaAttempt = scala.util.Try(DataInterop.schemaToDataType(Schema[BigInt]))
-        val charValueAttempt    = scala.util.Try(DataInterop.toData[Char]('a'))
-        val bigIntValueAttempt  = scala.util.Try(DataInterop.toData[BigInt](BigInt(1)))
+      test("char primitive schema and value") {
+        val charType  = DataInterop.schemaToDataType(Schema[Char])
+        val charValue = DataInterop.toData[Char]('a')
 
-        assertTrue(charSchemaAttempt.isFailure) &&
-        assertTrue(bigIntSchemaAttempt.isFailure) &&
-        assertTrue(charValueAttempt.isFailure) &&
-        assertTrue(bigIntValueAttempt.isFailure)
+        assertTrue(charType == DataType.CharType) &&
+        assertTrue(charValue == DataValue.CharValue('a'))
       },
-      test("rejects non-string map keys at encoding time") {
-        val attempt = scala.util.Try(DataInterop.toData(Map(1 -> "a"))(Schema[Map[Int, String]]))
-        assertTrue(attempt.isFailure)
+      test("BigInt maps to BigDecimalType") {
+        val bigIntType  = DataInterop.schemaToDataType(Schema[BigInt])
+        val bigIntValue = DataInterop.toData[BigInt](BigInt(1))
+        assertTrue(bigIntType == DataType.BigDecimalType) &&
+        assertTrue(bigIntValue == DataValue.BigDecimalValue(BigDecimal(1)))
+      },
+      test("encodes non-string map keys") {
+        val data = DataInterop.toData(Map(1 -> "a"))(Schema[Map[Int, String]])
+        assertTrue(data == DataValue.MapValue(List((DataValue.IntValue(1), DataValue.StringValue("a")))))
       },
       test("rejects invalid data values for record, map, and variant schemas") {
         val recordAttempt =
@@ -319,6 +327,22 @@ object DataInteropSpec extends ZIOSpecDefault {
       test("exposes derived data types") {
         val dt = DataInterop.dataTypeOf[Person]
         assertTrue(dt.isInstanceOf[DataType.StructType])
+      },
+      test("maps all-unit sealed trait to PureEnumType") {
+        val dt = DataInterop.schemaToDataType(Schema[Color])
+        assertTrue(dt == DataType.PureEnumType(List("Red", "Green", "Blue"), name = Some("Color")))
+      },
+      test("round trips pure enum values") {
+        val red: Color   = Red
+        val green: Color = Green
+        val encoded      = DataInterop.toData(red)
+        assertTrue(encoded == DataValue.PureEnumValue("Red")) &&
+        assert(DataInterop.fromData[Color](encoded))(isRight(equalTo(Red))) &&
+        assert(DataInterop.fromData[Color](DataInterop.toData(green)))(isRight(equalTo(Green)))
+      },
+      test("maps mixed sealed trait (with payloads) to EnumType") {
+        val dt = DataInterop.schemaToDataType(Schema[Choice])
+        assertTrue(dt.isInstanceOf[DataType.EnumType])
       }
     )
 }

@@ -850,58 +850,61 @@ object DynamicValue {
     var idx                          = 0
     val len                          = nodes.length
     while (idx < len && current.nonEmpty) {
-      val node = nodes(idx)
-      current = node match {
+      val builder = Chunk.newBuilder[DynamicValue]
+      nodes(idx) match {
         case DynamicOptic.Node.Field(name) =>
-          current.flatMap {
-            case r: Record => r.fields.collect { case kv if kv._1 == name => kv._2 }
-            case _         => Chunk.empty
+          current.foreach {
+            case r: Record => r.fields.foreach(kv => if (kv._1 == name) builder.addOne(kv._2))
+            case _         =>
           }
         case DynamicOptic.Node.Case(name) =>
-          current.collect { case v: Variant if v.caseNameValue == name => v.value }
+          current.foreach {
+            case v: Variant if v.caseNameValue == name => builder.addOne(v.value)
+            case _                                     =>
+          }
         case DynamicOptic.Node.AtIndex(i) =>
-          current.collect { case s: Sequence if i >= 0 && i < s.elements.length => s.elements(i) }
+          current.foreach {
+            case s: Sequence if i >= 0 && i < s.elements.length => builder.addOne(s.elements(i))
+            case _                                              =>
+          }
         case DynamicOptic.Node.AtMapKey(key) =>
-          current.flatMap {
-            case m: Map => m.entries.collect { case kv if kv._1 == key => kv._2 }
-            case _      => Chunk.empty
+          current.foreach {
+            case m: Map => m.entries.foreach(kv => if (kv._1 == key) builder.addOne(kv._2))
+            case _      =>
           }
         case DynamicOptic.Node.AtIndices(indices) =>
-          current.flatMap {
-            case s: Sequence =>
-              Chunk.from(indices).collect { case i if i >= 0 && i < s.elements.length => s.elements(i) }
-            case _ => Chunk.empty
+          current.foreach {
+            case s: Sequence => indices.foreach(i => if (i >= 0 && i < s.elements.length) builder.addOne(s.elements(i)))
+            case _           =>
           }
         case DynamicOptic.Node.AtMapKeys(keys) =>
-          current.flatMap {
-            case m: Map => Chunk.from(keys).flatMap(key => m.entries.collect { case kv if kv._1 == key => kv._2 })
-            case _      => Chunk.empty
+          current.foreach {
+            case m: Map => keys.foreach(k => m.entries.foreach(kv => if (kv._1 == k) builder.addOne(kv._2)))
+            case _      =>
           }
         case DynamicOptic.Node.Elements =>
-          current.flatMap {
-            case s: Sequence => s.elements
-            case _           => Chunk.empty
+          current.foreach {
+            case s: Sequence => builder.addAll(s.elements)
+            case _           =>
           }
         case DynamicOptic.Node.MapKeys =>
-          current.flatMap {
-            case m: Map => m.entries.map(_._1)
-            case _      => Chunk.empty
+          current.foreach {
+            case m: Map => m.entries.foreach(kv => builder.addOne(kv._1))
+            case _      =>
           }
         case DynamicOptic.Node.MapValues =>
-          current.flatMap {
-            case m: Map => m.entries.map(_._2)
-            case _      => Chunk.empty
+          current.foreach {
+            case m: Map => m.entries.foreach(kv => builder.addOne(kv._2))
+            case _      =>
           }
-        case DynamicOptic.Node.Wrapped => current
-
+        case DynamicOptic.Node.Wrapped       => builder.addAll(current)
         case _: DynamicOptic.Node.TypeSearch =>
-          // TypeSearch requires Schema context - not supported in untyped DynamicValue operations
-          Chunk.empty
-
+        // TypeSearch requires Schema context - not supported in untyped DynamicValue operations
         case DynamicOptic.Node.SchemaSearch(schemaRepr) =>
           // SchemaSearch uses iterative stack-based depth-first traversal to find all matching values
-          current.flatMap(dv => schemaSearchCollect(dv, schemaRepr))
+          current.foreach(dv => builder.addAll(schemaSearchCollect(dv, schemaRepr)))
       }
+      current = builder.result()
       idx += 1
     }
     if (current.isEmpty) DynamicValueSelection.fail(SchemaError.message(s"Path not found", path))
@@ -1366,97 +1369,120 @@ object DynamicValue {
    */
   private[schema] def iterativeTransform(root: DynamicValue)(visit: DynamicValue => DynamicValue): DynamicValue = {
     sealed trait Frame
-    final case class Visit(value: DynamicValue)                           extends Frame
-    final case class RebuildRecord(original: Record, childCount: Int)     extends Frame
-    final case class RebuildVariant(original: Variant)                    extends Frame
-    final case class RebuildSequence(original: Sequence, childCount: Int) extends Frame
-    final case class RebuildMap(original: Map, childCount: Int)           extends Frame
+
+    final class Visit(val value: DynamicValue) extends Frame
+
+    final class RebuildRecord(val original: Record, val childCount: Int) extends Frame
+
+    final class RebuildVariant(val original: Variant) extends Frame
+
+    final class RebuildSequence(val original: Sequence, val childCount: Int) extends Frame
+
+    final class RebuildMap(val original: Map, val childCount: Int) extends Frame
 
     val work    = new java.util.ArrayDeque[Frame]()
     val results = new java.util.ArrayDeque[DynamicValue]()
-    work.push(Visit(root))
-
+    work.push(new Visit(root))
     while (!work.isEmpty) {
       work.pop() match {
-        case Visit(value) =>
-          val visited = visit(value)
+        case v: Visit =>
+          val visited = visit(v.value)
           visited match {
             case r: Record =>
-              val n = r.fields.length
-              if (n == 0) {
-                results.push(visited)
-              } else {
-                work.push(RebuildRecord(r, n))
-                var i = n - 1
-                while (i >= 0) { work.push(Visit(r.fields(i)._2)); i -= 1 }
+              val len = r.fields.length
+              if (len == 0) results.push(visited)
+              else {
+                work.push(new RebuildRecord(r, len))
+                var idx = len - 1
+                while (idx >= 0) {
+                  work.push(new Visit(r.fields(idx)._2))
+                  idx -= 1
+                }
               }
             case v: Variant =>
-              work.push(RebuildVariant(v))
-              work.push(Visit(v.value))
+              work.push(new RebuildVariant(v))
+              work.push(new Visit(v.value))
             case s: Sequence =>
-              val n = s.elements.length
-              if (n == 0) {
-                results.push(visited)
-              } else {
-                work.push(RebuildSequence(s, n))
-                var i = n - 1
-                while (i >= 0) { work.push(Visit(s.elements(i))); i -= 1 }
+              val len = s.elements.length
+              if (len == 0) results.push(visited)
+              else {
+                work.push(new RebuildSequence(s, len))
+                var idx = len - 1
+                while (idx >= 0) {
+                  work.push(new Visit(s.elements(idx)))
+                  idx -= 1
+                }
               }
             case m: Map =>
-              val n = m.entries.length
-              if (n == 0) {
-                results.push(visited)
-              } else {
-                work.push(RebuildMap(m, n))
-                var i = n - 1
-                while (i >= 0) { work.push(Visit(m.entries(i)._2)); i -= 1 }
+              val len = m.entries.length
+              if (len == 0) results.push(visited)
+              else {
+                work.push(new RebuildMap(m, len))
+                var idx = len - 1
+                while (idx >= 0) {
+                  work.push(new Visit(m.entries(idx)._2))
+                  idx -= 1
+                }
               }
-            case _ =>
-              results.push(visited)
+            case _ => results.push(visited)
           }
-
-        case RebuildRecord(original, childCount) =>
-          var changed = false
-          val fields  = new scala.Array[(String, DynamicValue)](childCount)
-          var i       = childCount - 1
-          while (i >= 0) {
+        case rr: RebuildRecord =>
+          val original   = rr.original
+          val childCount = rr.childCount
+          val fields     = new scala.Array[(String, DynamicValue)](childCount)
+          var changed    = false
+          var idx        = childCount - 1
+          while (idx >= 0) {
             val child = results.pop()
-            if (!(child eq original.fields(i)._2)) changed = true
-            fields(i) = (original.fields(i)._1, child)
-            i -= 1
+            if (child ne original.fields(idx)._2) changed = true
+            fields(idx) = (original.fields(idx)._1, child)
+            idx -= 1
           }
-          results.push(if (changed) Record(Chunk.fromArray(fields)) else original)
-
-        case RebuildVariant(original) =>
-          val payload = results.pop()
-          results.push(if (payload eq original.value) original else Variant(original.caseNameValue, payload))
-
-        case RebuildSequence(original, childCount) =>
-          var changed = false
-          val elems   = new scala.Array[DynamicValue](childCount)
-          var i       = childCount - 1
-          while (i >= 0) {
+          results.push(
+            if (changed) Record(Chunk.fromArray(fields))
+            else original
+          )
+        case rv: RebuildVariant =>
+          val original = rv.original
+          val payload  = results.pop()
+          results.push(
+            if (payload eq original.value) original
+            else new Variant(original.caseNameValue, payload)
+          )
+        case rs: RebuildSequence =>
+          val original   = rs.original
+          val childCount = rs.childCount
+          val elems      = new scala.Array[DynamicValue](childCount)
+          var changed    = false
+          var idx        = childCount - 1
+          while (idx >= 0) {
             val child = results.pop()
-            if (!(child eq original.elements(i))) changed = true
-            elems(i) = child
-            i -= 1
+            if (child ne original.elements(idx)) changed = true
+            elems(idx) = child
+            idx -= 1
           }
-          results.push(if (changed) Sequence(Chunk.fromArray(elems)) else original)
-
-        case RebuildMap(original, childCount) =>
-          var changed = false
-          val entries = new scala.Array[(DynamicValue, DynamicValue)](childCount)
-          var i       = childCount - 1
-          while (i >= 0) {
+          results.push(
+            if (changed) Sequence(Chunk.fromArray(elems))
+            else original
+          )
+        case rm: RebuildMap =>
+          val original   = rm.original
+          val childCount = rm.childCount
+          val entries    = new scala.Array[(DynamicValue, DynamicValue)](childCount)
+          var changed    = false
+          var idx        = childCount - 1
+          while (idx >= 0) {
             val child = results.pop()
-            if (!(child eq original.entries(i)._2)) changed = true
-            entries(i) = (original.entries(i)._1, child)
-            i -= 1
+            if (!(child eq original.entries(idx)._2)) changed = true
+            entries(idx) = (original.entries(idx)._1, child)
+            idx -= 1
           }
-          results.push(if (changed) Map(Chunk.fromArray(entries)) else original)
+          results.push(
+            if (changed) new Map(Chunk.fromArray(entries))
+            else original
+          )
       }
     }
-
     results.pop()
   }
 
@@ -1479,13 +1505,12 @@ object DynamicValue {
           case Some(modified) =>
             found = true
             modified
-          case None => value
+          case _ => value
         }
-      } else {
-        value
-      }
+      } else value
     }
-    if (found) Some(result) else None
+    if (found) new Some(result)
+    else None
   }
 
   /**
@@ -1501,42 +1526,49 @@ object DynamicValue {
   ): Option[DynamicValue] = {
     val isLast = idx == nodes.length - 1
     var found  = false
-
     if (isLast) {
       // SchemaSearch is the last node - delete matching values from containers.
       // The visit function filters out matching direct children at each container level;
       // iterativeTransform handles recursion into remaining children.
-      val result = iterativeTransform(dv) { value =>
-        value match {
-          case r: Record =>
-            val newFields = r.fields.flatMap { case (name, v) =>
-              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
-              else Chunk((name, v))
-            }
-            if (newFields.length != r.fields.length) Record(newFields) else r
-          case v: Variant =>
-            if (SchemaMatch.matches(pattern, v.value)) {
-              found = true
-              Variant(v.caseNameValue, Record.empty)
-            } else v
-          case s: Sequence =>
-            val newElems = s.elements.flatMap { e =>
-              if (SchemaMatch.matches(pattern, e)) { found = true; Chunk.empty }
-              else Chunk(e)
-            }
-            if (newElems.length != s.elements.length) Sequence(newElems) else s
-          case m: Map =>
-            val newEntries = m.entries.flatMap { case (k, v) =>
-              if (SchemaMatch.matches(pattern, v)) { found = true; Chunk.empty }
-              else Chunk((k, v))
-            }
-            if (newEntries.length != m.entries.length) Map(newEntries) else m
-          case other => other
-        }
+      val result = iterativeTransform(dv) {
+        case r: Record =>
+          val fields    = r.fields
+          val newFields = ChunkBuilder.make[(String, DynamicValue)](fields.length)
+          fields.foreach { kv =>
+            if (SchemaMatch.matches(pattern, kv._2)) found = true
+            else newFields.addOne(kv)
+          }
+          if (newFields.knownSize != fields.length) new Record(newFields.result())
+          else r
+        case v: Variant =>
+          if (SchemaMatch.matches(pattern, v.value)) {
+            found = true
+            new Variant(v.caseNameValue, Record.empty)
+          } else v
+        case s: Sequence =>
+          val elems    = s.elements
+          val newElems = ChunkBuilder.make[DynamicValue](elems.length)
+          elems.foreach { e =>
+            if (SchemaMatch.matches(pattern, e)) found = true
+            else newElems.addOne(e)
+          }
+          if (newElems.knownSize != elems.length) new Sequence(newElems.result())
+          else s
+        case m: Map =>
+          val entries    = m.entries
+          val newEntries = ChunkBuilder.make[(DynamicValue, DynamicValue)](entries.length)
+          entries.foreach { kv =>
+            if (SchemaMatch.matches(pattern, kv._2)) found = true
+            else newEntries.addOne(kv)
+          }
+          if (newEntries.knownSize != entries.length) new Map(newEntries.result())
+          else m
+        case other => other
       }
-      if (found) Some(result) else None
+      if (found) new Some(result)
+      else None
     } else {
-      // SchemaSearch is not the last node - find matches and continue with remaining path.
+      // SchemaSearch is not the last node - find matches and continue with a remaining path.
       // iterativeTransform visits every node; matching ones get the remaining path applied.
       val result = iterativeTransform(dv) { value =>
         if (SchemaMatch.matches(pattern, value)) {
@@ -1544,11 +1576,12 @@ object DynamicValue {
             case Some(modified) =>
               found = true
               modified
-            case None => value
+            case _ => value
           }
         } else value
       }
-      if (found) Some(result) else None
+      if (found) Some(result)
+      else None
     }
   }
 
@@ -1815,7 +1848,7 @@ object DynamicValue {
         merged(idx) = kv
         idx += 1
       } else {
-        val path_ = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(key))
+        val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
         merged(pos) = (key, merge(path_, merged(pos)._2, kv._2, s))
       }
     }
@@ -1901,8 +1934,8 @@ object DynamicValue {
         })
       case m: Map =>
         new Map(m.entries.map { case (k, v) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           (transformUp(k, keyPath, f), transformUp(v, valuePath, f))
         })
       case v: Variant => new Variant(v.caseNameValue, transformUp(v.value, path.caseOf(v.caseNameValue), f))
@@ -1928,8 +1961,8 @@ object DynamicValue {
         })
       case m: Map =>
         new Map(m.entries.map { case (k, v) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           (transformDown(k, keyPath, f), transformDown(v, valuePath, f))
         })
       case v: Variant => new Variant(v.caseNameValue, transformDown(v.value, path.caseOf(v.caseNameValue), f))
@@ -1977,7 +2010,11 @@ object DynamicValue {
       })
     case m: Map =>
       new Map(m.entries.map { kv =>
-        (f(new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), kv._1), transformMapKeys(kv._2, path, f))
+        val k = kv._1
+        (
+          f(new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), kv._1),
+          transformMapKeys(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k))), f)
+        )
       })
     case v: Variant => new Variant(v.caseNameValue, transformMapKeys(v.value, path.caseOf(v.caseNameValue), f))
     case other      => other
@@ -1993,26 +2030,29 @@ object DynamicValue {
     p: (DynamicOptic, DynamicValue) => Boolean
   ): DynamicValue = dv match {
     case r: Record =>
-      new Record(r.fields.flatMap { case (k, v) =>
+      val newFields = ChunkBuilder.make[(String, DynamicValue)](r.fields.length)
+      r.fields.foreach { case (k, v) =>
         val childPath = path.field(k)
-        if (p(childPath, v)) None
-        else new Some((k, prune(v, childPath, p)))
-      })
+        if (!p(childPath, v)) newFields.addOne((k, prune(v, childPath, p)))
+      }
+      new Record(newFields.result())
     case s: Sequence =>
-      new Sequence(s.elements.flatMap {
+      val newElements = ChunkBuilder.make[DynamicValue](s.elements.length)
+      s.elements.foreach {
         var idx = -1
         e =>
           idx += 1
           val childPath = path.at(idx)
-          if (p(childPath, e)) None
-          else new Some(prune(e, childPath, p))
-      })
+          if (!p(childPath, e)) newElements.addOne(prune(e, childPath, p))
+      }
+      new Sequence(newElements.result())
     case m: Map =>
-      new Map(m.entries.flatMap { case (k, v) =>
-        val childPath = new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(k))
-        if (p(childPath, v)) None
-        else new Some((prune(k, path, p), prune(v, childPath, p)))
-      })
+      val newEntries = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
+      m.entries.foreach { case (k, v) =>
+        val childPath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
+        if (!p(childPath, v)) newEntries.addOne((prune(k, path, p), prune(v, childPath, p)))
+      }
+      new Map(newEntries.result())
     case v: Variant => new Variant(v.caseNameValue, prune(v.value, path.caseOf(v.caseNameValue), p))
     case other      => other
   }
@@ -2024,29 +2064,32 @@ object DynamicValue {
   ): DynamicValue = {
     def retainRec(current: DynamicValue, currentPath: DynamicOptic): DynamicValue = current match {
       case r: Record =>
-        new Record(r.fields.flatMap { case (k, v) =>
+        val newFields = ChunkBuilder.make[(String, DynamicValue)](r.fields.length)
+        r.fields.foreach { case (k, v) =>
           val childPath = currentPath.field(k)
           val retained  = retainRec(v, childPath)
-          if (p(childPath, v) || hasContent(retained)) new Some((k, retained))
-          else None
-        })
+          if (p(childPath, v) || hasContent(retained)) newFields.addOne((k, retained))
+        }
+        new Record(newFields.result())
       case s: Sequence =>
-        new Sequence(s.elements.flatMap {
+        val newElements = ChunkBuilder.make[DynamicValue](s.elements.length)
+        s.elements.foreach {
           var idx = -1
           e =>
             idx += 1
             val childPath = currentPath.at(idx)
             val retained  = retainRec(e, childPath)
-            if (p(childPath, e) || hasContent(retained)) new Some(retained)
-            else None
-        })
+            if (p(childPath, e) || hasContent(retained)) newElements.addOne(retained)
+        }
+        new Sequence(newElements.result())
       case m: Map =>
-        new Map(m.entries.flatMap { case (k, v) =>
-          val childPath = new DynamicOptic(currentPath.nodes :+ DynamicOptic.Node.AtMapKey(k))
+        val newEntries = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
+        m.entries.foreach { case (k, v) =>
+          val childPath = new DynamicOptic(currentPath.nodes.appended(new DynamicOptic.Node.AtMapKey(k)))
           val retained  = retainRec(v, childPath)
-          if (p(childPath, v) || hasContent(retained)) new Some((k, retained))
-          else None
-        })
+          if (p(childPath, v) || hasContent(retained)) newEntries.addOne((k, retained))
+        }
+        new Map(newEntries.result())
       case v: Variant =>
         val childPath = currentPath.caseOf(v.caseNameValue)
         val retained  = retainRec(v.value, childPath)
@@ -2102,9 +2145,8 @@ object DynamicValue {
         }
       case m: Map =>
         m.entries.foldLeft(z) { case (acc, (k, v)) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(k))
-          foldUp(v, valuePath, foldUp(k, keyPath, acc, f), f)
+          val z = foldUp(k, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), acc, f)
+          foldUp(v, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(k))), z, f)
         }
       case v: Variant => foldUp(v.value, path.caseOf(v.caseNameValue), z, f)
       case _          => z
@@ -2130,8 +2172,8 @@ object DynamicValue {
         }
       case m: Map =>
         m.entries.foldLeft(acc) { (a, kv) =>
-          val keyPath   = new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys)
-          val valuePath = new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(kv._1))
+          val keyPath   = new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys))
+          val valuePath = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1)))
           foldDown(kv._2, valuePath, foldDown(kv._1, keyPath, a, f), f)
         }
       case v: Variant => foldDown(v.value, path.caseOf(v.caseNameValue), acc, f)
@@ -2185,9 +2227,10 @@ object DynamicValue {
           while (idx < len) {
             val kv  = entries(idx)
             val key = kv._1
-            foldUpOrFail(key, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), b, f) match {
+            foldUpOrFail(key, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), b, f) match {
               case Right(a1) =>
-                foldUpOrFail(kv._2, new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(key)), a1, f) match {
+                val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
+                foldUpOrFail(kv._2, path_, a1, f) match {
                   case Right(b1) => b = b1
                   case l         => return l
                 }
@@ -2250,9 +2293,10 @@ object DynamicValue {
             while (idx < len) {
               val kv  = entries(idx)
               val key = kv._1
-              foldDownOrFail(key, new DynamicOptic(path.nodes :+ DynamicOptic.Node.MapKeys), b, f) match {
+              foldDownOrFail(key, new DynamicOptic(path.nodes.appended(DynamicOptic.Node.MapKeys)), b, f) match {
                 case Right(a1) =>
-                  foldDownOrFail(kv._2, new DynamicOptic(path.nodes :+ DynamicOptic.Node.AtMapKey(key)), a1, f) match {
+                  val path_ = new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(key)))
+                  foldDownOrFail(kv._2, path_, a1, f) match {
                     case Right(b1) => b = b1
                     case l         => return l
                   }
@@ -2277,7 +2321,7 @@ object DynamicValue {
           toKV(e, path.at(idx))
       }
     case m: Map =>
-      m.entries.flatMap(kv => toKV(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1))))
+      m.entries.flatMap(kv => toKV(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1)))))
     case v: Variant => toKV(v.value, path.caseOf(v.caseNameValue))
     case other      => Chunk.single((path, other))
   }
@@ -2447,23 +2491,25 @@ object DynamicValue {
     path: DynamicOptic,
     p: (DynamicOptic, DynamicValue) => Boolean
   ): Chunk[DynamicValue] = {
-    val doPrepend = p(path, dv)
-    val children  = dv match {
-      case r: Record   => r.fields.flatMap(kv => query(kv._2, path.field(kv._1), p))
+    val children = ChunkBuilder.make[DynamicValue]()
+    if (p(path, dv)) children.addOne(dv)
+    dv match {
+      case r: Record   => r.fields.foreach(kv => children.addAll(query(kv._2, path.field(kv._1), p)))
       case s: Sequence =>
-        s.elements.flatMap {
+        s.elements.foreach {
           var idx = -1
           e =>
             idx += 1
-            query(e, path.at(idx), p)
+            children.addAll(query(e, path.at(idx), p))
         }
       case m: Map =>
-        m.entries.flatMap(kv => query(kv._2, new DynamicOptic(path.nodes :+ new DynamicOptic.Node.AtMapKey(kv._1)), p))
-      case v: Variant => query(v.value, path.caseOf(v.caseNameValue), p)
-      case _          => Chunk.empty
+        m.entries.foreach { kv =>
+          children.addAll(query(kv._2, new DynamicOptic(path.nodes.appended(new DynamicOptic.Node.AtMapKey(kv._1))), p))
+        }
+      case v: Variant => children.addAll(query(v.value, path.caseOf(v.caseNameValue), p))
+      case _          =>
     }
-    if (doPrepend) dv +: children
-    else children
+    children.result()
   }
 
   /**
@@ -2473,7 +2519,7 @@ object DynamicValue {
    *   - Non-string map keys
    *   - Tagged variants (using @ metadata)
    *   - Typed primitives (using @ metadata)
-   *   - Records (unquoted keys) vs Maps (quoted string keys or unquoted
+   *   - Records (unquoted keys) vs. Maps (quoted string keys or unquoted
    *     non-string keys)
    *
    * @param value

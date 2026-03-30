@@ -21,9 +21,8 @@ import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
-import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.schema.binding.{Registers, RegisterOffset}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
 import scala.annotation.tailrec
 import java.nio.charset.StandardCharsets.UTF_8
@@ -506,7 +505,8 @@ final class JsonWriter private[json] (
    * @throws JsonCodecError
    *   always
    */
-  def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
+  @noinline
+  private[this] def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Writes a `BigDecimal` value as a JSON value.
@@ -1714,6 +1714,7 @@ final class JsonWriter private[json] (
     pos + 6
   }
 
+  @noinline
   private[this] def illegalSurrogateError(): Nothing = encodeError("illegal char sequence of surrogate pair")
 
   private[this] def writeBigInteger(x: BigInteger, ss: Array[BigInteger]): Unit = {
@@ -2989,8 +2990,10 @@ final class JsonWriter private[json] (
     }
   }
 
+  @noinline
   private[this] def illegalNumberError(x: Float): Nothing = encodeError("illegal number: " + x)
 
+  @noinline
   private[this] def illegalNumberError(x: Double): Nothing = encodeError("illegal number: " + x)
 
   @inline
@@ -3000,6 +3003,7 @@ final class JsonWriter private[json] (
     else flushAndGrowBuf(required, pos)
   }
 
+  @noinline
   private[this] def flushAndGrowBuf(required: Int, pos: Int): Int =
     if (bbuf ne null) {
       bbuf.put(buf, 0, pos)
@@ -3015,11 +3019,14 @@ final class JsonWriter private[json] (
       pos
     }
 
+  @noinline
   private[this] def growBuf(required: Int): Unit =
     setBuf(java.util.Arrays.copyOf(buf, (-1 >>> Integer.numberOfLeadingZeros(limit | required)) + 1))
 
+  @inline
   private[this] def reallocateBufToPreferredSize(): Unit = setBuf(new Array[Byte](config.preferredBufSize))
 
+  @inline
   private[this] def setBuf(buf: Array[Byte]): Unit = {
     this.buf = buf
     limit = buf.length

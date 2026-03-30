@@ -53,18 +53,17 @@ sealed trait Lazy[+A] {
   final def force: A = {
     @annotation.tailrec
     def loop(current: Lazy[Any], stack: List[Cont[Any, Any]]): Any = current match {
-      case Defer(thunk) =>
-        if (stack.isEmpty) thunk()
+      case d: Defer[Any @unchecked] =>
+        if (stack.isEmpty) d.thunk()
         else {
           val cont = stack.head
           loop(
-            try cont.ifSuccess(thunk())
+            try cont.ifSuccess(d.thunk())
             catch { case e if NonFatal(e) => cont.ifError(e) },
             stack.tail
           )
         }
-      case FlatMap(first, cont) =>
-        loop(first, cont.asInstanceOf[Cont[Any, Any]] :: stack)
+      case fm: FlatMap[Any @unchecked, Any @unchecked] => loop(fm.first, fm.cont :: stack)
     }
 
     (if (value == null) {
@@ -102,11 +101,11 @@ sealed trait Lazy[+A] {
 }
 
 object Lazy {
-  private case class Cont[-A, +B](ifSuccess: A => Lazy[B], ifError: Throwable => Lazy[B])
+  private class Cont[-A, +B](val ifSuccess: A => Lazy[B], val ifError: Throwable => Lazy[B])
 
-  private case class Defer[+A](thunk: () => A) extends Lazy[A]
+  private class Defer[+A](val thunk: () => A) extends Lazy[A]
 
-  private case class FlatMap[A, +B](first: Lazy[A], cont: Cont[A, B]) extends Lazy[B]
+  private class FlatMap[A, +B](val first: Lazy[A], val cont: Cont[A, B]) extends Lazy[B]
 
   @inline def apply[A](expression: => A): Lazy[A] = new Defer(() => expression)
 

@@ -17,113 +17,108 @@
 package golem.runtime.autowire
 
 import golem.data.DataType
+import golem.host.js._
 
 import scala.scalajs.js
 
-private[autowire] object WitTypeBuilder {
-  def build(dataType: DataType): js.Dynamic = {
+private[golem] object WitTypeBuilder {
+  def build(dataType: DataType): JsWitType = {
     val builder = new Builder
     builder.buildNode(dataType)
     builder.result()
   }
 
   private final class Builder {
-    private val nodes = js.Array[js.Dynamic]()
+    private val nodes = js.Array[JsNamedWitTypeNode]()
 
-    def result(): js.Dynamic =
-      js.Dynamic.literal("nodes" -> nodes)
+    def result(): JsWitType =
+      JsWitType(nodes)
 
     def buildNode(dataType: DataType): Int = {
-      val index       = newNode()
-      val typeVariant = dataType match {
+      val index                   = newNode()
+      val (typeVariant, typeName) = dataType match {
         case DataType.UnitType =>
-          tupleType(js.Array())
+          (JsWitTypeNode.tupleType(js.Array[JsNodeIndex]()), js.undefined: js.UndefOr[String])
         case DataType.StringType =>
-          tagOnly("prim-string-type")
+          (JsWitTypeNode.primStringType, js.undefined: js.UndefOr[String])
         case DataType.BoolType =>
-          tagOnly("prim-bool-type")
+          (JsWitTypeNode.primBoolType, js.undefined: js.UndefOr[String])
+        case DataType.CharType =>
+          (JsWitTypeNode.primCharType, js.undefined: js.UndefOr[String])
+        case DataType.ByteType =>
+          (JsWitTypeNode.primS8Type, js.undefined: js.UndefOr[String])
+        case DataType.ShortType =>
+          (JsWitTypeNode.primS16Type, js.undefined: js.UndefOr[String])
         case DataType.IntType =>
-          tagOnly("prim-s32-type")
+          (JsWitTypeNode.primS32Type, js.undefined: js.UndefOr[String])
         case DataType.LongType =>
-          tagOnly("prim-s64-type")
+          (JsWitTypeNode.primS64Type, js.undefined: js.UndefOr[String])
+        case DataType.FloatType =>
+          (JsWitTypeNode.primF32Type, js.undefined: js.UndefOr[String])
         case DataType.DoubleType =>
-          tagOnly("prim-f64-type")
+          (JsWitTypeNode.primF64Type, js.undefined: js.UndefOr[String])
+        case DataType.UByteType =>
+          (JsWitTypeNode.primU8Type, js.undefined: js.UndefOr[String])
+        case DataType.UShortType =>
+          (JsWitTypeNode.primU16Type, js.undefined: js.UndefOr[String])
+        case DataType.UIntType =>
+          (JsWitTypeNode.primU32Type, js.undefined: js.UndefOr[String])
+        case DataType.ULongType =>
+          (JsWitTypeNode.primU64Type, js.undefined: js.UndefOr[String])
         case DataType.BigDecimalType =>
-          tagOnly("prim-string-type")
+          val stringIndex = buildNode(DataType.StringType)
+          (JsWitTypeNode.recordType(js.Array(js.Tuple2("value", stringIndex))), js.undefined: js.UndefOr[String])
         case DataType.UUIDType =>
-          tagOnly("prim-string-type")
+          val stringIndex = buildNode(DataType.StringType)
+          (JsWitTypeNode.recordType(js.Array(js.Tuple2("value", stringIndex))), js.undefined: js.UndefOr[String])
         case DataType.BytesType =>
-          listType(buildNode(DataType.IntType)) // bytes represented as list of ints (u8)
+          val u8Index = newNode()
+          nodes(u8Index) = JsNamedWitTypeNode(JsWitTypeNode.primU8Type)
+          (JsWitTypeNode.listType(u8Index), js.undefined: js.UndefOr[String])
         case DataType.Optional(of) =>
-          optionType(buildNode(of))
+          (JsWitTypeNode.optionType(buildNode(of)), js.undefined: js.UndefOr[String])
         case DataType.ListType(of) =>
-          listType(buildNode(of))
+          (JsWitTypeNode.listType(buildNode(of)), js.undefined: js.UndefOr[String])
         case DataType.SetType(of) =>
-          listType(buildNode(of))
-        case DataType.MapType(valueType) =>
-          val entryStruct = DataType.StructType(
-            List(
-              DataType.Field("key", DataType.StringType, optional = false),
-              DataType.Field("value", valueType, optional = false)
-            )
-          )
-          val entryIndex = buildNode(entryStruct)
-          listType(entryIndex)
+          (JsWitTypeNode.listType(buildNode(of)), js.undefined: js.UndefOr[String])
+        case DataType.MapType(keyType, valueType) =>
+          val entryTuple = DataType.TupleType(List(keyType, valueType))
+          val entryIndex = buildNode(entryTuple)
+          (JsWitTypeNode.listType(entryIndex), js.undefined: js.UndefOr[String])
         case DataType.TupleType(elements) =>
-          tupleType(js.Array(elements.map(buildNode): _*))
-        case DataType.StructType(fields) =>
-          val fieldEntries = js.Array[js.Any]()
+          (JsWitTypeNode.tupleType(js.Array(elements.map(buildNode): _*)), js.undefined: js.UndefOr[String])
+        case DataType.StructType(fields, name) =>
+          val fieldEntries = js.Array[js.Tuple2[String, JsNodeIndex]]()
           fields.foreach { field =>
             val idx = buildNode(field.dataType)
-            fieldEntries.push(js.Array[Any](field.name, idx))
+            fieldEntries.push(js.Tuple2(field.name, idx))
           }
-          recordType(fieldEntries)
-        case DataType.EnumType(cases) =>
-          val variantEntries = js.Array[js.Any]()
+          (JsWitTypeNode.recordType(fieldEntries), name.fold[js.UndefOr[String]](js.undefined)(identity))
+        case DataType.EnumType(cases, name) =>
+          val variantEntries = js.Array[js.Tuple2[String, js.UndefOr[JsNodeIndex]]]()
           cases.foreach { enumCase =>
-            val payloadIndex      = enumCase.payload.map(buildNode)
-            val payloadValue: Any = payloadIndex match {
-              case Some(value) => value
-              case None        => js.undefined
-            }
-            variantEntries.push(js.Array[Any](enumCase.name, payloadValue))
+            val payloadIndex = enumCase.payload.map(buildNode)
+            variantEntries.push(
+              js.Tuple2(enumCase.name, payloadIndex.fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity))
+            )
           }
-          variantType(variantEntries)
+          (JsWitTypeNode.variantType(variantEntries), name.fold[js.UndefOr[String]](js.undefined)(identity))
+        case DataType.PureEnumType(cases, name) =>
+          (JsWitTypeNode.enumType(js.Array(cases: _*)), name.fold[js.UndefOr[String]](js.undefined)(identity))
+        case DataType.ResultType(ok, err) =>
+          val okIdx  = ok.map(buildNode).fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          val errIdx = err.map(buildNode).fold[js.UndefOr[JsNodeIndex]](js.undefined)(identity)
+          (JsWitTypeNode.resultType(okIdx, errIdx), js.undefined: js.UndefOr[String])
       }
 
-      // The JS representation of `wit-type` nodes is a record:
-      // { name: undefined | string, owner: undefined | string, type: { tag, val? } }
-      // This matches the shape used by the JS SDK and by the hand-written JS example.
-      nodes(index) = js.Dynamic.literal(
-        "name"  -> (js.undefined: js.UndefOr[String]),
-        "owner" -> (js.undefined: js.UndefOr[String]),
-        "type"  -> typeVariant
-      )
+      nodes(index) = JsNamedWitTypeNode(typeVariant, name = typeName)
       index
     }
 
-    private def tagOnly(tag: String): js.Dynamic =
-      js.Dynamic.literal("tag" -> tag)
-
     private def newNode(): Int = {
-      val placeholder = js.Dynamic.literal()
+      val placeholder = JsNamedWitTypeNode(JsShape.tagOnly[JsWitTypeNode]("__placeholder"))
       nodes.push(placeholder)
       nodes.length - 1
     }
-
-    private def tupleType(values: js.Array[Int]): js.Dynamic =
-      js.Dynamic.literal("tag" -> "tuple-type", "val" -> values)
-
-    private def listType(of: Int): js.Dynamic =
-      js.Dynamic.literal("tag" -> "list-type", "val" -> of)
-
-    private def optionType(of: Int): js.Dynamic =
-      js.Dynamic.literal("tag" -> "option-type", "val" -> of)
-
-    private def recordType(fields: js.Array[js.Any]): js.Dynamic =
-      js.Dynamic.literal("tag" -> "record-type", "val" -> fields)
-
-    private def variantType(entries: js.Array[js.Any]): js.Dynamic =
-      js.Dynamic.literal("tag" -> "variant-type", "val" -> entries)
   }
 }

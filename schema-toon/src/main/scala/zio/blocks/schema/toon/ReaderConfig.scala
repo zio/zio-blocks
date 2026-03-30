@@ -17,22 +17,6 @@
 package zio.blocks.schema.toon
 
 /**
- * Strategy for expanding dot-separated paths in TOON input.
- */
-sealed abstract class PathExpansion
-
-object PathExpansion {
-
-  /** No path expansion - keys are treated as literals. */
-  case object Off extends PathExpansion
-
-  /**
-   * Safe path expansion - dot-separated keys are expanded to nested records.
-   */
-  case object Safe extends PathExpansion
-}
-
-/**
  * Configuration for [[zio.blocks.schema.toon.ToonReader]] that contains params
  * for parsing TOON input and for tuning reader behavior.
  *
