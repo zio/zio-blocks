@@ -25,9 +25,9 @@ import zio.blocks.schema.json.Json
 object JsonRpcDeriver extends RpcDeriver[JsonRpcCodec] {
 
   override def deriveService[T](rpc: RPC[T]): JsonRpcCodec[T] = {
-    val handlers = rpc.operations.toList.map { op =>
-      op.name -> createHandler(op)
-    }.toMap
+    val handlers = rpc.operations.foldLeft(Map.empty[String, JsonRpcCodec.OperationHandler]) { (acc, op) =>
+      acc + (op.name -> createHandler(op))
+    }
     new JsonRpcCodec[T](handlers)
   }
 

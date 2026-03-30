@@ -29,10 +29,16 @@ object RPCMacros {
     if (!tpeSym.isClassDef || !tpeSym.flags.is(Flags.Trait))
       report.errorAndAbort(s"RPC.derived requires a trait, got: ${tpe.show}")
 
-    val abstractMethods = tpeSym.declaredMethods.filter(_.flags.is(Flags.Deferred))
+    val abstractMethods = {
+      val allMethods = tpeSym.methodMembers.filter(_.flags.is(Flags.Deferred))
+      allMethods.filterNot { m =>
+        val owner = m.owner
+        owner == defn.AnyClass || owner == defn.ObjectClass
+      }
+    }
 
     abstractMethods.foreach { method =>
-      if (tpeSym.declaredMethods.count(_.name == method.name) > 1)
+      if (abstractMethods.count(_.name == method.name) > 1)
         report.errorAndAbort(
           s"Overloaded method '${method.name}' is not supported in RPC traits"
         )
@@ -79,15 +85,23 @@ object RPCMacros {
 
     /**
      * Decompose a return type into (successType, errorType).
-     *   1. Try `Implicits.search(ReturnTypeDecomposer[returnType])` — if found,
-     *      extract Error/Success type members
-     *   2. Otherwise, treat as plain type: success = returnType, error =
-     *      Nothing
+     *
+     *   1. Fast path for Either: extracts type args directly from the dealiased
+     *      type. This is necessary because Scala 3 macro implicit search with
+     *      `ReturnTypeDecomposer` produces refinement types with unresolved
+     *      type variables, causing compiler assertion failures when extracting
+     *      type members via pattern matching.
+     *   2. General fallback via `Implicits.search(ReturnTypeDecomposer[F])` —
+     *      provides extensibility for effect types (ZIO, cats IO, Kyo) added by
+     *      integration modules.
+     *   3. Plain type: success = returnType, error = Nothing.
      */
     def decomposeReturnType(returnType: TypeRepr): (TypeRepr, TypeRepr) = {
       val dealiased = returnType.dealias
 
-      // Fast path: check if it's Either directly via type symbol
+      // Fast path: Either is handled directly because extracting type members
+      // from ReturnTypeDecomposer refinement types triggers GADT assertion
+      // failures in the Scala 3 compiler (dotty TypeBounds constraint issue).
       if (dealiased.typeSymbol.fullName == "scala.util.Either") {
         val typeArgs = dealiased.typeArgs
         if (typeArgs.length == 2) {
@@ -95,12 +109,12 @@ object RPCMacros {
         }
       }
 
-      // General path: try to find a ReturnTypeDecomposer instance
+      // General path: find a ReturnTypeDecomposer instance for non-Either types
+      // (e.g. ZIO, cats IO, Kyo provided by integration modules)
       val searchType = decomposerTR.appliedTo(returnType)
       Implicits.search(searchType) match {
         case s: ImplicitSearchSuccess =>
-          val decompTpe = s.tree.tpe.dealias
-          // Extract the Error and Success type members
+          val decompTpe     = s.tree.tpe.dealias
           val errorMember   = decompTpe.typeSymbol.typeMember("Error")
           val successMember = decompTpe.typeSymbol.typeMember("Success")
           if (errorMember != Symbol.noSymbol && successMember != Symbol.noSymbol) {
@@ -108,11 +122,9 @@ object RPCMacros {
             val successType = decompTpe.memberType(successMember).dealias
             (successType, errorType)
           } else {
-            // Decomposer found but can't extract members — fall back to plain
             (returnType, TypeRepr.of[Nothing])
           }
         case _ =>
-          // No decomposer found — treat as plain type
           (returnType, TypeRepr.of[Nothing])
       }
     }
@@ -120,12 +132,16 @@ object RPCMacros {
     val operationExprs: List[Expr[RPC.Operation[?, ?]]] = abstractMethods.map { method =>
       val methodName = method.name
 
-      val termParams: List[Symbol] = {
-        val lists = method.paramSymss.filterNot(_.exists(_.isTypeParam))
-        if (lists.isEmpty) Nil else lists.head
-      }
-
       val methodType = tpe.memberType(method)
+
+      val (termParams, paramTypes) = methodType match {
+        case MethodType(_, pts, _) =>
+          val paramSyms = method.paramSymss.filterNot(_.exists(_.isTypeParam))
+          val syms      = if (paramSyms.isEmpty) Nil else paramSyms.head
+          (syms, pts)
+        case _ =>
+          (Nil, Nil)
+      }
 
       val returnType: TypeRepr = methodType match {
         case MethodType(_, _, rt) => rt
@@ -135,13 +151,7 @@ object RPCMacros {
 
       val (aType, eType) = decomposeReturnType(returnType)
 
-      val paramNames: List[String]   = termParams.map(_.name)
-      val paramTypes: List[TypeRepr] = termParams.map { p =>
-        tpe.memberType(p) match {
-          case MethodType(_, pts, _) => pts.head
-          case other                 => other
-        }
-      }
+      val paramNames: List[String] = termParams.map(_.name)
 
       val methodAnnotations: List[Expr[MetaAnnotation]] =
         method.annotations

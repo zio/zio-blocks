@@ -80,3 +80,19 @@ trait AnnotatedService {
   @Streaming
   def subscribe(topic: String): Either[BasicError, Unit]
 }
+
+// Parent service trait for inheritance tests
+trait ParentService {
+  def parentMethod(x: String): String
+}
+
+// Child inherits parent
+trait InheritedService extends ParentService {
+  def childMethod(y: Int): Either[BasicError, String]
+}
+
+// Multiple annotations on one method
+trait MultiAnnotatedService {
+  @Idempotent @Streaming
+  def dualAnnotated(id: Long): String
+}

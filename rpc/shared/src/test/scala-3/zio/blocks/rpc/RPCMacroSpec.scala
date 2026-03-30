@@ -98,6 +98,21 @@ object RPCMacroSpec extends ZIOSpecDefault {
       test("AnnotatedService - Either methods have error schema") {
         val rpc = RPC.derived[AnnotatedService]
         assertTrue(rpc.operations.forall(_.errorSchema.isDefined))
+      },
+      test("InheritedService - includes parent methods") {
+        val rpc = RPC.derived[InheritedService]
+        assertTrue(
+          rpc.operations.map(_.name).toSet == Set("parentMethod", "childMethod")
+        )
+      },
+      test("MultiAnnotatedService - multiple annotations on same method") {
+        val rpc = RPC.derived[MultiAnnotatedService]
+        val op  = rpc.operations(0)
+        assertTrue(
+          op.annotations.length == 2,
+          op.annotations.exists(_.isInstanceOf[Idempotent]),
+          op.annotations.exists(_.isInstanceOf[Streaming])
+        )
       }
     ),
     suite("Schema round-trip tests")(
