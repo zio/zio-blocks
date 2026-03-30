@@ -869,24 +869,36 @@ val bits = bytes.asBitsByte
 
 #### `Chunk#asBitsInt` — Convert to Int Bits
 
-Convert a chunk of ints into a chunk of individual bits:
+Convert a chunk of ints into a chunk of individual bits with a specified endianness:
+
+```scala
+trait Chunk[+A] {
+  def asBitsInt(endianness: Chunk.BitChunk.Endianness): Chunk[Boolean]
+}
+```
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val ints = Chunk(1, 2, 3)
-val bits = ints.asBitsInt
+val bits = ints.asBitsInt(Chunk.BitChunk.Endianness.BigEndian)
 ```
 
 #### `Chunk#asBitsLong` — Convert to Long Bits
 
-Convert a chunk of longs into a chunk of individual bits:
+Convert a chunk of longs into a chunk of individual bits with a specified endianness:
+
+```scala
+trait Chunk[+A] {
+  def asBitsLong(endianness: Chunk.BitChunk.Endianness): Chunk[Boolean]
+}
+```
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val longs = Chunk(1L, 2L, 3L)
-val bits = longs.asBitsLong
+val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 ```
 
 ### Text Operations
