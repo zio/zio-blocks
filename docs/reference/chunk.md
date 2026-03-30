@@ -779,7 +779,7 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
 
-chunk.toSeq         // Vector(1, 2, 3)
+chunk.toSeq         // Chunk(1, 2, 3)
 chunk.toIndexedSeq  // IndexedSeq(1, 2, 3)
 ```
 
