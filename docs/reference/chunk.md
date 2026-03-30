@@ -140,7 +140,7 @@ val chunk = Chunk.fromArray(arr)
 
 ### From Iterable with `Chunk.fromIterable`
 
-Convert any Scala iterable (List, Vector, Set, etc.) into a chunk. Creates a copy, so the original iterable can be mutated:
+Convert any Scala iterable (List, Vector, Set, etc.) into a chunk. For Chunk and Vector inputs, the underlying data may be shared; for other iterables, the data is copied:
 
 ```scala
 object Chunk {
