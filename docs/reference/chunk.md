@@ -589,7 +589,7 @@ chunk.slice(2, 5)  // Chunk(30, 40, 50)
 
 #### `Chunk#split` — Split into Equally-Sized Chunks
 
-Split the chunk into N equally-sized chunks. When the chunk size is not evenly divisible, remainder elements are distributed into earlier chunks:
+Split the chunk into N equally-sized chunks. When the chunk size is not evenly divisible, remainder elements are distributed into earlier chunks. If n exceeds the chunk's length, the result contains at most chunk.length single-element chunks.
 
 ```scala
 trait Chunk[+A] {
