@@ -181,8 +181,8 @@ object Dom {
     def tag: String
     def attributes: Chunk[Attribute]
     def children: Chunk[Dom]
-    val selector: CssSelector = CssSelector.Element(tag)
-    lazy val isVoid: Boolean  = Dom.voidElements.contains(tag)
+    val selector: CssSelector             = CssSelector.Element(tag)
+    private[template] def isVoid: Boolean = Dom.voidElements.contains(tag)
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
