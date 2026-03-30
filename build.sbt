@@ -349,7 +349,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC46" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC47" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -1174,7 +1174,7 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-prelude" % "1.0.0-RC46"
+      "dev.zio" %% "zio-prelude" % "1.0.0-RC47"
     )
   )
   .dependsOn(
