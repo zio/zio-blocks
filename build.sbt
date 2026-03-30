@@ -1175,6 +1175,14 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-prelude" % "1.0.0-RC47"
+    ),
+    // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
+    mdocVariables ++= Map(
+      "PROJECT_BADGES" -> (
+        "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
+          "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+          "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
+      )
     )
   )
   .dependsOn(

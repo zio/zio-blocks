@@ -6,7 +6,7 @@
 
 **Modular, zero-dependency building blocks for modern Scala applications.**
 
-[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) [![Sonatype Releases](https://img.shields.io/nexus/r/https/oss.sonatype.org/dev.zio/zio-blocks-next-schema_3.svg?label=Sonatype%20Release)](https://oss.sonatype.org/content/repositories/releases/dev/zio/zio-blocks-next-schema_3/) [![Sonatype Snapshots](https://img.shields.io/nexus/s/https/oss.sonatype.org/dev.zio/zio-blocks-next-schema_3.svg?label=Sonatype%20Snapshot)](https://oss.sonatype.org/content/repositories/snapshots/dev/zio/zio-blocks-next-schema_3/) [![javadoc](https://javadoc.io/badge2/dev.zio/zio-blocks-docs_3/javadoc.svg)](https://javadoc.io/doc/dev.zio/zio-blocks-docs_3) [![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)
+[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) ![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) [![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)
 
 ## What Is ZIO Blocks?
 
@@ -83,14 +83,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.31"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.28"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.28"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.28"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.28"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.31"
 ```
 
 ### Example: Optics
@@ -145,7 +145,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.31"
 ```
 
 ### Example
@@ -234,7 +234,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.31"
 ```
 
 ### Example: Basic Resource Management
@@ -311,6 +311,12 @@ Scope.global.scoped { connScope =>
 // Connection closed here
 ```
 
+### Getting Started
+
+New to Scope? Check out the [Scope Tutorial](docs/./guides/compile-time-resource-safety-with-scope.md) for a comprehensive step-by-step guide that walks you through the concepts, patterns, and real-world examples. The tutorial is designed for newcomers and covers everything from basic resource management to advanced dependency injection.
+
+For detailed API documentation, see the [Scope Reference](docs/./reference/resource-management/scope.md).
+
 ---
 
 ## Docs
@@ -337,7 +343,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.31"
 ```
 
 ### Example
@@ -421,7 +427,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.31"
 ```
 
 ### Example
@@ -464,7 +470,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.31"
 ```
 
 ### Example
@@ -516,7 +522,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.28"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.31"
 ```
 
 ### Example
@@ -598,6 +604,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Codec & Format](docs/./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
 - [JSON](docs/./reference/json.md) - JSON codec and parsing
 - [JsonPatch](docs/./reference/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](docs/./reference/json-differ.md) - Compute minimal diffs between JSON values
 - [JSON Schema](docs/./reference/json-schema.md) - JSON Schema generation and validation
 - [Formats](docs/./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
 - [Extension Syntax](docs/./reference/syntax.md) - `.toJson`, `.fromJson`, and more
@@ -614,7 +621,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](docs/./reference/chunk.md) - High-performance immutable sequences
-- [Scope](docs/./scope.md) - Compile-time safe resource management and DI
+- [Scope](docs/./reference/resource-management/scope.md) - Compile-time safe resource management and DI
+- [Wire](docs/./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
