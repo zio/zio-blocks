@@ -941,7 +941,9 @@ import zio.blocks.schema._
 
 case class Event(id: Int, tags: Chunk[String])
 
-val schema = Schema.derived[Event]
+object Event {
+  implicit val schema: Schema[Event] = Schema.derived
+}
 // Automatically derives Schema[Chunk[String]] for the tags field
 ```
 
