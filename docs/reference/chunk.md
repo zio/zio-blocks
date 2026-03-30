@@ -65,7 +65,7 @@ Supports Scala 2.13.x and 3.x.
 
 ## Construction / Creating Instances
 
-### From Varargs with `apply`
+### From Varargs with `Chunk.apply`
 
 The simplest way to create a chunk from individual elements:
 
@@ -85,7 +85,7 @@ val strings = Chunk("alice", "bob", "charlie")
 // res1: Chunk[String] = Chunk(alice, bob, charlie)
 ```
 
-### Empty Chunk with `empty`
+### Empty Chunk with `Chunk.empty`
 
 Create an empty chunk:
 
@@ -105,7 +105,7 @@ empty.length
 // res1: Int = 0
 ```
 
-### Single Element with `single`
+### Single Element with `Chunk.single`
 
 Efficient constructor for a single-element chunk:
 
@@ -125,7 +125,7 @@ val singleInt = Chunk.single(42)
 // res1: Chunk[Int] = Chunk(42)
 ```
 
-### From Array with `fromArray`
+### From Array with `Chunk.fromArray`
 
 Create a chunk from an array. **Warning**: The array must not be mutated after creating the chunk.
 
@@ -145,7 +145,7 @@ val chunk = Chunk.fromArray(arr)
 // Do NOT mutate the array after creating the chunk
 ```
 
-### From Iterable with `fromIterable`
+### From Iterable with `Chunk.fromIterable`
 
 Convert any Scala iterable (List, Vector, Set, etc.) into a chunk. Creates a copy, so the original iterable can be mutated:
 
@@ -167,7 +167,7 @@ val chunkFromVec = Chunk.fromIterable(vector)
 // res1: Chunk[String] = Chunk(x, y, z)
 ```
 
-### From Iterator with `fromIterator`
+### From Iterator with `Chunk.fromIterator`
 
 Consume an iterator and collect into a chunk:
 
@@ -210,7 +210,7 @@ val chunk = Chunk.fromByteBuffer(buffer)
 // res0: Chunk[Byte] = Chunk(1, 2, 3)
 ```
 
-### Fill with `fill`
+### Fill with `Chunk.fill`
 
 Create a chunk by repeating an element n times:
 
@@ -230,7 +230,7 @@ val zeros = Chunk.fill(3)(0)
 // res1: Chunk[Int] = Chunk(0, 0, 0)
 ```
 
-### Iterate with `iterate`
+### Iterate with `Chunk.iterate`
 
 Create a chunk by repeatedly applying a function starting from an initial value:
 
@@ -250,7 +250,7 @@ val alphabet = Chunk.iterate('a', 3)(c => (c + 1).toChar)
 // res1: Chunk[Char] = Chunk(a, b, c)
 ```
 
-### Unfold with `unfold`
+### Unfold with `Chunk.unfold`
 
 Generate a chunk by repeatedly applying a function that returns an optional value:
 
@@ -308,7 +308,7 @@ val result = builder2.result()
 
 ### Element Access
 
-#### `apply` — Random Access
+#### `Chunk#apply` — Random Access
 
 Access an element by index in O(log n) time (O(1) for array-backed chunks):
 
@@ -328,7 +328,7 @@ chunk(2)  // 30
 chunk(4)  // 50
 ```
 
-#### `head` and `last` — First and Last Elements
+#### `Chunk#head` and `Chunk#last` — First and Last Elements
 
 Access the first or last element:
 
@@ -348,7 +348,7 @@ chunk.head  // "a"
 chunk.last  // "d"
 ```
 
-#### `length` and `size` — Chunk Size
+#### `Chunk#length` and `Chunk#size` — Chunk Size
 
 Get the number of elements (O(1) complexity):
 
@@ -370,7 +370,7 @@ chunk.size    // 5
 
 ### Transformations
 
-#### `map` — Transform Elements
+#### `Chunk#map` — Transform Elements
 
 Apply a function to each element:
 
@@ -392,7 +392,7 @@ val lengths = strings.map(_.length)
 // res1: Chunk[Int] = Chunk(5, 5)
 ```
 
-#### `flatMap` — Flat Transformation
+#### `Chunk#flatMap` — Flat Transformation
 
 Map each element to a chunk and flatten the result:
 
@@ -410,7 +410,7 @@ val expanded = numbers.flatMap(n => Chunk(n, n * 10))
 // res0: Chunk[Int] = Chunk(1, 10, 2, 20, 3, 30)
 ```
 
-#### `filter` — Keep Matching Elements
+#### `Chunk#filter` — Keep Matching Elements
 
 Keep only elements that match a predicate:
 
@@ -432,7 +432,7 @@ val filtered = longWords.filter(_.length > 1)
 // res1: Chunk[String] = Chunk(hello, world)
 ```
 
-#### `collect` — Filter-Map Combined
+#### `Chunk#collect` — Filter-Map Combined
 
 Apply a partial function, keeping only successful matches:
 
@@ -450,7 +450,7 @@ val onlyInts = values.collect { case n: Int => n * 10 }
 // res0: Chunk[Int] = Chunk(10, 20, 30)
 ```
 
-#### `sorted` — Sort Elements
+#### `Chunk#sorted` — Sort Elements
 
 Sort elements using an ordering:
 
@@ -474,7 +474,7 @@ val sortedStrings = strings.sorted
 
 ### Combining Chunks
 
-#### `++` — Concatenation
+#### `Chunk#++(that)` — Concatenation
 
 Combine two chunks. Uses balanced tree structure for efficiency:
 
@@ -499,7 +499,7 @@ val many = (1 to 100).foldLeft(Chunk.empty[Int]) { (acc, i) =>
 // res1: Chunk[Int] = Chunk(1, 2, 3, ...)
 ```
 
-#### `:+` — Append Element
+#### `Chunk#:+(a)` — Append Element
 
 Append a single element to the end:
 
@@ -517,7 +517,7 @@ val appended = chunk :+ 4
 // res0: Chunk[Int] = Chunk(1, 2, 3, 4)
 ```
 
-#### `+:` — Prepend Element
+#### `Chunk#+:(a)` — Prepend Element
 
 Prepend a single element to the beginning:
 
@@ -535,7 +535,7 @@ val prepended = 1 +: chunk
 // res0: Chunk[Int] = Chunk(1, 2, 3, 4)
 ```
 
-#### `zip` and `zipWith` — Combine Parallel Chunks
+#### `Chunk#zip` and `Chunk#zipWith` — Combine Parallel Chunks
 
 Combine two chunks element-wise:
 
@@ -561,7 +561,7 @@ val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
 
 ### Slicing and Partitioning
 
-#### `take` and `takeRight` — Take from Ends
+#### `Chunk#take` and `Chunk#takeRight` — Take from Ends
 
 Take the first n elements or last n elements:
 
@@ -581,7 +581,7 @@ chunk.take(3)      // Chunk(1, 2, 3)
 chunk.takeRight(2) // Chunk(4, 5)
 ```
 
-#### `drop` and `dropRight` — Remove from Ends
+#### `Chunk#drop` and `Chunk#dropRight` — Remove from Ends
 
 Remove the first n elements or last n elements:
 
@@ -601,7 +601,7 @@ chunk.drop(2)       // Chunk(3, 4, 5)
 chunk.dropRight(2)  // Chunk(1, 2, 3)
 ```
 
-#### `slice` — Extract a Range
+#### `Chunk#slice` — Extract a Range
 
 Extract elements from a start index to an end index:
 
@@ -620,7 +620,7 @@ chunk.slice(1, 4)  // Chunk(20, 30, 40)
 chunk.slice(2, 5)  // Chunk(30, 40, 50)
 ```
 
-#### `split` — Split into Chunks
+#### `Chunk#split` — Split into Chunks
 
 Split the chunk at a given index:
 
@@ -639,7 +639,7 @@ val splitAt3 = chunk.split(3)
 // res0: Chunk[Chunk[Int]] = Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
 ```
 
-#### `span` and `splitWhere` — Partition by Predicate
+#### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
 
 Split the chunk at the first element where a predicate fails:
 
@@ -666,7 +666,7 @@ val (small, large) = Chunk(1, 2, 5, 3, 4).splitWhere(_ < 4)
 
 ### Querying and Folding
 
-#### `foldLeft` — Left Fold
+#### `Chunk#foldLeft` — Left Fold
 
 Process elements left-to-right with an accumulator:
 
@@ -691,7 +691,7 @@ val concat = Chunk("a", "b", "c").foldLeft("")(_ + _)
 // res2: String = abc
 ```
 
-#### `foldRight` — Right Fold
+#### `Chunk#foldRight` — Right Fold
 
 Process elements right-to-left with an accumulator:
 
@@ -709,7 +709,7 @@ val result = numbers.foldRight(List[Int]())(_ :: _)
 // res0: List[Int] = List(1, 2, 3, 4)
 ```
 
-#### `exists` and `forall` — Predicates
+#### `Chunk#exists` and `Chunk#forall` — Predicates
 
 Check if any or all elements match a predicate:
 
@@ -733,7 +733,7 @@ mixed.forall(_ > 0)  // true
 mixed.forall(_ % 2 == 0)  // false (1 and 3 are odd)
 ```
 
-#### `find` — First Matching Element
+#### `Chunk#find` — First Matching Element
 
 Find the first element matching a predicate:
 
@@ -755,7 +755,7 @@ val words = Chunk("apple", "banana", "cherry")
 words.find(_.startsWith("b"))  // Some(banana)
 ```
 
-#### `contains` — Check Membership
+#### `Chunk#contains` — Check Membership
 
 Check if the chunk contains a specific element:
 
@@ -776,7 +776,7 @@ chunk.contains(10)  // false
 
 ### Conversion
 
-#### `toArray` — To Array
+#### `Chunk#toArray` — To Array
 
 Convert to an array:
 
@@ -794,7 +794,7 @@ val array: Array[Int] = chunk.toArray
 // res0: Array[Int] = Array(1, 2, 3, 4)
 ```
 
-#### `toList` — To List
+#### `Chunk#toList` — To List
 
 Convert to a List:
 
@@ -812,7 +812,7 @@ val list = chunk.toList
 // res0: List[String] = List(a, b, c)
 ```
 
-#### `toSeq`, `toIterable`, `toIndexedSeq` — Standard Collections
+#### `Chunk#toSeq`, `Chunk#toIterable`, `Chunk#toIndexedSeq` — Standard Collections
 
 Convert to various Scala collection types:
 
@@ -834,7 +834,7 @@ chunk.toIterable    // same as toSeq
 chunk.toIndexedSeq  // IndexedSeq(1, 2, 3)
 ```
 
-#### `toString` — String Representation
+#### `Chunk#toString` — String Representation
 
 Convert to a string:
 
@@ -880,7 +880,7 @@ ints.int(1)  // 20
 
 ### Materialization and Optimization
 
-#### `materialize` — Force Materialization
+#### `Chunk#materialize` — Force Materialization
 
 Force the chunk to an array-backed representation, eliminating lazy concatenation trees. Useful before performing many operations:
 
