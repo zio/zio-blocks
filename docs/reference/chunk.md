@@ -860,7 +860,9 @@ val materialized = built.materialize
 
 Create a `NonEmptyChunk` using varargs:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
 val nonEmpty = NonEmptyChunk(1, 2, 3)
 
 // Access head safely without the risk of IndexOutOfBoundsException
@@ -869,7 +871,9 @@ val first = nonEmpty.head  // 1
 
 Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
 val chunk = Chunk(1, 2, 3)
 val maybeNonEmpty: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(chunk)
 // maybeNonEmpty: Some(NonEmptyChunk(1, 2, 3))
@@ -881,7 +885,9 @@ val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
 
 Concatenate chunks and maintain the type:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
 val nonEmpty1 = NonEmptyChunk(1, 2, 3)
 val chunk2 = Chunk(4, 5, 6)
 
