@@ -858,11 +858,11 @@ val materialized = built.materialize
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
 
-Convert a chunk of bytes into a chunk of individual bits:
+Convert a chunk of bytes into a chunk of individual bits. This method is only available on `Chunk[Byte]` through an implicit constraint:
 
 ```scala
 trait Chunk[+A] {
-  def asBitsByte: Chunk[Boolean]
+  def asBitsByte(implicit ev: A <:< Byte): Chunk[Boolean]
 }
 ```
 
@@ -875,11 +875,11 @@ val bits = bytes.asBitsByte
 
 #### `Chunk#asBitsInt` — Convert to Int Bits
 
-Convert a chunk of ints into a chunk of individual bits with a specified endianness:
+Convert a chunk of ints into a chunk of individual bits with a specified endianness. This method is only available on `Chunk[Int]` through an implicit constraint:
 
 ```scala
 trait Chunk[+A] {
-  def asBitsInt(endianness: Chunk.BitChunk.Endianness): Chunk[Boolean]
+  def asBitsInt(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Int): Chunk[Boolean]
 }
 ```
 
@@ -892,11 +892,11 @@ val bits = ints.asBitsInt(Chunk.BitChunk.Endianness.BigEndian)
 
 #### `Chunk#asBitsLong` — Convert to Long Bits
 
-Convert a chunk of longs into a chunk of individual bits with a specified endianness:
+Convert a chunk of longs into a chunk of individual bits with a specified endianness. This method is only available on `Chunk[Long]` through an implicit constraint:
 
 ```scala
 trait Chunk[+A] {
-  def asBitsLong(endianness: Chunk.BitChunk.Endianness): Chunk[Boolean]
+  def asBitsLong(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Long): Chunk[Boolean]
 }
 ```
 
