@@ -43,7 +43,7 @@ sealed trait Dom extends Product with Serializable {
    */
   def render: String = {
     val sb = new java.lang.StringBuilder(256)
-    Dom.renderTo(this, sb, minified = false)
+    renderTo(sb)
     sb.toString
   }
 
@@ -63,7 +63,7 @@ sealed trait Dom extends Product with Serializable {
     if (indent <= 0) render
     else {
       val sb = new java.lang.StringBuilder(256)
-      Dom.renderIndented(this, sb, level = 0, indent = indent)
+      renderIndented(sb, level = 0, indent = indent)
       sb.toString
     }
 
@@ -75,9 +75,13 @@ sealed trait Dom extends Product with Serializable {
    */
   def renderMinified: String = {
     val sb = new java.lang.StringBuilder(256)
-    Dom.renderTo(this, sb, minified = true)
+    renderMinifiedTo(sb)
     sb.toString
   }
+
+  private[template] def renderTo(sb: java.lang.StringBuilder): Unit
+  private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit
+  private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit
 
   /**
    * Collects all nodes in the tree matching the given partial function.
@@ -178,11 +182,12 @@ object Dom {
     def attributes: Chunk[Attribute]
     def children: Chunk[Dom]
     val selector: CssSelector = CssSelector.Element(tag)
+    lazy val isVoid: Boolean  = Dom.voidElements.contains(tag)
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
     def apply(effect: ModifierEffect, effects: ModifierEffect*): Element =
-      ToModifier.buildFromEffects(this, effect +: effects)
+      ToModifier.buildFromEffects(this, effect, effects)
 
     def when(condition: Boolean)(effects: ModifierEffect*): Element =
       if (condition) ToModifier.buildFromEffects(this, effects)
@@ -193,6 +198,76 @@ object Dom {
         case Some(value) => ToModifier.buildFromEffects(this, f(value))
         case None        => this
       }
+
+    private[template] def escapeText: Boolean
+
+    private[template] def renderTo(sb: java.lang.StringBuilder): Unit = {
+      sb.append('<')
+      sb.append(tag)
+      renderAttributes(resolveOrPassthrough(attributes), sb)
+      if (isVoid) {
+        sb.append("/>")
+      } else {
+        sb.append('>')
+        val escape = escapeText
+        var i      = 0
+        while (i < children.length) {
+          children(i) match {
+            case Text(content) if !escape => sb.append(content)
+            case child                    => child.renderTo(sb)
+          }
+          i += 1
+        }
+        sb.append("</")
+        sb.append(tag)
+        sb.append('>')
+      }
+    }
+
+    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit =
+      renderTo(sb)
+
+    private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = {
+      sb.append('<')
+      sb.append(tag)
+      renderAttributes(resolveOrPassthrough(attributes), sb)
+      if (isVoid) {
+        sb.append("/>")
+      } else if (children.isEmpty) {
+        sb.append("></")
+        sb.append(tag)
+        sb.append('>')
+      } else if (children.length == 1 && children(0).isInstanceOf[Text]) {
+        sb.append('>')
+        val escape = escapeText
+        children(0) match {
+          case Text(content) if !escape => sb.append(content)
+          case Text(content)            => sb.append(Escape.html(content))
+          case _                        => children(0).renderIndented(sb, level, indent)
+        }
+        sb.append("</")
+        sb.append(tag)
+        sb.append('>')
+      } else {
+        val escape = escapeText
+        sb.append('>')
+        var i = 0
+        while (i < children.length) {
+          sb.append('\n')
+          appendIndent(sb, level + 1, indent)
+          children(i) match {
+            case Text(content) if !escape => sb.append(content)
+            case child                    => child.renderIndented(sb, level + 1, indent)
+          }
+          i += 1
+        }
+        sb.append('\n')
+        appendIndent(sb, level, indent)
+        sb.append("</")
+        sb.append(tag)
+        sb.append('>')
+      }
+    }
   }
 
   object Element {
@@ -215,6 +290,7 @@ object Dom {
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element {
+      private[template] def escapeText: Boolean            = true
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
     }
@@ -237,6 +313,7 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element {
       def tag: String                                     = "script"
+      private[template] def escapeText: Boolean           = false
       def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Script          = copy(children = kids)
 
@@ -271,6 +348,7 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element {
       def tag: String                                    = "style"
+      private[template] def escapeText: Boolean          = false
       def withAttributes(attrs: Chunk[Attribute]): Style = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Style          = copy(children = kids)
 
@@ -291,14 +369,23 @@ object Dom {
    * @param content
    *   the text content (will be HTML-escaped in output)
    */
-  final case class Text(content: String) extends Dom
+  final case class Text(content: String) extends Dom {
+    private[template] def renderTo(sb: java.lang.StringBuilder): Unit                                = sb.append(Escape.html(content))
+    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit                        = sb.append(Escape.html(content))
+    private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit =
+      sb.append(Escape.html(content))
+  }
 
   /**
    * An empty DOM node that renders to nothing.
    *
    * Used as a neutral element for filtering and tree operations.
    */
-  case object Empty extends Dom
+  case object Empty extends Dom {
+    private[template] def renderTo(sb: java.lang.StringBuilder): Unit                                = ()
+    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit                        = ()
+    private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = ()
+  }
 
   sealed trait Attribute extends Product with Serializable
 
@@ -351,76 +438,30 @@ object Dom {
 
   // --- Rendering ---
 
-  private def isValidAttrName(name: String): Boolean =
+  private[template] def isValidAttrName(name: String): Boolean =
     name.nonEmpty && name.forall(c => c != '"' && c != '\'' && c != '=' && c != '>' && c != ' ' && c != '/' && c != '<')
 
-  private def isValidTagName(tag: String): Boolean =
+  private[template] def isValidTagName(tag: String): Boolean =
     tag.nonEmpty && {
       val first = tag.charAt(0)
       (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z')
     } && tag.forall(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-')
 
-  private def renderTo(dom: Dom, sb: java.lang.StringBuilder, minified: Boolean): Unit =
-    dom match {
-      case el: Element.Generic =>
-        renderElement(el.tag, el.attributes, el.children, sb, minified, escapeText = true)
-
-      case el: Element.Script =>
-        renderElement(el.tag, el.attributes, el.children, sb, minified, escapeText = false)
-
-      case el: Element.Style =>
-        renderElement(el.tag, el.attributes, el.children, sb, minified, escapeText = false)
-
-      case Text(content) =>
-        sb.append(Escape.html(content))
-
-      case Empty =>
-        ()
-    }
-
-  private def renderElement(
-    tag: String,
-    attributes: Chunk[Attribute],
-    children: Chunk[Dom],
-    sb: java.lang.StringBuilder,
-    minified: Boolean,
-    escapeText: Boolean
-  ): Unit = {
-    if (!isValidTagName(tag)) return
-    sb.append('<')
-    sb.append(tag)
-    renderAttributes(resolveAttributes(attributes), sb)
-    if (isVoidElement(tag)) {
-      sb.append("/>")
-    } else {
-      sb.append('>')
-      var i = 0
-      while (i < children.length) {
-        children(i) match {
-          case Text(content) if !escapeText => sb.append(content)
-          case child                        => renderTo(child, sb, minified)
-        }
-        i += 1
-      }
-      sb.append("</")
-      sb.append(tag)
-      sb.append('>')
-    }
-  }
+  private def resolveOrPassthrough(attrs: Chunk[Attribute]): Chunk[Attribute] =
+    if (attrs.length <= 1 && (attrs.isEmpty || !attrs(0).isInstanceOf[Attribute.AppendValue])) attrs
+    else resolveAttributes(attrs)
 
   private def renderAttributes(attrs: Chunk[Attribute], sb: java.lang.StringBuilder): Unit = {
     var i = 0
     while (i < attrs.length) {
       attrs(i) match {
-        case Attribute.KeyValue(name, value) if isValidAttrName(name) =>
+        case Attribute.KeyValue(name, value) =>
           renderAttributeValue(name, value, sb)
-
-        case Attribute.KeyValue(_, _) => ()
 
         case Attribute.AppendValue(_, _, _) =>
           throw new IllegalStateException("AppendValue should be resolved before rendering")
 
-        case Attribute.BooleanAttribute(name, enabled) if enabled && isValidAttrName(name) =>
+        case Attribute.BooleanAttribute(name, enabled) if enabled =>
           sb.append(' ')
           sb.append(name)
 
@@ -586,88 +627,33 @@ object Dom {
         sb.append(Escape.html(js.value))
         sb.append('"')
     }
-  // --- Indented rendering ---
 
-  private def renderIndented(dom: Dom, sb: java.lang.StringBuilder, level: Int, indent: Int): Unit =
-    dom match {
-      case el: Element.Generic =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = true, indent = indent)
+  // --- Indented rendering: cached indent strings ---
 
-      case el: Element.Script =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false, indent = indent)
-
-      case el: Element.Style =>
-        renderElementIndented(el.tag, el.attributes, el.children, sb, level, escapeText = false, indent = indent)
-
-      case Text(content) =>
-        sb.append(Escape.html(content))
-
-      case Empty =>
-        ()
+  private val indentStrings: Array[String] = {
+    val arr = new Array[String](128)
+    var i   = 0
+    while (i < 128) {
+      arr(i) = " " * i
+      i += 1
     }
-
-  private def renderElementIndented(
-    tag: String,
-    attributes: Chunk[Attribute],
-    children: Chunk[Dom],
-    sb: java.lang.StringBuilder,
-    level: Int,
-    escapeText: Boolean,
-    indent: Int
-  ): Unit = {
-    if (!isValidTagName(tag)) return
-    sb.append('<')
-    sb.append(tag)
-    renderAttributes(resolveAttributes(attributes), sb)
-    if (isVoidElement(tag)) {
-      sb.append("/>")
-    } else if (children.isEmpty) {
-      sb.append("></")
-      sb.append(tag)
-      sb.append('>')
-    } else if (children.length == 1 && isSingleLineContent(children(0))) {
-      sb.append('>')
-      children(0) match {
-        case Text(content) if !escapeText => sb.append(content)
-        case Text(content)                => sb.append(Escape.html(content))
-        case _                            => renderIndented(children(0), sb, level, indent)
-      }
-      sb.append("</")
-      sb.append(tag)
-      sb.append('>')
-    } else {
-      sb.append('>')
-      var i = 0
-      while (i < children.length) {
-        sb.append('\n')
-        appendIndent(sb, level + 1, indent)
-        children(i) match {
-          case Text(content) if !escapeText => sb.append(content)
-          case child                        => renderIndented(child, sb, level + 1, indent)
-        }
-        i += 1
-      }
-      sb.append('\n')
-      appendIndent(sb, level, indent)
-      sb.append("</")
-      sb.append(tag)
-      sb.append('>')
-    }
-  }
-
-  private def isSingleLineContent(dom: Dom): Boolean = dom match {
-    case _: Text => true
-    case _       => false
+    arr
   }
 
   private def appendIndent(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = {
-    var i = 0
     val n = level * indent
-    while (i < n) {
-      sb.append(' ')
-      i += 1
+    if (n > 0) {
+      if (n < indentStrings.length) sb.append(indentStrings(n))
+      else {
+        var i = 0
+        while (i < n) {
+          sb.append(' ')
+          i += 1
+        }
+      }
     }
   }
+
   // --- Traversal ---
 
   private def collectImpl(
@@ -727,8 +713,6 @@ object Dom {
       case other => other
     }
   }
-
-  private def isVoidElement(tag: String): Boolean = Dom.voidElements.contains(tag)
 
   private[template] val voidElements: Set[String] = Set(
     "area",
