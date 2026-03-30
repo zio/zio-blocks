@@ -722,25 +722,6 @@ val words = Chunk("apple", "banana", "cherry")
 words.find(_.startsWith("b"))  // Some(banana)
 ```
 
-#### `Chunk#contains` — Check Membership
-
-Check if the chunk contains a specific element:
-
-```scala
-trait Chunk[+A] {
-  def contains[A1 >: A](elem: A1): Boolean
-}
-```
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3, 4)
-
-chunk.contains(3)  // true
-chunk.contains(10)  // false
-```
-
 ### Conversion
 
 #### `Chunk#toArray` — To Array
