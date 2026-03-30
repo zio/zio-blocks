@@ -3,574 +3,1038 @@ id: chunk
 title: "Chunk"
 ---
 
-`Chunk[A]` is an immutable, indexed sequence optimized for high-performance operations. Unlike Scala's built-in collections, Chunk is designed for zero-allocation access patterns, efficient concatenation, and unboxed primitive storage.
+`Chunk[A]` is an **immutable, indexed sequence** of elements of type `A`. Unlike arrays, Chunk provides a purely functional interface with optimized performance for high-level operations. It is lazy on expensive operations like repeated concatenation (which use balanced tree structures) while remaining fast on access.
 
-## Why Chunk?
+`Chunk[A]`:
+- Is purely functional and immutable
+- Provides O(1) random access via the `apply` method
+- Optimizes concatenation using balanced tree structures (Conc-Trees)
+- Automatically specializes primitive types for efficiency without boxing
+- Lazily materializes only when necessary to maintain performance
 
-Chunk addresses several limitations of standard Scala collections:
+```scala
+sealed abstract class Chunk[+A]
+  extends IndexedSeq[A]
+  with IndexedSeqOps[A, Chunk, Chunk[A]]
+  with StrictOptimizedSeqOps[A, Chunk, Chunk[A]]
+  with IterableFactoryDefaults[A, Chunk]
+  with Serializable
+```
 
-| Feature | Chunk | Vector | Array |
-|---------|-------|--------|-------|
-| Immutable | ✓ | ✓ | ✗ |
-| O(1) indexed access | ✓ | ~O(1) | ✓ |
-| Unboxed primitives | ✓ | ✗ | ✓ |
-| Efficient concatenation | ✓ | ✓ | ✗ |
-| Safe functional interface | ✓ | ✓ | ✗ |
-| Lazy slicing | ✓ | ✗ | ✗ |
+## Overview
 
-Key advantages:
+Chunk represents a chunk of values. The implementation is backed by arrays for small chunks but transitions to lazy concatenation trees (`Chunk.Concat`) when building large chunks through repeated concatenation. This design eliminates the O(n²) behavior of naive list concatenation while remaining efficient for both element access and transformation.
 
-- **Zero-boxing for primitives**: `Chunk[Int]`, `Chunk[Double]`, etc. store values unboxed in specialized arrays
-- **Lazy concatenation**: Uses balanced tree structures (based on Conc-Trees) for O(log n) concatenation
-- **Efficient slicing**: `drop`, `take`, and `slice` create views without copying
-- **Automatic materialization**: Deep operation chains are materialized when depth exceeds thresholds
-- **Scala collections integration**: Implements `IndexedSeq` for seamless interoperability
+```
+           ┌─────────────────────────────┐
+           │   Chunk[A]                  │
+           └─────────────────────────────┘
+                        △
+                        │
+        ┌───────────────┼───────────────┬──────────────┐
+        │               │               │              │
+   ┌────▼───┐   ┌──────▼──────┐   ┌────▼──────┐  ┌───▼────┐
+   │ Empty  │   │ Singleton   │   │Array-     │  │ Concat │
+   │        │   │(one element)│   │Backed     │  │(tree)  │
+   └────────┘   └─────────────┘   └───────────┘  └────────┘
+```
+
+Chunks automatically choose the most efficient representation:
+- **Empty**: singleton instance for zero elements
+- **Singleton**: single element, no array allocation
+- **Array-backed**: standard array for small sequences
+- **Concat tree**: balanced binary tree for composite chunks, enabling O(log n) concatenation depth
+
+The implementation is based on [Conc-Trees for Functional and Parallel Programming](http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf) by Aleksandar Prokopec and Martin Odersky.
 
 ## Installation
 
-Add the following to your `build.sbt`:
+Chunk is available in the core `zio-blocks` library:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks" % "<version>"
 ```
 
-For cross-platform projects (Scala.js):
+For Scala.js support:
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks" % "<version>"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supports Scala 2.13.x and 3.x.
 
-## Creating Chunks
+## Construction / Creating Instances
 
-### From Varargs
+### From Varargs with `apply`
 
-```scala mdoc:compile-only
+The simplest way to create a chunk from individual elements:
+
+```scala
+object Chunk {
+  def apply[A](as: A*): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5)
-val strings = Chunk("hello", "world")
-val empty   = Chunk.empty[Int]
+// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5)
+
+val strings = Chunk("alice", "bob", "charlie")
+// res1: Chunk[String] = Chunk(alice, bob, charlie)
 ```
 
-### From a Single Element
+### Empty Chunk with `empty`
 
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
+Create an empty chunk:
 
-val single = Chunk.single(42)
-val unit   = Chunk.unit // Chunk(())
+```scala
+object Chunk {
+  def empty[A]: Chunk[A]
+}
 ```
 
-### From Arrays
-
-When you have an existing array, use `fromArray`. Note that the array should not be mutated after wrapping:
-
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val arr   = Array(1, 2, 3)
+val empty = Chunk.empty[Int]
+// res0: Chunk[Int] = Chunk()
+
+empty.length
+// res1: Int = 0
+```
+
+### Single Element with `single`
+
+Efficient constructor for a single-element chunk:
+
+```scala
+object Chunk {
+  def single[A](a: A): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val one = Chunk.single("hello")
+// res0: Chunk[String] = Chunk(hello)
+
+val singleInt = Chunk.single(42)
+// res1: Chunk[Int] = Chunk(42)
+```
+
+### From Array with `fromArray`
+
+Create a chunk from an array. **Warning**: The array must not be mutated after creating the chunk.
+
+```scala
+object Chunk {
+  def fromArray[A](array: Array[A]): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val arr = Array(10, 20, 30)
 val chunk = Chunk.fromArray(arr)
+// res0: Chunk[Int] = Chunk(10, 20, 30)
+
+// Do NOT mutate the array after creating the chunk
 ```
 
-### From Iterables and Iterators
+### From Iterable with `fromIterable`
 
-```scala mdoc:compile-only
+Convert any Scala iterable (List, Vector, Set, etc.) into a chunk. Creates a copy, so the original iterable can be mutated:
+
+```scala
+object Chunk {
+  def fromIterable[A](it: Iterable[A]): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val fromList   = Chunk.fromIterable(List(1, 2, 3))
-val fromVector = Chunk.fromIterable(Vector("a", "b"))
-val fromIter   = Chunk.fromIterator(Iterator.range(0, 10))
+val list = List(1, 2, 3)
+val chunk = Chunk.fromIterable(list)
+// res0: Chunk[Int] = Chunk(1, 2, 3)
+
+val vector = Vector("x", "y", "z")
+val chunkFromVec = Chunk.fromIterable(vector)
+// res1: Chunk[String] = Chunk(x, y, z)
 ```
 
-### From Java Collections
+### From Iterator with `fromIterator`
 
-```scala mdoc:compile-only
+Consume an iterator and collect into a chunk:
+
+```scala
+object Chunk {
+  def fromIterator[A](iterator: Iterator[A]): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
-import java.util
 
-val javaList = new util.ArrayList[String]()
-javaList.add("one")
-javaList.add("two")
-
-val chunk = Chunk.fromJavaIterable(javaList)
+val iter = Iterator(5, 10, 15)
+val chunk = Chunk.fromIterator(iter)
+// res0: Chunk[Int] = Chunk(5, 10, 15)
 ```
 
-### From NIO Buffers
+### From `java.nio` Buffers
 
-Chunk provides direct integration with Java NIO buffers:
+Create chunks directly from Java NIO buffers (ByteBuffer, CharBuffer, etc.):
 
-```scala mdoc:compile-only
+```scala
+object Chunk {
+  def fromByteBuffer(buffer: ByteBuffer): Chunk[Byte]
+  def fromCharBuffer(buffer: CharBuffer): Chunk[Char]
+  def fromIntBuffer(buffer: IntBuffer): Chunk[Int]
+  def fromLongBuffer(buffer: LongBuffer): Chunk[Long]
+  def fromFloatBuffer(buffer: FloatBuffer): Chunk[Float]
+  def fromDoubleBuffer(buffer: DoubleBuffer): Chunk[Double]
+  def fromShortBuffer(buffer: ShortBuffer): Chunk[Short]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import java.nio.ByteBuffer
 
-val buffer = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4))
-val bytes  = Chunk.fromByteBuffer(buffer)
+val buffer = ByteBuffer.wrap(Array[Byte](1, 2, 3))
+val chunk = Chunk.fromByteBuffer(buffer)
+// res0: Chunk[Byte] = Chunk(1, 2, 3)
 ```
 
-Available buffer constructors:
-- `Chunk.fromByteBuffer(ByteBuffer): Chunk[Byte]`
-- `Chunk.fromCharBuffer(CharBuffer): Chunk[Char]`
-- `Chunk.fromIntBuffer(IntBuffer): Chunk[Int]`
-- `Chunk.fromLongBuffer(LongBuffer): Chunk[Long]`
-- `Chunk.fromShortBuffer(ShortBuffer): Chunk[Short]`
-- `Chunk.fromFloatBuffer(FloatBuffer): Chunk[Float]`
-- `Chunk.fromDoubleBuffer(DoubleBuffer): Chunk[Double]`
+### Fill with `fill`
 
-### Generator Functions
+Create a chunk by repeating an element n times:
 
-```scala mdoc:compile-only
+```scala
+object Chunk {
+  def fill[A](n: Int)(elem: => A): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val filled   = Chunk.fill(5)("x")         // Chunk("x", "x", "x", "x", "x")
-val iterated = Chunk.iterate(1, 5)(_ * 2) // Chunk(1, 2, 4, 8, 16)
-val unfolded = Chunk.unfold(0)(n => if (n < 5) Some((n, n + 1)) else None)
+val repeated = Chunk.fill(5)("x")
+// res0: Chunk[String] = Chunk(x, x, x, x, x)
+
+val zeros = Chunk.fill(3)(0)
+// res1: Chunk[Int] = Chunk(0, 0, 0)
+```
+
+### Iterate with `iterate`
+
+Create a chunk by repeatedly applying a function starting from an initial value:
+
+```scala
+object Chunk {
+  def iterate[A](start: A, len: Int)(f: A => A): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val powers = Chunk.iterate(1, 5)(_ * 2)
+// res0: Chunk[Int] = Chunk(1, 2, 4, 8, 16)
+
+val alphabet = Chunk.iterate('a', 3)(c => (c + 1).toChar)
+// res1: Chunk[Char] = Chunk(a, b, c)
+```
+
+### Unfold with `unfold`
+
+Generate a chunk by repeatedly applying a function that returns an optional value:
+
+```scala
+object Chunk {
+  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+// Count from 1 to 5
+val counted = Chunk.unfold(1) { n =>
+  if (n <= 5) Some((n, n + 1)) else None
+}
+// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5)
+
+// Generate fibonacci-like sequence
+val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
+  if (a <= 50) Some((a, (b, a + b))) else None
+}
+// res1: Chunk[Int] = Chunk(1, 1, 2, 3, 5, 8, 13, 21, 34)
+```
+
+### Using ChunkBuilder for Incremental Construction
+
+For building chunks incrementally, use `ChunkBuilder`:
+
+```scala
+object ChunkBuilder {
+  def make[A](): ChunkBuilder[A]
+  def make[A](capacityHint: Int): ChunkBuilder[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+
+val builder = ChunkBuilder.make[Int](10)
+builder.addOne(1)
+builder.addOne(2)
+builder.addOne(3)
+val chunk = builder.result()
+// res0: Chunk[Int] = Chunk(1, 2, 3)
+
+// With capacity hint for better performance
+val builder2 = ChunkBuilder.make[String](100)
+builder2.addAll(List("a", "b", "c").iterator)
+val result = builder2.result()
+// res1: Chunk[String] = Chunk(a, b, c)
 ```
 
 ## Core Operations
 
 ### Element Access
 
-```scala mdoc:compile-only
+#### `apply` — Random Access
+
+Access an element by index in O(log n) time (O(1) for array-backed chunks):
+
+```scala
+trait Chunk[+A] {
+  def apply(index: Int): A
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(10, 20, 30, 40, 50)
 
-val first  = chunk(0)          // 10
-val second = chunk(1)          // 20
-val head   = chunk.head        // 10
-val last   = chunk.last        // 50
-val len    = chunk.length      // 5
-
-val maybeHead = chunk.headOption // Some(10)
-val maybeLast = chunk.lastOption // Some(50)
+chunk(0)  // 10
+chunk(2)  // 30
+chunk(4)  // 50
 ```
 
-For primitive chunks, specialized accessors avoid boxing:
+#### `head` and `last` — First and Last Elements
 
-```scala mdoc:compile-only
+Access the first or last element:
+
+```scala
+trait Chunk[+A] {
+  def head: A
+  def last: A
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val ints = Chunk(1, 2, 3)
-val i: Int = ints.int(0)     // unboxed access
+val chunk = Chunk("a", "b", "c", "d")
 
-val bytes = Chunk[Byte](1, 2, 3)
-val b: Byte = bytes.byte(0)  // unboxed access
+chunk.head  // "a"
+chunk.last  // "d"
+```
 
-val doubles = Chunk(1.0, 2.0, 3.0)
-val d: Double = doubles.double(0)  // unboxed access
+#### `length` and `size` — Chunk Size
+
+Get the number of elements (O(1) complexity):
+
+```scala
+trait Chunk[+A] {
+  def length: Int
+  def size: Int
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+
+chunk.length  // 5
+chunk.size    // 5
 ```
 
 ### Transformations
 
-```scala mdoc:compile-only
+#### `map` — Transform Elements
+
+Apply a function to each element:
+
+```scala
+trait Chunk[+A] {
+  def map[B](f: A => B): Chunk[B]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val chunk = Chunk(1, 2, 3, 4, 5)
+val numbers = Chunk(1, 2, 3, 4)
+val doubled = numbers.map(_ * 2)
+// res0: Chunk[Int] = Chunk(2, 4, 6, 8)
 
-val doubled  = chunk.map(_ * 2)           // Chunk(2, 4, 6, 8, 10)
-val filtered = chunk.filter(_ > 2)        // Chunk(3, 4, 5)
-val flatted  = chunk.flatMap(n => Chunk(n, n)) // Chunk(1, 1, 2, 2, ...)
-val collected = chunk.collect { case n if n % 2 == 0 => n * 10 } // Chunk(20, 40)
+val strings = Chunk("hello", "world")
+val lengths = strings.map(_.length)
+// res1: Chunk[Int] = Chunk(5, 5)
 ```
 
-### Concatenation
+#### `flatMap` — Flat Transformation
 
-Concatenation is efficient—Chunk uses balanced tree structures to avoid copying:
+Map each element to a chunk and flatten the result:
 
-```scala mdoc:compile-only
+```scala
+trait Chunk[+A] {
+  def flatMap[B](f: A => Chunk[B]): Chunk[B]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val a = Chunk(1, 2, 3)
-val b = Chunk(4, 5, 6)
-
-val combined = a ++ b           // Chunk(1, 2, 3, 4, 5, 6)
-val appended = a :+ 4           // Chunk(1, 2, 3, 4)
-val prepended = 0 +: a          // Chunk(0, 1, 2, 3)
+val numbers = Chunk(1, 2, 3)
+val expanded = numbers.flatMap(n => Chunk(n, n * 10))
+// res0: Chunk[Int] = Chunk(1, 10, 2, 20, 3, 30)
 ```
 
-### Slicing
+#### `filter` — Keep Matching Elements
 
-Slicing operations create views and don't copy data:
+Keep only elements that match a predicate:
 
-```scala mdoc:compile-only
+```scala
+trait Chunk[+A] {
+  def filter(f: A => Boolean): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val chunk = Chunk(1, 2, 3, 4, 5, 6, 7, 8)
+val numbers = Chunk(1, 2, 3, 4, 5, 6)
+val evens = numbers.filter(_ % 2 == 0)
+// res0: Chunk[Int] = Chunk(2, 4, 6)
 
-val firstThree = chunk.take(3)        // Chunk(1, 2, 3)
-val lastThree  = chunk.takeRight(3)   // Chunk(6, 7, 8)
-val dropped    = chunk.drop(2)        // Chunk(3, 4, 5, 6, 7, 8)
-val sliced     = chunk.slice(2, 5)    // Chunk(3, 4, 5)
-
-val (left, right) = chunk.splitAt(4)  // (Chunk(1,2,3,4), Chunk(5,6,7,8))
+val longWords = Chunk("a", "hello", "b", "world")
+val filtered = longWords.filter(_.length > 1)
+// res1: Chunk[String] = Chunk(hello, world)
 ```
 
-### Conditional Operations
+#### `collect` — Filter-Map Combined
 
-```scala mdoc:compile-only
+Apply a partial function, keeping only successful matches:
+
+```scala
+trait Chunk[+A] {
+  def collect[B](pf: PartialFunction[A, B]): Chunk[B]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val chunk = Chunk(1, 2, 3, 4, 5, 6)
-
-val takeWhileSmall = chunk.takeWhile(_ < 4)    // Chunk(1, 2, 3)
-val dropWhileSmall = chunk.dropWhile(_ < 4)    // Chunk(4, 5, 6)
-val takeUntilBig   = chunk.takeWhile(_ <= 3)   // Chunk(1, 2, 3)
-val dropUntilBig   = chunk.dropUntil(_ > 3)    // Chunk(5, 6)
+val values: Chunk[Any] = Chunk(1, "hello", 2, "world", 3)
+val onlyInts = values.collect { case n: Int => n * 10 }
+// res0: Chunk[Int] = Chunk(10, 20, 30)
 ```
 
-### Folding and Reduction
+#### `sorted` — Sort Elements
 
-```scala mdoc:compile-only
+Sort elements using an ordering:
+
+```scala
+trait Chunk[+A] {
+  def sorted[A1 >: A](implicit ord: Ordering[A1]): Chunk[A]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val chunk = Chunk(1, 2, 3, 4, 5)
+val unsorted = Chunk(3, 1, 4, 1, 5, 9, 2, 6)
+val sorted = unsorted.sorted
+// res0: Chunk[Int] = Chunk(1, 1, 2, 3, 4, 5, 6, 9)
 
-val sum     = chunk.foldLeft(0)(_ + _)    // 15
-val product = chunk.foldRight(1)(_ * _)   // 120
-val summed  = chunk.reduce(_ + _)         // 15
-
-val runningSum = chunk.foldWhile(0)(_ < 10)(_ + _) // 10 (1+2+3+4)
+val strings = Chunk("zebra", "apple", "banana")
+val sortedStrings = strings.sorted
+// res1: Chunk[String] = Chunk(apple, banana, zebra)
 ```
 
-### Searching and Predicates
+### Combining Chunks
 
-```scala mdoc:compile-only
+#### `++` — Concatenation
+
+Combine two chunks. Uses balanced tree structure for efficiency:
+
+```scala
+trait Chunk[+A] {
+  def ++[A1 >: A](that: Chunk[A1]): Chunk[A1]
+}
+```
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val chunk = Chunk(1, 2, 3, 4, 5)
+val chunk1 = Chunk(1, 2, 3)
+val chunk2 = Chunk(4, 5, 6)
+val combined = chunk1 ++ chunk2
+// res0: Chunk[Int] = Chunk(1, 2, 3, 4, 5, 6)
 
-val hasEven  = chunk.exists(_ % 2 == 0)  // true
-val allSmall = chunk.forall(_ < 10)      // true
-val found    = chunk.find(_ > 3)         // Some(4)
-val index    = chunk.indexWhere(_ > 3)   // 3
+// Efficient even with many concatenations
+val many = (1 to 100).foldLeft(Chunk.empty[Int]) { (acc, i) =>
+  acc ++ Chunk(i)
+}
+// res1: Chunk[Int] = Chunk(1, 2, 3, ...)
 ```
 
-### Zipping
+#### `:+` — Append Element
 
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
+Append a single element to the end:
 
-val as = Chunk("a", "b", "c")
-val bs = Chunk(1, 2, 3)
-
-val zipped      = as.zip(bs)              // Chunk(("a",1), ("b",2), ("c",3))
-val withIndex   = as.zipWithIndex         // Chunk(("a",0), ("b",1), ("c",2))
-val zipWith     = as.zipWith(bs)(_ + _)   // Chunk("a1", "b2", "c3")
-val zipAll      = as.zipAll(Chunk(1, 2))  // handles different lengths
+```scala
+trait Chunk[+A] {
+  def :+[A1 >: A](a: A1): Chunk[A1]
+}
 ```
 
-### Updating Elements
-
-Updates are immutable and use efficient buffering:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val chunk   = Chunk(1, 2, 3, 4, 5)
-val updated = chunk.updated(2, 100) // Chunk(1, 2, 100, 4, 5)
-```
-
-### Deduplication and Sorting
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val withDupes = Chunk(1, 1, 2, 2, 2, 3, 3)
-val deduped   = withDupes.dedupe  // Chunk(1, 2, 3) - removes adjacent duplicates
-
-val unsorted = Chunk(3, 1, 4, 1, 5)
-val sorted   = unsorted.sorted    // Chunk(1, 1, 3, 4, 5)
-```
-
-### Splitting
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3, 4, 5, 6)
-
-val parts = chunk.split(3) // Chunk(Chunk(1,2), Chunk(3,4), Chunk(5,6))
-val (before, after) = chunk.splitWhere(_ > 3) // splits at first element > 3
-```
-
-### String Conversion
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-import java.nio.charset.StandardCharsets
-
-val bytes = Chunk[Byte](72, 101, 108, 108, 111)
-val str   = bytes.asString  // "Hello"
-
-val chars = Chunk('H', 'e', 'l', 'l', 'o')
-val str2  = chars.asString  // "Hello"
-
-val withCharset = bytes.asString(StandardCharsets.UTF_8) // "Hello"
-val base64      = bytes.asBase64String // base64-encoded string
-```
-
-### Materialization
-
-For complex operation chains, you can force materialization to an array-backed chunk:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val complex = Chunk(1, 2, 3) ++ Chunk(4, 5) ++ Chunk(6, 7)
-val materialized = complex.materialize // backed by a single array
-```
-
-## NonEmptyChunk
-
-`NonEmptyChunk[A]` is a chunk guaranteed to contain at least one element. This enables safe use of operations like `head` and `reduce`:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, NonEmptyChunk}
-
-val nec = NonEmptyChunk(1, 2, 3)
-
-val first: Int = nec.head      // always safe
-val sum: Int   = nec.reduce(_ + _)  // always safe
-
-val mapped: NonEmptyChunk[Int] = nec.map(_ * 2)
-val flatMapped: NonEmptyChunk[Int] = nec.flatMap(n => NonEmptyChunk(n, n + 1))
-```
-
-### Creating NonEmptyChunk
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, NonEmptyChunk}
-
-val fromValues = NonEmptyChunk(1, 2, 3)
-val single     = NonEmptyChunk.single(42)
-val fromCons   = NonEmptyChunk.fromCons(::(1, List(2, 3)))
-val fromIterable = NonEmptyChunk.fromIterable(1, List(2, 3))
-
-val maybeNec: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(Chunk(1, 2))
-val empty: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(Chunk.empty) // None
-```
-
-### Converting Between Chunk and NonEmptyChunk
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, NonEmptyChunk}
-
-val nec = NonEmptyChunk(1, 2, 3)
-val chunk: Chunk[Int] = nec.toChunk
-
-val chunk2 = Chunk(1, 2, 3)
-chunk2.nonEmptyOrElse(0)(_.reduce(_ + _)) // 6 if non-empty, 0 if empty
-```
-
-### Operations That Preserve NonEmptiness
-
-These operations return `NonEmptyChunk`:
-- `map`, `flatMap`, `flatten`
-- `append`, `prepend`, `++`
-- `zip`, `zipWith`, `zipWithIndex`
-- `sorted`, `sortBy`, `reverse`
-- `distinct`, `materialize`
-
-Operations that might produce empty results return `Chunk`:
-- `filter`, `filterNot`
-- `collect`
-- `tail`, `init`
-
-## ChunkBuilder
-
-`ChunkBuilder` is a mutable builder for creating chunks efficiently. It's specialized for primitives to avoid boxing:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
-
-val builder = ChunkBuilder.make[Int]()
-builder.addOne(1)
-builder.addOne(2)
-builder.addAll(List(3, 4, 5))
-val result: Chunk[Int] = builder.result() // Chunk(1, 2, 3, 4, 5)
-```
-
-### Specialized Builders
-
-For primitives, use specialized builders for best performance:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
-
-val intBuilder = new ChunkBuilder.Int
-intBuilder.addOne(1)
-intBuilder.addOne(2)
-val ints: Chunk[Int] = intBuilder.result()
-
-val byteBuilder = new ChunkBuilder.Byte
-val longBuilder = new ChunkBuilder.Long
-val doubleBuilder = new ChunkBuilder.Double
-val boolBuilder = new ChunkBuilder.Boolean
-```
-
-Available specialized builders: `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double`
-
-## Bit Operations
-
-Chunk provides efficient bit-level operations for working with binary data:
-
-### Converting to Bits
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val bytes = Chunk[Byte](0x0F, 0xF0.toByte)
-val bits  = bytes.asBitsByte  // Chunk of 16 booleans
-
-val ints = Chunk(0x12345678)
-val intBits = ints.asBitsInt(Chunk.BitChunk.Endianness.BigEndian)
-
-val longs = Chunk(0x123456789ABCDEF0L)
-val longBits = longs.asBitsLong(Chunk.BitChunk.Endianness.BigEndian)
-```
-
-### Bitwise Operations
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val a = Chunk(true, false, true, false)
-val b = Chunk(true, true, false, false)
-
-val andResult = a & b  // Chunk(true, false, false, false)
-val orResult  = a | b  // Chunk(true, true, true, false)
-val xorResult = a ^ b  // Chunk(false, true, true, false)
-val negated   = a.negate // Chunk(false, true, false, true)
-```
-
-### Packing Booleans
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val bits = Chunk(true, false, true, false, true, true, true, true)
-val packedBytes: Chunk[Byte] = bits.toPackedByte  // Efficient byte representation
-
-val packedInts: Chunk[Int] = bits.toPackedInt(Chunk.BitChunk.Endianness.BigEndian)
-val packedLongs: Chunk[Long] = bits.toPackedLong(Chunk.BitChunk.Endianness.BigEndian)
-```
-
-### Binary String
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val bits = Chunk(true, false, true, true)
-val binary: String = bits.toBinaryString // "1011"
-```
-
-## ChunkMap
-
-`ChunkMap[K, V]` is an order-preserving immutable map backed by parallel chunks. It maintains insertion order during iteration:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkMap}
-
-val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
-
-val value = map.get("b")      // Some(2)
-val updated = map.updated("d", 4)
-val removed = map.removed("b")
-```
-
-### Creating ChunkMap
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkMap}
-
-val empty = ChunkMap.empty[String, Int]
-val fromPairs = ChunkMap("x" -> 1, "y" -> 2)
-val fromChunk = ChunkMap.fromChunk(Chunk(("a", 1), ("b", 2)))
-val fromChunks = ChunkMap.fromChunks(Chunk("a", "b"), Chunk(1, 2))
-```
-
-### Indexed Access
-
-ChunkMap provides O(1) positional access:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkMap}
-
-val map = ChunkMap("z" -> 1, "a" -> 2, "m" -> 3)
-
-val first = map.atIndex(0)      // ("z", 1)
-val key   = map.keyAtIndex(1)   // "a"
-val value = map.valueAtIndex(2) // 3
-
-val keys: Chunk[String] = map.keysChunk
-val values: Chunk[Int] = map.valuesChunk
-```
-
-### Optimized Lookup
-
-For frequent lookups, create an indexed version with O(1) key access:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.ChunkMap
-
-val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
-val indexed = map.indexed  // O(1) lookups, extra memory for index
-
-val value = indexed.get("b")  // O(1) instead of O(n)
-```
-
-## Scala Collections Integration
-
-Chunk implements `IndexedSeq` and integrates seamlessly with Scala collections:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3, 4, 5)
-
-val list: List[Int] = chunk.toList
-val vector: Vector[Int] = chunk.toVector
-val array: Array[Int] = chunk.toArray
-
-val fromSeq: Chunk[Int] = Chunk.from(Vector(1, 2, 3))
-```
-
-Standard collection operations work as expected:
-
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
-val result = chunk
-  .filter(_ > 1)
-  .map(_ * 2)
-  .flatMap(n => Chunk(n, n + 1))
+val appended = chunk :+ 4
+// res0: Chunk[Int] = Chunk(1, 2, 3, 4)
 ```
 
-## Performance Characteristics
+#### `+:` — Prepend Element
 
-| Operation | Time Complexity | Notes |
-|-----------|-----------------|-------|
-| `apply(i)` | O(1) | Direct array access for materialized chunks |
-| `length` | O(1) | Cached |
-| `head`, `last` | O(1) | |
-| `++` | O(log n) | Balanced tree concatenation |
-| `:+`, `+:` | O(1) amortized | Buffered appends |
-| `take`, `drop`, `slice` | O(1) | Creates view |
-| `map`, `filter`, `flatMap` | O(n) | |
-| `updated` | O(1) amortized | Buffered updates |
-| `materialize` | O(n) | Copies to array |
+Prepend a single element to the beginning:
 
-### When to Materialize
+```scala
+trait Chunk[+A] {
+  def +:[A1 >: A](a: A1): Chunk[A1]
+}
+```
 
-Chunk automatically materializes when:
-- Tree depth exceeds internal thresholds
-- You call `materialize` explicitly
-- Converting to array with `toArray`
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
 
-Consider explicit materialization when:
-- Performing many random accesses on a deeply nested chunk
-- Passing data to APIs that need arrays
-- Optimizing a hot loop
+val chunk = Chunk(2, 3, 4)
+val prepended = 1 +: chunk
+// res0: Chunk[Int] = Chunk(1, 2, 3, 4)
+```
+
+#### `zip` and `zipWith` — Combine Parallel Chunks
+
+Combine two chunks element-wise:
+
+```scala
+trait Chunk[+A] {
+  def zip[B](that: Chunk[B]): Chunk[(A, B)]
+  def zipWith[B, C](that: Chunk[B])(f: (A, B) => C): Chunk[C]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3)
+val letters = Chunk("a", "b", "c")
+
+val zipped = numbers.zip(letters)
+// res0: Chunk[(Int, String)] = Chunk((1,a), (2,b), (3,c))
+
+val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
+// res1: Chunk[String] = Chunk(a1, b2, c3)
+```
+
+### Slicing and Partitioning
+
+#### `take` and `takeRight` — Take from Ends
+
+Take the first n elements or last n elements:
+
+```scala
+trait Chunk[+A] {
+  def take(n: Int): Chunk[A]
+  def takeRight(n: Int): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+
+chunk.take(3)      // Chunk(1, 2, 3)
+chunk.takeRight(2) // Chunk(4, 5)
+```
+
+#### `drop` and `dropRight` — Remove from Ends
+
+Remove the first n elements or last n elements:
+
+```scala
+trait Chunk[+A] {
+  def drop(n: Int): Chunk[A]
+  def dropRight(n: Int): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+
+chunk.drop(2)       // Chunk(3, 4, 5)
+chunk.dropRight(2)  // Chunk(1, 2, 3)
+```
+
+#### `slice` — Extract a Range
+
+Extract elements from a start index to an end index:
+
+```scala
+trait Chunk[+A] {
+  def slice(from: Int, until: Int): Chunk[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(10, 20, 30, 40, 50, 60)
+
+chunk.slice(1, 4)  // Chunk(20, 30, 40)
+chunk.slice(2, 5)  // Chunk(30, 40, 50)
+```
+
+#### `split` — Split into Chunks
+
+Split the chunk at a given index:
+
+```scala
+trait Chunk[+A] {
+  def split(n: Int): Chunk[Chunk[A]]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5, 6)
+
+val splitAt3 = chunk.split(3)
+// res0: Chunk[Chunk[Int]] = Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
+```
+
+#### `span` and `splitWhere` — Partition by Predicate
+
+Split the chunk at the first element where a predicate fails:
+
+```scala
+trait Chunk[+A] {
+  def span(f: A => Boolean): (Chunk[A], Chunk[A])
+  def splitWhere(f: A => Boolean): (Chunk[A], Chunk[A])
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6)
+
+val (evens, rest) = numbers.span(_ < 4)
+// evens: Chunk[Int] = Chunk(1, 2, 3)
+// rest: Chunk[Int] = Chunk(4, 5, 6)
+
+val (small, large) = Chunk(1, 2, 5, 3, 4).splitWhere(_ < 4)
+// small: Chunk[Int] = Chunk(1, 2)
+// large: Chunk[Int] = Chunk(5, 3, 4)
+```
+
+### Querying and Folding
+
+#### `foldLeft` — Left Fold
+
+Process elements left-to-right with an accumulator:
+
+```scala
+trait Chunk[+A] {
+  def foldLeft[S](s0: S)(f: (S, A) => S): S
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5)
+
+val sum = numbers.foldLeft(0)(_ + _)
+// res0: Int = 15
+
+val product = numbers.foldLeft(1)(_ * _)
+// res1: Int = 120
+
+val concat = Chunk("a", "b", "c").foldLeft("")(_ + _)
+// res2: String = abc
+```
+
+#### `foldRight` — Right Fold
+
+Process elements right-to-left with an accumulator:
+
+```scala
+trait Chunk[+A] {
+  def foldRight[S](s0: S)(f: (A, S) => S): S
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4)
+val result = numbers.foldRight(List[Int]())(_ :: _)
+// res0: List[Int] = List(1, 2, 3, 4)
+```
+
+#### `exists` and `forall` — Predicates
+
+Check if any or all elements match a predicate:
+
+```scala
+trait Chunk[+A] {
+  def exists(f: A => Boolean): Boolean
+  def forall(f: A => Boolean): Boolean
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(2, 4, 6, 8)
+
+numbers.exists(_ > 5)  // true (8 > 5)
+numbers.forall(_ % 2 == 0)  // true (all even)
+
+val mixed = Chunk(1, 2, 3)
+mixed.forall(_ > 0)  // true
+mixed.forall(_ % 2 == 0)  // false (1 and 3 are odd)
+```
+
+#### `find` — First Matching Element
+
+Find the first element matching a predicate:
+
+```scala
+trait Chunk[+A] {
+  def find(f: A => Boolean): Option[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5)
+
+numbers.find(_ > 3)  // Some(4)
+numbers.find(_ > 10)  // None
+
+val words = Chunk("apple", "banana", "cherry")
+words.find(_.startsWith("b"))  // Some(banana)
+```
+
+#### `contains` — Check Membership
+
+Check if the chunk contains a specific element:
+
+```scala
+trait Chunk[+A] {
+  def contains(a: A)(implicit ev: A => Equals): Boolean
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4)
+
+chunk.contains(3)  // true
+chunk.contains(10)  // false
+```
+
+### Conversion
+
+#### `toArray` — To Array
+
+Convert to an array:
+
+```scala
+trait Chunk[+A] {
+  def toArray[A1 >: A: ClassTag]: Array[A1]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4)
+val array: Array[Int] = chunk.toArray
+// res0: Array[Int] = Array(1, 2, 3, 4)
+```
+
+#### `toList` — To List
+
+Convert to a List:
+
+```scala
+trait Chunk[+A] {
+  def toList: List[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk("a", "b", "c")
+val list = chunk.toList
+// res0: List[String] = List(a, b, c)
+```
+
+#### `toSeq`, `toIterable`, `toIndexedSeq` — Standard Collections
+
+Convert to various Scala collection types:
+
+```scala
+trait Chunk[+A] {
+  def toSeq: Seq[A]
+  def toIterable: Iterable[A]
+  def toIndexedSeq: IndexedSeq[A]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+
+chunk.toSeq         // Vector(1, 2, 3)
+chunk.toIterable    // same as toSeq
+chunk.toIndexedSeq  // IndexedSeq(1, 2, 3)
+```
+
+#### `toString` — String Representation
+
+Convert to a string:
+
+```scala
+trait Chunk[+A] {
+  def toString: String
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+chunk.toString  // "Chunk(1, 2, 3)"
+```
+
+### Specialized Accessors for Primitive Types
+
+For primitive types, direct accessors avoid boxing:
+
+```scala
+trait Chunk[+A] {
+  def byte(index: Int)(implicit ev: A <:< Byte): Byte
+  def boolean(index: Int)(implicit ev: A <:< Boolean): Boolean
+  def char(index: Int)(implicit ev: A <:< Char): Char
+  def double(index: Int)(implicit ev: A <:< Double): Double
+  def float(index: Int)(implicit ev: A <:< Float): Float
+  def int(index: Int)(implicit ev: A <:< Int): Int
+  def long(index: Int)(implicit ev: A <:< Long): Long
+  def short(index: Int)(implicit ev: A <:< Short): Short
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bytes: Chunk[Byte] = Chunk(1.toByte, 2.toByte, 3.toByte)
+bytes.byte(0)  // 1 (no boxing)
+
+val ints = Chunk(10, 20, 30)
+ints.int(1)  // 20
+```
+
+### Materialization and Optimization
+
+#### `materialize` — Force Materialization
+
+Force the chunk to an array-backed representation, eliminating lazy concatenation trees. Useful before performing many operations:
+
+```scala
+trait Chunk[+A] {
+  def materialize[A1 >: A]: Chunk[A1]
+}
+```
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+// Build through many concatenations (creates Concat tree)
+val built = (1 to 100).foldLeft(Chunk.empty[Int]) { (acc, i) =>
+  acc ++ Chunk(i)
+}
+
+// Materialize to array-backed representation
+val materialized = built.materialize
+// Now faster for repeated access or further operations
+```
+
+## Subtypes and Variants
+
+### NonEmptyChunk
+
+`NonEmptyChunk[A]` is a type-safe wrapper around `Chunk[A]` that guarantees the chunk is non-empty. It provides the same operations as `Chunk` but with methods like `head` returning `A` instead of potentially throwing an exception.
+
+Create a `NonEmptyChunk` by wrapping a non-empty `Chunk`:
+
+```scala
+val chunk = Chunk(1, 2, 3)
+val nonEmpty = NonEmptyChunk(chunk)
+// res0: NonEmptyChunk[Int]
+
+// Access head safely without the risk of IndexOutOfBoundsException
+val first = nonEmpty.head  // 1
+```
+
+Concatenate chunks and maintain the type:
+
+```scala
+val chunk1 = Chunk(1, 2, 3)
+val chunk2 = Chunk(4, 5, 6)
+
+val nonEmpty1 = NonEmptyChunk(chunk1)
+val result = nonEmpty1 ++ chunk2
+// res0: NonEmptyChunk[Int] - concatenation preserves non-empty guarantee
+```
+
+## Comparison with Other Sequence Types
+
+### Chunk vs Array
+
+| Feature | Chunk | Array |
+|---------|-------|-------|
+| **Immutability** | Immutable, purely functional | Mutable, imperative |
+| **Concatenation** | O(log n) via balanced trees | O(n) requires copying |
+| **Random Access** | O(1) typical, O(log n) worst | O(1) always |
+| **Safe API** | Pure, no side effects | Low-level, requires careful handling |
+| **Boxing** | Avoids boxing primitives | Supports native primitives |
+| **Lazy Ops** | Yes (concatenation deferred) | No (eager) |
+
+**Use Chunk when**: Building sequences functionally, using in pure code, performing many concatenations, or sharing immutable data.
+
+**Use Array when**: Needing low-level memory control, interfacing with Java, or maximum raw performance is critical.
+
+### Chunk vs List
+
+| Feature | Chunk | List |
+|---------|-------|-------|
+| **Access** | O(1) random access | O(n) linear search |
+| **Prepend** | O(log n) | O(1) |
+| **Memory** | Compact arrays | Linked nodes |
+| **Pattern Match** | Not directly | Cons pattern matching |
+| **Interop** | Scala collections compatible | Standard Scala type |
+
+**Use Chunk when**: Frequent random access or concatenation is important.
+
+**Use List when**: Head/tail pattern matching or traditional functional programming style.
+
+### Chunk vs Vector
+
+| Feature | Chunk | Vector |
+|---------|-------|-------|
+| **Concatenation** | O(log n) with rebalancing | O(log₃₂ n) trie structure |
+| **Mutation** | Immutable, purely functional | Effectively immutable |
+| **Memory** | Lower overhead for many ops | Higher memory footprint |
+| **Specialization** | Primitive specialization | None, uses boxing |
+| **Random Access** | O(1) typical, O(log n) worst | O(log₃₂ n) |
+
+**Use Chunk when**: Primitive types matter or concatenation performance is critical.
+
+**Use Vector when**: Need guaranteed access performance or already using Vector in codebase.
+
+## Integration
+
+Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside List, Vector, and Set.
+
+**Example: Schema for Chunk data**
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
+
+case class Event(id: Int, tags: Chunk[String])
+
+val schema = Schema.derived[Event]
+// Automatically derives Schema[Chunk[String]] for the tags field
+```
+
+Chunks work naturally with the [Codec](./codec.md) system for serialization and deserialization:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.json.Json
+
+val data = Chunk(1, 2, 3)
+
+// Encoding to JSON
+val json = Json.Array(data.map(i => Json.Number(i)): _*)
+
+// Decoding from JSON
+val decoded: Option[Chunk[Int]] = json match {
+  case Json.Array(elements) =>
+    Some(Chunk.fromIterable(elements.collect { case Json.Number(n) => n.toInt }))
+  case _ => None
+}
+```
+
+The [DynamicValue](./dynamic-value.md) system also works with Chunk, allowing schema-driven navigation of chunk data.
+
+## Running the Examples
+
+All code from this guide is available as runnable examples in the appropriate example modules.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Build and test with sbt:**
+
+```bash
+# Compile everything
+sbt compile
+
+# Run tests
+sbt test
+
+# Specifically test Chunk functionality
+sbt chunk/test
+```
+
+Chunk examples are integrated throughout the test suites. You can also explore the test file at `chunk/shared/src/test/scala/zio/blocks/chunk/ChunkSpec.scala` to see idiomatic usage patterns.
