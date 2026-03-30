@@ -812,7 +812,7 @@ trait Chunk[+A] {
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
-chunk.toString  // "Chunk(1, 2, 3)"
+chunk.toString  // "Chunk(1,2,3)"
 ```
 
 ### Specialized Accessors for Primitive Types
