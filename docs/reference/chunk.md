@@ -52,13 +52,13 @@ The implementation is based on [Conc-Trees for Functional and Parallel Programmi
 Chunk is available in the core `zio-blocks` library:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "@VERSION@"
 ```
 
 For Scala.js support:
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
 ```
 
 Supports Scala 2.13.x and 3.x.
