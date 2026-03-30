@@ -868,23 +868,33 @@ val materialized = built.materialize
 
 `NonEmptyChunk[A]` is a type-safe wrapper around `Chunk[A]` that guarantees the chunk is non-empty. It provides the same operations as `Chunk` but with methods like `head` returning `A` instead of potentially throwing an exception.
 
-Create a `NonEmptyChunk` by wrapping a non-empty `Chunk`:
+Create a `NonEmptyChunk` using varargs:
 
 ```scala
-val chunk = Chunk(1, 2, 3)
-val nonEmpty = NonEmptyChunk(chunk)
+val nonEmpty = NonEmptyChunk(1, 2, 3)
 
 // Access head safely without the risk of IndexOutOfBoundsException
 val first = nonEmpty.head  // 1
 ```
 
+Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
+
+```scala
+val chunk = Chunk(1, 2, 3)
+val maybeNonEmpty: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(chunk)
+// maybeNonEmpty: Some(NonEmptyChunk(1, 2, 3))
+
+val empty = Chunk.empty[Int]
+val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
+// nothingHere: None
+```
+
 Concatenate chunks and maintain the type:
 
 ```scala
-val chunk1 = Chunk(1, 2, 3)
+val nonEmpty1 = NonEmptyChunk(1, 2, 3)
 val chunk2 = Chunk(4, 5, 6)
 
-val nonEmpty1 = NonEmptyChunk(chunk1)
 val result = nonEmpty1 ++ chunk2
 ```
 
