@@ -157,7 +157,7 @@ object ToModifier {
    * Applies a sequence of ModifierEffects to an element. Used by macros as
    * runtime helper.
    */
-  def buildFromEffects(element: Dom.Element, effects: Seq[ModifierEffect]): Dom.Element = {
+  private[template] def buildFromEffects(element: Dom.Element, effects: Seq[ModifierEffect]): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
     attrBuilder ++= element.attributes
@@ -180,7 +180,11 @@ object ToModifier {
    * Applies a first effect plus remaining effects to an element, avoiding the
    * `+:` allocation of prepending to a Seq.
    */
-  def buildFromEffects(element: Dom.Element, first: ModifierEffect, rest: Seq[ModifierEffect]): Dom.Element = {
+  private[template] def buildFromEffects(
+    element: Dom.Element,
+    first: ModifierEffect,
+    rest: Seq[ModifierEffect]
+  ): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
     attrBuilder ++= element.attributes
