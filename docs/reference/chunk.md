@@ -979,7 +979,7 @@ val json = Json.Array(data.map(i => Json.Number(i))*)
 val decoded: Option[Chunk[Int]] = json match {
   case Json.Array(elements) =>
     Some(Chunk.fromIterable(elements.collect { case Json.Number(n) => n.toInt }))
-  case null => None
+  case _ => None
 }
 ```
 
