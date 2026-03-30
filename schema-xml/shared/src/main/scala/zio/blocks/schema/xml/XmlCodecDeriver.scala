@@ -121,7 +121,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
           idx += 1
         }
       }
-      new XmlCodec[A]() {
+      new XmlCodec[A] {
         private[this] val deconstructor = recordBinding.deconstructor
         private[this] val constructor   = recordBinding.constructor
         private[this] val recordName    = typeId.name
@@ -341,11 +341,11 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       if (typeId.isOption) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new XmlCodec[Option[Any]]() {
+          new XmlCodec[Option[Any]] {
             private[this] val innerCodec = codec.asInstanceOf[XmlCodec[Any]]
 
             override def decodeValue(xml: Xml): Option[Any] =
-              try
+              try {
                 new Some(innerCodec.decodeValue(xml match {
                   case e: Xml.Element if e.name.localName == "None" && e.children.isEmpty => return None
                   case e: Xml.Element if e.name.localName == "Some"                       =>
@@ -355,7 +355,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                     }
                   case other => other
                 }))
-              catch {
+              } catch {
                 case err if NonFatal(err) =>
                   error(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), err)
               }
@@ -373,7 +373,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
             val caseCodec = D.instance(case_.value.metadata).force.asInstanceOf[XmlCodec[A]]
             (caseName, caseCodec)
           }
-          new XmlCodec[A]() {
+          new XmlCodec[A] {
             private[this] val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
             private[this] val codecMap      = caseCodecs.toMap
 
@@ -382,7 +382,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                 val caseName = name.localName
                 codecMap.get(caseName) match {
                   case Some(codec) =>
-                    try
+                    try {
                       codec.decodeValue(children.headOption match {
                         case Some(e: Xml.Element) if e.name.localName == caseName =>
                           // Old double-wrapped format: <Dog><Dog>...</Dog></Dog>
@@ -395,7 +395,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
                           // No children, decode as empty case
                           xmlElement(caseName)
                       })
-                    catch {
+                    } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.Case(caseName), err)
                     }
                   case _ => error(s"Unknown variant case: $caseName")
@@ -430,7 +430,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val seqBinding = binding.asInstanceOf[Binding.Seq[Col, Elem]]
       D.instance(element.metadata).map { codec =>
-        new XmlCodec[Col[Elem]]() {
+        new XmlCodec[Col[Elem]] {
           private[this] val deconstructor = seqBinding.deconstructor
           private[this] val constructor   = seqBinding.constructor
           private[this] val elemCodec     = codec.asInstanceOf[XmlCodec[Elem]]
@@ -483,7 +483,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val mapBinding = binding.asInstanceOf[Binding.Map[Map, Key, Value]]
       D.instance(key.metadata).zip(D.instance(value.metadata)).map { case (codec1, codec2) =>
-        new XmlCodec[Map[Key, Value]]() {
+        new XmlCodec[Map[Key, Value]] {
           private[this] val deconstructor = mapBinding.deconstructor
           private[this] val constructor   = mapBinding.constructor
           private[this] val keyCodec      = codec1.asInstanceOf[XmlCodec[Key]]
@@ -573,7 +573,7 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) {
       val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
       D.instance(wrapped.metadata).map { codec =>
-        new XmlCodec[A]() {
+        new XmlCodec[A] {
           private[this] val unwrap       = wrapperBinding.unwrap
           private[this] val wrap         = wrapperBinding.wrap
           private[this] val wrappedCodec = codec.asInstanceOf[XmlCodec[Wrapped]]

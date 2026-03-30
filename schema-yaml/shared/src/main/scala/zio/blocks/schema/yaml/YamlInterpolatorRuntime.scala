@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.yaml
 
+import zio.blocks.schema.json.{Json, JsonCodec}
 import java.time._
 
 private[schema] object YamlInterpolatorRuntime {
@@ -28,19 +29,13 @@ private[schema] object YamlInterpolatorRuntime {
     while (parts.hasNext && contextIt.hasNext) {
       val ctx = contextIt.next()
       ctx match {
-        case YamlInterpolationContext.Key =>
-          sb.append("_placeholder_key_")
-        case YamlInterpolationContext.Value =>
-          sb.append("null")
+        case YamlInterpolationContext.Key      => sb.append("_placeholder_key_")
+        case YamlInterpolationContext.Value    => sb.append("null")
         case YamlInterpolationContext.InString =>
-          ()
       }
       sb.append(parts.next())
     }
-    YamlReader.read(sb.toString) match {
-      case Right(_)    => ()
-      case Left(error) => throw error
-    }
+    YamlReader.read(sb.toString)
   }
 
   def yamlWithContexts(sc: StringContext, args: Seq[Any], contexts: Seq[YamlInterpolationContext]): Yaml = {
@@ -59,10 +54,7 @@ private[schema] object YamlInterpolatorRuntime {
       }
       sb.append(parts.next())
     }
-    YamlReader.read(sb.toString) match {
-      case Right(yaml) => yaml
-      case Left(error) => throw error
-    }
+    YamlReader.read(sb.toString)
   }
 
   private[this] def writeKeyValue(sb: StringBuilder, key: Any): Unit = key match {
@@ -73,27 +65,27 @@ private[schema] object YamlInterpolatorRuntime {
     case sh: Short             => sb.append(sh.toInt)
     case i: Int                => sb.append(i)
     case l: Long               => sb.append(l)
-    case f: Float              => sb.append(f)
-    case d: Double             => sb.append(d)
-    case bd: BigDecimal        => sb.append(bd)
-    case bi: BigInt            => sb.append(bi)
+    case f: Float              => sb.append(JsonCodec.floatCodec.encodeToString(f))
+    case d: Double             => sb.append(JsonCodec.doubleCodec.encodeToString(d))
+    case bd: BigDecimal        => sb.append(JsonCodec.bigDecimalCodec.encodeToString(bd))
+    case bi: BigInt            => sb.append(JsonCodec.bigIntCodec.encodeToString(bi))
     case _: Unit               => sb.append("unit")
-    case d: Duration           => appendYamlScalar(sb, d.toString)
     case dow: DayOfWeek        => appendYamlScalar(sb, dow.toString)
-    case i: Instant            => appendYamlScalar(sb, i.toString)
-    case ld: LocalDate         => appendYamlScalar(sb, ld.toString)
-    case ldt: LocalDateTime    => appendYamlScalar(sb, ldt.toString)
-    case lt: LocalTime         => appendYamlScalar(sb, lt.toString)
+    case d: Duration           => appendYamlScalar(sb, Json.durationRawCodec.encodeToString(d))
+    case i: Instant            => appendYamlScalar(sb, Json.instantRawCodec.encodeToString(i))
+    case ld: LocalDate         => appendYamlScalar(sb, Json.localDateRawCodec.encodeToString(ld))
+    case ldt: LocalDateTime    => appendYamlScalar(sb, Json.localDateTimeRawCodec.encodeToString(ldt))
+    case lt: LocalTime         => appendYamlScalar(sb, Json.localTimeRawCodec.encodeToString(lt))
     case m: Month              => appendYamlScalar(sb, m.toString)
-    case md: MonthDay          => appendYamlScalar(sb, md.toString)
-    case odt: OffsetDateTime   => appendYamlScalar(sb, odt.toString)
-    case ot: OffsetTime        => appendYamlScalar(sb, ot.toString)
-    case p: Period             => appendYamlScalar(sb, p.toString)
+    case md: MonthDay          => appendYamlScalar(sb, Json.monthDayRawCodec.encodeToString(md))
+    case odt: OffsetDateTime   => appendYamlScalar(sb, Json.offsetDateTimeRawCodec.encodeToString(odt))
+    case ot: OffsetTime        => appendYamlScalar(sb, Json.offsetTimeRawCodec.encodeToString(ot))
+    case p: Period             => appendYamlScalar(sb, Json.periodRawCodec.encodeToString(p))
     case y: Year               => appendYamlScalar(sb, y.toString)
     case ym: YearMonth         => appendYamlScalar(sb, ym.toString)
     case zo: ZoneOffset        => appendYamlScalar(sb, zo.toString)
     case zi: ZoneId            => appendYamlScalar(sb, zi.toString)
-    case zdt: ZonedDateTime    => appendYamlScalar(sb, zdt.toString)
+    case zdt: ZonedDateTime    => appendYamlScalar(sb, Json.zonedDateTimeRawCodec.encodeToString(zdt))
     case c: java.util.Currency => sb.append(c.getCurrencyCode)
     case uuid: java.util.UUID  => appendYamlScalar(sb, uuid.toString)
     case x                     =>
@@ -110,28 +102,28 @@ private[schema] object YamlInterpolatorRuntime {
     case sh: Short             => sb.append(sh.toInt)
     case i: Int                => sb.append(i)
     case l: Long               => sb.append(l)
-    case f: Float              => sb.append(f)
-    case d: Double             => sb.append(d)
+    case f: Float              => sb.append(JsonCodec.floatCodec.encodeToString(f))
+    case d: Double             => sb.append(JsonCodec.doubleCodec.encodeToString(d))
     case c: Char               => appendYamlScalar(sb, c.toString)
-    case bd: BigDecimal        => sb.append(bd)
-    case bi: BigInt            => sb.append(bi)
+    case bd: BigDecimal        => sb.append(JsonCodec.bigDecimalCodec.encodeToString(bd))
+    case bi: BigInt            => sb.append(JsonCodec.bigIntCodec.encodeToString(bi))
     case _: Unit               => sb.append("null")
     case dow: DayOfWeek        => appendYamlScalar(sb, dow.toString)
-    case d: Duration           => appendYamlScalar(sb, d.toString)
-    case i: Instant            => appendYamlScalar(sb, i.toString)
-    case ld: LocalDate         => appendYamlScalar(sb, ld.toString)
-    case ldt: LocalDateTime    => appendYamlScalar(sb, ldt.toString)
-    case lt: LocalTime         => appendYamlScalar(sb, lt.toString)
+    case d: Duration           => appendYamlScalar(sb, Json.durationRawCodec.encodeToString(d))
+    case i: Instant            => appendYamlScalar(sb, Json.instantRawCodec.encodeToString(i))
+    case ld: LocalDate         => appendYamlScalar(sb, Json.localDateRawCodec.encodeToString(ld))
+    case ldt: LocalDateTime    => appendYamlScalar(sb, Json.localDateTimeRawCodec.encodeToString(ldt))
+    case lt: LocalTime         => appendYamlScalar(sb, Json.localTimeRawCodec.encodeToString(lt))
     case m: Month              => appendYamlScalar(sb, m.toString)
-    case md: MonthDay          => appendYamlScalar(sb, md.toString)
-    case odt: OffsetDateTime   => appendYamlScalar(sb, odt.toString)
-    case ot: OffsetTime        => appendYamlScalar(sb, ot.toString)
-    case p: Period             => appendYamlScalar(sb, p.toString)
+    case md: MonthDay          => appendYamlScalar(sb, Json.monthDayRawCodec.encodeToString(md))
+    case odt: OffsetDateTime   => appendYamlScalar(sb, Json.offsetDateTimeRawCodec.encodeToString(odt))
+    case ot: OffsetTime        => appendYamlScalar(sb, Json.offsetTimeRawCodec.encodeToString(ot))
+    case p: Period             => appendYamlScalar(sb, Json.periodRawCodec.encodeToString(p))
     case y: Year               => appendYamlScalar(sb, y.toString)
     case ym: YearMonth         => appendYamlScalar(sb, ym.toString)
     case zo: ZoneOffset        => appendYamlScalar(sb, zo.toString)
     case zi: ZoneId            => appendYamlScalar(sb, zi.toString)
-    case zdt: ZonedDateTime    => appendYamlScalar(sb, zdt.toString)
+    case zdt: ZonedDateTime    => appendYamlScalar(sb, Json.zonedDateTimeRawCodec.encodeToString(zdt))
     case c: java.util.Currency => appendYamlScalar(sb, c.getCurrencyCode)
     case uuid: java.util.UUID  => appendYamlScalar(sb, uuid.toString)
     case null                  => sb.append("null")
@@ -169,27 +161,27 @@ private[schema] object YamlInterpolatorRuntime {
     case sh: Short             => sb.append(sh.toInt)
     case i: Int                => sb.append(i)
     case l: Long               => sb.append(l)
-    case f: Float              => sb.append(f)
-    case d: Double             => sb.append(d)
-    case bd: BigDecimal        => sb.append(bd)
-    case bi: BigInt            => sb.append(bi)
+    case f: Float              => sb.append(JsonCodec.floatCodec.encodeToString(f))
+    case d: Double             => sb.append(JsonCodec.doubleCodec.encodeToString(d))
+    case bd: BigDecimal        => sb.append(JsonCodec.bigDecimalCodec.encodeToString(bd))
+    case bi: BigInt            => sb.append(JsonCodec.bigIntCodec.encodeToString(bi))
     case _: Unit               => sb.append("()")
-    case d: Duration           => sb.append(d.toString)
+    case d: Duration           => sb.append(Json.durationRawCodec.encodeToString(d))
     case dow: DayOfWeek        => sb.append(dow.toString)
-    case i: Instant            => sb.append(i.toString)
-    case ld: LocalDate         => sb.append(ld.toString)
-    case ldt: LocalDateTime    => sb.append(ldt.toString)
-    case lt: LocalTime         => sb.append(lt.toString)
+    case i: Instant            => sb.append(Json.instantRawCodec.encodeToString(i))
+    case ld: LocalDate         => sb.append(Json.localDateRawCodec.encodeToString(ld))
+    case ldt: LocalDateTime    => sb.append(Json.localDateTimeRawCodec.encodeToString(ldt))
+    case lt: LocalTime         => sb.append(Json.localTimeRawCodec.encodeToString(lt))
     case m: Month              => sb.append(m.toString)
-    case md: MonthDay          => sb.append(md.toString)
-    case odt: OffsetDateTime   => sb.append(odt.toString)
-    case ot: OffsetTime        => sb.append(ot.toString)
-    case p: Period             => sb.append(p.toString)
+    case md: MonthDay          => sb.append(Json.monthDayRawCodec.encodeToString(md))
+    case odt: OffsetDateTime   => sb.append(Json.offsetDateTimeRawCodec.encodeToString(odt))
+    case ot: OffsetTime        => sb.append(Json.offsetTimeRawCodec.encodeToString(ot))
+    case p: Period             => sb.append(Json.periodRawCodec.encodeToString(p))
     case y: Year               => sb.append(y.toString)
     case ym: YearMonth         => sb.append(ym.toString)
     case zo: ZoneOffset        => sb.append(zo.toString)
     case zi: ZoneId            => sb.append(zi.toString)
-    case zdt: ZonedDateTime    => sb.append(zdt.toString)
+    case zdt: ZonedDateTime    => sb.append(Json.zonedDateTimeRawCodec.encodeToString(zdt))
     case c: java.util.Currency => sb.append(c.getCurrencyCode)
     case uuid: java.util.UUID  => sb.append(uuid.toString)
     case x                     =>

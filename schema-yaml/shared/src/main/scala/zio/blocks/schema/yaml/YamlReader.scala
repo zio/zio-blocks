@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
@@ -24,37 +24,30 @@ import java.nio.charset.StandardCharsets.UTF_8
  */
 object YamlReader {
 
-  def read(input: String): Either[YamlError, Yaml] =
-    try {
-      val normalized = input.replace("\r\n", "\n").replace("\r", "\n")
-      val parser     = new YamlParser(normalized)
-      parser.parse()
-    } catch {
-      case e: YamlError => Left(e)
-      case e: Exception => Left(YamlError.parseError(e.getMessage, 0, 0))
-    }
+  def read(input: String): Yaml = {
+    val normalized = input.replace("\r\n", "\n").replace("\r", "\n")
+    val parser     = new YamlParser(normalized)
+    parser.parse()
+  }
 
-  def readFromBytes(input: Array[Byte]): Either[YamlError, Yaml] =
+  def readFromBytes(input: Array[Byte]): Yaml =
     read(new String(input, UTF_8))
 
   private class YamlParser(input: String) {
     private val lines: Array[String] = input.split("\n", -1)
     private var lineIdx: Int         = 0
 
-    def parse(): Either[YamlError, Yaml] = {
+    def parse(): Yaml = {
       skipBlanksAndComments()
-      if (lineIdx >= lines.length) Right(Yaml.NullValue)
+      if (lineIdx >= lines.length) Yaml.NullValue
       else {
         val line = lines(lineIdx).trim
         if (line == "---") {
           lineIdx += 1
           skipBlanksAndComments()
         }
-        if (lineIdx >= lines.length) Right(Yaml.NullValue)
-        else {
-          val result = parseValue(0)
-          result
-        }
+        if (lineIdx >= lines.length) Yaml.NullValue
+        else parseValue(0)
       }
     }
 
@@ -76,25 +69,21 @@ object YamlReader {
       i
     }
 
-    private def parseValue(indent: Int): Either[YamlError, Yaml] = {
+    private def parseValue(indent: Int): Yaml = {
       skipBlanksAndComments()
-      if (lineIdx >= lines.length) Right(Yaml.NullValue)
+      if (lineIdx >= lines.length) Yaml.NullValue
       else {
         val line    = lines(lineIdx)
         val trimmed = line.trim
 
         if (trimmed.startsWith("{")) parseFlowMapping()
         else if (trimmed.startsWith("[")) parseFlowSequence()
-        else if (trimmed.startsWith("- ") || trimmed == "-") {
-          val seqIndent = currentIndent
-          parseBlockSequence(seqIndent)
-        } else if (trimmed.startsWith("|") || trimmed.startsWith(">")) parseLiteralBlock(indent)
+        else if (trimmed.startsWith("- ") || trimmed == "-") parseBlockSequence(currentIndent)
+        else if (trimmed.startsWith("|") || trimmed.startsWith(">")) parseLiteralBlock(indent)
         else {
           val colonIdx = findMappingColon(trimmed)
-          if (colonIdx > 0) {
-            val mapIndent = currentIndent
-            parseBlockMapping(mapIndent)
-          } else parseScalar(indent)
+          if (colonIdx > 0) parseBlockMapping(currentIndent)
+          else parseScalar(indent)
         }
       }
     }
@@ -116,83 +105,55 @@ object YamlReader {
       -1
     }
 
-    private def parseBlockMapping(indent: Int): Either[YamlError, Yaml] = {
+    private def parseBlockMapping(indent: Int): Yaml = {
       val entries = Chunk.newBuilder[(Yaml, Yaml)]
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) {
-          return Right(Yaml.Mapping(entries.result()))
-        }
-        if (currentIndent != indent) {
-          return Right(Yaml.Mapping(entries.result()))
-        }
-
+        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Mapping(entries.result())
+        if (currentIndent != indent) return Yaml.Mapping(entries.result())
         val line     = lines(lineIdx)
         val trimmed  = line.trim
         val colonIdx = findMappingColon(trimmed)
-        if (colonIdx <= 0) {
-          return Right(Yaml.Mapping(entries.result()))
-        }
-
+        if (colonIdx <= 0) return Yaml.Mapping(entries.result())
         val keyStr     = trimmed.substring(0, colonIdx).trim
         val key        = Yaml.Scalar(unquoteScalar(keyStr))
         val afterColon = trimmed.substring(colonIdx + 1).trim
-
         if (afterColon.isEmpty) {
           lineIdx += 1
           skipBlanksAndComments()
-          if (lineIdx < lines.length && currentIndent > indent) {
-            parseValue(currentIndent) match {
-              case Right(v) => entries += ((key, v))
-              case left     => return left
-            }
-          } else {
-            entries += ((key, Yaml.NullValue))
-          }
+          val v =
+            if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+            else Yaml.NullValue
+          entries += ((key, v))
         } else if (afterColon == "|" || afterColon == ">" || afterColon.startsWith("|") || afterColon.startsWith(">")) {
           val blockChar = afterColon.charAt(0)
           lineIdx += 1
-          parseLiteralBlockContent(indent, blockChar == '|') match {
-            case Right(v) => entries += ((key, v))
-            case left     => return left
-          }
+          entries += ((key, parseLiteralBlockContent(indent, blockChar == '|')))
         } else {
           lineIdx += 1
           val value = parseInlineValue(afterColon)
           entries += ((key, value))
         }
       }
-      Right(Yaml.Mapping(entries.result()))
+      Yaml.Mapping(entries.result())
     }
 
-    private def parseBlockSequence(indent: Int): Either[YamlError, Yaml] = {
+    private def parseBlockSequence(indent: Int): Yaml = {
       val elements = Chunk.newBuilder[Yaml]
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-        if (currentIndent != indent) {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-
+        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Sequence(elements.result())
+        if (currentIndent != indent) return Yaml.Sequence(elements.result())
         val line    = lines(lineIdx)
         val trimmed = line.trim
-        if (!trimmed.startsWith("- ") && trimmed != "-") {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-
+        if (!trimmed.startsWith("- ") && trimmed != "-") return Yaml.Sequence(elements.result())
         val afterDash = if (trimmed == "-") "" else trimmed.substring(2).trim
         if (afterDash.isEmpty) {
           lineIdx += 1
           skipBlanksAndComments()
-          if (lineIdx < lines.length && currentIndent > indent) {
-            parseValue(currentIndent) match {
-              case Right(v) => elements += v
-              case left     => return left
-            }
-          } else {
-            elements += Yaml.NullValue
+          elements += {
+            if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+            else Yaml.NullValue
           }
         } else {
           val dashContentIndent = indent + 2
@@ -202,22 +163,14 @@ object YamlReader {
             val keyStr     = afterDash.substring(0, colonIdx).trim
             val key        = Yaml.Scalar(unquoteScalar(keyStr))
             val afterColon = afterDash.substring(colonIdx + 1).trim
-
-            val firstEntry = if (afterColon.isEmpty) {
-              skipBlanksAndComments()
-              if (lineIdx < lines.length && currentIndent > indent) {
-                parseValue(currentIndent) match {
-                  case Right(v) => (key, v)
-                  case left     => return left
-                }
-              } else (key, Yaml.NullValue)
-            } else {
-              (key, parseInlineValue(afterColon))
-            }
-
+            val firstValue =
+              if (afterColon.isEmpty) {
+                skipBlanksAndComments()
+                if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+                else Yaml.NullValue
+              } else parseInlineValue(afterColon)
             val mapEntries = Chunk.newBuilder[(Yaml, Yaml)]
-            mapEntries += firstEntry
-
+            mapEntries += ((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
               if (lineIdx >= lines.length || currentIndent < dashContentIndent) {
@@ -229,33 +182,28 @@ object YamlReader {
                 elements += Yaml.Mapping(mapEntries.result())
                 return parseBlockSequenceContinue(indent, elements)
               }
-
               val innerLine     = lines(lineIdx).trim
               val innerColonIdx = findMappingColon(innerLine)
               if (innerColonIdx <= 0) {
                 elements += Yaml.Mapping(mapEntries.result())
                 return parseBlockSequenceContinue(indent, elements)
               }
-
               val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
               val innerKey        = Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
-
-              if (innerAfterColon.isEmpty) {
-                lineIdx += 1
-                skipBlanksAndComments()
-                if (lineIdx < lines.length && currentIndent > dashContentIndent) {
-                  parseValue(currentIndent) match {
-                    case Right(v) => mapEntries += ((innerKey, v))
-                    case left     => return left
+              mapEntries += ((
+                innerKey, {
+                  if (innerAfterColon.isEmpty) {
+                    lineIdx += 1
+                    skipBlanksAndComments()
+                    if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
+                    else Yaml.NullValue
+                  } else {
+                    lineIdx += 1
+                    parseInlineValue(innerAfterColon)
                   }
-                } else {
-                  mapEntries += ((innerKey, Yaml.NullValue))
                 }
-              } else {
-                lineIdx += 1
-                mapEntries += ((innerKey, parseInlineValue(innerAfterColon)))
-              }
+              ))
             }
             elements += Yaml.Mapping(mapEntries.result())
           } else {
@@ -264,38 +212,25 @@ object YamlReader {
           }
         }
       }
-      Right(Yaml.Sequence(elements.result()))
+      Yaml.Sequence(elements.result())
     }
 
-    private def parseBlockSequenceContinue(
-      indent: Int,
-      elements: zio.blocks.chunk.ChunkBuilder[Yaml]
-    ): Either[YamlError, Yaml] = {
+    private def parseBlockSequenceContinue(indent: Int, elements: ChunkBuilder[Yaml]): Yaml = {
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-        if (currentIndent != indent) {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-
+        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Sequence(elements.result())
+        if (currentIndent != indent) return Yaml.Sequence(elements.result())
         val line    = lines(lineIdx)
         val trimmed = line.trim
-        if (!trimmed.startsWith("- ") && trimmed != "-") {
-          return Right(Yaml.Sequence(elements.result()))
-        }
-
+        if (!trimmed.startsWith("- ") && trimmed != "-") return Yaml.Sequence(elements.result())
         val afterDash = if (trimmed == "-") "" else trimmed.substring(2).trim
         if (afterDash.isEmpty) {
           lineIdx += 1
           skipBlanksAndComments()
-          if (lineIdx < lines.length && currentIndent > indent) {
-            parseValue(currentIndent) match {
-              case Right(v) => elements += v
-              case left     => return left
-            }
-          } else elements += Yaml.NullValue
+          elements += {
+            if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+            else Yaml.NullValue
+          }
         } else {
           val colonIdx = findMappingColon(afterDash)
           if (colonIdx > 0) {
@@ -304,19 +239,13 @@ object YamlReader {
             val keyStr     = afterDash.substring(0, colonIdx).trim
             val key        = Yaml.Scalar(unquoteScalar(keyStr))
             val afterColon = afterDash.substring(colonIdx + 1).trim
-            val firstEntry = if (afterColon.isEmpty) {
+            val firstValue = if (afterColon.isEmpty) {
               skipBlanksAndComments()
-              if (lineIdx < lines.length && currentIndent > indent) {
-                parseValue(currentIndent) match {
-                  case Right(v) => (key, v)
-                  case left     => return left
-                }
-              } else (key, Yaml.NullValue)
-            } else (key, parseInlineValue(afterColon))
-
+              if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+              else Yaml.NullValue
+            } else parseInlineValue(afterColon)
             val mapEntries = Chunk.newBuilder[(Yaml, Yaml)]
-            mapEntries += firstEntry
-
+            mapEntries += ((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
               if (lineIdx >= lines.length || currentIndent < dashContentIndent) {
@@ -327,31 +256,28 @@ object YamlReader {
                 elements += Yaml.Mapping(mapEntries.result())
                 return parseBlockSequenceContinue(indent, elements)
               }
-
               val innerLine     = lines(lineIdx).trim
               val innerColonIdx = findMappingColon(innerLine)
               if (innerColonIdx <= 0) {
                 elements += Yaml.Mapping(mapEntries.result())
                 return parseBlockSequenceContinue(indent, elements)
               }
-
               val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
               val innerKey        = Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
-
-              if (innerAfterColon.isEmpty) {
-                lineIdx += 1
-                skipBlanksAndComments()
-                if (lineIdx < lines.length && currentIndent > dashContentIndent) {
-                  parseValue(currentIndent) match {
-                    case Right(v) => mapEntries += ((innerKey, v))
-                    case left     => return left
+              mapEntries += ((
+                innerKey, {
+                  if (innerAfterColon.isEmpty) {
+                    lineIdx += 1
+                    skipBlanksAndComments()
+                    if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
+                    else Yaml.NullValue
+                  } else {
+                    lineIdx += 1
+                    parseInlineValue(innerAfterColon)
                   }
-                } else mapEntries += ((innerKey, Yaml.NullValue))
-              } else {
-                lineIdx += 1
-                mapEntries += ((innerKey, parseInlineValue(innerAfterColon)))
-              }
+                }
+              ))
             }
             elements += Yaml.Mapping(mapEntries.result())
           } else {
@@ -360,22 +286,22 @@ object YamlReader {
           }
         }
       }
-      Right(Yaml.Sequence(elements.result()))
+      Yaml.Sequence(elements.result())
     }
 
-    private def parseLiteralBlock(indent: Int): Either[YamlError, Yaml] = {
+    private def parseLiteralBlock(indent: Int): Yaml = {
       val line      = lines(lineIdx).trim
       val isLiteral = line.charAt(0) == '|'
       lineIdx += 1
       parseLiteralBlockContent(indent, isLiteral)
     }
 
-    private def parseLiteralBlockContent(indent: Int, isLiteral: Boolean): Either[YamlError, Yaml] = {
+    private def parseLiteralBlockContent(indent: Int, isLiteral: Boolean): Yaml = {
       skipBlanksAndComments()
-      if (lineIdx >= lines.length) Right(Yaml.Scalar(""))
+      if (lineIdx >= lines.length) Yaml.Scalar("")
       else {
         val blockIndent = currentIndent
-        if (blockIndent <= indent) Right(Yaml.Scalar(""))
+        if (blockIndent <= indent) Yaml.Scalar("")
         else {
           val sb    = new StringBuilder
           var first = true
@@ -388,8 +314,10 @@ object YamlReader {
               val ci = countLeadingSpaces(raw)
               if (ci < blockIndent) {
                 val result        = sb.toString
-                val trimmedResult = if (result.endsWith("\n")) result.substring(0, result.length - 1) else result
-                return Right(Yaml.Scalar(trimmedResult))
+                val trimmedResult =
+                  if (result.endsWith("\n")) result.substring(0, result.length - 1)
+                  else result
+                return Yaml.Scalar(trimmedResult)
               }
               if (!first) {
                 if (isLiteral) sb.append('\n')
@@ -401,22 +329,24 @@ object YamlReader {
             }
           }
           val result        = sb.toString
-          val trimmedResult = if (result.endsWith("\n")) result.substring(0, result.length - 1) else result
-          Right(Yaml.Scalar(trimmedResult))
+          val trimmedResult =
+            if (result.endsWith("\n")) result.substring(0, result.length - 1)
+            else result
+          Yaml.Scalar(trimmedResult)
         }
       }
     }
 
-    private def parseFlowMapping(): Either[YamlError, Yaml] = {
+    private def parseFlowMapping(): Yaml = {
       val line    = lines(lineIdx)
       val trimmed = line.trim
       lineIdx += 1
 
-      if (trimmed == "{}") Right(Yaml.Mapping.empty)
+      if (trimmed == "{}") Yaml.Mapping.empty
       else {
         val content = collectFlowContent(trimmed, '{', '}')
         val inner   = content.substring(1, content.length - 1).trim
-        if (inner.isEmpty) Right(Yaml.Mapping.empty)
+        if (inner.isEmpty) Yaml.Mapping.empty
         else {
           val entries = Chunk.newBuilder[(Yaml, Yaml)]
           val parts   = splitFlowItems(inner)
@@ -431,21 +361,20 @@ object YamlReader {
             }
             i += 1
           }
-          Right(Yaml.Mapping(entries.result()))
+          Yaml.Mapping(entries.result())
         }
       }
     }
 
-    private def parseFlowSequence(): Either[YamlError, Yaml] = {
+    private def parseFlowSequence(): Yaml = {
       val line    = lines(lineIdx)
       val trimmed = line.trim
       lineIdx += 1
-
-      if (trimmed == "[]") Right(Yaml.Sequence.empty)
+      if (trimmed == "[]") Yaml.Sequence.empty
       else {
         val content = collectFlowContent(trimmed, '[', ']')
         val inner   = content.substring(1, content.length - 1).trim
-        if (inner.isEmpty) Right(Yaml.Sequence.empty)
+        if (inner.isEmpty) Yaml.Sequence.empty
         else {
           val elements = Chunk.newBuilder[Yaml]
           val parts    = splitFlowItems(inner)
@@ -454,7 +383,7 @@ object YamlReader {
             elements += parseInlineValue(parts(i).trim)
             i += 1
           }
-          Right(Yaml.Sequence(elements.result()))
+          Yaml.Sequence(elements.result())
         }
       }
     }
@@ -517,11 +446,10 @@ object YamlReader {
       arr
     }
 
-    private def parseScalar(@scala.annotation.unused indent: Int): Either[YamlError, Yaml] = {
-      val line    = lines(lineIdx)
-      val trimmed = line.trim
+    private def parseScalar(@scala.annotation.unused indent: Int): Yaml = {
+      val line = lines(lineIdx)
       lineIdx += 1
-      Right(parseInlineValue(trimmed))
+      parseInlineValue(line.trim)
     }
 
     private def parseInlineValue(s: String): Yaml = {
@@ -529,11 +457,9 @@ object YamlReader {
       if (trimmed.isEmpty || trimmed == "null" || trimmed == "~") Yaml.NullValue
       else if (trimmed.startsWith("'")) Yaml.Scalar(unquoteSingle(trimmed))
       else if (trimmed.startsWith("\"")) Yaml.Scalar(unquoteDouble(trimmed))
-      else if (trimmed.startsWith("{")) {
-        parseFlowMappingInline(trimmed)
-      } else if (trimmed.startsWith("[")) {
-        parseFlowSequenceInline(trimmed)
-      } else Yaml.Scalar(trimmed)
+      else if (trimmed.startsWith("{")) parseFlowMappingInline(trimmed)
+      else if (trimmed.startsWith("[")) parseFlowSequenceInline(trimmed)
+      else Yaml.Scalar(trimmed)
     }
 
     private def parseFlowMappingInline(s: String): Yaml =

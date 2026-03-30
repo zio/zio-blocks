@@ -43,7 +43,6 @@ private[schema] object YamlContextDetector {
     var inSingle = false
     var inDouble = false
     var sawColon = false
-
     // Scan backwards to find the closest relevant context character
     // First, check if we're inside a quoted string by scanning forwards
     var j = 0
@@ -55,9 +54,7 @@ private[schema] object YamlContextDetector {
       }
       j += 1
     }
-
     if (inSingle || inDouble) return YamlInterpolationContext.InString
-
     // Not inside a string — scan backwards from end to find context
     i = part.length - 1
     while (i >= 0) {
@@ -88,7 +85,6 @@ private[schema] object YamlContextDetector {
     val ch = part.charAt(idx)
     if (ch == '[') return YamlInterpolationContext.Value
     if (ch == '{') return YamlInterpolationContext.Key
-
     // ch == ','  — need to find enclosing container
     var i     = idx - 1
     var depth = 0

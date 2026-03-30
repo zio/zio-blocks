@@ -16,13 +16,13 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema, SchemaBaseSpec}
 import zio.test._
-
 import java.time._
 import java.util.{Currency, UUID}
+import scala.util.Try
 
-object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
+object YamlCodecDeriverExtendedSpec extends SchemaBaseSpec {
 
   case class WithByte(value: Byte)
   object WithByte {
@@ -223,96 +223,96 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
       },
       test("invalid DayOfWeek") {
         val codec  = Schema[DayOfWeek].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("INVALID_DAY"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("INVALID_DAY"))).toEither
         assertTrue(result.isLeft)
       },
       test("invalid Instant") {
         val codec  = Schema[Instant].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("not-an-instant"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("not-an-instant"))).toEither
         assertTrue(result.isLeft)
       },
       test("non-scalar for time type fails") {
         val codec  = Schema[DayOfWeek].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Mapping.empty)
+        val result = Try(codec.decodeValue(Yaml.Mapping.empty)).toEither
         assertTrue(result.isLeft)
       }
-    ) @@ TestAspect.jvmOnly,
+    ),
     suite("DynamicValue codec")(
       test("encode/decode DynamicValue.Primitive String") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.String("hello"))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Int") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Int(42))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Long") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Long(999L))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Double") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Double(3.14))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Float") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Float(1.5f))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Boolean") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Byte") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Byte(1.toByte))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Short") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Short(5.toShort))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Char") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.Char('Z'))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive BigInt") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(1000)))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive BigDecimal") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal("1.23")))
         val encoded = codec.encodeValue(dv)
-        val decoded = codec.decodeValue(encoded)
+        val decoded = Try(codec.decodeValue(encoded)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode/decode DynamicValue.Primitive Unit") {
@@ -392,7 +392,7 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         val yaml  = Yaml.Mapping.fromStringKeys(
           "name" -> Yaml.Scalar("Alice")
         )
-        val decoded = codec.decodeValue(yaml)
+        val decoded = Try(codec.decodeValue(yaml)).toEither
         assertTrue(decoded.isRight)
       },
       test("decode Sequence to DynamicValue") {
@@ -400,49 +400,49 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         val yaml  = Yaml.Sequence(
           zio.blocks.chunk.Chunk(Yaml.Scalar("a"), Yaml.Scalar("b"))
         )
-        val decoded = codec.decodeValue(yaml)
+        val decoded = Try(codec.decodeValue(yaml)).toEither
         assertTrue(decoded.isRight)
       },
       test("decode NullValue to DynamicValue.Null") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
         val decoded = codec.decodeValue(Yaml.NullValue)
-        assertTrue(decoded == Right(DynamicValue.Null))
+        assertTrue(decoded == DynamicValue.Null)
       },
       test("decode boolean-like scalar to DynamicValue.Primitive Boolean") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("true"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("true"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode False-like scalar to DynamicValue.Primitive Boolean") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("FALSE"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("FALSE"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode numeric scalar to DynamicValue.Primitive Int") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("42"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("42"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode large numeric to DynamicValue.Primitive Long") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("9999999999"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("9999999999"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode decimal to DynamicValue.Primitive BigDecimal") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("3.14"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("3.14"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode non-numeric string to DynamicValue.Primitive String") {
         val codec   = Schema[DynamicValue].derive(YamlCodecDeriver)
-        val decoded = codec.decodeValue(Yaml.Scalar("hello world"))
+        val decoded = Try(codec.decodeValue(Yaml.Scalar("hello world"))).toEither
         assertTrue(decoded.isRight)
       },
       test("decode mapping with non-scalar key") {
         val codec = Schema[DynamicValue].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml    = Yaml.Mapping(Chunk((Yaml.Sequence(Chunk(Yaml.Scalar("k"))), Yaml.Scalar("v"))))
-        val decoded = codec.decodeValue(yaml)
+        val decoded = Try(codec.decodeValue(yaml)).toEither
         assertTrue(decoded.isRight)
       },
       test("encode other PrimitiveValue falls through to toString") {
@@ -450,17 +450,17 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         val dv      = new DynamicValue.Primitive(new PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY))
         val encoded = codec.encodeValue(dv)
         assertTrue(encoded.isInstanceOf[Yaml.Scalar])
-      } @@ TestAspect.jvmOnly
+      }
     ),
     suite("error cases in deriver")(
       test("missing required field returns error") {
         val codec  = Schema[Wrapper].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Mapping.empty)
+        val result = Try(codec.decodeValue(Yaml.Mapping.empty)).toEither
         assertTrue(result.isLeft)
       },
       test("wrong YAML type for record returns error") {
         val codec  = Schema[Wrapper].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("not a mapping"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("not a mapping"))).toEither
         assertTrue(result.isLeft)
       },
       test("wrong variant case returns error") {
@@ -475,7 +475,7 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         val codec = Schema[Animal].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("Unknown"), Yaml.Scalar("data"))))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("wrong YAML type for variant returns error") {
@@ -488,7 +488,7 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
           implicit val schema: Schema[Color] = Schema.derived
         }
         val codec  = Schema[Color].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("not a mapping"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("not a mapping"))).toEither
         assertTrue(result.isLeft)
       },
       test("non-string key for variant returns error") {
@@ -503,38 +503,38 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         val codec = Schema[Shape].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.NullValue, Yaml.Scalar("data"))))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("sequence expects Yaml.Sequence") {
         val codec  = Schema[List[Int]].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("not a sequence"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("not a sequence"))).toEither
         assertTrue(result.isLeft)
       },
       test("map expects Yaml.Mapping") {
         val codec  = Schema[Map[String, Int]].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Scalar("not a map"))
+        val result = Try(codec.decodeValue(Yaml.Scalar("not a map"))).toEither
         assertTrue(result.isLeft)
       },
       test("sequence error propagation") {
         val codec = Schema[List[Int]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Sequence(Chunk(Yaml.Scalar("not_a_number")))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("map key error propagation") {
         val codec = Schema[Map[Int, String]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("not_int"), Yaml.Scalar("v"))))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("map value error propagation") {
         val codec = Schema[Map[String, Int]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("key"), Yaml.Scalar("not_int"))))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       }
     ),
@@ -542,50 +542,50 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
       test("decode null as None") {
         val codec  = Schema[Option[String]].derive(YamlCodecDeriver)
         val result = codec.decodeValue(Yaml.NullValue)
-        assertTrue(result == Right(None))
+        assertTrue(result.isEmpty)
       },
       test("decode scalar 'null' as None") {
         val codec  = Schema[Option[String]].derive(YamlCodecDeriver)
         val result = codec.decodeValue(Yaml.Scalar("null"))
-        assertTrue(result == Right(None))
+        assertTrue(result.isEmpty)
       },
       test("decode scalar '~' as None") {
         val codec  = Schema[Option[String]].derive(YamlCodecDeriver)
         val result = codec.decodeValue(Yaml.Scalar("~"))
-        assertTrue(result == Right(None))
+        assertTrue(result.isEmpty)
       },
       test("decode mapping with None key as None") {
         val codec = Schema[Option[String]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("None"), Yaml.NullValue)))
         val result = codec.decodeValue(yaml)
-        assertTrue(result == Right(None))
+        assertTrue(result.isEmpty)
       },
       test("decode mapping with Some key") {
         val codec = Schema[Option[String]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("Some"), Yaml.Scalar("hello"))))
         val result = codec.decodeValue(yaml)
-        assertTrue(result == Right(Some("hello")))
+        assertTrue(result.contains("hello"))
       },
       test("decode mapping with Some key but no value fails") {
         val codec = Schema[Option[String]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk.empty)
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("decode other mapping falls through to inner codec") {
         val codec = Schema[Option[String]].derive(YamlCodecDeriver)
         import zio.blocks.chunk.Chunk
         val yaml   = Yaml.Mapping(Chunk((Yaml.Scalar("other"), Yaml.Scalar("value"))))
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       },
       test("decode scalar value as Some") {
         val codec  = Schema[Option[String]].derive(YamlCodecDeriver)
         val result = codec.decodeValue(Yaml.Scalar("hello"))
-        assertTrue(result == Right(Some("hello")))
+        assertTrue(result.contains("hello"))
       },
       test("encode None") {
         val codec = Schema[Option[String]].derive(YamlCodecDeriver)
@@ -633,7 +633,7 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
         }
         val codec = Schema[CamelCase].derive(YamlCodecDeriver)
         val yaml  = codec.encodeToString(CamelCase("Alice", "Smith"))
-        assertTrue(yaml.contains("first-name:") && yaml.contains("last-name:"))
+        assertTrue(yaml == "first-name: Alice\nlast-name: Smith")
       },
       test("kebab-cased field names decode correctly") {
         case class CamelCase(firstName: String, lastName: String)
@@ -652,7 +652,8 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
           implicit val schema: Schema[TypedRecord] = Schema.derived
         }
         val codec  = Schema[TypedRecord].derive(YamlCodecDeriver)
-        val result = codec.decodeValue(Yaml.Mapping.fromStringKeys("count" -> Yaml.Scalar("not_a_number")))
+        val result =
+          Try(codec.decodeValue(Yaml.Mapping.fromStringKeys("count" -> Yaml.Scalar("not_a_number")))).toEither
         assertTrue(result.isLeft)
       }
     ),
@@ -678,7 +679,7 @@ object YamlCodecDeriverExtendedSpec extends YamlBaseSpec {
             (Yaml.Scalar("B"), Yaml.Mapping.fromStringKeys("y" -> Yaml.Scalar("2", tag = Some(YamlTag.Int))))
           )
         )
-        val result = codec.decodeValue(yaml)
+        val result = Try(codec.decodeValue(yaml)).toEither
         assertTrue(result.isLeft)
       }
     )

@@ -16,9 +16,10 @@
 
 package zio.blocks.schema.yaml
 
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
-object YamlOptionsSpec extends YamlBaseSpec {
+object YamlOptionsSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("YamlOptions")(
     test("default options") {
