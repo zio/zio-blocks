@@ -175,4 +175,33 @@ object ToModifier {
 
     element.withAttributes(attrBuilder.result()).withChildren(childBuilder.result())
   }
+
+  /**
+   * Applies a first effect plus remaining effects to an element, avoiding the
+   * `+:` allocation of prepending to a Seq.
+   */
+  def buildFromEffects(element: Dom.Element, first: ModifierEffect, rest: Seq[ModifierEffect]): Dom.Element = {
+    val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
+    val childBuilder = Chunk.newBuilder[Dom]
+    attrBuilder ++= element.attributes
+    childBuilder ++= element.children
+
+    first match {
+      case ModifierEffect.AddAttr(a)      => attrBuilder += a
+      case ModifierEffect.AddChild(c)     => childBuilder += c
+      case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
+    }
+
+    var i = 0
+    while (i < rest.length) {
+      rest(i) match {
+        case ModifierEffect.AddAttr(a)      => attrBuilder += a
+        case ModifierEffect.AddChild(c)     => childBuilder += c
+        case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
+      }
+      i += 1
+    }
+
+    element.withAttributes(attrBuilder.result()).withChildren(childBuilder.result())
+  }
 }
