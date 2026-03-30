@@ -1112,7 +1112,7 @@ import zio.blocks.schema.json.Json
 val data = Chunk(1, 2, 3)
 
 // Encoding to JSON
-val json = Json.Array(data.map(i => Json.Number(i))*)
+val json = Json.Array(data.map(i => Json.Number(i)): _*)
 
 // Decoding from JSON
 val decoded: Option[Chunk[Int]] = json match {
