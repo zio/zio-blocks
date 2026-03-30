@@ -589,7 +589,7 @@ chunk.slice(2, 5)  // Chunk(30, 40, 50)
 
 #### `Chunk#split` — Split into Equally-Sized Chunks
 
-Split the chunk into N equally-sized chunks:
+Split the chunk into N equally-sized chunks. When the chunk size is not evenly divisible, remainder elements are distributed into earlier chunks:
 
 ```scala
 trait Chunk[+A] {
@@ -601,9 +601,13 @@ trait Chunk[+A] {
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5, 6)
-
 val splitInto2 = chunk.split(2)
 // splitInto2: Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
+
+// With uneven division: 7 elements split into 3 chunks
+val uneven = Chunk(1, 2, 3, 4, 5, 6, 7)
+val splitInto3 = uneven.split(3)
+// splitInto3: Chunk(Chunk(1, 2, 3), Chunk(4, 5), Chunk(6, 7))
 ```
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
