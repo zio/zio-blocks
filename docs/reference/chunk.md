@@ -608,7 +608,9 @@ val splitInto2 = chunk.split(2)
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
 
-Split the chunk at the first element where a predicate fails:
+`span(f)` splits the chunk into a prefix where the predicate holds, and the remainder. It stops at the first element where the predicate becomes false.
+
+`splitWhere(f)` is similar but has inverted logic: it splits at the first element where the predicate becomes true.
 
 ```scala
 trait Chunk[+A] {
@@ -622,13 +624,15 @@ import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5, 6)
 
-val (evens, rest) = numbers.span(_ < 4)
-// evens: Chunk[Int] = Chunk(1, 2, 3)
+// span keeps elements while predicate is true
+val (prefix, rest) = numbers.span(_ < 4)
+// prefix: Chunk[Int] = Chunk(1, 2, 3)
 // rest: Chunk[Int] = Chunk(4, 5, 6)
 
-val (small, large) = Chunk(1, 2, 5, 3, 4).splitWhere(_ < 4)
-// small: Chunk[Int] = Chunk(1, 2)
-// large: Chunk[Int] = Chunk(5, 3, 4)
+// splitWhere splits when predicate becomes true (opposite logic)
+val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
+// upTo: Chunk[Int] = Chunk(1, 2)
+// remaining: Chunk[Int] = Chunk(5, 3, 4)
 ```
 
 ### Querying and Folding
