@@ -852,6 +852,122 @@ val materialized = built.materialize
 // Now faster for repeated access or further operations
 ```
 
+## Advanced Usage
+
+### Bit Operations
+
+#### `Chunk#asBitsByte` — Convert to Byte Bits
+
+Convert a chunk of bytes into a chunk of individual bits:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bytes = Chunk(1.toByte, 2.toByte)
+val bits = bytes.asBitsByte
+```
+
+#### `Chunk#asBitsInt` — Convert to Int Bits
+
+Convert a chunk of ints into a chunk of individual bits:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val ints = Chunk(1, 2, 3)
+val bits = ints.asBitsInt
+```
+
+#### `Chunk#asBitsLong` — Convert to Long Bits
+
+Convert a chunk of longs into a chunk of individual bits:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val longs = Chunk(1L, 2L, 3L)
+val bits = longs.asBitsLong
+```
+
+### Text Operations
+
+#### `Chunk#asString` — Convert to String
+
+Convert a chunk of characters into a string:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chars = Chunk('H', 'i')
+val str = chars.asString
+```
+
+#### `Chunk#asBase64String` — Encode as Base64
+
+Convert a chunk of bytes to a Base64-encoded string:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bytes = Chunk(1.toByte, 2.toByte, 3.toByte)
+val base64 = bytes.asBase64String
+```
+
+### Advanced Transformations
+
+#### `Chunk#collectWhile` — Collect with Early Exit
+
+Apply a partial function while a condition holds, stopping at the first non-match:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val values: Chunk[Any] = Chunk(1, 2, "x", 3, 4)
+val collected = values.collectWhile { case n: Int => n * 10 }
+```
+
+#### `Chunk#partitionMap` — Partition by Partial Function
+
+Partition elements by applying a partial function that returns `Either`:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val values: Chunk[Any] = Chunk(1, "hello", 2, "world")
+val (ints, strings) = values.partitionMap {
+  case n: Int => Left(n)
+  case s: String => Right(s)
+}
+```
+
+#### `Chunk#zipWithIndexFrom` — Zip with Index Starting at Custom Value
+
+Zip elements with indices starting from a custom value:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk("a", "b", "c")
+val indexed = chunk.zipWithIndexFrom(10)
+// indexed: Chunk(("a", 10), ("b", 11), ("c", 12))
+```
+
+### Safe Operations
+
+#### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
+
+Return the chunk if non-empty, otherwise return an alternative:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+val result = chunk.nonEmptyOrElse(Chunk(0))
+
+val empty = Chunk.empty[Int]
+val result2 = empty.nonEmptyOrElse(Chunk(99))
+```
+
 ## Subtypes and Variants
 
 ### NonEmptyChunk
