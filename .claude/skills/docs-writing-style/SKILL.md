@@ -48,12 +48,7 @@ allowed-tools: Read, Glob, Grep
 16. **Always include imports**: Every code block must start with the necessary import statements.
 17. **One concept per code block**: Each code block demonstrates one cohesive idea.
 18. **Prefer `val` over `var`**: Use immutable patterns everywhere.
-19. **Never hardcode expression output in comments**: Do not annotate expression results with inline comments such as `// None`, `// Some(SchemaError)`, or `// "hello"` — these go stale and can be wrong. The fix is **not** to remove the comment and leave the block as `mdoc:compile-only` — that still hides the result. The fix is to restructure the block so mdoc evaluates and renders the output:
-    1. Move all type definitions and setup `val`s into a `mdoc:silent:reset` block (or `mdoc:silent` if scope continuity is needed). Use `mdoc:silent:reset` in reference pages to avoid name conflicts between independent sections.
-    2. Must: Add a short bridging sentence ending in `:`.
-    3. Put the expressions whose results matter in a bare `mdoc` block — mdoc renders them as REPL-style output automatically.
-    
-    See **`docs-mdoc-conventions`** for the complete modifier table and the Setup + Evaluated Output pattern.
+19. **Never hardcode expression output in comments**: Do not annotate results with inline comments like `// None` or `// "hello"` — they go stale. Don't just add `mdoc:compile-only` to hide them. Instead, let mdoc render the output automatically. Default: use a single bare `mdoc` block and let all vals display their rendered output. Only split into `mdoc:silent:reset` + bare `mdoc` when setup produces verbose boilerplate that obscures the final result. See **`docs-mdoc-conventions`** for full modifier reference.
 20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
 
 ## Table Formatting
