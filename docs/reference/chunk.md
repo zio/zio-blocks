@@ -109,6 +109,8 @@ object Chunk {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -126,6 +128,8 @@ object Chunk {
   def empty[A]: Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -145,6 +149,8 @@ object Chunk {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -162,6 +168,8 @@ object Chunk {
   def fromArray[A](array: Array[A]): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -182,6 +190,8 @@ object Chunk {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -201,6 +211,8 @@ object Chunk {
   def fromIterator[A](iterator: Iterator[A]): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -225,6 +237,8 @@ object Chunk {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import java.nio.ByteBuffer
@@ -242,6 +256,8 @@ object Chunk {
   def fill[A](n: Int)(elem: => A): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -261,6 +277,8 @@ object Chunk {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -278,6 +296,8 @@ object Chunk {
   def unfold[S, A](s: S)(f: S => Option[(A, S)]): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -303,6 +323,8 @@ object ChunkBuilder {
   def make[A](capacityHint: Int): ChunkBuilder[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
@@ -335,6 +357,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -356,6 +380,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -375,6 +401,8 @@ trait Chunk[+A] {
   def size: Int
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -397,6 +425,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -417,6 +447,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -433,6 +465,8 @@ trait Chunk[+A] {
   def filter(f: A => Boolean): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -454,6 +488,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -470,6 +506,8 @@ trait Chunk[+A] {
   def sorted[A1 >: A](implicit ord: Ordering[A1]): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -492,6 +530,8 @@ trait Chunk[+A] {
   def ++[A1 >: A](that: Chunk[A1]): Chunk[A1]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -516,6 +556,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -532,6 +574,8 @@ trait Chunk[+A] {
   def +:[A1 >: A](a: A1): Chunk[A1]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -550,6 +594,8 @@ trait Chunk[+A] {
   def zipWith[B, C](that: Chunk[B])(f: (A, B) => C): Chunk[C]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -575,6 +621,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -595,6 +643,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -613,6 +663,8 @@ trait Chunk[+A] {
   def slice(from: Int, until: Int): Chunk[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -634,6 +686,8 @@ trait Chunk[+A] {
   def split(n: Int): Chunk[Chunk[A]]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -660,6 +714,8 @@ trait Chunk[+A] {
   def splitWhere(f: A => Boolean): (Chunk[A], Chunk[A])
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -689,6 +745,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -711,6 +769,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -728,6 +788,8 @@ trait Chunk[+A] {
   def forall(f: A => Boolean): Boolean
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -751,6 +813,8 @@ trait Chunk[+A] {
   def find(f: A => Boolean): Option[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -776,6 +840,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -792,6 +858,8 @@ trait Chunk[+A] {
   def toList: List[A]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -812,6 +880,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -830,6 +900,8 @@ trait Chunk[+A] {
   def toString: String
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -855,6 +927,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -876,6 +950,8 @@ trait Chunk[+A] {
   def materialize[A1 >: A]: Chunk[A1]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -906,6 +982,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -923,6 +1001,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -939,6 +1019,8 @@ trait Chunk[+A] {
   def asBitsLong(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Long): Chunk[Boolean]
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -997,6 +1079,8 @@ trait Chunk[+A] {
 }
 ```
 
+We can see this in action:
+
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
@@ -1029,6 +1113,8 @@ trait Chunk[+A] {
   def nonEmptyOrElse[B](ifEmpty: => B)(fn: NonEmptyChunk[A] => B): B
 }
 ```
+
+We can see this in action:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
