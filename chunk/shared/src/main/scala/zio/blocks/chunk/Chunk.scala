@@ -117,7 +117,7 @@ object ChunkBuilder {
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
-      case that: ChunkBuilder[_] => knownSize == that.knownSize && result() == that.result()
+      case that: ChunkBuilder[_] => len == that.knownSize && resultUnsafe() == that.resultUnsafe()
       case _                     => false
     }
 
@@ -583,7 +583,7 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * Aleksandar Prokopec and Martin Odersky.
  * [[http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf]]
  *
- * NOTE: For performance reasons `Chunk` does not box primitive types. As a
+ * NOTE: For performance reasons, `Chunk` does not box primitive types. As a
  * result, it is not safe to construct chunks from heterogeneous primitive
  * types.
  */
@@ -725,14 +725,23 @@ sealed abstract class Chunk[+A]
     if (isEmpty) Chunk.empty
     else new Chunk.BitChunkByte(map(ev), 0, length << 3)
 
+  /**
+   * Converts a chunk of Boolean values into a packed Byte representation.
+   */
   def toPackedByte(implicit ev: A <:< Boolean): Chunk[Byte] =
     if (isEmpty) Chunk.empty
     else new Chunk.ChunkPackedBoolean[Byte](self.asInstanceOf[Chunk[Boolean]], 8, Chunk.BitChunk.Endianness.BigEndian)
 
+  /**
+   * Converts a chunk of Boolean values into a packed Int representation.
+   */
   def toPackedInt(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Boolean): Chunk[Int] =
     if (isEmpty) Chunk.empty
     else new Chunk.ChunkPackedBoolean[Int](self.asInstanceOf[Chunk[Boolean]], 32, endianness)
 
+  /**
+   * Converts a chunk of Boolean values into a packed Long representation.
+   */
   def toPackedLong(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Boolean): Chunk[Long] =
     if (isEmpty) Chunk.empty
     else new Chunk.ChunkPackedBoolean[Long](self.asInstanceOf[Chunk[Boolean]], 64, endianness)
@@ -784,7 +793,7 @@ sealed abstract class Chunk[+A]
       builder.addOne(pf.apply(a))
       idx += 1
     }
-    builder.result()
+    builder.resultUnsafe()
   }
 
   /**
@@ -891,6 +900,9 @@ sealed abstract class Chunk[+A]
     Chunk.empty
   }
 
+  /**
+   * Compares this Chunk with the given object for equality.
+   */
   override def equals(that: Any): Boolean = (self eq that.asInstanceOf[AnyRef]) || (that match {
     case that: Chunk[_] =>
       val len = this.length
@@ -1066,6 +1078,11 @@ sealed abstract class Chunk[+A]
     true
   }
 
+  /**
+   * Computes a hash code value for this object. This method overrides the
+   * default implementation to provide a hash code that is consistent with
+   * `equals` and adheres to the contract for hash-based collections.
+   */
   override final def hashCode: Int = MurmurHash3.orderedHash(this, MurmurHash3.seqSeed)
 
   /**
@@ -1170,7 +1187,7 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Runs `fn` if a `chunk` is not empty or returns default value
+   * Runs `fn` if a `chunk` is not empty or returns the default value.
    */
   def nonEmptyOrElse[B](ifEmpty: => B)(fn: NonEmptyChunk[A] => B): B =
     if (isEmpty) ifEmpty
@@ -1200,6 +1217,11 @@ sealed abstract class Chunk[+A]
    */
   def short(index: Int)(implicit ev: A <:< Short): Short = ev(apply(index))
 
+  /**
+   * Produces a new chunk that is a slice of this chunk, beginning at the
+   * specified `from` index (inclusive) and ending at the specified `until`
+   * index (exclusive).
+   */
   override def slice(from: Int, until: Int): Chunk[A] = {
     var chunk = self
     if (depth >= Chunk.MaxDepthBeforeMaterialize) chunk = materialize
@@ -1209,6 +1231,10 @@ sealed abstract class Chunk[+A]
     new Chunk.Slice(chunk, start, end - start)
   }
 
+  /**
+   * Returns a new `Chunk` containing the elements of this `Chunk` sorted
+   * according to the specified ordering.
+   */
   override def sorted[A1 >: A](implicit ord: Ordering[A1]): Chunk[A] = {
     implicit val ct: ClassTag[A] = Chunk.classTagOf(self)
     val array                    = toArray
@@ -1353,6 +1379,11 @@ sealed abstract class Chunk[+A]
     Chunk.fromArray(array).asInstanceOf[Chunk[A]]
   }
 
+  /**
+   * Splits this Chunk into two subchunks: the first subchunk contains elements
+   * that satisfy the given predicate `f`, while the second contains the
+   * remainder.
+   */
   override def span(f: A => Boolean): (Chunk[A], Chunk[A]) = splitWhere(!f(_))
 
   /**
@@ -1476,6 +1507,9 @@ sealed abstract class Chunk[+A]
     builder.toString
   }
 
+  /**
+   * Converts the current collection into a List.
+   */
   override final def toList: List[A] = {
     var list: List[A] = Nil
     var idx           = length
@@ -1486,6 +1520,9 @@ sealed abstract class Chunk[+A]
     list
   }
 
+  /**
+   * Converts this Chunk into a Scala Vector containing all its elements.
+   */
   override final def toVector: Vector[A] = this match {
     case vc: Chunk.VectorChunk[_] => vc.vector
     case _                        =>
@@ -1502,6 +1539,11 @@ sealed abstract class Chunk[+A]
       }
   }
 
+  /**
+   * Returns a string representation of the Chunk. The string is constructed by
+   * iterating through all elements, separating them with a comma, and enclosing
+   * them in parentheses.
+   */
   override final def toString: String = {
     val builder = new java.lang.StringBuilder("Chunk(")
     val len     = length
@@ -1514,6 +1556,10 @@ sealed abstract class Chunk[+A]
     builder.append(')').toString
   }
 
+  /**
+   * Creates a new `Chunk` with the element at the specified index replaced by
+   * the given element.
+   */
   override final def updated[A1 >: A](index: Int, elem: A1): Chunk[A1] = update(index, elem)
 
   /**
@@ -1602,6 +1648,9 @@ sealed abstract class Chunk[+A]
     builder.resultUnsafe()
   }
 
+  /**
+   * Copies elements from the source to the destination array.
+   */
   protected[chunk] def toArray[A1 >: A](srcPos: Int, dest: Array[A1], destPos: Int, length: Int): Unit
 
   /**
@@ -1672,7 +1721,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    */
   override def apply[A](as: A*): Chunk[A] = fromIterable(as)
 
-  /*
+  /**
    * Performs bitwise operations on boolean chunks returning a Chunk.BitChunk
    */
   private def bitwise(
@@ -1725,10 +1774,9 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   /**
    * Returns a chunk backed by an array.
    *
-   * '''WARNING''': The array must not be mutated after creating the chunk. If
-   * you're unsure whether the array will be mutated, prefer
-   * `Chunk.fromIterable` or `Chunk.from` which create a copy of the provided
-   * array.
+   * WARNING: The array must not be mutated after creating the chunk. If you're
+   * unsure whether the array will be mutated, prefer `Chunk.fromIterable` or
+   * `Chunk.from` which create a copy of the provided array.
    */
   def fromArray[A](array: Array[A]): Chunk[A] = {
     val len = array.length
@@ -1857,9 +1905,13 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    */
   def fromIterator[A](iterator: Iterator[A]): Chunk[A] =
     if (iterator.hasNext) {
-      val builder = ChunkBuilder.make[A]()
-      builder.addAll(iterator)
-      builder.resultUnsafe()
+      val len = Math.max(iterator.knownSize, 0)
+      if (len == 1) new Singleton(iterator.next())
+      else {
+        val builder = ChunkBuilder.make[A](len)
+        builder.addAll(iterator)
+        builder.resultUnsafe()
+      }
     } else Empty
 
   /**
@@ -1892,6 +1944,10 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       builder.resultUnsafe()
     } else Empty
 
+  /**
+   * Creates a new `Chunk` by producing `n` copies of a value generated from the
+   * given expression.
+   */
   override def fill[A](n: Int)(elem: => A): Chunk[A] =
     if (n <= 0) Chunk.empty
     else {
@@ -1904,6 +1960,10 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       builder.resultUnsafe()
     }
 
+  /**
+   * Iterates a function over a starting value a specified number of times,
+   * producing a chunk of results.
+   */
   override def iterate[A](start: A, len: Int)(f: A => A): Chunk[A] =
     if (len <= 0) Chunk.empty
     else {
@@ -1918,6 +1978,10 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       builder.resultUnsafe()
     }
 
+  /**
+   * Creates a new instance of `ChunkBuilder`, which is a mutable builder for
+   * constructing chunks of elements.
+   */
   def newBuilder[A]: ChunkBuilder[A] = ChunkBuilder.make()
 
   /**
@@ -1938,11 +2002,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     go(s, ChunkBuilder.make[A]())
   }
-
-  /**
-   * Constructs a `Chunk` by repeatedly applying the effectual function `f` as
-   * long as it returns `Some`.
-   */
 
   /**
    * The unit chunk
@@ -3782,10 +3841,24 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    */
   def asBits(implicit ev: A <:< Byte): NonEmptyChunk[Boolean] = new NonEmptyChunk(chunk.asBitsByte)
 
+  /**
+   * Applies a partial function to all elements of the chunk for which the
+   * function is defined, producing a new chunk containing the results.
+   */
   def collect[B](pf: PartialFunction[A, B]): Chunk[B] = chunk.collect(pf)
 
+  /**
+   * Applies a partial function to the elements of this collection, returning
+   * the first result wrapped in an `Option` if the partial function is defined
+   * for that element.
+   */
   def collectFirst[B](pf: PartialFunction[A, B]): Option[B] = chunk.collectFirst(pf)
 
+  /**
+   * Returns a new `NonEmptyChunk` containing distinct elements from this
+   * `NonEmptyChunk`. Duplicate elements are removed, preserving the order of
+   * their first occurrence.
+   */
   def distinct: NonEmptyChunk[A] = new NonEmptyChunk(chunk.distinct)
 
   /**
@@ -3803,10 +3876,20 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    */
   def exists(p: A => Boolean): Boolean = chunk.exists(p)
 
+  /**
+   * Filters the elements of this chunk based on the predicate provided.
+   */
   def filter(p: A => Boolean): Chunk[A] = chunk.filter(p)
 
+  /**
+   * Returns a new `Chunk` that contains all elements of this `NonEmptyChunk`
+   * except those for which the given predicate `p` returns `true`.
+   */
   def filterNot(p: A => Boolean): Chunk[A] = chunk.filterNot(p)
 
+  /**
+   * Searches for the first element that satisfies the given predicate `p`.
+   */
   def find(p: A => Boolean): Option[A] = chunk.find(p)
 
   /**
@@ -3821,10 +3904,21 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    */
   def flatten[B](implicit ev: A <:< NonEmptyChunk[B]): NonEmptyChunk[B] = flatMap(ev)
 
+  /**
+   * Applies a binary operator to a start value and all elements of this
+   * collection, going left to right, to reduce the elements to a single value.
+   */
   def foldLeft[B](z: B)(op: (B, A) => B): B = chunk.foldLeft(z)(op)
 
+  /**
+   * Tests whether a predicate holds for all elements in the chunk.
+   */
   def forall(p: A => Boolean): Boolean = chunk.forall(p)
 
+  /**
+   * Splits this `NonEmptyChunk` into groups of up to the specified size,
+   * returning an iterator of `NonEmptyChunk` instances.
+   */
   def grouped(size: Int): Iterator[NonEmptyChunk[A]] = chunk.grouped(size).map(new NonEmptyChunk(_))
 
   /**
@@ -3849,12 +3943,25 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    */
   override def hashCode: Int = chunk.hashCode
 
+  /**
+   * Retrieves the first element of the collection `chunk`.
+   */
   def head: A = chunk.head
 
+  /**
+   * Returns a new chunk containing all elements except the last one. If the
+   * chunk is empty, this method throws an exception.
+   */
   def init: Chunk[A] = chunk.init
 
+  /**
+   * Provides an iterator to traverse through the elements of the chunk.
+   */
   def iterator: Iterator[A] = chunk.iterator
 
+  /**
+   * Retrieves the last element of a non-empty chunk.
+   */
   def last: A = chunk.last
 
   /**
@@ -3883,6 +3990,10 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    */
   def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(a +: chunk)
 
+  /**
+   * Reduces the elements of this collection using the specified binary
+   * operator.
+   */
   def reduce[B >: A](op: (B, B) => B): B = chunk.reduce(op)
 
   /**
@@ -3926,12 +4037,28 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 
   def reverse: NonEmptyChunk[A] = new NonEmptyChunk(chunk.reverse)
 
+  /**
+   * Returns the size of the chunk.
+   */
   def size: Int = chunk.size
 
+  /**
+   * Returns a new `NonEmptyChunk` containing all elements of this
+   * `NonEmptyChunk` sorted according to the values produced by the given
+   * function `f`.
+   */
   def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyChunk[A] = new NonEmptyChunk(chunk.sortBy(f))
 
+  /**
+   * Returns a new `NonEmptyChunk` containing all elements of this
+   * `NonEmptyChunk` sorted according to the provided implicit `Ordering`.
+   */
   def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyChunk[B] = new NonEmptyChunk(chunk.sorted[B])
 
+  /**
+   * Returns a new `Chunk` instance representing the tail of the current chunk.
+   * The tail contains all elements except the first one.
+   */
   def tail: Chunk[A] = chunk.tail
 
   /**

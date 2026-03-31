@@ -24,7 +24,7 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 trait SeqConstructor[C[_]] {
   type Builder[_]
 
-  def newBuilder[A](sizeHint: Int = 8)(implicit ct: ClassTag[A]): Builder[A]
+  def newBuilder[A](sizeHint: Int = 4)(implicit ct: ClassTag[A]): Builder[A]
 
   def add[A](builder: Builder[A], a: A): Unit
 
@@ -88,16 +88,15 @@ object SeqConstructor {
       new ArrayBuilder(ct.newArray(Math.max(sizeHint, 1)), 0, ct)
 
     def add[A](builder: Builder[A], a: A): Unit = {
-      val buf = builder.buffer
+      var buf = builder.buffer
       val idx = builder.size
       if (buf.length == idx) {
         val newBuf = builder.ct.newArray(idx << 1)
         System.arraycopy(buf, 0, newBuf, 0, idx)
+        buf = newBuf
         builder.buffer = newBuf
-        newBuf(idx) = a
-      } else {
-        buf(idx) = a
       }
+      buf(idx) = a
       builder.size = idx + 1
     }
 

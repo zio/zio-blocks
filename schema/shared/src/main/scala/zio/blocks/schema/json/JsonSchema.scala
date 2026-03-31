@@ -1019,16 +1019,16 @@ object JsonSchema {
       checkWithEvaluation(toJson, json, options, Nil).toSchemaError
 
     private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object = {
-      val keys    = m.keysChunk
-      val values  = m.valuesChunk
-      val len     = keys.length
-      val builder = ChunkBuilder.make[(String, Json)](len)
-      var idx     = 0
+      val keys   = m.keysChunk
+      val values = m.valuesChunk
+      val len    = keys.length
+      val result = new Array[(String, Json)](len)
+      var idx    = 0
       while (idx < len) {
-        builder.addOne((f(keys(idx)), g(values(idx))))
+        result(idx) = (f(keys(idx)), g(values(idx)))
         idx += 1
       }
-      new Json.Object(builder.result())
+      new Json.Object(Chunk.fromArray(result))
     }
 
     /**

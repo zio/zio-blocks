@@ -824,13 +824,12 @@ class JsonCodecDeriver private[json] (
               }
 
             override lazy val toJsonSchema: JsonSchema = {
-              val reqs             = Set.newBuilder[String]
-              val properties       = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+              val len              = fieldInfos.length
+              val properties       = new ChunkMap.ChunkMapBuilder[String, JsonSchema](len)
               val dependentSchemas = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
               val allOf            = ChunkBuilder.make[JsonSchema]()
-              val len              = fieldInfos.length
-              properties.sizeHint(len)
-              var idx = 0
+              val reqs             = Set.newBuilder[String]
+              var idx              = 0
               while (idx < len) {
                 val fieldInfo = fieldInfos(idx)
                 val field     = fields(idx)
@@ -2632,7 +2631,7 @@ class JsonCodecDeriver private[json] (
                   if (in.isNextToken(']')) constructor.empty(elemClassTag)
                   else {
                     in.rollbackToken()
-                    val builder = constructor.newBuilder[Elem](8)(elemClassTag)
+                    val builder = constructor.newBuilder[Elem]()(elemClassTag)
                     var idx     = -1
                     try {
                       while ({
