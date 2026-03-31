@@ -359,14 +359,18 @@ trait Chunk[+A] {
 
 Access elements by index in a chunk:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(10, 20, 30, 40, 50)
+```
 
-chunk(0)  // 10
-chunk(2)  // 30
-chunk(4)  // 50
+Accessing by index returns individual elements:
+
+```scala mdoc
+chunk(0)
+chunk(2)
+chunk(4)
 ```
 
 #### `Chunk#head` and `Chunk#last` — First and Last Elements
@@ -382,13 +386,17 @@ trait Chunk[+A] {
 
 Accessing the first or last element is efficient:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk("a", "b", "c", "d")
+```
 
-chunk.head  // "a"
-chunk.last  // "d"
+Getting the first and last elements is immediate:
+
+```scala mdoc
+chunk.head
+chunk.last
 ```
 
 #### `Chunk#length` and `Chunk#size` — Chunk Size
@@ -404,13 +412,17 @@ trait Chunk[+A] {
 
 Getting the chunk size is an O(1) operation:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5)
+```
 
-chunk.length  // 5
-chunk.size    // 5
+Both `length` and `size` return the element count:
+
+```scala mdoc
+chunk.length
+chunk.size
 ```
 
 ### Transformations
@@ -623,13 +635,17 @@ trait Chunk[+A] {
 
 Taking elements from the beginning or end creates a new chunk:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5)
+```
 
-chunk.take(3)      // Chunk(1, 2, 3)
-chunk.takeRight(2) // Chunk(4, 5)
+Taking from the beginning or end produces new chunks:
+
+```scala mdoc
+chunk.take(3)
+chunk.takeRight(2)
 ```
 
 #### `Chunk#drop` and `Chunk#dropRight` — Remove from Ends
@@ -645,13 +661,17 @@ trait Chunk[+A] {
 
 Dropping elements removes them from the beginning or end:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5)
+```
 
-chunk.drop(2)       // Chunk(3, 4, 5)
-chunk.dropRight(2)  // Chunk(1, 2, 3)
+Dropping from beginning or end removes those elements:
+
+```scala mdoc
+chunk.drop(2)
+chunk.dropRight(2)
 ```
 
 #### `Chunk#slice` — Extract a Range
@@ -666,13 +686,17 @@ trait Chunk[+A] {
 
 Slicing extracts a contiguous range of elements:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(10, 20, 30, 40, 50, 60)
+```
 
-chunk.slice(1, 4)  // Chunk(20, 30, 40)
-chunk.slice(2, 5)  // Chunk(30, 40, 50)
+Slicing from a start index to end index extracts the range:
+
+```scala mdoc
+chunk.slice(1, 4)
+chunk.slice(2, 5)
 ```
 
 #### `Chunk#split` — Split into Equally-Sized Chunks
@@ -791,17 +815,20 @@ trait Chunk[+A] {
 
 Testing predicates answers questions about elements:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(2, 4, 6, 8)
-
-numbers.exists(_ > 5)  // true (8 > 5)
-numbers.forall(_ % 2 == 0)  // true (all even)
-
 val mixed = Chunk(1, 2, 3)
-mixed.forall(_ > 0)  // true
-mixed.forall(_ % 2 == 0)  // false (1 and 3 are odd)
+```
+
+Testing existence and universal predicates returns Boolean:
+
+```scala mdoc
+numbers.exists(_ > 5)
+numbers.forall(_ % 2 == 0)
+mixed.forall(_ > 0)
+mixed.forall(_ % 2 == 0)
 ```
 
 #### `Chunk#find` — First Matching Element
@@ -816,16 +843,19 @@ trait Chunk[+A] {
 
 Finding the first matching element returns an Option:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5)
-
-numbers.find(_ > 3)  // Some(4)
-numbers.find(_ > 10)  // None
-
 val words = Chunk("apple", "banana", "cherry")
-words.find(_.startsWith("b"))  // Some(banana)
+```
+
+Finding returns Some for matches and None for no match:
+
+```scala mdoc
+numbers.find(_ > 3)
+numbers.find(_ > 10)
+words.find(_.startsWith("b"))
 ```
 
 ### Conversion
@@ -903,11 +933,16 @@ trait Chunk[+A] {
 
 String representation shows all elements in a compact format:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
-chunk.toString  // "Chunk(1,2,3)"
+```
+
+String conversion shows the chunk contents:
+
+```scala mdoc
+chunk.toString
 ```
 
 ### Specialized Accessors for Primitive Types
@@ -929,14 +964,18 @@ trait Chunk[+A] {
 
 Accessing primitives without boxing demonstrates zero-overhead specialization:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val bytes: Chunk[Byte] = Chunk(1.toByte, 2.toByte, 3.toByte)
-bytes.byte(0)  // 1 (no boxing)
-
 val ints = Chunk(10, 20, 30)
-ints.int(1)  // 20
+```
+
+Accessing primitives by specialized methods avoids boxing:
+
+```scala mdoc
+bytes.byte(0)
+ints.int(1)
 ```
 
 ### Materialization and Optimization
@@ -1035,13 +1074,17 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 Convert a chunk of bytes or characters into a string. Supports `Chunk[Byte]`, `Chunk[Char]`, and `Chunk[String]`:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chars = Chunk('H', 'i')
-val str = chars.asString
+val bytes = Chunk(72.toByte, 105.toByte)
+```
 
-val bytes = Chunk(72.toByte, 105.toByte)  // 'H', 'i' in ASCII
+Converting byte and character chunks to strings:
+
+```scala mdoc
+val str = chars.asString
 val strFromBytes = bytes.asString
 ```
 
@@ -1094,12 +1137,16 @@ val (evens, odds) = numbers.partitionMap { n =>
 
 Zip elements with indices starting from a custom value:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk("a", "b", "c")
-val indexed = chunk.zipWithIndexFrom(10)
-// indexed: Chunk(("a", 10), ("b", 11), ("c", 12))
+```
+
+Zipping with a custom starting index pairs each element:
+
+```scala mdoc
+chunk.zipWithIndexFrom(10)
 ```
 
 ### Safe Operations
@@ -1140,13 +1187,16 @@ Chunk has specialized variants for specific use cases:
 
 Create a `NonEmptyChunk` using varargs:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
 
 val nonEmpty = NonEmptyChunk(1, 2, 3)
+```
 
-// Access head safely without the risk of IndexOutOfBoundsException
-val first = nonEmpty.head  // 1
+Accessing the head of a non-empty chunk is always safe:
+
+```scala mdoc
+nonEmpty.head
 ```
 
 Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
