@@ -431,9 +431,15 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
         that.either match {
           case Right(v2) =>
             new Right({
-              val builder = ChunkBuilder.make[Json](v1.length * v2.length)
-              v1.foreach(j1 => v2.foreach(j2 => builder.addOne(j1.merge(j2, strategy))))
-              builder.result()
+              val result = new Array[Json](v1.length * v2.length)
+              var idx    = -1
+              v1.foreach(j1 =>
+                v2.foreach { j2 =>
+                  idx += 1
+                  result(idx) = j1.merge(j2, strategy)
+                }
+              )
+              Chunk.fromArray(result)
             })
           case l => l
         }

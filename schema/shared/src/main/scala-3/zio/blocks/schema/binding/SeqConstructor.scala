@@ -24,18 +24,25 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 trait SeqConstructor[C[_]] {
   type Builder[_]
 
-  def newBuilder[A](sizeHint: Int = 8)(implicit ct: ClassTag[A]): Builder[A]
+  def newBuilder[A](sizeHint: Int = 4)(implicit ct: ClassTag[A]): Builder[A]
 
   def add[A](builder: Builder[A], a: A): Unit
 
   def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
-  def addByte(builder: Builder[Byte], a: Byte): Unit          = add(builder, a)
-  def addShort(builder: Builder[Short], a: Short): Unit       = add(builder, a)
-  def addInt(builder: Builder[Int], a: Int): Unit             = add(builder, a)
-  def addLong(builder: Builder[Long], a: Long): Unit          = add(builder, a)
-  def addFloat(builder: Builder[Float], a: Float): Unit       = add(builder, a)
-  def addDouble(builder: Builder[Double], a: Double): Unit    = add(builder, a)
-  def addChar(builder: Builder[Char], a: Char): Unit          = add(builder, a)
+
+  def addByte(builder: Builder[Byte], a: Byte): Unit = add(builder, a)
+
+  def addShort(builder: Builder[Short], a: Short): Unit = add(builder, a)
+
+  def addInt(builder: Builder[Int], a: Int): Unit = add(builder, a)
+
+  def addLong(builder: Builder[Long], a: Long): Unit = add(builder, a)
+
+  def addFloat(builder: Builder[Float], a: Float): Unit = add(builder, a)
+
+  def addDouble(builder: Builder[Double], a: Double): Unit = add(builder, a)
+
+  def addChar(builder: Builder[Char], a: Char): Unit = add(builder, a)
 
   def result[A](builder: Builder[A]): C[A]
 

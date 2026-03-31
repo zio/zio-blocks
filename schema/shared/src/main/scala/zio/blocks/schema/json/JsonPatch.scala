@@ -365,9 +365,7 @@ object JsonPatch {
               case _ => json
             }
         }
-      } else {
-        json
-      }
+      } else json
     }
     if (globalError ne null) new Left(globalError)
     else if (!found && mode == PatchMode.Strict) {
@@ -401,8 +399,8 @@ object JsonPatch {
     case ae: Op.ArrayEdit =>
       value match {
         case arr: Json.Array =>
-          val len    = ae.ops.length
           var result = arr.value
+          val len    = ae.ops.length
           var idx    = 0
           while (idx < len) {
             applyArrayOp(result, ae.ops(idx), mode, trace) match {
@@ -417,8 +415,7 @@ object JsonPatch {
     case oe: Op.ObjectEdit =>
       value match {
         case obj: Json.Object =>
-          val fields = obj.value
-          var result = fields
+          var result = obj.value
           val len    = oe.ops.length
           var idx    = 0
           while (idx < len) {

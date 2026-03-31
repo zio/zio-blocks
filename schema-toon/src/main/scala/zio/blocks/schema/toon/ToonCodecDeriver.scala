@@ -868,7 +868,7 @@ class ToonCodecDeriver private (
             val length = header.length
             if (useInlineFormat) decodeInlineArray(in, in.readInlineArray(), length)
             else {
-              val builder     = constructor.newBuilder[Elem](8)(elemClassTag)
+              val builder     = constructor.newBuilder[Elem]()(elemClassTag)
               var actualCount = 0
               if (header.fields != null && header.fields.nonEmpty) {
                 var idx = 0

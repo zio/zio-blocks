@@ -354,7 +354,7 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
 
           def decodeValue(in: MessagePackReader): Col[Elem] = {
             val size    = in.readArrayHeader()
-            val builder = constructor.newBuilder[Elem](Math.min(size, 16))
+            val builder = constructor.newBuilder[Elem](size)
             var idx     = 0
             while (idx < size) {
               try constructor.add(builder, elementCodec.decodeValue(in))
@@ -504,13 +504,13 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
         } else if ((b & 0xf0) == 0x90 || b == 0xdc || b == 0xdd) {
           val len = in.readArrayHeader()
           if (len < 0) error("Array length exceeds maximum (2GB)")
-          val builder = zio.blocks.chunk.ChunkBuilder.make[DynamicValue](len)
-          var idx     = 0
+          val result = new Array[DynamicValue](len)
+          var idx    = 0
           while (idx < len) {
-            builder.addOne(decodeDynamic(in))
+            result(idx) = decodeDynamic(in)
             idx += 1
           }
-          new DynamicValue.Sequence(builder.result())
+          new DynamicValue.Sequence(Chunk.fromArray(result))
         } else if ((b & 0xf0) == 0x80 || b == 0xde || b == 0xdf) {
           val len = in.readMapHeader()
           if (len < 0) error("Map length exceeds maximum (2GB)")

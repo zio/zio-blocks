@@ -850,7 +850,7 @@ object DynamicValue {
     var idx                          = 0
     val len                          = nodes.length
     while (idx < len && current.nonEmpty) {
-      val builder = Chunk.newBuilder[DynamicValue]
+      val builder = ChunkBuilder.make[DynamicValue]()
       nodes(idx) match {
         case DynamicOptic.Node.Field(name) =>
           current.foreach {
