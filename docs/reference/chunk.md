@@ -321,6 +321,8 @@ val result = builder2.result()
 
 ## Core Operations
 
+Chunk provides a rich set of operations for accessing, transforming, and combining elements. Operations are organized by category:
+
 ### Element Access
 
 #### `Chunk#apply` — Random Access
@@ -890,6 +892,8 @@ val materialized = built.materialize
 
 ## Advanced Usage
 
+Advanced use cases include bit-level operations, working with specialized chunk types, and comparing Chunk with other data structures:
+
 ### Bit Operations
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
@@ -1042,6 +1046,8 @@ val result2 = empty match {
 
 ## Subtypes and Variants
 
+Chunk has specialized variants for specific use cases:
+
 ### NonEmptyChunk
 
 `NonEmptyChunk[A]` is a type-safe wrapper around `Chunk[A]` that guarantees the chunk is non-empty. It provides the same operations as `Chunk` but with methods like `head` returning `A` instead of potentially throwing an exception.
@@ -1083,6 +1089,8 @@ val result = nonEmpty1 ++ chunk2
 ```
 
 ## Comparison with Other Sequence Types
+
+Understanding how Chunk compares to other sequence types helps you choose the right tool for your use case:
 
 ### Chunk vs Array
 
