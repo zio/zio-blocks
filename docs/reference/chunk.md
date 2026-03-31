@@ -927,7 +927,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Accessing primitives without boxing demonstrates zero-overhead specialization:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -951,7 +951,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Materializing a tree-built chunk converts it to an efficient array-backed form:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -982,7 +982,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting bytes to bits reveals the binary representation:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1001,7 +1001,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting integers to bits with endianness control provides bit-level access:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1020,7 +1020,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting longs to bits supports both big-endian and little-endian representations:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1079,7 +1079,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Partitioning elements by an Either result separates success and failure cases:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1114,7 +1114,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Safely handling empty and non-empty cases provides type-safe alternatives:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
