@@ -781,8 +781,8 @@ import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3)
 
-chunk.toSeq         // Chunk(1, 2, 3)
-chunk.toIndexedSeq  // Chunk(1, 2, 3)
+chunk.toSeq
+chunk.toIndexedSeq
 ```
 
 #### `Chunk#toString` — String Representation
