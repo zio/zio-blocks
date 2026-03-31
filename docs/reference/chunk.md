@@ -161,7 +161,7 @@ val singleInt = Chunk.single(42)
 
 ### From Array with `Chunk.fromArray`
 
-Create a chunk from an array (**Warning**: The array must not be mutated after creating the chunk):
+Create a chunk backed by an array without copying. The chunk holds a direct reference to the provided array:
 
 ```scala
 object Chunk {
@@ -169,7 +169,7 @@ object Chunk {
 }
 ```
 
-Converting from an array demonstrates the safety of immutability:
+This is a zero-copy operation—the chunk wraps the array in place. However, this creates a critical constraint: **the array must not be mutated after creating the chunk**. If you mutate the source array, those mutations become visible through the chunk, breaking the immutability guarantee:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -177,8 +177,27 @@ import zio.blocks.chunk.Chunk
 val arr = Array(10, 20, 30)
 val chunk = Chunk.fromArray(arr)
 
-// Do NOT mutate the array after creating the chunk
+// Chunk currently returns: 10, 20, 30
+chunk
 ```
+
+If you mutate the array after creating the chunk, the chunk reflects those changes:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val arr = Array(10, 20, 30)
+val chunk = Chunk.fromArray(arr)
+arr(0) = 99  // mutating the source array
+```
+
+The mutation is visible in the chunk:
+
+```scala mdoc
+chunk
+```
+
+To avoid this risk, prefer alternatives that create independent copies: `Chunk.fromIterable` copies data from most iterables (List, Set, etc.), and `Chunk.from` also creates a copy when needed. Use these when you cannot guarantee the source array will not be mutated.
 
 ### From Iterable with `Chunk.fromIterable`
 
