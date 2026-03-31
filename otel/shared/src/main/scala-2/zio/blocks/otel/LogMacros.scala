@@ -182,6 +182,7 @@ private[otel] object LogMacros {
     }.toList
 
     val emitTree: Tree = if (hasFallbacks) {
+      // Fallback path: build LogRecord for LogEnrichment instances
       val fallbackIndices  = classified.collect { case FallbackKind(idx) => idx }
       var recordTree: Tree = q"record"
       for (idx <- fallbackIndices) {
@@ -192,6 +193,21 @@ private[otel] object LogMacros {
         recordTree = q"$implicitInstance.enrich($recordTree, $expr)"
       }
       q"""
+        val record = _root_.zio.blocks.otel.LogRecord(
+          timestampNanos = now,
+          observedTimestampNanos = now,
+          severity = severityVar,
+          severityText = severityTextVar,
+          body = bodyVar,
+          attributes = builder.buildAndReset(),
+          traceIdHi = 0L,
+          traceIdLo = 0L,
+          spanId = 0L,
+          traceFlags = 0,
+          resource = _root_.zio.blocks.otel.Resource.empty,
+          instrumentationScope = $self.logInstrumentationScope,
+          throwable = throwableVar
+        )
         val finalRecord = $recordTree
         try state.logger.emit(finalRecord)
         catch {
@@ -200,12 +216,22 @@ private[otel] object LogMacros {
         }
       """
     } else {
+      // Fast path: pass raw values to emitRaw
       q"""
-        try state.logger.emit(record)
-        catch {
-          case e: _root_.java.lang.Throwable =>
-            _root_.java.lang.System.err.println("[zio-blocks-otel] logging error: " + e.getMessage)
-        }
+        state.logger.emitRaw(
+          now,
+          severityVar,
+          severityTextVar,
+          bodyVar,
+          builder,
+          0L,
+          0L,
+          0L,
+          0.toByte,
+          _root_.zio.blocks.otel.Resource.empty,
+          $self.logInstrumentationScope,
+          throwableVar
+        )
       """
     }
 
@@ -232,22 +258,6 @@ private[otel] object LogMacros {
             var throwableVar: _root_.scala.Option[_root_.java.lang.Throwable] = _root_.scala.None
 
             ..$enrichStmts
-
-            val record = _root_.zio.blocks.otel.LogRecord(
-              timestampNanos = now,
-              observedTimestampNanos = now,
-              severity = severityVar,
-              severityText = severityTextVar,
-              body = bodyVar,
-              attributes = builder.buildAndReset(),
-              traceIdHi = 0L,
-              traceIdLo = 0L,
-              spanId = 0L,
-              traceFlags = 0,
-              resource = _root_.zio.blocks.otel.Resource.empty,
-              instrumentationScope = $self.logInstrumentationScope,
-              throwable = throwableVar
-            )
 
             $emitTree
           }

@@ -23,6 +23,9 @@ final class Logger(
   contextStorage: ContextStorage[Option[SpanContext]]
 ) {
 
+  private[otel] val baseProcessors: Seq[LogRecordProcessor] =
+    processors.filterNot(_.isInstanceOf[FormattedLogRecordProcessor])
+
   private val processorMinLevel: Int =
     if (processors.isEmpty) Int.MaxValue
     else {
@@ -34,6 +37,47 @@ final class Logger(
       }
       min
     }
+
+  // Emitter strategy — chosen once at construction.
+  // When the only processor is ConsoleLogRecordProcessor, use the fast
+  // FormattedLogEmitter that formats directly from builder arrays (no LogRecord).
+  private[otel] val emitter: LogEmitter =
+    if (processors.length == 1 && processors.head.isInstanceOf[ConsoleLogRecordProcessor])
+      new FormattedLogEmitter(TextLogFormatter, StdoutWriter)
+    else
+      new StandardLogEmitter(processors, processorMinLevel)
+
+  /**
+   * Raw emit — called by macro-generated code. Passes raw values to the
+   * emitter.
+   */
+  private[otel] def emitRaw(
+    timestampNanos: Long,
+    severity: Severity,
+    severityText: String,
+    body: String,
+    builder: Attributes.AttributesBuilder,
+    traceIdHi: Long,
+    traceIdLo: Long,
+    spanId: Long,
+    traceFlags: Byte,
+    resource: Resource,
+    instrumentationScope: InstrumentationScope,
+    throwable: Option[Throwable]
+  ): Unit = emitter.emit(
+    timestampNanos,
+    severity,
+    severityText,
+    body,
+    builder,
+    traceIdHi,
+    traceIdLo,
+    spanId,
+    traceFlags,
+    resource,
+    instrumentationScope,
+    throwable
+  )
 
   def emit(logRecord: LogRecord): Unit =
     if (logRecord.severity.number >= processorMinLevel) {

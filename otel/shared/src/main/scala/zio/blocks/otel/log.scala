@@ -24,6 +24,42 @@ object log extends LogVersionSpecific {
   def annotated[A](annotations: (String, String)*)(f: => A): A =
     LogAnnotations.scoped(annotations.toMap)(f)
 
+  @volatile private var _writerProcessors: List[FormattedLogRecordProcessor] = Nil
+
+  /** Add a formatted output. Additive — each call adds another output. */
+  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit = synchronized {
+    _writerProcessors = _writerProcessors :+ new FormattedLogRecordProcessor(formatter, logWriter)
+    rebuildState()
+  }
+
+  /**
+   * Remove all outputs added via writer(). Reverts to processor-based emit
+   * only.
+   */
+  def clearWriters(): Unit = synchronized {
+    _writerProcessors.foreach(p =>
+      try p.shutdown()
+      catch { case _: Throwable => () }
+    )
+    _writerProcessors = Nil
+    rebuildState()
+  }
+
+  private def rebuildState(): Unit = {
+    val currentState = GlobalLogState.get()
+    if (currentState != null && currentState.logger != null) {
+      // Create a new logger with updated processors
+      val cs     = ContextStorage.create[Option[SpanContext]](None)
+      val logger = new Logger(
+        logInstrumentationScope,
+        Resource.empty,
+        currentState.logger.baseProcessors ++ _writerProcessors,
+        cs
+      )
+      GlobalLogState.set(new LogState(logger, currentState.minSeverity, currentState.levelOverrides))
+    }
+  }
+
   private[otel] def emit(severity: Severity, message: String, location: SourceLocation): Unit =
     if (severity.number >= GlobalLogState.globalMinLevel) {
       val state = GlobalLogState.get()
@@ -42,26 +78,20 @@ object log extends LogVersionSpecific {
           annotations.foreach { case (k, v) => builder.put(k, v) }
         }
 
-        val record = LogRecord(
-          timestampNanos = now,
-          observedTimestampNanos = now,
-          severity = severity,
-          severityText = severity.text,
-          body = message,
-          attributes = builder.buildAndReset(),
-          traceIdHi = 0L,
-          traceIdLo = 0L,
-          spanId = 0L,
-          traceFlags = 0,
-          resource = Resource.empty,
-          instrumentationScope = logInstrumentationScope
+        state.logger.emitRaw(
+          now,
+          severity,
+          severity.text,
+          message,
+          builder,
+          0L,
+          0L,
+          0L,
+          0.toByte,
+          Resource.empty,
+          logInstrumentationScope,
+          None
         )
-
-        try state.logger.emit(record)
-        catch {
-          case e: Throwable =>
-            System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
-        }
       }
     }
 

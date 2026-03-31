@@ -248,56 +248,71 @@ private[otel] object LogMacros {
             if (stmts.isEmpty) '{ () } else Expr.block(stmts.init, stmts.last.asExprOf[Any])
           }
 
-          val record = LogRecord(
-            timestampNanos = now,
-            observedTimestampNanos = now,
-            severity = severityVar,
-            severityText = severityTextVar,
-            body = bodyVar,
-            attributes = builder.buildAndReset(),
-            traceIdHi = 0L,
-            traceIdLo = 0L,
-            spanId = 0L,
-            traceFlags = 0,
-            resource = Resource.empty,
-            instrumentationScope = $self.logInstrumentationScope,
-            throwable = throwableVar
-          )
-
           ${
             if (hasFallbacks) {
-              // Build fallback enrichment chain
-              val fallbackChain: Expr[LogRecord] => Expr[LogRecord] =
-                classified.collect { case FallbackKind(idx) => idx }
-                  .foldLeft(identity[Expr[LogRecord]]) { (chain, idx) =>
-                    val enrichmentExpr = enrichmentExprs(idx)
-                    val tpe            = enrichmentExpr.asTerm.tpe.widen
-                    tpe.asType match {
-                      case '[t] =>
-                        Expr.summon[LogEnrichment[t]] match {
-                          case Some(inst) =>
-                            val value = enrichmentExpr.asExprOf[t]
-                            (prev: Expr[LogRecord]) => '{ $inst.enrich(${ chain(prev) }, $value) }
-                          case None => chain
+              // Fallback path: build LogRecord for LogEnrichment instances
+              '{
+                val record = LogRecord(
+                  timestampNanos = now,
+                  observedTimestampNanos = now,
+                  severity = severityVar,
+                  severityText = severityTextVar,
+                  body = bodyVar,
+                  attributes = builder.buildAndReset(),
+                  traceIdHi = 0L,
+                  traceIdLo = 0L,
+                  spanId = 0L,
+                  traceFlags = 0,
+                  resource = Resource.empty,
+                  instrumentationScope = $self.logInstrumentationScope,
+                  throwable = throwableVar
+                )
+
+                ${
+                  // Build fallback enrichment chain
+                  val fallbackChain: Expr[LogRecord] => Expr[LogRecord] =
+                    classified.collect { case FallbackKind(idx) => idx }
+                      .foldLeft(identity[Expr[LogRecord]]) { (chain, idx) =>
+                        val enrichmentExpr = enrichmentExprs(idx)
+                        val tpe            = enrichmentExpr.asTerm.tpe.widen
+                        tpe.asType match {
+                          case '[t] =>
+                            Expr.summon[LogEnrichment[t]] match {
+                              case Some(inst) =>
+                                val value = enrichmentExpr.asExprOf[t]
+                                (prev: Expr[LogRecord]) => '{ $inst.enrich(${ chain(prev) }, $value) }
+                              case None => chain
+                            }
                         }
+                      }
+
+                  '{
+                    val finalRecord = ${ fallbackChain('record) }
+                    try state.logger.emit(finalRecord)
+                    catch {
+                      case e: Throwable =>
+                        System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
                     }
                   }
-
-              '{
-                val finalRecord = ${ fallbackChain('record) }
-                try state.logger.emit(finalRecord)
-                catch {
-                  case e: Throwable =>
-                    System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
                 }
               }
             } else {
+              // Fast path: pass raw values to emitRaw, let emitter build representation
               '{
-                try state.logger.emit(record)
-                catch {
-                  case e: Throwable =>
-                    System.err.println(s"[zio-blocks-otel] logging error: ${e.getMessage}")
-                }
+                state.logger.emitRaw(
+                  now,
+                  severityVar,
+                  severityTextVar,
+                  bodyVar,
+                  builder,
+                  0L,
+                  0L,
+                  0L,
+                  0.toByte,
+                  Resource.empty,
+                  $self.logInstrumentationScope,
+                  throwableVar
+                )
               }
             }
           }

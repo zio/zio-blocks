@@ -353,6 +353,12 @@ object Attributes {
     /**
      * Resets the builder to empty, allowing reuse without allocation.
      */
+    private[otel] def builderKeys: Array[String]    = _keys
+    private[otel] def builderTypes: Array[Byte]     = _types
+    private[otel] def builderLongs: Array[Long]     = _longs
+    private[otel] def builderStrings: Array[String] = _strings
+    private[otel] def builderLen: Int               = _len
+
     def clear(): Unit = {
       var i = 0
       while (i < _len) {
