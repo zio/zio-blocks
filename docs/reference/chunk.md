@@ -35,18 +35,21 @@ Chunk represents a chunk of values. The implementation is backed by arrays for s
                              │
           ┌──────────────────┼──────────────────┐
           │                  │                  │
-     ┌────▼────┐      ┌─────▼──────┐      ┌────▼────┐      ┌────▼─────┐
-     │  Empty  │      │ Singleton  │      │ Array-  │      │  Concat  │
-     │         │      │   (one     │      │ Backed  │      │  (tree)  │
-     │         │      │  element)  │      │         │      │          │
-     └─────────┘      └────────────┘      └─────────┘      └──────────┘
+     ┌────▼────┐      ┌─────▼──────┐      ┌────▼────┐      ┌────▼─────────┐
+     │  Empty  │      │ Singleton  │      │ Array-  │      │   Concat    │
+     │         │      │   (one     │      │ Backed  │      │(Conc-Tree)¹ │
+     │         │      │  element)  │      │         │      │             │
+     └─────────┘      └────────────┘      └─────────┘      └─────────────┘
+
+¹ Based on Conc-Trees for Functional and Parallel Programming
+  (http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf)
 ```
 
 Chunks automatically choose the most efficient representation:
 - **Empty**: singleton instance for zero elements
 - **Singleton**: single element, no array allocation
 - **Array-backed**: standard array for small sequences
-- **[Concat tree](http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf)**: balanced binary tree for composite chunks, enabling O(log n) concatenation depth
+- **Concat tree**: balanced binary tree for composite chunks, enabling O(log n) concatenation depth
 
 The implementation is based on [Conc-Trees for Functional and Parallel Programming](http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf) by Aleksandar Prokopec and Martin Odersky.
 
