@@ -133,13 +133,6 @@ object CsvRecordCodecSpec extends SchemaBaseSpec {
         val value = MixedTypes("Test", 42, 3.14, true, 'X')
         assertTrue(roundTrip(codec, value) == Right(value))
       }
-    ),
-    suite("nullValue")(
-      test("Person nullValue has default field values") {
-        val codec = deriveCodec[Person]
-        val nv    = codec.nullValue
-        assertTrue(nv.name == null && nv.age == 0)
-      }
     )
   )
 }

@@ -191,9 +191,9 @@ private[schema] object JsonInterpolatorRuntime {
    * surrounding quotes). Properly encodes characters as UTF-8 bytes.
    */
   private[this] def writeRawString(out: ByteArrayOutputStream, s: String): Unit = {
-    var i = 0
-    while (i < s.length) {
-      val ch1 = s.charAt(i).toInt
+    var idx = 0
+    while (idx < s.length) {
+      val ch1 = s.charAt(idx).toInt
       if (ch1 < 0x20) {
         ch1 match {
           case '\b' => out.write('\\', 'b')
@@ -216,8 +216,8 @@ private[schema] object JsonInterpolatorRuntime {
       } else if ((ch1 & 0xf800) != 0xd800) { // 3-byte UTF-8: 1110xxxx 10xxxxxx 10xxxxxx
         out.write(((ch1 >> 12) | 0xe0).toByte, (((ch1 >> 6) & 0x3f) | 0x80).toByte)
         out.write((ch1 & 0x3f) | 0x80)
-      } else if (i + 1 < s.length) { // 4-byte UTF-8 (surrogate pair): 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-        val ch2 = s.charAt(i + 1).toInt
+      } else if (idx + 1 < s.length) { // 4-byte UTF-8 (surrogate pair): 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+        val ch2 = s.charAt(idx + 1).toInt
         if ((ch2 & 0xfc00) == 0xdc00) {
           val cp = (ch1 << 10) + (ch2 - 56613888) // -56613888 == 0x10000 - (0xD800 << 10) - 0xDC00
           out.write(
@@ -226,8 +226,8 @@ private[schema] object JsonInterpolatorRuntime {
             (((cp >> 6) & 0x3f) | 0x80).toByte,
             ((cp & 0x3f) | 0x80).toByte
           )
-          i += 1 // Skip the low surrogate
-        } else { // Invalid surrogate pair, write replacement character
+          idx += 1 // Skip the low surrogate
+        } else {   // Invalid surrogate pair, write replacement character
           out.write(0xef.toByte, 0xbf.toByte)
           out.write(0xbd)
         }
@@ -235,7 +235,7 @@ private[schema] object JsonInterpolatorRuntime {
         out.write(0xef.toByte, 0xbf.toByte)
         out.write(0xbd)
       }
-      i += 1
+      idx += 1
     }
   }
 

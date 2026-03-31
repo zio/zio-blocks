@@ -17,7 +17,7 @@
 package zio.blocks.schema.xml
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec}
+import zio.blocks.schema.{DynamicOptic, SchemaBaseSpec, SchemaError}
 import zio.test._
 
 object XmlSelectionSpec extends SchemaBaseSpec {
@@ -43,7 +43,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("fail creates failed selection") {
-        val selection = XmlSelection.fail(XmlError("test error"))
+        val selection = XmlSelection.fail(SchemaError("test error"))
         assertTrue(
           !selection.isSuccess,
           selection.isFailure,
@@ -138,7 +138,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         assertTrue(XmlSelection.empty.isEmpty)
       },
       test("isEmpty returns true for failed selection") {
-        assertTrue(XmlSelection.fail(XmlError("error")).isEmpty)
+        assertTrue(XmlSelection.fail(SchemaError("error")).isEmpty)
       },
       test("isEmpty returns false for non-empty selection") {
         assertTrue(!XmlSelection.succeed(Xml.Element("test")).isEmpty)
@@ -370,7 +370,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("orElse returns alternative if first fails") {
-        val first  = XmlSelection.fail(XmlError("error"))
+        val first  = XmlSelection.fail(SchemaError("error"))
         val second = XmlSelection.succeed(Xml.Element("second"))
         val result = first.orElse(second)
         assertTrue(
@@ -389,8 +389,8 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("++ propagates errors correctly") {
-        val err1 = XmlSelection.fail(XmlError("error1"))
-        val err2 = XmlSelection.fail(XmlError("error2"))
+        val err1 = XmlSelection.fail(SchemaError("error1"))
+        val err2 = XmlSelection.fail(SchemaError("error2"))
         val sel  = XmlSelection.succeed(Xml.Element("a"))
 
         assertTrue(
@@ -526,7 +526,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         assertTrue(result == "")
       },
       test("textContent never fails") {
-        val failed = XmlSelection.fail(XmlError("error"))
+        val failed = XmlSelection.fail(SchemaError("error"))
         val result = failed.textContent
         assertTrue(result == "")
       },
@@ -543,7 +543,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
     ),
     suite("edge cases and error handling")(
       test("operations on failed selection propagate error") {
-        val failed = XmlSelection.fail(XmlError("initial error"))
+        val failed = XmlSelection.fail(SchemaError("initial error"))
         assertTrue(
           failed.map(identity).isFailure,
           failed.filter(_ => true).isFailure,
@@ -556,7 +556,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         var callCount = 0
         val result    = selection.flatMap { _ =>
           callCount += 1
-          if (callCount == 1) XmlSelection.fail(XmlError("error"))
+          if (callCount == 1) XmlSelection.fail(SchemaError("error"))
           else XmlSelection.succeed(Xml.Element("x"))
         }
         assertTrue(
@@ -565,7 +565,7 @@ object XmlSelectionSpec extends SchemaBaseSpec {
         )
       },
       test("toChunk returns empty chunk on failure") {
-        val failed = XmlSelection.fail(XmlError("error"))
+        val failed = XmlSelection.fail(SchemaError("error"))
         assertTrue(failed.toChunk.isEmpty)
       },
       test("chaining operations maintains type safety") {

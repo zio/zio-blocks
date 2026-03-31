@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.msgpack
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.codec.BinaryCodec
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
@@ -23,7 +24,6 @@ import zio.blocks.schema.json.Json
 import java.nio.ByteBuffer
 import java.time._
 import java.util.{Currency, UUID}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -174,7 +174,7 @@ abstract class MessagePackCodec[A] extends BinaryCodec[A] {
               idx += 1
               list = list.tail
             }
-            new DynamicOptic(ArraySeq.unsafeWrapArray(array))
+            new DynamicOptic(Chunk.fromArray(array))
           case _ => DynamicOptic.root
         },
         error.getMessage

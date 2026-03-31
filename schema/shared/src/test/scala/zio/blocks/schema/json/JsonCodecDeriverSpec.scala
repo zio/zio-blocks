@@ -3074,7 +3074,7 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
                     case _        => ()
                   }
                 }
-                in.decodeError("illegal offset date time")
+                error("illegal offset date time")
               }
 
               def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)

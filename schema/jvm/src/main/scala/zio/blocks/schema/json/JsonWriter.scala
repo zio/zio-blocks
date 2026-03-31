@@ -273,11 +273,11 @@ final class JsonWriter private[json] (
       }
       buf(pos) = '"'
       pos += 1
-      var i = 0
-      while (i < len) {
-        buf(pos) = x.charAt(i).toByte
+      var idx = 0
+      while (idx < len) {
+        buf(pos) = x.charAt(idx).toByte
         pos += 1
-        i += 1
+        idx += 1
       }
       ByteArrayAccess.setInt(buf, pos, 0x203a22)
       if (indention > 0) pos += 1
@@ -464,16 +464,8 @@ final class JsonWriter private[json] (
 
   def registers: Registers = this.stack
 
-  /**
-   * Throws a [[JsonCodecError]] with the given error message.
-   *
-   * @param msg
-   *   the error message
-   * @throws JsonCodecError
-   *   always
-   */
   @noinline
-  def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
+  private[this] def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
    * Writes a `BigDecimal` value as a JSON value.
@@ -558,11 +550,11 @@ final class JsonWriter private[json] (
       } else comma = true
       buf(pos) = '"'
       pos += 1
-      var i = 0
-      while (i < len) {
-        buf(pos) = x.charAt(i).toByte
+      var idx = 0
+      while (idx < len) {
+        buf(pos) = x.charAt(idx).toByte
         pos += 1
-        i += 1
+        idx += 1
       }
       buf(pos) = '"'
       count = pos + 1
@@ -3485,15 +3477,15 @@ object JsonWriter {
   @volatile private[this] var tenPow18Squares: Array[BigInteger] = Array(BigInteger.valueOf(1000000000000000000L))
 
   final private def getTenPow18Squares(n: Int): Array[BigInteger] = {
-    var ss = tenPow18Squares
-    var i  = ss.length
-    if (n >= i) {
-      var s = ss(i - 1)
+    var ss  = tenPow18Squares
+    var idx = ss.length
+    if (n >= idx) {
+      var s = ss(idx - 1)
       ss = java.util.Arrays.copyOf(ss, n + 1)
-      while (i <= n) {
+      while (idx <= n) {
         s = s.multiply(s)
-        ss(i) = s
-        i += 1
+        ss(idx) = s
+        idx += 1
       }
       tenPow18Squares = ss
     }

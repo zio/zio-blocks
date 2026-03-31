@@ -418,16 +418,6 @@ class ToonCodecDeriver private (
               out.decrementDepth()
             }
 
-            override val fieldNames: Array[String] = {
-              val names = new Array[String](fieldInfos.length)
-              var idx   = 0
-              while (idx < fieldInfos.length) {
-                names(idx) = fieldInfos(idx).getName
-                idx += 1
-              }
-              names
-            }
-
             override def encodeTabularRow(x: A, out: ToonWriter, delimiter: Delimiter): Unit = {
               out.ensureIndent()
               out.enterInlineContext()
@@ -854,6 +844,18 @@ class ToonCodecDeriver private (
           private[this] val isRecordElement        = element.isRecord
           private[this] val hasOnlyPrimitiveFields =
             isRecordElement && element.asRecord.get.fields.forall(_.value.isPrimitive)
+          private[this] val fieldNames =
+            if (isRecordElement) {
+              element.asRecord.get.fields.map { field =>
+                var name: String = null
+                field.modifiers.foreach {
+                  case m: Modifier.rename => if (name eq null) name = m.name
+                  case _                  =>
+                }
+                if (name eq null) name = caseNameMapper(field.name)
+                name
+              }.toArray
+            } else Array.empty[String]
 
           def decodeValue(in: ToonReader): Col[Elem] = {
             in.skipBlankLines()
@@ -866,7 +868,7 @@ class ToonCodecDeriver private (
             val length = header.length
             if (useInlineFormat) decodeInlineArray(in, in.readInlineArray(), length)
             else {
-              val builder     = constructor.newBuilder[Elem](8)(elemClassTag)
+              val builder     = constructor.newBuilder[Elem]()(elemClassTag)
               var actualCount = 0
               if (header.fields != null && header.fields.nonEmpty) {
                 var idx = 0
@@ -930,7 +932,6 @@ class ToonCodecDeriver private (
           def encodeValue(x: Col[Elem], out: ToonWriter): Unit = {
             val size = deconstructor.size(x)
             if (useTabularFormat && size > 0) {
-              val fieldNames = elementCodec.fieldNames
               if (fieldNames != null && fieldNames.nonEmpty) {
                 out.writeArrayHeader(null, size, fieldNames, inlineDelimiter)
                 out.newLine()
@@ -981,7 +982,6 @@ class ToonCodecDeriver private (
             } else {
               val shouldUseTabular = useTabularFormat || (out.isInListItemContext && hasOnlyPrimitiveFields)
               if (shouldUseTabular) {
-                val fieldNames = elementCodec.fieldNames
                 if (fieldNames != null && fieldNames.nonEmpty) {
                   out.writeArrayHeader(fieldName, size, fieldNames, inlineDelimiter)
                   out.newLine()

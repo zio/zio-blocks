@@ -19,11 +19,8 @@ package zio.blocks.schema.xml
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 object XmlReader {
-  def read(input: String, config: ReaderConfig = ReaderConfig.default): Either[XmlError, Xml] =
-    try new Right(new XmlReaderImpl(input, config).parse())
-    catch {
-      case e: XmlError => new Left(e)
-    }
+  def read(input: String, config: ReaderConfig = ReaderConfig.default): Xml =
+    new XmlReaderImpl(input, config).parse()
 
   /**
    * Reads XML from a byte array.
@@ -31,7 +28,7 @@ object XmlReader {
    * Note: This method always decodes bytes as UTF-8. For other encodings,
    * decode the bytes to a String first and use the `read` method.
    */
-  def readFromBytes(input: Array[Byte], config: ReaderConfig = ReaderConfig.default): Either[XmlError, Xml] =
+  def readFromBytes(input: Array[Byte], config: ReaderConfig = ReaderConfig.default): Xml =
     read(new String(input, "UTF-8"), config)
 
   private class XmlReaderImpl(input: String, config: ReaderConfig) {
@@ -69,7 +66,8 @@ object XmlReader {
         pos += 1
       }
 
-    private[this] def error(msg: String): Nothing = throw XmlError.parseError(msg, line, column)
+    private[this] def error(msg: String): Nothing =
+      throw new XmlCodecError(Nil, s"$msg (line: $line, column: $column)")
 
     private[this] def isWhitespace(c: Char): Boolean = c == ' ' || c == '\t' || c == '\n' || c == '\r'
 

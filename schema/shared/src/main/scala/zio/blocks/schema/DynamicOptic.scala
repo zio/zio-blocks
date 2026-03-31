@@ -56,14 +56,14 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
    * type.
    */
   def search[A](implicit typeId: TypeId[A]): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.TypeSearch(typeId))
+    new DynamicOptic(nodes.appended(new Node.TypeSearch(typeId)))
 
   /**
    * Appends a search node that matches all values matching the specified schema
    * pattern.
    */
   def searchSchema(schemaRepr: SchemaRepr): DynamicOptic =
-    new DynamicOptic(nodes :+ Node.SchemaSearch(schemaRepr))
+    new DynamicOptic(nodes.appended(new Node.SchemaSearch(schemaRepr)))
 
   override lazy val toString: String = {
     val sb = new java.lang.StringBuilder
@@ -82,7 +82,6 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     DynamicOptic.renderScalaString(sb, nodes)
     sb.toString
   }
-
 }
 
 object DynamicOptic {
@@ -100,11 +99,11 @@ object DynamicOptic {
             sb.append('[')
             val indices = ai.index
             val idxLen  = indices.length
-            var i       = 0
-            while (i < idxLen) {
-              if (i > 0) sb.append(',')
-              sb.append(indices(i))
-              i += 1
+            var idxIdx  = 0
+            while (idxIdx < idxLen) {
+              if (idxIdx > 0) sb.append(',')
+              sb.append(indices(idxIdx))
+              idxIdx += 1
             }
             sb.append(']')
           case amk: Node.AtMapKey =>
@@ -115,11 +114,11 @@ object DynamicOptic {
             sb.append('{')
             val keys   = amk.keys
             val keyLen = keys.length
-            var i      = 0
-            while (i < keyLen) {
-              if (i > 0) sb.append(", ")
-              renderDynamicValue(sb, keys(i))
-              i += 1
+            var keyIdx = 0
+            while (keyIdx < keyLen) {
+              if (keyIdx > 0) sb.append(", ")
+              renderDynamicValue(sb, keys(keyIdx))
+              keyIdx += 1
             }
             sb.append('}')
           case _: Node.Elements.type  => sb.append("[*]")
@@ -148,11 +147,11 @@ object DynamicOptic {
             sb.append(".atIndices(")
             val indices = ai.index
             val idxLen  = indices.length
-            var i       = 0
-            while (i < idxLen) {
-              if (i > 0) sb.append(", ")
-              sb.append(indices(i))
-              i += 1
+            var idxIdx  = 0
+            while (idxIdx < idxLen) {
+              if (idxIdx > 0) sb.append(", ")
+              sb.append(indices(idxIdx))
+              idxIdx += 1
             }
             sb.append(')')
           case amk: Node.AtMapKey =>
@@ -163,11 +162,11 @@ object DynamicOptic {
             sb.append(".atKeys(")
             val keys   = amk.keys
             val keyLen = keys.length
-            var i      = 0
-            while (i < keyLen) {
-              if (i > 0) sb.append(", ")
-              renderDynamicValue(sb, keys(i))
-              i += 1
+            var keyIdx = 0
+            while (keyIdx < keyLen) {
+              if (keyIdx > 0) sb.append(", ")
+              renderDynamicValue(sb, keys(keyIdx))
+              keyIdx += 1
             }
             sb.append(')')
           case _: Node.Elements.type  => sb.append(".each")
@@ -189,9 +188,9 @@ object DynamicOptic {
           case v: PrimitiveValue.String =>
             val s = v.value
             sb.append('"')
-            var i = 0
-            while (i < s.length) {
-              s.charAt(i) match {
+            var idx = 0
+            while (idx < s.length) {
+              s.charAt(idx) match {
                 case '\n' => sb.append("\\n")
                 case '\t' => sb.append("\\t")
                 case '\r' => sb.append("\\r")
@@ -199,7 +198,7 @@ object DynamicOptic {
                 case '\\' => sb.append("\\\\")
                 case c    => sb.append(c)
               }
-              i += 1
+              idx += 1
             }
             sb.append('"')
           case v: PrimitiveValue.Boolean => sb.append(v.value)

@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.toon
 
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.codec.BinaryCodec
 import zio.blocks.schema.json.{Json, JsonWriter}
@@ -24,8 +25,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
 /**
@@ -165,15 +164,6 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
    */
   def decodeTabularRow(in: ToonReader, values: Array[String], fieldNames: Array[String]): A =
     error("decodeTabularRow not supported for this type")
-
-  /**
-   * Returns the field names for this codec if it represents a record type. Used
-   * for tabular array format encoding.
-   *
-   * @return
-   *   Array of field names, or null if not a record type
-   */
-  def fieldNames: Array[String] = null
 
   /**
    * Encodes a value as a single row in tabular format (values only, no keys).
@@ -325,7 +315,7 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
               idx += 1
               list = list.tail
             }
-            new DynamicOptic(ArraySeq.unsafeWrapArray(array))
+            new DynamicOptic(Chunk.fromArray(array))
           case _ => DynamicOptic.root
         }, {
           var msg = error.getMessage
@@ -862,14 +852,12 @@ object ToonCodec {
             case Some((_, DynamicValue.Primitive(PrimitiveValue.String(caseName)))) =>
               val otherFields = record.fields.filterNot(_._1 == fieldName)
               otherFields match {
-                case Chunk(("value", innerValue)) =>
-                  new DynamicValue.Variant(caseName, innerValue)
-                case _ =>
-                  new DynamicValue.Variant(caseName, new DynamicValue.Record(otherFields))
+                case Chunk(("value", innerValue)) => new DynamicValue.Variant(caseName, innerValue)
+                case _                            => new DynamicValue.Variant(caseName, new DynamicValue.Record(otherFields))
               }
             case _ => record
           }
-        case None => record
+        case _ => record
       }
 
     private[this] def expandDottedKey(key: String, value: DynamicValue): (String, DynamicValue) =
@@ -891,14 +879,13 @@ object ToonCodec {
       map: scala.collection.mutable.LinkedHashMap[String, DynamicValue],
       key: String,
       value: DynamicValue
-    ): Unit =
+    ): Unit = map.put(
+      key,
       map.get(key) match {
-        case None           => map.put(key, value)
         case Some(existing) =>
           (existing, value) match {
             case (existingRecord: DynamicValue.Record, newRecord: DynamicValue.Record) =>
-              val merged = deepMergeRecords(existingRecord, newRecord, in)
-              map.put(key, merged)
+              deepMergeRecords(existingRecord, newRecord, in)
             case _ =>
               // A conflict is when we would overwrite a non-record with a different value
               if (in.isStrict) {
@@ -906,9 +893,11 @@ object ToonCodec {
                   s"Path expansion conflict at key '$key': cannot overwrite existing value with new value in strict mode"
                 )
               }
-              map.put(key, value)
+              value
           }
+        case _ => value
       }
+    )
 
     private[this] def deepMergeRecords(
       existing: DynamicValue.Record,
@@ -1024,7 +1013,7 @@ object ToonCodec {
       case variant: DynamicValue.Variant =>
         out.discriminatorField match {
           case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-          case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
+          case _               => encodeRecordPlain(variant.caseNameValue, variant.value, out)
         }
       case sequence: DynamicValue.Sequence =>
         val elements = sequence.elements
@@ -1127,7 +1116,7 @@ object ToonCodec {
           out.incrementDepth()
           out.discriminatorField match {
             case Some(fieldName) => encodeVariantWithDiscriminator(variant, fieldName, out)
-            case None            => encodeRecordPlain(variant.caseNameValue, variant.value, out)
+            case _               => encodeRecordPlain(variant.caseNameValue, variant.value, out)
           }
           out.decrementDepth()
         case map: DynamicValue.Map if map.entries.nonEmpty =>
@@ -1391,7 +1380,7 @@ object ToonCodec {
         first = false
         fieldMap.get(it.next()) match {
           case Some(value) => encodePrimitiveInline(value, out)
-          case None        => out.writeNull()
+          case _           => out.writeNull()
         }
       }
     }

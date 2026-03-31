@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
@@ -459,26 +459,23 @@ object Reflect {
     }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val deconstructor = this.deconstructor
-      val registers     = Registers(deconstructor.usedRegisters)
-      deconstructor.deconstruct(registers, 0, value)
-      val len    = this.registers.length
-      val fields = ChunkBuilder.make[(String, DynamicValue)](len)
+      val regs = Registers(deconstructor.usedRegisters)
+      deconstructor.deconstruct(regs, 0, value)
+      val len    = registers.length
+      val result = new Array[(String, DynamicValue)](len)
       var idx    = 0
       while (idx < len) {
-        val field    = this.fields(idx)
-        val register = this.registers(idx)
-        fields.addOne(
-          (
-            field.name,
-            field.value
-              .asInstanceOf[Reflect[F, field.Focus]]
-              .toDynamicValue(register.get(registers, 0).asInstanceOf[field.Focus])
-          )
+        val field    = fields(idx)
+        val register = registers(idx)
+        result(idx) = (
+          field.name,
+          field.value
+            .asInstanceOf[Reflect[F, field.Focus]]
+            .toDynamicValue(register.get(regs, 0).asInstanceOf[field.Focus])
         )
         idx += 1
       }
-      new DynamicValue.Record(fields.result())
+      new DynamicValue.Record(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
@@ -748,9 +745,14 @@ object Reflect {
 
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
-      val builder  = ChunkBuilder.make[DynamicValue](seqDeconstructor.size(value))
-      while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
-      new DynamicValue.Sequence(builder.result())
+      val len      = seqDeconstructor.size(value)
+      val result   = new Array[DynamicValue](len)
+      var idx      = 0
+      while (idx < len) {
+        result(idx) = element.toDynamicValue(iterator.next())
+        idx += 1
+      }
+      new DynamicValue.Sequence(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
@@ -869,14 +871,16 @@ object Reflect {
     def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
-      val builder       = ChunkBuilder.make[(DynamicValue, DynamicValue)](deconstructor.size(value))
-      while (it.hasNext) {
+      val len           = deconstructor.size(value)
+      val result        = new Array[(DynamicValue, DynamicValue)](len)
+      var idx           = 0
+      while (idx < len) {
         val next = it.next()
-        builder.addOne(
+        result(idx) =
           (this.key.toDynamicValue(deconstructor.getKey(next)), this.value.toDynamicValue(deconstructor.getValue(next)))
-        )
+        idx += 1
       }
-      new DynamicValue.Map(builder.result())
+      new DynamicValue.Map(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, K, V, M]] =
@@ -1839,8 +1843,7 @@ object Reflect {
    */
   private[schema] def typeSearch[F[_, _]](root: Reflect[F, ?], searchTypeId: TypeId[?]): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
-    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
-
+    val visited                                               = new java.util.IdentityHashMap[AnyRef, Unit]
     def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
       // Check for cycle - if we've visited this Deferred node, skip it
       current match {
@@ -1849,57 +1852,45 @@ object Reflect {
           visited.put(d, ())
         case _ => ()
       }
-
       try {
         // Check if current type matches the search TypeId
         if (current.typeId == searchTypeId) return Some(current)
-
         // Recurse into children based on node type
         current match {
-          case d: Deferred[F, ?] @unchecked =>
-            search(d.value)
-
-          case r: Record[F, ?] @unchecked =>
+          case d: Deferred[F, ?] @unchecked => search(d.value)
+          case r: Record[F, ?] @unchecked   =>
             // Search through all field types
-            var i = 0
-            while (i < r.fields.length) {
-              val result = search(r.fields(i).value)
+            val fields = r.fields
+            val len    = fields.length
+            var idx    = 0
+            while (idx < len) {
+              val result = search(fields(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
-
           case v: Variant[F, ?] @unchecked =>
             // Search through all case payload types
-            var i = 0
-            while (i < v.cases.length) {
-              val result = search(v.cases(i).value)
+            val cases = v.cases
+            val len   = cases.length
+            var idx   = 0
+            while (idx < len) {
+              val result = search(cases(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
-
-          case s: Sequence[F, ?, ?] @unchecked =>
-            // Search element type
-            search(s.element)
-
-          case m: Map[F, ?, ?, ?] @unchecked =>
+          case s: Sequence[F, ?, ?] @unchecked => search(s.element) // Search element type
+          case m: Map[F, ?, ?, ?] @unchecked   =>
             // Search key type first, then value type
             val keyResult = search(m.key)
             if (keyResult.isDefined) keyResult
             else search(m.value)
-
-          case w: Wrapper[F, ?, ?] @unchecked =>
-            // Search wrapped type
-            search(w.wrapped)
-
-          case _: Primitive[F, ?] | _: Dynamic[F] =>
-            // Primitives and Dynamic don't have child types to search
-            None
+          case w: Wrapper[F, ?, ?] @unchecked => search(w.wrapped) // Search wrapped type
+          case _                              => None              // Primitives and Dynamic don't have child types to search
         }
       } finally {
-        // Clean up visited set for Deferred nodes
-        current match {
+        current match { // Clean up visited set for Deferred nodes
           case d: Deferred[F, ?] @unchecked => visited.remove(d)
           case _                            => ()
         }
@@ -1923,58 +1914,44 @@ object Reflect {
    */
   private[schema] def schemaSearch[F[_, _]](root: Reflect[F, ?], pattern: SchemaRepr): Option[Reflect[F, ?]] = {
     // Thread-local visited set for cycle detection in recursive types
-    val visited = new java.util.IdentityHashMap[AnyRef, Unit]()
-
+    val visited                                                              = new java.util.IdentityHashMap[AnyRef, Unit]
     def matchesSchemaRepr(reflect: Reflect[F, ?], repr: SchemaRepr): Boolean = repr match {
-      case SchemaRepr.Wildcard => true
-
-      case SchemaRepr.Nominal(name) =>
-        reflect.typeId.name == name
-
-      case SchemaRepr.Primitive(name) =>
+      case SchemaRepr.Wildcard       => true
+      case srn: SchemaRepr.Nominal   => reflect.typeId.name == srn.name
+      case srp: SchemaRepr.Primitive =>
         reflect.asPrimitive match {
-          case Some(p) => primitiveTypeNameMatches(name, p.primitiveType)
-          case None    => false
+          case Some(p) => primitiveTypeNameMatches(srp.name, p.primitiveType)
+          case _       => false
         }
-
-      case SchemaRepr.Record(patternFields) =>
+      case srr: SchemaRepr.Record =>
         reflect.asRecord match {
-          case Some(r) =>
-            // Subset matching: all pattern fields must exist with matching types
-            patternFields.forall { case (patternFieldName, patternFieldType) =>
+          case Some(r) => // Subset matching: all pattern fields must exist with matching types
+            srr.fields.forall { case (patternFieldName, patternFieldType) =>
               r.fieldByName(patternFieldName).exists(field => matchesSchemaRepr(field.value, patternFieldType))
             }
-          case None => false
+          case _ => false
         }
-
-      case SchemaRepr.Variant(patternCases) =>
+      case srv: SchemaRepr.Variant =>
         reflect.asVariant match {
-          case Some(v) =>
-            // All pattern cases must exist with matching payload types
-            patternCases.forall { case (patternCaseName, patternCaseType) =>
+          case Some(v) => // All pattern cases must exist with matching payload types
+            srv.cases.forall { case (patternCaseName, patternCaseType) =>
               v.caseByName(patternCaseName).exists(case_ => matchesSchemaRepr(case_.value, patternCaseType))
             }
-          case None => false
+          case _ => false
         }
-
-      case SchemaRepr.Sequence(elemPattern) =>
+      case srs: SchemaRepr.Sequence =>
         reflect.asSequenceUnknown match {
-          case Some(s) => matchesSchemaRepr(s.sequence.element, elemPattern)
-          case None    => false
+          case Some(s) => matchesSchemaRepr(s.sequence.element, srs.element)
+          case _       => false
         }
-
-      case SchemaRepr.Map(keyPattern, valuePattern) =>
+      case srm: SchemaRepr.Map =>
         reflect.asMapUnknown match {
-          case Some(m) =>
-            matchesSchemaRepr(m.map.key, keyPattern) && matchesSchemaRepr(m.map.value, valuePattern)
-          case None => false
+          case Some(m) => matchesSchemaRepr(m.map.key, srm.key) && matchesSchemaRepr(m.map.value, srm.value)
+          case _       => false
         }
-
-      case SchemaRepr.Optional(innerPattern) =>
+      case sro: SchemaRepr.Optional =>
         // Check if this is an Option type (variant with None/Some cases)
-        if (reflect.isOption) {
-          reflect.optionInnerType.exists(inner => matchesSchemaRepr(inner, innerPattern))
-        } else false
+        reflect.isOption && reflect.optionInnerType.exists(inner => matchesSchemaRepr(inner, sro.inner))
     }
 
     def search(current: Reflect[F, ?]): Option[Reflect[F, ?]] = {
@@ -1985,47 +1962,39 @@ object Reflect {
           visited.put(d, ())
         case _ => ()
       }
-
       try {
         // Check if current type matches the pattern
         if (matchesSchemaRepr(current, pattern)) return Some(current)
-
         // Recurse into children based on node type
         current match {
-          case d: Deferred[F, ?] @unchecked =>
-            search(d.value)
-
-          case r: Record[F, ?] @unchecked =>
-            var i = 0
-            while (i < r.fields.length) {
-              val result = search(r.fields(i).value)
+          case d: Deferred[F, ?] @unchecked => search(d.value)
+          case r: Record[F, ?] @unchecked   =>
+            val fields = r.fields
+            val len    = fields.length
+            var idx    = 0
+            while (idx < len) {
+              val result = search(fields(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
-
           case v: Variant[F, ?] @unchecked =>
-            var i = 0
-            while (i < v.cases.length) {
-              val result = search(v.cases(i).value)
+            val cases = v.cases
+            val len   = cases.length
+            var idx   = 0
+            while (idx < len) {
+              val result = search(cases(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
-
-          case s: Sequence[F, ?, ?] @unchecked =>
-            search(s.element)
-
-          case m: Map[F, ?, ?, ?] @unchecked =>
+          case s: Sequence[F, ?, ?] @unchecked => search(s.element)
+          case m: Map[F, ?, ?, ?] @unchecked   =>
             val keyResult = search(m.key)
             if (keyResult.isDefined) keyResult
             else search(m.value)
-
-          case w: Wrapper[F, ?, ?] @unchecked =>
-            search(w.wrapped)
-
-          case _: Primitive[F, ?] | _: Dynamic[F] =>
-            None
+          case w: Wrapper[F, ?, ?] @unchecked => search(w.wrapped)
+          case _                              => None
         }
       } finally {
         current match {

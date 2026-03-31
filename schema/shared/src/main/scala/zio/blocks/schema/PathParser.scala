@@ -182,8 +182,8 @@ private[schema] object PathParser {
                   ctx.advance()
                   ctx.skipWhitespace()
                   parseInteger(ctx) match {
-                    case Left(err)  => return new Left(err)
                     case Right(idx) => indices.addOne(idx)
+                    case Left(err)  => return new Left(err)
                   }
                   ctx.skipWhitespace()
                 }
@@ -257,8 +257,8 @@ private[schema] object PathParser {
                 ctx.advance()
                 ctx.skipWhitespace()
                 parseMapKey(ctx) match {
-                  case Left(err)  => return Left(err)
                   case Right(key) => keys.addOne(key)
+                  case Left(err)  => return Left(err)
                 }
                 ctx.skipWhitespace()
               }
@@ -371,16 +371,23 @@ private[schema] object PathParser {
     var parenDepth = 0
 
     while (!ctx.atEnd) {
-      val c = ctx.current
-      c match {
-        case '{' => braceDepth += 1; ctx.advance()
+      ctx.current match {
+        case '{' =>
+          braceDepth += 1
+          ctx.advance()
         case '}' =>
-          if (braceDepth > 0) { braceDepth -= 1; ctx.advance() }
-          else return ctx.pos // Unbalanced, stop here
-        case '(' => parenDepth += 1; ctx.advance()
+          if (braceDepth > 0) {
+            braceDepth -= 1
+            ctx.advance()
+          } else return ctx.pos // Unbalanced, stop here
+        case '(' =>
+          parenDepth += 1
+          ctx.advance()
         case ')' =>
-          if (parenDepth > 0) { parenDepth -= 1; ctx.advance() }
-          else return ctx.pos // Unbalanced, stop here
+          if (parenDepth > 0) {
+            parenDepth -= 1
+            ctx.advance()
+          } else return ctx.pos // Unbalanced, stop here
         case '.' | '[' | '<' | '#' if braceDepth == 0 && parenDepth == 0 =>
           return ctx.pos // Next node delimiter
         case _ => ctx.advance()

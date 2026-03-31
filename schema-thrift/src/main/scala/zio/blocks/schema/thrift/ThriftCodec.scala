@@ -18,6 +18,7 @@ package zio.blocks.schema.thrift
 
 import org.apache.thrift.protocol._
 import org.apache.thrift.transport.TMemoryTransport
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.codec.BinaryCodec
@@ -25,7 +26,6 @@ import zio.blocks.schema.json.Json
 import java.nio.ByteBuffer
 import java.time._
 import java.util.{Currency, UUID}
-import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 import java.math.{BigInteger, MathContext, RoundingMode}
 
@@ -112,7 +112,7 @@ abstract class ThriftCodec[A] extends BinaryCodec[A] {
             idx += 1
             list = list.tail
           }
-          new ExpectationMismatch(new DynamicOptic(ArraySeq.unsafeWrapArray(array)), e.getMessage)
+          new ExpectationMismatch(new DynamicOptic(Chunk.fromArray(array)), e.getMessage)
         case _ => new ExpectationMismatch(DynamicOptic.root, getMessage(error))
       },
       Nil

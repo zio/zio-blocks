@@ -59,14 +59,6 @@ object CsvWrapperCodecSpec extends SchemaBaseSpec {
     test("Name wrapper headerNames delegates to wrapped") {
       val codec = deriveCodec[Name]
       assertTrue(codec.headerNames == IndexedSeq("value"))
-    },
-    test("Name wrapper nullValue wraps wrapped nullValue") {
-      val codec = deriveCodec[Name]
-      assertTrue(codec.nullValue.value == null)
-    },
-    test("Age wrapper nullValue wraps wrapped nullValue") {
-      val codec = deriveCodec[Age]
-      assertTrue(codec.nullValue == Age(0))
     }
   )
 }

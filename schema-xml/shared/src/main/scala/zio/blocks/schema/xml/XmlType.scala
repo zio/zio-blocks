@@ -19,7 +19,7 @@ package zio.blocks.schema.xml
 import zio.blocks.chunk.Chunk
 
 /**
- * A sealed trait representing the type of an XML node.
+ * A sealed trait representing the type of XML node.
  *
  * Each case provides two type members:
  *   - `Type`: The corresponding [[Xml]] subtype (e.g., `Xml.Element`)

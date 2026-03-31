@@ -16,41 +16,83 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.SchemaError
-import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.SchemaError.ExpectationMismatch
+import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.codec.BinaryCodec
+import zio.blocks.schema.json.{Json, JsonCodec}
 import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets.UTF_8
-import scala.annotation.switch
+import java.time._
+import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
 /**
  * Abstract base class for YAML binary codecs that serialize/deserialize values
  * of type `A` to and from YAML representations.
  *
- * @param valueType
- *   the register type index used for binding-level storage
  * @tparam A
  *   the type this codec handles
  */
-abstract class YamlCodec[A](val valueType: Int = YamlCodec.objectType) extends BinaryCodec[A] {
-
-  val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
-    case 0 => RegisterOffset(objects = 1)
-    case 1 => RegisterOffset(ints = 1)
-    case 2 => RegisterOffset(longs = 1)
-    case 3 => RegisterOffset(floats = 1)
-    case 4 => RegisterOffset(doubles = 1)
-    case 5 => RegisterOffset(booleans = 1)
-    case 6 => RegisterOffset(bytes = 1)
-    case 7 => RegisterOffset(chars = 1)
-    case 8 => RegisterOffset(shorts = 1)
-    case _ => RegisterOffset.Zero
-  }
-
-  def decodeValue(in: Yaml): Either[YamlError, A]
+abstract class YamlCodec[A] extends BinaryCodec[A] {
+  def decodeValue(in: Yaml): A
 
   def encodeValue(x: A): Yaml
+
+  /**
+   * Attempts to decode a value of type `A` from the string representation.
+   */
+  def decodeKey(s: String): A = decodeUnsafe(s)
+
+  /**
+   * Converts a value to its string representation for use as a YAML key.
+   */
+  def encodeKey(x: A): String = encodeToString(x)
+
+  /**
+   * Throws a [[YamlCodecError]] wrapping the given error and adding a span.
+   *
+   * @param span
+   *   the span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws YamlCodecError
+   *   always
+   */
+  def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: YamlCodecError =>
+      e.spans = new ::(span, e.spans)
+      throw e
+    case _ => throw new YamlCodecError(new ::(span, Nil), error.getMessage)
+  }
+
+  /**
+   * Throws a [[YamlCodecError]] wrapping the given error and adding two spans.
+   *
+   * @param span1
+   *   the first span to add to the error
+   * @param span2
+   *   the second span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws YamlCodecError
+   *   always
+   */
+  def error(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: YamlCodecError =>
+      e.spans = new ::(span1, new ::(span2, e.spans))
+      throw e
+    case _ => throw new YamlCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
+  }
+
+  /**
+   * Throws a [[YamlCodecError]] with the given error message.
+   *
+   * @param message
+   *   the error message
+   * @throws YamlCodecError
+   *   always
+   */
+  def error(message: String): Nothing = throw new YamlCodecError(Nil, message)
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     val bytes = new Array[Byte](input.remaining())
@@ -58,47 +100,50 @@ abstract class YamlCodec[A](val valueType: Int = YamlCodec.objectType) extends B
     decode(bytes)
   }
 
-  override def encode(value: A, output: ByteBuffer): Unit = {
-    val bytes = encode(value)
-    output.put(bytes)
-  }
+  override def encode(value: A, output: ByteBuffer): Unit = output.put(encode(value))
 
   def decode(input: Array[Byte]): Either[SchemaError, A] =
-    try {
-      YamlReader.readFromBytes(input) match {
-        case Left(yamlError) => Left(toSchemaError(yamlError))
-        case Right(yaml)     =>
-          decodeValue(yaml) match {
-            case Left(yamlError) => Left(toSchemaError(yamlError))
-            case Right(value)    => Right(value)
-          }
-      }
-    } catch {
-      case error if NonFatal(error) => Left(toSchemaError(error))
+    try new Right(decodeValue(YamlReader.readFromBytes(input)))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
     }
 
-  def encode(value: A): Array[Byte] = {
-    val yaml = encodeValue(value)
-    YamlWriter.writeToBytes(yaml)
-  }
+  def encode(value: A): Array[Byte] = YamlWriter.writeToBytes(encodeValue(value))
 
   def decode(input: String): Either[SchemaError, A] =
-    try {
-      val buf = input.getBytes(UTF_8)
-      decode(buf)
-    } catch {
-      case error if NonFatal(error) => Left(toSchemaError(error))
+    try new Right(decodeValue(YamlReader.read(input)))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
     }
 
-  def encodeToString(value: A): String = {
-    val yaml = encodeValue(value)
-    YamlWriter.write(yaml)
-  }
+  def encodeToString(value: A): String = YamlWriter.write(encodeValue(value))
 
-  private def toSchemaError(error: Throwable): SchemaError = error match {
-    case yamlError: YamlError => SchemaError(yamlError.getMessage)
-    case other                => SchemaError(Option(other.getMessage).getOrElse(s"${other.getClass.getName}: (no message)"))
-  }
+  private[yaml] def decodeUnsafe(input: String): A = decodeValue(YamlReader.read(input))
+
+  private[this] def toError(error: Throwable): SchemaError = new SchemaError(
+    new ::(
+      new ExpectationMismatch(
+        error match {
+          case e: YamlCodecError =>
+            var list  = e.spans
+            val array = new Array[DynamicOptic.Node](list.size)
+            var idx   = 0
+            while (list ne Nil) {
+              array(idx) = list.head
+              idx += 1
+              list = list.tail
+            }
+            new DynamicOptic(Chunk.fromArray(array))
+          case _ => DynamicOptic.root
+        }, {
+          var msg = error.getMessage
+          if (msg eq null) msg = s"${error.getClass.getName}: (no message)"
+          msg
+        }
+      ),
+      Nil
+    )
+  )
 }
 
 /**
@@ -106,134 +151,275 @@ abstract class YamlCodec[A](val valueType: Int = YamlCodec.objectType) extends B
  * constants.
  */
 object YamlCodec {
-  val objectType  = 0
-  val intType     = 1
-  val longType    = 2
-  val floatType   = 3
-  val doubleType  = 4
-  val booleanType = 5
-  val byteType    = 6
-  val charType    = 7
-  val shortType   = 8
-  val unitType    = 9
-
-  val unitCodec: YamlCodec[Unit] = new YamlCodec[Unit](YamlCodec.unitType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Unit] = yaml match {
-      case Yaml.NullValue                                            => Right(())
-      case Yaml.Scalar(v, _) if v == "null" || v == "~" || v.isEmpty => Right(())
-      case _                                                         => Left(YamlError.parseError("Expected null value for Unit", 0, 0))
+  val unitCodec: YamlCodec[Unit] = new YamlCodec[Unit] {
+    def decodeValue(yaml: Yaml): Unit = yaml match {
+      case Yaml.NullValue                                            => ()
+      case Yaml.Scalar(v, _) if v == "null" || v == "~" || v.isEmpty => ()
+      case _                                                         => error("Expected null value for Unit")
     }
     def encodeValue(x: Unit): Yaml = Yaml.NullValue
   }
-
-  val booleanCodec: YamlCodec[Boolean] = new YamlCodec[Boolean](YamlCodec.booleanType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Boolean] = yaml match {
+  val booleanCodec: YamlCodec[Boolean] = new YamlCodec[Boolean] {
+    def decodeValue(yaml: Yaml): Boolean = yaml match {
       case Yaml.Scalar(v, _) =>
         v.trim match {
-          case "true"  => Right(true)
-          case "false" => Right(false)
-          case _       => Left(YamlError.parseError(s"Invalid boolean value: $v", 0, 0))
+          case "true"  => true
+          case "false" => false
+          case _       => error(s"Invalid boolean value: $v")
         }
-      case _ => Left(YamlError.parseError("Expected scalar for boolean", 0, 0))
+      case _ => error("Expected scalar for boolean")
     }
     def encodeValue(x: Boolean): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Bool))
   }
-
-  val byteCodec: YamlCodec[Byte] = new YamlCodec[Byte](YamlCodec.byteType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Byte] = yaml match {
+  val byteCodec: YamlCodec[Byte] = new YamlCodec[Byte] {
+    def decodeValue(yaml: Yaml): Byte = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toByte)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid byte value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for byte", 0, 0))
+        try v.trim.toByte
+        catch {
+          case _: NumberFormatException => error(s"Invalid byte value: $v")
+        }
+      case _ => error("Expected scalar for byte")
     }
     def encodeValue(x: Byte): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
-
-  val shortCodec: YamlCodec[Short] = new YamlCodec[Short](YamlCodec.shortType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Short] = yaml match {
+  val shortCodec: YamlCodec[Short] = new YamlCodec[Short] {
+    def decodeValue(yaml: Yaml): Short = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toShort)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid short value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for short", 0, 0))
+        try v.trim.toShort
+        catch {
+          case _: NumberFormatException => error(s"Invalid short value: $v")
+        }
+      case _ => error("Expected scalar for short")
     }
     def encodeValue(x: Short): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
-
-  val intCodec: YamlCodec[Int] = new YamlCodec[Int](YamlCodec.intType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Int] = yaml match {
+  val intCodec: YamlCodec[Int] = new YamlCodec[Int] {
+    def decodeValue(yaml: Yaml): Int = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toInt)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid int value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for int", 0, 0))
+        try v.trim.toInt
+        catch {
+          case _: NumberFormatException => error(s"Invalid int value: $v")
+        }
+      case _ => error("Expected scalar for int")
     }
     def encodeValue(x: Int): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
-
-  val longCodec: YamlCodec[Long] = new YamlCodec[Long](YamlCodec.longType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Long] = yaml match {
+  val longCodec: YamlCodec[Long] = new YamlCodec[Long] {
+    def decodeValue(yaml: Yaml): Long = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toLong)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid long value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for long", 0, 0))
+        try v.trim.toLong
+        catch {
+          case _: NumberFormatException => error(s"Invalid long value: $v")
+        }
+      case _ => error("Expected scalar for long")
     }
     def encodeValue(x: Long): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
-
-  val floatCodec: YamlCodec[Float] = new YamlCodec[Float](YamlCodec.floatType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Float] = yaml match {
+  val floatCodec: YamlCodec[Float] = new YamlCodec[Float] {
+    def decodeValue(yaml: Yaml): Float = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toFloat)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid float value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for float", 0, 0))
+        try v.trim.toFloat
+        catch {
+          case _: NumberFormatException => error(s"Invalid float value: $v")
+        }
+      case _ => error("Expected scalar for float")
     }
-    def encodeValue(x: Float): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
+    def encodeValue(x: Float): Yaml = Yaml.Scalar(JsonCodec.floatCodec.encodeToString(x), tag = new Some(YamlTag.Float))
   }
-
-  val doubleCodec: YamlCodec[Double] = new YamlCodec[Double](YamlCodec.doubleType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Double] = yaml match {
+  val doubleCodec: YamlCodec[Double] = new YamlCodec[Double] {
+    def decodeValue(yaml: Yaml): Double = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(v.trim.toDouble)
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid double value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for double", 0, 0))
+        try v.trim.toDouble
+        catch {
+          case _: NumberFormatException => error(s"Invalid double value: $v")
+        }
+      case _ => error("Expected scalar for double")
     }
-    def encodeValue(x: Double): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Float))
+    def encodeValue(x: Double): Yaml =
+      Yaml.Scalar(JsonCodec.doubleCodec.encodeToString(x), tag = new Some(YamlTag.Float))
   }
-
-  val charCodec: YamlCodec[Char] = new YamlCodec[Char](YamlCodec.charType) {
-    def decodeValue(yaml: Yaml): Either[YamlError, Char] = yaml match {
-      case Yaml.Scalar(v, _) if v.length == 1 => Right(v.charAt(0))
-      case Yaml.Scalar(v, _)                  => Left(YamlError.parseError(s"Expected single character, got: $v", 0, 0))
-      case _                                  => Left(YamlError.parseError("Expected scalar for char", 0, 0))
+  val charCodec: YamlCodec[Char] = new YamlCodec[Char] {
+    def decodeValue(yaml: Yaml): Char = yaml match {
+      case Yaml.Scalar(v, _) =>
+        if (v.length == 1) v.charAt(0)
+        else error(s"Expected single character, got: $v")
+      case _ => error("Expected scalar for char")
     }
     def encodeValue(x: Char): Yaml = Yaml.Scalar(x.toString)
   }
-
-  val stringCodec: YamlCodec[String] = new YamlCodec[String]() {
-    def decodeValue(yaml: Yaml): Either[YamlError, String] = yaml match {
-      case Yaml.Scalar(v, _) => Right(v)
-      case Yaml.NullValue    => Right("")
-      case _                 => Left(YamlError.parseError("Expected scalar for string", 0, 0))
+  val stringCodec: YamlCodec[String] = new YamlCodec[String] {
+    def decodeValue(yaml: Yaml): String = yaml match {
+      case Yaml.Scalar(v, _) => v
+      case Yaml.NullValue    => ""
+      case _                 => error("Expected scalar for string")
     }
     def encodeValue(x: String): Yaml = Yaml.Scalar(x)
   }
-
-  val bigIntCodec: YamlCodec[BigInt] = new YamlCodec[BigInt]() {
-    def decodeValue(yaml: Yaml): Either[YamlError, BigInt] = yaml match {
+  val bigIntCodec: YamlCodec[BigInt] = new YamlCodec[BigInt] {
+    def decodeValue(yaml: Yaml): BigInt = yaml match {
       case Yaml.Scalar(v, _) =>
-        try Right(BigInt(v.trim))
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid BigInt value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for BigInt", 0, 0))
+        try BigInt(v.trim)
+        catch {
+          case _: NumberFormatException => error(s"Invalid BigInt value: $v")
+        }
+      case _ => error("Expected scalar for BigInt")
     }
-    def encodeValue(x: BigInt): Yaml = Yaml.Scalar(x.toString)
+    def encodeValue(x: BigInt): Yaml = Yaml.Scalar(JsonCodec.bigIntCodec.encodeToString(x))
+  }
+  val bigDecimalCodec: YamlCodec[BigDecimal] = new YamlCodec[BigDecimal] {
+    def decodeValue(yaml: Yaml): BigDecimal = yaml match {
+      case Yaml.Scalar(v, _) =>
+        try BigDecimal(v.trim)
+        catch {
+          case _: NumberFormatException => error(s"Invalid BigDecimal value: $v")
+        }
+      case _ => error("Expected scalar for BigDecimal")
+    }
+    def encodeValue(x: BigDecimal): Yaml = Yaml.Scalar(JsonCodec.bigDecimalCodec.encodeToString(x))
+  }
+  val dayOfWeekCodec: YamlCodec[DayOfWeek] = new YamlCodec[DayOfWeek] {
+    def decodeValue(yaml: Yaml): DayOfWeek = yaml match {
+      case Yaml.Scalar(v, _) => DayOfWeek.valueOf(v.trim.toUpperCase)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: DayOfWeek): Yaml = Yaml.Scalar(x.toString)
   }
 
-  val bigDecimalCodec: YamlCodec[BigDecimal] = new YamlCodec[BigDecimal]() {
-    def decodeValue(yaml: Yaml): Either[YamlError, BigDecimal] = yaml match {
-      case Yaml.Scalar(v, _) =>
-        try Right(BigDecimal(v.trim))
-        catch { case _: NumberFormatException => Left(YamlError.parseError(s"Invalid BigDecimal value: $v", 0, 0)) }
-      case _ => Left(YamlError.parseError("Expected scalar for BigDecimal", 0, 0))
+  val durationCodec: YamlCodec[Duration] = new YamlCodec[Duration] {
+    def decodeValue(yaml: Yaml): Duration = yaml match {
+      case Yaml.Scalar(v, _) => Json.durationRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
     }
-    def encodeValue(x: BigDecimal): Yaml = Yaml.Scalar(x.toString)
+
+    def encodeValue(x: Duration): Yaml = Yaml.Scalar(Json.durationRawCodec.encodeToString(x))
+  }
+  val instantCodec: YamlCodec[Instant] = new YamlCodec[Instant] {
+    def decodeValue(yaml: Yaml): Instant = yaml match {
+      case Yaml.Scalar(v, _) => Json.instantRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: Instant): Yaml = Yaml.Scalar(Json.instantRawCodec.encodeToString(x))
+  }
+  val localDateCodec: YamlCodec[LocalDate] = new YamlCodec[LocalDate] {
+    def decodeValue(yaml: Yaml): LocalDate = yaml match {
+      case Yaml.Scalar(v, _) => Json.localDateRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: LocalDate): Yaml = Yaml.Scalar(Json.localDateRawCodec.encodeToString(x))
+  }
+  val localDateTimeCodec: YamlCodec[LocalDateTime] = new YamlCodec[LocalDateTime] {
+    def decodeValue(yaml: Yaml): LocalDateTime = yaml match {
+      case Yaml.Scalar(v, _) => Json.localDateTimeRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: LocalDateTime): Yaml = Yaml.Scalar(Json.localDateTimeRawCodec.encodeToString(x))
+  }
+  val localTimeCodec: YamlCodec[LocalTime] = new YamlCodec[LocalTime] {
+    def decodeValue(yaml: Yaml): LocalTime = yaml match {
+      case Yaml.Scalar(v, _) => Json.localTimeRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: LocalTime): Yaml = Yaml.Scalar(Json.localTimeRawCodec.encodeToString(x))
+  }
+  val monthCodec: YamlCodec[Month] = new YamlCodec[Month] {
+    def decodeValue(yaml: Yaml): Month = yaml match {
+      case Yaml.Scalar(v, _) => Month.valueOf(v.trim.toUpperCase)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: Month): Yaml = Yaml.Scalar(x.toString)
+  }
+  val monthDayCodec: YamlCodec[MonthDay] = new YamlCodec[MonthDay] {
+    def decodeValue(yaml: Yaml): MonthDay = yaml match {
+      case Yaml.Scalar(v, _) => Json.monthDayRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: MonthDay): Yaml = Yaml.Scalar(Json.monthDayRawCodec.encodeToString(x))
+  }
+  val offsetDateTimeCodec: YamlCodec[OffsetDateTime] = new YamlCodec[OffsetDateTime] {
+    def decodeValue(yaml: Yaml): OffsetDateTime = yaml match {
+      case Yaml.Scalar(v, _) => Json.offsetDateTimeRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: OffsetDateTime): Yaml = Yaml.Scalar(Json.offsetDateTimeRawCodec.encodeToString(x))
+  }
+  val offsetTimeCodec: YamlCodec[OffsetTime] = new YamlCodec[OffsetTime] {
+    def decodeValue(yaml: Yaml): OffsetTime = yaml match {
+      case Yaml.Scalar(v, _) => Json.offsetTimeRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: OffsetTime): Yaml = Yaml.Scalar(Json.offsetTimeRawCodec.encodeToString(x))
+  }
+  val periodCodec: YamlCodec[Period] = new YamlCodec[Period] {
+    def decodeValue(yaml: Yaml): Period = yaml match {
+      case Yaml.Scalar(v, _) => Json.periodRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: Period): Yaml = Yaml.Scalar(Json.periodRawCodec.encodeToString(x))
+  }
+  val yearCodec: YamlCodec[Year] = new YamlCodec[Year] {
+    def decodeValue(yaml: Yaml): Year = yaml match {
+      case Yaml.Scalar(v, _) => Year.parse(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: Year): Yaml = Yaml.Scalar(x.toString)
+  }
+  val yearMonthCodec: YamlCodec[YearMonth] = new YamlCodec[YearMonth] {
+    def decodeValue(yaml: Yaml): YearMonth = yaml match {
+      case Yaml.Scalar(v, _) => YearMonth.parse(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: YearMonth): Yaml = Yaml.Scalar(x.toString)
+  }
+  val zoneIdCodec: YamlCodec[ZoneId] = new YamlCodec[ZoneId] {
+    def decodeValue(yaml: Yaml): ZoneId = yaml match {
+      case Yaml.Scalar(v, _) => ZoneId.of(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: ZoneId): Yaml = Yaml.Scalar(x.toString)
+  }
+  val zoneOffsetCodec: YamlCodec[ZoneOffset] = new YamlCodec[ZoneOffset] {
+    def decodeValue(yaml: Yaml): ZoneOffset = yaml match {
+      case Yaml.Scalar(v, _) => ZoneOffset.of(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: ZoneOffset): Yaml = Yaml.Scalar(x.toString)
+  }
+  val zonedDateTimeCodec: YamlCodec[ZonedDateTime] = new YamlCodec[ZonedDateTime] {
+    def decodeValue(yaml: Yaml): ZonedDateTime = yaml match {
+      case Yaml.Scalar(v, _) => Json.zonedDateTimeRawCodec.decodeUnsafe(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: ZonedDateTime): Yaml = Yaml.Scalar(Json.zonedDateTimeRawCodec.encodeToString(x))
+  }
+  val currencyCodec: YamlCodec[Currency] = new YamlCodec[Currency] {
+    def decodeValue(yaml: Yaml): Currency = yaml match {
+      case Yaml.Scalar(v, _) => Currency.getInstance(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: Currency): Yaml = Yaml.Scalar(x.getCurrencyCode)
+  }
+  val uuidCodec: YamlCodec[UUID] = new YamlCodec[UUID] {
+    def decodeValue(yaml: Yaml): UUID = yaml match {
+      case Yaml.Scalar(v, _) => UUID.fromString(v.trim)
+      case _                 => error("Expected scalar value")
+    }
+
+    def encodeValue(x: UUID): Yaml = Yaml.Scalar(x.toString)
   }
 }

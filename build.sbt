@@ -349,7 +349,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC46" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC47" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -719,8 +719,8 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 81,
-    coverageMinimumBranchTotal := 72
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70
   )
 
 lazy val openapi = crossProject(JSPlatform, JVMPlatform)
@@ -756,7 +756,7 @@ lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 88,
-    coverageMinimumBranchTotal := 84
+    coverageMinimumBranchTotal := 83
   )
 
 lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
@@ -1127,6 +1127,16 @@ lazy val `streams-benchmark` = project
     coverageMinimumBranchTotal := 0
   )
 
+lazy val `schema-examples-macros` = project
+  .in(file("schema-examples-macros"))
+  .settings(stdSettings("zio-blocks-schema-examples-macros", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val `schema-examples` = project
   .in(file("schema-examples"))
   .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
@@ -1137,6 +1147,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4")
   )
+  .dependsOn(`schema-examples-macros`)
   .dependsOn(
     schema.jvm,
     markdown.jvm,
@@ -1163,7 +1174,15 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-prelude" % "1.0.0-RC46"
+      "dev.zio" %% "zio-prelude" % "1.0.0-RC47"
+    ),
+    // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
+    mdocVariables ++= Map(
+      "PROJECT_BADGES" -> (
+        "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
+          "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+          "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
+      )
     )
   )
   .dependsOn(

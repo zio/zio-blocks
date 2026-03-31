@@ -521,32 +521,30 @@ class JsonCodecDeriver private[json] (
           }
 
           override def encodeValue(x: A): Json = {
-            val len     = fieldCodecs.length
-            val builder = ChunkBuilder.make[Json](len)
-            val regs    = Registers(usedRegisters)
-            var offset  = 0L
+            val len    = fieldCodecs.length
+            val elems  = new Array[Json](len)
+            val regs   = Registers(usedRegisters)
+            var offset = 0L
             deconstructor.deconstruct(regs, offset, x)
             var idx = 0
             while (idx < len) {
               val codec = fieldCodecs(idx)
-              builder.addOne(
-                (typeTags(idx): @switch) match {
-                  case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
-                  case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
-                  case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
-                  case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
-                  case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
-                  case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
-                  case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
-                  case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
-                  case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
-                  case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
-                }
-              )
+              elems(idx) = (typeTags(idx): @switch) match {
+                case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
+                case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
+                case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
+                case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
+                case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
+                case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+                case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
+                case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
+                case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
+                case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
+              }
               offset += registerOffsets(idx)
               idx += 1
             }
-            new Json.Array(builder.result())
+            new Json.Array(Chunk.fromArray(elems))
           }
 
           override lazy val toJsonSchema: JsonSchema = {
@@ -794,12 +792,11 @@ class JsonCodecDeriver private[json] (
 
             override def encodeValue(x: A): Json = {
               val len     = fieldInfos.length
-              val builder =
-                if (discriminatorField ne null) {
-                  val b = ChunkBuilder.make[(String, Json)](len + 1)
-                  discriminatorField.writeKeyAndValue(b)
-                  b
-                } else ChunkBuilder.make[(String, Json)](len)
+              val builder = ChunkBuilder.make[(String, Json)](len + {
+                if (discriminatorField ne null) 1
+                else 0
+              })
+              if (discriminatorField ne null) discriminatorField.writeKeyAndValue(builder)
               val regs = Registers(usedRegisters)
               deconstructor.deconstruct(regs, 0, x)
               var idx = 0
@@ -827,13 +824,12 @@ class JsonCodecDeriver private[json] (
               }
 
             override lazy val toJsonSchema: JsonSchema = {
-              val reqs             = Set.newBuilder[String]
-              val properties       = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
+              val len              = fieldInfos.length
+              val properties       = new ChunkMap.ChunkMapBuilder[String, JsonSchema](len)
               val dependentSchemas = new ChunkMap.ChunkMapBuilder[String, JsonSchema]
               val allOf            = ChunkBuilder.make[JsonSchema]()
-              val len              = fieldInfos.length
-              properties.sizeHint(len)
-              var idx = 0
+              val reqs             = Set.newBuilder[String]
+              var idx              = 0
               while (idx < len) {
                 val fieldInfo = fieldInfos(idx)
                 val field     = fields(idx)
@@ -1410,30 +1406,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Int] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Int](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Int](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, intCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, intCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Int](builder)
-                  case _: Json.Null.type => constructor.empty[Int]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Int]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.intAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.intAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1485,30 +1484,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Int] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Int](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Int](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Int](builder)
-                  case _: Json.Null.type => constructor.empty[Int]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Int]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.intAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.intAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1561,30 +1563,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Long] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Long](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Long](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, longCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, longCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Long](builder)
-                  case _: Json.Null.type => constructor.empty[Long]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Long]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.longAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.longAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1636,30 +1641,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Long] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Long](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Long](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Long](builder)
-                  case _: Json.Null.type => constructor.empty[Long]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Long]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.longAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.longAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1712,30 +1720,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Float] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Float](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Float](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, floatCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, floatCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Float](builder)
-                  case _: Json.Null.type => constructor.empty[Float]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Float]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.floatAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.floatAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1787,30 +1798,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Float] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Float](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Float](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Float](builder)
-                  case _: Json.Null.type => constructor.empty[Float]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Float]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.floatAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.floatAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1863,30 +1877,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Double] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Double](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Double](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, doubleCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, doubleCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Double](builder)
-                  case _: Json.Null.type => constructor.empty[Double]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Double]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.doubleAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.doubleAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1938,30 +1955,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Double] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Double](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Double](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Double](builder)
-                  case _: Json.Null.type => constructor.empty[Double]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Double]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.doubleAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.doubleAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2014,30 +2034,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Boolean] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Boolean](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, booleanCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, booleanCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Boolean](builder)
-                  case _: Json.Null.type => constructor.empty[Boolean]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Boolean]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Boolean(deconstructor.booleanAt(x, idx)))
+                    elems(idx) = Json.Boolean(deconstructor.booleanAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2089,30 +2112,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Boolean] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Boolean](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Boolean](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Boolean](builder)
-                  case _: Json.Null.type => constructor.empty[Boolean]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Boolean]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.booleanAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.booleanAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2165,30 +2191,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Byte] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Byte](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, byteCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, byteCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Byte](builder)
-                  case _: Json.Null.type => constructor.empty[Byte]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Byte]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.byteAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.byteAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2240,30 +2269,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Byte] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Byte](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Byte](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Byte](builder)
-                  case _: Json.Null.type => constructor.empty[Byte]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Byte]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.byteAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.byteAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2316,30 +2348,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Char] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Char](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Char](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, charCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, charCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Char](builder)
-                  case _: Json.Null.type => constructor.empty[Char]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Char]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(new Json.String(deconstructor.charAt(x, idx).toString))
+                    elems(idx) = new Json.String(deconstructor.charAt(x, idx).toString)
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2391,30 +2426,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Char] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Char](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Char](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Char](builder)
-                  case _: Json.Null.type => constructor.empty[Char]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Char]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.charAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.charAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2467,30 +2505,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Short] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Short](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Short](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, shortCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, shortCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Short](builder)
-                  case _: Json.Null.type => constructor.empty[Short]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Short]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.shortAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.shortAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2542,30 +2583,33 @@ class JsonCodecDeriver private[json] (
 
                 override def decodeValue(json: Json): Col[Short] = json match {
                   case a: Json.Array =>
-                    val builder = constructor.newBuilder[Short](a.value.length)
+                    val elems   = a.value
+                    val len     = elems.length
+                    val builder = constructor.newBuilder[Short](len)
                     var idx     = 0
                     try {
-                      a.value.foreach { e =>
-                        constructor.add(builder, elementCodec.decodeValue(e))
+                      while (idx < len) {
+                        constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                         idx += 1
                       }
                     } catch {
                       case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                     }
                     constructor.result[Short](builder)
-                  case _: Json.Null.type => constructor.empty[Short]
-                  case _                 => error("expected Json.Array")
+                  case _ =>
+                    if (json eq Json.Null) constructor.empty[Short]
+                    else error("expected Json.Array")
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.shortAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.shortAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2587,7 +2631,7 @@ class JsonCodecDeriver private[json] (
                   if (in.isNextToken(']')) constructor.empty(elemClassTag)
                   else {
                     in.rollbackToken()
-                    val builder = constructor.newBuilder[Elem](8)(elemClassTag)
+                    val builder = constructor.newBuilder[Elem]()(elemClassTag)
                     var idx     = -1
                     try {
                       while ({
@@ -2615,26 +2659,34 @@ class JsonCodecDeriver private[json] (
 
               override def decodeValue(json: Json): Col[Elem] = json match {
                 case a: Json.Array =>
-                  val builder = constructor.newBuilder[Elem](a.value.length)(elemClassTag)
+                  val elems   = a.value
+                  val len     = elems.length
+                  val builder = constructor.newBuilder[Elem](len)(elemClassTag)
                   var idx     = 0
                   try {
-                    a.value.foreach { e =>
-                      constructor.add(builder, elementCodec.decodeValue(e))
+                    while (idx < len) {
+                      constructor.add(builder, elementCodec.decodeValue(elems(idx)))
                       idx += 1
                     }
                   } catch {
                     case err if NonFatal(err) => error(new DynamicOptic.Node.AtIndex(idx), err)
                   }
                   constructor.result[Elem](builder)
-                case _: Json.Null.type => constructor.empty[Elem](elemClassTag)
-                case _                 => error("expected Json.Array")
+                case _ =>
+                  if (json eq Json.Null) constructor.empty[Elem](elemClassTag)
+                  else error("expected Json.Array")
               }
 
               override def encodeValue(x: Col[Elem]): Json = {
-                val builder = ChunkBuilder.make[Json](deconstructor.size(x))
-                val it      = deconstructor.deconstruct(x)
-                while (it.hasNext) builder.addOne(elementCodec.encodeValue(it.next()))
-                new Json.Array(builder.result())
+                val len   = deconstructor.size(x)
+                val elems = new Array[Json](len)
+                val it    = deconstructor.deconstruct(x)
+                var idx   = 0
+                while (idx < len) {
+                  elems(idx) = elementCodec.encodeValue(it.next())
+                  idx += 1
+                }
+                new Json.Array(Chunk.fromArray(elems))
               }
 
               override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2729,20 +2781,23 @@ class JsonCodecDeriver private[json] (
                   idx += 1
               }
               constructor.resultObject[Key, Value](builder)
-            case _: Json.Null.type => constructor.emptyObject[Key, Value]
-            case _                 => error("expected Json.Object")
+            case _ =>
+              if (json eq Json.Null) constructor.emptyObject[Key, Value]
+              else error("expected Json.Object")
           }
 
           override def encodeValue(x: Map[Key, Value]): Json = {
-            val builder = ChunkBuilder.make[(String, Json)](deconstructor.size(x))
-            val it      = deconstructor.deconstruct(x)
-            while (it.hasNext) {
+            val len = deconstructor.size(x)
+            val kvs = new Array[(String, Json)](len)
+            val it  = deconstructor.deconstruct(x)
+            var idx = 0
+            while (idx < len) {
               val kv = it.next()
-              val k  = keyCodec.encodeKey(deconstructor.getKey(kv))
-              val v  = valueCodec.encodeValue(deconstructor.getValue(kv))
-              builder.addOne((k, v))
+              kvs(idx) =
+                (keyCodec.encodeKey(deconstructor.getKey(kv)), valueCodec.encodeValue(deconstructor.getValue(kv)))
+              idx += 1
             }
-            new Json.Object(builder.result())
+            new Json.Object(Chunk.fromArray(kvs))
           }
 
           override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2792,7 +2847,7 @@ class JsonCodecDeriver private[json] (
           override def encodeValue(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeValue(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => out.encodeError(err.getMessage)
+              case err if NonFatal(err) => error(err.getMessage)
             }
 
           override def decodeValue(json: Json): A =
@@ -2816,7 +2871,7 @@ class JsonCodecDeriver private[json] (
           override def encodeKey(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeKey(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => out.encodeError(err.getMessage)
+              case err if NonFatal(err) => error(err.getMessage)
             }
 
           override def decodeKey(s: String): A =
@@ -3273,6 +3328,7 @@ private class FieldInfo(
 }
 
 private class DiscriminatorFieldInfo(name: String, value: String) {
+  private[this] val keyAndValueJson        = (name, new Json.String(value))
   private[this] val isNonEscapedAsciiName  = JsonWriter.isNonEscapedAscii(name)
   private[this] val isNonEscapedAsciiValue = JsonWriter.isNonEscapedAscii(value)
 
@@ -3291,7 +3347,7 @@ private class DiscriminatorFieldInfo(name: String, value: String) {
   }
 
   @inline
-  def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne((name, new Json.String(value)))
+  def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne(keyAndValueJson)
 }
 
 private sealed trait CaseInfo

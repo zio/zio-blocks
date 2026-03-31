@@ -100,11 +100,11 @@ final case class DerivationBuilder[TC[_], A](
         nodes.last match {
           case f: DynamicOptic.Node.Field =>
             copy(modifierOverrides =
-              modifierOverrides :+ new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), f.name, mt)
+              modifierOverrides.appended(new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), f.name, mt))
             )
           case c: DynamicOptic.Node.Case =>
             copy(modifierOverrides =
-              modifierOverrides :+ new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), c.name, mt)
+              modifierOverrides.appended(new ModifierTermOverrideByOptic(new DynamicOptic(nodes.init), c.name, mt))
             )
           case _ => this
         }
@@ -218,7 +218,7 @@ final case class DerivationBuilder[TC[_], A](
                 )
                 term.copy(value = newValue.asInstanceOf[Reflect[G, term.Focus]]).asInstanceOf[Term[G, A0, ?]]
               }
-            case None => term
+            case _ => term
           }
         }
       }

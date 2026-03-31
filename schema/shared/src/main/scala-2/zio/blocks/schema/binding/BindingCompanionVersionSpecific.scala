@@ -233,12 +233,12 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
     else if (isTypeRef(tpe)) typeRefDealias(tpe)
     else tpe
 
-  private case class SmartConstructorInfo(
-    companionSymbol: Symbol,
-    applyMethod: MethodSymbol,
-    underlyingType: Type,
-    errorType: Type,
-    unwrapFieldName: TermName
+  private class SmartConstructorInfo(
+    val companionSymbol: Symbol,
+    val applyMethod: MethodSymbol,
+    val underlyingType: Type,
+    val errorType: Type,
+    val unwrapFieldName: TermName
   )
 
   private def findSmartConstructor(tpe: Type): Option[SmartConstructorInfo] = {
@@ -284,8 +284,8 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
           case TypeRef(_, _, List(errTpe, _)) => errTpe.dealias
           case _                              => return None
         }
-        Some(
-          SmartConstructorInfo(
+        new Some(
+          new SmartConstructorInfo(
             companion,
             m,
             underlyingType,
@@ -293,7 +293,7 @@ private class BindingMacroImpl[C <: blackbox.Context](val c: C) {
             fieldName
           )
         )
-      case None => None
+      case _ => None
     }
   }
 

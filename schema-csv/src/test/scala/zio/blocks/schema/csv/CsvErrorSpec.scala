@@ -30,9 +30,9 @@ object CsvErrorSpec extends SchemaBaseSpec {
         val error = CsvError.ParseError("Test error", 2, 3)
         assertTrue(error.isInstanceOf[Throwable])
       },
-      test("formatMessage produces human-readable error for ParseError") {
+      test("getMessage produces human-readable error for ParseError") {
         val error = CsvError.ParseError("Invalid CSV format", 3, 5)
-        assertTrue(error.formatMessage == "CSV error at row 3, column 5: Invalid CSV format")
+        assertTrue(error.getMessage == "CSV error at row 3, column 5: Invalid CSV format")
       }
     ),
     suite("TypeError")(
@@ -49,9 +49,9 @@ object CsvErrorSpec extends SchemaBaseSpec {
         val error = CsvError.TypeError("Type conversion failed", 2, 3, "salary")
         assertTrue(error.isInstanceOf[Throwable])
       },
-      test("formatMessage produces human-readable error for TypeError") {
+      test("getMessage produces human-readable error for TypeError") {
         val error = CsvError.TypeError("Invalid integer value", 2, 4, "age")
-        assertTrue(error.formatMessage == "CSV error at row 2, column 4: Invalid integer value (field: age)")
+        assertTrue(error.getMessage == "CSV error at row 2, column 4: Invalid integer value (field: age)")
       }
     ),
     suite("CsvError hierarchy")(
@@ -65,10 +65,6 @@ object CsvErrorSpec extends SchemaBaseSpec {
       }
     ),
     suite("Throwable behavior")(
-      test("getMessage returns formatMessage") {
-        val error = CsvError.ParseError("Invalid format", 5, 10)
-        assertTrue(error.getMessage() == error.formatMessage)
-      },
       test("CsvError with no stack trace for performance") {
         val error = CsvError.ParseError("test", 1, 1)
         assertTrue(error.getStackTrace.isEmpty)

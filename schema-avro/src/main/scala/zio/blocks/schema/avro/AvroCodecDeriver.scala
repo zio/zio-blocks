@@ -252,7 +252,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Boolean] = {
-                val builder = constructor.newBuilder[Boolean](8)(ClassTag.Boolean)
+                val builder = constructor.newBuilder[Boolean]()(ClassTag.Boolean)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -297,7 +297,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Byte] = {
-                val builder = constructor.newBuilder[Byte](8)(ClassTag.Byte)
+                val builder = constructor.newBuilder[Byte]()(ClassTag.Byte)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -342,7 +342,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Char] = {
-                val builder = constructor.newBuilder[Char](8)(ClassTag.Char)
+                val builder = constructor.newBuilder[Char]()(ClassTag.Char)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -387,7 +387,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Short] = {
-                val builder = constructor.newBuilder[Short](8)(ClassTag.Short)
+                val builder = constructor.newBuilder[Short]()(ClassTag.Short)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -432,7 +432,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Float] = {
-                val builder = constructor.newBuilder[Float](8)(ClassTag.Float)
+                val builder = constructor.newBuilder[Float]()(ClassTag.Float)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -477,7 +477,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Int] = {
-                val builder = constructor.newBuilder[Int](8)(ClassTag.Int)
+                val builder = constructor.newBuilder[Int]()(ClassTag.Int)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -522,7 +522,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Double] = {
-                val builder = constructor.newBuilder[Double](8)(ClassTag.Double)
+                val builder = constructor.newBuilder[Double]()(ClassTag.Double)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -567,7 +567,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Long] = {
-                val builder = constructor.newBuilder[Long](8)(ClassTag.Long)
+                val builder = constructor.newBuilder[Long]()(ClassTag.Long)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -613,7 +613,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
               val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
               def decodeValue(decoder: BinaryDecoder): Col[Elem] = {
-                val builder = constructor.newBuilder[Elem](8)(elemClassTag)
+                val builder = constructor.newBuilder[Elem]()(elemClassTag)
                 var count   = 0L
                 var size    = 0
                 while ({
@@ -685,7 +685,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
           }
 
           def decodeValue(decoder: BinaryDecoder): Map[Key, Value] = {
-            val builder = constructor.newObjectBuilder[Key, Value](8)
+            val builder = constructor.newObjectBuilder[Key, Value]()
             var count   = 0L
             var size    = 0
             while ({
@@ -1238,4 +1238,8 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
   }
 }
 
-private case class FieldInfo(codec: AvroCodec[?], typeTag: Int, offset: RegisterOffset.RegisterOffset)
+private class FieldInfo(
+  val codec: AvroCodec[?],
+  val typeTag: Int,
+  val offset: RegisterOffset.RegisterOffset
+)
