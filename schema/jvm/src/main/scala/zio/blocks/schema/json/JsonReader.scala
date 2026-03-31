@@ -87,10 +87,10 @@ final class JsonReader private[json] (
    */
   @noinline
   def requiredFieldError(reqField: String): Nothing = {
-    var i = appendString("missing required field \"", 0)
-    i = appendString(reqField, i)
-    i = appendChar('"', i)
-    decodeError(i)
+    var idx = appendString("missing required field \"", 0)
+    idx = appendString(reqField, idx)
+    idx = appendChar('"', idx)
+    decodeError(idx)
   }
 
   /**
@@ -104,9 +104,9 @@ final class JsonReader private[json] (
    */
   @noinline
   def duplicatedKeyError(len: Int): Nothing = {
-    var i = prependString("duplicated field \"", len)
-    i = appendChar('"', i)
-    decodeError(i)
+    var idx = prependString("duplicated field \"", len)
+    idx = appendChar('"', idx)
+    decodeError(idx)
   }
 
   /**
@@ -120,9 +120,9 @@ final class JsonReader private[json] (
    */
   @noinline
   def unexpectedKeyError(len: Int): Nothing = {
-    var i = prependString("unexpected field \"", len)
-    i = appendChar('"', i)
-    decodeError(i)
+    var idx = prependString("unexpected field \"", len)
+    idx = appendChar('"', idx)
+    decodeError(idx)
   }
 
   /**
@@ -143,10 +143,10 @@ final class JsonReader private[json] (
    */
   @noinline
   def discriminatorValueError(discriminatorFieldName: String): Nothing = {
-    var i = appendString("illegal value of discriminator field \"", 0)
-    i = appendString(discriminatorFieldName, i)
-    i = appendChar('"', i)
-    decodeError(i)
+    var idx = appendString("illegal value of discriminator field \"", 0)
+    idx = appendString(discriminatorFieldName, idx)
+    idx = appendChar('"', idx)
+    decodeError(idx)
   }
 
   /**
@@ -160,9 +160,9 @@ final class JsonReader private[json] (
    */
   @noinline
   def enumValueError(len: Int): Nothing = {
-    var i = prependString("illegal enum value \"", len)
-    i = appendChar('"', i)
-    decodeError(i)
+    var idx = prependString("illegal enum value \"", len)
+    idx = appendChar('"', idx)
+    decodeError(idx)
   }
 
   /**
@@ -198,11 +198,11 @@ final class JsonReader private[json] (
    *   in case of calling without a preceding call of 'setMark()'
    */
   def rollbackToMark(): Unit = {
-    var i = markNum
-    if (i == 0) missingSetMarkOperation()
-    i -= 1
-    head = marks(i)
-    markNum = i
+    var idx = markNum
+    if (idx == 0) missingSetMarkOperation()
+    idx -= 1
+    head = marks(idx)
+    markNum = idx
   }
 
   /**
@@ -1592,10 +1592,10 @@ final class JsonReader private[json] (
   def isCharBufEqualsTo(len: Int, s: String): Boolean = {
     if (s.length != len) return false
     val charBuf = this.charBuf
-    var i       = 0
-    while (i < len) {
-      if (s.charAt(i) != charBuf(i)) return false
-      i += 1
+    var idx     = 0
+    while (idx < len) {
+      if (s.charAt(idx) != charBuf(idx)) return false
+      idx += 1
     }
     true
   }
@@ -1852,36 +1852,36 @@ final class JsonReader private[json] (
 
   @noinline
   private[this] def tokenOrDigitError(t: Byte): Nothing = {
-    var i = appendString("expected '", 0)
-    i = appendChar(t.toChar, i)
-    i = appendString("' or digit", i)
-    decodeError(i)
+    var idx = appendString("expected '", 0)
+    idx = appendChar(t.toChar, idx)
+    idx = appendString("' or digit", idx)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def tokensError(t1: Byte, t2: Byte): Nothing = {
-    var i = appendString("expected '", 0)
-    i = appendChar(t1.toChar, i)
-    i = appendString("' or '", i)
-    i = appendChar(t2.toChar, i)
-    i = appendChar('\'', i)
-    decodeError(i)
+    var idx = appendString("expected '", 0)
+    idx = appendChar(t1.toChar, idx)
+    idx = appendString("' or '", idx)
+    idx = appendChar(t2.toChar, idx)
+    idx = appendChar('\'', idx)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def tokenOrNullError(t: Byte): Nothing = {
-    var i = appendString("expected '", 0)
-    i = appendChar(t.toChar, i)
-    i = appendString("' or null", i)
-    decodeError(i)
+    var idx = appendString("expected '", 0)
+    idx = appendChar(t.toChar, idx)
+    idx = appendString("' or null", idx)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def tokenError(t: Byte): Nothing = {
-    var i = appendString("expected '", 0)
-    i = appendChar(t.toChar, i)
-    i = appendChar('\'', i)
-    decodeError(i)
+    var idx = appendString("expected '", 0)
+    idx = appendChar(t.toChar, idx)
+    idx = appendChar('\'', idx)
+    decodeError(idx)
   }
 
   @noinline
@@ -1889,10 +1889,10 @@ final class JsonReader private[json] (
 
   @inline
   private[this] def setMark(pos: Int): Unit = {
-    val i = markNum
-    if (i == marks.length) growMarks()
-    marks(i) = pos
-    markNum = i + 1
+    val idx = markNum
+    if (idx == marks.length) growMarks()
+    marks(idx) = pos
+    markNum = idx + 1
   }
 
   private[this] def growMarks(): Unit = marks = java.util.Arrays.copyOf(marks, (marks.length | 1) << 1)
@@ -3112,10 +3112,10 @@ final class JsonReader private[json] (
       magnitude = new Array[Byte](128)
       this.magnitude = magnitude
     } else {
-      var i = 0
-      while (i < last) {
-        ByteArrayAccess.setLong(magnitude, i, 0L)
-        i += 8
+      var idx = 0
+      while (idx < last) {
+        ByteArrayAccess.setLong(magnitude, idx, 0L)
+        idx += 8
       }
     }
     var x               = 0L
@@ -3138,16 +3138,16 @@ final class JsonReader private[json] (
         } + buf(pos + 17) - 48000000048L
       pos += 18
       first = Math.max(first - 8, 0)
-      var i     = last
+      var idx   = last
       val q     = 1000000000000000000L
       var m, mq = 0L
       while ({
-        m = ByteArrayAccess.getLong(magnitude, i)
+        m = ByteArrayAccess.getLong(magnitude, idx)
         mq = m * q
         x += mq
-        ByteArrayAccess.setLong(magnitude, i, x)
-        i -= 8
-        i >= first
+        ByteArrayAccess.setLong(magnitude, idx, x)
+        idx -= 8
+        idx >= first
       }) {
         x = Math.multiplyHigh(
           m,
@@ -3155,10 +3155,10 @@ final class JsonReader private[json] (
         ) + (m >> 63 & q) + ((~x & mq) >>> 63) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(m, q) + ((~x & mq) >>> 63)
       }
     }
-    var i = 0
-    while (i <= last) {
-      ByteArrayAccess.setLongReversed(magnitude, i, ByteArrayAccess.getLong(magnitude, i))
-      i += 8
+    var idx = 0
+    while (idx <= last) {
+      ByteArrayAccess.setLongReversed(magnitude, idx, ByteArrayAccess.getLong(magnitude, idx))
+      idx += 8
     }
     new java.math.BigInteger(s | 1, magnitude, 0, last + 8)
   }
@@ -4713,45 +4713,45 @@ final class JsonReader private[json] (
 
   @noinline
   private[this] def malformedBytesError(b1: Byte): Nothing = {
-    var i = appendString("malformed byte(s): 0x", 0)
-    i = appendHexByte(b1, i, hexDigits)
-    decodeError(i)
+    var idx = appendString("malformed byte(s): 0x", 0)
+    idx = appendHexByte(b1, idx, hexDigits)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def malformedBytesError(b1: Byte, b2: Byte): Nothing = {
-    val ds = hexDigits
-    var i  = appendString("malformed byte(s): 0x", 0)
-    i = appendHexByte(b1, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b2, i, ds)
-    decodeError(i)
+    val ds  = hexDigits
+    var idx = appendString("malformed byte(s): 0x", 0)
+    idx = appendHexByte(b1, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b2, idx, ds)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte): Nothing = {
-    val ds = hexDigits
-    var i  = appendString("malformed byte(s): 0x", 0)
-    i = appendHexByte(b1, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b2, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b3, i, ds)
-    decodeError(i)
+    val ds  = hexDigits
+    var idx = appendString("malformed byte(s): 0x", 0)
+    idx = appendHexByte(b1, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b2, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b3, idx, ds)
+    decodeError(idx)
   }
 
   @noinline
   private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte, b4: Byte): Nothing = {
-    val ds = hexDigits
-    var i  = appendString("malformed byte(s): 0x", 0)
-    i = appendHexByte(b1, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b2, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b3, i, ds)
-    i = appendString(", 0x", i)
-    i = appendHexByte(b4, i, ds)
-    decodeError(i)
+    val ds  = hexDigits
+    var idx = appendString("malformed byte(s): 0x", 0)
+    idx = appendHexByte(b1, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b2, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b3, idx, ds)
+    idx = appendString(", 0x", idx)
+    idx = appendHexByte(b4, idx, ds)
+    decodeError(idx)
   }
 
   @noinline
@@ -4850,15 +4850,15 @@ final class JsonReader private[json] (
       newPos -= offset
       val buf       = this.buf
       val remaining = tail - offset
-      var i         = 0
-      while (i < remaining) {
-        buf(i) = buf(i + offset)
-        i += 1
+      var idx       = 0
+      while (idx < remaining) {
+        buf(idx) = buf(idx + offset)
+        idx += 1
       }
-      i = 0
-      while (i < markNum) {
-        marks(i) -= offset
-        i += 1
+      idx = 0
+      while (idx < markNum) {
+        marks(idx) -= offset
+        idx += 1
       }
       tail = remaining
       head = newPos
@@ -5110,9 +5110,9 @@ private class Key {
     k.toIndex - koff == len && {
       val bs  = this.bs
       val kbs = k.bytes
-      var i   = 0
-      while (i < len && kbs(koff + i) == bs(off + i)) i += 1
-      i == len
+      var idx = 0
+      while (idx < len && kbs(koff + idx) == bs(off + idx)) idx += 1
+      idx == len
     }
   }
 

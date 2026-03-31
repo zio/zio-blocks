@@ -46,15 +46,14 @@ private[binding] object StructuralReflection {
   def hasAll(obj: AnyRef, names: Array[String]): Boolean = {
     if (obj == null) return false
     val cls = obj.getClass
-    var i   = 0
-    while (i < names.length) {
-      val name = names(i)
-      try {
-        cls.getMethod(name)
-      } catch {
+    var idx = 0
+    while (idx < names.length) {
+      val name = names(idx)
+      try cls.getMethod(name)
+      catch {
         case _: NoSuchMethodException => return false
       }
-      i += 1
+      idx += 1
     }
     true
   }

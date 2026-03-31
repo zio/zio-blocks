@@ -24,7 +24,7 @@ private[schema] object YamlInterpolatorRuntime {
   def validateYamlLiteral(sc: StringContext, contexts: Seq[YamlInterpolationContext]): Unit = {
     val parts     = sc.parts.iterator
     val contextIt = contexts.iterator
-    val sb        = new StringBuilder(128)
+    val sb        = new java.lang.StringBuilder(128)
     sb.append(parts.next())
     while (parts.hasNext && contextIt.hasNext) {
       val ctx = contextIt.next()
@@ -42,7 +42,7 @@ private[schema] object YamlInterpolatorRuntime {
     val parts     = sc.parts.iterator
     val argsIt    = args.iterator
     val contextIt = contexts.iterator
-    val sb        = new StringBuilder(128)
+    val sb        = new java.lang.StringBuilder(128)
     sb.append(parts.next())
     while (argsIt.hasNext && contextIt.hasNext) {
       val arg = argsIt.next()
@@ -57,7 +57,7 @@ private[schema] object YamlInterpolatorRuntime {
     YamlReader.read(sb.toString)
   }
 
-  private[this] def writeKeyValue(sb: StringBuilder, key: Any): Unit = key match {
+  private[this] def writeKeyValue(sb: java.lang.StringBuilder, key: Any): Unit = key match {
     case s: String             => appendYamlScalar(sb, s)
     case c: Char               => sb.append(c)
     case b: Boolean            => sb.append(b)
@@ -94,7 +94,7 @@ private[schema] object YamlInterpolatorRuntime {
       )
   }
 
-  private[this] def writeValue(sb: StringBuilder, value: Any): Unit = value match {
+  private[this] def writeValue(sb: java.lang.StringBuilder, value: Any): Unit = value match {
     case y: Yaml               => sb.append(YamlWriter.write(y, YamlOptions.default))
     case s: String             => appendYamlScalar(sb, s)
     case b: Boolean            => sb.append(b)
@@ -153,7 +153,7 @@ private[schema] object YamlInterpolatorRuntime {
     case x => appendYamlScalar(sb, x.toString)
   }
 
-  private[this] def writeInString(sb: StringBuilder, value: Any): Unit = value match {
+  private[this] def writeInString(sb: java.lang.StringBuilder, value: Any): Unit = value match {
     case s: String             => sb.append(s)
     case c: Char               => sb.append(c)
     case b: Boolean            => sb.append(b)
@@ -190,12 +190,12 @@ private[schema] object YamlInterpolatorRuntime {
       )
   }
 
-  private[this] def appendYamlScalar(sb: StringBuilder, value: String): Unit =
+  private[this] def appendYamlScalar(sb: java.lang.StringBuilder, value: String): Unit =
     if (needsQuoting(value)) {
       sb.append('"')
-      var i = 0
-      while (i < value.length) {
-        value.charAt(i) match {
+      var idx = 0
+      while (idx < value.length) {
+        value.charAt(idx) match {
           case '"'           => sb.append("\\\"")
           case '\\'          => sb.append("\\\\")
           case '\n'          => sb.append("\\n")
@@ -207,7 +207,7 @@ private[schema] object YamlInterpolatorRuntime {
             sb.append(String.format("%04x", Int.box(c.toInt)))
           case c => sb.append(c)
         }
-        i += 1
+        idx += 1
       }
       sb.append('"')
     } else sb.append(value)
@@ -221,14 +221,14 @@ private[schema] object YamlInterpolatorRuntime {
       c0 == '%' || c0 == '@' || c0 == '`' || c0 == '&' || c0 == '*' || c0 == '!' || c0 == '?'
     ) return true
     if (looksNumeric(value)) return true
-    var i = 0
-    while (i < value.length) {
-      val c = value.charAt(i)
+    var idx = 0
+    while (idx < value.length) {
+      val c = value.charAt(idx)
       if (c < 0x20 && c != '\t') return true
       if (c == '\n' || c == '\r') return true
       if (c == ':') return true
-      if (c == '#' && i > 0 && value.charAt(i - 1) == ' ') return true
-      i += 1
+      if (c == '#' && idx > 0 && value.charAt(idx - 1) == ' ') return true
+      idx += 1
     }
     false
   }

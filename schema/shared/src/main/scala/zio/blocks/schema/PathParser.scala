@@ -182,8 +182,8 @@ private[schema] object PathParser {
                   ctx.advance()
                   ctx.skipWhitespace()
                   parseInteger(ctx) match {
-                    case Left(err)  => return new Left(err)
                     case Right(idx) => indices.addOne(idx)
+                    case Left(err)  => return new Left(err)
                   }
                   ctx.skipWhitespace()
                 }
@@ -257,8 +257,8 @@ private[schema] object PathParser {
                 ctx.advance()
                 ctx.skipWhitespace()
                 parseMapKey(ctx) match {
-                  case Left(err)  => return Left(err)
                   case Right(key) => keys.addOne(key)
+                  case Left(err)  => return Left(err)
                 }
                 ctx.skipWhitespace()
               }

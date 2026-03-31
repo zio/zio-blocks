@@ -23,12 +23,8 @@ import java.nio.charset.StandardCharsets.UTF_8
  * Parser for YAML 1.2 input, converting YAML text into a [[Yaml]] AST.
  */
 object YamlReader {
-
-  def read(input: String): Yaml = {
-    val normalized = input.replace("\r\n", "\n").replace("\r", "\n")
-    val parser     = new YamlParser(normalized)
-    parser.parse()
-  }
+  def read(input: String): Yaml =
+    new YamlParser(input.replace("\r\n", "\n").replace("\r", "\n")).parse()
 
   def readFromBytes(input: Array[Byte]): Yaml =
     read(new String(input, UTF_8))
@@ -51,7 +47,7 @@ object YamlReader {
       }
     }
 
-    private def skipBlanksAndComments(): Unit =
+    private[this] def skipBlanksAndComments(): Unit =
       while (
         lineIdx < lines.length && {
           val trimmed = lines(lineIdx).trim
@@ -59,109 +55,110 @@ object YamlReader {
         }
       ) lineIdx += 1
 
-    private def currentIndent: Int =
+    private[this] def currentIndent: Int =
       if (lineIdx >= lines.length) 0
       else countLeadingSpaces(lines(lineIdx))
 
-    private def countLeadingSpaces(s: String): Int = {
-      var i = 0
-      while (i < s.length && s.charAt(i) == ' ') i += 1
-      i
+    private[this] def countLeadingSpaces(s: String): Int = {
+      var idx = 0
+      while (idx < s.length && s.charAt(idx) == ' ') idx += 1
+      idx
     }
 
-    private def parseValue(indent: Int): Yaml = {
+    private[this] def parseValue(indent: Int): Yaml = {
       skipBlanksAndComments()
       if (lineIdx >= lines.length) Yaml.NullValue
       else {
-        val line    = lines(lineIdx)
-        val trimmed = line.trim
-
-        if (trimmed.startsWith("{")) parseFlowMapping()
-        else if (trimmed.startsWith("[")) parseFlowSequence()
-        else if (trimmed.startsWith("- ") || trimmed == "-") parseBlockSequence(currentIndent)
-        else if (trimmed.startsWith("|") || trimmed.startsWith(">")) parseLiteralBlock(indent)
+        val line = lines(lineIdx).trim
+        if (line.startsWith("{")) parseFlowMapping()
+        else if (line.startsWith("[")) parseFlowSequence()
+        else if (line.startsWith("- ") || line == "-") parseBlockSequence(currentIndent)
+        else if (line.startsWith("|") || line.startsWith(">")) parseLiteralBlock(indent)
         else {
-          val colonIdx = findMappingColon(trimmed)
+          val colonIdx = findMappingColon(line)
           if (colonIdx > 0) parseBlockMapping(currentIndent)
           else parseScalar(indent)
         }
       }
     }
 
-    private def findMappingColon(trimmed: String): Int = {
-      var i        = 0
+    private[this] def findMappingColon(line: String): Int = {
+      val len      = line.length
+      var idx      = 0
       var inSingle = false
       var inDouble = false
-      while (i < trimmed.length) {
-        val c = trimmed.charAt(i)
+      while (idx < len) {
+        val c = line.charAt(idx)
         if (c == '\'' && !inDouble) inSingle = !inSingle
         else if (c == '"' && !inSingle) inDouble = !inDouble
         else if (!inSingle && !inDouble) {
-          if (c == ':' && (i + 1 >= trimmed.length || trimmed.charAt(i + 1) == ' ')) return i
+          if (c == ':' && (idx + 1 >= len || line.charAt(idx + 1) == ' ')) return idx
           if (c == '#') return -1
         }
-        i += 1
+        idx += 1
       }
       -1
     }
 
-    private def parseBlockMapping(indent: Int): Yaml = {
-      val entries = Chunk.newBuilder[(Yaml, Yaml)]
+    private[this] def parseBlockMapping(indent: Int): Yaml = {
+      val entries = ChunkBuilder.make[(Yaml, Yaml)]()
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Mapping(entries.result())
-        if (currentIndent != indent) return Yaml.Mapping(entries.result())
-        val line     = lines(lineIdx)
-        val trimmed  = line.trim
-        val colonIdx = findMappingColon(trimmed)
-        if (colonIdx <= 0) return Yaml.Mapping(entries.result())
-        val keyStr     = trimmed.substring(0, colonIdx).trim
-        val key        = Yaml.Scalar(unquoteScalar(keyStr))
-        val afterColon = trimmed.substring(colonIdx + 1).trim
-        if (afterColon.isEmpty) {
-          lineIdx += 1
-          skipBlanksAndComments()
-          val v =
-            if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
-            else Yaml.NullValue
-          entries += ((key, v))
-        } else if (afterColon == "|" || afterColon == ">" || afterColon.startsWith("|") || afterColon.startsWith(">")) {
-          val blockChar = afterColon.charAt(0)
-          lineIdx += 1
-          entries += ((key, parseLiteralBlockContent(indent, blockChar == '|')))
-        } else {
-          lineIdx += 1
-          val value = parseInlineValue(afterColon)
-          entries += ((key, value))
+        if (lineIdx >= lines.length || currentIndent < indent || currentIndent != indent) {
+          return new Yaml.Mapping(entries.result())
         }
+        val line     = lines(lineIdx).trim
+        val colonIdx = findMappingColon(line)
+        if (colonIdx <= 0) return new Yaml.Mapping(entries.result())
+        val keyStr     = line.substring(0, colonIdx).trim
+        val key        = new Yaml.Scalar(unquoteScalar(keyStr))
+        val afterColon = line.substring(colonIdx + 1).trim
+        lineIdx += 1
+        entries.addOne(
+          (
+            key, {
+              if (afterColon.isEmpty) {
+                skipBlanksAndComments()
+                if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
+                else Yaml.NullValue
+              } else if (
+                afterColon == "|" || afterColon == ">" || afterColon.startsWith("|") || afterColon.startsWith(">")
+              ) {
+                parseLiteralBlockContent(indent, afterColon.charAt(0) == '|')
+              } else parseInlineValue(afterColon)
+            }
+          )
+        )
       }
-      Yaml.Mapping(entries.result())
+      new Yaml.Mapping(entries.result())
     }
 
-    private def parseBlockSequence(indent: Int): Yaml = {
-      val elements = Chunk.newBuilder[Yaml]
+    private[this] def parseBlockSequence(indent: Int): Yaml = {
+      val elements = ChunkBuilder.make[Yaml]()
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Sequence(elements.result())
-        if (currentIndent != indent) return Yaml.Sequence(elements.result())
-        val line    = lines(lineIdx)
-        val trimmed = line.trim
-        if (!trimmed.startsWith("- ") && trimmed != "-") return Yaml.Sequence(elements.result())
-        val afterDash = if (trimmed == "-") "" else trimmed.substring(2).trim
+        if (lineIdx >= lines.length || currentIndent < indent || currentIndent != indent) {
+          return new Yaml.Sequence(elements.result())
+        }
+        val line = lines(lineIdx).trim
+        if (!line.startsWith("- ") && line != "-") return new Yaml.Sequence(elements.result())
+        val afterDash =
+          if (line == "-") ""
+          else line.substring(2).trim
         if (afterDash.isEmpty) {
           lineIdx += 1
           skipBlanksAndComments()
-          elements += {
+          elements.addOne(
             if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
             else Yaml.NullValue
-          }
+          )
         } else {
           val dashContentIndent = indent + 2
           val colonIdx          = findMappingColon(afterDash)
           if (colonIdx > 0) {
             lineIdx += 1
             val keyStr     = afterDash.substring(0, colonIdx).trim
-            val key        = Yaml.Scalar(unquoteScalar(keyStr))
+            val key        = new Yaml.Scalar(unquoteScalar(keyStr))
             val afterColon = afterDash.substring(colonIdx + 1).trim
             val firstValue =
               if (afterColon.isEmpty) {
@@ -169,61 +166,60 @@ object YamlReader {
                 if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
                 else Yaml.NullValue
               } else parseInlineValue(afterColon)
-            val mapEntries = Chunk.newBuilder[(Yaml, Yaml)]
-            mapEntries += ((key, firstValue))
+            val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
               if (lineIdx >= lines.length || currentIndent < dashContentIndent) {
-                elements += Yaml.Mapping(mapEntries.result())
+                elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 mapEntries.clear()
                 return parseBlockSequenceContinue(indent, elements)
               }
               if (currentIndent != dashContentIndent) {
-                elements += Yaml.Mapping(mapEntries.result())
+                elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
               val innerLine     = lines(lineIdx).trim
               val innerColonIdx = findMappingColon(innerLine)
               if (innerColonIdx <= 0) {
-                elements += Yaml.Mapping(mapEntries.result())
+                elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
               val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
-              val innerKey        = Yaml.Scalar(unquoteScalar(innerKeyStr))
+              val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
-              mapEntries += ((
-                innerKey, {
-                  if (innerAfterColon.isEmpty) {
-                    lineIdx += 1
-                    skipBlanksAndComments()
-                    if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
-                    else Yaml.NullValue
-                  } else {
-                    lineIdx += 1
-                    parseInlineValue(innerAfterColon)
+              lineIdx += 1
+              mapEntries.addOne(
+                (
+                  innerKey, {
+                    if (innerAfterColon.isEmpty) {
+                      skipBlanksAndComments()
+                      if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
+                      else Yaml.NullValue
+                    } else parseInlineValue(innerAfterColon)
                   }
-                }
-              ))
+                )
+              )
             }
-            elements += Yaml.Mapping(mapEntries.result())
+            elements.addOne(new Yaml.Mapping(mapEntries.result()))
           } else {
             lineIdx += 1
-            elements += parseInlineValue(afterDash)
+            elements.addOne(parseInlineValue(afterDash))
           }
         }
       }
-      Yaml.Sequence(elements.result())
+      new Yaml.Sequence(elements.result())
     }
 
-    private def parseBlockSequenceContinue(indent: Int, elements: ChunkBuilder[Yaml]): Yaml = {
+    private[this] def parseBlockSequenceContinue(indent: Int, elements: ChunkBuilder[Yaml]): Yaml = {
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
-        if (lineIdx >= lines.length || currentIndent < indent) return Yaml.Sequence(elements.result())
-        if (currentIndent != indent) return Yaml.Sequence(elements.result())
-        val line    = lines(lineIdx)
-        val trimmed = line.trim
-        if (!trimmed.startsWith("- ") && trimmed != "-") return Yaml.Sequence(elements.result())
-        val afterDash = if (trimmed == "-") "" else trimmed.substring(2).trim
+        if (lineIdx >= lines.length || currentIndent < indent || currentIndent != indent) {
+          return new Yaml.Sequence(elements.result())
+        }
+        val line = lines(lineIdx).trim
+        if (!line.startsWith("- ") && line != "-") return new Yaml.Sequence(elements.result())
+        val afterDash = if (line == "-") "" else line.substring(2).trim
         if (afterDash.isEmpty) {
           lineIdx += 1
           skipBlanksAndComments()
@@ -233,77 +229,69 @@ object YamlReader {
           }
         } else {
           val colonIdx = findMappingColon(afterDash)
-          if (colonIdx > 0) {
+          lineIdx += 1
+          elements.addOne(if (colonIdx > 0) {
             val dashContentIndent = indent + 2
-            lineIdx += 1
-            val keyStr     = afterDash.substring(0, colonIdx).trim
-            val key        = Yaml.Scalar(unquoteScalar(keyStr))
-            val afterColon = afterDash.substring(colonIdx + 1).trim
-            val firstValue = if (afterColon.isEmpty) {
+            val keyStr            = afterDash.substring(0, colonIdx).trim
+            val key               = new Yaml.Scalar(unquoteScalar(keyStr))
+            val afterColon        = afterDash.substring(colonIdx + 1).trim
+            val firstValue        = if (afterColon.isEmpty) {
               skipBlanksAndComments()
               if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
               else Yaml.NullValue
             } else parseInlineValue(afterColon)
-            val mapEntries = Chunk.newBuilder[(Yaml, Yaml)]
-            mapEntries += ((key, firstValue))
+            val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
-              if (lineIdx >= lines.length || currentIndent < dashContentIndent) {
-                elements += Yaml.Mapping(mapEntries.result())
-                return parseBlockSequenceContinue(indent, elements)
-              }
-              if (currentIndent != dashContentIndent) {
-                elements += Yaml.Mapping(mapEntries.result())
+              if (lineIdx >= lines.length || currentIndent < dashContentIndent || currentIndent != dashContentIndent) {
+                elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
               val innerLine     = lines(lineIdx).trim
               val innerColonIdx = findMappingColon(innerLine)
               if (innerColonIdx <= 0) {
-                elements += Yaml.Mapping(mapEntries.result())
+                elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
               val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
-              val innerKey        = Yaml.Scalar(unquoteScalar(innerKeyStr))
+              val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
-              mapEntries += ((
-                innerKey, {
-                  if (innerAfterColon.isEmpty) {
-                    lineIdx += 1
-                    skipBlanksAndComments()
-                    if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
-                    else Yaml.NullValue
-                  } else {
-                    lineIdx += 1
-                    parseInlineValue(innerAfterColon)
+              lineIdx += 1
+              mapEntries.addOne(
+                (
+                  innerKey, {
+                    if (innerAfterColon.isEmpty) {
+                      skipBlanksAndComments()
+                      if (lineIdx < lines.length && currentIndent > dashContentIndent) parseValue(currentIndent)
+                      else Yaml.NullValue
+                    } else parseInlineValue(innerAfterColon)
                   }
-                }
-              ))
+                )
+              )
             }
-            elements += Yaml.Mapping(mapEntries.result())
-          } else {
-            lineIdx += 1
-            elements += parseInlineValue(afterDash)
-          }
+            new Yaml.Mapping(mapEntries.result())
+          } else parseInlineValue(afterDash))
         }
       }
       Yaml.Sequence(elements.result())
     }
 
-    private def parseLiteralBlock(indent: Int): Yaml = {
+    private[this] def parseLiteralBlock(indent: Int): Yaml = {
       val line      = lines(lineIdx).trim
       val isLiteral = line.charAt(0) == '|'
       lineIdx += 1
       parseLiteralBlockContent(indent, isLiteral)
     }
 
-    private def parseLiteralBlockContent(indent: Int, isLiteral: Boolean): Yaml = {
+    private[this] def parseLiteralBlockContent(indent: Int, isLiteral: Boolean): Yaml = {
       skipBlanksAndComments()
-      if (lineIdx >= lines.length) Yaml.Scalar("")
+      if (lineIdx >= lines.length) new Yaml.Scalar("")
       else {
         val blockIndent = currentIndent
-        if (blockIndent <= indent) Yaml.Scalar("")
+        if (blockIndent <= indent) new Yaml.Scalar("")
         else {
-          val sb    = new StringBuilder
+          val sb    = new java.lang.StringBuilder
           var first = true
           while (lineIdx < lines.length) {
             val raw = lines(lineIdx)
@@ -313,11 +301,9 @@ object YamlReader {
             } else {
               val ci = countLeadingSpaces(raw)
               if (ci < blockIndent) {
-                val result        = sb.toString
-                val trimmedResult =
-                  if (result.endsWith("\n")) result.substring(0, result.length - 1)
-                  else result
-                return Yaml.Scalar(trimmedResult)
+                val lenM1 = sb.length() - 1
+                if (lenM1 >= 0 && sb.charAt(lenM1) == '\n') sb.setLength(lenM1)
+                return new Yaml.Scalar(sb.toString)
               }
               if (!first) {
                 if (isLiteral) sb.append('\n')
@@ -328,45 +314,42 @@ object YamlReader {
               lineIdx += 1
             }
           }
-          val result        = sb.toString
-          val trimmedResult =
-            if (result.endsWith("\n")) result.substring(0, result.length - 1)
-            else result
-          Yaml.Scalar(trimmedResult)
+          val lenM1 = sb.length() - 1
+          if (lenM1 >= 0 && sb.charAt(lenM1) == '\n') sb.setLength(lenM1)
+          new Yaml.Scalar(sb.toString)
         }
       }
     }
 
-    private def parseFlowMapping(): Yaml = {
+    private[this] def parseFlowMapping(): Yaml = {
       val line    = lines(lineIdx)
       val trimmed = line.trim
       lineIdx += 1
-
       if (trimmed == "{}") Yaml.Mapping.empty
       else {
         val content = collectFlowContent(trimmed, '{', '}')
         val inner   = content.substring(1, content.length - 1).trim
         if (inner.isEmpty) Yaml.Mapping.empty
         else {
-          val entries = Chunk.newBuilder[(Yaml, Yaml)]
+          val entries = ChunkBuilder.make[(Yaml, Yaml)]()
           val parts   = splitFlowItems(inner)
-          var i       = 0
-          while (i < parts.length) {
-            val part     = parts(i).trim
+          var idx     = 0
+          while (idx < parts.length) {
+            val part     = parts(idx).trim
             val colonIdx = part.indexOf(':')
             if (colonIdx > 0) {
               val k = unquoteScalar(part.substring(0, colonIdx).trim)
               val v = part.substring(colonIdx + 1).trim
-              entries += ((Yaml.Scalar(k), parseInlineValue(v)))
+              entries.addOne((new Yaml.Scalar(k), parseInlineValue(v)))
             }
-            i += 1
+            idx += 1
           }
-          Yaml.Mapping(entries.result())
+          new Yaml.Mapping(entries.result())
         }
       }
     }
 
-    private def parseFlowSequence(): Yaml = {
+    private[this] def parseFlowSequence(): Yaml = {
       val line    = lines(lineIdx)
       val trimmed = line.trim
       lineIdx += 1
@@ -376,30 +359,31 @@ object YamlReader {
         val inner   = content.substring(1, content.length - 1).trim
         if (inner.isEmpty) Yaml.Sequence.empty
         else {
-          val elements = Chunk.newBuilder[Yaml]
           val parts    = splitFlowItems(inner)
-          var i        = 0
-          while (i < parts.length) {
-            elements += parseInlineValue(parts(i).trim)
-            i += 1
+          val len      = parts.length
+          val elements = new Array[Yaml](len)
+          var idx      = 0
+          while (idx < len) {
+            elements(idx) = parseInlineValue(parts(idx).trim)
+            idx += 1
           }
-          Yaml.Sequence(elements.result())
+          new Yaml.Sequence(Chunk.fromArray(elements))
         }
       }
     }
 
-    private def collectFlowContent(start: String, open: Char, close: Char): String = {
+    private[this] def collectFlowContent(start: String, open: Char, close: Char): String = {
       var depth = 0
-      var i     = 0
+      var idx   = 0
       val s     = start
-      while (i < s.length) {
-        if (s.charAt(i) == open) depth += 1
-        else if (s.charAt(i) == close) depth -= 1
-        i += 1
+      while (idx < s.length) {
+        if (s.charAt(idx) == open) depth += 1
+        else if (s.charAt(idx) == close) depth -= 1
+        idx += 1
       }
       if (depth == 0) s
       else {
-        val sb = new StringBuilder(s)
+        val sb = new java.lang.StringBuilder(s)
         while (depth > 0 && lineIdx < lines.length) {
           sb.append(' ')
           val nextLine = lines(lineIdx).trim
@@ -416,17 +400,17 @@ object YamlReader {
       }
     }
 
-    private def splitFlowItems(s: String): Array[String] = {
+    private[this] def splitFlowItems(s: String): Array[String] = {
       val result   = new java.util.ArrayList[String]()
       var depth    = 0
       var start    = 0
-      var i        = 0
+      var idx      = 0
       var inSingle = false
       var inDouble = false
-      while (i < s.length) {
-        val c = s.charAt(i)
+      while (idx < s.length) {
+        val c = s.charAt(idx)
         if (inDouble) {
-          if (c == '\\') i += 1
+          if (c == '\\') idx += 1
           else if (c == '"') inDouble = false
         } else if (inSingle) {
           if (c == '\'') inSingle = false
@@ -435,10 +419,10 @@ object YamlReader {
         else if (c == '{' || c == '[') depth += 1
         else if (c == '}' || c == ']') depth -= 1
         else if (c == ',' && depth == 0) {
-          result.add(s.substring(start, i))
-          start = i + 1
+          result.add(s.substring(start, idx))
+          start = idx + 1
         }
-        i += 1
+        idx += 1
       }
       if (start < s.length) result.add(s.substring(start))
       val arr = new Array[String](result.size)
@@ -446,134 +430,128 @@ object YamlReader {
       arr
     }
 
-    private def parseScalar(@scala.annotation.unused indent: Int): Yaml = {
+    private[this] def parseScalar(@scala.annotation.unused indent: Int): Yaml = {
       val line = lines(lineIdx)
       lineIdx += 1
       parseInlineValue(line.trim)
     }
 
-    private def parseInlineValue(s: String): Yaml = {
+    private[this] def parseInlineValue(s: String): Yaml = {
       val trimmed = stripComment(s).trim
       if (trimmed.isEmpty || trimmed == "null" || trimmed == "~") Yaml.NullValue
-      else if (trimmed.startsWith("'")) Yaml.Scalar(unquoteSingle(trimmed))
-      else if (trimmed.startsWith("\"")) Yaml.Scalar(unquoteDouble(trimmed))
+      else if (trimmed.startsWith("'")) new Yaml.Scalar(unquoteSingle(trimmed))
+      else if (trimmed.startsWith("\"")) new Yaml.Scalar(unquoteDouble(trimmed))
       else if (trimmed.startsWith("{")) parseFlowMappingInline(trimmed)
       else if (trimmed.startsWith("[")) parseFlowSequenceInline(trimmed)
-      else Yaml.Scalar(trimmed)
+      else new Yaml.Scalar(trimmed)
     }
 
-    private def parseFlowMappingInline(s: String): Yaml =
+    private[this] def parseFlowMappingInline(s: String): Yaml =
       if (s == "{}") Yaml.Mapping.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Mapping.empty
         else {
-          val entries = Chunk.newBuilder[(Yaml, Yaml)]
+          val entries = ChunkBuilder.make[(Yaml, Yaml)]()
           val parts   = splitFlowItems(inner)
-          var i       = 0
-          while (i < parts.length) {
-            val part     = parts(i).trim
+          var idx     = 0
+          while (idx < parts.length) {
+            val part     = parts(idx).trim
             val colonIdx = part.indexOf(':')
             if (colonIdx > 0) {
               val k = unquoteScalar(part.substring(0, colonIdx).trim)
               val v = part.substring(colonIdx + 1).trim
-              entries += ((Yaml.Scalar(k), parseInlineValue(v)))
+              entries.addOne((Yaml.Scalar(k), parseInlineValue(v)))
             }
-            i += 1
+            idx += 1
           }
-          Yaml.Mapping(entries.result())
+          new Yaml.Mapping(entries.result())
         }
       }
 
-    private def parseFlowSequenceInline(s: String): Yaml =
+    private[this] def parseFlowSequenceInline(s: String): Yaml =
       if (s == "[]") Yaml.Sequence.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Sequence.empty
         else {
-          val elements = Chunk.newBuilder[Yaml]
           val parts    = splitFlowItems(inner)
-          var i        = 0
-          while (i < parts.length) {
-            elements += parseInlineValue(parts(i).trim)
-            i += 1
+          val len      = parts.length
+          val elements = new Array[Yaml](len)
+          var idx      = 0
+          while (idx < len) {
+            elements(idx) = parseInlineValue(parts(idx).trim)
+            idx += 1
           }
-          Yaml.Sequence(elements.result())
+          new Yaml.Sequence(Chunk.fromArray(elements))
         }
       }
 
-    private def stripComment(s: String): String = {
+    private[this] def stripComment(s: String): String = {
       var inSingle = false
       var inDouble = false
-      var i        = 0
-      while (i < s.length) {
-        val c = s.charAt(i)
-        if (c == '\\' && inDouble && i + 1 < s.length) {
-          i += 2
-        } else {
+      var idx      = 0
+      while (idx < s.length) {
+        val c = s.charAt(idx)
+        if (c == '\\' && inDouble && idx + 1 < s.length) idx += 2
+        else {
           if (c == '\'' && !inDouble) inSingle = !inSingle
           else if (c == '"' && !inSingle) inDouble = !inDouble
-          else if (c == '#' && !inSingle && !inDouble && i > 0 && s.charAt(i - 1) == ' ') {
-            return s.substring(0, i).trim
+          else if (c == '#' && !inSingle && !inDouble && idx > 0 && s.charAt(idx - 1) == ' ') {
+            return s.substring(0, idx).trim
           }
-          i += 1
+          idx += 1
         }
       }
       s
     }
 
-    private def unquoteScalar(s: String): String =
+    private[this] def unquoteScalar(s: String): String =
       if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) unquoteSingle(s)
       else if (s.startsWith("\"") && s.endsWith("\"") && s.length >= 2) unquoteDouble(s)
       else s
 
-    private def unquoteSingle(s: String): String = {
-      val inner = s.substring(1, s.length - 1)
-      inner.replace("''", "'")
-    }
+    private[this] def unquoteSingle(s: String): String = s.substring(1, s.length - 1).replace("''", "'")
 
-    private def unquoteDouble(s: String): String = {
+    private[this] def unquoteDouble(s: String): String = {
       val inner = s.substring(1, s.length - 1)
-      val sb    = new StringBuilder
-      var i     = 0
-      while (i < inner.length) {
-        if (inner.charAt(i) == '\\' && i + 1 < inner.length) {
-          inner.charAt(i + 1) match {
-            case 'n'                         => sb.append('\n')
-            case 't'                         => sb.append('\t')
-            case 'r'                         => sb.append('\r')
-            case '\\'                        => sb.append('\\')
-            case '"'                         => sb.append('"')
-            case '/'                         => sb.append('/')
-            case 'b'                         => sb.append('\b')
-            case 'a'                         => sb.append('\u0007')
-            case '0'                         => sb.append('\u0000')
-            case 'u' if i + 5 < inner.length =>
-              val hex = inner.substring(i + 2, i + 6)
+      val len   = inner.length
+      val sb    = new java.lang.StringBuilder(len)
+      var idx   = 0
+      while (idx < len) {
+        if (inner.charAt(idx) == '\\' && idx + 1 < len) {
+          inner.charAt(idx + 1) match {
+            case 'n'                  => sb.append('\n')
+            case 't'                  => sb.append('\t')
+            case 'r'                  => sb.append('\r')
+            case '\\'                 => sb.append('\\')
+            case '"'                  => sb.append('"')
+            case '/'                  => sb.append('/')
+            case 'b'                  => sb.append('\b')
+            case 'a'                  => sb.append('\u0007')
+            case '0'                  => sb.append('\u0000')
+            case 'u' if idx + 5 < len =>
+              val hex = inner.substring(idx + 2, idx + 6)
               try {
                 sb.append(Integer.parseInt(hex, 16).toChar)
-                i += 4
+                idx += 4
               } catch {
-                case _: NumberFormatException =>
-                  sb.append('\\')
-                  sb.append('u')
+                case _: NumberFormatException => sb.append('\\').append('u')
               }
-            case 'x' if i + 3 < inner.length =>
-              val hex = inner.substring(i + 2, i + 4)
+            case 'x' if idx + 3 < len =>
+              val hex = inner.substring(idx + 2, idx + 4)
               try {
                 sb.append(Integer.parseInt(hex, 16).toChar)
-                i += 2
+                idx += 2
               } catch {
-                case _: NumberFormatException =>
-                  sb.append('\\')
-                  sb.append('x')
+                case _: NumberFormatException => sb.append('\\').append('x')
               }
-            case other => sb.append('\\'); sb.append(other)
+            case other => sb.append('\\').append(other)
           }
-          i += 2
+          idx += 2
         } else {
-          sb.append(inner.charAt(i))
-          i += 1
+          sb.append(inner.charAt(idx))
+          idx += 1
         }
       }
       sb.toString

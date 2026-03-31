@@ -234,7 +234,7 @@ object SeqConstructor {
   implicit val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor[Chunk] {
     type Builder[A] = ChunkBuilder[A]
 
-    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = ChunkBuilder.make[A]()
+    def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = ChunkBuilder.make[A](sizeHint)
 
     def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 

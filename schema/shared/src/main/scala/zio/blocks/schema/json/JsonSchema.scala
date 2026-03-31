@@ -1684,7 +1684,7 @@ object JsonSchema {
 
     def getSchemaList(key: String): Either[SchemaError, Option[NonEmptyChunk[JsonSchema]]] = fieldMap.get(key) match {
       case arr: Json.Array =>
-        val schemas            = ChunkBuilder.make[JsonSchema]()
+        val schemas            = ChunkBuilder.make[JsonSchema](arr.value.length)
         var error: SchemaError = null
         arr.value.foreach { json =>
           fromJson(json) match {

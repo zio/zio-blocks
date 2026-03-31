@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
@@ -1130,28 +1130,22 @@ object Optional {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
+      val nodes = new Array[DynamicOptic.Node](len)
       var idx   = 0
       while (idx < len) {
-        nodes.addOne {
-          bindings(idx) match {
-            case _: LensBinding =>
-              new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding =>
-              new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-              DynamicOptic.Node.Wrapped
-            case at: AtBinding[Col] @scala.unchecked =>
-              new DynamicOptic.Node.AtIndex(at.index)
-            case binding =>
-              val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
-              new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
-          }
+        nodes(idx) = bindings(idx) match {
+          case _: LensBinding                                        => new DynamicOptic.Node.Field(focusTerms(idx).name)
+          case _: PrismBinding                                       => new DynamicOptic.Node.Case(focusTerms(idx).name)
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked => DynamicOptic.Node.Wrapped
+          case at: AtBinding[Col] @scala.unchecked                   => new DynamicOptic.Node.AtIndex(at.index)
+          case binding                                               =>
+            val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+            new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
         }
         idx += 1
       }
-      nodes.result()
+      Chunk.fromArray(nodes)
     })
 
     override def toString: String = {
@@ -2575,37 +2569,28 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
-      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
+      val nodes = new Array[DynamicOptic.Node](len)
       var idx   = 0
       while (idx < len) {
-        nodes.addOne {
-          bindings(idx) match {
-            case _: LensBinding =>
-              new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding =>
-              new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
-              DynamicOptic.Node.Wrapped
-            case at: AtBinding[Col] @scala.unchecked =>
-              new DynamicOptic.Node.AtIndex(at.index)
-            case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
-            case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
-              new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
-            case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
-            case _: SeqBinding[Col] @scala.unchecked =>
-              DynamicOptic.Node.Elements
-            case _: MapKeyBinding[Map] @scala.unchecked =>
-              DynamicOptic.Node.MapKeys
-            case _ =>
-              DynamicOptic.Node.MapValues
-          }
+        nodes(idx) = bindings(idx) match {
+          case _: LensBinding                                        => new DynamicOptic.Node.Field(focusTerms(idx).name)
+          case _: PrismBinding                                       => new DynamicOptic.Node.Case(focusTerms(idx).name)
+          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked => DynamicOptic.Node.Wrapped
+          case at: AtBinding[Col] @scala.unchecked                   => new DynamicOptic.Node.AtIndex(at.index)
+          case atKey: AtKeyBinding[Key, Map] @scala.unchecked        =>
+            new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
+          case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
+            new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
+          case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
+            new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
+          case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
+          case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
+          case _                                      => DynamicOptic.Node.MapValues
         }
         idx += 1
       }
-      nodes.result()
+      Chunk.fromArray(nodes)
     })
 
     override def toString: String = {
