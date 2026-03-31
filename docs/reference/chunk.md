@@ -12,6 +12,8 @@ title: "Chunk"
 - Automatically specializes primitive types for efficiency without boxing
 - Lazily materializes only when necessary to maintain performance
 
+Here is the type signature:
+
 ```scala
 sealed abstract class Chunk[+A]
   extends IndexedSeq[A]
@@ -94,6 +96,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
 Supports Scala 2.13.x and 3.x.
 
 ## Construction / Creating Instances
+
+Chunk provides multiple factory methods for creating instances from different sources. Choose the method that best matches your data source:
 
 ### From Varargs with `Chunk.apply`
 
