@@ -39,7 +39,7 @@ allowed-tools: Read, Glob, Grep
 14. **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a single `###` heading by using `####` for each item. This creates visual hierarchy and makes the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` → `#### Schema-driven migrations`.
 15. **Every code block must be preceded by an introductory prose sentence**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. This applies universally:
     - After a heading: write at least one sentence before the first code block.
-    - Between two consecutive code blocks: write a short bridging sentence.
+    - Between two consecutive code blocks: write a contextualized bridging sentence that explains what the next block demonstrates (especially important for execution blocks that follow signature blocks).
     - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing).
     - **The sentence must end with a colon (`:`)**. A colon signals to the reader that code follows.
 
@@ -50,11 +50,11 @@ allowed-tools: Read, Glob, Grep
 18. **Prefer `val` over `var`**: Use immutable patterns everywhere.
 19. **Never hardcode expression output in comments**: Do not annotate expression results with inline comments such as `// None`, `// Some(SchemaError)`, or `// "hello"` — these go stale and can be wrong. The fix is **not** to remove the comment and leave the block as `mdoc:compile-only` — that still hides the result. The fix is to restructure the block so mdoc evaluates and renders the output:
     1. Move all type definitions and setup `val`s into a `mdoc:silent:reset` block (or `mdoc:silent` if scope continuity is needed). Use `mdoc:silent:reset` in reference pages to avoid name conflicts between independent sections.
-    2. Add a short bridging sentence ending in `:`.
+    2. Must: Add a short bridging sentence ending in `:`.
     3. Put the expressions whose results matter in a bare `mdoc` block — mdoc renders them as REPL-style output automatically.
     
     See **`docs-mdoc-conventions`** for the complete modifier table and the Setup + Evaluated Output pattern.
-20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
+20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
 
 ## Table Formatting
 
