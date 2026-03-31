@@ -47,28 +47,35 @@ Chunks automatically choose the most efficient representation:
 
 The implementation is based on [Conc-Trees for Functional and Parallel Programming](http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf) by Aleksandar Prokopec and Martin Odersky.
 
-## Motivation
+## The Problem
 
-### The Problem: Traditional Data Structures Don't Compose Efficiently
+When you work with sequences of data in functional programming, you often need to do two things that seem simple on the surface but are surprisingly tricky to do efficiently at the same time: you need to access elements quickly and merge sequences together without wasting time and memory.
 
-When processing large datasets in parallel, you naturally split the work across multiple processors, compute results independently, and then combine them back together. This split-compute-merge pattern is fundamental to modern data processing.
+Consider a practical scenario. You're building a data processing pipeline where you collect results from multiple parallel operations. Each operation produces a sequence of values, and you need to combine all of them into one final sequence. With a traditional array, combining sequences requires allocating a new, larger array and copying every single element from the source arrays into it. That's O(n) work just for the merging step. If you're doing this repeatedly—merging results from 10 operations, then 20, then 100—the copying overhead adds up quickly and becomes the bottleneck in your program.
 
-However, the two most common sequence types in functional programming — linked lists and arrays — are each optimized for a single use case, not for this pattern:
+On the other hand, if you use a linked list for efficiency with concatenation, you face a different problem: accessing the millionth element requires traversing through all the previous elements one by one. That's O(n) time for a single lookup. This works fine if you rarely need random access, but in real applications where you're searching, filtering, and transforming sequences, random access happens constantly. It's a painful tradeoff.
 
-**Linked lists** are built for sequential processing. To split a list in the middle for two processors to work on independently, you must traverse through potentially millions of elements to find the split point. That's O(n) traversal time just to find where to divide, which completely negates any benefit from parallelization.
+There's another subtle but important issue: memory overhead. A linked list that holds a million integers wastes significant memory because each node must store a pointer to the next node in addition to the actual value. An array is compact and efficient, but when you concatenate arrays, you're wasting both time (on copying) and memory (on allocating temporary intermediate arrays).
 
-**Arrays** give you fast random access and are memory-efficient, but they're terrible at merging. When two processors finish and produce two separate arrays, you must allocate a new array and copy every element from both source arrays into it. This copying happens twice: once when processors write their results, and again when you merge them together. For 1 million elements processed in parallel across 4 cores, this can mean 2 million memory writes instead of 1 million—tripling your execution time.
+The real problem isn't just performance in isolation—it's that conventional sequence types force you to choose between mutually incompatible goals. You can optimize for random access (arrays) or for concatenation (lists), but not both efficiently. In a functional programming world where immutability is a core principle, this creates a tension: we want pure, immutable sequences that behave well in parallel processing scenarios where splitting and merging are fundamental operations. Yet the standard approaches either copy too much data or traverse too slowly.
 
-### The Solution: Chunks Use Balanced Trees for Efficient Splitting and Merging
+This tension becomes especially acute when you're building systems that process large streams of data, perform data-parallel operations across multiple cores, or need to concatenate sequences as part of their normal operation. Every time you reach for an array and concatenate them, you're paying a hidden tax in copying. Every time you reach for a list, you're paying a hidden tax in traversal. Neither option feels quite right for a modern, functional programming experience.
 
-Chunk solves this by using **balanced binary tree structures** (Conc-Trees) that naturally support the split-compute-merge pattern:
+## The Solution
 
-- **Splitting is O(log n)**: Just follow the tree structure to divide work between processors
-- **Merging is O(log n)**: Combine results from different processors without massive copying
-- **Access remains O(1) to O(log n)**: Random access is nearly as fast as arrays
-- **Appending is O(1) amortized**: Adding elements is nearly as fast as array resizing, but without the copying overhead
+Chunk solves this problem by combining the strengths of both arrays and balanced trees into a single, cohesive data structure. The key insight is to use different internal representations for different purposes: arrays for small, simple sequences (where the overhead of tree structures would hurt more than help), and balanced tree structures (specifically, Conc-Trees) for composite sequences built through concatenation and transformation.
 
-This means parallel algorithms that would be slow with traditional data structures run efficiently with Chunk. Benchmarks from the original Conc-Tree paper show **2–3× speedup** for data-parallel operations compared to array-based approaches, with no unexpected performance dips as data grows larger.
+When you create a small Chunk directly—say, `Chunk(1, 2, 3, 4, 5)`—it's backed by a simple array internally. You get all the benefits: O(1) random access, compact memory, cache-friendly performance. There's no overhead from tree structures or pointers. You're just using an array, exactly as you would expect.
+
+But here's where it gets clever. When you concatenate two Chunks, instead of eagerly copying all the data into a new array, Chunk creates a lightweight tree node that simply links the two chunks together. This is nearly free—just a few pointer assignments. If you concatenate again, you're building a small balanced tree. The beauty is that this tree structure guarantees that no matter how many times you concatenate, random access still works in O(log n) time. The tree stays balanced through careful structural invariants, so the depth never grows too much. For practical sequence sizes you'd work with, O(log n) access is nearly as fast as O(1), with much better memory usage.
+
+Chunk also includes specialized support for incremental building through the ChunkBuilder API. When you're constructing a sequence by repeatedly appending elements, ChunkBuilder uses a buffering strategy: it accumulates elements in a small array, and only when the array fills up does it append it to the growing Chunk tree. This means appending is effectively O(1) amortized time—comparable to dynamically sized arrays, but without the re-copying overhead when the array grows.
+
+There's another important optimization: Chunk is designed to handle primitive types like Int, Long, Double, and Byte without boxing them. This is a significant performance win in practice. The specialized constructors and accessors ensure that a `Chunk[Int]` really does store integers directly in memory, not wrapped in Java Integer objects.
+
+For functional programming specifically, Chunk embraces immutability completely. When you transform a Chunk, you get a new Chunk. The original remains unchanged. This makes Chunk naturally safe to share across parallel operations without locks or coordination. Different threads can safely read from the same Chunk simultaneously, and transformations produce new, independent Chunks.
+
+The practical result is that Chunk gives you a sequence type that's genuinely efficient across all the operations you actually need: random access is fast, concatenation is fast, transformation is efficient, and memory usage stays reasonable. There's no invisible copying happening in the background, and no painful linear-time traversals. You get array-like performance where it matters most, without sacrificing the ability to build and merge sequences efficiently. For functional programmers and anyone working with immutable data structures, Chunk eliminates the artificial tradeoff between performance and purity.
 
 ## Installation
 
