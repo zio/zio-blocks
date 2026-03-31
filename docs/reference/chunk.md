@@ -713,17 +713,20 @@ trait Chunk[+A] {
 
 Splitting divides a chunk into N equal parts:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5, 6)
 val splitInto2 = chunk.split(2)
-// splitInto2: Chunk(Chunk(1, 2, 3), Chunk(4, 5, 6))
-
-// With uneven division: 7 elements split into 3 chunks
 val uneven = Chunk(1, 2, 3, 4, 5, 6, 7)
 val splitInto3 = uneven.split(3)
-// splitInto3: Chunk(Chunk(1, 2, 3), Chunk(4, 5), Chunk(6, 7))
+```
+
+Results of splitting into 2 and 3 parts:
+
+```scala mdoc
+splitInto2
+splitInto3
 ```
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
@@ -741,20 +744,21 @@ trait Chunk[+A] {
 
 Partitioning by predicate creates two chunks:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5, 6)
-
-// span keeps elements while predicate is true
 val (prefix, rest) = numbers.span(_ < 4)
-// prefix: Chunk[Int] = Chunk(1, 2, 3)
-// rest: Chunk[Int] = Chunk(4, 5, 6)
-
-// splitWhere splits when predicate becomes true (opposite logic)
 val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
-// upTo: Chunk[Int] = Chunk(1, 2)
-// remaining: Chunk[Int] = Chunk(5, 3, 4)
+```
+
+The results of partitioning by predicate:
+
+```scala mdoc
+prefix
+rest
+upTo
+remaining
 ```
 
 ### Querying and Folding
@@ -1201,16 +1205,21 @@ nonEmpty.head
 
 Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
 
 val chunk = Chunk(1, 2, 3)
 val maybeNonEmpty: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(chunk)
-// maybeNonEmpty: Some(NonEmptyChunk(1, 2, 3))
 
 val empty = Chunk.empty[Int]
 val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
-// nothingHere: None
+```
+
+Creating from a non-empty chunk returns `Some`, while an empty chunk returns `None`:
+
+```scala mdoc
+maybeNonEmpty
+nothingHere
 ```
 
 Concatenate chunks and maintain the type:
