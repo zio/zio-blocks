@@ -109,7 +109,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Here's how to create chunks from varargs:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -129,7 +129,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Checking the length confirms empty chunks have zero elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -149,7 +149,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+The single-element constructor is convenient for wrapping individual values:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -169,7 +169,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Converting from an array demonstrates the safety of immutability:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -190,7 +190,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+You can convert from multiple iterable types at once:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -212,7 +212,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Consuming an iterator produces a chunk with all collected elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -237,7 +237,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Working with NIO buffers is seamless:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -257,7 +257,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Repeating elements creates uniform chunks:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -277,7 +277,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Iteration from a starting value generates sequences:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -297,7 +297,7 @@ object Chunk {
 }
 ```
 
-We can see this in action:
+Unfold lets you generate chunks from state transitions:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -324,7 +324,7 @@ object ChunkBuilder {
 }
 ```
 
-We can see this in action:
+Building incrementally demonstrates the buffering strategy:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
@@ -357,7 +357,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Access elements by index in a chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -380,7 +380,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Accessing the first or last element is efficient:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -402,7 +402,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Getting the chunk size is an O(1) operation:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -425,7 +425,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Mapping a function across elements creates a new chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -447,7 +447,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Flat-mapping chains transformations and flattens the result:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -466,7 +466,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Filtering by a predicate keeps only matching elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -488,7 +488,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Collecting combines filtering and mapping in one operation:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -507,7 +507,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Sorting arranges elements in order:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -531,7 +531,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Concatenating two chunks combines them efficiently:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -556,7 +556,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Appending a single element creates a new chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -575,7 +575,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Prepending a single element adds it to the front:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -595,7 +595,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Zipping combines elements from two chunks:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -621,7 +621,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Taking elements from the beginning or end creates a new chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -643,7 +643,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Dropping elements removes them from the beginning or end:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -664,7 +664,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Slicing extracts a contiguous range of elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -687,7 +687,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Splitting divides a chunk into N equal parts:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -715,7 +715,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Partitioning by predicate creates two chunks:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -745,7 +745,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Left-folding accumulates values from left to right:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -769,7 +769,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Right-folding accumulates values from right to left:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -789,7 +789,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Testing predicates answers questions about elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -814,7 +814,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Finding the first matching element returns an Option:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -840,7 +840,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting to an array materializes all elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -859,7 +859,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting to a list produces a sequential data structure:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -880,7 +880,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+Converting to standard Scala collections enables interop:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -901,7 +901,7 @@ trait Chunk[+A] {
 }
 ```
 
-We can see this in action:
+String representation shows all elements in a compact format:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
