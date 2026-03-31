@@ -62,11 +62,11 @@ object NameMapper {
     } else {
       val len             = s.length
       val sb              = new lang.StringBuilder(len)
-      var i               = 0
+      var idx             = 0
       var isPrecedingDash = toPascal
-      while (i < len) isPrecedingDash = {
-        val ch = s.charAt(i)
-        i += 1
+      while (idx < len) isPrecedingDash = {
+        val ch = s.charAt(idx)
+        idx += 1
         (ch == '_' || ch == '-') || {
           val fixedCh =
             if (isPrecedingDash) toUpperCase(ch)
@@ -81,11 +81,11 @@ object NameMapper {
   private[this] def enforceSnakeOrKebabCase(s: String, separator: Char): String = {
     val len                      = s.length
     val sb                       = new lang.StringBuilder(len << 1)
-    var i                        = 0
+    var idx                      = 0
     var isPrecedingNotUpperCased = false
-    while (i < len) isPrecedingNotUpperCased = {
-      val ch = s.charAt(i)
-      i += 1
+    while (idx < len) isPrecedingNotUpperCased = {
+      val ch = s.charAt(idx)
+      idx += 1
       if (ch == '_' || ch == '-') {
         sb.append(separator)
         false
@@ -93,7 +93,7 @@ object NameMapper {
         sb.append(ch)
         true
       } else {
-        if (isPrecedingNotUpperCased || i > 1 && i < len && !isUpperCase(s.charAt(i))) sb.append(separator)
+        if (isPrecedingNotUpperCased || idx > 1 && idx < len && !isUpperCase(s.charAt(idx))) sb.append(separator)
         sb.append(toLowerCase(ch))
         false
       }

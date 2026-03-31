@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap}
+import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
@@ -459,26 +459,23 @@ object Reflect {
     }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val deconstructor = this.deconstructor
-      val registers     = Registers(deconstructor.usedRegisters)
-      deconstructor.deconstruct(registers, 0, value)
-      val len    = this.registers.length
-      val fields = ChunkBuilder.make[(String, DynamicValue)](len)
+      val regs = Registers(deconstructor.usedRegisters)
+      deconstructor.deconstruct(regs, 0, value)
+      val len    = registers.length
+      val result = new Array[(String, DynamicValue)](len)
       var idx    = 0
       while (idx < len) {
-        val field    = this.fields(idx)
-        val register = this.registers(idx)
-        fields.addOne(
-          (
-            field.name,
-            field.value
-              .asInstanceOf[Reflect[F, field.Focus]]
-              .toDynamicValue(register.get(registers, 0).asInstanceOf[field.Focus])
-          )
+        val field    = fields(idx)
+        val register = registers(idx)
+        result(idx) = (
+          field.name,
+          field.value
+            .asInstanceOf[Reflect[F, field.Focus]]
+            .toDynamicValue(register.get(regs, 0).asInstanceOf[field.Focus])
         )
         idx += 1
       }
-      new DynamicValue.Record(fields.result())
+      new DynamicValue.Record(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
@@ -748,9 +745,14 @@ object Reflect {
 
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
-      val builder  = ChunkBuilder.make[DynamicValue](seqDeconstructor.size(value))
-      while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
-      new DynamicValue.Sequence(builder.result())
+      val len      = seqDeconstructor.size(value)
+      val result   = new Array[DynamicValue](len)
+      var idx      = 0
+      while (idx < len) {
+        result(idx) = element.toDynamicValue(iterator.next())
+        idx += 1
+      }
+      new DynamicValue.Sequence(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
@@ -869,14 +871,16 @@ object Reflect {
     def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
-      val builder       = ChunkBuilder.make[(DynamicValue, DynamicValue)](deconstructor.size(value))
-      while (it.hasNext) {
+      val len           = deconstructor.size(value)
+      val result        = new Array[(DynamicValue, DynamicValue)](len)
+      var idx           = 0
+      while (idx < len) {
         val next = it.next()
-        builder.addOne(
+        result(idx) =
           (this.key.toDynamicValue(deconstructor.getKey(next)), this.value.toDynamicValue(deconstructor.getValue(next)))
-        )
+        idx += 1
       }
-      new DynamicValue.Map(builder.result())
+      new DynamicValue.Map(Chunk.fromArray(result))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, K, V, M]] =
@@ -1856,20 +1860,24 @@ object Reflect {
           case d: Deferred[F, ?] @unchecked => search(d.value)
           case r: Record[F, ?] @unchecked   =>
             // Search through all field types
-            var i = 0
-            while (i < r.fields.length) {
-              val result = search(r.fields(i).value)
+            val fields = r.fields
+            val len    = fields.length
+            var idx    = 0
+            while (idx < len) {
+              val result = search(fields(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
           case v: Variant[F, ?] @unchecked =>
             // Search through all case payload types
-            var i = 0
-            while (i < v.cases.length) {
-              val result = search(v.cases(i).value)
+            val cases = v.cases
+            val len   = cases.length
+            var idx   = 0
+            while (idx < len) {
+              val result = search(cases(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
           case s: Sequence[F, ?, ?] @unchecked => search(s.element) // Search element type
@@ -1961,19 +1969,23 @@ object Reflect {
         current match {
           case d: Deferred[F, ?] @unchecked => search(d.value)
           case r: Record[F, ?] @unchecked   =>
-            var i = 0
-            while (i < r.fields.length) {
-              val result = search(r.fields(i).value)
+            val fields = r.fields
+            val len    = fields.length
+            var idx    = 0
+            while (idx < len) {
+              val result = search(fields(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
           case v: Variant[F, ?] @unchecked =>
-            var i = 0
-            while (i < v.cases.length) {
-              val result = search(v.cases(i).value)
+            val cases = v.cases
+            val len   = cases.length
+            var idx   = 0
+            while (idx < len) {
+              val result = search(cases(idx).value)
               if (result.isDefined) return result
-              i += 1
+              idx += 1
             }
             None
           case s: Sequence[F, ?, ?] @unchecked => search(s.element)

@@ -521,32 +521,30 @@ class JsonCodecDeriver private[json] (
           }
 
           override def encodeValue(x: A): Json = {
-            val len     = fieldCodecs.length
-            val builder = ChunkBuilder.make[Json](len)
-            val regs    = Registers(usedRegisters)
-            var offset  = 0L
+            val len    = fieldCodecs.length
+            val elems  = new Array[Json](len)
+            val regs   = Registers(usedRegisters)
+            var offset = 0L
             deconstructor.deconstruct(regs, offset, x)
             var idx = 0
             while (idx < len) {
               val codec = fieldCodecs(idx)
-              builder.addOne(
-                (typeTags(idx): @switch) match {
-                  case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
-                  case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
-                  case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
-                  case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
-                  case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
-                  case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
-                  case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
-                  case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
-                  case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
-                  case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
-                }
-              )
+              elems(idx) = (typeTags(idx): @switch) match {
+                case 0 => codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(regs.getObject(offset))
+                case 1 => codec.asInstanceOf[JsonCodec[Int]].encodeValue(regs.getInt(offset))
+                case 2 => codec.asInstanceOf[JsonCodec[Long]].encodeValue(regs.getLong(offset))
+                case 3 => codec.asInstanceOf[JsonCodec[Float]].encodeValue(regs.getFloat(offset))
+                case 4 => codec.asInstanceOf[JsonCodec[Double]].encodeValue(regs.getDouble(offset))
+                case 5 => codec.asInstanceOf[JsonCodec[Boolean]].encodeValue(regs.getBoolean(offset))
+                case 6 => codec.asInstanceOf[JsonCodec[Byte]].encodeValue(regs.getByte(offset))
+                case 7 => codec.asInstanceOf[JsonCodec[Char]].encodeValue(regs.getChar(offset))
+                case 8 => codec.asInstanceOf[JsonCodec[Short]].encodeValue(regs.getShort(offset))
+                case _ => codec.asInstanceOf[JsonCodec[Unit]].encodeValue(())
+              }
               offset += registerOffsets(idx)
               idx += 1
             }
-            new Json.Array(builder.result())
+            new Json.Array(Chunk.fromArray(elems))
           }
 
           override lazy val toJsonSchema: JsonSchema = {
@@ -794,12 +792,11 @@ class JsonCodecDeriver private[json] (
 
             override def encodeValue(x: A): Json = {
               val len     = fieldInfos.length
-              val builder =
-                if (discriminatorField ne null) {
-                  val b = ChunkBuilder.make[(String, Json)](len + 1)
-                  discriminatorField.writeKeyAndValue(b)
-                  b
-                } else ChunkBuilder.make[(String, Json)](len)
+              val builder = ChunkBuilder.make[(String, Json)](len + {
+                if (discriminatorField ne null) 1
+                else 0
+              })
+              if (discriminatorField ne null) discriminatorField.writeKeyAndValue(builder)
               val regs = Registers(usedRegisters)
               deconstructor.deconstruct(regs, 0, x)
               var idx = 0
@@ -1429,14 +1426,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.intAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.intAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1507,14 +1504,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Int]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.intAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.intAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1586,14 +1583,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.longAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.longAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1664,14 +1661,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Long]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.longAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.longAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1743,14 +1740,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.floatAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.floatAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1821,14 +1818,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Float]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.floatAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.floatAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1900,14 +1897,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.doubleAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.doubleAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -1978,14 +1975,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Double]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.doubleAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.doubleAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2057,14 +2054,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Boolean(deconstructor.booleanAt(x, idx)))
+                    elems(idx) = Json.Boolean(deconstructor.booleanAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2135,14 +2132,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Boolean]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.booleanAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.booleanAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2214,14 +2211,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.byteAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.byteAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2292,14 +2289,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Byte]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.byteAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.byteAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2371,14 +2368,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(new Json.String(deconstructor.charAt(x, idx).toString))
+                    elems(idx) = new Json.String(deconstructor.charAt(x, idx).toString)
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2449,14 +2446,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Char]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.charAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.charAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2528,14 +2525,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(Json.Number(deconstructor.shortAt(x, idx)))
+                    elems(idx) = Json.Number(deconstructor.shortAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2606,14 +2603,14 @@ class JsonCodecDeriver private[json] (
                 }
 
                 override def encodeValue(x: Col[Short]): Json = {
-                  val len     = deconstructor.size(x)
-                  val builder = ChunkBuilder.make[Json](len)
-                  var idx     = 0
+                  val len   = deconstructor.size(x)
+                  val elems = new Array[Json](len)
+                  var idx   = 0
                   while (idx < len) {
-                    builder.addOne(elementCodec.encodeValue(deconstructor.shortAt(x, idx)))
+                    elems(idx) = elementCodec.encodeValue(deconstructor.shortAt(x, idx))
                     idx += 1
                   }
-                  new Json.Array(builder.result())
+                  new Json.Array(Chunk.fromArray(elems))
                 }
 
                 override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2682,10 +2679,15 @@ class JsonCodecDeriver private[json] (
               }
 
               override def encodeValue(x: Col[Elem]): Json = {
-                val builder = ChunkBuilder.make[Json](deconstructor.size(x))
-                val it      = deconstructor.deconstruct(x)
-                while (it.hasNext) builder.addOne(elementCodec.encodeValue(it.next()))
-                new Json.Array(builder.result())
+                val len   = deconstructor.size(x)
+                val elems = new Array[Json](len)
+                val it    = deconstructor.deconstruct(x)
+                var idx   = 0
+                while (idx < len) {
+                  elems(idx) = elementCodec.encodeValue(it.next())
+                  idx += 1
+                }
+                new Json.Array(Chunk.fromArray(elems))
               }
 
               override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -2786,15 +2788,17 @@ class JsonCodecDeriver private[json] (
           }
 
           override def encodeValue(x: Map[Key, Value]): Json = {
-            val builder = ChunkBuilder.make[(String, Json)](deconstructor.size(x))
-            val it      = deconstructor.deconstruct(x)
-            while (it.hasNext) {
+            val len = deconstructor.size(x)
+            val kvs = new Array[(String, Json)](len)
+            val it  = deconstructor.deconstruct(x)
+            var idx = 0
+            while (idx < len) {
               val kv = it.next()
-              val k  = keyCodec.encodeKey(deconstructor.getKey(kv))
-              val v  = valueCodec.encodeValue(deconstructor.getValue(kv))
-              builder.addOne((k, v))
+              kvs(idx) =
+                (keyCodec.encodeKey(deconstructor.getKey(kv)), valueCodec.encodeValue(deconstructor.getValue(kv)))
+              idx += 1
             }
-            new Json.Object(builder.result())
+            new Json.Object(Chunk.fromArray(kvs))
           }
 
           override lazy val toJsonSchema: JsonSchema = new JsonSchema.Object(
@@ -3325,6 +3329,7 @@ private class FieldInfo(
 }
 
 private class DiscriminatorFieldInfo(name: String, value: String) {
+  private[this] val keyAndValueJson        = (name, new Json.String(value))
   private[this] val isNonEscapedAsciiName  = JsonWriter.isNonEscapedAscii(name)
   private[this] val isNonEscapedAsciiValue = JsonWriter.isNonEscapedAscii(value)
 
@@ -3343,7 +3348,7 @@ private class DiscriminatorFieldInfo(name: String, value: String) {
   }
 
   @inline
-  def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne((name, new Json.String(value)))
+  def writeKeyAndValue(builder: ChunkBuilder[(String, Json)]): Unit = builder.addOne(keyAndValueJson)
 }
 
 private sealed trait CaseInfo

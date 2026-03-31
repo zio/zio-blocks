@@ -557,24 +557,24 @@ private object NameTransformer {
 
   def encode(name: String): String = {
     var buf: java.lang.StringBuilder = null
-    val len                          = name.length()
-    var i                            = 0
-    while (i < len) {
-      val c = name.charAt(i)
+    val len                          = name.length
+    var idx                          = 0
+    while (idx < len) {
+      val c = name.charAt(idx)
       if (c < nops && (op2code(c.toInt) ne null)) {
         if (buf eq null) {
           buf = new java.lang.StringBuilder
-          buf.append(name.substring(0, i))
+          buf.append(name.substring(0, idx))
         }
         buf.append(op2code(c.toInt))
       } else if (!Character.isJavaIdentifierPart(c)) {
         if (buf eq null) {
           buf = new java.lang.StringBuilder
-          buf.append(name.substring(0, i))
+          buf.append(name.substring(0, idx))
         }
         buf.append("$u%04X".format(c.toInt))
       } else if (buf ne null) buf.append(c)
-      i += 1
+      idx += 1
     }
     if (buf eq null) name else buf.toString
   }

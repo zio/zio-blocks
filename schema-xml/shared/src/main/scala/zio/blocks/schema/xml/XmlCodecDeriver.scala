@@ -461,9 +461,14 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
 
           override def encodeValue(x: Col[Elem]): Xml = {
             val iter     = deconstructor.deconstruct(x)
-            val children = ChunkBuilder.make[Xml]()
-            while (iter.hasNext) children.addOne(xmlFieldElement("item", elemCodec.encodeValue(iter.next())))
-            xmlElementWithChildren("items", children.result())
+            val len      = deconstructor.size(x)
+            val children = new Array[Xml](len)
+            var idx      = 0
+            while (idx < len) {
+              children(idx) = xmlFieldElement("item", elemCodec.encodeValue(iter.next()))
+              idx += 1
+            }
+            xmlElementWithChildren("items", Chunk.fromArray(children))
           }
         }
       }
@@ -536,14 +541,17 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
 
           override def encodeValue(x: Map[Key, Value]): Xml = {
             val iter     = deconstructor.deconstruct(x)
-            val children = ChunkBuilder.make[Xml]()
-            while (iter.hasNext) {
+            val len      = deconstructor.size(x)
+            val children = new Array[Xml](len)
+            var idx      = 0
+            while (idx < len) {
               val kv      = iter.next()
               val keyElem = xmlFieldElement("key", keyCodec.encodeValue(deconstructor.getKey(kv)))
               val valElem = xmlFieldElement("value", valueCodec.encodeValue(deconstructor.getValue(kv)))
-              children.addOne(xmlElement("entry", keyElem, valElem))
+              children(idx) = xmlElement("entry", keyElem, valElem)
+              idx += 1
             }
-            xmlElementWithChildren("map", children.result())
+            xmlElementWithChildren("map", Chunk.fromArray(children))
           }
         }
       }

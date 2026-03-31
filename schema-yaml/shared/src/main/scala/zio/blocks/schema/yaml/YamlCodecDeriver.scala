@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.docs.Doc
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
@@ -199,7 +199,7 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
         override def encodeValue(x: A): Yaml = {
           val regs = Registers(deconstructor.usedRegisters)
           deconstructor.deconstruct(regs, 0, x)
-          val entries = Chunk.newBuilder[(Yaml, Yaml)]
+          val entries = ChunkBuilder.make[(Yaml, Yaml)]()
           var idx     = 0
           while (idx < fieldInfos.length) {
             val fieldInfo = fieldInfos(idx)
@@ -370,11 +370,14 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
 
           override def encodeValue(x: Col[Elem]): Yaml = {
             val iter     = deconstructor.deconstruct(x)
-            val children = Chunk.newBuilder[Yaml]
-            while (iter.hasNext) {
-              children += elemCodec.encodeValue(iter.next())
+            val len      = deconstructor.size(x)
+            val children = new Array[Yaml](len)
+            var idx      = 0
+            while (idx < len) {
+              children(idx) = elemCodec.encodeValue(iter.next())
+              idx += 1
             }
-            Yaml.Sequence(children.result())
+            new Yaml.Sequence(Chunk.fromArray(children))
           }
         }
       }
@@ -428,14 +431,17 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
 
           override def encodeValue(x: Map[Key, Value]): Yaml = {
             val iter    = deconstructor.deconstruct(x)
-            val entries = Chunk.newBuilder[(Yaml, Yaml)]
-            while (iter.hasNext) {
+            val len     = deconstructor.size(x)
+            val entries = new Array[(Yaml, Yaml)](len)
+            var idx     = 0
+            while (idx < len) {
               val kv = iter.next()
               val k  = deconstructor.getKey(kv)
               val v  = deconstructor.getValue(kv)
-              entries.addOne((keyCodec.encodeValue(k), valueCodec.encodeValue(v)))
+              entries(idx) = (keyCodec.encodeValue(k), valueCodec.encodeValue(v))
+              idx += 1
             }
-            new Yaml.Mapping(entries.result())
+            new Yaml.Mapping(Chunk.fromArray(entries))
           }
         }
       }

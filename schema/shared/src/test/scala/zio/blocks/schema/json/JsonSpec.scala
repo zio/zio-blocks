@@ -2660,10 +2660,10 @@ object JsonSpec extends SchemaBaseSpec {
       test("large recursive structure does not stack overflow") {
         // Create a deeply nested structure with 500 levels
         var current: Json = Json.String("leaf")
-        var i             = 0
-        while (i < 500) {
+        var n             = 0
+        while (n < 500) {
           current = Json.Object("child" -> current)
-          i += 1
+          n += 1
         }
         val path   = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))
         val result = current.get(path)

@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.json
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
+import zio.blocks.chunk.{Chunk, ChunkMap, NonEmptyChunk}
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -399,15 +399,15 @@ private[schema] object JsonSchemaToReflect {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = tupleSize)
 
         def construct(in: Registers, offset: RegisterOffset): DynamicValue = {
-          val builder = ChunkBuilder.make[DynamicValue](tupleSize)
-          var idx     = 0
+          val elems = new Array[DynamicValue](tupleSize)
+          var idx   = 0
           while (idx < tupleSize) {
             var elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
             if (elem eq null) elem = DynamicValue.Null
-            builder.addOne(elem)
+            elems(idx) = elem
             idx += 1
           }
-          new DynamicValue.Sequence(builder.result())
+          new DynamicValue.Sequence(Chunk.fromArray(elems))
         }
       },
       deconstructor = new Deconstructor[DynamicValue] {

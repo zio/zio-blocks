@@ -865,8 +865,8 @@ object JsonPatch {
   }
 
   private[this] def sequenceAll[A](results: Chunk[Either[SchemaError, A]]): Either[SchemaError, Chunk[A]] = {
-    val builder = ChunkBuilder.make[A]()
     val len     = results.length
+    val builder = ChunkBuilder.make[A](len)
     var idx     = 0
     while (idx < len) {
       results(idx) match {
