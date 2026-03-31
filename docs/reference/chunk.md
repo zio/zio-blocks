@@ -713,20 +713,14 @@ trait Chunk[+A] {
 
 Splitting divides a chunk into N equal parts:
 
-```scala mdoc:silent:reset
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val chunk = Chunk(1, 2, 3, 4, 5, 6)
 val splitInto2 = chunk.split(2)
+
 val uneven = Chunk(1, 2, 3, 4, 5, 6, 7)
 val splitInto3 = uneven.split(3)
-```
-
-Results of splitting into 2 and 3 parts:
-
-```scala mdoc
-splitInto2
-splitInto3
 ```
 
 #### `Chunk#span` and `Chunk#splitWhere` — Partition by Predicate
@@ -744,21 +738,12 @@ trait Chunk[+A] {
 
 Partitioning by predicate creates two chunks:
 
-```scala mdoc:silent:reset
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val numbers = Chunk(1, 2, 3, 4, 5, 6)
 val (prefix, rest) = numbers.span(_ < 4)
 val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
-```
-
-The results of partitioning by predicate:
-
-```scala mdoc
-prefix
-rest
-upTo
-remaining
 ```
 
 ### Querying and Folding
@@ -1205,7 +1190,7 @@ nonEmpty.head
 
 Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
 
-```scala mdoc:silent:reset
+```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
 
 val chunk = Chunk(1, 2, 3)
@@ -1213,13 +1198,6 @@ val maybeNonEmpty: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(chunk)
 
 val empty = Chunk.empty[Int]
 val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
-```
-
-Creating from a non-empty chunk returns `Some`, while an empty chunk returns `None`:
-
-```scala mdoc
-maybeNonEmpty
-nothingHere
 ```
 
 Concatenate chunks and maintain the type:
