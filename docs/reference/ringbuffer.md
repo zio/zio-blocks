@@ -396,6 +396,8 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
 
 Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
 
+**Note**: Uses relaxed poll semantics and stops at the first `null` slot, which may indicate either an empty buffer or a producer that has claimed a slot but has not yet written its element (mid-write). In the mid-write case, fewer than `limit` elements are returned even though more elements will become available shortly.
+
 `SpscRingBuffer#fill` — Produce up to N elements with this signature:
 
 ```scala
