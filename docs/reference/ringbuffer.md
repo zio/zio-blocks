@@ -384,7 +384,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
 
 `MpscRingBuffer#drain` — Consume up to N elements (MPSC) with this signature:
 
@@ -394,7 +394,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
 
 `SpscRingBuffer#fill` — Produce up to N elements with this signature:
 
@@ -404,7 +404,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts up to `limit` elements by calling the `supplier` for each new element. Returns the number of elements actually inserted. Must be called from the producer thread only. O(n) where n is the number of elements inserted.
+Inserts up to `limit` elements by calling the `supplier` for each new element. Returns the number of elements actually inserted. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the producer thread only. O(n) where n is the number of elements inserted.
 
 Batch operations help amortize synchronization costs. We can drain multiple elements at once:
 
