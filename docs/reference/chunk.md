@@ -366,7 +366,7 @@ Chunk provides a rich set of operations for accessing, transforming, and combini
 
 ### Element Access
 
-Access and query individual elements:
+Retrieve individual elements by index or position, and query chunk size:
 
 #### `Chunk#apply` — Random Access
 
@@ -448,7 +448,7 @@ chunk.size
 
 ### Transformations
 
-Transform with map, flatMap, and filters:
+Apply functions to elements with map and flatMap, filter by predicate, and extract partial matches:
 
 #### `Chunk#map` — Transform Elements
 
@@ -556,7 +556,7 @@ val sortedStrings = strings.sorted
 
 ### Combining Chunks
 
-Concatenate and zip chunks:
+Merge chunks together, append or prepend elements, and combine parallel sequences:
 
 #### `Chunk#++(that)` — Concatenation
 
@@ -647,7 +647,7 @@ val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
 
 ### Slicing and Partitioning
 
-Take, drop, slice, and partition by predicate:
+Extract contiguous ranges from both ends, split at indices, and partition by predicate:
 
 #### `Chunk#take` and `Chunk#takeRight` — Take from Ends
 
@@ -775,7 +775,7 @@ val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
 
 ### Querying and Folding
 
-Fold, find, and aggregate elements:
+Fold with accumulators, test predicates, and search for matching elements:
 
 #### `Chunk#foldLeft` — Left Fold
 
@@ -878,7 +878,7 @@ words.find(_.startsWith("b"))
 
 ### Conversion
 
-Convert to arrays, lists, and strings:
+Materialize chunks to standard Scala collection types and string representations:
 
 #### `Chunk#toArray` — To `Array`
 
@@ -1000,7 +1000,7 @@ ints.int(1)
 
 ### Materialization and Optimization
 
-Force array materialization:
+Force chunks built through concatenation into efficient array-backed form:
 
 #### `Chunk#materialize` — Force Materialization
 
@@ -1033,7 +1033,7 @@ Advanced use cases include bit-level operations, working with specialized chunk 
 
 ### Bit Operations
 
-Convert to bit representations:
+Access bit-level representations for numeric types with endianness control:
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
 
@@ -1094,7 +1094,7 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 ### Text Operations
 
-Encode as strings and Base64:
+Convert byte and character chunks to strings and Base64 encoding:
 
 #### `Chunk#asString` — Convert to String
 
@@ -1127,7 +1127,7 @@ val base64 = bytes.asBase64String
 
 ### Advanced Transformations
 
-Collect with early termination:
+Collect elements with early exit, partition using Either results, and zip with custom indices:
 
 #### `Chunk#collectWhile` — Collect with Early Exit
 
@@ -1179,7 +1179,7 @@ chunk.zipWithIndexFrom(10)
 
 ### Safe Operations
 
-Provide alternatives for empty chunks:
+Handle empty chunks safely with type-aware alternatives:
 
 #### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
 
