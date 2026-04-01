@@ -213,7 +213,7 @@ Ring buffers provide the same core API across all four implementations: `offer`,
 `SpscRingBuffer#offer` — Insert an element (SPSC) with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
 }
 ```
@@ -223,7 +223,7 @@ Inserts the element without blocking. Returns `true` if inserted, `false` if the
 `SpmcRingBuffer#offer` — Insert an element (SPMC) with this signature:
 
 ```scala
-trait SpmcRingBuffer[A <: AnyRef] {
+final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
 }
 ```
@@ -233,7 +233,7 @@ Inserts the element without blocking. Returns `true` if inserted, `false` if the
 `MpscRingBuffer#offer` — Insert an element (MPSC) with this signature:
 
 ```scala
-trait MpscRingBuffer[A <: AnyRef] {
+final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
 }
 ```
@@ -243,7 +243,7 @@ Inserts the element without blocking. Returns `true` if inserted, `false` if the
 `MpmcRingBuffer#offer` — Insert an element (MPMC) with this signature:
 
 ```scala
-trait MpmcRingBuffer[A <: AnyRef] {
+final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
 }
 ```
@@ -273,7 +273,7 @@ val result5 = rb.offer("e")  // false (Buffer is full, capacity = 4)
 `SpscRingBuffer#take` — Remove an element (SPSC) with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def take(): A
 }
 ```
@@ -283,7 +283,7 @@ Retrieves and removes an element from the front of the buffer. Returns immediate
 `SpmcRingBuffer#take` — Remove an element (SPMC) with this signature:
 
 ```scala
-trait SpmcRingBuffer[A <: AnyRef] {
+final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def take(): A
 }
 ```
@@ -293,7 +293,7 @@ Retrieves and removes an element from the front of the buffer. Returns immediate
 `MpscRingBuffer#take` — Remove an element (MPSC) with this signature:
 
 ```scala
-trait MpscRingBuffer[A <: AnyRef] {
+final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def take(): A
 }
 ```
@@ -303,7 +303,7 @@ Retrieves and removes an element from the front of the buffer. Returns immediate
 `MpmcRingBuffer#take` — Remove an element (MPMC) with this signature:
 
 ```scala
-trait MpmcRingBuffer[A <: AnyRef] {
+final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def take(): A
 }
 ```
@@ -327,7 +327,7 @@ Ring buffers provide three query methods to check their state. Note that under c
 `SpscRingBuffer#size` — Approximate element count with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def size: Int
 }
 ```
@@ -337,7 +337,7 @@ Returns the approximate number of elements currently in the buffer. Under concur
 `SpscRingBuffer#isEmpty` — Check if empty with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def isEmpty: Boolean
 }
 ```
@@ -347,7 +347,7 @@ Returns `true` if the buffer contains no elements (approximate). O(1).
 `SpscRingBuffer#isFull` — Check if full with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def isFull: Boolean
 }
 ```
@@ -380,7 +380,7 @@ rb2.isFull    // false
 `SpscRingBuffer#drain` — Consume up to N elements (SPSC) with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def drain(consumer: A => Unit, limit: Int): Int
 }
 ```
@@ -400,7 +400,7 @@ Removes up to `limit` elements from the buffer, passing each to the `consumer` c
 `SpscRingBuffer#fill` — Produce up to N elements with this signature:
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def fill(supplier: () => A, limit: Int): Int
 }
 ```
