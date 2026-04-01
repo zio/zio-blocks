@@ -86,10 +86,10 @@ object RPCMacroSpec extends ZIOSpecDefault {
           createOp.parameterNames(1) == "description"
         )
       },
-      test("AnnotatedService - subscribe has Streaming annotation") {
+      test("AnnotatedService - subscribe has no extra annotations") {
         val rpc         = RPC.derived[AnnotatedService]
         val subscribeOp = rpc.operations.find(_.name == "subscribe").get
-        assertTrue(subscribeOp.annotations.exists(_.isInstanceOf[Streaming]))
+        assertTrue(subscribeOp.annotations.isEmpty)
       },
       test("ErrorService - operation error schema from Either") {
         val rpc = RPC.derived[ErrorService]
@@ -111,7 +111,7 @@ object RPCMacroSpec extends ZIOSpecDefault {
         assertTrue(
           op.annotations.length == 2,
           op.annotations.exists(_.isInstanceOf[Idempotent]),
-          op.annotations.exists(_.isInstanceOf[Streaming])
+          op.annotations.exists(_.isInstanceOf[Deprecated])
         )
       }
     ),

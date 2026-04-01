@@ -37,7 +37,6 @@ case object Degraded extends Status
 
 class Idempotent extends MetaAnnotation
 
-class Streaming extends MetaAnnotation
 
 class Deprecated(reason: String) extends MetaAnnotation
 
@@ -77,7 +76,6 @@ trait ErrorService {
 trait AnnotatedService {
   @Idempotent
   def lookup(id: Long): Either[BasicError, String]
-  @Streaming
   def subscribe(topic: String): Either[BasicError, Unit]
 }
 
@@ -93,6 +91,6 @@ trait InheritedService extends ParentService {
 
 // Multiple annotations on one method
 trait MultiAnnotatedService {
-  @Idempotent @Streaming
+  @Idempotent @Deprecated("old")
   def dualAnnotated(id: Long): String
 }
