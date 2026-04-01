@@ -366,6 +366,8 @@ Chunk provides a rich set of operations for accessing, transforming, and combini
 
 ### Element Access
 
+Retrieve or access individual elements from a chunk:
+
 #### `Chunk#apply` — Random Access
 
 Access an element by index in O(log n) time (O(1) for array-backed chunks):
@@ -445,6 +447,8 @@ chunk.size
 ```
 
 ### Transformations
+
+Transform elements with functions:
 
 #### `Chunk#map` — Transform Elements
 
@@ -552,6 +556,8 @@ val sortedStrings = strings.sorted
 
 ### Combining Chunks
 
+Combine multiple chunks into one:
+
 #### `Chunk#++(that)` — Concatenation
 
 Combine two chunks. Uses balanced tree structure for efficiency:
@@ -640,6 +646,8 @@ val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
 ```
 
 ### Slicing and Partitioning
+
+Extract contiguous elements or partition by conditions:
 
 #### `Chunk#take` and `Chunk#takeRight` — Take from Ends
 
@@ -767,6 +775,8 @@ val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
 
 ### Querying and Folding
 
+Aggregate elements and fold over them:
+
 #### `Chunk#foldLeft` — Left Fold
 
 Process elements left-to-right with an accumulator:
@@ -867,6 +877,8 @@ words.find(_.startsWith("b"))
 ```
 
 ### Conversion
+
+Convert chunks to other collection types:
 
 #### `Chunk#toArray` — To `Array`
 
@@ -988,6 +1000,8 @@ ints.int(1)
 
 ### Materialization and Optimization
 
+Control chunk representation and performance:
+
 #### `Chunk#materialize` — Force Materialization
 
 Force the chunk to an array-backed representation, eliminating lazy concatenation trees. Useful before performing many operations:
@@ -1018,6 +1032,8 @@ val materialized = built.materialize
 Advanced use cases include bit-level operations, working with specialized chunk types, and comparing Chunk with other data structures:
 
 ### Bit Operations
+
+Perform bitwise operations on specialized chunks:
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
 
@@ -1078,6 +1094,8 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 ### Text Operations
 
+Work with text representations of chunks:
+
 #### `Chunk#asString` — Convert to String
 
 Convert a chunk of bytes or characters into a string. Supports `Chunk[Byte]`, `Chunk[Char]`, and `Chunk[String]`:
@@ -1108,6 +1126,8 @@ val base64 = bytes.asBase64String
 ```
 
 ### Advanced Transformations
+
+Perform specialized transformations on chunks:
 
 #### `Chunk#collectWhile` — Collect with Early Exit
 
@@ -1158,6 +1178,8 @@ chunk.zipWithIndexFrom(10)
 ```
 
 ### Safe Operations
+
+Safely handle edge cases like empty chunks:
 
 #### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
 
