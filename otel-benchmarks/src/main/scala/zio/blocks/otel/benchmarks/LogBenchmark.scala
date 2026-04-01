@@ -36,6 +36,13 @@ class LogBenchmark {
     t
   }
 
+  private var sideEffectCounter: Int = 0
+
+  private def sideEffect(): String = {
+    sideEffectCounter += 1
+    "x"
+  }
+
   @Setup(Level.Trial)
   def setup(): Unit = {
     val provider = LoggerProvider.builder
@@ -62,6 +69,17 @@ class LogBenchmark {
   @Benchmark
   def disabledWithEnrichments(): Unit =
     log.trace("skip", "key" -> 42L, "other" -> "val")
+
+  /**
+   * Lazy message: string interpolation should not happen when level is
+   * disabled.
+   */
+  @Benchmark
+  def disabledWithInterpolation(bh: Blackhole): Unit = {
+    sideEffectCounter = 0
+    log.trace(s"count is ${sideEffect()}")
+    bh.consume(sideEffectCounter)
+  }
 
   @Benchmark
   def enabledSimple(): Unit =
@@ -97,6 +115,16 @@ class LogBenchmark {
   @Benchmark
   def enabledWithHierarchicalLevel(): Unit =
     log.info("msg")
+
+  /** Rate-limited: infoEvery — only logs every Nth call */
+  @Benchmark
+  def rateLimitedEvery(): Unit =
+    log.infoEvery(100, "rate limited msg")
+
+  /** Rate-limited: infoAtMost — at most once per interval */
+  @Benchmark
+  def rateLimitedAtMost(): Unit =
+    log.infoAtMost(1000L, "throttled msg")
 
   @Benchmark
   def systemNanoTime(bh: Blackhole): Unit =

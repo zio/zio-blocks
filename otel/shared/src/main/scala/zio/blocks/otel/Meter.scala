@@ -73,6 +73,21 @@ final class Meter private[otel] (
   def gaugeBuilder(name: String): GaugeBuilder =
     new GaugeBuilder(name, this)
 
+  def labeledCounter(name: String, labels: String*): LabeledCounter = {
+    val counter = counterBuilder(name).build()
+    new LabeledCounter(counter, labels.toArray)
+  }
+
+  def labeledHistogram(name: String, labels: String*): LabeledHistogram = {
+    val histogram = histogramBuilder(name).build()
+    new LabeledHistogram(histogram, labels.toArray)
+  }
+
+  def labeledGauge(name: String, labels: String*): LabeledGauge = {
+    val gauge = gaugeBuilder(name).build()
+    new LabeledGauge(gauge, labels.toArray)
+  }
+
   private[otel] def registerCounter(c: Counter): Unit = {
     instruments.add(SyncCounter(c))
     ()
