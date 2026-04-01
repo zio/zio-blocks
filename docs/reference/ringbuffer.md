@@ -373,14 +373,24 @@ rb2.isEmpty   // false
 rb2.isFull    // false
 ```
 
-### Batch Operations — `drain` and `fill` (SPSC only)
+### Batch Operations — `drain` and `fill`
 
-`SpscRingBuffer` provides `drain` and `fill` for batch operations, optimized for the single-threaded case.
+`SpscRingBuffer` provides `drain` and `fill` for batch operations, optimized for the single-threaded case. `MpscRingBuffer` also provides `drain` for batch consumption.
 
-`SpscRingBuffer#drain` — Consume up to N elements with this signature:
+`SpscRingBuffer#drain` — Consume up to N elements (SPSC) with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
+  def drain(consumer: A => Unit, limit: Int): Int
+}
+```
+
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
+
+`MpscRingBuffer#drain` — Consume up to N elements (MPSC) with this signature:
+
+```scala
+final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def drain(consumer: A => Unit, limit: Int): Int
 }
 ```
