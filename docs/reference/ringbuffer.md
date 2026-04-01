@@ -113,7 +113,7 @@ ZIO Blocks supports Scala 2.13.x and 3.x. Replace `<version>` with the current r
 
 ### `SpscRingBuffer` — Single Producer, Single Consumer
 
-`SpscRingBuffer[A]` uses the FastFlow pattern: elements signal their presence via null/non-null slots in the array. The producer never reads `consumerIndex`, and the consumer never reads `producerIndex`, minimizing cross-core cache traffic.
+`SpscRingBuffer[A]` uses the FastFlow pattern: elements signal their presence via null/non-null slots in the array. On the fast path, the producer never reads `consumerIndex` and the consumer never reads `producerIndex`, minimizing cross-core cache traffic.
 
 ```scala
 object SpscRingBuffer {
