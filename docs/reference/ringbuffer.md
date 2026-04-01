@@ -438,7 +438,7 @@ println(s"Filled $filled items")
 Ring buffers are **lock-free** but must be used correctly:
 
 - **Wrong thread access causes undefined behavior**: Using `SpscRingBuffer` from multiple producer threads results in data races, silent data loss, or crashes. Always use the implementation matching your thread pattern.
-- **`SpscRingBuffer#offer` and `SpscRingBuffer#take` must not be called from the same thread**: The producer and consumer must be on separate threads to avoid deadlock or missed updates.
+- **`SpscRingBuffer#offer` and `SpscRingBuffer#take` must not be called from the same thread**: The producer and consumer must be on separate threads to avoid stale reads and missed updates.
 - **State queries are approximate**: Under concurrency, `SpscRingBuffer#size`, `SpscRingBuffer#isEmpty`, and `SpscRingBuffer#isFull` may be stale by the time they return. Do not rely on them for exact synchronization — use `SpscRingBuffer#offer`'s return value for backpressure instead.
 - **Null elements are forbidden**: All implementations reject `null` with `NullPointerException`. If you need to store nullable values, wrap them in `Option` or another container.
 
