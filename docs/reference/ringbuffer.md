@@ -316,6 +316,7 @@ We can take elements in FIFO order from our buffer:
 rb.take()  // "a"
 rb.take()  // "b"
 rb.take()  // "c"
+rb.take()  // "d"
 rb.take()  // null (buffer is empty)
 ```
 
