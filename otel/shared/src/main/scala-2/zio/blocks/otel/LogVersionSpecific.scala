@@ -31,4 +31,32 @@ private[otel] trait LogVersionSpecific { self: log.type =>
   def error(message: String, enrichments: Any*): Unit = macro LogMacros.errorImpl
 
   def fatal(message: String, enrichments: Any*): Unit = macro LogMacros.fatalImpl
+
+  // Rate-limited: log every N invocations per call site
+
+  def traceEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.traceEveryImpl
+
+  def debugEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.debugEveryImpl
+
+  def infoEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.infoEveryImpl
+
+  def warnEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.warnEveryImpl
+
+  def errorEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.errorEveryImpl
+
+  def fatalEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.fatalEveryImpl
+
+  // Rate-limited: log at most once per interval (millis) per call site
+
+  def traceAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.traceAtMostImpl
+
+  def debugAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.debugAtMostImpl
+
+  def infoAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.infoAtMostImpl
+
+  def warnAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.warnAtMostImpl
+
+  def errorAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.errorAtMostImpl
+
+  def fatalAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit = macro LogMacros.fatalAtMostImpl
 }

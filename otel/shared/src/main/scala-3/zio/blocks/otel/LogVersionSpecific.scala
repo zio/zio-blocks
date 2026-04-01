@@ -35,4 +35,44 @@ private[otel] trait LogVersionSpecific { self: log.type =>
 
   inline def fatal(inline message: String, inline enrichments: Any*): Unit =
     ${ LogMacros.logImpl('self, 'message, 'enrichments, '{ Severity.Fatal }) }
+
+  // Rate-limited: log every N invocations per call site
+
+  inline def traceEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Trace }) }
+
+  inline def debugEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Debug }) }
+
+  inline def infoEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Info }) }
+
+  inline def warnEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Warn }) }
+
+  inline def errorEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Error }) }
+
+  inline def fatalEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logEveryImpl('self, 'every, 'message, 'enrichments, '{ Severity.Fatal }) }
+
+  // Rate-limited: log at most once per interval (millis) per call site
+
+  inline def traceAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Trace }) }
+
+  inline def debugAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Debug }) }
+
+  inline def infoAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Info }) }
+
+  inline def warnAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Warn }) }
+
+  inline def errorAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Error }) }
+
+  inline def fatalAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit =
+    ${ LogMacros.logAtMostImpl('self, 'intervalMillis, 'message, 'enrichments, '{ Severity.Fatal }) }
 }

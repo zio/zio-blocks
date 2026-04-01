@@ -28,26 +28,70 @@ private[otel] object LogMacros {
   )(using Quotes): Expr[Unit] = {
     import quotes.reflect.*
 
-    val pos = Position.ofMacroExpansion
-
-    val filePath   = Expr(pos.sourceFile.path)
-    val lineNumber = Expr(pos.startLine + 1)
-
-    val methodName = Expr(findEnclosingMethod(Symbol.spliceOwner))
-    val namespace  = Expr(findEnclosingClass(Symbol.spliceOwner))
-
     enrichments match {
       case Varargs(enrichmentExprs) =>
         generateDirectBuilderPath(
           self,
           message,
           severity,
-          filePath,
-          namespace,
-          methodName,
-          lineNumber,
           enrichmentExprs
         )
+
+      case _ =>
+        report.errorAndAbort(
+          "log methods require explicit arguments, not `args: _*` syntax"
+        )
+    }
+  }
+
+  def logEveryImpl(
+    self: Expr[log.type],
+    every: Expr[Int],
+    message: Expr[String],
+    enrichments: Expr[Seq[Any]],
+    severity: Expr[Severity]
+  )(using Quotes): Expr[Unit] = {
+    import quotes.reflect.*
+
+    val pos    = Position.ofMacroExpansion
+    val siteId = Expr((pos.sourceFile.path + ":" + (pos.startLine + 1)).hashCode)
+
+    enrichments match {
+      case Varargs(enrichmentExprs) =>
+        val body = generateDirectBuilderPath(self, message, severity, enrichmentExprs)
+        '{
+          if (LogRateLimit.shouldLogEvery($siteId, $every)) {
+            $body
+          }
+        }
+
+      case _ =>
+        report.errorAndAbort(
+          "log methods require explicit arguments, not `args: _*` syntax"
+        )
+    }
+  }
+
+  def logAtMostImpl(
+    self: Expr[log.type],
+    intervalMillis: Expr[Long],
+    message: Expr[String],
+    enrichments: Expr[Seq[Any]],
+    severity: Expr[Severity]
+  )(using Quotes): Expr[Unit] = {
+    import quotes.reflect.*
+
+    val pos    = Position.ofMacroExpansion
+    val siteId = Expr((pos.sourceFile.path + ":" + (pos.startLine + 1)).hashCode)
+
+    enrichments match {
+      case Varargs(enrichmentExprs) =>
+        val body = generateDirectBuilderPath(self, message, severity, enrichmentExprs)
+        '{
+          if (LogRateLimit.shouldLogAtMost($siteId, $intervalMillis)) {
+            $body
+          }
+        }
 
       case _ =>
         report.errorAndAbort(
@@ -89,13 +133,17 @@ private[otel] object LogMacros {
     self: Expr[log.type],
     message: Expr[String],
     severity: Expr[Severity],
-    filePath: Expr[String],
-    namespace: Expr[String],
-    methodName: Expr[String],
-    lineNumber: Expr[Int],
     enrichmentExprs: Seq[Expr[Any]]
   )(using Quotes): Expr[Unit] = {
     import quotes.reflect.*
+
+    val pos = Position.ofMacroExpansion
+
+    val filePath   = Expr(pos.sourceFile.path)
+    val lineNumber = Expr(pos.startLine + 1)
+
+    val methodName = Expr(findEnclosingMethod(Symbol.spliceOwner))
+    val namespace  = Expr(findEnclosingClass(Symbol.spliceOwner))
 
     // Classify each enrichment by type at compile time
     sealed trait EnrichmentKind

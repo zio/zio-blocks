@@ -38,6 +38,46 @@ private[otel] object LogMacros {
   def fatalImpl(c: blackbox.Context)(message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
     logImpl(c)(message, enrichments, c.universe.reify(Severity.Fatal), "FATAL", 21)
 
+  // Rate-limited: every N
+
+  def traceEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Trace), "TRACE", 1)
+
+  def debugEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Debug), "DEBUG", 5)
+
+  def infoEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Info), "INFO", 9)
+
+  def warnEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Warn), "WARN", 13)
+
+  def errorEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Error), "ERROR", 17)
+
+  def fatalEveryImpl(c: blackbox.Context)(every: c.Expr[Int], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logEveryImpl(c)(every, message, enrichments, c.universe.reify(Severity.Fatal), "FATAL", 21)
+
+  // Rate-limited: at most once per interval
+
+  def traceAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Trace), "TRACE", 1)
+
+  def debugAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Debug), "DEBUG", 5)
+
+  def infoAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Info), "INFO", 9)
+
+  def warnAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Warn), "WARN", 13)
+
+  def errorAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Error), "ERROR", 17)
+
+  def fatalAtMostImpl(c: blackbox.Context)(intervalMillis: c.Expr[Long], message: c.Expr[String], enrichments: c.Expr[Any]*): c.Expr[Unit] =
+    logAtMostImpl(c)(intervalMillis, message, enrichments, c.universe.reify(Severity.Fatal), "FATAL", 21)
+
   private def logImpl(c: blackbox.Context)(
     message: c.Expr[String],
     enrichments: Seq[c.Expr[Any]],
@@ -66,6 +106,50 @@ private[otel] object LogMacros {
       methodName,
       namespace
     )
+  }
+
+  private def logEveryImpl(c: blackbox.Context)(
+    every: c.Expr[Int],
+    message: c.Expr[String],
+    enrichments: Seq[c.Expr[Any]],
+    severity: c.Expr[Severity],
+    severityTextLiteral: String,
+    severityNumber: Int
+  ): c.Expr[Unit] = {
+    import c.universe._
+
+    val pos    = c.enclosingPosition
+    val siteId = Literal(Constant((pos.source.path + ":" + pos.line).hashCode))
+
+    val body = logImpl(c)(message, enrichments, severity, severityTextLiteral, severityNumber)
+
+    c.Expr[Unit](q"""
+      if (_root_.zio.blocks.otel.LogRateLimit.shouldLogEvery($siteId, ${every.tree})) {
+        ${body.tree}
+      }
+    """)
+  }
+
+  private def logAtMostImpl(c: blackbox.Context)(
+    intervalMillis: c.Expr[Long],
+    message: c.Expr[String],
+    enrichments: Seq[c.Expr[Any]],
+    severity: c.Expr[Severity],
+    severityTextLiteral: String,
+    severityNumber: Int
+  ): c.Expr[Unit] = {
+    import c.universe._
+
+    val pos    = c.enclosingPosition
+    val siteId = Literal(Constant((pos.source.path + ":" + pos.line).hashCode))
+
+    val body = logImpl(c)(message, enrichments, severity, severityTextLiteral, severityNumber)
+
+    c.Expr[Unit](q"""
+      if (_root_.zio.blocks.otel.LogRateLimit.shouldLogAtMost($siteId, ${intervalMillis.tree})) {
+        ${body.tree}
+      }
+    """)
   }
 
   private def generateDirectBuilderPath(c: blackbox.Context)(

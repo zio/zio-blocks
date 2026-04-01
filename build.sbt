@@ -1178,7 +1178,11 @@ lazy val `schema-examples-macros` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
   )
 
 lazy val `schema-examples` = project
