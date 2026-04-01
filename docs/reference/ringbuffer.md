@@ -87,7 +87,7 @@ ZIO Blocks provides four ring buffer implementations, each optimized for a speci
 
 | Implementation | Producers | Consumers | Algorithm | Use Case |
 |---|---|---|---|---|
-| **`SpscRingBuffer`** | Single | Single | FastFlow + look-ahead cache | Bounded FIFO channel; fastest for 1:1 communication |
+| **`SpscRingBuffer`** | Single | Single | FastFlow + look-ahead read of slot at `pIdx + lookAheadStep` | Bounded FIFO channel; fastest for 1:1 communication |
 | **`SpmcRingBuffer`** | Single | Multiple | Index-based with CAS on consumer index | One producer batching to many workers |
 | **`MpscRingBuffer`** | Multiple | Single | CAS on producer index + cached limit; null-slot reading on consumer (FastFlow semantics) | Many producers, single aggregator |
 | **`MpmcRingBuffer`** | Multiple | Multiple | Vyukov/Dmitry with sequence buffer | General-purpose multi-producer/consumer queue |
