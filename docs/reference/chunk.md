@@ -366,7 +366,7 @@ Chunk provides a rich set of operations for accessing, transforming, and combini
 
 ### Element Access
 
-Retrieve individual elements by index or position, and query chunk size:
+Access elements directly through indexing, retrieve the first or last element efficiently, and inspect chunk dimensions:
 
 #### `Chunk#apply` — Random Access
 
@@ -448,7 +448,7 @@ chunk.size
 
 ### Transformations
 
-Apply functions to elements with map and flatMap, filter by predicate, and extract partial matches:
+Transform every element with custom functions, chain transformations together, selectively keep matching elements, and extract values from nested structures:
 
 #### `Chunk#map` — Transform Elements
 
@@ -556,7 +556,7 @@ val sortedStrings = strings.sorted
 
 ### Combining Chunks
 
-Merge chunks together, append or prepend elements, and combine parallel sequences:
+Concatenate chunks efficiently, add elements to either end, and align parallel sequences side by side:
 
 #### `Chunk#++(that)` — Concatenation
 
@@ -647,7 +647,7 @@ val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
 
 ### Slicing and Partitioning
 
-Extract contiguous ranges from both ends, split at indices, and partition by predicate:
+Keep elements from the ends, skip unwanted portions, extract ranges by position, and divide chunks based on conditions:
 
 #### `Chunk#take` and `Chunk#takeRight` — Take from Ends
 
@@ -775,7 +775,7 @@ val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
 
 ### Querying and Folding
 
-Fold with accumulators, test predicates, and search for matching elements:
+Reduce elements into a single result, verify that elements meet conditions, and locate specific values:
 
 #### `Chunk#foldLeft` — Left Fold
 
@@ -878,7 +878,7 @@ words.find(_.startsWith("b"))
 
 ### Conversion
 
-Materialize chunks to standard Scala collection types and string representations:
+Export chunks into familiar Scala collections and render them as strings:
 
 #### `Chunk#toArray` — To `Array`
 
@@ -1000,7 +1000,7 @@ ints.int(1)
 
 ### Materialization and Optimization
 
-Force chunks built through concatenation into efficient array-backed form:
+Solidify chunks built through repeated concatenations into optimized array-backed storage:
 
 #### `Chunk#materialize` — Force Materialization
 
@@ -1033,7 +1033,7 @@ Advanced use cases include bit-level operations, working with specialized chunk 
 
 ### Bit Operations
 
-Access bit-level representations for numeric types with endianness control:
+Break down numeric values into their binary representation, respecting byte order preferences:
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
 
@@ -1094,7 +1094,7 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 ### Text Operations
 
-Convert byte and character chunks to strings and Base64 encoding:
+Assemble byte and character chunks into readable strings, encode for safe transmission:
 
 #### `Chunk#asString` — Convert to String
 
@@ -1127,7 +1127,7 @@ val base64 = bytes.asBase64String
 
 ### Advanced Transformations
 
-Collect elements with early exit, partition using Either results, and zip with custom indices:
+Selectively gather elements until a condition fails, separate elements by their success or failure status, and pair elements with indices:
 
 #### `Chunk#collectWhile` — Collect with Early Exit
 
@@ -1179,7 +1179,7 @@ chunk.zipWithIndexFrom(10)
 
 ### Safe Operations
 
-Handle empty chunks safely with type-aware alternatives:
+Handle the empty case gracefully by providing fallbacks and type-safe guarantees:
 
 #### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
 
