@@ -42,6 +42,46 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
+## Motivation
+
+Building low-latency systems — trading platforms, game engines, real-time event processors — requires careful control over memory allocation and CPU cache behavior. Standard JVM collections like `LinkedList` or `ArrayDeque` are convenient but have a cost: every enqueue/dequeue pair allocates a node, triggering garbage collection pauses that can destroy millisecond-scale latencies.
+
+A naive approach is to pre-allocate a large `Array[A]` and manually manage head/tail indices:
+
+```scala mdoc:compile-only
+var head = 0
+var tail = 0
+val array = new Array[String](1024)
+
+def offer(x: String): Boolean = {
+  if (tail - head >= array.length) false  // full
+  else {
+    array(tail % array.length) = x
+    tail += 1
+    true
+  }
+}
+
+def take(): String = {
+  if (head == tail) null  // empty
+  else {
+    val x = array(head % array.length)
+    head += 1
+    x
+  }
+}
+```
+
+This works for single-threaded code, but introduces a critical problem under concurrency: both threads read and write `head` and `tail` without synchronization, leading to lost updates, stale reads, and silent data corruption. Adding `synchronized` blocks solves the data race but reintroduces contention and latency pauses.
+
+Ring buffers solve both problems with **lock-free algorithms** and **cache-line padding**. A ring buffer provides:
+- **No garbage collection** — reuses the same array forever
+- **Lock-free access** — uses atomic compare-and-swap (CAS) for coordination, avoiding mutex contention
+- **Predictable latency** — no surprise GC pauses or lock waits
+- **Thread-specialized variants** — choose SPSC, MPSC, SPMC, or MPMC based on your thread pattern
+
+This module provides four implementations tuned for maximum throughput and minimal latency across all producer/consumer combinations.
+
 ## Overview
 
 Ring buffers are high-performance data structures for:
