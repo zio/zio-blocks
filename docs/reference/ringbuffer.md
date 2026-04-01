@@ -25,7 +25,6 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 
 final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
-  def capacity: Int
   def offer(a: A): Boolean
   def take(): A
   def size: Int
