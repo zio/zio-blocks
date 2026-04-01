@@ -6,8 +6,7 @@ title: "RingBuffer"
 `RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
 
 ```scala
-trait SpscRingBuffer[A <: AnyRef] {
-  def capacity: Int
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
   def take(): A
   def size: Int
@@ -17,8 +16,7 @@ trait SpscRingBuffer[A <: AnyRef] {
   def fill(supplier: () => A, limit: Int): Int
 }
 
-trait SpmcRingBuffer[A <: AnyRef] {
-  def capacity: Int
+final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
   def take(): A
   def size: Int
@@ -26,17 +24,17 @@ trait SpmcRingBuffer[A <: AnyRef] {
   def isFull: Boolean
 }
 
-trait MpscRingBuffer[A <: AnyRef] {
+final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
   def capacity: Int
   def offer(a: A): Boolean
   def take(): A
   def size: Int
   def isEmpty: Boolean
   def isFull: Boolean
+  def drain(consumer: A => Unit, limit: Int): Int
 }
 
-trait MpmcRingBuffer[A <: AnyRef] {
-  def capacity: Int
+final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   def offer(a: A): Boolean
   def take(): A
   def size: Int
