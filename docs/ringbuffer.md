@@ -101,7 +101,7 @@ val rb = MpmcRingBuffer[String](128)
 
 ### Capacity Requirements
 
-All implementations require capacity to be a positive power of two:
+All implementations require capacity to be a positive power of two. Valid and invalid capacities look like:
 
 ```scala
 SpscRingBuffer[String](16)   // OK: 2^4 = 16
@@ -118,7 +118,7 @@ SpscRingBuffer[String](0)    // Error: must be > 0
 
 The `offer` method attempts to insert an element without blocking. It returns `true` if the element was inserted, `false` if the buffer is full.
 
-`SpscRingBuffer#offer` — Insert an element (SPSC):
+`SpscRingBuffer#offer` — Insert an element (SPSC) with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -128,7 +128,7 @@ trait SpscRingBuffer[A <: AnyRef] {
 
 Throws `NullPointerException` if the element is `null`. Must be called from the producer thread only.
 
-`SpmcRingBuffer#offer` — Insert an element (SPMC):
+`SpmcRingBuffer#offer` — Insert an element (SPMC) with this signature:
 
 ```scala
 trait SpmcRingBuffer[A <: AnyRef] {
@@ -138,7 +138,7 @@ trait SpmcRingBuffer[A <: AnyRef] {
 
 Throws `NullPointerException` if the element is `null`. May be called from the single producer thread only; concurrent calls from multiple threads cause undefined behavior.
 
-`MpscRingBuffer#offer` — Insert an element (MPSC):
+`MpscRingBuffer#offer` — Insert an element (MPSC) with this signature:
 
 ```scala
 trait MpscRingBuffer[A <: AnyRef] {
@@ -148,7 +148,7 @@ trait MpscRingBuffer[A <: AnyRef] {
 
 Throws `NullPointerException` if the element is `null`. Thread-safe; multiple producer threads may call this concurrently.
 
-`MpmcRingBuffer#offer` — Insert an element (MPMC):
+`MpmcRingBuffer#offer` — Insert an element (MPMC) with this signature:
 
 ```scala
 trait MpmcRingBuffer[A <: AnyRef] {
@@ -177,7 +177,7 @@ val result5 = rb.offer("e")  // false (Buffer is full, capacity = 4)
 
 The `take` method retrieves and removes an element from the front of the buffer. It returns the element, or `null` if the buffer is empty. Returns immediately without blocking.
 
-`SpscRingBuffer#take` — Remove an element (SPSC):
+`SpscRingBuffer#take` — Remove an element (SPSC) with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -187,7 +187,7 @@ trait SpscRingBuffer[A <: AnyRef] {
 
 Must be called from the consumer thread only. Returns the element, or `null` if the buffer is empty.
 
-`SpmcRingBuffer#take` — Remove an element (SPMC):
+`SpmcRingBuffer#take` — Remove an element (SPMC) with this signature:
 
 ```scala
 trait SpmcRingBuffer[A <: AnyRef] {
@@ -197,7 +197,7 @@ trait SpmcRingBuffer[A <: AnyRef] {
 
 Thread-safe; multiple consumer threads may call this concurrently.
 
-`MpscRingBuffer#take` — Remove an element (MPSC):
+`MpscRingBuffer#take` — Remove an element (MPSC) with this signature:
 
 ```scala
 trait MpscRingBuffer[A <: AnyRef] {
@@ -207,7 +207,7 @@ trait MpscRingBuffer[A <: AnyRef] {
 
 Must be called from the single consumer thread only.
 
-`MpmcRingBuffer#take` — Remove an element (MPMC):
+`MpmcRingBuffer#take` — Remove an element (MPMC) with this signature:
 
 ```scala
 trait MpmcRingBuffer[A <: AnyRef] {
@@ -230,7 +230,7 @@ rb.take()  // null (buffer is empty)
 
 Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
 
-`SpscRingBuffer#size` — Approximate element count:
+`SpscRingBuffer#size` — Approximate element count with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -240,7 +240,7 @@ trait SpscRingBuffer[A <: AnyRef] {
 
 Returns the approximate number of elements currently in the buffer (approximate because of concurrent access). O(1).
 
-`SpscRingBuffer#isEmpty` — Check if empty:
+`SpscRingBuffer#isEmpty` — Check if empty with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -250,7 +250,7 @@ trait SpscRingBuffer[A <: AnyRef] {
 
 Returns `true` if the buffer contains no elements (approximate). O(1).
 
-`SpscRingBuffer#isFull` — Check if full:
+`SpscRingBuffer#isFull` — Check if full with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -277,7 +277,7 @@ rb2.isFull    // false
 
 `SpscRingBuffer` provides `drain` and `fill` for batch operations, optimized for the single-threaded case.
 
-`SpscRingBuffer#drain` — Consume up to N elements:
+`SpscRingBuffer#drain` — Consume up to N elements with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
@@ -287,7 +287,7 @@ trait SpscRingBuffer[A <: AnyRef] {
 
 Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
 
-`SpscRingBuffer#fill` — Produce up to N elements:
+`SpscRingBuffer#fill` — Produce up to N elements with this signature:
 
 ```scala
 trait SpscRingBuffer[A <: AnyRef] {
