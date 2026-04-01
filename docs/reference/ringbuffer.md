@@ -87,7 +87,7 @@ ZIO Blocks provides four ring buffer implementations, each optimized for a speci
 
 | Implementation | Producers | Consumers | Algorithm | Use Case |
 |---|---|---|---|---|
-| **`SpscRingBuffer`** | Single | Single | FastFlow (null-based signaling) | Bounded FIFO channel; fastest for 1:1 communication |
+| **`SpscRingBuffer`** | Single | Single | FastFlow + look-ahead cache | Bounded FIFO channel; fastest for 1:1 communication |
 | **`SpmcRingBuffer`** | Single | Multiple | Index-based with CAS on consumer index | One producer batching to many workers |
 | **`MpscRingBuffer`** | Multiple | Single | CAS on producer index + cached limit; null-slot reading on consumer (FastFlow semantics) | Many producers, single aggregator |
 | **`MpmcRingBuffer`** | Multiple | Multiple | Vyukov/Dmitry with sequence buffer | General-purpose multi-producer/consumer queue |
@@ -112,7 +112,7 @@ ZIO Blocks supports Scala 2.13.x and 3.x. Replace `<version>` with the current r
 
 ### `SpscRingBuffer` — Single Producer, Single Consumer
 
-`SpscRingBuffer[A]` uses the FastFlow pattern: elements signal their presence via null/non-null slots in the array. On the fast path, the producer never reads `consumerIndex` and the consumer never reads `producerIndex`, minimizing cross-core cache traffic.
+`SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the limit is exhausted, a look-ahead read of a cache-line-aligned slot determines how many more slots are available. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
 
 ```scala
 object SpscRingBuffer {
@@ -437,7 +437,7 @@ println(s"Filled $filled items")
 Ring buffers are **lock-free** but must be used correctly:
 
 - **Wrong thread access causes undefined behavior**: Using `SpscRingBuffer` from multiple producer threads results in data races, silent data loss, or crashes. Always use the implementation matching your thread pattern.
-- **`SpscRingBuffer#offer` and `SpscRingBuffer#take` must not be called from the same thread**: The producer and consumer must be on separate threads to avoid stale reads and missed updates.
+- **`SpscRingBuffer#offer` and `SpscRingBuffer#take` thread contract**: The producer thread must be the sole caller of `offer`; the consumer thread must be the sole caller of `take`. They may be the same physical thread (as in single-threaded environments like Scala.js or unit tests) or different threads.
 - **State queries are approximate**: Under concurrency, `SpscRingBuffer#size`, `SpscRingBuffer#isEmpty`, and `SpscRingBuffer#isFull` may be stale by the time they return. Do not rely on them for exact synchronization — use `SpscRingBuffer#offer`'s return value for backpressure instead.
 - **Null elements are forbidden**: All implementations reject `null` with `NullPointerException`. If you need to store nullable values, wrap them in `Option` or another container.
 
