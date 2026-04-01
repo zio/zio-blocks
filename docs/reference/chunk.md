@@ -73,7 +73,7 @@ But here's where it gets clever. When you concatenate two Chunks, instead of eag
 
 Chunk also includes specialized support for incremental building through the ChunkBuilder API. When you're constructing a sequence by repeatedly appending elements, ChunkBuilder uses a buffering strategy: it accumulates elements in a small array, and only when the array fills up does it append it to the growing Chunk tree. This means appending is effectively O(1) amortized time—comparable to dynamically sized arrays, but without the re-copying overhead when the array grows.
 
-There's another important optimization: Chunk is designed to handle primitive types like Int, Long, Double, and Byte without boxing them. This is a significant performance win in practice. The specialized constructors and accessors ensure that a `Chunk[Int]` really does store integers directly in memory, not wrapped in Java Integer objects.
+There's another important optimization: Chunk is designed to handle primitive types like `Int`, `Long`, `Double`, and `Byte` without boxing them. This is a significant performance win in practice. The specialized constructors and accessors ensure that a `Chunk[Int]` really does store integers directly in memory, not wrapped in Java Integer objects.
 
 For functional programming specifically, Chunk embraces immutability completely. When you transform a Chunk, you get a new Chunk. The original remains unchanged. This makes Chunk naturally safe to share across parallel operations without locks or coordination. Different threads can safely read from the same Chunk simultaneously, and transformations produce new, independent Chunks.
 
@@ -197,11 +197,11 @@ The mutation is visible in the chunk:
 chunk
 ```
 
-To avoid this risk, prefer alternatives that create independent copies: `Chunk.fromIterable` copies data from most iterables (List, Set, etc.), and `Chunk.from` also creates a copy when needed. Use these when you cannot guarantee the source array will not be mutated.
+To avoid this risk, prefer alternatives that create independent copies: `Chunk.fromIterable` copies data from most iterables (`List`, `Set`, etc.), and `Chunk.from` also creates a copy when needed. Use these when you cannot guarantee the source array will not be mutated.
 
 ### From Iterable with `Chunk.fromIterable`
 
-Convert any Scala iterable (List, Vector, Set, etc.) into a chunk. For Chunk and Vector inputs, the underlying data may be shared; for other iterables, the data is copied:
+Convert any Scala iterable (`List`, `Vector`, `Set`, etc.) into a chunk. For `Chunk` and `Vector` inputs, the underlying data may be shared; for other iterables, the data is copied:
 
 ```scala
 object Chunk {
@@ -242,7 +242,7 @@ val chunk = Chunk.fromIterator(iter)
 
 ### From `java.nio` Buffers
 
-Create chunks directly from Java NIO buffers (ByteBuffer, CharBuffer, etc.):
+Create chunks directly from Java NIO buffers (`ByteBuffer`, `CharBuffer`, etc.):
 
 ```scala
 object Chunk {
@@ -868,7 +868,7 @@ words.find(_.startsWith("b"))
 
 ### Conversion
 
-#### `Chunk#toArray` — To Array
+#### `Chunk#toArray` — To `Array`
 
 Convert to an array:
 
@@ -887,9 +887,9 @@ val chunk = Chunk(1, 2, 3, 4)
 val array: Array[Int] = chunk.toArray
 ```
 
-#### `Chunk#toList` — To List
+#### `Chunk#toList` — To `List`
 
-Convert to a List:
+Convert to a `List`:
 
 ```scala
 trait Chunk[+A] {
@@ -1234,7 +1234,7 @@ val result = nonEmpty1 ++ chunk2
 
 Understanding how Chunk compares to other sequence types helps you choose the right tool for your use case:
 
-### Chunk vs Array
+### Chunk vs `Array`
 
 | Feature | Chunk | Array |
 |---------|-------|-------|
@@ -1247,9 +1247,9 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 **Use Chunk when**: Building sequences functionally, using in pure code, performing many concatenations, or sharing immutable data.
 
-**Use Array when**: Needing low-level memory control, interfacing with Java, or maximum raw performance is critical.
+**Use `Array` when**: Needing low-level memory control, interfacing with Java, or maximum raw performance is critical.
 
-### Chunk vs List
+### Chunk vs `List`
 
 | Feature | Chunk | List |
 |---------|-------|-------|
@@ -1263,7 +1263,7 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 **Use List when**: Head/tail pattern matching or traditional functional programming style.
 
-### Chunk vs Vector
+### Chunk vs `Vector`
 
 | Feature | Chunk | Vector |
 |---------|-------|-------|
@@ -1275,11 +1275,11 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 **Use Chunk when**: Primitive types matter or concatenation performance is critical.
 
-**Use Vector when**: Need guaranteed access performance or already using Vector in codebase.
+**Use `Vector` when**: Need guaranteed access performance or already using `Vector` in codebase.
 
 ## Integration
 
-Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside List, Vector, and Set.
+Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
 
 **Example: Schema for Chunk data**
 
