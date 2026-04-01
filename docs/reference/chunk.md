@@ -366,7 +366,7 @@ Chunk provides a rich set of operations for accessing, transforming, and combini
 
 ### Element Access
 
-Retrieve or access individual elements from a chunk:
+Access and query individual elements:
 
 #### `Chunk#apply` — Random Access
 
@@ -448,7 +448,7 @@ chunk.size
 
 ### Transformations
 
-Transform elements with functions:
+Transform with map, flatMap, and filters:
 
 #### `Chunk#map` — Transform Elements
 
@@ -556,7 +556,7 @@ val sortedStrings = strings.sorted
 
 ### Combining Chunks
 
-Combine multiple chunks into one:
+Concatenate and zip chunks:
 
 #### `Chunk#++(that)` — Concatenation
 
@@ -647,7 +647,7 @@ val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
 
 ### Slicing and Partitioning
 
-Extract contiguous elements or partition by conditions:
+Take, drop, slice, and partition by predicate:
 
 #### `Chunk#take` and `Chunk#takeRight` — Take from Ends
 
@@ -775,7 +775,7 @@ val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
 
 ### Querying and Folding
 
-Aggregate elements and fold over them:
+Fold, find, and aggregate elements:
 
 #### `Chunk#foldLeft` — Left Fold
 
@@ -878,7 +878,7 @@ words.find(_.startsWith("b"))
 
 ### Conversion
 
-Convert chunks to other collection types:
+Convert to arrays, lists, and strings:
 
 #### `Chunk#toArray` — To `Array`
 
@@ -1000,7 +1000,7 @@ ints.int(1)
 
 ### Materialization and Optimization
 
-Control chunk representation and performance:
+Force array materialization:
 
 #### `Chunk#materialize` — Force Materialization
 
@@ -1033,7 +1033,7 @@ Advanced use cases include bit-level operations, working with specialized chunk 
 
 ### Bit Operations
 
-Perform bitwise operations on specialized chunks:
+Convert to bit representations:
 
 #### `Chunk#asBitsByte` — Convert to Byte Bits
 
@@ -1094,7 +1094,7 @@ val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
 
 ### Text Operations
 
-Work with text representations of chunks:
+Encode as strings and Base64:
 
 #### `Chunk#asString` — Convert to String
 
@@ -1127,7 +1127,7 @@ val base64 = bytes.asBase64String
 
 ### Advanced Transformations
 
-Perform specialized transformations on chunks:
+Collect with early termination:
 
 #### `Chunk#collectWhile` — Collect with Early Exit
 
@@ -1179,7 +1179,7 @@ chunk.zipWithIndexFrom(10)
 
 ### Safe Operations
 
-Safely handle edge cases like empty chunks:
+Provide alternatives for empty chunks:
 
 #### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
 

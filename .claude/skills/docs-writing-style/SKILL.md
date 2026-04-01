@@ -25,7 +25,7 @@ allowed-tools: Read, Glob, Grep
    - **Companion object/static members** — use `TypeName.methodName`: `As.derived`, `As.apply`, `Into.derived`, `Into.apply`
    - **In headings** — same rules apply: `### Context#add`, `#### Wire.shared[T]` (always in backticks)
 
-9. **Type name alone rule**: When talking about the type itself (not a method), use only its name with no qualifier: "derives automatically via `As`", "`Into` is a one-way conversion".
+9. **Type name alone rule**: When talking about the type itself (not a method), use only its name with no qualifier, and always wrap it in backticks: "`As` derives automatically", "`Into` is a one-way conversion", "convert the data to `List`". This applies to all type references in prose, including standard library types like `List`, `Vector`, `Set`, `String`, `Int`, `Array`, etc.
 
 ## Frontmatter Titles
 
@@ -34,7 +34,7 @@ allowed-tools: Read, Glob, Grep
 ## Heading and Code Block Layout Rules
 
 11. **Heading hierarchy**: Use `##` for major sections, `###` for subsections, and `####` for subsubsections. All three levels are fully supported and encouraged.
-12. **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write at least one sentence of explanation before the first subheader.
+12. **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write a brief, contextualized sentence that previews what the subsections cover—not generic prose, but specific to the operations or items that follow.
 13. **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, remove the subheader entirely and place the content directly under the parent heading. The same rule applies to `###` → `####`.
 14. **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a single `###` heading by using `####` for each item. This creates visual hierarchy and makes the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` → `#### Schema-driven migrations`.
 15. **Every code block must be preceded by an introductory prose sentence**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. This applies universally:
