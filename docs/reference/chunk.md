@@ -338,10 +338,10 @@ val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
 
 When constructing a chunk from multiple sources, the naive approach—concatenating partial chunks together—incurs O(n²) complexity: each concatenation must rebalance the tree. Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by using an internal buffering strategy: elements accumulate in a small array, and only when full does the array append to the growing chunk tree. This yields O(1) amortized append cost—comparable to dynamically sized arrays, but without re-copying overhead. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
 
-| Scenario | Right choice |
-|---|---|
-| Elements available all at once; constructing a static chunk | `Chunk.apply(...)` or `Chunk.from(iterable)` |
-| Elements arrive incrementally; unknown size in advance; building from a stream or iterator | `ChunkBuilder` with `addOne` / `addAll` |
+| Scenario                                                                                   | Right choice                                 |
+|--------------------------------------------------------------------------------------------|----------------------------------------------|
+| Elements available all at once; constructing a static chunk                                | `Chunk.apply(...)` or `Chunk.from(iterable)` |
+| Elements arrive incrementally; unknown size in advance; building from a stream or iterator | `ChunkBuilder` with `addOne` / `addAll`      |
 
 The signature of `ChunkBuilder` is:
 
