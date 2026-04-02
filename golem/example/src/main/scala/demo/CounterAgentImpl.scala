@@ -15,4 +15,3 @@ final class CounterAgentImpl(@unused private val name: String) extends CounterAg
       count
     }
 }
-
