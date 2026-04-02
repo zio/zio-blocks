@@ -18,13 +18,14 @@ object MigrationSpec extends ZIOSpecDefault {
 
   def spec = suite("MigrationSpec")(
     test("apply dynamic actions to add, rename, and drop fields") {
-      val v1 = PersonV1("Alice", 30)
+      val v1    = PersonV1("Alice", 30)
       val dynV1 = PersonV1.schema.toDynamicValue(v1)
 
-      val migration = MigrationBuilder[PersonV1, PersonV2, PersonV1](PersonV1.schema, PersonV2.schema, DynamicMigration.empty)
-        .rename(p".name", "fullName")
-        .addField(p".active", SchemaExpr.Literal(true, Schema[Boolean]))
-        .buildPartial
+      val migration =
+        MigrationBuilder[PersonV1, PersonV2, PersonV1](PersonV1.schema, PersonV2.schema, DynamicMigration.empty)
+          .rename(p".name", "fullName")
+          .addField(p".active", SchemaExpr.Literal(true, Schema[Boolean]))
+          .buildPartial
 
       val result = migration(v1)
 

@@ -8,18 +8,16 @@ sealed trait MigrationAction {
 }
 
 object MigrationAction {
-  private def replaceLastNode(optic: DynamicOptic, newNode: DynamicOptic.Node): DynamicOptic = {
+  private def replaceLastNode(optic: DynamicOptic, newNode: DynamicOptic.Node): DynamicOptic =
     if (optic.nodes.isEmpty) optic
     else DynamicOptic(optic.nodes.init :+ newNode)
-  }
 
-  private def extractRenameSource(optic: DynamicOptic): String = {
+  private def extractRenameSource(optic: DynamicOptic): String =
     optic.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => name
       case Some(DynamicOptic.Node.Case(name))  => name
       case _                                   => ""
     }
-  }
 
   // --- Record Actions ---
 
@@ -98,9 +96,8 @@ object MigrationAction {
     from: String,
     to: String
   ) extends MigrationAction {
-    def reverse: MigrationAction = {
+    def reverse: MigrationAction =
       RenameCase(replaceLastNode(at, DynamicOptic.Node.Case(to)), to, from)
-    }
   }
 
   final case class TransformCase(

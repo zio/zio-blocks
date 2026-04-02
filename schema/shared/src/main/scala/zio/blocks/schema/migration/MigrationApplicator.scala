@@ -5,7 +5,7 @@ import zio.blocks.schema.SchemaError
 
 object MigrationApplicator {
 
-  def applyAction(action: MigrationAction, value: DynamicValue): Either[MigrationError, DynamicValue] = {
+  def applyAction(action: MigrationAction, value: DynamicValue): Either[MigrationError, DynamicValue] =
     action match {
       case MigrationAction.AddField(at, default) =>
         default.evalDynamic(null) match {
@@ -27,20 +27,20 @@ object MigrationApplicator {
           case selection =>
             val nodeVal = selection.values.head
             value.deleteOrFail(at) match {
-              case Left(e) => Left(MigrationError.Other(e.message))
+              case Left(e)        => Left(MigrationError.Other(e.message))
               case Right(deleted) =>
                 val atParent = if (at.nodes.isEmpty) at else DynamicOptic(at.nodes.init)
                 // Rename implies replacing the last optic node. For records, it's a Field node.
                 deleted.insertOrFail(atParent.append(DynamicOptic.Node.Field(to)), nodeVal) match {
-                  case Left(e) => Left(MigrationError.Other(e.message))
+                  case Left(e)         => Left(MigrationError.Other(e.message))
                   case Right(inserted) => Right(inserted)
                 }
             }
         }
 
       case MigrationAction.TransformValue(at, transform) =>
-        // transform expects actual value. Since we are operating dynamically, 
-        // we might not evaluate SchemaExpr purely via evalDynamic without casting, 
+        // transform expects actual value. Since we are operating dynamically,
+        // we might not evaluate SchemaExpr purely via evalDynamic without casting,
         // so we leave it as unimplemented unless we build a dynamic evaluator for SchemaExpr.
         Left(MigrationError.EvaluationError("TransformValue runtime evaluation not yet supported"))
 
@@ -64,9 +64,11 @@ object MigrationApplicator {
         Right(value)
 
       case MigrationAction.RenameCase(at, from, to) =>
-        value.modifyOrFail(at) {
-          case DynamicValue.Variant(`from`, internalVal) => DynamicValue.Variant(to, internalVal)
-        }.fold(e => Left(MigrationError.Other(e.message)), Right(_))
+        value
+          .modifyOrFail(at) { case DynamicValue.Variant(`from`, internalVal) =>
+            DynamicValue.Variant(to, internalVal)
+          }
+          .fold(e => Left(MigrationError.Other(e.message)), Right(_))
 
       case MigrationAction.TransformCase(at, actions) =>
         value.get(at) match {
@@ -81,6 +83,5 @@ object MigrationApplicator {
       case _ =>
         Left(MigrationError.EvaluationError(s"Unimplemented or unsupported runtime evaluation for action: $action"))
     }
-  }
 
 }
