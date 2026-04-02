@@ -334,7 +334,16 @@ val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
 
 ### Using ChunkBuilder for Incremental Construction
 
-For building chunks incrementally, use `ChunkBuilder`:
+`ChunkBuilder[A]` is a mutable builder that accumulates elements and returns a `Chunk[A]`. Use it when building chunks from elements that arrive incrementally—over time, from streaming sources, or when the total size is unknown in advance.
+
+When constructing a chunk from multiple sources, the naive approach—concatenating partial chunks together—incurs O(n²) complexity: each concatenation must rebalance the tree. Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by using an internal buffering strategy: elements accumulate in a small array, and only when full does the array append to the growing chunk tree. This yields O(1) amortized append cost—comparable to dynamically sized arrays, but without re-copying overhead. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
+
+| Scenario | Right choice |
+|---|---|
+| Elements available all at once; constructing a static chunk | `Chunk.apply(...)` or `Chunk.from(iterable)` |
+| Elements arrive incrementally; unknown size in advance; building from a stream or iterator | `ChunkBuilder` with `addOne` / `addAll` |
+
+The signature of `ChunkBuilder` is:
 
 ```scala
 object ChunkBuilder {
@@ -343,22 +352,30 @@ object ChunkBuilder {
 }
 ```
 
-Building incrementally demonstrates the buffering strategy:
+Here's a realistic example: aggregating results from a paginated API that returns chunks of records until a sentinel response:
 
-```scala mdoc:reset
+```scala mdoc:compile-only
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
-val builder = ChunkBuilder.make[Int](10)
-builder.addOne(1)
-builder.addOne(2)
-builder.addOne(3)
-val chunk = builder.result()
+case class ApiResponse(records: List[String], hasMore: Boolean)
 
-// With capacity hint for better performance
-val builder2 = ChunkBuilder.make[String](100)
-builder2.addAll(List("a", "b", "c").iterator)
-val result = builder2.result()
+def fetchAllRecords(): Chunk[String] = {
+  val builder = ChunkBuilder.make[String](1000)
+
+  var response = ApiResponse(List("record1", "record2"), true)
+  while (response.hasMore) {
+    builder.addAll(response.records.iterator)
+    // Simulate fetching next page
+    response = ApiResponse(List("record3", "record4"), false)
+  }
+
+  builder.result()
+}
+
+val allRecords = fetchAllRecords()
 ```
+
+In this scenario, the API may return 100 pages before completion. Using `Chunk.apply` would require buffering all responses in memory first. Using naive concatenation would degrade to O(n²) as the chunk grows. `ChunkBuilder` handles pagination efficiently by maintaining a single O(1) append mechanism throughout.
 
 ## Core Operations
 
