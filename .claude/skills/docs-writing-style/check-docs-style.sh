@@ -37,15 +37,17 @@ count_violations() {
   fi
 }
 
-# Rule 1: "zio-blocks" in prose (not in URLs or sbt artifact strings)
+# Rule 1: "zio-blocks" in prose (not in URLs or sbt artifact strings or inline code)
 count_violations "$(awk '
   /^```/ { in_code = !in_code; next }
   in_code { next }
   /^[[:space:]]*-[[:space:]]|^[[:space:]]*\*[[:space:]]|^0-9]+\.[[:space:]]/ { in_list = 1 }
   in_list && /^[[:space:]]*$/ { in_list = 0 }
-  !/^[[:space:]]*[`]/ && /zio-blocks/ && !/^http/ && !/^.*:.*=.*zio-blocks/ {
-    gsub(/zio-blocks/, "MATCH", $0)
-    if ($0 ~ /MATCH/) {
+  /zio-blocks/ && !/^http/ && !/^.*:.*=.*zio-blocks/ {
+    # Remove inline code (backtick-quoted sections) to check if zio-blocks is still there
+    temp = $0
+    gsub(/`[^`]*`/, "", temp)
+    if (temp ~ /zio-blocks/) {
       print FILENAME ":" NR ": [Rule 1] \"zio-blocks\" in prose (not in code/URL)"
     }
   }
