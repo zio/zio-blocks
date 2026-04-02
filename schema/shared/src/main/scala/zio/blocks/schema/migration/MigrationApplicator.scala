@@ -10,7 +10,7 @@ object MigrationApplicator {
       case MigrationAction.AddField(at, default) =>
         default.evalDynamic(null) match {
           case Right(seq) if seq.nonEmpty =>
-            value.insertOrFail(at, seq.head).left.map(e => MigrationError.Other(e.message))
+            value.insertOrFail(at, seq.head).fold(e => Left(MigrationError.Other(e.message)), Right(_))
           case Right(_) =>
             Left(MigrationError.EvaluationError("Default schema expression returned empty sequence"))
           case Left(check) =>
@@ -18,7 +18,7 @@ object MigrationApplicator {
         }
 
       case MigrationAction.DropField(at, _) =>
-        value.deleteOrFail(at).left.map(e => MigrationError.Other(e.message))
+        value.deleteOrFail(at).fold(e => Left(MigrationError.Other(e.message)), Right(_))
 
       case MigrationAction.Rename(at, to) =>
         value.get(at) match {
@@ -26,13 +26,16 @@ object MigrationApplicator {
             Left(MigrationError.PathNotFound(at))
           case selection =>
             val nodeVal = selection.values.head
-            for {
-              deleted <- value.deleteOrFail(at).left.map(e => MigrationError.Other(e.message))
-              atParent = if (at.nodes.isEmpty) at else DynamicOptic(at.nodes.init)
-              // Rename implies replacing the last optic node. For records, it's a Field node.
-              inserted <- deleted.insertOrFail(atParent.append(DynamicOptic.Node.Field(to)), nodeVal)
-                .left.map(e => MigrationError.Other(e.message))
-            } yield inserted
+            value.deleteOrFail(at) match {
+              case Left(e) => Left(MigrationError.Other(e.message))
+              case Right(deleted) =>
+                val atParent = if (at.nodes.isEmpty) at else DynamicOptic(at.nodes.init)
+                // Rename implies replacing the last optic node. For records, it's a Field node.
+                deleted.insertOrFail(atParent.append(DynamicOptic.Node.Field(to)), nodeVal) match {
+                  case Left(e) => Left(MigrationError.Other(e.message))
+                  case Right(inserted) => Right(inserted)
+                }
+            }
         }
 
       case MigrationAction.TransformValue(at, transform) =>
@@ -48,7 +51,7 @@ object MigrationApplicator {
           case selection if selection.isEmpty || selection.values.head == DynamicValue.Null =>
             default.evalDynamic(null) match {
               case Right(seq) if seq.nonEmpty =>
-                value.setOrFail(at, seq.head).left.map(e => MigrationError.Other(e.message))
+                value.setOrFail(at, seq.head).fold(e => Left(MigrationError.Other(e.message)), Right(_))
               case _ =>
                 Left(MigrationError.EvaluationError("Mandate default schema expression failed"))
             }
@@ -63,7 +66,7 @@ object MigrationApplicator {
       case MigrationAction.RenameCase(at, from, to) =>
         value.modifyOrFail(at) {
           case DynamicValue.Variant(`from`, internalVal) => DynamicValue.Variant(to, internalVal)
-        }.left.map(e => MigrationError.Other(e.message))
+        }.fold(e => Left(MigrationError.Other(e.message)), Right(_))
 
       case MigrationAction.TransformCase(at, actions) =>
         value.get(at) match {
