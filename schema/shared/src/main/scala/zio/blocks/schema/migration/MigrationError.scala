@@ -10,15 +10,15 @@ object MigrationError {
   final case class PathError(path: DynamicOptic, reason: String) extends MigrationError {
     def message: String = s"Failed to apply action at ${path}: $reason"
   }
-  
+
   final case class PathNotFound(path: DynamicOptic) extends MigrationError {
     def message: String = s"Path not found: ${path}"
   }
-  
+
   final case class EvaluationError(reason: String) extends MigrationError {
     def message: String = s"Evaluation error: $reason"
   }
-  
+
   final case class Other(reason: String) extends MigrationError {
     def message: String = s"Migration error: $reason"
   }
