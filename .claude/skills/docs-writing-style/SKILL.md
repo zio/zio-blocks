@@ -64,4 +64,14 @@ allowed-tools: Read, Glob, Grep
 
 24. **Use @VERSION@ for versions**: In installation sections, always use the literal `@VERSION@` (`@VERSION@` placeholder) in sbt dependency coordinates. The build system substitutes it during publish. Do not instruct readers to replace a placeholder.
 
+## Mechanical Validation
+
+To validate documentation against mechanical style rules, run:
+
+```
+bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
+```
+
+This checks Rules 1, 5, 6, 11, 13, 15, and 16. Exit code `0` means all rules pass; exit code `1` means violations were found with details printed to stdout.
+
 ---
