@@ -22,12 +22,12 @@ if [[ ! -f "$DOC_FILE" ]]; then
 fi
 
 # Find the source file for the type
-# Priority: chunk/, then any module under zio/blocks/
+# Search for files ending with TypeName.scala under src/main/scala/zio/blocks/
 SOURCE_FILE=""
 possible_paths=(
-  "$(find chunk -path "*/src/main/scala/zio/blocks/${TYPE_NAME,,}.scala" 2>/dev/null | head -1)"
-  "$(find . -path "*/src/main/scala/zio/blocks/${TYPE_NAME,,}.scala" 2>/dev/null | head -1)"
+  "$(find . -path "*/src/main/scala/zio/blocks/*/${TYPE_NAME}.scala" 2>/dev/null | head -1)"
   "$(find . -path "*/src/main/scala/zio/blocks/${TYPE_NAME}.scala" 2>/dev/null | head -1)"
+  "$(find . -name "${TYPE_NAME}.scala" -path "*/src/main/scala/zio/blocks/*" 2>/dev/null | head -1)"
 )
 
 for path in "${possible_paths[@]}"; do
@@ -57,8 +57,10 @@ extract_methods_from_source() {
     return
   fi
 
+  # Extract method names, simplifying to valid identifiers
   grep -E '^\s*(public\s+)?def\s+' "$file" | \
     sed -E 's/^\s*(public\s+)?def\s+([a-zA-Z0-9_]+)\s*\(.*/\2/' | \
+    grep -E '^[a-zA-Z][a-zA-Z0-9_]*$' | \
     sort -u
 }
 
@@ -79,7 +81,7 @@ extract_object_methods_from_source() {
       sub(/\(.*/, "", line)
       print line
     }
-  ' "$file" | sort -u
+  ' "$file" | grep -E '^[a-zA-Z][a-zA-Z0-9_]*$' | sort -u
 }
 
 # Extract documented methods from markdown
@@ -100,9 +102,9 @@ extract_methods_from_doc() {
 echo "=== Method Coverage Check for '$TYPE_NAME' ==="
 echo ""
 
-# Collect source methods
-SOURCE_METHODS="/tmp/source_methods_$$.txt"
-DOC_METHODS="/tmp/doc_methods_$$.txt"
+# Collect source methods - use current directory for temp files (writable)
+SOURCE_METHODS="source_methods_$$.txt"
+DOC_METHODS="doc_methods_$$.txt"
 
 extract_methods_from_source "$SOURCE_FILE" > "$SOURCE_METHODS" 2>/dev/null || true
 extract_object_methods_from_source "$SOURCE_FILE" >> "$SOURCE_METHODS" 2>/dev/null || true
@@ -122,7 +124,7 @@ echo ""
 echo "Methods documented in '$DOC_FILE':"
 if [[ -s "$DOC_METHODS" ]]; then
   cat "$DOC_METHODS" | sed 's/^/  - /'
-  DOC_COUNT=$(wc -line < "$DOC_METHODS" | tr -d ' ')
+  DOC_COUNT=$(wc -l < "$DOC_METHODS" | tr -d ' ')
 else
   echo "  (none found - check documentation format)"
 fi
@@ -137,15 +139,15 @@ if [[ ! -s "$SOURCE_METHODS" ]]; then
 fi
 
 # Find missing methods (in source but not in doc)
-MISSING="/tmp/missing_$$.txt"
+MISSING="missing_$$.txt"
 comm -23 "$SOURCE_METHODS" "$DOC_METHODS" > "$MISSING" 2>/dev/null || true
 
 # Find extra methods (in doc but not in source - possibly inherited or from other types)
-EXTRA="/tmp/extra_$$.txt"
+EXTRA="extra_$$.txt"
 comm -13 "$SOURCE_METHODS" "$DOC_METHODS" > "$EXTRA" 2>/dev/null || true
 
 MISSING_COUNT=$(wc -l < "$MISSING" | tr -d ' ')
-EXTRA_COUNT=$(wc -line < "$EXTRA" | tr -d ' ')
+EXTRA_COUNT=$(wc -l < "$EXTRA" | tr -d ' ')
 
 if [[ $MISSING_COUNT -gt 0 ]]; then
   echo "❌ Missing methods ($MISSING_COUNT):"
