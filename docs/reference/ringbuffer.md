@@ -136,17 +136,17 @@ ZIO Blocks provides four ring buffer implementations, each optimized for a speci
 
 ## Installation
 
+Add the ZIO Blocks Ring Buffer module to your `build.sbt`:
+
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "@VERSION@"
 ```
 
 For Scala.js cross-platform support:
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-ringbuffer" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-ringbuffer" % "@VERSION@"
 ```
-
-ZIO Blocks supports Scala 2.13.x and 3.x. Replace `<version>` with the current release version.
 
 ## Creating Instances
 
