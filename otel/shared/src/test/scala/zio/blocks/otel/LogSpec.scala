@@ -59,7 +59,7 @@ object LogSpec extends ZIOSpecDefault {
       }
       assertTrue(
         processor.emitted.size == 1,
-        processor.emitted.head.body == "hello",
+        processor.emitted.head.body.value == "hello",
         processor.emitted.head.severity == Severity.Info
       )
     },
@@ -82,7 +82,7 @@ object LogSpec extends ZIOSpecDefault {
       }
       assertTrue(
         processor.emitted.size == 1,
-        processor.emitted.head.body == "should be emitted"
+        processor.emitted.head.body.value == "should be emitted"
       )
     },
     test("all six severity methods work") {
@@ -111,7 +111,7 @@ object LogSpec extends ZIOSpecDefault {
         }
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "hello world"
+          processor.emitted.head.body.value == "hello world"
         )
       },
       test("key-value string enrichment adds attribute") {
@@ -121,7 +121,7 @@ object LogSpec extends ZIOSpecDefault {
         val attrs = processor.emitted.head.attributes
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "msg",
+          processor.emitted.head.body.value == "msg",
           attrs.get(AttributeKey.string("userId")).contains("abc")
         )
       },
@@ -173,7 +173,7 @@ object LogSpec extends ZIOSpecDefault {
         val attrs = processor.emitted.head.attributes
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "failed",
+          processor.emitted.head.body.value == "failed",
           attrs.get(AttributeKey.string("exception.type")).contains("java.lang.RuntimeException"),
           attrs.get(AttributeKey.string("exception.message")).contains("boom"),
           processor.emitted.head.throwable.contains(ex)
@@ -197,7 +197,7 @@ object LogSpec extends ZIOSpecDefault {
         val attrs = processor.emitted.head.attributes
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "msg",
+          processor.emitted.head.body.value == "msg",
           attrs.get(AttributeKey.string("k1")).contains("v1"),
           attrs.get(AttributeKey.long("k2")).contains(42L)
         )
@@ -211,7 +211,7 @@ object LogSpec extends ZIOSpecDefault {
         }
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "should be emitted"
+          processor.emitted.head.body.value == "should be emitted"
         )
       },
       test("most specific prefix wins") {
@@ -282,8 +282,8 @@ object LogSpec extends ZIOSpecDefault {
         val outsideAttrs = processor.emitted(1).attributes
         assertTrue(
           processor.emitted.size == 2,
-          processor.emitted(0).body == "inside",
-          processor.emitted(1).body == "outside",
+          processor.emitted(0).body.value == "inside",
+          processor.emitted(1).body.value == "outside",
           insideAttrs.get(AttributeKey.string("k")).contains("v"),
           outsideAttrs.get(AttributeKey.string("k")).isEmpty
         )
@@ -317,7 +317,7 @@ object LogSpec extends ZIOSpecDefault {
         val afterAttrs = processor.emitted.head.attributes
         assertTrue(
           processor.emitted.size == 1,
-          processor.emitted.head.body == "after",
+          processor.emitted.head.body.value == "after",
           afterAttrs.get(AttributeKey.string("k")).isEmpty
         )
       }

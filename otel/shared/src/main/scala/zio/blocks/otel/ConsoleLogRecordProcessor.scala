@@ -25,7 +25,7 @@ class ConsoleLogRecordProcessor extends LogRecordProcessor {
 
   override def onEmit(logRecord: LogRecord): Unit =
     // Fallback for when used without ConsoleLogEmitter (shouldn't happen in normal use)
-    System.out.println(s"${logRecord.severityText} ${logRecord.body}")
+    System.out.println(s"${logRecord.severityText} ${logRecord.body.value}")
 
   override def shutdown(): Unit   = ()
   override def forceFlush(): Unit = ()

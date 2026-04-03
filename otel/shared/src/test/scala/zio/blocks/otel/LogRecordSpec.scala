@@ -192,7 +192,7 @@ object LogRecordSpec extends ZIOSpecDefault {
             resource = Resource.empty,
             instrumentationScope = InstrumentationScope(name = "unknown")
           )
-          assertTrue(record.timestampNanos == 1000L && record.body == "Test log")
+          assertTrue(record.timestampNanos == 1000L && record.body.value == "Test log")
         }
       ),
       suite("builder")(
@@ -201,7 +201,7 @@ object LogRecordSpec extends ZIOSpecDefault {
           assertTrue(
             record.severity == Severity.Info &&
               record.severityText == "INFO" &&
-              record.body == "" &&
+              record.body.value == "" &&
               record.attributes == Attributes.empty &&
               !record.hasTraceId &&
               !record.hasSpanId &&
@@ -218,7 +218,7 @@ object LogRecordSpec extends ZIOSpecDefault {
         },
         test("builder setBody") {
           val record = LogRecord.builder.setBody("Test message").build
-          assertTrue(record.body == "Test message")
+          assertTrue(record.body.value == "Test message")
         },
         test("builder setAttribute") {
           val record = LogRecord.builder
@@ -275,7 +275,7 @@ object LogRecordSpec extends ZIOSpecDefault {
           assertTrue(
             record.timestampNanos == 1000L &&
               record.severity == Severity.Warn &&
-              record.body == "Warning message" &&
+              record.body.value == "Warning message" &&
               record.traceIdHi == hi &&
               record.traceIdLo == lo &&
               record.spanId == sid.value
@@ -299,7 +299,7 @@ object LogRecordSpec extends ZIOSpecDefault {
             instrumentationScope = InstrumentationScope(name = "unknown")
           )
           val record2 = record1.copy(body = "Modified")
-          assertTrue(record1.body == "Test" && record2.body == "Modified")
+          assertTrue(record1.body.value == "Test" && record2.body.value == "Modified")
         }
       ),
       suite("trace correlation")(

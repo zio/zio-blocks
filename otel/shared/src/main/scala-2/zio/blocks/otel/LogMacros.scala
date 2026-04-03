@@ -282,7 +282,7 @@ private[otel] object LogMacros {
           observedTimestampNanos = now,
           severity = severityVar,
           severityText = severityTextVar,
-          body = bodyVar,
+          body = _root_.zio.blocks.otel.LogMessage(bodyVar),
           attributes = builder.buildAndReset(),
           traceIdHi = 0L,
           traceIdLo = 0L,

@@ -492,7 +492,7 @@ object OtlpJsonEncoder {
     // body as AnyValue
     writeKey(sb, "body")
     sb.append('{')
-    writeKeyString(sb, "stringValue", log.body)
+    writeKeyString(sb, "stringValue", log.body.value)
     sb.append('}')
     sb.append(',')
 
