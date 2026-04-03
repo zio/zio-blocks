@@ -44,8 +44,6 @@ Supported Scala versions: 2.13.x and 3.x
 
 ## Creating Chunks
 
-Chunk provides multiple ways to create instances:
-
 ### From Varargs
 
 ```scala mdoc:compile-only
