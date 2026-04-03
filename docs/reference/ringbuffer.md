@@ -156,6 +156,24 @@ Ring buffers are instantiated via the companion object's `apply` method:
 
 `SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
 
+#### Understanding FastFlow: A Simple Explanation
+
+Imagine you and a friend are passing notes in class, but you can only pass them when the teacher isn't looking. You have a stack of empty desks between you. Here's how FastFlow works:
+
+- **Empty desk = "I can put a note here"** (the producer sees `null` and knows the slot is free)
+- **Note on desk = "Here's a message for you"** (the consumer sees a non-null value and reads it)
+
+The clever part: **the producer never looks at the consumer's side of the room** — they just keep placing notes on empty desks. The consumer never looks at the producer's side — they just pick up notes they see. Neither has to shout "are you ready?" or wait for the other. This avoids all arguments about who goes first and makes the passing instantaneous.
+
+The **look-ahead cache** is like the producer glancing ahead at a few desks without actually touching them, so they know in advance whether they'll run out of space. This prevents the producer from walking all the way to the end of the room only to discover there's no room. It's a performance optimization that keeps the hot path (the common case) fast.
+
+**Why this is fast**: Modern computers have multiple CPU cores, each with its own cache. When one core reads something another core wrote, the caches have to coordinate (slow). FastFlow avoids this by ensuring:
+- The producer only writes, never reads (except its own counters)
+- The consumer only reads, never writes to the producer's counters
+- The slot's null/non-null status is the only coordination needed, and it's written once by the producer and read once by the consumer
+
+The result? **Lock-free, wait-free** communication that scales beautifully with CPU count.
+
 ```scala
 object SpscRingBuffer {
   def apply[A <: AnyRef](capacity: Int): SpscRingBuffer[A]
