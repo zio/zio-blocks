@@ -110,14 +110,14 @@ Ring buffers excel when you need:
 
 ### Comparison with Java and Scala Alternatives
 
-| Property              | RingBuffer (ZIO Blocks) | `java.util.Queue` (ConcurrentLinkedQueue) | `scala.collection.concurrent.TrieMap` | Array + manual index | Disruptor |
-|----------------------|------------------------|-------------------------------------------|---------------------------------------|----------------------|-----------|
-| **Allocation** | Single upfront        | Per-element nodes                          | Per-node allocations                  | Single upfront       | Single upfront |
-| **Lock-free** | Yes (CAS-based)       | Yes                                        | Yes (CASes on trie nodes)            | Yes (if single-threaded) | Yes (CAS) |
-| **GC pressure** | Minimal (reuses slots) | High (node garbage)                        | High (trie node garbage)             | Minimal              | Minimal |
-| **Bounded** | Fixed capacity        | Unbounded                                  | Unbounded                            | Fixed                | Fixed (bounded capacity) |
-| **Thread patterns** | Four variants (SPSC, MPSC, SPMC, MPMC) | Multi-producer/multi-consumer | Multi-reader/multi-writer | Limited (see impl) | Multi-producer/consumer |
-| **Predictable latency** | High (no GC)         | Medium (GC pauses)                         | Medium (GC pauses)                   | High (if no contention) | High |
+| Property                | RingBuffer (ZIO Blocks)                | `java.util.Queue` (ConcurrentLinkedQueue) | `scala.collection.concurrent.TrieMap` | Array + manual index     | Disruptor                |
+|-------------------------|----------------------------------------|-------------------------------------------|---------------------------------------|--------------------------|--------------------------|
+| **Allocation**          | Single upfront                         | Per-element nodes                         | Per-node allocations                  | Single upfront           | Single upfront           |
+| **Lock-free**           | Yes (CAS-based)                        | Yes                                       | Yes (CASes on trie nodes)             | Yes (if single-threaded) | Yes (CAS)                |
+| **GC pressure**         | Minimal (reuses slots)                 | High (node garbage)                       | High (trie node garbage)              | Minimal                  | Minimal                  |
+| **Bounded**             | Fixed capacity                         | Unbounded                                 | Unbounded                             | Fixed                    | Fixed (bounded capacity) |
+| **Thread patterns**     | Four variants (SPSC, MPSC, SPMC, MPMC) | Multi-producer/multi-consumer             | Multi-reader/multi-writer             | Limited (see impl)       | Multi-producer/consumer  |
+| **Predictable latency** | High (no GC)                           | Medium (GC pauses)                        | Medium (GC pauses)                    | High (if no contention)  | High                     |
 
 RingBuffer is ideal when you control both producer and consumer thread counts and want maximum performance. `java.util.Queue` is better if you need unbounded capacity; Disruptor is a comparable JVM alternative with similar guarantees.
 
@@ -125,12 +125,12 @@ RingBuffer is ideal when you control both producer and consumer thread counts an
 
 ZIO Blocks provides four ring buffer implementations, each optimized for a specific producer/consumer thread pattern:
 
-| Implementation | Producers | Consumers | Algorithm | Use Case |
-|---|---|---|---|---|
-| **`SpscRingBuffer`** | Single | Single | FastFlow + look-ahead read of slot at `pIdx + lookAheadStep` | Bounded FIFO channel; fastest for 1:1 communication |
-| **`SpmcRingBuffer`** | Single | Multiple | Index-based with CAS on consumer index | One producer batching to many workers |
-| **`MpscRingBuffer`** | Multiple | Single | CAS on producer index + cached limit; null-slot reading on consumer (FastFlow semantics) | Many producers, single aggregator |
-| **`MpmcRingBuffer`** | Multiple | Multiple | Vyukov/Dmitry with sequence buffer | General-purpose multi-producer/consumer queue |
+| Implementation       | Producers | Consumers | Algorithm                                                                                | Use Case                                            |
+|----------------------|-----------|-----------|------------------------------------------------------------------------------------------|-----------------------------------------------------|
+| **`SpscRingBuffer`** | Single    | Single    | FastFlow + look-ahead read of slot at `pIdx + lookAheadStep`                             | Bounded FIFO channel; fastest for 1:1 communication |
+| **`SpmcRingBuffer`** | Single    | Multiple  | Index-based with CAS on consumer index                                                   | One producer batching to many workers               |
+| **`MpscRingBuffer`** | Multiple  | Single    | CAS on producer index + cached limit; null-slot reading on consumer (FastFlow semantics) | Many producers, single aggregator                   |
+| **`MpmcRingBuffer`** | Multiple  | Multiple  | Vyukov/Dmitry with sequence buffer                                                       | General-purpose multi-producer/consumer queue       |
 
 **Using the wrong implementation for your thread pattern may result in data races, silent data loss, or crashes.** Always match the number of threads to the ring buffer variant.
 
