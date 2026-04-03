@@ -72,7 +72,7 @@ private[otel] final class StandardLogEmitter(
         observedTimestampNanos = timestampNanos,
         severity = severity,
         severityText = severityText,
-        body = body,
+        body = LogMessage(body),
         attributes = builder.buildAndReset(),
         traceIdHi = traceIdHi,
         traceIdLo = traceIdLo,

@@ -133,7 +133,7 @@ final class Logger(
       observedTimestampNanos = now,
       severity = severity,
       severityText = severity.text,
-      body = body,
+      body = LogMessage(body),
       attributes = attrBuilder.build,
       traceIdHi = tidHi,
       traceIdLo = tidLo,

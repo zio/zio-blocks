@@ -305,7 +305,7 @@ private[otel] object LogMacros {
                   observedTimestampNanos = now,
                   severity = severityVar,
                   severityText = severityTextVar,
-                  body = bodyVar,
+                  body = LogMessage(bodyVar),
                   attributes = builder.buildAndReset(),
                   traceIdHi = 0L,
                   traceIdLo = 0L,

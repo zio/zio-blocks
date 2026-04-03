@@ -16,6 +16,70 @@
 
 package zio.blocks.otel
 
+import scala.language.implicitConversions
+
+/**
+ * Log message body — either a simple string or a structured template.
+ * Structured templates defer string construction until formatting.
+ */
+sealed trait LogMessage {
+
+  /**
+   * Get the formatted string representation. Lazy for Templated.
+   */
+  def value: String
+}
+
+object LogMessage {
+
+  /**
+   * Simple string message — already formatted.
+   */
+  final case class Simple(text: String) extends LogMessage {
+    def value: String             = text
+    override def toString: String = text
+  }
+
+  /**
+   * Structured template — parts and args stored separately. String is
+   * constructed lazily on first access to `value`. Formatters can access
+   * parts/args directly for structured output.
+   */
+  final class Templated(val parts: Array[String], val args: Array[Any]) extends LogMessage {
+    @volatile private var cached: String = null
+
+    def value: String = {
+      var v = cached
+      if (v == null) {
+        val sb = new StringBuilder(64)
+        var i  = 0
+        while (i < parts.length) {
+          sb.append(parts(i))
+          if (i < args.length) sb.append(args(i))
+          i += 1
+        }
+        v = sb.toString
+        cached = v
+      }
+      v
+    }
+
+    override def toString: String = value
+
+    override def equals(obj: Any): Boolean = obj match {
+      case other: Templated => value == other.value
+      case Simple(text)     => value == text
+      case _                => false
+    }
+
+    override def hashCode(): Int = value.hashCode
+  }
+
+  implicit def fromString(s: String): LogMessage = Simple(s)
+
+  def apply(s: String): LogMessage = Simple(s)
+}
+
 /**
  * Represents an immutable log record with trace correlation support.
  *
@@ -57,7 +121,7 @@ final case class LogRecord(
   observedTimestampNanos: Long,
   severity: Severity,
   severityText: String,
-  body: String,
+  body: LogMessage,
   attributes: Attributes,
   traceIdHi: Long,
   traceIdLo: Long,
@@ -104,7 +168,7 @@ final case class LogRecordBuilder(
   timestampNanos: Option[Long] = None,
   observedTimestampNanos: Option[Long] = None,
   severity: Severity = Severity.Info,
-  body: String = "",
+  body: LogMessage = LogMessage.Simple(""),
   attributes: Attributes = Attributes.empty,
   traceIdHi: Long = 0L,
   traceIdLo: Long = 0L,
@@ -136,6 +200,12 @@ final case class LogRecordBuilder(
    * Sets the log message body.
    */
   def setBody(msg: String): LogRecordBuilder =
+    copy(body = LogMessage(msg))
+
+  /**
+   * Sets the log message body from a LogMessage.
+   */
+  def setBody(msg: LogMessage): LogRecordBuilder =
     copy(body = msg)
 
   /**

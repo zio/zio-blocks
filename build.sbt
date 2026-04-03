@@ -100,6 +100,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; otelJVM/test"
 )
 
 addCommandAlias(
@@ -432,6 +433,23 @@ lazy val otel = crossProject(JSPlatform, JVMPlatform)
     }
   )
   .jsSettings(jsSettings)
+
+
+lazy val otelBenchmarks = project
+  .in(file("otel-benchmarks"))
+  .settings(stdSettings("zio-blocks-otel-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(otel.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
+  )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

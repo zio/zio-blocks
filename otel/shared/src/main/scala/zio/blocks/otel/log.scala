@@ -119,7 +119,7 @@ object log extends LogVersionSpecific {
       observedTimestampNanos = now,
       severity = severity,
       severityText = severity.text,
-      body = message,
+      body = LogMessage(message),
       attributes = builder.buildAndReset(),
       traceIdHi = 0L,
       traceIdLo = 0L,

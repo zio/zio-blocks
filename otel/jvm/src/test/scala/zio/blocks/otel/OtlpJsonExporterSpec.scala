@@ -137,7 +137,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           // onStart should not throw or do anything
@@ -151,7 +152,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -170,7 +172,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(endpoint = "http://my-collector:4318", flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -185,7 +188,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -203,7 +207,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -218,7 +223,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -237,7 +243,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -260,7 +267,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -279,7 +287,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(endpoint = "http://my-collector:4318", flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -294,7 +303,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -313,7 +323,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -459,7 +470,8 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
-          sender
+          sender,
+          PlatformExecutor.create()
         )
         try {
           // This will enqueue and flush — the 429 will cause retries in BatchProcessor

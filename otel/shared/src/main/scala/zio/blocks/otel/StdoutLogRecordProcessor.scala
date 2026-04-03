@@ -71,7 +71,7 @@ private[otel] class StdoutLogRecordProcessor extends LogRecordProcessor {
     sb.append("] ")
 
     // Body
-    sb.append(logRecord.body)
+    sb.append(logRecord.body.value)
 
     // User attributes (skip source location keys)
     var hasUserAttrs = false

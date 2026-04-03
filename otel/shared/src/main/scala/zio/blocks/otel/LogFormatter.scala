@@ -194,7 +194,7 @@ object TextLogFormatter extends LogFormatter {
     sb.append("] ")
 
     // Body
-    sb.append(record.body)
+    sb.append(record.body.value)
 
     // User attributes (skip code.* attributes)
     var hasUserAttrs = false
@@ -375,7 +375,7 @@ object JsonLogFormatter extends LogFormatter {
 
     // Body
     sb.append(",\"body\":{\"stringValue\":\"")
-    writeJsonStringContent(sb, record.body)
+    writeJsonStringContent(sb, record.body.value)
     sb.append("\"}")
 
     // Attributes from record

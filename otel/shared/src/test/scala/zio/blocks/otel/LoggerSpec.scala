@@ -106,8 +106,8 @@ object LoggerSpec extends ZIOSpecDefault {
         assertTrue(
           p1.emitted.size == 1 &&
             p2.emitted.size == 1 &&
-            p1.emitted.head.body == "test message" &&
-            p2.emitted.head.body == "test message"
+            p1.emitted.head.body.value == "test message" &&
+            p2.emitted.head.body.value == "test message"
         )
       }
     ),
@@ -122,7 +122,7 @@ object LoggerSpec extends ZIOSpecDefault {
           processor.emitted.size == 1 &&
             processor.emitted.head.severity == Severity.Info &&
             processor.emitted.head.severityText == "INFO" &&
-            processor.emitted.head.body == "test info message"
+            processor.emitted.head.body.value == "test info message"
         )
       },
       test("trace creates LogRecord with Trace severity") {
