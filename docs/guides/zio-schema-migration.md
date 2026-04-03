@@ -735,11 +735,17 @@ dynSchema.conforms(value)         // true
 dynSchema.check(value)            // None (no error)
 ```
 
-:::warning
-ZIO Schema's `Migration` system for schema-to-schema migration (i.e., automatically migrating values from one version of a type to another) is **not yet available** in ZIO Blocks Schema. The `schema.migrate[B](newSchema)` and `schema.coerce[B](newSchema)` methods do not exist. If your application relies on schema migration, you have two options:
+:::info
+ZIO Blocks Schema now includes a **Schema Migration System** for pure, serializable migrations between schema versions. See the [Schema Migration System guide](./schema-migration-system.md) for details.
 
-1. Implement migration logic manually using `DynamicValue` transformations and `DynamicSchema` for validation.
-2. Wait for schema migration support to be added to ZIO Blocks Schema (it is on the roadmap).
+The migration system provides:
+- `DynamicMigration` - A fully serializable, untyped migration engine
+- `Migration[A, B]` - Type-safe migration wrapper
+- `MigrationBuilder[A, B]` - Fluent DSL for constructing migrations
+- Full support for record, enum, and collection transformations
+- Structural reverse migrations
+
+Note: The ZIO Schema 1.x `schema.migrate[B](newSchema)` API pattern is different from the new ZIO Blocks migration system, which uses an explicit builder DSL rather than automatic schema-driven migration.
 :::
 
 ### Schema Serialization
