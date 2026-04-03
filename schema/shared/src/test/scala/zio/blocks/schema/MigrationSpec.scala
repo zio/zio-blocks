@@ -28,7 +28,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val personSchema: Schema[Person] = Schema.derived[Person]
 
         val migration = Migration.identity[Person]
-        val person = Person("Alice", 30)
+        val person    = Person("Alice", 30)
 
         assertTrue(
           migration(person) == Right(person),
@@ -51,7 +51,7 @@ object MigrationSpec extends ZIOSpecDefault {
           v2Schema
         )
 
-        val v1 = PersonV1("Alice", 30)
+        val v1     = PersonV1("Alice", 30)
         val result = migration(v1)
 
         assertTrue(
@@ -85,8 +85,8 @@ object MigrationSpec extends ZIOSpecDefault {
         )
 
         val composed = m1.andThen(m2)
-        val v1 = PersonV1("Alice", 30)
-        val result = composed(v1)
+        val v1       = PersonV1("Alice", 30)
+        val result   = composed(v1)
 
         assertTrue(
           result.isRight,
@@ -109,8 +109,8 @@ object MigrationSpec extends ZIOSpecDefault {
         )
 
         val composed = m1 >>> m2
-        val v1 = PersonV1("Alice", 30)
-        val result = composed(v1)
+        val v1       = PersonV1("Alice", 30)
+        val result   = composed(v1)
 
         assertTrue(result.isRight)
       },
@@ -154,7 +154,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .addField(DynamicOptic.root.field("country"), "US")
           .build
 
-        val v1 = PersonV1("Alice", 30)
+        val v1     = PersonV1("Alice", 30)
         val result = migration(v1)
 
         assertTrue(
@@ -209,7 +209,7 @@ object MigrationSpec extends ZIOSpecDefault {
       },
       test("builder changes field type") {
         implicit val stringSchema: Schema[StringHolder] = Schema.derived[StringHolder]
-        implicit val intSchema: Schema[IntHolder] = Schema.derived[IntHolder]
+        implicit val intSchema: Schema[IntHolder]       = Schema.derived[IntHolder]
 
         val migration = MigrationBuilder[StringHolder, IntHolder]
           .changeType(
@@ -219,7 +219,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .buildPartial
 
         val stringHolder = StringHolder("42")
-        val result = migration(stringHolder)
+        val result       = migration(stringHolder)
 
         assertTrue(
           result.isRight,
@@ -235,7 +235,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .transformValue(DynamicOptic.root.field("name"), DynamicTransform.StringUpperCase)
           .build
 
-        val v1 = PersonV1("alice", 30)
+        val v1     = PersonV1("alice", 30)
         val result = migration(v1)
 
         assertTrue(
@@ -248,7 +248,7 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
         implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
 
-        val emptyBuilder = MigrationBuilder[PersonV1, PersonV2]
+        val emptyBuilder       = MigrationBuilder[PersonV1, PersonV2]
         val builderWithActions = emptyBuilder
           .addField(DynamicOptic.root.field("country"), "US")
 
@@ -313,7 +313,7 @@ object MigrationSpec extends ZIOSpecDefault {
       },
       test("Transform string operations") {
         val upper = Transform.stringToUpperCase
-        val trim = Transform.stringTrim
+        val trim  = Transform.stringTrim
 
         assertTrue(
           upper("hello") == Right("HELLO"),
@@ -324,17 +324,17 @@ object MigrationSpec extends ZIOSpecDefault {
     suite("SchemaExprTransform")(
       test("literal creates constant transform") {
         val transform = SchemaExprTransform.literal("hello")
-        val input = DynamicValue.Primitive(PrimitiveValue.String("ignored"))
+        val input     = DynamicValue.Primitive(PrimitiveValue.String("ignored"))
 
         val result = transform(input)
 
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.String("hello"))))
       },
       test("fromTransform converts typed transform to dynamic") {
-        val typed = Transform.stringToInt
+        val typed   = Transform.stringToInt
         val dynamic = SchemaExprTransform.fromTransform(typed)
 
-        val input = DynamicValue.Primitive(PrimitiveValue.String("42"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("42"))
         val result = dynamic(input)
 
         assertTrue(result == Right(DynamicValue.Primitive(PrimitiveValue.Int(42))))
@@ -464,7 +464,7 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(transform(42) == Right(42))
       },
       test("Transform roundtrip stringToInt and intToString") {
-        val original = "42"
+        val original  = "42"
         val roundtrip = Transform.stringToInt >>> Transform.intToString
 
         assertTrue(roundtrip(original) == Right(original))
@@ -513,7 +513,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .dropField(DynamicOptic.root.field("country"), "US")
           .build
 
-        val v2 = PersonV2("Alice", 30, "US")
+        val v2     = PersonV2("Alice", 30, "US")
         val result = migration(v2)
 
         assertTrue(
@@ -540,14 +540,14 @@ object MigrationSpec extends ZIOSpecDefault {
       },
       test("builder with changeType for type conversion") {
         implicit val stringSchema: Schema[StringPerson] = Schema.derived[StringPerson]
-        implicit val intSchema: Schema[IntPerson] = Schema.derived[IntPerson]
+        implicit val intSchema: Schema[IntPerson]       = Schema.derived[IntPerson]
 
         val migration = MigrationBuilder[StringPerson, IntPerson]
           .changeType(DynamicOptic.root.field("age"), DynamicTransform.StringToInt)
           .buildPartial
 
         val stringPerson = StringPerson("Alice", "30")
-        val result = migration(stringPerson)
+        val result       = migration(stringPerson)
 
         assertTrue(
           result.isRight,
@@ -633,7 +633,7 @@ object MigrationSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("US"))
         )
 
-        val schema = implicitly[Schema[DynamicMigration]]
+        val schema  = implicitly[Schema[DynamicMigration]]
         val encoded = schema.toDynamicValue(migration)
         val decoded = schema.fromDynamicValue(encoded)
 
@@ -673,14 +673,14 @@ object MigrationSpec extends ZIOSpecDefault {
     suite("Migration error propagation")(
       test("migration fails when transform fails") {
         implicit val stringSchema: Schema[StringPerson] = Schema.derived[StringPerson]
-        implicit val intSchema: Schema[IntPerson] = Schema.derived[IntPerson]
+        implicit val intSchema: Schema[IntPerson]       = Schema.derived[IntPerson]
 
         val migration = MigrationBuilder[StringPerson, IntPerson]
           .changeType(DynamicOptic.root.field("age"), DynamicTransform.StringToInt)
           .buildPartial
 
         val invalidPerson = StringPerson("Alice", "not-a-number")
-        val result = migration(invalidPerson)
+        val result        = migration(invalidPerson)
 
         assertTrue(result.isLeft)
       }
@@ -709,8 +709,8 @@ object MigrationSpec extends ZIOSpecDefault {
         )
 
         val composed = m1 ++ m2
-        val v1 = PersonV1("alice", 30)
-        val result = composed(v1)
+        val v1       = PersonV1("alice", 30)
+        val result   = composed(v1)
 
         assertTrue(
           result.isRight,
@@ -721,12 +721,14 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
     suite("Rename reverse round-trip")(
       test("rename reverse correctly restores field name") {
-        val input = DynamicValue.Record(Chunk(
-          "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
         val migration = DynamicMigration.rename(DynamicOptic.root.field("firstName"), "name")
-        val result = migration(input)
+        val result    = migration(input)
 
         assertTrue(
           result.isRight,
@@ -738,7 +740,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
 
         // Test reverse
-        val reverse = migration.reverse
+        val reverse       = migration.reverse
         val reverseResult = reverse(result.toOption.get)
 
         assertTrue(
@@ -753,10 +755,12 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
     suite("Join action")(
       test("join combines multiple source paths") {
-        val input = DynamicValue.Record(Chunk(
-          "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-          "lastName" -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
+            "lastName"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
+          )
+        )
         val migration = DynamicMigration.join(
           at = DynamicOptic.root.field("fullName"),
           sourcePaths = Chunk(DynamicOptic.root.field("firstName"), DynamicOptic.root.field("lastName")),
@@ -771,7 +775,7 @@ object MigrationSpec extends ZIOSpecDefault {
             val record = v.asInstanceOf[DynamicValue.Record]
             record.fields.find(_._1 == "fullName").exists {
               case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "John Doe"
-              case _ => false
+              case _                                                     => false
             }
           }
         )
@@ -779,9 +783,11 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
     suite("Split action")(
       test("split decomposes a value into multiple targets") {
-        val input = DynamicValue.Record(Chunk(
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
+          )
+        )
         val migration = DynamicMigration.split(
           at = DynamicOptic.root.field("fullName"),
           targetPaths = Chunk(DynamicOptic.root.field("firstName"), DynamicOptic.root.field("lastName")),
@@ -796,11 +802,11 @@ object MigrationSpec extends ZIOSpecDefault {
             val record = v.asInstanceOf[DynamicValue.Record]
             record.fields.find(_._1 == "firstName").exists {
               case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "John"
-              case _ => false
+              case _                                                     => false
             } &&
             record.fields.find(_._1 == "lastName").exists {
               case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "Doe"
-              case _ => false
+              case _                                                     => false
             }
           }
         )
@@ -812,7 +818,12 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
 
         val builder = MigrationBuilder.fromActions[PersonV1, PersonV2](
-          Chunk(MigrationAction.AddField(DynamicOptic.root.field("country"), DynamicValue.Primitive(PrimitiveValue.String("US"))))
+          Chunk(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("country"),
+              DynamicValue.Primitive(PrimitiveValue.String("US"))
+            )
+          )
         )
 
         val migration = builder.build
@@ -829,13 +840,13 @@ object MigrationSpec extends ZIOSpecDefault {
           .addField(DynamicOptic.root.field("country"), "US")
           .build
 
-        val v1 = PersonV1("Alice", 30)
+        val v1            = PersonV1("Alice", 30)
         val forwardResult = forward(v1)
 
         assertTrue(forwardResult.isRight)
 
         // Apply reverse
-        val reverse = forward.reverse
+        val reverse       = forward.reverse
         val reverseResult = reverse(forwardResult.toOption.get)
 
         assertTrue(
@@ -862,7 +873,7 @@ object MigrationSpec extends ZIOSpecDefault {
           result.exists(_.address.city == "SEATTLE")
         )
 
-        val reverse = migration.reverse
+        val reverse       = migration.reverse
         val reverseResult = reverse(result.toOption.get)
 
         assertTrue(

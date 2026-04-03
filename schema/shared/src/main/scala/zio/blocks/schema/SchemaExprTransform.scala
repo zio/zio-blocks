@@ -19,9 +19,9 @@ package zio.blocks.schema
 /**
  * Integration between SchemaExpr and DynamicTransform for migrations.
  *
- * SchemaExpr provides a rich expression language for value transformations
- * that can be used within migrations. This module provides utilities to
- * convert SchemaExpr to DynamicTransform for use in migration actions.
+ * SchemaExpr provides a rich expression language for value transformations that
+ * can be used within migrations. This module provides utilities to convert
+ * SchemaExpr to DynamicTransform for use in migration actions.
  */
 object SchemaExprTransform {
 
@@ -34,7 +34,8 @@ object SchemaExprTransform {
   /**
    * Creates a DynamicTransform that returns the default value for a type.
    *
-   * Uses DefaultValue transform which requires schema context at evaluation time.
+   * Uses DefaultValue transform which requires schema context at evaluation
+   * time.
    */
   def defaultValue[A](implicit schema: Schema[A]): DynamicTransform =
     DynamicTransform.DefaultValue
@@ -66,7 +67,7 @@ object SchemaExprTransform {
     expr: SchemaExpr[A, B],
     input: DynamicValue,
     schema: Schema[A]
-  ): Either[MigrationError, DynamicValue] = {
+  ): Either[MigrationError, DynamicValue] =
     schema.fromDynamicValue(input) match {
       case Right(a) =>
         expr.evalDynamic(a) match {
@@ -79,5 +80,4 @@ object SchemaExprTransform {
       case Left(schemaError) =>
         Left(MigrationError.fromSchemaError(schemaError))
     }
-  }
 }

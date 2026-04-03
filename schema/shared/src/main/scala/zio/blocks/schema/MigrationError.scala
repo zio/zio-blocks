@@ -17,7 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding._
 
 /**
  * An error that occurs during migration execution.

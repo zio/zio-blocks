@@ -25,15 +25,15 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
   def spec = suite("DynamicMigration")(
     suite("identity")(
       test("empty migration returns input unchanged") {
-        val input = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
+        val input     = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
         val migration = DynamicMigration.empty
         assertTrue(migration(input) == Right(input))
       }
     ),
     suite("addField")(
       test("adds a field to a record") {
-        val input = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
-        val default = DynamicValue.Primitive(PrimitiveValue.Int(0))
+        val input     = DynamicValue.Record(Chunk("name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
+        val default   = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val migration = DynamicMigration.addField(DynamicOptic.root.field("age"), default)
 
         val result = migration(input)
@@ -44,28 +44,38 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("does not add field if it already exists") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
-        val default = DynamicValue.Primitive(PrimitiveValue.Int(0))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val default   = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val migration = DynamicMigration.addField(DynamicOptic.root.field("age"), default)
 
         val result = migration(input)
 
         assertTrue(
           result.isRight,
-          result.exists(v => v.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "age").exists(_._2 == DynamicValue.Primitive(PrimitiveValue.Int(30))))
+          result.exists(v =>
+            v.asInstanceOf[DynamicValue.Record]
+              .fields
+              .find(_._1 == "age")
+              .exists(_._2 == DynamicValue.Primitive(PrimitiveValue.Int(30)))
+          )
         )
       }
     ),
     suite("dropField")(
       test("removes a field from a record") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
-        val migration = DynamicMigration.dropField(DynamicOptic.root.field("age"), DynamicValue.Primitive(PrimitiveValue.Int(0)))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
+        val migration =
+          DynamicMigration.dropField(DynamicOptic.root.field("age"), DynamicValue.Primitive(PrimitiveValue.Int(0)))
 
         val result = migration(input)
 
@@ -78,10 +88,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("rename")(
       test("renames a field in a record") {
-        val input = DynamicValue.Record(Chunk(
-          "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "firstName" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"       -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+          )
+        )
         val migration = DynamicMigration.rename(DynamicOptic.root.field("firstName"), "name")
 
         val result = migration(input)
@@ -95,9 +107,11 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("transformValue")(
       test("transforms a string to uppercase") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
+          )
+        )
         val migration = DynamicMigration.transformValue(
           DynamicOptic.root.field("name"),
           DynamicTransform.StringUpperCase
@@ -109,16 +123,18 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists(_.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "name").exists {
             case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "ALICE"
-            case _ => false
+            case _                                                     => false
           })
         )
       }
     ),
     suite("optionalize")(
       test("wraps a value in Some") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+          )
+        )
         val migration = DynamicMigration.optionalize(DynamicOptic.root.field("name"))
 
         val result = migration(input)
@@ -127,19 +143,26 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists(_.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "name").exists {
             case (_, DynamicValue.Variant("Some", _)) => true
-            case _ => false
+            case _                                    => false
           })
         )
       }
     ),
     suite("mandate")(
       test("unwraps Some to the inner value") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Variant("Some", DynamicValue.Record(Chunk(
-            "value" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-          )))
-        ))
-        val default = DynamicValue.Primitive(PrimitiveValue.String(""))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Variant(
+              "Some",
+              DynamicValue.Record(
+                Chunk(
+                  "value" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+                )
+              )
+            )
+          )
+        )
+        val default   = DynamicValue.Primitive(PrimitiveValue.String(""))
         val migration = DynamicMigration.mandate(DynamicOptic.root.field("name"), default)
 
         val result = migration(input)
@@ -148,15 +171,17 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists(_.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "name").exists {
             case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "Alice"
-            case _ => false
+            case _                                                     => false
           })
         )
       },
       test("returns default for None") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Variant("None", DynamicValue.Null)
-        ))
-        val default = DynamicValue.Primitive(PrimitiveValue.String("Unknown"))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Variant("None", DynamicValue.Null)
+          )
+        )
+        val default   = DynamicValue.Primitive(PrimitiveValue.String("Unknown"))
         val migration = DynamicMigration.mandate(DynamicOptic.root.field("name"), default)
 
         val result = migration(input)
@@ -165,16 +190,21 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists(_.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "name").exists {
             case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "Unknown"
-            case _ => false
+            case _                                                     => false
           })
         )
       }
     ),
     suite("renameCase")(
       test("renames a case in a variant") {
-        val input = DynamicValue.Variant("UserCreated", DynamicValue.Record(Chunk(
-          "userId" -> DynamicValue.Primitive(PrimitiveValue.String("123"))
-        )))
+        val input = DynamicValue.Variant(
+          "UserCreated",
+          DynamicValue.Record(
+            Chunk(
+              "userId" -> DynamicValue.Primitive(PrimitiveValue.String("123"))
+            )
+          )
+        )
         val migration = DynamicMigration.renameCase(DynamicOptic.root, "UserCreated", "UserAdded")
 
         val result = migration(input)
@@ -183,17 +213,19 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists {
             case DynamicValue.Variant("UserAdded", _) => true
-            case _ => false
+            case _                                    => false
           }
         )
       }
     ),
     suite("transformElements")(
       test("transforms each element in a sequence") {
-        val input = DynamicValue.Sequence(Chunk(
-          DynamicValue.Primitive(PrimitiveValue.String("alice")),
-          DynamicValue.Primitive(PrimitiveValue.String("bob"))
-        ))
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.String("alice")),
+            DynamicValue.Primitive(PrimitiveValue.String("bob"))
+          )
+        )
         val migration = DynamicMigration.transformElements(
           DynamicOptic.root,
           DynamicTransform.StringUpperCase
@@ -207,7 +239,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             case DynamicValue.Sequence(elements) =>
               elements.forall {
                 case DynamicValue.Primitive(PrimitiveValue.String(s)) => s == s.toUpperCase
-                case _ => false
+                case _                                                => false
               }
             case _ => false
           }
@@ -216,9 +248,11 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("composition")(
       test("composes migrations sequentially") {
-        val input = DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
+          )
+        )
 
         val migration1 = DynamicMigration.addField(
           DynamicOptic.root.field("age"),
@@ -230,7 +264,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
 
         val composed = migration1 ++ migration2
-        val result = composed(input)
+        val result   = composed(input)
 
         assertTrue(
           result.isRight,
@@ -239,7 +273,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             record.fields.exists(_._1 == "age") &&
             record.fields.find(_._1 == "name").exists {
               case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "ALICE"
-              case _ => false
+              case _                                                     => false
             }
           }
         )
@@ -251,10 +285,10 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val m2 = DynamicMigration.addField(DynamicOptic.root.field("b"), DynamicValue.Primitive(PrimitiveValue.Int(2)))
         val m3 = DynamicMigration.addField(DynamicOptic.root.field("c"), DynamicValue.Primitive(PrimitiveValue.Int(3)))
 
-        val leftAssoc = (m1 ++ m2) ++ m3
+        val leftAssoc  = (m1 ++ m2) ++ m3
         val rightAssoc = m1 ++ (m2 ++ m3)
 
-        val leftResult = leftAssoc(input)
+        val leftResult  = leftAssoc(input)
         val rightResult = rightAssoc(input)
 
         assertTrue(
@@ -289,60 +323,62 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("DynamicTransform")(
       test("StringToInt converts string to int") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("42"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("42"))
         val result = DynamicTransform.StringToInt(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(42)) => true
-            case _ => false
+            case _                                              => false
           }
         )
       },
       test("IntToString converts int to string") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.IntToString(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("42")) => true
-            case _ => false
+            case _                                                   => false
           }
         )
       },
       test("NumericAdd adds two integers") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(10))
-        val add = DynamicTransform.NumericAdd(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(10))
+        val add    = DynamicTransform.NumericAdd(DynamicValue.Primitive(PrimitiveValue.Int(5)))
         val result = add(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(15)) => true
-            case _ => false
+            case _                                              => false
           }
         )
       },
       test("StringConcat concatenates strings") {
-        val input = DynamicValue.Sequence(Chunk(
-          DynamicValue.Primitive(PrimitiveValue.String("Hello")),
-          DynamicValue.Primitive(PrimitiveValue.String("World"))
-        ))
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.String("Hello")),
+            DynamicValue.Primitive(PrimitiveValue.String("World"))
+          )
+        )
         val result = DynamicTransform.StringConcat(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("HelloWorld")) => true
-            case _ => false
+            case _                                                           => false
           }
         )
       },
       test("StringSplit splits strings") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("Hello,World"))
-        val split = DynamicTransform.StringSplit(",")
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("Hello,World"))
+        val split  = DynamicTransform.StringSplit(",")
         val result = split(input)
 
         assertTrue(
@@ -352,7 +388,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               elements.length == 2 &&
               elements.forall {
                 case DynamicValue.Primitive(PrimitiveValue.String(_)) => true
-                case _ => false
+                case _                                                => false
               }
             case _ => false
           }
@@ -366,7 +402,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("default"))
         )
 
-        val schema = implicitly[Schema[MigrationAction]]
+        val schema  = implicitly[Schema[MigrationAction]]
         val encoded = schema.toDynamicValue(action)
         val decoded = schema.fromDynamicValue(encoded)
 
@@ -378,7 +414,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("default"))
         )
 
-        val schema = implicitly[Schema[DynamicMigration]]
+        val schema  = implicitly[Schema[DynamicMigration]]
         val encoded = schema.toDynamicValue(migration)
         val decoded = schema.fromDynamicValue(encoded)
 
@@ -387,7 +423,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("DynamicTransform has schema instance") {
         val transform = DynamicTransform.StringConcat
 
-        val schema = implicitly[Schema[DynamicTransform]]
+        val schema  = implicitly[Schema[DynamicTransform]]
         val encoded = schema.toDynamicValue(transform)
         val decoded = schema.fromDynamicValue(encoded)
 
@@ -396,7 +432,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("MigrationError has schema instance") {
         val error = MigrationError.notFound(DynamicOptic.root, "test error")
 
-        val schema = implicitly[Schema[MigrationError]]
+        val schema  = implicitly[Schema[MigrationError]]
         val encoded = schema.toDynamicValue(error)
         val decoded = schema.fromDynamicValue(encoded)
 
@@ -405,10 +441,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("transformKeys")(
       test("transforms all keys in a map") {
-        val input = DynamicValue.Map(Chunk(
-          DynamicValue.Primitive(PrimitiveValue.String("key1")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Primitive(PrimitiveValue.String("key2")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
-        ))
+        val input = DynamicValue.Map(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.String("key1")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.String("key2")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
         val migration = DynamicMigration.transformKeys(
           DynamicOptic.root,
           DynamicTransform.StringUpperCase
@@ -423,7 +461,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               entries.forall { case (k, _) =>
                 k match {
                   case DynamicValue.Primitive(PrimitiveValue.String(s)) => s == s.toUpperCase
-                  case _ => false
+                  case _                                                => false
                 }
               }
             case _ => false
@@ -433,10 +471,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("transformValues")(
       test("transforms all values in a map") {
-        val input = DynamicValue.Map(Chunk(
-          DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Primitive(PrimitiveValue.String("b")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
-        ))
+        val input = DynamicValue.Map(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.String("b")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
+        )
         val migration = DynamicMigration.transformValues(
           DynamicOptic.root,
           DynamicTransform.IntToString
@@ -451,7 +491,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               entries.forall { case (_, v) =>
                 v match {
                   case DynamicValue.Primitive(PrimitiveValue.String(_)) => true
-                  case _ => false
+                  case _                                                => false
                 }
               }
             case _ => false
@@ -461,9 +501,14 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("transformCase")(
       test("transforms contents of a specific case") {
-        val input = DynamicValue.Variant("User", DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
-        )))
+        val input = DynamicValue.Variant(
+          "User",
+          DynamicValue.Record(
+            Chunk(
+              "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
+            )
+          )
+        )
         val migration = DynamicMigration.transformCase(
           DynamicOptic.root,
           "User",
@@ -480,7 +525,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
                 case DynamicValue.Record(fields) =>
                   fields.find(_._1 == "name").exists {
                     case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "ALICE"
-                    case _ => false
+                    case _                                                     => false
                   }
                 case _ => false
               }
@@ -489,9 +534,14 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("does not transform other cases") {
-        val input = DynamicValue.Variant("Admin", DynamicValue.Record(Chunk(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
-        )))
+        val input = DynamicValue.Variant(
+          "Admin",
+          DynamicValue.Record(
+            Chunk(
+              "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
+            )
+          )
+        )
         val migration = DynamicMigration.transformCase(
           DynamicOptic.root,
           "User",
@@ -508,7 +558,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
                 case DynamicValue.Record(fields) =>
                   fields.find(_._1 == "name").exists {
                     case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "alice"
-                    case _ => false
+                    case _                                                     => false
                   }
                 case _ => false
               }
@@ -519,11 +569,15 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("nested record operations")(
       test("adds field to nested record") {
-        val input = DynamicValue.Record(Chunk(
-          "user" -> DynamicValue.Record(Chunk(
-            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-          ))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "user" -> DynamicValue.Record(
+              Chunk(
+                "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+              )
+            )
+          )
+        )
         val migration = DynamicMigration.addField(
           DynamicOptic.root.field("user").field("age"),
           DynamicValue.Primitive(PrimitiveValue.Int(0))
@@ -543,11 +597,15 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("transforms value in nested record") {
-        val input = DynamicValue.Record(Chunk(
-          "user" -> DynamicValue.Record(Chunk(
-            "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
-          ))
-        ))
+        val input = DynamicValue.Record(
+          Chunk(
+            "user" -> DynamicValue.Record(
+              Chunk(
+                "name" -> DynamicValue.Primitive(PrimitiveValue.String("alice"))
+              )
+            )
+          )
+        )
         val migration = DynamicMigration.transformValue(
           DynamicOptic.root.field("user").field("name"),
           DynamicTransform.StringUpperCase
@@ -562,7 +620,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               case (_, DynamicValue.Record(fields)) =>
                 fields.find(_._1 == "name").exists {
                   case (_, DynamicValue.Primitive(PrimitiveValue.String(s))) => s == "ALICE"
-                  case _ => false
+                  case _                                                     => false
                 }
               case _ => false
             }
@@ -572,58 +630,58 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
     ),
     suite("more DynamicTransform tests")(
       test("StringToLong converts string to long") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("12345678901234"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("12345678901234"))
         val result = DynamicTransform.StringToLong(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Long(12345678901234L)) => true
-            case _ => false
+            case _                                                            => false
           }
         )
       },
       test("LongToString converts long to string") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Long(12345678901234L))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Long(12345678901234L))
         val result = DynamicTransform.LongToString(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("12345678901234")) => true
-            case _ => false
+            case _                                                               => false
           }
         )
       },
       test("StringToDouble converts string to double") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("3.14159"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("3.14159"))
         val result = DynamicTransform.StringToDouble(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Double(d)) => Math.abs(d - 3.14159) < 0.0001
-            case _ => false
+            case _                                                => false
           }
         )
       },
       test("DoubleToString converts double to string") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Double(3.14159))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Double(3.14159))
         val result = DynamicTransform.DoubleToString(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String(s)) => s.contains("3.14159")
-            case _ => false
+            case _                                                => false
           }
         )
       },
       test("StringToBoolean converts valid strings") {
-        val trueResult = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("true")))
+        val trueResult  = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("true")))
         val falseResult = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("false")))
-        val yesResult = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("yes")))
-        val noResult = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("no")))
+        val yesResult   = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("yes")))
+        val noResult    = DynamicTransform.StringToBoolean(DynamicValue.Primitive(PrimitiveValue.String("no")))
 
         assertTrue(
           trueResult.exists { case DynamicValue.Primitive(PrimitiveValue.Boolean(true)) => true; case _ => false },
@@ -633,7 +691,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("BooleanToString converts boolean to string") {
-        val trueResult = DynamicTransform.BooleanToString(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+        val trueResult  = DynamicTransform.BooleanToString(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
         val falseResult = DynamicTransform.BooleanToString(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
 
         assertTrue(
@@ -642,92 +700,92 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("IntToLong widens int to long") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.IntToLong(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Long(42L)) => true
-            case _ => false
+            case _                                                => false
           }
         )
       },
       test("LongToInt narrows long to int") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Long(42L))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Long(42L))
         val result = DynamicTransform.LongToInt(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(42)) => true
-            case _ => false
+            case _                                              => false
           }
         )
       },
       test("FloatToDouble widens float to double") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Float(3.14f))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Float(3.14f))
         val result = DynamicTransform.FloatToDouble(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Double(d)) => Math.abs(d - 3.14) < 0.01
-            case _ => false
+            case _                                                => false
           }
         )
       },
       test("DoubleToFloat narrows double to float") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Double(3.14))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Double(3.14))
         val result = DynamicTransform.DoubleToFloat(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Float(f)) => Math.abs(f - 3.14f) < 0.01f
-            case _ => false
+            case _                                               => false
           }
         )
       },
       test("StringLowerCase converts to lowercase") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("HELLO"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("HELLO"))
         val result = DynamicTransform.StringLowerCase(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("hello")) => true
-            case _ => false
+            case _                                                      => false
           }
         )
       },
       test("StringTrim trims whitespace") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("  hello  "))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("  hello  "))
         val result = DynamicTransform.StringTrim(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("hello")) => true
-            case _ => false
+            case _                                                      => false
           }
         )
       },
       test("NumericMultiply multiplies integers") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(5))
+        val input    = DynamicValue.Primitive(PrimitiveValue.Int(5))
         val multiply = DynamicTransform.NumericMultiply(DynamicValue.Primitive(PrimitiveValue.Int(3)))
-        val result = multiply(input)
+        val result   = multiply(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(15)) => true
-            case _ => false
+            case _                                              => false
           }
         )
       },
       test("NumericDivide divides integers") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(15))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(15))
         val divide = DynamicTransform.NumericDivide(DynamicValue.Primitive(PrimitiveValue.Int(3)))
         val result = divide(input)
 
@@ -735,44 +793,46 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(5)) => true
-            case _ => false
+            case _                                             => false
           }
         )
       },
       test("NumericDivide returns error for division by zero") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(10))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(10))
         val divide = DynamicTransform.NumericDivide(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         val result = divide(input)
 
         assertTrue(result.isLeft)
       },
       test("Compose applies transforms sequentially") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("42"))
+        val input    = DynamicValue.Primitive(PrimitiveValue.String("42"))
         val composed = DynamicTransform.Compose(DynamicTransform.StringToInt, DynamicTransform.IntToString)
-        val result = composed(input)
+        val result   = composed(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("42")) => true
-            case _ => false
+            case _                                                   => false
           }
         )
       },
       test("Compose reverse reverses order") {
         val composed = DynamicTransform.Compose(DynamicTransform.StringToInt, DynamicTransform.IntToString)
-        val reverse = composed.reverse
+        val reverse  = composed.reverse
 
         assertTrue(reverse.isInstanceOf[DynamicTransform.Compose])
       },
       test("MapElements transforms each element") {
-        val input = DynamicValue.Sequence(Chunk(
-          DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          DynamicValue.Primitive(PrimitiveValue.Int(3))
-        ))
+        val input = DynamicValue.Sequence(
+          Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
         val mapElements = DynamicTransform.MapElements(DynamicTransform.IntToString)
-        val result = mapElements(input)
+        val result      = mapElements(input)
 
         assertTrue(
           result.isRight,
@@ -781,7 +841,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
               elements.length == 3 &&
               elements.forall {
                 case DynamicValue.Primitive(PrimitiveValue.String(_)) => true
-                case _ => false
+                case _                                                => false
               }
             case _ => false
           }
@@ -789,45 +849,50 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("MapElements reverse uses reverse transform") {
         val mapElements = DynamicTransform.MapElements(DynamicTransform.StringToInt)
-        val reverse = mapElements.reverse
+        val reverse     = mapElements.reverse
 
         assertTrue(reverse.isInstanceOf[DynamicTransform.MapElements])
       },
       test("Identity returns input unchanged") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.Identity(input)
 
         assertTrue(result == Right(input))
       },
       test("Constant returns constant value") {
         val constant = DynamicTransform.Constant(DynamicValue.Primitive(PrimitiveValue.String("always")))
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val result = constant(input)
+        val input    = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val result   = constant(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.String("always")) => true
-            case _ => false
+            case _                                                       => false
           }
         )
       },
       test("WrapSome wraps value in Some") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.WrapSome(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Variant("Some", _) => true
-            case _ => false
+            case _                               => false
           }
         )
       },
       test("UnwrapOption unwraps Some to inner value") {
-        val input = DynamicValue.Variant("Some", DynamicValue.Record(Chunk(
-          "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
-        )))
+        val input = DynamicValue.Variant(
+          "Some",
+          DynamicValue.Record(
+            Chunk(
+              "value" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+        )
         val unwrap = DynamicTransform.UnwrapOption(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         val result = unwrap(input)
 
@@ -835,12 +900,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(42)) => true
-            case _ => false
+            case _                                              => false
           }
         )
       },
       test("UnwrapOption returns default for None") {
-        val input = DynamicValue.Variant("None", DynamicValue.Null)
+        val input  = DynamicValue.Variant("None", DynamicValue.Null)
         val unwrap = DynamicTransform.UnwrapOption(DynamicValue.Primitive(PrimitiveValue.Int(0)))
         val result = unwrap(input)
 
@@ -848,42 +913,42 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           result.isRight,
           result.exists {
             case DynamicValue.Primitive(PrimitiveValue.Int(0)) => true
-            case _ => false
+            case _                                             => false
           }
         )
       },
       test("WrapLeft wraps value in Left") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.WrapLeft(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Variant("Left", _) => true
-            case _ => false
+            case _                               => false
           }
         )
       },
       test("WrapRight wraps value in Right") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.WrapRight(input)
 
         assertTrue(
           result.isRight,
           result.exists {
             case DynamicValue.Variant("Right", _) => true
-            case _ => false
+            case _                                => false
           }
         )
       },
       test("StringToInt fails for invalid string") {
-        val input = DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
+        val input  = DynamicValue.Primitive(PrimitiveValue.String("not-a-number"))
         val result = DynamicTransform.StringToInt(input)
 
         assertTrue(result.isLeft)
       },
       test("type mismatch errors") {
-        val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
+        val input  = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val result = DynamicTransform.StringToInt(input)
 
         assertTrue(
@@ -933,7 +998,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("KeyNotFound error has correct message") {
-        val key = DynamicValue.Primitive(PrimitiveValue.String("missing-key"))
+        val key   = DynamicValue.Primitive(PrimitiveValue.String("missing-key"))
         val error = MigrationError.keyNotFound(key)
 
         assertTrue(error.message.contains("missing-key"))
@@ -969,7 +1034,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(result.isEmpty)
       },
       test("aggregate returns single error for single element") {
-        val error = MigrationError.notFound("test")
+        val error  = MigrationError.notFound("test")
         val result = MigrationError.aggregate(Chunk(error))
 
         assertTrue(
@@ -1009,7 +1074,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(reverse.isInstanceOf[MigrationAction.AddField])
       },
       test("Rename reverse swaps names") {
-        val action = MigrationAction.Rename(DynamicOptic.root.field("oldName"), "newName")
+        val action  = MigrationAction.Rename(DynamicOptic.root.field("oldName"), "newName")
         val reverse = action.reverse
 
         assertTrue(reverse.isInstanceOf[MigrationAction.Rename])
@@ -1036,7 +1101,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(reverse.isInstanceOf[MigrationAction.Optionalize])
       },
       test("Optionalize reverse is Mandate") {
-        val action = MigrationAction.Optionalize(DynamicOptic.root.field("value"))
+        val action  = MigrationAction.Optionalize(DynamicOptic.root.field("value"))
         val reverse = action.reverse
 
         assertTrue(reverse.isInstanceOf[MigrationAction.Mandate])
@@ -1078,7 +1143,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("RenameCase reverse swaps case names") {
-        val action = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
+        val action  = MigrationAction.RenameCase(DynamicOptic.root, "OldCase", "NewCase")
         val reverse = action.reverse
 
         assertTrue(
@@ -1098,8 +1163,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(
           reverse.isInstanceOf[MigrationAction.TransformCase],
           reverse.asInstanceOf[MigrationAction.TransformCase].actions.head.isInstanceOf[MigrationAction.TransformValue],
-          reverse.asInstanceOf[MigrationAction.TransformCase].actions.head
-            .asInstanceOf[MigrationAction.TransformValue].transform == DynamicTransform.StringLowerCase
+          reverse
+            .asInstanceOf[MigrationAction.TransformCase]
+            .actions
+            .head
+            .asInstanceOf[MigrationAction.TransformValue]
+            .transform == DynamicTransform.StringLowerCase
         )
       }
     )

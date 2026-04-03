@@ -20,11 +20,13 @@ package zio.blocks.schema
  * A typed, serializable transformation from type `A` to type `B`.
  *
  * `Transform[A, B]` provides a type-safe wrapper around [[DynamicTransform]]
- * while maintaining serializability. Unlike functions `A => B`, transforms
- * can be stored in registries, serialized, and applied dynamically.
+ * while maintaining serializability. Unlike functions `A => B`, transforms can
+ * be stored in registries, serialized, and applied dynamically.
  *
- * @tparam A the source type
- * @tparam B the target type
+ * @tparam A
+ *   the source type
+ * @tparam B
+ *   the target type
  */
 final case class Transform[A, B] private (
   dynamic: DynamicTransform,
@@ -40,7 +42,7 @@ final case class Transform[A, B] private (
     dynamic(dynamicValue) match {
       case Right(transformed) =>
         targetType.fromDynamicValue(transformed) match {
-          case Right(b) => Right(b)
+          case Right(b)  => Right(b)
           case Left(err) => Left(MigrationError.TransformFailed("", err.message))
         }
       case Left(err) => Left(err)
@@ -100,11 +102,11 @@ object Transform {
   // String Transforms
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit val stringReflect: Reflect.Bound[String] = Reflect.string
-  implicit val intReflect: Reflect.Bound[Int] = Reflect.int
-  implicit val longReflect: Reflect.Bound[Long] = Reflect.long
-  implicit val doubleReflect: Reflect.Bound[Double] = Reflect.double
-  implicit val floatReflect: Reflect.Bound[Float] = Reflect.float
+  implicit val stringReflect: Reflect.Bound[String]   = Reflect.string
+  implicit val intReflect: Reflect.Bound[Int]         = Reflect.int
+  implicit val longReflect: Reflect.Bound[Long]       = Reflect.long
+  implicit val doubleReflect: Reflect.Bound[Double]   = Reflect.double
+  implicit val floatReflect: Reflect.Bound[Float]     = Reflect.float
   implicit val booleanReflect: Reflect.Bound[Boolean] = Reflect.boolean
 
   /**

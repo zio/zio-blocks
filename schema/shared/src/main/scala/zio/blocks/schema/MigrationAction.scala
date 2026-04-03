@@ -17,7 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding._
 
 /**
  * A migration action represents a single transformation step in a migration.
@@ -25,8 +24,8 @@ import zio.blocks.schema.binding._
  * All actions operate at a path represented by [[DynamicOptic]], enabling
  * precise targeting of nested structures.
  *
- * Actions are fully serializable as pure data, containing no user functions
- * or closures.
+ * Actions are fully serializable as pure data, containing no user functions or
+ * closures.
  */
 sealed trait MigrationAction extends Product with Serializable {
 
@@ -58,8 +57,8 @@ object MigrationAction {
   /**
    * Removes a field from a record.
    *
-   * The default value is used when reversing the migration to reconstruct
-   * the dropped field.
+   * The default value is used when reversing the migration to reconstruct the
+   * dropped field.
    */
   final case class DropField(
     at: DynamicOptic,

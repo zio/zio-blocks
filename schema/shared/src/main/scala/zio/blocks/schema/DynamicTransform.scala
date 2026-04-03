@@ -17,7 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding._
 
 /**
  * A pure, serializable transformation from DynamicValue to DynamicValue.
@@ -46,7 +45,7 @@ object DynamicTransform {
    */
   final case class Constant(value: DynamicValue) extends DynamicTransform {
     def apply(input: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
-    def reverse: DynamicTransform = this
+    def reverse: DynamicTransform                                        = this
   }
 
   /**
@@ -66,17 +65,19 @@ object DynamicTransform {
       case DynamicValue.Sequence(elements) =>
         elements.find {
           case DynamicValue.Primitive(PrimitiveValue.String(_)) => false
-          case _ => true
+          case _                                                => true
         } match {
           case Some(nonString) =>
-            Left(MigrationError.transformFailed(
-              s"StringConcat requires String elements, found ${nonString.valueType}"
-            ))
+            Left(
+              MigrationError.transformFailed(
+                s"StringConcat requires String elements, found ${nonString.valueType}"
+              )
+            )
           case None =>
             val sb = new StringBuilder
             elements.foreach {
               case DynamicValue.Primitive(PrimitiveValue.String(s)) => sb.append(s)
-              case _ => // already validated
+              case _                                                => // already validated
             }
             Right(DynamicValue.Primitive(PrimitiveValue.String(sb.toString)))
         }
@@ -92,11 +93,14 @@ object DynamicTransform {
   final case class StringSplit(delimiter: String) extends DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
-        val parts = if (delimiter.isEmpty) s.map(_.toString).toVector
-        else s.split(java.util.regex.Pattern.quote(delimiter)).toVector
-        Right(DynamicValue.Sequence(
-          Chunk.from(parts.map(part => DynamicValue.Primitive(PrimitiveValue.String(part))))
-        ))
+        val parts =
+          if (delimiter.isEmpty) s.map(_.toString).toVector
+          else s.split(java.util.regex.Pattern.quote(delimiter)).toVector
+        Right(
+          DynamicValue.Sequence(
+            Chunk.from(parts.map(part => DynamicValue.Primitive(PrimitiveValue.String(part))))
+          )
+        )
       case other =>
         Left(MigrationError.typeMismatch("String", other.valueType.toString))
     }
@@ -111,15 +115,17 @@ object DynamicTransform {
       case DynamicValue.Sequence(elements) =>
         elements.find {
           case DynamicValue.Primitive(PrimitiveValue.String(_)) => false
-          case _ => true
+          case _                                                => true
         } match {
           case Some(nonString) =>
-            Left(MigrationError.transformFailed(
-              s"StringConcatWith requires String elements, found ${nonString.valueType}"
-            ))
+            Left(
+              MigrationError.transformFailed(
+                s"StringConcatWith requires String elements, found ${nonString.valueType}"
+              )
+            )
           case None =>
-            val strings = elements.collect {
-              case DynamicValue.Primitive(PrimitiveValue.String(s)) => s
+            val strings = elements.collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              s
             }
             Right(DynamicValue.Primitive(PrimitiveValue.String(strings.mkString(delimiter))))
         }
@@ -143,7 +149,10 @@ object DynamicTransform {
           Right(DynamicValue.Primitive(PrimitiveValue.Double(a.value + b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.Float), DynamicValue.Primitive(b: PrimitiveValue.Float)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(a.value + b.value)))
-        case (DynamicValue.Primitive(a: PrimitiveValue.BigDecimal), DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)) =>
+        case (
+              DynamicValue.Primitive(a: PrimitiveValue.BigDecimal),
+              DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)
+            ) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.value + b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.BigInt), DynamicValue.Primitive(b: PrimitiveValue.BigInt)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigInt(a.value + b.value)))
@@ -167,7 +176,10 @@ object DynamicTransform {
           Right(DynamicValue.Primitive(PrimitiveValue.Double(a.value - b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.Float), DynamicValue.Primitive(b: PrimitiveValue.Float)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(a.value - b.value)))
-        case (DynamicValue.Primitive(a: PrimitiveValue.BigDecimal), DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)) =>
+        case (
+              DynamicValue.Primitive(a: PrimitiveValue.BigDecimal),
+              DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)
+            ) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.value - b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.BigInt), DynamicValue.Primitive(b: PrimitiveValue.BigInt)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigInt(a.value - b.value)))
@@ -191,7 +203,10 @@ object DynamicTransform {
           Right(DynamicValue.Primitive(PrimitiveValue.Double(a.value * b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.Float), DynamicValue.Primitive(b: PrimitiveValue.Float)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(a.value * b.value)))
-        case (DynamicValue.Primitive(a: PrimitiveValue.BigDecimal), DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)) =>
+        case (
+              DynamicValue.Primitive(a: PrimitiveValue.BigDecimal),
+              DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)
+            ) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.value * b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.BigInt), DynamicValue.Primitive(b: PrimitiveValue.BigInt)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigInt(a.value * b.value)))
@@ -217,7 +232,10 @@ object DynamicTransform {
           Right(DynamicValue.Primitive(PrimitiveValue.Double(a.value / b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.Float), DynamicValue.Primitive(b: PrimitiveValue.Float)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(a.value / b.value)))
-        case (DynamicValue.Primitive(a: PrimitiveValue.BigDecimal), DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)) =>
+        case (
+              DynamicValue.Primitive(a: PrimitiveValue.BigDecimal),
+              DynamicValue.Primitive(b: PrimitiveValue.BigDecimal)
+            ) =>
           Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.value / b.value)))
         case (DynamicValue.Primitive(a: PrimitiveValue.BigInt), DynamicValue.Primitive(b: PrimitiveValue.BigInt)) =>
           if (b.value == 0) Left(MigrationError.transformFailed("Division by zero"))
@@ -236,8 +254,9 @@ object DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
         try Right(DynamicValue.Primitive(PrimitiveValue.Int(s.toInt)))
-        catch { case _: NumberFormatException =>
-          Left(MigrationError.transformFailed(s"Cannot convert '$s' to Int"))
+        catch {
+          case _: NumberFormatException =>
+            Left(MigrationError.transformFailed(s"Cannot convert '$s' to Int"))
         }
       case other =>
         Left(MigrationError.typeMismatch("String", other.valueType.toString))
@@ -259,8 +278,9 @@ object DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
         try Right(DynamicValue.Primitive(PrimitiveValue.Long(s.toLong)))
-        catch { case _: NumberFormatException =>
-          Left(MigrationError.transformFailed(s"Cannot convert '$s' to Long"))
+        catch {
+          case _: NumberFormatException =>
+            Left(MigrationError.transformFailed(s"Cannot convert '$s' to Long"))
         }
       case other =>
         Left(MigrationError.typeMismatch("String", other.valueType.toString))
@@ -282,8 +302,9 @@ object DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
         try Right(DynamicValue.Primitive(PrimitiveValue.Double(s.toDouble)))
-        catch { case _: NumberFormatException =>
-          Left(MigrationError.transformFailed(s"Cannot convert '$s' to Double"))
+        catch {
+          case _: NumberFormatException =>
+            Left(MigrationError.transformFailed(s"Cannot convert '$s' to Double"))
         }
       case other =>
         Left(MigrationError.typeMismatch("String", other.valueType.toString))
@@ -307,7 +328,7 @@ object DynamicTransform {
         s.toLowerCase match {
           case "true" | "yes" | "1" | "on"  => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
           case "false" | "no" | "0" | "off" => Right(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
-          case _ => Left(MigrationError.transformFailed(s"Cannot convert '$s' to Boolean"))
+          case _                            => Left(MigrationError.transformFailed(s"Cannot convert '$s' to Boolean"))
         }
       case other =>
         Left(MigrationError.typeMismatch("String", other.valueType.toString))
@@ -417,7 +438,7 @@ object DynamicTransform {
           case None         => Left(MigrationError.transformFailed("Malformed Some: missing 'value' field"))
         }
       case DynamicValue.Variant("None", _) => Right(default)
-      case other =>
+      case other                           =>
         Left(MigrationError.typeMismatch("Option", other.valueType.toString))
     }
     def reverse: DynamicTransform = WrapSome
@@ -441,7 +462,7 @@ object DynamicTransform {
 
   case object Identity extends DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
-    def reverse: DynamicTransform = this
+    def reverse: DynamicTransform                                        = this
   }
 
   final case class Compose(first: DynamicTransform, second: DynamicTransform) extends DynamicTransform {
@@ -457,7 +478,7 @@ object DynamicTransform {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = value match {
       case DynamicValue.Sequence(elements) =>
         val results = elements.map(transform(_))
-        val errors = results.collect { case Left(e) => e }
+        val errors  = results.collect { case Left(e) => e }
         if (errors.nonEmpty) Left(MigrationError.multiple(errors))
         else Right(DynamicValue.Sequence(results.collect { case Right(v) => v }))
       case other =>

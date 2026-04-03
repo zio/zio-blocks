@@ -425,8 +425,8 @@ object MigrationBuilder {
   /**
    * Creates an empty MigrationBuilder.
    *
-   * This allows the `MigrationBuilder[A, B]` syntax (no arguments) for
-   * starting a migration builder chain.
+   * This allows the `MigrationBuilder[A, B]` syntax (no arguments) for starting
+   * a migration builder chain.
    */
   def apply[A, B](implicit sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] =
     empty[A, B]
