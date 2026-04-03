@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.Schema
@@ -41,4 +42,3 @@ object Migration {
   def derive[A, B](implicit source: Schema[A], target: Schema[B]): MigrationBuilder[A, B, A] =
     new MigrationBuilder[A, B, A](source, target, DynamicMigration.empty)
 }
-

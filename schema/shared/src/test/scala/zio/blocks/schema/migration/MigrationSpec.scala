@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package zio.blocks.schema.migration
 
 import zio.test._
@@ -49,4 +50,3 @@ object MigrationSpec extends ZIOSpecDefault {
   )
 
 }
-
