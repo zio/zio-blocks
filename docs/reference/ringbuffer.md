@@ -150,6 +150,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-ringbuffer" % "@VERSION@"
 
 ## Creating Instances
 
+Ring buffers are instantiated via the companion object's `apply` method:
+
 ### `SpscRingBuffer` — Single Producer, Single Consumer
 
 `SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
