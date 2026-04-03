@@ -63,7 +63,7 @@ object MigrationApplicator {
         // In DynamicValue, Option fields are usually un-boxed when Some, or absent/Null.
         // If absent or Null, we need to apply default.
         value.get(at) match {
-          case selection if selection.isEmpty || selection.values.head == DynamicValue.Null =>
+          case selection if selection.isEmpty || selection.toChunk.head == DynamicValue.Null =>
             default.evalDynamic(null) match {
               case Right(seq) if seq.nonEmpty =>
                 value.setOrFail(at, seq.head).fold(e => Left(MigrationError.Other(e.message)), Right(_))
