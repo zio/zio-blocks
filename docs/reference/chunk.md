@@ -132,8 +132,6 @@ val unfolded = Chunk.unfold(0)(n => if (n < 5) Some((n, n + 1)) else None)
 
 ## Core Operations
 
-Chunk provides a rich set of operations:
-
 ### Element Access
 
 ```scala mdoc:compile-only
