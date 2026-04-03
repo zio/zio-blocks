@@ -28,17 +28,19 @@ Key advantages:
 
 ## Installation
 
-Add the ZIO Blocks Chunk module to your `build.sbt`:
+Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "<version>"
 ```
 
-For Scala.js cross-platform support:
+For cross-platform projects (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "<version>"
 ```
+
+Supported Scala versions: 2.13.x and 3.x
 
 ## Creating Chunks
 
