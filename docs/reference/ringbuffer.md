@@ -499,6 +499,8 @@ This optimization is automatic and requires no configuration. Ring buffers are i
 
 ## Designing With Ring Buffers
 
+Common patterns for using ring buffers include:
+
 ### Pattern: Producer-Consumer Pipeline
 
 Ring buffers form the backbone of producer-consumer pipelines where one or more producers generate work and one or more consumers process it:
