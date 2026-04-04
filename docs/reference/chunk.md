@@ -1967,8 +1967,6 @@ val result2 = empty match {
 
 Chunk has specialized variants for specific use cases:
 
-### NonEmptyChunk
-
 `NonEmptyChunk[A]` is a type-safe wrapper around `Chunk[A]` that guarantees the chunk is non-empty. It provides the same operations as `Chunk` but with methods like `head` returning `A` instead of potentially throwing an exception.
 
 Create a `NonEmptyChunk` using varargs:
