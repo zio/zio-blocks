@@ -82,6 +82,49 @@ Ring buffers solve both problems with **lock-free algorithms** and **cache-line 
 
 This module provides four implementations tuned for maximum throughput and minimal latency across all producer/consumer combinations.
 
+## Why FastFlow?
+
+Understanding the FastFlow algorithm helps explain why `SpscRingBuffer` achieves such high performance.
+
+#### Understanding FastFlow: The Problem and the Solution
+
+**The Problem: Traditional Queues Are Slow Under Concurrency**
+
+Imagine two threads sharing data with a traditional lock-based queue like `ArrayBlockingQueue`. They use a mutex (lock) to coordinate:
+
+1. Producer thread: acquires lock, adds element, releases lock
+2. Consumer thread: acquires lock, removes element, releases lock
+
+This works, but locks have a cost: when threads contend for the same lock, one thread **blocks** (goes to sleep) while waiting. Waking a thread is expensive (thousands of CPU cycles). Even lock-free queues using `synchronized` or `volatile` reads can cause **cache-coherency traffic**: when one CPU core writes to a variable another core reads, the entire cache line must be invalidated and transferred — a costly operation that slows down both cores.
+
+The fundamental issue: **if the producer has to read what the consumer wrote (or vice versa), their CPU caches constantly fight**. This is called *false sharing* and can reduce throughput by 10x or more on heavily loaded systems.
+
+**The FastFlow Solution: Eliminate Coordination Entirely**
+
+The problem is that *any* read by the producer of the consumer's state (or vice versa) causes cache line bouncing. So FastFlow's radical idea: **neither side should ever read the other's state**.
+
+Instead, the producer simply **writes data into slots** and marks them non-null. The consumer independently **reads slots** and takes any non-null values. The array slot's null/non-null status itself is the only coordination needed — a *happens-before* relationship written once by the producer, read once by the consumer. No locks, no atomic operations on the fast path, no reading the other side's counters.
+
+The **note-passing analogy**:
+- You (producer) have a row of empty desks between you and your friend (consumer)
+- Empty desk = `null` (available)
+- Note on desk = non-null value (message ready)
+- **You never look at your friend's side** — you just place notes on empty desks
+- **Your friend never looks at your side** — they just pick up notes they see
+- No shouting "are you ready?", no waiting, no lock contention
+
+**This is how FastFlow solves the cache-coherency problem**: since producer and consumer never read each other's counters, there's no cache line bouncing between CPU cores. All coordination happens through the slots themselves, which are written once and read once.
+
+The **look-ahead cache** is a further optimization: the producer maintains a local cached limit (`producerLimit`) so they don't have to check every slot individually. It's like glancing ahead at the next N desks to see if they're empty, without actually bending over to look. This keeps the fast path extremely fast — just a local counter check and an array write.
+
+**Why FastFlow is fast**:
+- **No locks** — no thread ever blocks another
+- **Minimal cache coordination** — producer and consumer touch separate memory locations; the array slot is written once, read once
+- **Write-once, read-once semantics** — the slot's null/non-null status is the handshake
+- **Cache-line padding** — producer and consumer indices padded to separate cache lines, eliminating false sharing
+
+The result: **lock-free, wait-free** communication that scales linearly with CPU count and achieves nanosecond-scale latencies. This is why FastFlow is the algorithm of choice for SPSC ring buffers in high-performance systems like trading platforms, game engines, and network stacks.
+
 ## Overview
 
 Ring buffers are high-performance data structures for:
@@ -154,46 +197,7 @@ Ring buffers are instantiated via the companion object's `apply` method:
 
 ### `SpscRingBuffer` — Single Producer, Single Consumer
 
-`SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
-
-#### Understanding FastFlow: The Problem and the Solution
-
-**The Problem: Traditional Queues Are Slow Under Concurrency**
-
-Imagine two threads sharing data with a traditional lock-based queue like `ArrayBlockingQueue`. They use a mutex (lock) to coordinate:
-
-1. Producer thread: acquires lock, adds element, releases lock
-2. Consumer thread: acquires lock, removes element, releases lock
-
-This works, but locks have a cost: when threads contend for the same lock, one thread **blocks** (goes to sleep) while waiting. Waking a thread is expensive (thousands of CPU cycles). Even lock-free queues using `synchronized` or `volatile` reads can cause **cache-coherency traffic**: when one CPU core writes to a variable another core reads, the entire cache line must be invalidated and transferred — a costly operation that slows down both cores.
-
-The fundamental issue: **if the producer has to read what the consumer wrote (or vice versa), their CPU caches constantly fight**. This is called *false sharing* and can reduce throughput by 10x or more on heavily loaded systems.
-
-**The FastFlow Solution: Eliminate Coordination Entirely**
-
-The problem is that *any* read by the producer of the consumer's state (or vice versa) causes cache line bouncing. So FastFlow's radical idea: **neither side should ever read the other's state**.
-
-Instead, the producer simply **writes data into slots** and marks them non-null. The consumer independently **reads slots** and takes any non-null values. The array slot's null/non-null status itself is the only coordination needed — a *happens-before* relationship written once by the producer, read once by the consumer. No locks, no atomic operations on the fast path, no reading the other side's counters.
-
-The **note-passing analogy**:
-- You (producer) have a row of empty desks between you and your friend (consumer)
-- Empty desk = `null` (available)
-- Note on desk = non-null value (message ready)
-- **You never look at your friend's side** — you just place notes on empty desks
-- **Your friend never looks at your side** — they just pick up notes they see
-- No shouting "are you ready?", no waiting, no lock contention
-
-**This is how FastFlow solves the cache-coherency problem**: since producer and consumer never read each other's counters, there's no cache line bouncing between CPU cores. All coordination happens through the slots themselves, which are written once and read once.
-
-The **look-ahead cache** is a further optimization: the producer maintains a local cached limit (`producerLimit`) so they don't have to check every slot individually. It's like glancing ahead at the next N desks to see if they're empty, without actually bending over to look. This keeps the fast path extremely fast — just a local counter check and an array write.
-
-**Why FastFlow is fast**:
-- **No locks** — no thread ever blocks another
-- **Minimal cache coordination** — producer and consumer touch separate memory locations; the array slot is written once, read once
-- **Write-once, read-once semantics** — the slot's null/non-null status is the handshake
-- **Cache-line padding** — producer and consumer indices padded to separate cache lines, eliminating false sharing
-
-The result: **lock-free, wait-free** communication that scales linearly with CPU count and achieves nanosecond-scale latencies. This is why FastFlow is the algorithm of choice for SPSC ring buffers in high-performance systems like trading platforms, game engines, and network stacks.
+`SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic. See [Why FastFlow?](#why-fastflow) for an in-depth explanation.
 
 ```scala
 object SpscRingBuffer {
