@@ -211,7 +211,7 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 
 ### `MpmcRingBuffer`: Vyukov/Dmitry Sequence Buffer
 
-`MpmcRingBuffer` handles the hardest case: **many producers and many consumers** all accessing the same buffer at once. It uses the **Vyukov/Dmitry algorithm**, which is the standard lock-free MPMC queue design.
+`MpmcRingBuffer` handles the hardest case: **many producers and many consumers** all accessing the same buffer at once. It uses the **Vyukov/Dmitry algorithm**, which is a lock-free MPMC queue design.
 
 The challenge: when multiple producers might try to write to the same slot, and multiple consumers might try to read the same slot, we need a fair way to say "this slot is mine" without using locks.
 
