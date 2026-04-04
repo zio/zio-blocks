@@ -1734,8 +1734,6 @@ ints.int(1)
 
 When you build chunks through many concatenations, they internally form a tree structure for efficiency. However, if you plan to access elements many times, materialization converts that tree into a flat, optimized array-backed representation:
 
-#### `Chunk#materialize` — Force Materialization
-
 Force the chunk to an array-backed representation, eliminating lazy concatenation trees. Useful before performing many operations:
 
 ```scala
