@@ -301,26 +301,13 @@ Run `/docs-verify-compliance` skill.
 
 ## Step 3.5: Verify Method Coverage
 
-After prose compliance, run the method coverage checker to ensure all public methods are documented:
+Check that all public methods are documented:
 
 ```bash
-# From the project root:
-./.claude/skills/docs-data-type-ref/check-method-coverage.sh Chunk docs/reference/chunk.md
+./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md
 ```
 
-Exit codes:
-- `0` = all methods covered
-- `1` = some methods missing from documentation
-- `2` = error (source file not found)
-
-The script:
-- Finds the source file for the type (searches in `chunk/` and other modules)
-- Extracts all public method names from the trait/class and companion object
-- Parses the markdown to find documented method references (backtick-enclosed names)
-- Reports any source methods not found in the documentation
-- May also report "extra" methods that appear in docs but not in source (typically inherited methods or overloads)
-
-**Note:** The script uses simple pattern matching and may not capture all method signatures perfectly. Use the output as a guide, not an absolute authority. Manually verify any false positives/negatives. If the source file cannot be found, you'll need to manually review coverage.
+Exit codes: 0=complete, 1=missing, 2=source not found. Verify results manually.
 
 ## Step 4: Write Examples
 

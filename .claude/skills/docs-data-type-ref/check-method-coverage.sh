@@ -57,10 +57,9 @@ extract_methods_from_source() {
     return
   fi
 
-  # Extract method names, simplifying to valid identifiers
-  grep -E '^\s*(public\s+)?def\s+' "$file" | \
-    sed -E 's/^\s*(public\s+)?def\s+([a-zA-Z0-9_]+)\s*\(.*/\2/' | \
-    grep -E '^[a-zA-Z][a-zA-Z0-9_]*$' | \
+  # Extract method names - find any line containing "def <name>(" and extract <name>
+  grep -oE 'def\s+[a-zA-Z0-9_]+' "$file" | \
+    sed -E 's/def\s+([a-zA-Z0-9_]+)/\1/' | \
     sort -u
 }
 
