@@ -17,8 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding._
-import zio.blocks.typeid.TypeId
 
 /**
  * A pure, serializable transformation from DynamicValue to DynamicValue.
@@ -493,100 +491,5 @@ object DynamicTransform {
   // Schema Instance
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit lazy val schema: Schema[DynamicTransform] = new Schema(
-    reflect = new Reflect.Variant[Binding, DynamicTransform](
-      cases = Chunk(
-        Schema[DynamicValue].reflect.asTerm("Constant"),
-        Schema[String].reflect.asTerm("StringSplit"),
-        Schema[String].reflect.asTerm("StringConcatWith"),
-        Schema[DynamicValue].reflect.asTerm("NumericAdd"),
-        Schema[DynamicValue].reflect.asTerm("NumericSubtract"),
-        Schema[DynamicValue].reflect.asTerm("NumericMultiply"),
-        Schema[DynamicValue].reflect.asTerm("NumericDivide"),
-        Schema[DynamicValue].reflect.asTerm("UnwrapOption"),
-        schema.reflect.asTerm("Compose"),
-        schema.reflect.asTerm("MapElements")
-      ),
-      typeId = TypeId.of[DynamicTransform],
-      variantBinding = new Binding.Variant(
-        discriminator = new Discriminator[DynamicTransform] {
-          def discriminate(a: DynamicTransform): Int = a match {
-            case _: Constant         => 0
-            case _: StringSplit      => 1
-            case _: StringConcatWith => 2
-            case _: NumericAdd       => 3
-            case _: NumericSubtract  => 4
-            case _: NumericMultiply  => 5
-            case _: NumericDivide    => 6
-            case _: UnwrapOption     => 7
-            case _: Compose          => 8
-            case _: MapElements      => 9
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Constant] {
-            def downcastOrNull(a: Any): Constant = a match {
-              case x: Constant => x
-              case _           => null.asInstanceOf[Constant]
-            }
-          },
-          new Matcher[StringSplit] {
-            def downcastOrNull(a: Any): StringSplit = a match {
-              case x: StringSplit => x
-              case _              => null.asInstanceOf[StringSplit]
-            }
-          },
-          new Matcher[StringConcatWith] {
-            def downcastOrNull(a: Any): StringConcatWith = a match {
-              case x: StringConcatWith => x
-              case _                   => null.asInstanceOf[StringConcatWith]
-            }
-          },
-          new Matcher[NumericAdd] {
-            def downcastOrNull(a: Any): NumericAdd = a match {
-              case x: NumericAdd => x
-              case _            => null.asInstanceOf[NumericAdd]
-            }
-          },
-          new Matcher[NumericSubtract] {
-            def downcastOrNull(a: Any): NumericSubtract = a match {
-              case x: NumericSubtract => x
-              case _                 => null.asInstanceOf[NumericSubtract]
-            }
-          },
-          new Matcher[NumericMultiply] {
-            def downcastOrNull(a: Any): NumericMultiply = a match {
-              case x: NumericMultiply => x
-              case _                  => null.asInstanceOf[NumericMultiply]
-            }
-          },
-          new Matcher[NumericDivide] {
-            def downcastOrNull(a: Any): NumericDivide = a match {
-              case x: NumericDivide => x
-              case _                => null.asInstanceOf[NumericDivide]
-            }
-          },
-          new Matcher[UnwrapOption] {
-            def downcastOrNull(a: Any): UnwrapOption = a match {
-              case x: UnwrapOption => x
-              case _               => null.asInstanceOf[UnwrapOption]
-            }
-          },
-          new Matcher[Compose] {
-            def downcastOrNull(a: Any): Compose = a match {
-              case x: Compose => x
-              case _         => null.asInstanceOf[Compose]
-            }
-          },
-          new Matcher[MapElements] {
-            def downcastOrNull(a: Any): MapElements = a match {
-              case x: MapElements => x
-              case _              => null.asInstanceOf[MapElements]
-            }
-          }
-        )
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+  implicit lazy val schema: Schema[DynamicTransform] = Schema.derived[DynamicTransform]
 }

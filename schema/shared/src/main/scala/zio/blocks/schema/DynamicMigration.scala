@@ -18,9 +18,6 @@ package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.DynamicOptic.Node
-import zio.blocks.schema.binding._
-import zio.blocks.typeid.TypeId
-import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
  * An untyped, fully serializable migration that operates on [[DynamicValue]].
@@ -501,27 +498,5 @@ object DynamicMigration {
   // Schema Instance
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit lazy val schema: Schema[DynamicMigration] = new Schema(
-    reflect = new Reflect.Record[Binding, DynamicMigration](
-      fields = Chunk(
-        Schema[Chunk[MigrationAction]].reflect.asTerm("actions")
-      ),
-      typeId = TypeId.of[DynamicMigration],
-      recordBinding = new Binding.Record(
-        constructor = new Constructor[DynamicMigration] {
-          def usedRegisters: RegisterOffset                                             = 1
-          def construct(in: Registers, offset: RegisterOffset): DynamicMigration =
-            new DynamicMigration(
-              in.getObject(offset).asInstanceOf[Chunk[MigrationAction]]
-            )
-        },
-        deconstructor = new Deconstructor[DynamicMigration] {
-          def usedRegisters(a: DynamicMigration): RegisterOffset = 1
-          def deconstruct(a: DynamicMigration, out: Registers, offset: RegisterOffset): Unit =
-            out.setObject(offset, a.actions)
-        }
-      ),
-      modifiers = Chunk.empty
-    )
-  )
+  implicit lazy val schema: Schema[DynamicMigration] = Schema.derived[DynamicMigration]
 }
