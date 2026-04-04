@@ -246,49 +246,16 @@ Alongside the data array, there's a `sequenceBuffer` where each slot stores a nu
 
 **Why `+ capacity`?**
 
-Think of the sequence numbers as having two "phases":
+Think of the sequence numbers as phases of the slot's lifecycle:
 - Phase 0: slots with stamps 0, 1, 2, ... `capacity-1` (initial or after full cycle)
 - Phase 1: slots with stamps `capacity+0`, `capacity+1`, ... `2*capacity-1` (after one consume)
 - Phase 2: slots with stamps `2*capacity+0`, ... (after two consumes)
 
 Using `+ capacity` instead of `+ 1` creates a gap between "just filled" and "ready to fill again." When the producer cycles back after `capacity` more operations, it will see exactly the stamp it expects.
 
-**Example with capacity = 4, tracking slot 0:**
-
-```
-Start:     sequence[0] = 0
-
-Producer fills slot 0 (pIdx=0):
-  - claims ticket 0
-  - checks sequence[0] == 0 ✓
-  - writes element
-  - sets sequence[0] = 1
-
-Consumer consumes slot 0 (cIdx=0):
-  - claims ticket 0
-  - checks sequence[0] == 1 ✓
-  - reads element
-  - sets sequence[0] = 0 + 4 = 4
-
-Producer comes back to slot 0 (pIdx=4):
-  - claims ticket 4
-  - checks sequence[0] == 4 ✓
-  - writes new element
-  - sets sequence[0] = 5
-```
-
-This pattern ensures that each slot is touched by exactly one producer and one consumer per cycle, without locks or data races. The sequence numbers prevent ABA problems and work correctly even as the ring wraps repeatedly.
+This pattern ensures that each slot is touched by exactly one producer and one consumer per cycle, without locks or data races.
 
 **Trade-offs:** This is the most flexible (any number of producers/consumers) but also the most expensive due to CAS on both sides and the sequence buffer overhead. Use it only when you truly need MPMC.
-
----
-
-## References
-
-- **FastFlow**: C++ framework for parallel streaming; see JCTools `SpscArrayQueue` for Java implementation
-- **JCTools**: https://github.com/JCTools/JCTools — `MpscArrayQueue`, `SpscArrayQueue`
-- **Vyukov algorithm**: http://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
-- **LMAX Disruptor**: https://lmax-exchange.github.io/disruptor/ — popularized ring buffer patterns in Java
 
 ## Installation
 
