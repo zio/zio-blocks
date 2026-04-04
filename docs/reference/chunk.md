@@ -1984,57 +1984,140 @@ val result = nonEmpty1 ++ chunk2
 
 `ChunkMap[K, V]` is an order-preserving immutable map backed by parallel chunks. It maintains insertion order during iteration:
 
-```scala mdoc:compile-only
+```scala
+object ChunkMap {
+  def empty[K, V]: ChunkMap[K, V]
+  def apply[K, V](elems: (K, V)*): ChunkMap[K, V]
+  def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V]
+  def fromChunks[K, V](keys: Chunk[K], values: Chunk[V]): ChunkMap[K, V]
+  def newBuilder[K, V]: Builder[(K, V), ChunkMap[K, V]]
+}
+```
+
+Basic usage:
+
+```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
+```
 
-val value = map.get("b")      // Some(2)
-val updated = map.updated("d", 4)
-val removed = map.removed("b")
+```scala
+map.get("b")
+```
+
+```scala
+map.updated("d", 4)
+```
+
+```scala
+map.removed("b")
 ```
 
 ### Creating ChunkMap
 
-Create `ChunkMap` instances using the factory methods in the companion object:
+`ChunkMap` provides several factory methods for construction:
 
-```scala mdoc:compile-only
-import zio.blocks.chunk.{Chunk, ChunkMap}
+```scala
+object ChunkMap {
+  def empty[K, V]: ChunkMap[K, V]
+  def apply[K, V](elems: (K, V)*): ChunkMap[K, V]
+  def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V]
+  def fromChunks[K, V](keys: Chunk[K], values: Chunk[V]): ChunkMap[K, V]
+}
+```
+
+Creating an empty map:
+
+```scala mdoc:reset
+import zio.blocks.chunk.ChunkMap
 
 val empty = ChunkMap.empty[String, Int]
+```
+
+Creating a map from key-value pairs:
+
+```scala
 val fromPairs = ChunkMap("x" -> 1, "y" -> 2)
+```
+
+Creating from a `Chunk` of pairs:
+
+```scala mdoc
 val fromChunk = ChunkMap.fromChunk(Chunk(("a", 1), ("b", 2)))
-val fromChunks = ChunkMap.fromChunks(Chunk("a", "b"), Chunk(1, 2))
+```
+
+Creating from parallel chunks of keys and values:
+
+```scala mdoc
+val keys = Chunk("a", "b")
+val values = Chunk(1, 2)
+val fromChunks = ChunkMap.fromChunks(keys, values)
 ```
 
 ### Indexed Access
 
-`ChunkMap` provides O(1) positional access, allowing you to work with entries by their insertion order position:
+`ChunkMap` provides efficient O(1) positional access:
 
-```scala mdoc:compile-only
+```scala
+trait ChunkMap[K, V] {
+  def atIndex(idx: Int): (K, V)
+  def keyAtIndex(idx: Int): K
+  def valueAtIndex(idx: Int): V
+  def keysChunk: Chunk[K]
+  def valuesChunk: Chunk[V]
+}
+```
+
+Example:
+
+```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("z" -> 1, "a" -> 2, "m" -> 3)
+```
 
-val first = map.atIndex(0)      // ("z", 1)
-val key   = map.keyAtIndex(1)   // "a"
-val value = map.valueAtIndex(2) // 3
+```scala
+map.atIndex(0)
+```
 
+```scala
+map.keyAtIndex(1)
+```
+
+```scala
+map.valueAtIndex(2)
+```
+
+```scala
 val keys: Chunk[String] = map.keysChunk
+```
+
+```scala
 val values: Chunk[Int] = map.valuesChunk
 ```
 
 ### Optimized Lookup
 
-For scenarios with frequent key-based lookups, convert the map to an indexed version for O(1) key access:
+For frequent key-based lookups, convert to an indexed version with O(1) key access:
 
-```scala mdoc:compile-only
+```scala
+trait ChunkMap[K, V] {
+  def indexed: ChunkMap.Indexed[K, V]
+}
+```
+
+The indexed wrapper uses an internal hash map for constant-time lookups at the cost of extra memory:
+
+```scala mdoc:reset
 import zio.blocks.chunk.ChunkMap
 
 val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
-val indexed = map.indexed  // O(1) lookups, extra memory for index
+val indexed = map.indexed
+```
 
-val value = indexed.get("b")  // O(1) instead of O(n)
+```scala
+indexed.get("b")
 ```
 
 ## Comparison with Other Sequence Types
