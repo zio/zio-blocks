@@ -2006,15 +2006,9 @@ val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
 
 Then we can perform basic operations like retrieving a value by key, updating a key with a new value, or removing a key:
 
-```scala
+```scala mdoc
 map.get("b")
-```
-
-```scala
 map.updated("d", 4)
-```
-
-```scala
 map.removed("b")
 ```
 
