@@ -2074,25 +2074,11 @@ Example:
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("z" -> 1, "a" -> 2, "m" -> 3)
-```
 
-```scala
 map.atIndex(0)
-```
-
-```scala
 map.keyAtIndex(1)
-```
-
-```scala
 map.valueAtIndex(2)
-```
-
-```scala
 val keys: Chunk[String] = map.keysChunk
-```
-
-```scala
 val values: Chunk[Int] = map.valuesChunk
 ```
 
@@ -2113,9 +2099,6 @@ import zio.blocks.chunk.ChunkMap
 
 val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
 val indexed = map.indexed
-```
-
-```scala
 indexed.get("b")
 ```
 
