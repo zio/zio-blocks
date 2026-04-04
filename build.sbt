@@ -100,7 +100,7 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; otelJVM/test"
+    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; telemetryJVM/test"
 )
 
 addCommandAlias(
@@ -151,8 +151,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
-    otel.jvm,
-    otel.js,
+    telemetry.jvm,
+    telemetry.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -195,7 +195,7 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
-    otelBenchmarks,
+    telemetryBenchmarks,
     smithy
   )
 
@@ -392,12 +392,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     })
   )
 
-lazy val otel = crossProject(JSPlatform, JVMPlatform)
+lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(context, chunk)
-  .settings(stdSettings("zio-blocks-otel"))
+  .settings(stdSettings("zio-blocks-telemetry"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks.otel"))
+  .settings(buildInfoSettings("zio.blocks.telemetry"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
@@ -435,10 +435,10 @@ lazy val otel = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
 
 
-lazy val otelBenchmarks = project
-  .in(file("otel-benchmarks"))
-  .settings(stdSettings("zio-blocks-otel-benchmarks", Seq(BuildHelper.Scala3)))
-  .dependsOn(otel.jvm)
+lazy val telemetryBenchmarks = project
+  .in(file("telemetry-benchmarks"))
+  .settings(stdSettings("zio-blocks-telemetry-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(telemetry.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
     publish / skip             := true,
