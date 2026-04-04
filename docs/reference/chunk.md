@@ -1104,8 +1104,9 @@ Combine with default for missing elements:
 ```scala mdoc
 left.zipAllWith(right)(
   a => s"missing:${a}",      // left only
-  b => s"only:${b}",          // right only
-  (a, b) => s"$a:$b"          // both present
+  b => s"only:${b}"          // right only
+)(
+  (a, b) => s"$a:$b"         // both present
 )
 ```
 
