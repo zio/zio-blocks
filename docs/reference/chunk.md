@@ -440,19 +440,18 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 case class ApiResponse(records: List[String], hasMore: Boolean)
 
 def fetchAllRecords(): Chunk[String] = {
-  val builder = ChunkBuilder.make[String](1000)
-
-  var response = ApiResponse(List("record1", "record2"), true)
-  while (response.hasMore) {
-    builder.addAll(response.records.iterator)
-    // Simulate fetching next page
-    response = ApiResponse(List("record3", "record4"), false)
+  @annotation.tailrec
+  def loop(response: ApiResponse, builder: ChunkBuilder[String]): Chunk[String] = {
+    val builderWithRecords = builder.addAll(response.records.iterator)
+    if (response.hasMore) {
+      // Simulate fetching next page
+      loop(ApiResponse(List("record3", "record4"), false), builderWithRecords)
+    } else {
+      builderWithRecords.result()
+    }
   }
-
-  builder.result()
+  loop(ApiResponse(List("record1", "record2"), true), ChunkBuilder.make[String](1000))
 }
-
-val allRecords = fetchAllRecords()
 ```
 
 In this scenario, the API may return 100 pages before completion. Using `Chunk.apply` would require buffering all responses in memory first. Using naive concatenation would degrade to O(n²) as the chunk grows. `ChunkBuilder` handles pagination efficiently by maintaining a single O(1) append mechanism throughout.
