@@ -86,10 +86,6 @@ This module provides four implementations tuned for maximum throughput and minim
 
 Understanding the FastFlow algorithm helps explain why `SpscRingBuffer` achieves such high performance.
 
-#### Understanding FastFlow: The Problem and the Solution
-
-**The Problem: Traditional Queues Are Slow Under Concurrency**
-
 Imagine two threads sharing data with a traditional lock-based queue like `ArrayBlockingQueue`. They use a mutex (lock) to coordinate:
 
 1. Producer thread: acquires lock, adds element, releases lock
@@ -98,8 +94,6 @@ Imagine two threads sharing data with a traditional lock-based queue like `Array
 This works, but locks have a cost: when threads contend for the same lock, one thread **blocks** (goes to sleep) while waiting. Waking a thread is expensive (thousands of CPU cycles). Even lock-free queues using `synchronized` or `volatile` reads can cause **cache-coherency traffic**: when one CPU core writes to a variable another core reads, the entire cache line must be invalidated and transferred — a costly operation that slows down both cores.
 
 The fundamental issue: **if the producer has to read what the consumer wrote (or vice versa), their CPU caches constantly fight**. This is called *false sharing* and can reduce throughput by 10x or more on heavily loaded systems.
-
-**The FastFlow Solution: Eliminate Coordination Entirely**
 
 The problem is that *any* read by the producer of the consumer's state (or vice versa) causes cache line bouncing. So FastFlow's radical idea: **neither side should ever read the other's state**.
 
@@ -197,7 +191,18 @@ Ring buffers are instantiated via the companion object's `apply` method:
 
 ### `SpscRingBuffer` — Single Producer, Single Consumer
 
-`SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic. See [Why FastFlow?](#why-fastflow) for an in-depth explanation.
+`SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` (where `lookAheadStep = min(capacity/4, 4096)`) — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
+
+The algorithm ensures that **the producer never reads `consumerIndex` and the consumer never reads `producerIndex`**. Instead, the array slot's null/non-null state is the only coordination mechanism:
+
+- **Producer flow**: Check if `producerIndex < producerLimit`; if so, try to write. Before writing, verify the target slot is still `null` (sequential specification ensures this check is sufficient). Write the element, then increment `producerIndex` with release semantics. If `producerIndex >= producerLimit`, execute slow path: read the slot at `producerIndex + lookAheadStep` to determine remaining capacity and refresh `producerLimit`.
+- **Consumer flow**: Read the slot at `consumerIndex`. If `null`, the buffer is empty. If non-null, take the element, write `null` to clear (preventing memory leaks in reference types), then increment `consumerIndex` with acquire semantics.
+- **Empty detection**: `consumerIndex == producerIndex` (both use mask wrap-around via `& mask`)
+- **Full detection**: Producer knows via `producerLimit` cache; when exhausted, slow path recalculates available slots by examining array contents.
+
+**Concurrency contract**: Exactly one producer thread may call `offer` and exactly one consumer thread may call `take`. Calling from multiple producers or multiple consumers causes data races and undefined behavior. The buffer does not enforce this at runtime — it is the caller's responsibility.
+
+**Why this is fast**: No volatile reads on the fast path (producer reads only its own `producerLimit`, consumer reads only the array). Cache-line padding ensures `producerIndex` and `consumerIndex` reside on separate cache lines, eliminating false sharing. The fast path consists of a local counter check, an array store, and a counter increment — all in registers or private cache.
 
 ```scala
 object SpscRingBuffer {
@@ -219,6 +224,18 @@ val rb = SpscRingBuffer[String](16)  // capacity must be power of 2
 
 `SpmcRingBuffer[A]` allows a single producer thread to offer elements while multiple consumer threads concurrently take elements via compare-and-swap on the consumer index.
 
+The algorithm uses **index-based capacity coordination** with a cached `producerLimit` on the producer side and **CAS-based claiming** on the consumer side:
+
+- **Producer flow** (single thread, no CAS): The producer maintains `producerIndex` and `producerLimit`. On each `offer`, it checks if `producerIndex < producerLimit`. If not, it refreshes `producerLimit` by reading the volatile `consumerIndex` and adding `capacity - 1` (or equivalently, computing how many slots are currently free). This cached limit avoids reading `consumerIndex` on every offer. When space is available, the producer writes the element to `buffer((producerIndex + 1) & mask)` using release semantics, then increments `producerIndex`. The producer never uses CAS and never clears slots after consumers take.
+- **Consumer flow** (multiple threads, CAS required): Each consumer first reads the current `consumerIndex` (volatile). It then computes the offset and reads the element *before* attempting CAS. The consumer then CAS-updates `consumerIndex` from the value it read to `readIndex + 1`. If CAS succeeds, the consumer has claimed that element and may return it. If CAS fails, another consumer won the race; the consumer refreshes `consumerIndex` and retries. Importantly, the consumer does **not** clear the slot to `null` — the producer will overwrite it once a future `producerLimit` refresh shows the slot is no longer in use (because `consumerIndex` has advanced).
+- **Validity invariant**: An element is considered present in the buffer if and only if its position `i` (relative to the ring) satisfies `(i - consumerIndex) mod capacity < (producerIndex - consumerIndex) mod capacity`. In practice, the producer only needs to ensure `producerIndex - consumerIndex < capacity` before writing; the consumer relies on the CAS to ensure exclusive access to a slot whose index falls in that range.
+- **Empty detection**: A consumer may find `consumerIndex == producerIndex` at the moment it reads `consumerIndex`, meaning no elements are available. However, because multiple consumers race, one may succeed while another fails — each CAS attempt independently validates whether an element exists at the claimed position.
+- **Memory ordering**: Producer uses release semantics when writing elements; consumers use acquire semantics when reading elements to establish a happens-before relationship upon CAS success.
+
+**Concurrency contract**: Exactly one producer thread may call `offer`. Any number of consumer threads may call `take` concurrently. Using multiple producers causes data races. The buffer does not enforce these contracts at runtime.
+
+**Key optimization**: The producer's cached `producerLimit` reduces the frequency of volatile `consumerIndex` reads from every offer to approximately every `capacity` offers, significantly lowering cache-coherency traffic. Consumer CAS contention is handled by retry loops; each failed CAS simply means another consumer consumed the element.
+
 ```scala
 object SpmcRingBuffer {
   def apply[A <: AnyRef](capacity: Int): SpmcRingBuffer[A]
@@ -237,7 +254,19 @@ val rb = SpmcRingBuffer[java.lang.Integer](64)
 
 ### `MpscRingBuffer` — Multiple Producers, Single Consumer
 
-`MpscRingBuffer[A]` allows multiple producer threads to offer elements concurrently via compare-and-swap on the producer index, while a single consumer thread takes elements efficiently.
+`MpscRingBuffer[A]` allows multiple producer threads to offer elements concurrently via compare-and-swap on the producer index, while a single consumer thread takes elements efficiently. This is a hybrid design combining multi-producer CAS coordination with FastFlow-style consumer semantics.
+
+The algorithm (based on JCTools `MpscArrayQueue`) works as follows:
+
+- **Producer flow** (multiple threads, CAS required): Multiple producers compete using a CAS loop on `producerIndex`. Each producer reads the current `producerIndex`, computes the prospective write offset, checks if the slot is `null` (sequential spec guarantee), then CAS-updates `producerIndex` from the read value to `readValue + 1`. If CAS succeeds, the producer owns that slot and writes the element with release semantics. If CAS fails, another producer won the race; the failed producer retries with the new `producerIndex`. Producers maintain a cached `producerLimit` (derived from `consumerIndex` on slow path) to avoid reading the volatile `consumerIndex` on every offer. The limit starts at `capacity` (constructor) and is refreshed when exhausted.
+- **Consumer flow** (single thread, no CAS): The consumer reads the slot at `consumerIndex` directly. If the slot is `null`, the buffer is empty. If non-null, the consumer takes the element, writes `null` to clear the slot (preventing memory leaks), and increments `consumerIndex`. Critically, **the consumer never reads `producerIndex`**. Instead, it relies on the slot's null/non-null state as the coordination signal — this is the FastFlow pattern. However, because producers may claim a slot via CAS but not yet write the element, a `null` result from `take` can mean either empty or producer mid-write (the so-called "relaxed poll" semantics).
+- **Mid-write scenario**: Consider two producers: Producer A CAS-claims slot N but hasn't written yet; Producer B later CAS-claims slot N+1 and writes; Consumer reads slot N and sees `null`. The consumer returns `null` even though slots N+1 and later may contain elements. This is a deliberate trade-off: the consumer cannot distinguish between truly empty and mid-write without reading `producerIndex`, which would break the FastFlow guarantee. Applications that cannot tolerate this should use `SpscRingBuffer` (single producer) or `MpmcRingBuffer` (fully coordinated).
+- **Empty detection**: The consumer can only know for certain that the buffer is empty when it reads `consumerIndex` and finds that `consumerIndex == producerIndex` (computed via slow path if needed). However, `take` does not perform this check; it simply returns `null` if the slot read is `null`, which may occur mid-write even when later slots contain elements.
+- **Memory ordering**: Producers use release semantics when writing elements; the consumer uses acquire semantics when reading. The cached `producerLimit` is deliberately racy (may be stale) but this is benign: it only causes the producer to unnecessarily enter the slow path, not incorrect behavior.
+
+**Concurrency contract**: Any number of producer threads may call `offer` concurrently. Exactly one consumer thread may call `take`. Using multiple consumers causes data races. The buffer does not enforce these contracts at runtime.
+
+**Key optimization**: The single consumer side is extremely fast — just a slot read and a counter increment, with no CAS, no locking, and no reads of `producerIndex`. The producers bear the coordination cost among themselves, isolating the consumer from contention. This design shines when there are many producer threads (e.g., aggregating events from multiple sources) and one dedicated consumer (e.g., a batched writer or processor).
 
 ```scala
 object MpscRingBuffer {
@@ -257,7 +286,26 @@ val rb = MpscRingBuffer[java.lang.Long](32)
 
 ### `MpmcRingBuffer` — Multiple Producers, Multiple Consumers
 
-`MpmcRingBuffer[A]` is the fully general-purpose implementation supporting any number of producers and consumers. It uses the Vyukov/Dmitry algorithm with a parallel sequence buffer to coordinate access safely.
+`MpmcRingBuffer[A]` is the fully general-purpose implementation supporting any number of producers and consumers. It uses the **Vyukov/Dmitry bounded MPMC queue algorithm** (also known as the sequence buffer algorithm) to coordinate access safely without locks. This is the only implementation that handles concurrent access on both producer and consumer sides.
+
+The algorithm maintains two indices (`producerIndex`, `consumerIndex`) and a `sequenceBuffer: Array[Long]` parallel to the data `buffer`. Each slot's sequence stamp encodes its state:
+
+- **Producer flow** (multiple threads, CAS required): A producer reads the current `producerIndex` (volatile) and computes the slot offset `(producerIndex & mask)`. It then reads `sequenceBuffer(offset)` and checks whether `seq == producerIndex`. If so, the slot is available. The producer then CAS-updates `producerIndex` from the read value to `readValue + 1`. If CAS succeeds, the producer owns that slot, writes the element to `buffer(offset)` with release semantics, and updates `sequenceBuffer(offset) = producerIndex + 1` (marking the slot as filled). If CAS fails, another producer won the race; retry with the new `producerIndex`.
+- **Consumer flow** (multiple threads, CAS required): A consumer reads the current `consumerIndex` (volatile) and computes the offset `(consumerIndex & mask)`. It reads `sequenceBuffer(offset)` and checks whether `seq == consumerIndex + 1`. If so, the element is ready. The consumer then reads the element from `buffer(offset)` with acquire semantics, CAS-updates `consumerIndex` from the read value to `readValue + 1`, and finally writes `null` to `buffer(offset)` to clear (preventing memory leaks). If CAS fails, another consumer won the race; retry. After successful CAS, the consumer also updates `sequenceBuffer(offset) = consumerIndex + capacity` (signaling to producers that this slot is now available for the next cycle).
+- **Sequence buffer semantics**: The `sequenceBuffer` stamps act as version counters:
+  - Initial state: `sequenceBuffer(i) == i` (available for producer to claim)
+  - After producer fills slot: `sequenceBuffer(offset) == producerIndex + 1`
+  - After consumer empties slot: `sequenceBuffer(offset) == consumerIndex + capacity`
+  - The capacity offset prevents ABA issues across multiple wrap-around cycles.
+- **Empty detection**: A consumer may find `sequenceBuffer(offset) != consumerIndex + 1`, meaning no element is ready. This typically occurs when `consumerIndex == producerIndex` (or the consumer is ahead of the producer due to concurrent advancement). The consumer returns `null` or retries depending on the exact API contract. (The `take` method internally handles retries or returns `null` if empty.)
+- **Full detection**: A producer may find `sequenceBuffer(offset) != producerIndex`, meaning the slot is not available for claim (consumer hasn't yet processed it enough). The producer returns `false` from `offer` or retries, depending on the variant.
+- **Memory ordering**: Both sides use VarHandle acquire/release semantics. The sequence buffer operations establish a total order across all operations, ensuring linearizability.
+
+**Concurrency contract**: Any number of producer threads may call `offer` concurrently. Any number of consumer threads may call `take` concurrently. The algorithm provides full thread safety without external synchronization.
+
+**Why this algorithm**: The Vyukov/Dmitry sequence buffer elegantly solves the MPMC problem without requiring per-slot CAS. Only the indices are CASed, reducing contention overhead. The sequence stamps in the buffer prevent ABA issues and allow producers and consumers to operate on different slots without interfering. This makes `MpmcRingBuffer` the most versatile but also slightly slower than the specialized single-side variants due to CAS on both sides.
+
+**Capacity constraint**: The algorithm requires `capacity >= 2` because the sequence stamp encoding (`consumerIndex + capacity`) needs distinct values from producer stamps to avoid ambiguity. A capacity of 1 would not permit distinguishing full from empty reliably.
 
 ```scala
 object MpmcRingBuffer {
