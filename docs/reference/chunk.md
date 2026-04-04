@@ -1913,8 +1913,6 @@ chunk.zipWithIndexFrom(10)
 
 Chunks can be empty, and these operations help you handle that case gracefully. Rather than throwing exceptions or returning null, these methods provide type-safe fallbacks and alternatives when working with potentially empty chunks:
 
-#### `Chunk#nonEmptyOrElse` — Non-Empty Check with Alternative
-
 Return the chunk if non-empty, otherwise return an alternative:
 
 ```scala
