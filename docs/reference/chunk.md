@@ -1674,29 +1674,6 @@ val chunk = Chunk(1, 2, 3)
 chunk.toVector
 ```
 
-#### `Chunk#toCons` — To Scala `::` List
-
-Convert to a Scala `::` (cons list):
-
-```scala
-trait Chunk[+A] {
-  def toCons: ::[A]
-}
-```
-
-For traditional head-tail pattern matching:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3)
-```
-
-```scala mdoc
-val cons = chunk.toCons
-cons.head
-cons.tail
-```
 
 ### Specialized Accessors for Primitive Types
 
