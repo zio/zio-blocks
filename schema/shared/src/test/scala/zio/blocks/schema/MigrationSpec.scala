@@ -22,6 +22,11 @@ import zio.test._
 
 object MigrationSpec extends ZIOSpecDefault {
 
+  implicit lazy val dynamicMigrationSchema: Schema[DynamicMigration] = Schema.derived
+  implicit lazy val migrationActionSchema: Schema[MigrationAction]   = Schema.derived
+  implicit lazy val migrationErrorSchema: Schema[MigrationError]     = Schema.derived
+  implicit lazy val dynamicTransformSchema: Schema[DynamicTransform] = Schema.derived
+
   def spec = suite("Migration")(
     suite("typed Migration[A, B]")(
       test("identity migration returns input unchanged") {

@@ -27,7 +27,7 @@ sealed trait MigrationError extends Product with Serializable {
   def message: String
 }
 
-object MigrationError extends MigrationSchemaInstances {
+object MigrationError {
 
   final case class NotFound(
     path: String,
@@ -216,10 +216,4 @@ object MigrationError extends MigrationSchemaInstances {
 
   def fromSchemaError(schemaError: SchemaError): MigrationError =
     TransformFailed("", schemaError.message)
-
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // Schema Instance
-  // ═══════════════════════════════════════════════════════════════════════════════
-
-  implicit lazy val schema: Schema[MigrationError] = migrationErrorSchema
 }

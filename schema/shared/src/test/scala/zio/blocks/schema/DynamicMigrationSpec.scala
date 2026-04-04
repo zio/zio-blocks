@@ -22,6 +22,13 @@ import zio.test._
 
 object DynamicMigrationSpec extends ZIOSpecDefault {
 
+  // Schema instances — derived here because Schema.derived cannot be called
+  // from the same compilation unit that defines the macro.
+  implicit val dynamicMigrationSchema: Schema[DynamicMigration] = Schema.derived
+  implicit val migrationActionSchema: Schema[MigrationAction]   = Schema.derived
+  implicit val migrationErrorSchema: Schema[MigrationError]     = Schema.derived
+  implicit val dynamicTransformSchema: Schema[DynamicTransform] = Schema.derived
+
   def spec = suite("DynamicMigration")(
     suite("identity")(
       test("empty migration returns input unchanged") {

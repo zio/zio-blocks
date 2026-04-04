@@ -36,7 +36,7 @@ sealed trait MigrationAction extends Product with Serializable {
   def reverse: MigrationAction
 }
 
-object MigrationAction extends MigrationSchemaInstances {
+object MigrationAction {
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // Record Actions
@@ -230,10 +230,4 @@ object MigrationAction extends MigrationSchemaInstances {
       case Some(DynamicOptic.Node.Field(name)) => name
       case _                                   => ""
     }
-
-  // ═══════════════════════════════════════════════════════════════════════════════
-  // Schema Instance
-  // ═══════════════════════════════════════════════════════════════════════════════
-
-  implicit lazy val schema: Schema[MigrationAction] = migrationActionSchema
 }
