@@ -169,11 +169,11 @@ This works, but locks have a cost: when threads contend for the same lock, one t
 
 The fundamental issue: **if the producer has to read what the consumer wrote (or vice versa), their CPU caches constantly fight**. This is called *false sharing* and can reduce throughput by 10x or more on heavily loaded systems.
 
-**The FastFlow Solution: Let the Data Itself Coordinate**
+**The FastFlow Solution: Eliminate Coordination Entirely**
 
-FastFlow (originally developed for the C++ FastFlow framework and popularized in Java by JCTools and the LMAX Disruptor) eliminates the back-and-forth reading between producer and consumer. Here's the key insight:
+The problem is that *any* read by the producer of the consumer's state (or vice versa) causes cache line bouncing. So FastFlow's radical idea: **neither side should ever read the other's state**.
 
-Instead of the producer asking "is there room?" by reading the consumer's index, the producer simply **writes data into slots** and marks them non-null. The consumer independently **reads slots** and takes any non-null values. The array slot's null/non-null status is the only coordination needed — a *happens-before* relationship written once by the producer, read once by the consumer.
+Instead, the producer simply **writes data into slots** and marks them non-null. The consumer independently **reads slots** and takes any non-null values. The array slot's null/non-null status itself is the only coordination needed — a *happens-before* relationship written once by the producer, read once by the consumer. No locks, no atomic operations on the fast path, no reading the other side's counters.
 
 The **note-passing analogy**:
 - You (producer) have a row of empty desks between you and your friend (consumer)
@@ -183,7 +183,9 @@ The **note-passing analogy**:
 - **Your friend never looks at your side** — they just pick up notes they see
 - No shouting "are you ready?", no waiting, no lock contention
 
-The **look-ahead cache** is a performance optimization: the producer maintains a local cached limit (`producerLimit`) so they don't have to check the consumer's state on every offer. It's like glancing ahead at the next N desks to see if they're empty, without actually placing a note yet. This keeps the fast path (the common case) extremely fast — just a couple of array writes and a counter increment.
+**This is how FastFlow solves the cache-coherency problem**: since producer and consumer never read each other's counters, there's no cache line bouncing between CPU cores. All coordination happens through the slots themselves, which are written once and read once.
+
+The **look-ahead cache** is a further optimization: the producer maintains a local cached limit (`producerLimit`) so they don't have to check every slot individually. It's like glancing ahead at the next N desks to see if they're empty, without actually bending over to look. This keeps the fast path extremely fast — just a local counter check and an array write.
 
 **Why FastFlow is fast**:
 - **No locks** — no thread ever blocks another
