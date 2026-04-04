@@ -197,7 +197,7 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 
 **Trade-off:** Consumer CAS introduces overhead under contention, but the producer remains extremely fast (no synchronization).
 
-### `MpscRingBuffer`: JCTools MpscArrayQueue (Hybrid FastFlow)
+### `MpscRingBuffer`: Hybrid FastFlow
 
 `MpscRingBuffer` handles multiple producers with a single consumer, based on the **JCTools `MpscArrayQueue`** design. It's a hybrid: producers use CAS among themselves, while the consumer remains FastFlow-style.
 
@@ -211,18 +211,75 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 
 ### `MpmcRingBuffer`: Vyukov/Dmitry Sequence Buffer
 
-`MpmcRingBuffer` supports arbitrary multi-producer/multi-consumer concurrency using the **Vyukov/Dmitry bounded MPMC queue algorithm** with a parallel sequence buffer. This is the most complex algorithm, requiring full coordination on both sides.
+`MpmcRingBuffer` handles the hardest case: **many producers and many consumers** all accessing the same buffer at once. It uses the **Vyukov/Dmitry algorithm**, which is the standard lock-free MPMC queue design.
 
-**How it works:**
+The challenge: when multiple producers might try to write to the same slot, and multiple consumers might try to read the same slot, we need a fair way to say "this slot is mine" without using locks.
 
-- The buffer maintains a `sequenceBuffer: Array[Long]` alongside the data `buffer`. Each slot has a sequence stamp that encodes its state:
-  - Producer view: slot is available if `sequenceBuffer[offset] == producerIndex`
-  - Consumer view: slot is ready if `sequenceBuffer[offset] == consumerIndex + 1`
-- The **producer** CAS-updates `producerIndex` to claim a sequence number, checks the stamp, writes the element, then updates the stamp to `producerIndex + 1`.
-- The **consumer** CAS-updates `consumerIndex` to claim, checks stamp, reads element, clears the slot (writes `null`), then updates stamp to `consumerIndex + capacity` (wrapping semantics).
-- The sequence buffer eliminates ABA issues and provides a linearizable ordering.
+**The trick: Give each slot a "ticket number" that changes in a predictable cycle.**
 
-**Requirements:** Capacity must be ≥ 2 to ensure distinct stamp values can distinguish states. Both sides clear slots, unlike the other variants where one side doesn't clear.
+Alongside the data array, there's a `sequenceBuffer` where each slot stores a number (the "stamp"). This stamp acts like a state machine:
+
+- Empty slot: stamp = `i` (the slot's index)
+- Filled slot: stamp = `i + 1`
+- Consumed slot: stamp = `i + capacity`
+- Then it repeats...
+
+**How a producer fills a slot:**
+
+1. Claim a ticket by atomically incrementing `producerIndex` (this is your "turn")
+2. Find which slot this ticket corresponds to: `slot = ticket % capacity`
+3. Check if the slot's stamp equals the ticket you just claimed
+   - If yes → you own this slot, safe to write
+   - If no → someone else claimed it first, try again
+4. Write your element to the slot
+5. Update the stamp to `ticket + 1` (marks "filled, waiting for consumer")
+
+**How a consumer empties a slot:**
+
+1. Claim a ticket by atomically incrementing `consumerIndex`
+2. Find which slot to read: `slot = ticket % capacity`
+3. Check if the slot's stamp equals `ticket + 1`
+   - If yes → there's data waiting for you
+   - If no → either empty or someone else is consuming, try again
+4. Read the element and clear the slot (write `null`)
+5. Update the stamp to `ticket + capacity` (marks "empty, available when producer comes back around")
+
+**Why `+ capacity`?**
+
+Think of the sequence numbers as having two "phases":
+- Phase 0: slots with stamps 0, 1, 2, ... `capacity-1` (initial or after full cycle)
+- Phase 1: slots with stamps `capacity+0`, `capacity+1`, ... `2*capacity-1` (after one consume)
+- Phase 2: slots with stamps `2*capacity+0`, ... (after two consumes)
+
+Using `+ capacity` instead of `+ 1` creates a gap between "just filled" and "ready to fill again." When the producer cycles back after `capacity` more operations, it will see exactly the stamp it expects.
+
+**Example with capacity = 4, tracking slot 0:**
+
+```
+Start:     sequence[0] = 0
+
+Producer fills slot 0 (pIdx=0):
+  - claims ticket 0
+  - checks sequence[0] == 0 ✓
+  - writes element
+  - sets sequence[0] = 1
+
+Consumer consumes slot 0 (cIdx=0):
+  - claims ticket 0
+  - checks sequence[0] == 1 ✓
+  - reads element
+  - sets sequence[0] = 0 + 4 = 4
+
+Producer comes back to slot 0 (pIdx=4):
+  - claims ticket 4
+  - checks sequence[0] == 4 ✓
+  - writes new element
+  - sets sequence[0] = 5
+```
+
+This pattern ensures that each slot is touched by exactly one producer and one consumer per cycle, without locks or data races. The sequence numbers prevent ABA problems and work correctly even as the ring wraps repeatedly.
+
+**Trade-offs:** This is the most flexible (any number of producers/consumers) but also the most expensive due to CAS on both sides and the sequence buffer overhead. Use it only when you truly need MPMC.
 
 ---
 
