@@ -1983,6 +1983,8 @@ val result = nonEmpty1 ++ chunk2
 
 `ChunkMap[K, V]` is an order-preserving immutable map backed by parallel chunks. It maintains insertion order during iteration:
 
+The type defines the following members:
+
 ```scala
 object ChunkMap {
   def empty[K, V]: ChunkMap[K, V]
@@ -1990,16 +1992,19 @@ object ChunkMap {
   def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V]
   def fromChunks[K, V](keys: Chunk[K], values: Chunk[V]): ChunkMap[K, V]
   def newBuilder[K, V]: Builder[(K, V), ChunkMap[K, V]]
+  class Indexed[K, V](val underlying: ChunkMap[K, V]) { ... }
 }
 ```
 
-Basic usage:
+We can create a simple map using the `apply` method:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
 ```
+
+Then we can perform basic operations like retrieving a value by key, updating a key with a new value, or removing a key:
 
 ```scala
 map.get("b")
@@ -2015,7 +2020,9 @@ map.removed("b")
 
 ### Creating ChunkMap
 
-`ChunkMap` provides several factory methods for construction:
+`ChunkMap` provides several factory methods for construction from different sources:
+
+The companion object defines these construction methods:
 
 ```scala
 object ChunkMap {
@@ -2026,7 +2033,7 @@ object ChunkMap {
 }
 ```
 
-Creating an empty map:
+Create an empty map for a specific key and value type:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.ChunkMap
@@ -2034,19 +2041,19 @@ import zio.blocks.chunk.ChunkMap
 val empty = ChunkMap.empty[String, Int]
 ```
 
-Creating a map from key-value pairs:
+Construct a map directly from key-value pairs:
 
 ```scala
 val fromPairs = ChunkMap("x" -> 1, "y" -> 2)
 ```
 
-Creating from a `Chunk` of pairs:
+Build a map from a `Chunk` containing tuple pairs:
 
 ```scala mdoc
 val fromChunk = ChunkMap.fromChunk(Chunk(("a", 1), ("b", 2)))
 ```
 
-Creating from parallel chunks of keys and values:
+Construct a map from parallel chunks of keys and values:
 
 ```scala mdoc
 val keys = Chunk("a", "b")
@@ -2056,7 +2063,9 @@ val fromChunks = ChunkMap.fromChunks(keys, values)
 
 ### Indexed Access
 
-`ChunkMap` provides efficient O(1) positional access:
+Use positional access to retrieve entries by their insertion order index:
+
+The `ChunkMap` class exposes these methods:
 
 ```scala
 trait ChunkMap[K, V] {
@@ -2068,23 +2077,47 @@ trait ChunkMap[K, V] {
 }
 ```
 
-Example:
+Create a map and experiment with positional access:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("z" -> 1, "a" -> 2, "m" -> 3)
+```
 
+Retrieve the complete key-value pair at a given index:
+
+```scala
 map.atIndex(0)
+```
+
+Retrieve just the key at a specific position:
+
+```scala
 map.keyAtIndex(1)
+```
+
+Retrieve just the value at a specific position:
+
+```scala
 map.valueAtIndex(2)
+```
+
+Access the underlying chunks of keys and values:
+
+```scala
 val keys: Chunk[String] = map.keysChunk
+```
+
+```scala
 val values: Chunk[Int] = map.valuesChunk
 ```
 
 ### Optimized Lookup
 
-For frequent key-based lookups, convert to an indexed version with O(1) key access:
+The standard `ChunkMap` uses O(n) linear search for key lookups. For frequent lookups, convert to an indexed version that provides O(1) key access:
+
+The indexed wrapper type is nested inside `ChunkMap`:
 
 ```scala
 trait ChunkMap[K, V] {
@@ -2092,7 +2125,7 @@ trait ChunkMap[K, V] {
 }
 ```
 
-The indexed wrapper uses an internal hash map for constant-time lookups at the cost of extra memory:
+Construction of the indexed wrapper builds an internal hash map for constant-time lookups, using extra memory proportional to the number of entries:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.ChunkMap
