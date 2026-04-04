@@ -2014,14 +2014,14 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 ### Chunk vs `Array`
 
-| Feature | Chunk | Array |
-|---------|-------|-------|
-| **Immutability** | Immutable, purely functional | Mutable, imperative |
-| **Concatenation** | O(log n) via balanced trees | O(n) requires copying |
-| **Random Access** | O(1) typical, O(log n) worst | O(1) always |
-| **Safe API** | Pure, no side effects | Low-level, requires careful handling |
-| **Boxing** | Avoids boxing primitives | Supports native primitives |
-| **Lazy Ops** | Yes (concatenation deferred) | No (eager) |
+| Feature           | Chunk                        | Array                                |
+|-------------------|------------------------------|--------------------------------------|
+| **Immutability**  | Immutable, purely functional | Mutable, imperative                  |
+| **Concatenation** | O(log n) via balanced trees  | O(n) requires copying                |
+| **Random Access** | O(1) typical, O(log n) worst | O(1) always                          |
+| **Safe API**      | Pure, no side effects        | Low-level, requires careful handling |
+| **Boxing**        | Avoids boxing primitives     | Supports native primitives           |
+| **Lazy Ops**      | Yes (concatenation deferred) | No (eager)                           |
 
 **Use Chunk when**: Building sequences functionally, using in pure code, performing many concatenations, or sharing immutable data.
 
@@ -2029,13 +2029,13 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 ### Chunk vs `List`
 
-| Feature | Chunk | List |
-|---------|-------|-------|
-| **Access** | O(1) random access | O(n) linear search |
-| **Prepend** | O(log n) | O(1) |
-| **Memory** | Compact arrays | Linked nodes |
-| **Pattern Match** | Not directly | Cons pattern matching |
-| **Interop** | Scala collections compatible | Standard Scala type |
+| Feature           | Chunk                        | List                  |
+|-------------------|------------------------------|-----------------------|
+| **Access**        | O(1) random access           | O(n) linear search    |
+| **Prepend**       | O(log n)                     | O(1)                  |
+| **Memory**        | Compact arrays               | Linked nodes          |
+| **Pattern Match** | Not directly                 | Cons pattern matching |
+| **Interop**       | Scala collections compatible | Standard Scala type   |
 
 **Use Chunk when**: Frequent random access or concatenation is important.
 
@@ -2043,13 +2043,13 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 ### Chunk vs `Vector`
 
-| Feature | Chunk | Vector |
-|---------|-------|-------|
-| **Concatenation** | O(log n) with rebalancing | O(log₃₂ n) trie structure |
-| **Mutation** | Immutable, purely functional | Effectively immutable |
-| **Memory** | Lower overhead for many ops | Higher memory footprint |
-| **Specialization** | Primitive specialization | None, uses boxing |
-| **Random Access** | O(1) typical, O(log n) worst | O(log₃₂ n) |
+| Feature            | Chunk                        | Vector                    |
+|--------------------|------------------------------|---------------------------|
+| **Concatenation**  | O(log n) with rebalancing    | O(log₃₂ n) trie structure |
+| **Mutation**       | Immutable, purely functional | Effectively immutable     |
+| **Memory**         | Lower overhead for many ops  | Higher memory footprint   |
+| **Specialization** | Primitive specialization     | None, uses boxing         |
+| **Random Access**  | O(1) typical, O(log n) worst | O(log₃₂ n)                |
 
 **Use Chunk when**: Primitive types matter or concatenation performance is critical.
 
