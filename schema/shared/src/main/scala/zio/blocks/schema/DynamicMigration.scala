@@ -395,7 +395,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) { self =>
     }
 }
 
-object DynamicMigration {
+object DynamicMigration extends MigrationSchemaInstances {
 
   /** The empty migration that returns the input unchanged. */
   val empty: DynamicMigration = DynamicMigration(Chunk.empty)
@@ -498,5 +498,5 @@ object DynamicMigration {
   // Schema Instance
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit lazy val schema: Schema[DynamicMigration] = Schema.derived[DynamicMigration]
+  implicit lazy val schema: Schema[DynamicMigration] = dynamicMigrationSchema
 }

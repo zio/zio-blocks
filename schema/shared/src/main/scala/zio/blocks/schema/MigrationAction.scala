@@ -36,7 +36,7 @@ sealed trait MigrationAction extends Product with Serializable {
   def reverse: MigrationAction
 }
 
-object MigrationAction {
+object MigrationAction extends MigrationSchemaInstances {
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // Record Actions
@@ -235,5 +235,5 @@ object MigrationAction {
   // Schema Instance
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit lazy val schema: Schema[MigrationAction] = Schema.derived[MigrationAction]
+  implicit lazy val schema: Schema[MigrationAction] = migrationActionSchema
 }

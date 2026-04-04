@@ -38,7 +38,7 @@ sealed trait DynamicTransform extends Product with Serializable {
   def reverse: DynamicTransform
 }
 
-object DynamicTransform {
+object DynamicTransform extends MigrationSchemaInstances {
 
   /**
    * A transformation that always returns a constant value.
@@ -491,5 +491,5 @@ object DynamicTransform {
   // Schema Instance
   // ═══════════════════════════════════════════════════════════════════════════════
 
-  implicit lazy val schema: Schema[DynamicTransform] = Schema.derived[DynamicTransform]
+  implicit lazy val schema: Schema[DynamicTransform] = dynamicTransformSchema
 }
