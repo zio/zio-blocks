@@ -332,6 +332,86 @@ val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
 }
 ```
 
+### `Chunk.from` — Generic From Iterable
+
+Create a chunk from any Scala `Iterable`:
+
+```scala
+object Chunk {
+  def from[A](it: Iterable[A]): Chunk[A]
+}
+```
+
+`from` is an alias for `fromIterable`, providing a concise name:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val list = List(1, 2, 3)
+val chunk = Chunk.from(list)
+```
+
+### `Chunk.fromJavaIterable` — From Java Iterable
+
+Create a chunk from a Java `Iterable`:
+
+```scala
+object Chunk {
+  def fromJavaIterable[A](iterable: java.lang.Iterable[A]): Chunk[A]
+}
+```
+
+Interoperate with Java APIs that produce iterables:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import java.util.Arrays
+
+val javaList = Arrays.asList("a", "b", "c")
+val chunk = Chunk.fromJavaIterable(javaList)
+```
+
+### `Chunk.fromJavaIterator` — From Java Iterator
+
+Consume a Java `Iterator` and collect its elements into a chunk:
+
+```scala
+object Chunk {
+  def fromJavaIterator[A](iterator: java.util.Iterator[A]): Chunk[A]
+}
+```
+
+Building a chunk from a Java iterator:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import java.util.Arrays
+
+val javaIter = Arrays.asList(1, 2, 3).iterator()
+val chunk = Chunk.fromJavaIterator(javaIter)
+```
+
+### `Chunk.newBuilder` — Get a Builder
+
+Obtain a fresh `ChunkBuilder` for incremental construction:
+
+```scala
+object Chunk {
+  def newBuilder[A]: ChunkBuilder[A]
+}
+```
+
+A builder integrates with Scala's collection factory pattern:
+
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+
+val builder = Chunk.newBuilder[Int]
+builder.addOne(1)
+builder.addOne(2)
+val result = builder.result()
+```
+
 ### Using ChunkBuilder for Incremental Construction
 
 `ChunkBuilder[A]` is a mutable builder that accumulates elements and returns a `Chunk[A]`. Use it when building chunks from elements that arrive incrementally—over time, from streaming sources, or when the total size is unknown in advance.
@@ -463,6 +543,86 @@ chunk.length
 chunk.size
 ```
 
+#### `Chunk#headOption` and `Chunk#lastOption` — Safe First and Last
+
+Like `head` and `last`, but return `Option` to safely handle empty chunks:
+
+```scala
+trait Chunk[+A] {
+  def headOption: Option[A]
+  def lastOption: Option[A]
+}
+```
+
+Accessing the first or last element safely yields an `Option`:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk("a", "b", "c")
+val empty = Chunk.empty[Int]
+```
+
+`headOption` and `lastOption` provide safe access:
+
+```scala mdoc
+chunk.headOption
+chunk.lastOption
+empty.headOption
+empty.lastOption
+```
+
+#### `Chunk#indexWhere` — Find Index of Matching Element
+
+Find the index of the first element that matches a predicate:
+
+```scala
+trait Chunk[+A] {
+  def indexWhere(f: A => Boolean): Int
+}
+```
+
+Searching for a matching element returns its index or -1 if not found:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(10, 20, 30, 40)
+```
+
+Finding the index of the first even number:
+
+```scala mdoc
+numbers.indexWhere(_ % 25 == 0)
+numbers.indexWhere(_ % 7 == 0)
+```
+
+#### `Chunk#tail` and `Chunk#init` — Rest and Initial Segments
+
+`tail` returns all elements except the first, `init` returns all elements except the last:
+
+```scala
+trait Chunk[+A] {
+  def tail: Chunk[A]
+  def init: Chunk[A]
+}
+```
+
+Taking the rest of the chunk after the first element, or all but the last:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4)
+```
+
+`tail` drops the first element, `init` drops the last:
+
+```scala mdoc
+chunk.tail
+chunk.init
+```
+
 ### Transformations
 
 Chunk supports functional transformations that let you shape your data in powerful ways. Map applies a function to every element, flatMap chains operations and flattens results, filter keeps only elements that matter, and collect extracts values from nested structures:
@@ -571,6 +731,201 @@ val strings = Chunk("zebra", "apple", "banana")
 val sortedStrings = strings.sorted
 ```
 
+#### `Chunk#sortBy` — Sort by Key
+
+Sort elements according to a key function:
+
+```scala
+trait Chunk[+A] {
+  def sortBy[B](f: A => B)(implicit ord: Ordering[B]): Chunk[A]
+}
+```
+
+Sorting by a key produces a new ordered chunk:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+case class Person(name: String, age: Int)
+val people = Chunk(Person("Alice", 32), Person("Bob", 25), Person("Carol", 40))
+```
+
+Sorting by age orders the people from youngest to oldest:
+
+```scala mdoc
+people.sortBy(_.age)
+```
+
+#### `Chunk#collectFirst` — Collect First Matching Partial Function
+
+Apply a partial function to the first matching element and return the result as an option:
+
+```scala
+trait Chunk[+A] {
+  def collectFirst[B](pf: PartialFunction[A, B]): Option[B]
+}
+```
+
+Collecting the first match returns an optional result:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val values = Chunk(1, "two", 3, "four")
+```
+
+Extract the first string if present:
+
+```scala mdoc
+values.collectFirst { case s: String => s }
+```
+
+#### `Chunk#filterNot` — Keep Non-Matching Elements
+
+Keep only elements that do NOT match a predicate:
+
+```scala
+trait Chunk[+A] {
+  def filterNot(f: A => Boolean): Chunk[A]
+}
+```
+
+Filtering with a negated predicate removes elements that satisfy the condition:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6)
+```
+
+Keep only odd numbers:
+
+```scala mdoc
+numbers.filterNot(_ % 2 == 0)
+```
+
+#### `Chunk#distinct` — Remove All Duplicates
+
+Remove duplicate elements, keeping only one occurrence of each unique value:
+
+```scala
+trait Chunk[+A] {
+  def distinct: Chunk[A]
+}
+```
+
+Distinct eliminates duplicates based on equality:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val withDupes = Chunk(1, 2, 3, 2, 4, 1, 5)
+```
+
+Keeping only unique values:
+
+```scala mdoc
+withDupes.distinct
+```
+
+#### `Chunk#dedupe` — Remove Consecutive Duplicates
+
+Remove only consecutive duplicate elements, preserving the first occurrence in each run:
+
+```scala
+trait Chunk[+A] {
+  def dedupe: Chunk[A]
+}
+```
+
+Deduplication differs from `distinct` by only collapsing adjacent duplicates:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val runs = Chunk(1, 1, 2, 2, 2, 3, 1, 1)
+```
+
+Removing consecutive repeats yields:
+
+```scala mdoc
+runs.dedupe
+```
+
+#### `Chunk#flatten` — Flatten Nested Chunks
+
+Flatten a chunk of chunks into a single chunk:
+
+```scala
+trait Chunk[+A] {
+  def flatten[B](implicit ev: A <:< Chunk[B]): Chunk[B]
+}
+```
+
+Flattening concatenates nested chunks:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val nested = Chunk(Chunk(1, 2), Chunk(3), Chunk(4, 5))
+```
+
+A single flattened chunk results:
+
+```scala mdoc
+nested.flatten
+```
+
+#### `Chunk#mapAccum` — Stateful Map with Accumulator
+
+Map over elements while accumulating state, returning the final state and the transformed chunk:
+
+```scala
+trait Chunk[+A] {
+  def mapAccum[S, B](s0: S)(f: (S, A) => (S, B)): (S, Chunk[B])
+}
+```
+
+Accumulating state during mapping threads an accumulator through:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val nums = Chunk(10, 20, 30)
+```
+
+Starting with sum zero, accumulate running totals:
+
+```scala mdoc
+val (finalSum, result) = nums.mapAccum(0) { (sum, n) => (sum + n, sum + n) }
+finalSum
+result
+```
+
+#### `Chunk#reverse` — Reverse Order
+
+Reverse the order of elements in the chunk:
+
+```scala
+trait Chunk[+A] {
+  def reverse: Chunk[A]
+}
+```
+
+Reversing creates a new chunk with elements in opposite order:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val original = Chunk(1, 2, 3, 4)
+```
+
+Reverse produces:
+
+```scala mdoc
+original.reverse
+```
+
 ### Combining Chunks
 
 When you need to bring multiple chunks together, Chunk provides efficient operations to merge them. Concatenation uses a balanced tree structure for fast repeated joins, you can append or prepend single elements, and zip operations pair elements from parallel sequences:
@@ -660,6 +1015,122 @@ val letters = Chunk("a", "b", "c")
 val zipped = numbers.zip(letters)
 
 val combined = numbers.zipWith(letters)((n, l) => s"$l$n")
+```
+
+#### `Chunk#appended` — Append Element (Method Form)
+
+Append a single element to the end (named method equivalent of `:+`):
+
+```scala
+trait Chunk[+A] {
+  def appended[A1 >: A](a: A1): Chunk[A1]
+}
+```
+
+Appending creates a new chunk:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+val appended = chunk.appended(4)
+```
+
+#### `Chunk#prepended` — Prepend Element (Method Form)
+
+Prepend a single element to the beginning (named method equivalent of `+:`):
+
+```scala
+trait Chunk[+A] {
+  def prepended[A1 >: A](a: A1): Chunk[A1]
+}
+```
+
+Prepending adds an element to the front:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(2, 3, 4)
+val prepended = chunk.prepended(1)
+```
+
+#### `Chunk#zipAll` — Zip with Defaults for Unequal Lengths
+
+Combine two chunks element-wise, using default values when one chunk is shorter:
+
+```scala
+trait Chunk[+A] {
+  def zipAll[B](that: Chunk[B]): Chunk[(Option[A], Option[B])]
+}
+```
+
+Zipping with defaults ensures both sides always have a value:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val left = Chunk(1, 2, 3)
+val right = Chunk("a", "b")
+```
+
+The shorter chunk is padded with `None` values:
+
+```scala mdoc
+left.zipAll(right)
+```
+
+#### `Chunk#zipAllWith` — Zip with Custom Combiner
+
+Zip two chunks element-wise with a custom combiner function that handles missing elements:
+
+```scala
+trait Chunk[+A] {
+  def zipAllWith[B, C](that: Chunk[B])(left: A => C, right: B => C)(both: (A, B) => C): Chunk[C]
+}
+```
+
+Providing separate handlers for left-only, right-only, and both:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val left = Chunk(1, 2, 3)
+val right = Chunk("a", "b")
+```
+
+Combine with default for missing elements:
+
+```scala mdoc
+left.zipAllWith(right)(
+  a => s"missing:${a}",      // left only
+  b => s"only:${b}",          // right only
+  (a, b) => s"$a:$b"          // both present
+)
+```
+
+#### `Chunk#zipWithIndex` — Zip with Index Starting at Zero
+
+Zip each element with its zero-based index:
+
+```scala
+trait Chunk[+A] {
+  def zipWithIndex: Chunk[(A, Int)]
+}
+```
+
+Attaching indices is useful for positional awareness:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val words = Chunk("alpha", "beta", "gamma")
+```
+
+Zipping with index:
+
+```scala mdoc
+words.zipWithIndex
 ```
 
 ### Slicing and Partitioning
@@ -790,6 +1261,102 @@ val (prefix, rest) = numbers.span(_ < 4)
 val (upTo, remaining) = Chunk(1, 2, 5, 3, 4).splitWhere(_ >= 5)
 ```
 
+#### `Chunk#dropWhile` — Drop While Predicate Holds
+
+Drop elements from the beginning while a predicate is true:
+
+```scala
+trait Chunk[+A] {
+  def dropWhile(f: A => Boolean): Chunk[A]
+}
+```
+
+Dropping while the predicate holds removes leading elements:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6)
+```
+
+Drop initial even numbers:
+
+```scala mdoc
+numbers.dropWhile(_ % 2 == 0)
+```
+
+#### `Chunk#dropUntil` — Drop Until Predicate Fails
+
+Drop elements until the predicate becomes false (i.e., drop while predicate holds, but stopped when condition fails):
+
+```scala
+trait Chunk[+A] {
+  def dropUntil(f: A => Boolean): Chunk[A]
+}
+```
+
+Dropping until the predicate fails keeps the first failing element and the rest:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5)
+```
+
+Drop numbers less than 3:
+
+```scala mdoc
+numbers.dropUntil(_ >= 3)
+```
+
+#### `Chunk#takeWhile` — Take While Predicate Holds
+
+Take elements from the beginning while a predicate is true, stopping at the first failure:
+
+```scala
+trait Chunk[+A] {
+  def takeWhile(f: A => Boolean): Chunk[A]
+}
+```
+
+Taking while the predicate holds collects a prefix:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6)
+```
+
+Take the initial odd numbers:
+
+```scala mdoc
+numbers.takeWhile(_ % 2 != 0)
+```
+
+#### `Chunk#splitAt` — Split at Index
+
+Split the chunk into two chunks at a given index: the first contains elements `[0, until)`, the second contains the remainder.
+
+```scala
+trait Chunk[+A] {
+  def splitAt(n: Int): (Chunk[A], Chunk[A])
+}
+```
+
+Splitting creates two chunks from a single index:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(10, 20, 30, 40, 50)
+```
+
+Splitting at index 3:
+
+```scala mdoc
+chunk.splitAt(3)
+```
+
 ### Querying and Folding
 
 Chunk enables you to ask questions about your data and reduce it to meaningful results. Use fold operations to accumulate values, test predicates to verify conditions hold across elements, and search for specific values that match your criteria:
@@ -893,6 +1460,108 @@ numbers.find(_ > 10)
 words.find(_.startsWith("b"))
 ```
 
+#### `Chunk#corresponds` — Check Parallel Correspondence
+
+Check whether corresponding elements of two chunks satisfy a predicate in lockstep:
+
+```scala
+trait Chunk[+A] {
+  def corresponds[B](that: Chunk[B])(f: (A, B) => Boolean): Boolean
+}
+```
+
+`corresponds` tests pairwise element compatibility:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val a = Chunk(1, 2, 3)
+val b = Chunk(1, 2, 3)
+```
+
+Correspondence holds when all pairs match:
+
+```scala mdoc
+a.corresponds(b)(_ == _)
+```
+
+### Grouping
+
+Chunk provides powerful grouping operations to organize elements by keys or into fixed-size partitions. Use `groupBy` to categorize elements into maps of chunks, `groupMap` to combine grouping and mapping in a single pass, and `grouped` to split the chunk into chunks of a specified size.
+
+#### `Chunk#groupBy` — Group Elements by Key
+
+Group elements by a key function, producing a map from keys to chunks:
+
+```scala
+trait Chunk[+A] {
+  def groupBy[K](f: A => K): Map[K, Chunk[A]]
+}
+```
+
+Grouping by a key aggregates related elements:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+case class Person(name: String, age: Int)
+val people = Chunk(Person("Alice", 32), Person("Bob", 25), Person("Carol", 32))
+```
+
+Group people by age:
+
+```scala mdoc
+people.groupBy(_.age)
+```
+
+#### `Chunk#groupMap` — Group and Map in One Pass
+
+Group elements by a key and simultaneously transform the values:
+
+```scala
+trait Chunk[+A] {
+  def groupMap[K, V](key: A => K)(f: A => V): Map[K, Chunk[V]]
+}
+```
+
+Grouping and mapping in a single operation can be more efficient than separate steps:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val words = Chunk("apple", "banana", "cherry", "avocado")
+```
+
+Group words by their first letter and also uppercase them:
+
+```scala mdoc
+words.groupMap(_.head)(_.toUpperCase)
+```
+
+#### `Chunk#grouped` — Partition into Fixed-Size Groups
+
+Divide the chunk into groups of a fixed size, returning an iterator over subgroups:
+
+```scala
+trait Chunk[+A] {
+  def grouped(size: Int): Iterator[Chunk[A]]
+}
+```
+
+Fixed-size grouping is useful for batch processing:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6, 7, 8)
+```
+
+Groups of size 3 yield two full groups and a partial:
+
+```scala mdoc
+numbers.grouped(3).toList
+```
+
 ### Conversion
 
 Sometimes you need to move data from Chunk into other Scala collections or represent it as text. These conversion operations make it easy to export your chunk into arrays, lists, sequences, or render it as a string for logging and display:
@@ -980,6 +1649,52 @@ String conversion shows the chunk contents:
 
 ```scala mdoc
 chunk.toString
+```
+
+#### `Chunk#toVector` — To `Vector`
+
+Convert to a `Vector`:
+
+```scala
+trait Chunk[+A] {
+  def toVector: Vector[A]
+}
+```
+
+Conversion to `Vector` produces an efficient indexed sequence:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+```
+
+```scala mdoc
+chunk.toVector
+```
+
+#### `Chunk#toCons` — To Scala `::` List
+
+Convert to a Scala `::` (cons list):
+
+```scala
+trait Chunk[+A] {
+  def toCons: ::[A]
+}
+```
+
+For traditional head-tail pattern matching:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+```
+
+```scala mdoc
+val cons = chunk.toCons
+cons.head
+cons.tail
 ```
 
 ### Specialized Accessors for Primitive Types
@@ -1107,6 +1822,30 @@ import zio.blocks.chunk.Chunk
 
 val longs = Chunk(1L, 2L, 3L)
 val bits = longs.asBitsLong(Chunk.BitChunk.Endianness.LittleEndian)
+```
+
+#### `Chunk#toBinaryString` — Convert Boolean Chunk to Binary String
+
+Convert a chunk of booleans (representing bits) into a binary string representation:
+
+```scala
+trait Chunk[+A] {
+  def toBinaryString(implicit ev: A <:< Boolean): String
+}
+```
+
+This operation yields a string of '0' and '1' characters corresponding to the bit values:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk(true, false, true, false)
+```
+
+The binary string shows the sequence of bits:
+
+```scala mdoc
+bits.toBinaryString
 ```
 
 ### Text Operations
