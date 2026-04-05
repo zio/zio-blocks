@@ -1996,17 +1996,12 @@ object ChunkMap {
 }
 ```
 
-We can create a simple map using the `apply` method:
+We can create a simple map using the `apply` method and then perform basic operations like retrieving a value by key, updating a key with a new value, or removing a key:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, ChunkMap}
 
 val map = ChunkMap("a" -> 1, "b" -> 2, "c" -> 3)
-```
-
-Then we can perform basic operations like retrieving a value by key, updating a key with a new value, or removing a key:
-
-```scala mdoc
 map.get("b")
 map.updated("d", 4)
 map.removed("b")
