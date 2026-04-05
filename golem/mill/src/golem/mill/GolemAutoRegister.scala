@@ -16,10 +16,14 @@ import golem.codegen.pipeline.CodegenPipeline
  * Mill mixin that provides Golem Scala.js agent build wiring.
  *
  * Features (matching sbt GolemPlugin):
- *  - Auto-registration source generation (scans `@agentImplementation` classes)
- *  - `golemPrepare` — writes `agent_guest.wasm` and `scala-js-template.yaml` to `.generated/`
- *  - `golemBuildComponent` — builds the Scala.js bundle for golem-cli to consume
- *  - `scalaJSModuleInitializers` — auto-configured for the generated `RegisterAgents` entrypoint
+ *   - Auto-registration source generation (scans `@agentImplementation`
+ *     classes)
+ *   - `golemPrepare` — writes `agent_guest.wasm` and `scala-js-template.yaml`
+ *     to `.generated/`
+ *   - `golemBuildComponent` — builds the Scala.js bundle for golem-cli to
+ *     consume
+ *   - `scalaJSModuleInitializers` — auto-configured for the generated
+ *     `RegisterAgents` entrypoint
  *
  * External usage (example):
  *
@@ -28,8 +32,8 @@ import golem.codegen.pipeline.CodegenPipeline
  * import golem.mill.GolemAutoRegister
  *
  * object demo extends ScalaJSModule with GolemAutoRegister {
- *   def scalaJSVersion = "1.20.0"
- *   def scalaVersion   = "3.3.7"
+ *   def scalaJSVersion   = "1.20.0"
+ *   def scalaVersion     = "3.3.7"
  *   def golemBasePackage = T(Some("demo"))
  * }
  * ```
@@ -67,20 +71,24 @@ trait GolemAutoRegister extends ScalaJSModule {
 
   // ─── Settings ───────────────────────────────────────────────────────────────
 
-  /** Base package whose `@agentImplementation` classes should be auto-registered. */
+  /**
+   * Base package whose `@agentImplementation` classes should be
+   * auto-registered.
+   */
   def golemBasePackage: T[Option[String]] = T(None)
 
   /**
    * Where the base guest runtime wasm should be written.
    *
-   * Default: searches up from `millSourcePath` for a `golem.yaml` containing an `app:` directive,
-   * then places `agent_guest.wasm` in `.generated/` under that app root. Falls back to
+   * Default: searches up from `millSourcePath` for a `golem.yaml` containing an
+   * `app:` directive, then places `agent_guest.wasm` in `.generated/` under
+   * that app root. Falls back to
    * `millSourcePath / ".generated" / "agent_guest.wasm"`.
    */
   def golemAgentGuestWasmFile: T[os.Path] = T {
     @annotation.tailrec
     def findAppRoot(dir: os.Path): Option[os.Path] = {
-      val manifest = dir / "golem.yaml"
+      val manifest      = dir / "golem.yaml"
       val isAppManifest =
         os.exists(manifest) && os.read(manifest).linesIterator.exists(_.trim.startsWith("app:"))
       if (isAppManifest) Some(dir)
@@ -98,7 +106,10 @@ trait GolemAutoRegister extends ScalaJSModule {
 
   // ─── Tasks ──────────────────────────────────────────────────────────────────
 
-  /** Ensures the base guest runtime wasm exists; writes the embedded resource if missing or out-of-date. */
+  /**
+   * Ensures the base guest runtime wasm exists; writes the embedded resource if
+   * missing or out-of-date.
+   */
   def golemEnsureAgentGuestWasm: T[PathRef] = T {
     val out         = golemAgentGuestWasmFile()
     val bytes       = embeddedAgentGuestWasmBytes()
@@ -115,7 +126,8 @@ trait GolemAutoRegister extends ScalaJSModule {
   }
 
   /**
-   * Prepares the app directory for golem-cli by ensuring agent_guest.wasm exists and is up-to-date.
+   * Prepares the app directory for golem-cli by ensuring agent_guest.wasm
+   * exists and is up-to-date.
    */
   def golemPrepare: T[Unit] = T {
     golemEnsureAgentGuestWasm()
@@ -123,9 +135,11 @@ trait GolemAutoRegister extends ScalaJSModule {
   }
 
   /**
-   * Builds the Scala.js bundle and writes it to the provided output path for golem-cli.
+   * Builds the Scala.js bundle and writes it to the provided output path for
+   * golem-cli.
    *
-   * Called by golem-cli during `golem build` via the command in `scala-js-template.yaml`:
+   * Called by golem-cli during `golem build` via the command in
+   * `scala-js-template.yaml`:
    * {{{
    *   mill <module>.golemBuildComponent <component-name> <output-path>
    * }}}
@@ -165,7 +179,10 @@ trait GolemAutoRegister extends ScalaJSModule {
 
   // ─── Auto-register source generation ────────────────────────────────────────
 
-  /** Generates Scala sources under `T.dest` and returns them as generated sources. */
+  /**
+   * Generates Scala sources under `T.dest` and returns them as generated
+   * sources.
+   */
   def golemGeneratedAutoRegisterSources: T[Seq[PathRef]] = T {
     val basePackageOpt = golemBasePackage()
 
@@ -191,7 +208,7 @@ trait GolemAutoRegister extends ScalaJSModule {
 
       // Auto-register generation
       val autoRegPaths: Seq[os.Path] = pipeline.autoRegister match {
-        case None => Seq.empty
+        case None     => Seq.empty
         case Some(ar) =>
           ar.warnings.foreach(w => T.log.error(s"[golem] $w"))
           if (ar.files.isEmpty) Seq.empty
@@ -227,5 +244,5 @@ trait GolemAutoRegister extends ScalaJSModule {
   }
 
   override def generatedSources: T[Seq[PathRef]] =
-    T { super.generatedSources() ++ golemGeneratedAutoRegisterSources() }
+    T(super.generatedSources() ++ golemGeneratedAutoRegisterSources())
 }

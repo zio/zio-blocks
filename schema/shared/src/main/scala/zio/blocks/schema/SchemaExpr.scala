@@ -63,6 +63,42 @@ sealed trait SchemaExpr[A, +B] { self =>
 }
 
 object SchemaExpr {
+  final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+    def eval(input: S): Either[OpticCheck, Seq[A]] = schema.getDefaultValue match {
+      case Some(v) => Right(Chunk.single(v))
+      case None    =>
+        Left(
+          OpticCheck(
+            ::(
+              OpticCheck.WrappingError(
+                DynamicOptic.root,
+                DynamicOptic.root,
+                SchemaError.message("No default value available for schema", DynamicOptic.root)
+              ),
+              Nil
+            )
+          )
+        )
+    }
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = schema.getDefaultValue match {
+      case Some(v) => Right(Chunk.single(schema.toDynamicValue(v)))
+      case None    =>
+        Left(
+          OpticCheck(
+            ::(
+              OpticCheck.WrappingError(
+                DynamicOptic.root,
+                DynamicOptic.root,
+                SchemaError.message("No default value available for schema", DynamicOptic.root)
+              ),
+              Nil
+            )
+          )
+        )
+    }
+  }
+
   final case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A] {
     def eval(input: S): Either[OpticCheck, Seq[A]] = result
 

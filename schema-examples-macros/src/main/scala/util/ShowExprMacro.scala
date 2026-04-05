@@ -22,8 +22,8 @@ object ShowExprMacro {
 
   /**
    * Handles both call styles:
-   *   - show(a, b, c)       — comma-separated varargs
-   *   - show { a; b; c }    — single block argument, statements unpacked
+   *   - show(a, b, c) — comma-separated varargs
+   *   - show { a; b; c } — single block argument, statements unpacked
    */
   def showImpl(exprs: Expr[Seq[Any]])(using Quotes): Expr[Unit] = {
     import quotes.reflect.*
@@ -70,7 +70,7 @@ object ShowExprMacro {
       }
     }
 
-    val printAll = printExprs.foldLeft('{ () }: Expr[Unit]) { (acc, e) => '{ $acc; $e } }
+    val printAll = printExprs.foldLeft('{ () }: Expr[Unit])((acc, e) => '{ $acc; $e })
 
     '{
       util.SourceHelper.commentsAbove(${ Expr(filePath) }, ${ Expr(line) }).foreach(println)
