@@ -18,20 +18,17 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.Schema
 
-/**
- * JSON/binary codecs for migration ADTs (fully serializable
- * [[DynamicMigration]] core).
- */
-object MigrationCodecs {
+private[migration] object MigrationDerivedSchemas {
+  implicit lazy val migrationExprSchema: Schema[MigrationExpr] = Schema.derived[MigrationExpr]
 
-  implicit lazy val migrationExprSchema: Schema[MigrationExpr] =
-    Schema.derived[MigrationExpr]
-
-  implicit lazy val migrationActionSchema: Schema[MigrationAction] = {
-    implicit lazy val recursive: Schema[MigrationAction] = migrationActionSchema
-    Schema.derived[MigrationAction]
+  private object MigrationActionSchemas {
+    implicit lazy val schema: Schema[MigrationAction] = {
+      implicit lazy val recursive: Schema[MigrationAction] = schema
+      Schema.derived[MigrationAction]
+    }
   }
 
-  implicit lazy val dynamicMigrationSchema: Schema[DynamicMigration] =
-    Schema.derived[DynamicMigration]
+  implicit lazy val migrationActionSchema: Schema[MigrationAction] = MigrationActionSchemas.schema
+
+  implicit lazy val dynamicMigrationSchema: Schema[DynamicMigration] = Schema.derived[DynamicMigration]
 }

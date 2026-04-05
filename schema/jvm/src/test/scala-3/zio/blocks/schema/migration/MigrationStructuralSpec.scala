@@ -17,11 +17,12 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema._
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
 /**
  * zio-blocks#519: structural (old) vs nominal (new) record shapes using
- * [[Schema#structural]].
+ * [[Schema#structural]] (JVM-only: [[zio.blocks.schema.ToStructural]]).
  */
 object MigrationStructuralSpec extends SchemaBaseSpec {
 

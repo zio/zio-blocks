@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.migration
 
-import zio.blocks.schema._
+import zio.blocks.schema.{DynamicOptic, DynamicValue}
 
 /**
  * Serializable, closure-free expressions used inside [[MigrationAction]]. These
@@ -100,4 +100,5 @@ object MigrationExpr {
   final case class CoercePrimitive(to: MigrationPrimitiveTarget) extends MigrationExpr {
     def reverse: MigrationExpr = this
   }
+
 }

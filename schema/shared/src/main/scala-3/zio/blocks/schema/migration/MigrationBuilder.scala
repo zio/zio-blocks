@@ -46,6 +46,13 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
     withActions(actions :+ MigrationAction.AddField(at, default))
   }
 
+  /**
+   * Same as [[addField]] but with an explicit path (also used from Scala 2.13
+   * tests).
+   */
+  def addFieldAt(at: DynamicOptic, default: MigrationExpr): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
+    withActions(actions :+ MigrationAction.AddField(at, default))
+
   inline def dropField[C](inline source: A => C, defaultForReverse: MigrationExpr)(implicit
     schemaA: Schema[A]
   ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {

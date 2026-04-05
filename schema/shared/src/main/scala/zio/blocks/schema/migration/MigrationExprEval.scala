@@ -17,12 +17,10 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema._
-import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding.Binding.bindingHasBinding
 
 private[migration] object MigrationExprEval {
-
-  private implicit val binding: HasBinding[Binding] = bindingHasBinding
 
   def eval(
     expr: MigrationExpr,

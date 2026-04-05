@@ -19,7 +19,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.test._
 
-object MigrationSpec extends SchemaBaseSpec {
+object MigrationSpec extends MigrationTestSupport {
 
   private final case class PersonV1(name: String)
 
@@ -30,15 +30,17 @@ object MigrationSpec extends SchemaBaseSpec {
 
   def spec: Spec[Any, Any] = suite("Migration")(
     test("identity round-trip") {
-      implicit val schema: Schema[PersonV2] = personV2Schema
-      val migration                         = Migration.identity[PersonV2]
-      val person                            = PersonV2("Ada", 40)
+      val migration = Migration.identity[PersonV2](personV2Schema)
+      val person    = PersonV2("Ada", 40)
       assertTrue(migration(person) == Right(person))
     },
     test("addField with literal default") {
       val migration =
         MigrationBuilder[PersonV1, PersonV2]
-          .addField(_.age, MigrationExpr.Literal(new DynamicValue.Primitive(new PrimitiveValue.Int(0))))
+          .addFieldAt(
+            DynamicOptic.root.field("age"),
+            MigrationExpr.Literal(new DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+          )
           .buildPartial
       val result = migration(PersonV1("Ada"))
       assertTrue(result == Right(PersonV2("Ada", 0)))
