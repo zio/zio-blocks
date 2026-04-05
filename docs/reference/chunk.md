@@ -2032,7 +2032,7 @@ val empty = ChunkMap.empty[String, Int]
 
 Construct a map directly from key-value pairs:
 
-```scala
+```scala mdoc
 val fromPairs = ChunkMap("x" -> 1, "y" -> 2)
 ```
 
@@ -2080,13 +2080,13 @@ val map = ChunkMap("z" -> 1, "a" -> 2, "m" -> 3)
 
 Retrieve the complete key-value pair at a given index:
 
-```scala
+```scala mdoc
 map.atIndex(0)
 ```
 
 Retrieve just the key at a specific position:
 
-```scala
+```scala mdoc
 map.keyAtIndex(1)
 ```
 
@@ -2098,11 +2098,8 @@ map.valueAtIndex(2)
 
 Access the underlying chunks of keys and values:
 
-```scala
+```scala mdoc
 val keys: Chunk[String] = map.keysChunk
-```
-
-```scala
 val values: Chunk[Int] = map.valuesChunk
 ```
 
