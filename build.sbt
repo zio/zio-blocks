@@ -10,6 +10,14 @@ generateMediaTypes := GenerateMediaTypes.generateMediaTypesTask.value
 
 inThisBuild(
   List(
+    // zio-sbt-gh-query: avoid git subprocess when repo is on a foreign FS or unsafe.directory
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/zio/zio-blocks"),
+        "scm:git:https://github.com/zio/zio-blocks.git",
+        Some("scm:git:git@github.com:zio/zio-blocks.git")
+      )
+    ),
     name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),

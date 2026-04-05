@@ -51,6 +51,13 @@ transparent trait CompanionOptics[S] {
 
   transparent inline def optic[A](inline path: S => A)(using schema: Schema[S]): Any =
     ${ CompanionOptics.optic('path, 'schema) }
+
+  /**
+   * Extracts a [[zio.blocks.schema.DynamicOptic]] path from the same selector
+   * syntax as [[optic]], for serializable migration actions.
+   */
+  transparent inline def dynamicOptic[A](inline path: S => A)(using schema: Schema[S]): DynamicOptic =
+    ${ CompanionOptics.dynamicOpticImpl('path, 'schema) }
 }
 
 private object CompanionOptics {
@@ -658,5 +665,14 @@ private object CompanionOptics {
     val optic = toOptic(toPathBody(path.asTerm)).get
     // report.info(s"Generated optic:\n${optic.show}", Position.ofMacroExpansion)
     optic
+  }
+
+  def dynamicOpticImpl[S: Type, A: Type](path: Expr[S => A], schema: Expr[Schema[S]])(using
+    q: Quotes
+  ): Expr[DynamicOptic] = {
+    val opticExpr = optic(path, schema)
+    '{
+      ${ opticExpr }.asInstanceOf[Optic[S, ?]].toDynamic
+    }
   }
 }
