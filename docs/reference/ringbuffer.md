@@ -261,7 +261,7 @@ To see the sequence buffer in action, use this interactive stepper:
 
 ```mdx
 <iframe
-  src="/diagrams/mpmc-ringbuffer.html"
+  src="./mpmc-ringbuffer.html"
   style={{ width: '100%', height: '520px', border: 'none', borderRadius: '8px' }}
   title="MPMC Ring Buffer Stepper"
 />
