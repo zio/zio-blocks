@@ -2043,13 +2043,17 @@ val fromPairs = ChunkMap("x" -> 1, "y" -> 2)
 
 Build a map from a `Chunk` containing tuple pairs:
 
-```scala mdoc
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, ChunkMap}
+
 val fromChunk = ChunkMap.fromChunk(Chunk(("a", 1), ("b", 2)))
 ```
 
 Construct a map from parallel chunks of keys and values:
 
-```scala mdoc
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, ChunkMap}
+
 val keys = Chunk("a", "b")
 val values = Chunk(1, 2)
 val fromChunks = ChunkMap.fromChunks(keys, values)
