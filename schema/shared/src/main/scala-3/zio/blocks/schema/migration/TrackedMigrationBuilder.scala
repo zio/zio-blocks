@@ -38,7 +38,9 @@ final class TrackedMigrationBuilder[A, B, SourceRemaining <: Tuple, TargetRemain
   val actions: Vector[MigrationAction]
 ) {
 
-  private def withActions(next: Vector[MigrationAction]): TrackedMigrationBuilder[A, B, SourceRemaining, TargetRemaining] =
+  private def withActions(
+    next: Vector[MigrationAction]
+  ): TrackedMigrationBuilder[A, B, SourceRemaining, TargetRemaining] =
     new TrackedMigrationBuilder(sourceSchema, targetSchema, next)
 
   inline def addField[N <: String & Singleton](
@@ -54,12 +56,16 @@ final class TrackedMigrationBuilder[A, B, SourceRemaining <: Tuple, TargetRemain
   inline def preserveField[N <: String & Singleton](
     inline source: A => Any,
     inline target: B => Any
-  )(using schemaA: Schema[A], schemaB: Schema[B]): TrackedMigrationBuilder[A, B, RemField[N, SourceRemaining], RemField[N, TargetRemaining]] = {
-    val (_, _) = (
+  )(using
+    schemaA: Schema[A],
+    schemaB: Schema[B]
+  ): TrackedMigrationBuilder[A, B, RemField[N, SourceRemaining], RemField[N, TargetRemaining]] = {
+    val _ = (
       new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA),
       new CompanionOptics[B] {}.dynamicOptic(target)(using schemaB)
     )
-    withActions(actions).asInstanceOf[TrackedMigrationBuilder[A, B, RemField[N, SourceRemaining], RemField[N, TargetRemaining]]]
+    withActions(actions)
+      .asInstanceOf[TrackedMigrationBuilder[A, B, RemField[N, SourceRemaining], RemField[N, TargetRemaining]]]
   }
 
   inline def build(using

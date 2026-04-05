@@ -31,8 +31,8 @@ object MigrationSpec extends SchemaBaseSpec {
   def spec: Spec[Any, Any] = suite("Migration")(
     test("identity round-trip") {
       implicit val schema: Schema[PersonV2] = personV2Schema
-      val migration                           = Migration.identity[PersonV2]
-      val person                              = PersonV2("Ada", 40)
+      val migration                         = Migration.identity[PersonV2]
+      val person                            = PersonV2("Ada", 40)
       assertTrue(migration(person) == Right(person))
     },
     test("addField with literal default") {

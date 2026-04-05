@@ -36,7 +36,7 @@ private[migration] object DynamicMigrationInterpreter {
         case Right(next) =>
           current = next
           idx += 1
-        case Left(err)   => return Left(err)
+        case Left(err) => return Left(err)
       }
     }
     Right(current)
@@ -72,19 +72,19 @@ private[migration] object DynamicMigrationInterpreter {
           case Right(v) =>
             v match {
               case DynamicValue.Null =>
-                MigrationExprEval.eval(defaultExpr, working, sourceSchema, targetSchema, at).flatMap(dv =>
-                  working.setOrFail(at, dv)
-                )
+                MigrationExprEval
+                  .eval(defaultExpr, working, sourceSchema, targetSchema, at)
+                  .flatMap(dv => working.setOrFail(at, dv))
               case v: DynamicValue.Variant if v.caseNameValue == "None" =>
-                MigrationExprEval.eval(defaultExpr, working, sourceSchema, targetSchema, at).flatMap(dv =>
-                  working.setOrFail(at, dv)
-                )
+                MigrationExprEval
+                  .eval(defaultExpr, working, sourceSchema, targetSchema, at)
+                  .flatMap(dv => working.setOrFail(at, dv))
               case other => working.setOrFail(at, other)
             }
           case Left(_) =>
-            MigrationExprEval.eval(defaultExpr, working, sourceSchema, targetSchema, at).flatMap(dv =>
-              working.insertOrFail(at, dv)
-            )
+            MigrationExprEval
+              .eval(defaultExpr, working, sourceSchema, targetSchema, at)
+              .flatMap(dv => working.insertOrFail(at, dv))
         }
 
       case MigrationAction.Optionalize(at) =>
@@ -97,18 +97,18 @@ private[migration] object DynamicMigrationInterpreter {
         for {
           cur <- working.get(at).one.left.map(_ => SchemaError.message("Path not found for ChangeType", at))
           out <- converter match {
-            case c: MigrationExpr.CoercePrimitive =>
-              MigrationExprEval.evalUnary(cur, c.to, at)
-            case other =>
-              MigrationExprEval.eval(other, cur, sourceSchema, targetSchema, at)
-          }
+                   case c: MigrationExpr.CoercePrimitive =>
+                     MigrationExprEval.evalUnary(cur, c.to, at)
+                   case other =>
+                     MigrationExprEval.eval(other, cur, sourceSchema, targetSchema, at)
+                 }
           r <- working.setOrFail(at, out)
         } yield r
 
       case MigrationAction.Join(at, sourcePaths, combiner) =>
-        MigrationExprEval.eval(combiner, working, sourceSchema, targetSchema, at).flatMap(dv =>
-          working.insertOrFail(at, dv)
-        )
+        MigrationExprEval
+          .eval(combiner, working, sourceSchema, targetSchema, at)
+          .flatMap(dv => working.insertOrFail(at, dv))
 
       case MigrationAction.Split(at, targetPaths, splitter) =>
         for {
@@ -167,15 +167,16 @@ private[migration] object DynamicMigrationInterpreter {
         val out = seq.elements.zipWithIndex.map { case (element, index) =>
           MigrationExprEval.eval(transform, element, sourceSchema, targetSchema, at.at(index))
         }
-        out.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
-          case (acc, item) =>
+        out
+          .foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) { case (acc, item) =>
             for {
               chunk <- acc
               dv    <- item
             } yield chunk :+ dv
-        }.flatMap { chunk =>
-          working.setOrFail(at, DynamicValue.Sequence(chunk))
-        }
+          }
+          .flatMap { chunk =>
+            working.setOrFail(at, DynamicValue.Sequence(chunk))
+          }
       case Right(other) =>
         Left(SchemaError.message(s"TransformElements requires a sequence at path, got ${other.valueType}", at))
       case Left(err) => Left(err)
@@ -190,13 +191,14 @@ private[migration] object DynamicMigrationInterpreter {
   ): Either[SchemaError, DynamicValue] =
     working.get(at).one match {
       case Right(map: DynamicValue.Map) =>
-        val rebuilt = map.entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-          case (acc, (key, value)) =>
-            for {
-              chunk <- acc
-              newKey <- MigrationExprEval.eval(transform, key, sourceSchema, targetSchema, at)
-            } yield chunk :+ ((newKey, value))
-        }
+        val rebuilt =
+          map.entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+            case (acc, (key, value)) =>
+              for {
+                chunk  <- acc
+                newKey <- MigrationExprEval.eval(transform, key, sourceSchema, targetSchema, at)
+              } yield chunk :+ ((newKey, value))
+          }
         rebuilt.flatMap(entries => working.setOrFail(at, DynamicValue.Map(entries)))
       case Right(other) =>
         Left(SchemaError.message(s"TransformKeys requires a map at path, got ${other.valueType}", at))
@@ -212,13 +214,14 @@ private[migration] object DynamicMigrationInterpreter {
   ): Either[SchemaError, DynamicValue] =
     working.get(at).one match {
       case Right(map: DynamicValue.Map) =>
-        val rebuilt = map.entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-          case (acc, (key, value)) =>
-            for {
-              chunk  <- acc
-              newVal <- MigrationExprEval.eval(transform, value, sourceSchema, targetSchema, at)
-            } yield chunk :+ ((key, newVal))
-        }
+        val rebuilt =
+          map.entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+            case (acc, (key, value)) =>
+              for {
+                chunk  <- acc
+                newVal <- MigrationExprEval.eval(transform, value, sourceSchema, targetSchema, at)
+              } yield chunk :+ ((key, newVal))
+          }
         rebuilt.flatMap(entries => working.setOrFail(at, DynamicValue.Map(entries)))
       case Right(other) =>
         Left(SchemaError.message(s"TransformValues requires a map at path, got ${other.valueType}", at))
@@ -239,7 +242,11 @@ private[migration] object DynamicMigrationInterpreter {
       case Left(err) => Left(err)
     }
 
-  private def applyRename(working: DynamicValue, path: DynamicOptic, newName: String): Either[SchemaError, DynamicValue] =
+  private def applyRename(
+    working: DynamicValue,
+    path: DynamicOptic,
+    newName: String
+  ): Either[SchemaError, DynamicValue] =
     path.nodes.lastOption match {
       case Some(oldField: Node.Field) =>
         val parentPath = new DynamicOptic(path.nodes.dropRight(1))

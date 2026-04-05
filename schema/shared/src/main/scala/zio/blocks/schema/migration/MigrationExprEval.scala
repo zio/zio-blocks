@@ -121,12 +121,12 @@ private[migration] object MigrationExprEval {
   private def asString(value: DynamicValue, path: DynamicOptic): Either[SchemaError, String] =
     value match {
       case DynamicValue.Primitive(p: PrimitiveValue.String) => Right(p.value)
-      case other => Left(SchemaError.message(s"Expected string, got ${other.valueType}", path))
+      case other                                            => Left(SchemaError.message(s"Expected string, got ${other.valueType}", path))
     }
 
   private def asInt(value: DynamicValue, path: DynamicOptic): Either[SchemaError, Int] =
     value match {
-      case DynamicValue.Primitive(p: PrimitiveValue.Int) => Right(p.value)
+      case DynamicValue.Primitive(p: PrimitiveValue.Int)  => Right(p.value)
       case DynamicValue.Primitive(p: PrimitiveValue.Long) =>
         if (p.value.isValidInt) Right(p.value.toInt)
         else Left(SchemaError.message("Long does not fit in Int", path))
@@ -136,9 +136,9 @@ private[migration] object MigrationExprEval {
   private def asLong(value: DynamicValue, path: DynamicOptic): Either[SchemaError, Long] =
     value match {
       case DynamicValue.Primitive(p: PrimitiveValue.Long)   => Right(p.value)
-      case DynamicValue.Primitive(p: PrimitiveValue.Int)      => Right(p.value.toLong)
-      case DynamicValue.Primitive(p: PrimitiveValue.Double)   => Right(p.value.toLong)
-      case other => Left(SchemaError.message(s"Expected numeric, got ${other.valueType}", path))
+      case DynamicValue.Primitive(p: PrimitiveValue.Int)    => Right(p.value.toLong)
+      case DynamicValue.Primitive(p: PrimitiveValue.Double) => Right(p.value.toLong)
+      case other                                            => Left(SchemaError.message(s"Expected numeric, got ${other.valueType}", path))
     }
 
   private def asDouble(value: DynamicValue, path: DynamicOptic): Either[SchemaError, Double] =
@@ -147,12 +147,12 @@ private[migration] object MigrationExprEval {
       case DynamicValue.Primitive(p: PrimitiveValue.Float)  => Right(p.value.toDouble)
       case DynamicValue.Primitive(p: PrimitiveValue.Int)    => Right(p.value.toDouble)
       case DynamicValue.Primitive(p: PrimitiveValue.Long)   => Right(p.value.toDouble)
-      case other => Left(SchemaError.message(s"Expected number, got ${other.valueType}", path))
+      case other                                            => Left(SchemaError.message(s"Expected number, got ${other.valueType}", path))
     }
 
   private def asBoolean(value: DynamicValue, path: DynamicOptic): Either[SchemaError, Boolean] =
     value match {
       case DynamicValue.Primitive(p: PrimitiveValue.Boolean) => Right(p.value)
-      case other => Left(SchemaError.message(s"Expected boolean, got ${other.valueType}", path))
+      case other                                             => Left(SchemaError.message(s"Expected boolean, got ${other.valueType}", path))
     }
 }

@@ -40,8 +40,8 @@ object MigrationStructuralSpec extends SchemaBaseSpec {
           .addField(_.age, MigrationExpr.Literal(new DynamicValue.Primitive(new PrimitiveValue.Int(0))))
           .buildPartial
 
-      val v1 = PersonV1("Ada")
-      val dv = summon[Schema[PersonV1]].toDynamicValue(v1)
+      val v1     = PersonV1("Ada")
+      val dv     = summon[Schema[PersonV1]].toDynamicValue(v1)
       val result = migration.dynamicMigration.apply(dv, sourceSchema, summon[Schema[PersonV2]])
       assertTrue(
         result.flatMap(summon[Schema[PersonV2]].fromDynamicValue) == Right(PersonV2("Ada", 0))

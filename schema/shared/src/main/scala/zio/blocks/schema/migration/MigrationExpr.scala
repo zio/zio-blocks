@@ -19,15 +19,15 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * Serializable, closure-free expressions used inside [[MigrationAction]].
- * These evaluate against a root [[DynamicValue]] and optional [[Schema]]
- * metadata (for defaults). They intentionally exclude arbitrary user functions
- * so [[DynamicMigration]] stays serializable.
+ * Serializable, closure-free expressions used inside [[MigrationAction]]. These
+ * evaluate against a root [[DynamicValue]] and optional [[Schema]] metadata
+ * (for defaults). They intentionally exclude arbitrary user functions so
+ * [[DynamicMigration]] stays serializable.
  *
- * Issue #519 refers to this role as `SchemaExpr` for migrations; that name would
- * collide with [[zio.blocks.schema.SchemaExpr]] (validation / persistence DSL),
- * so this type is named `MigrationExpr`. Use [[MigrationSchemaExpr]] if you
- * need ticket-aligned wording.
+ * Issue #519 refers to this role as `SchemaExpr` for migrations; that name
+ * would collide with [[zio.blocks.schema.SchemaExpr]] (validation / persistence
+ * DSL), so this type is named `MigrationExpr`. Use [[MigrationSchemaExpr]] if
+ * you need ticket-aligned wording.
  */
 sealed trait MigrationExpr { self =>
 
@@ -52,8 +52,7 @@ object MigrationExpr {
   }
 
   /**
-   * Read a value relative to the migration root using a [[DynamicOptic]]
-   * path.
+   * Read a value relative to the migration root using a [[DynamicOptic]] path.
    */
   final case class RootPath(relative: DynamicOptic) extends MigrationExpr {
     def reverse: MigrationExpr = this
@@ -77,15 +76,18 @@ object MigrationExpr {
     def reverse: MigrationExpr = this
   }
 
-  /** Schema root default for the source side of a migration (issue #519 default slot). */
+  /**
+   * Schema root default for the source side of a migration (issue #519 default
+   * slot).
+   */
   val DefaultValueSource: MigrationExpr = SchemaRootDefault(MigrationSchemaSlot.Source)
 
   /** Schema root default for the target side of a migration. */
   val DefaultValueTarget: MigrationExpr = SchemaRootDefault(MigrationSchemaSlot.Target)
 
   /**
-   * Resolve the default for a top-level record field by name using the
-   * selected schema (source vs target).
+   * Resolve the default for a top-level record field by name using the selected
+   * schema (source vs target).
    */
   final case class FieldDefault(fieldName: String, schemaSlot: MigrationSchemaSlot) extends MigrationExpr {
     def reverse: MigrationExpr = FieldDefault(fieldName, schemaSlot.flip)

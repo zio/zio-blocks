@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema.migration
+package zio.blocks.schema
 
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 
@@ -22,10 +22,13 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
  * Failures from applying a migration. Uses [[SchemaError]], which attaches
  * [[DynamicOptic]] paths to each diagnostic line.
  */
-type MigrationError = SchemaError
+package object migration {
 
-object MigrationError {
+  type MigrationError = SchemaError
 
-  def apply(message: String, path: DynamicOptic = DynamicOptic.root): MigrationError =
-    SchemaError.message(message, path)
+  object MigrationError {
+
+    def apply(message: String, path: DynamicOptic = DynamicOptic.root): MigrationError =
+      SchemaError.message(message, path)
+  }
 }

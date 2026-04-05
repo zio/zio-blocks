@@ -39,20 +39,27 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
   private def withActions(next: Vector[MigrationAction]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
     new MigrationBuilder(sourceSchema, targetSchema, next)
 
-  inline def addField[C](inline target: B => C, default: MigrationExpr)(implicit schemaB: Schema[B]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def addField[C](inline target: B => C, default: MigrationExpr)(implicit
+    schemaB: Schema[B]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val at = new CompanionOptics[B] {}.dynamicOptic(target)(using schemaB)
     withActions(actions :+ MigrationAction.AddField(at, default))
   }
 
-  inline def dropField[C](inline source: A => C, defaultForReverse: MigrationExpr)(implicit schemaA: Schema[A]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def dropField[C](inline source: A => C, defaultForReverse: MigrationExpr)(implicit
+    schemaA: Schema[A]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val at = new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA)
     withActions(actions :+ MigrationAction.DropField(at, defaultForReverse))
   }
 
-  inline def renameField[C1, C2](inline from: A => C1, inline to: B => C2)(implicit schemaA: Schema[A], schemaB: Schema[B]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def renameField[C1, C2](inline from: A => C1, inline to: B => C2)(implicit
+    schemaA: Schema[A],
+    schemaB: Schema[B]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val fromPath = new CompanionOptics[A] {}.dynamicOptic(from)(using schemaA)
     val toPath   = new CompanionOptics[B] {}.dynamicOptic(to)(using schemaB)
-    val newName = toPath.nodes.lastOption.collect { case f: DynamicOptic.Node.Field => f.name }.getOrElse("")
+    val newName  = toPath.nodes.lastOption.collect { case f: DynamicOptic.Node.Field => f.name }.getOrElse("")
     withActions(actions :+ MigrationAction.Rename(fromPath, newName))
   }
 
@@ -66,7 +73,7 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
     schemaA: Schema[A],
     schemaB: Schema[B]
   ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
-    val _     = (from, schemaA)
+    val _      = (from, schemaA)
     val toPath = new CompanionOptics[B] {}.dynamicOptic(to)(using schemaB)
     withActions(actions :+ MigrationAction.TransformValue(toPath, transform))
   }
@@ -75,7 +82,7 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
     schemaA: Schema[A],
     schemaB: Schema[B]
   ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
-    val _ = new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA)
+    val _          = new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA)
     val targetPath = new CompanionOptics[B] {}.dynamicOptic(target)(using schemaB)
     withActions(actions :+ MigrationAction.Mandate(targetPath, default))
   }
@@ -84,7 +91,7 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
     schemaA: Schema[A],
     schemaB: Schema[B]
   ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
-    val _ = new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA)
+    val _          = new CompanionOptics[A] {}.dynamicOptic(source)(using schemaA)
     val targetPath = new CompanionOptics[B] {}.dynamicOptic(target)(using schemaB)
     withActions(actions :+ MigrationAction.Optionalize(targetPath))
   }
@@ -93,7 +100,7 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
     schemaA: Schema[A],
     schemaB: Schema[B]
   ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
-    val _ = (source, schemaA)
+    val _          = (source, schemaA)
     val targetPath = new CompanionOptics[B] {}.dynamicOptic(target)(using schemaB)
     withActions(actions :+ MigrationAction.ChangeType(targetPath, converter))
   }
@@ -101,29 +108,50 @@ class MigrationBuilder[A, B, SourceRemainder, TargetRemainder] private (
   def renameCase(from: String, to: String): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
     withActions(actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))
 
-  /** Non-root enum path; package-private so [[DynamicOptic]] stays out of the public surface. */
-  private[migration] def renameCaseAt(from: String, to: String, at: DynamicOptic): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
+  /**
+   * Non-root enum path; package-private so [[DynamicOptic]] stays out of the
+   * public surface.
+   */
+  private[migration] def renameCaseAt(
+    from: String,
+    to: String,
+    at: DynamicOptic
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
     withActions(actions :+ MigrationAction.RenameCase(at, from, to))
 
-  inline def transformElements[C](inline at: A => Vector[?], transform: MigrationExpr)(implicit schemaA: Schema[A]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def transformElements[C](inline at: A => Vector[?], transform: MigrationExpr)(implicit
+    schemaA: Schema[A]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val path = new CompanionOptics[A] {}.dynamicOptic(at)(using schemaA)
     withActions(actions :+ MigrationAction.TransformElements(path, transform))
   }
 
-  inline def transformKeys[C](inline at: A => Map[?, ?], transform: MigrationExpr)(implicit schemaA: Schema[A]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def transformKeys[C](inline at: A => Map[?, ?], transform: MigrationExpr)(implicit
+    schemaA: Schema[A]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val path = new CompanionOptics[A] {}.dynamicOptic(at)(using schemaA)
     withActions(actions :+ MigrationAction.TransformKeys(path, transform))
   }
 
-  inline def transformValues[C](inline at: A => Map[?, ?], transform: MigrationExpr)(implicit schemaA: Schema[A]): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
+  inline def transformValues[C](inline at: A => Map[?, ?], transform: MigrationExpr)(implicit
+    schemaA: Schema[A]
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] = {
     val path = new CompanionOptics[A] {}.dynamicOptic(at)(using schemaA)
     withActions(actions :+ MigrationAction.TransformValues(path, transform))
   }
 
-  def joinField(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: MigrationExpr): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
+  def joinField(
+    at: DynamicOptic,
+    sourcePaths: Vector[DynamicOptic],
+    combiner: MigrationExpr
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
     withActions(actions :+ MigrationAction.Join(at, sourcePaths, combiner))
 
-  def splitField(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: MigrationExpr): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
+  def splitField(
+    at: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: MigrationExpr
+  ): MigrationBuilder[A, B, SourceRemainder, TargetRemainder] =
     withActions(actions :+ MigrationAction.Split(at, targetPaths, splitter))
 
   def buildPartial: Migration[A, B] =
@@ -134,6 +162,9 @@ object MigrationBuilder {
 
   type Complete = Any
 
-  def apply[A, B](implicit sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B, Complete, Complete] =
+  def apply[A, B](implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B, Complete, Complete] =
     new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
 }

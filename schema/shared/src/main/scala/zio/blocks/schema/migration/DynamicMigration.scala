@@ -19,8 +19,8 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * Serializable migration core: a sequence of [[MigrationAction]] values with
- * no closures or user code.
+ * Serializable migration core: a sequence of [[MigrationAction]] values with no
+ * closures or user code.
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
 

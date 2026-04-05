@@ -32,9 +32,9 @@ object MigrationSchemaSlot {
 
 sealed trait MigrationPrimitiveTarget
 object MigrationPrimitiveTarget {
-  case object Int extends MigrationPrimitiveTarget
-  case object Long extends MigrationPrimitiveTarget
-  case object Double extends MigrationPrimitiveTarget
-  case object String extends MigrationPrimitiveTarget
+  case object Int     extends MigrationPrimitiveTarget
+  case object Long    extends MigrationPrimitiveTarget
+  case object Double  extends MigrationPrimitiveTarget
+  case object String  extends MigrationPrimitiveTarget
   case object Boolean extends MigrationPrimitiveTarget
 }
