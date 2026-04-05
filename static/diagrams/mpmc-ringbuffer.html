@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MPMC Sequence Buffer Stepper</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f9fafb;
+      color: #1a1a1a;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0 0 16px 0;
+      color: #111827;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .diagram-area {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 14px;
+      overflow-x: auto;
+    }
+
+    .slot {
+      display: inline-block;
+      width: 140px;
+      margin: 4px;
+      padding: 12px 8px;
+      border-radius: 8px;
+      vertical-align: top;
+      border: 2px solid #e5e7eb;
+      background: white;
+    }
+
+    .slot-label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #374151;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .slot-content {
+      font-size: 16px;
+      font-weight: 600;
+      min-height: 24px;
+      padding: 8px;
+      border-radius: 6px;
+      text-align: center;
+      margin: 4px 0;
+    }
+
+    .slot.empty .slot-content {
+      background: #f3f4f6;
+      color: #9ca3af;
+    }
+
+    .slot.filled .slot-content {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .slot.consumed .slot-content {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .highlight-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      border-radius: 8px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 2px solid #3b82f6;
+      animation: pulse 1s ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 0.3; }
+    }
+
+    .legends {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .legend-color {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+      border: 1px solid #e5e7eb;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e7eb;
+    }
+
+    .status-line {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #4b5563;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .annotation {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MPMC Sequence Buffer Stepper</h1>
+    <p class="subtitle">
+      Visualize how the Vyukov/Dmitry algorithm coordinates multiple producers and consumers
+      using ticket-based slot ownership with a sequence buffer.
+    </p>
+
+    <div class="buttons">
+      <button class="btn-primary" onclick="stepProducer()">Step Producer</button>
+      <button class="btn-primary" onclick="stepConsumer()">Step Consumer</button>
+      <button class="btn-secondary" onclick="resetDiagram()">Reset</button>
+      <button class="btn-secondary" onclick="autoStep()">Auto Step</button>
+    </div>
+
+    <div class="diagram-area" id="diagram">
+      <div class="slot-label">Slot 0</div>
+      <div class="slot-content" id="slot-0">empty (stamp=0)</div>
+    </div>
+
+    <div class="legends">
+      <div class="legend-item">
+        <div class="legend-color" style="background: #f3f4f6;"></div>
+        <span>Empty (stamp = i)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #dbeafe;"></div>
+        <span>Filled (stamp = i + 1)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #dcfce7;"></div>
+        <span>Consumed (stamp = i + capacity)</span>
+      </div>
+    </div>
+
+    <div class="status-line" id="status">
+      Initial state: All slots empty, stamps = 0. Ready for producer to claim ticket 0.
+    </div>
+
+    <p class="annotation">
+      Note: Showing capacity=4, focusing on slot 0 which cycles through states as producers
+      and consumers take turns.
+    </p>
+  </div>
+
+  <script>
+    const capacity = 4;
+    let pIdx = 0;  // producer ticket counter
+    let cIdx = 0;  // consumer ticket counter
+    let sequence = [0, 0, 0, 0];  // stamps for each slot
+
+    function getSlotState(slotIdx) {
+      const stamp = sequence[slotIdx];
+      const expectedEmpty = slotIdx;
+      const expectedFilled = slotIdx + 1;
+      const expectedConsumed = slotIdx + capacity;
+
+      if (stamp === expectedEmpty) return 'empty';
+      if (stamp === expectedFilled) return 'filled';
+      if (stamp === expectedConsumed) return 'consumed';
+      return 'unknown';
+    }
+
+    function render() {
+      const diagram = document.getElementById('diagram');
+      diagram.innerHTML = '';
+
+      for (let i = 0; i < capacity; i++) {
+        const state = getSlotState(i);
+        const slotDiv = document.createElement('div');
+        slotDiv.className = `slot ${state}`;
+
+        const label = document.createElement('div');
+        label.className = 'slot-label';
+        label.textContent = `Slot ${i} (seq=${sequence[i]})`;
+
+        const content = document.createElement('div');
+        content.className = 'slot-content';
+        content.id = `slot-${i}`;
+        content.textContent = state;
+
+        slotDiv.appendChild(label);
+        slotDiv.appendChild(content);
+        diagram.appendChild(slotDiv);
+      }
+    }
+
+    function stepProducer() {
+      if (pIdx >= capacity * 2) {
+        updateStatus('Producer has cycled through all tickets. Reset to continue.');
+        return;
+      }
+
+      const ticket = pIdx;
+      const slotIdx = ticket % capacity;
+      const expectedStamp = slotIdx + (ticket >= capacity ? capacity * 2 : 0);
+
+      // Simulate simplified: producer just fills the slot
+      if (sequence[slotIdx] === expectedStamp || sequence[slotIdx] === slotIdx) {
+        sequence[slotIdx] = slotIdx + 1;  // filled: stamp = i + 1
+        updateStatus(`Producer: claimed ticket ${ticket}, filled slot ${slotIdx}, set stamp=${slotIdx}+1=${slotIdx + 1}`);
+        pIdx++;
+      } else {
+        updateStatus(`Producer: wanted slot ${slotIdx} but stamp=${sequence[slotIdx]} (expected ${expectedStamp}). Consumer hasn't released yet.`);
+      }
+
+      render();
+    }
+
+    function stepConsumer() {
+      if (cIdx >= capacity * 2) {
+        updateStatus('Consumer has cycled through all tickets. Reset to continue.');
+        return;
+      }
+
+      const ticket = cIdx;
+      const slotIdx = ticket % capacity;
+      const expectedFilledStamp = slotIdx + 1 + (ticket >= capacity ? capacity * 2 : 0);
+
+      // Check if slot is ready (filled)
+      if (sequence[slotIdx] === expectedFilledStamp) {
+        sequence[slotIdx] = slotIdx + capacity;  // consumed: stamp = i + capacity
+        updateStatus(`Consumer: claimed ticket ${ticket}, consumed slot ${slotIdx}, set stamp=${slotIdx}+${capacity}=${slotIdx + capacity}`);
+        cIdx++;
+      } else if (sequence[slotIdx] === slotIdx + 1) {
+        updateStatus(`Consumer: slot ${slotIdx} has stamp=${sequence[slotIdx]} but expected ${expectedFilledStamp}. Producer hasn't filled yet.`);
+      } else {
+        updateStatus(`Consumer: slot ${slotIdx} is ${getSlotState(slotIdx)} (stamp=${sequence[slotIdx]}).`);
+      }
+
+      render();
+    }
+
+    function autoStep() {
+      if (pIdx < capacity * 2 && cIdx < capacity * 2) {
+        stepProducer();
+        setTimeout(() => {
+          stepConsumer();
+        }, 300);
+      } else {
+        resetDiagram();
+        setTimeout(autoStep, 1000);
+      }
+    }
+
+    function resetDiagram() {
+      pIdx = 0;
+      cIdx = 0;
+      sequence = [0, 0, 0, 0];
+      render();
+      updateStatus('Reset. All slots empty, stamps = 0. Ready for producer to claim ticket 0.');
+    }
+
+    function updateStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>

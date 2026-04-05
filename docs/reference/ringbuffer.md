@@ -257,6 +257,23 @@ This pattern ensures that each slot is touched by exactly one producer and one c
 
 **Trade-offs:** This is the most flexible (any number of producers/consumers) but also the most expensive due to CAS on both sides and the sequence buffer overhead. Use it only when you truly need MPMC.
 
+To see the sequence buffer in action, use this interactive stepper:
+
+```mdx
+<iframe
+  src="/diagrams/mpmc-ringbuffer.html"
+  style={{ width: '100%', height: '520px', border: 'none', borderRadius: '8px' }}
+  title="MPMC Ring Buffer Stepper"
+/>
+```
+
+The diagram shows a capacity=4 buffer. Each slot has a stamp that cycles through three states:
+- **Empty** (stamp = `i`) — ready for producer to claim
+- **Filled** (stamp = `i + 1`) — producer wrote, consumer can take
+- **Consumed** (stamp = `i + capacity`) — consumer emptied, ready for producer again
+
+Click "Step Producer" and "Step Consumer" to see how the algorithm coordinates access handoff without locks.
+
 ## Installation
 
 Add the ZIO Blocks Ring Buffer module to your `build.sbt`:
