@@ -21,7 +21,7 @@ import zio.test._
 import zio.test.TestAspect._
 
 import java.io.{File, FileOutputStream}
-import java.net.URL
+import java.net.URI
 import java.nio.channels.Channels
 import scala.io.Source
 import scala.util.{Try, Using}
@@ -118,7 +118,7 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
       val file = new File(testSuiteDir, fileName)
       if (!file.exists()) {
         Try {
-          val url     = new URL(s"$baseUrl/$fileName")
+          val url     = URI.create(s"$baseUrl/$fileName").toURL
           val channel = Channels.newChannel(url.openStream())
           val fos     = new FileOutputStream(file)
           fos.getChannel.transferFrom(channel, 0, Long.MaxValue)
