@@ -1404,6 +1404,27 @@ val numbers = Chunk(1, 2, 3, 4)
 val result = numbers.foldRight(List[Int]())(_ :: _)
 ```
 
+#### `Chunk#foldWhile` — Fold with Early Exit
+
+Fold left with early termination based on a predicate on the accumulator:
+
+```scala
+trait Chunk[+A] {
+  def foldWhile[S](s0: S)(pred: S => Boolean)(f: (S, A) => S): S
+}
+```
+
+`foldWhile` allows you to stop folding when a condition on the accumulator becomes false, avoiding unnecessary processing of remaining elements:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val numbers = Chunk(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+// Fold while accumulator is less than 20, adding elements
+val result = numbers.foldWhile(0)(acc => acc < 20)((acc, n) => acc + n)
+```
+
 #### `Chunk#exists` and `Chunk#forall` — Predicates
 
 Check if any or all elements match a predicate:
@@ -1673,6 +1694,25 @@ val chunk = Chunk(1, 2, 3)
 chunk.toVector
 ```
 
+#### `Chunk#toCons` — To Scala Cons List
+
+Convert the chunk to a Scala cons list (head :: tail structure):
+
+```scala
+trait Chunk[+A] {
+  def toCons: List[A]  // using :: cons operator
+}
+```
+
+This is an alternative way to express chunks as immutable linked lists, useful for recursive processing:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+val consList = chunk.toList  // cons representation
+```
+
 
 ### Specialized Accessors for Primitive Types
 
@@ -1705,6 +1745,96 @@ Accessing primitives by specialized methods avoids boxing:
 ```scala mdoc
 bytes.byte(0)
 ints.int(1)
+```
+
+### Iterator Access
+
+Access chunks through iterators for sequential processing or collect the known size of elements:
+
+#### `Chunk#iterator` — Get a Standard Iterator
+
+Get a standard Scala `Iterator` to traverse the chunk sequentially:
+
+```scala
+trait Chunk[+A] {
+  def iterator: Iterator[A]
+}
+```
+
+The iterator is useful for sequential processing and integrates with Scala's collection ecosystem:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+val iter = chunk.iterator
+
+// Process elements sequentially
+iter.take(3).toList
+```
+
+#### `Chunk#chunkIterator` — Get a Chunk-Specific Iterator
+
+Get a `Chunk.ChunkIterator` for more efficient traversal within the Chunk ecosystem:
+
+```scala
+trait Chunk[+A] {
+  def chunkIterator: Chunk.ChunkIterator[A]
+}
+```
+
+`ChunkIterator` is optimized for Chunk operations and can be more efficient than the standard iterator in some cases:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(10, 20, 30, 40)
+val chunkIter = chunk.chunkIterator
+```
+
+#### `Chunk#knownSize` — Get Iterator Size Hint
+
+Get the known size of the chunk for iterator protocol compatibility:
+
+```scala
+trait Chunk[+A] {
+  def knownSize: Int
+}
+```
+
+The known size helps collection builders optimize allocations:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+val size = chunk.knownSize
+```
+
+### Array Operations
+
+Perform bulk operations with arrays for interoperability with imperative code:
+
+#### `Chunk#copyToArray` — Copy to Destination Array
+
+Copy elements from the chunk to a destination array at a specified position:
+
+```scala
+trait Chunk[+A] {
+  def copyToArray[B >: A](dest: Array[B], destPos: Int, length: Int): Int
+}
+```
+
+This is useful for efficient bulk export of chunk contents to arrays, particularly in interop scenarios. The method returns the number of elements actually copied:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+val dest = new Array[Int](10)
+
+val numCopied = chunk.copyToArray(dest, 2, 3)
+dest.take(5)
 ```
 
 ### Materialization and Optimization
@@ -1823,6 +1953,142 @@ The binary string shows the sequence of bits:
 bits.toBinaryString
 ```
 
+#### `Chunk#toPackedByte` — Pack Bits into Bytes
+
+Pack a chunk of booleans (representing individual bits) into a packed byte representation:
+
+```scala
+trait Chunk[+A] {
+  def toPackedByte(implicit ev: A <:< Boolean): Chunk[Byte]
+}
+```
+
+This is useful when you need a space-efficient representation of individual bits by packing them eight per byte. The bits are packed from left to right, with the first bit becoming the most significant bit of the first byte:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk(true, false, true, false, true, false, true, false)
+val packed = bits.toPackedByte
+```
+
+#### `Chunk#toPackedInt` — Pack Bits into Integers
+
+Pack a chunk of booleans into a packed integer representation with specified endianness:
+
+```scala
+trait Chunk[+A] {
+  def toPackedInt(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Boolean): Chunk[Int]
+}
+```
+
+Packing bits into integers is efficient for storing large bit arrays. The endianness parameter controls how bits are ordered within each integer:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk(true, false, true, false, true, false, true, false)
+val packed = bits.toPackedInt(Chunk.BitChunk.Endianness.BigEndian)
+```
+
+#### `Chunk#toPackedLong` — Pack Bits into Longs
+
+Pack a chunk of booleans into a packed long representation with specified endianness:
+
+```scala
+trait Chunk[+A] {
+  def toPackedLong(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Boolean): Chunk[Long]
+}
+```
+
+Packing bits into longs is the most space-efficient approach for bit storage, packing 64 bits per long. Choose the endianness that matches your serialization format:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk(true, false, true, false, true, false, true, false)
+val packed = bits.toPackedLong(Chunk.BitChunk.Endianness.LittleEndian)
+```
+
+#### `Chunk#&` — Bitwise AND
+
+Perform bitwise AND between two boolean chunks:
+
+```scala
+trait Chunk[+A] {
+  def &(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte
+}
+```
+
+Bitwise AND operates on boolean chunks, returning a `BitChunkByte` representing the packed result:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits1 = Chunk(true, true, false, false)
+val bits2 = Chunk(true, false, true, false)
+val result = bits1 & bits2
+```
+
+#### `Chunk#|` — Bitwise OR
+
+Perform bitwise OR between two boolean chunks:
+
+```scala
+trait Chunk[+A] {
+  def |(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte
+}
+```
+
+Bitwise OR combines boolean chunks with an OR operation:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits1 = Chunk(true, false, false, false)
+val bits2 = Chunk(false, true, false, false)
+val result = bits1 | bits2
+```
+
+#### `Chunk#^` — Bitwise XOR
+
+Perform bitwise XOR between two boolean chunks:
+
+```scala
+trait Chunk[+A] {
+  def ^(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte
+}
+```
+
+Bitwise XOR returns true when bits differ:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits1 = Chunk(true, false, true, false)
+val bits2 = Chunk(true, true, false, false)
+val result = bits1 ^ bits2
+```
+
+#### `Chunk#negate` — Bitwise NOT
+
+Perform bitwise NOT (negation) on a boolean chunk:
+
+```scala
+trait Chunk[+A] {
+  def negate(implicit ev: A <:< Boolean): Chunk.BitChunkByte
+}
+```
+
+Bitwise NOT inverts all bits in the chunk:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk(true, false, true, false)
+val inverted = bits.negate
+```
+
 ### Text Operations
 
 Chunk makes it convenient to work with text by converting byte or character chunks into readable strings. You can also encode chunks as Base64 for safe transmission or storage in text-based formats:
@@ -1843,6 +2109,26 @@ Converting byte and character chunks to strings:
 ```scala mdoc
 val str = chars.asString
 val strFromBytes = bytes.asString
+```
+
+#### `Chunk#asString(charset)` — Convert to String with Charset
+
+Convert a chunk of bytes into a string using a specified character encoding:
+
+```scala
+trait Chunk[+A] {
+  def asString(charset: Charset)(implicit ev: A <:< Byte): String
+}
+```
+
+When working with byte chunks from external sources, you may need to specify the character encoding. Use UTF-8 for most cases, but other encodings are available:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import java.nio.charset.StandardCharsets
+
+val utf8Bytes = Chunk(72.toByte, 101.toByte, 108.toByte, 108.toByte, 111.toByte)
+val stringUTF8 = utf8Bytes.asString(StandardCharsets.UTF_8)
 ```
 
 #### `Chunk#asBase64String` — Encode as Base64
