@@ -1133,6 +1133,26 @@ Zipping with index:
 words.zipWithIndex
 ```
 
+#### `Chunk#updated` — Update Element at Index
+
+Update the element at a given index, returning a new chunk:
+
+```scala
+trait Chunk[+A] {
+  override def updated[A1 >: A](index: Int, elem: A1): Chunk[A1]
+}
+```
+
+The `updated` method creates a new chunk with the element at the specified index replaced. The original chunk remains unchanged:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+
+val updated = chunk.updated(2, 99)
+```
+
 ### Slicing and Partitioning
 
 Often you need to work with portions of a chunk rather than the whole. These operations let you keep elements from the ends, skip unwanted portions, extract contiguous ranges by position, and intelligently partition chunks based on predicates or conditions:
@@ -1581,6 +1601,79 @@ Groups of size 3 yield two full groups and a partial:
 
 ```scala mdoc
 numbers.grouped(3).toList
+```
+
+### Equality and Iteration
+
+Chunks support standard equality comparison and side-effect iteration:
+
+#### `Chunk#equals` — Equality Comparison
+
+Compare two chunks for equality:
+
+```scala
+trait Chunk[+A] {
+  override def equals(that: Any): Boolean
+}
+```
+
+Chunks are equal if they contain the same elements in the same order. The comparison works correctly regardless of the internal representation (array-backed vs. tree-structured):
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk1 = Chunk(1, 2, 3)
+val chunk2 = Chunk(1, 2, 3)
+val chunk3 = Chunk(1, 2, 4)
+
+chunk1 == chunk2
+chunk1 == chunk3
+```
+
+#### `Chunk#hashCode` — Hash Code Computation
+
+Get the hash code of a chunk:
+
+```scala
+trait Chunk[+A] {
+  override def hashCode: Int
+}
+```
+
+Chunks compute their hash code using the MurmurHash3 algorithm applied to all elements, similar to Scala's collection hashing. Equal chunks always have equal hash codes, making chunks suitable for use as keys in hash-based collections:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk1 = Chunk(1, 2, 3)
+val chunk2 = Chunk(1, 2, 3)
+
+chunk1.hashCode == chunk2.hashCode
+
+// Chunks can be used in Maps and Sets
+val chunkSet = Set(chunk1)
+chunkSet.contains(chunk2)  // true due to equals and hashCode consistency
+```
+
+#### `Chunk#foreach` — Iteration with Side Effects
+
+Perform a side effect for each element (used with `Unit`-returning functions):
+
+```scala
+trait Chunk[+A] {
+  override def foreach[B](f: A => B): Unit
+}
+```
+
+`foreach` iterates through all elements and applies a function, ignoring the return value. This is useful for side effects like logging or printing:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+
+// Print each element
+chunk.foreach(n => println(s"Element: $n"))
 ```
 
 ### Conversion
