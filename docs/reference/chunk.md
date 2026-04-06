@@ -2315,27 +2315,36 @@ val result2 = empty match {
 }
 ```
 
-## Subtypes and Variants
+## NonEmptyChunk
 
-Chunk has specialized variants for specific use cases:
+`NonEmptyChunk[A]` is a **type-safe wrapper** around `Chunk[A]` that **guarantees the chunk is non-empty**. It provides the same operations as `Chunk` but with methods like `head` and `last` returning `A` directly instead of `Option[A]` or throwing an exception. This eliminates the need for runtime checks on common operations and makes empty-case handling explicit at the type level.
 
-`NonEmptyChunk[A]` is a type-safe wrapper around `Chunk[A]` that guarantees the chunk is non-empty. It provides the same operations as `Chunk` but with methods like `head` returning `A` instead of potentially throwing an exception.
+`NonEmptyChunk[A]`:
+- Is a purely functional, immutable sequence of at least one element
+- Provides type-safe access to first and last elements
+- Supports all Chunk operations while maintaining the non-empty guarantee
+- Allows safe reduction operations without requiring a default value
+- Integrates seamlessly with Chunk for interoperability
 
-Create a `NonEmptyChunk` using varargs:
+### Construction
 
-```scala mdoc:silent:reset
-import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+Create a `NonEmptyChunk` directly using varargs syntax:
+
+```scala
+object NonEmptyChunk {
+  def apply[A](a: A, as: A*): NonEmptyChunk[A]
+}
+```
+
+Creating a non-empty chunk with direct constructor:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
 
 val nonEmpty = NonEmptyChunk(1, 2, 3)
 ```
 
-Accessing the head of a non-empty chunk is always safe:
-
-```scala mdoc
-nonEmpty.head
-```
-
-Create from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
+Create a `NonEmptyChunk` from an existing `Chunk` using `fromChunk`, which returns `Option[NonEmptyChunk[A]]`:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
@@ -2347,15 +2356,188 @@ val empty = Chunk.empty[Int]
 val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
 ```
 
-Concatenate chunks and maintain the type:
+Create from a Scala cons list using `fromCons`:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val list = 1 :: 2 :: 3 :: Nil
+val nonEmpty = NonEmptyChunk.fromCons(list.asInstanceOf[scala.collection.immutable.::[Int]])
+```
+
+Create from an iterable with at least one guaranteed element using `fromIterable`:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val nonEmpty = NonEmptyChunk.fromIterable(5, List(1, 2, 3, 4))
+```
+
+### Safe Access to Endpoints
+
+Access the first and last elements without risk of exception:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def head: A
+  def last: A
+}
+```
+
+Safely access endpoints of a guaranteed non-empty chunk:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val chunk = NonEmptyChunk(10, 20, 30, 40)
+
+chunk.head
+chunk.last
+chunk.size
+```
+
+### Reduction and Aggregation
+
+Reduce a non-empty chunk without requiring a starting value, since the chunk is guaranteed to have at least one element:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def reduce[B >: A](op: (B, B) => B): B
+  def reduceMapLeft[B](map: A => B)(reduce: (B, A) => B): B
+  def reduceMapRight[B](map: A => B)(reduce: (A, B) => B): B
+}
+```
+
+Reduction operations always produce a value (no Optional needed):
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val numbers = NonEmptyChunk(1, 2, 3, 4, 5)
+
+val sum = numbers.reduce(_ + _)
+
+val product = numbers.reduceMapLeft[Int](identity)(_ * _)
+```
+
+### Transformations
+
+Map and transform elements while preserving the non-empty guarantee:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def map[B](f: A => B): NonEmptyChunk[B]
+  def flatMap[B](f: A => NonEmptyChunk[B]): NonEmptyChunk[B]
+  def flatten[B](implicit ev: A <:< NonEmptyChunk[B]): NonEmptyChunk[B]
+  def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyChunk[B]
+  def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyChunk[A]
+  def distinct: NonEmptyChunk[A]
+  def reverse: NonEmptyChunk[A]
+}
+```
+
+Transformations maintain the non-empty property for map, flatMap, and other structure-preserving operations:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val numbers = NonEmptyChunk(3, 1, 4, 1, 5)
+
+val doubled = numbers.map(_ * 2)
+
+val sorted = numbers.sorted
+```
+
+### Grouping and Aggregation
+
+Group elements while maintaining non-empty chunks in each group:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def groupBy[K](f: A => K): Map[K, NonEmptyChunk[A]]
+  def groupMap[K, V](key: A => K)(f: A => V): Map[K, NonEmptyChunk[V]]
+  def grouped(size: Int): Iterator[NonEmptyChunk[A]]
+}
+```
+
+Grouping operations guarantee non-empty result chunks:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+case class Person(name: String, age: Int)
+val people = NonEmptyChunk(Person("Alice", 30), Person("Bob", 25), Person("Carol", 30))
+
+people.groupBy(_.age)
+```
+
+### Combining and Concatenating
+
+Extend a non-empty chunk with additional elements or other chunks:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def appended[A1 >: A](a: A1): NonEmptyChunk[A1]
+  def prepended[A1 >: A](a: A1): NonEmptyChunk[A1]
+  def ++[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1]
+  def :+[A1 >: A](a: A1): NonEmptyChunk[A1]  // alias for appended
+  def +:[A1 >: A](a: A1): NonEmptyChunk[A1]  // alias for prepended
+}
+```
+
+Concatenation operations preserve the non-empty guarantee:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.{Chunk, NonEmptyChunk}
 
-val nonEmpty1 = NonEmptyChunk(1, 2, 3)
-val chunk2 = Chunk(4, 5, 6)
+val nonEmpty = NonEmptyChunk(1, 2, 3)
+val chunk = Chunk(4, 5, 6)
 
-val result = nonEmpty1 ++ chunk2
+val appended = nonEmpty :+ 4
+
+val concatenated = nonEmpty ++ chunk
+
+val prepended = 0 +: nonEmpty
+```
+
+### Conversion to Chunk
+
+Convert a `NonEmptyChunk` back to a regular `Chunk`, losing the non-empty guarantee but gaining compatibility with Chunk APIs:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def toChunk: Chunk[A]
+}
+```
+
+Converting back to a `Chunk` for use with generic Chunk operations:
+
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val nonEmpty = NonEmptyChunk(1, 2, 3)
+val chunk: Chunk[Int] = nonEmpty.toChunk
+
+// Now you can use Chunk operations that return Chunk[A] instead of NonEmptyChunk[A]
+val filtered: Chunk[Int] = chunk.filter(_ > 1)
+```
+
+### Integration with Chunk Operations
+
+Many Chunk operations are available on `NonEmptyChunk` and return `NonEmptyChunk` when the structure is guaranteed to remain non-empty:
+
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val chunk = NonEmptyChunk(1, 2, 3, 4, 5)
+
+// These return NonEmptyChunk[A]
+val mapped = chunk.map(_ * 2)
+
+val sorted = chunk.sorted
+
+// These return Chunk[A] (since size might change)
+val filtered = chunk.toChunk.filter(_ > 2)
 ```
 
 ## ChunkMap
