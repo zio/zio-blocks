@@ -2799,6 +2799,100 @@ Understanding how Chunk compares to other sequence types helps you choose the ri
 
 **Use `Vector` when**: Need guaranteed access performance or already using `Vector` in codebase.
 
+### Additional Core Operations
+
+Chunk provides several additional methods for checking properties, materializing data, and handling non-empty conversions:
+
+#### `Chunk#isEmpty` — Check if Chunk is Empty
+
+Test whether the chunk contains no elements:
+
+```scala
+trait Chunk[+A] {
+  def isEmpty: Boolean
+}
+```
+
+Checking emptiness is a fast operation:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val full = Chunk(1, 2, 3)
+val empty = Chunk.empty[Int]
+
+full.isEmpty
+empty.isEmpty
+```
+
+**Performance:** O(1) — size is cached.
+
+#### `Chunk#materialize` — Force Full Evaluation
+
+Force the chunk to materialize fully. Useful when you need to ensure lazy operations are evaluated:
+
+```scala
+trait Chunk[+A] {
+  def materialize[A1 >: A]: Chunk[A1]
+}
+```
+
+Materializing evaluates all lazy operations:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3)
+val materialized = chunk.materialize
+```
+
+**Performance:** O(n) — may trigger deferred operations.
+
+#### `Chunk#nonEmptyOrElse` — Safe NonEmptyChunk Conversion
+
+Convert to a `NonEmptyChunk` with a fallback for empty chunks:
+
+```scala
+trait Chunk[+A] {
+  def nonEmptyOrElse[B](ifEmpty: => B)(fn: NonEmptyChunk[A] => B): B
+}
+```
+
+Converting safely to non-empty with a fallback:
+
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val chunk = Chunk(1, 2, 3)
+val result = chunk.nonEmptyOrElse("empty")(ne => s"non-empty with ${ne.length} elements")
+
+val empty = Chunk.empty[Int]
+val emptyResult = empty.nonEmptyOrElse("no elements")(ne => "should not see this")
+```
+
+**Performance:** O(1) — no iteration needed.
+
+#### `Chunk#updated` — Functional Update at Index
+
+Create a new chunk with an element updated at a specific index:
+
+```scala
+trait Chunk[+A] {
+  def updated[A1 >: A](index: Int, elem: A1): Chunk[A1]
+}
+```
+
+Updating at an index returns a new chunk with the element replaced:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val original = Chunk(10, 20, 30, 40)
+val updated = original.updated(1, 25)
+```
+
+**Performance:** O(log n) for tree-structured chunks; O(n) copy for large arrays.
+
 ## Integration
 
 Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
