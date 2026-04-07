@@ -430,8 +430,8 @@ object MigrationSpec extends SchemaBaseSpec {
         val m    = new DynamicMigration(Chunk.single(MigrationAction.ChangeType(path, conv)))
         m.reverse.actions.head match {
           case MigrationAction.ChangeType(_, ValueExpr.PrimitiveConvert(f, t)) =>
-            assert(f)(equalTo(ptLong: PrimitiveType[_])) &&
-            assert(t)(equalTo(ptInt: PrimitiveType[_]))
+            assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
+            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
           case other => assert(other.toString)(equalTo("ChangeType(reversed)"))
         }
       },
