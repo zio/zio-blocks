@@ -278,6 +278,209 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
       }
     ),
+    suite("PrimitiveConvert coverage")(
+      test("Byte widens to Short, Int, Long, Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def bv(b: Byte): DynamicValue                         = new DynamicValue.Primitive(new PrimitiveValue.Byte(b))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Byte(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bv(2))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Short(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Short(2))) &&
+        chk(PrimitiveType.Int(Validation.None), int(2)) &&
+        chk(PrimitiveType.Long(Validation.None), long(2L)) &&
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(2f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(2.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(2)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(2)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("2"))
+      },
+      test("Short widens to Int, Long, Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def sv(s: Short): DynamicValue                        = new DynamicValue.Primitive(new PrimitiveValue.Short(s))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Short(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> sv(3))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Int(Validation.None), int(3)) &&
+        chk(PrimitiveType.Long(Validation.None), long(3L)) &&
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(3f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(3.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(3)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(3)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("3"))
+      },
+      test("Int widens to Float, Double, BigInt, BigDecimal, Char") {
+        val path                                              = DynamicOptic.root.field("v")
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Int(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> int(65))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(65f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(65.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(65)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(65)))
+        ) &&
+        chk(PrimitiveType.Char(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Char('A')))
+      },
+      test("Long widens to Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def lv(l: Long): DynamicValue                         = new DynamicValue.Primitive(new PrimitiveValue.Long(l))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Long(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> lv(5L))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(5f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(5.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(5)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(5)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("5"))
+      },
+      test("Float widens to Double, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def fv(f: Float): DynamicValue                        = new DynamicValue.Primitive(new PrimitiveValue.Float(f))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Float(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> fv(1.5f))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.Double(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.Double(1.5f.toDouble))
+        ) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(1.5f.toDouble)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str(1.5f.toString))
+      },
+      test("Double widens to BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def dv(d: Double): DynamicValue                       = new DynamicValue.Primitive(new PrimitiveValue.Double(d))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Double(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> dv(2.5))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(2.5)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("2.5"))
+      },
+      test("BigInt converts to BigDecimal and String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def biv(n: BigInt): DynamicValue                      = new DynamicValue.Primitive(new PrimitiveValue.BigInt(n))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.BigInt(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> biv(BigInt(7)))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(7)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("7"))
+      },
+      test("BigDecimal converts to String") {
+        val path   = DynamicOptic.root.field("v")
+        val bd     = BigDecimal("3.14")
+        val bdv    = new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.BigDecimal(Validation.None), PrimitiveType.String(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bdv)))(
+          isRight(equalTo(rec("v" -> str("3.14"))))
+        )
+      },
+      test("Boolean converts to String") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Boolean(Validation.None), PrimitiveType.String(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bool(true))))(
+          isRight(equalTo(rec("v" -> str("true"))))
+        )
+      },
+      test("Char converts to Int and String") {
+        val path                                              = DynamicOptic.root.field("v")
+        val cv                                                = new DynamicValue.Primitive(new PrimitiveValue.Char('Z'))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Char(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> cv)))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Int(Validation.None), int('Z'.toInt)) &&
+        chk(PrimitiveType.String(Validation.None), str("Z"))
+      },
+      test("String parses to Byte, Short, Long, Float, Double, BigInt, BigDecimal, Boolean") {
+        val path                                                           = DynamicOptic.root.field("v")
+        def chk(to: PrimitiveType[_], src: String, expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.String(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> str(src))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Byte(Validation.None), "8", new DynamicValue.Primitive(new PrimitiveValue.Byte(8))) &&
+        chk(PrimitiveType.Short(Validation.None), "9", new DynamicValue.Primitive(new PrimitiveValue.Short(9))) &&
+        chk(PrimitiveType.Long(Validation.None), "10", long(10L)) &&
+        chk(PrimitiveType.Float(Validation.None), "1.1", new DynamicValue.Primitive(new PrimitiveValue.Float(1.1f))) &&
+        chk(PrimitiveType.Double(Validation.None), "2.2", new DynamicValue.Primitive(new PrimitiveValue.Double(2.2))) &&
+        chk(
+          PrimitiveType.BigInt(Validation.None),
+          "100",
+          new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt("100")))
+        ) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          "1.23",
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal("1.23")))
+        ) &&
+        chk(PrimitiveType.Boolean(Validation.None), "true", bool(true))
+      },
+      test("unsupported conversions return Left") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Boolean(Validation.None), PrimitiveType.Int(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bool(true))))(isLeft)
+      }
+    ),
     suite("Join")(
       test("concatenates two string fields with separator") {
         val left   = DynamicOptic.root.field("first")
@@ -676,6 +879,28 @@ object MigrationSpec extends SchemaBaseSpec {
             .elements
             .length
         )(equalTo(3))
+      },
+      test("error short-circuits remaining actions in DynamicMigration") {
+        // First action fails, second action should not run
+        val badAction  = MigrationAction.DropField(DynamicOptic.root.field("nonexistent"))
+        val goodAction = MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName")
+        val dv         = rec("name" -> str("Alice"))
+        val result     = new DynamicMigration(Chunk(badAction, goodAction)).apply(dv)
+        assert(result)(isLeft)
+      },
+      test("RenameField with empty path returns Left") {
+        val action = MigrationAction.RenameField(DynamicOptic.root, "newName")
+        val dv     = rec("name" -> str("Alice"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("resolveActions short-circuits on first DefaultValue resolution failure") {
+        val badPath = DynamicOptic.root.field("noDefault")
+        val actions = Chunk(
+          MigrationAction.AddField(badPath, ValueExpr.DefaultValue),
+          MigrationAction.AddField(DynamicOptic.root.field("other"), ValueExpr.DefaultValue)
+        )
+        val m = new Migration(PersonV1.schema, PersonV1.schema, new DynamicMigration(actions))
+        assert(m.apply(PersonV1("Bob", 25)))(isLeft)
       }
     )
   )

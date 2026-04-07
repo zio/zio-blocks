@@ -26,9 +26,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveType}
  * primitive-to-primitive conversions and the built-in string operations needed
  * to represent Join/Split combiners without closures or reflection.
  *
- * Interpretation lives in [[DynamicMigration.applyAction]], not here. The ADT
- * itself carries no executable code, keeping [[DynamicMigration]] fully
- * serializable.
+ * Interpretation lives in `DynamicMigration`, not here. The ADT itself carries
+ * no executable code, keeping [[DynamicMigration]] fully serializable.
  */
 sealed trait ValueExpr
 
@@ -85,8 +84,8 @@ object ValueExpr {
  * ZIO Blocks schema migration specification.
  *
  * Paths are always relative to the root of the [[DynamicValue]] being migrated.
- * The interpreter in [[DynamicMigration.applyAction]] is responsible for
- * evaluating each action against a concrete value.
+ * The interpreter in [[DynamicMigration]] is responsible for evaluating each
+ * action against a concrete value.
  */
 sealed trait MigrationAction
 

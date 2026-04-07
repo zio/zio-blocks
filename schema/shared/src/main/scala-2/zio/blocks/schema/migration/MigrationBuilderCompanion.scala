@@ -23,8 +23,8 @@ import scala.language.experimental.macros
  *
  * Each method accepts a selector lambda that is expanded at compile time into a
  * [[zio.blocks.schema.DynamicOptic]] by
- * [[MigrationMacros.selectorToDynamicOptic]], then delegates to the
- * corresponding `*At` method on [[MigrationBuilder]].
+ * `MigrationMacros.selectorToDynamicOptic`, then delegates to the corresponding
+ * `*At` method on [[MigrationBuilder]].
  */
 object MigrationBuilderCompanion {
   import scala.annotation.compileTimeOnly
