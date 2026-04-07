@@ -111,7 +111,7 @@ object RPCMacroSpec extends ZIOSpecDefault {
         assertTrue(
           op.annotations.length == 2,
           op.annotations.exists(_.isInstanceOf[Idempotent]),
-          op.annotations.exists(_.isInstanceOf[Deprecated])
+          op.annotations.exists(_.isInstanceOf[RpcDeprecated])
         )
       }
     ),

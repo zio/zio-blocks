@@ -37,8 +37,7 @@ case object Degraded extends Status
 
 class Idempotent extends MetaAnnotation
 
-
-class Deprecated(reason: String) extends MetaAnnotation
+class RpcDeprecated(reason: String) extends MetaAnnotation
 
 // === Service Trait Fixtures ===
 
@@ -91,6 +90,6 @@ trait InheritedService extends ParentService {
 
 // Multiple annotations on one method
 trait MultiAnnotatedService {
-  @Idempotent @Deprecated("old")
+  @Idempotent @RpcDeprecated("old")
   def dualAnnotated(id: Long): String
 }

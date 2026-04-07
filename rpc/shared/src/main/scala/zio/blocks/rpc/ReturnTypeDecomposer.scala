@@ -25,6 +25,10 @@ package zio.blocks.rpc
  *
  * Built-in instance: `Either[E, A]` decomposes to error=E, success=A.
  *
+ * Plain return types (not wrapped in Either or an effect) do not require a
+ * `ReturnTypeDecomposer` instance — the macro handles them directly as
+ * success-only with `error = Nothing`.
+ *
  * For effect types (ZIO, cats IO, Kyo), add a dependency on the corresponding
  * rpc integration module which provides the appropriate decomposer instance.
  */

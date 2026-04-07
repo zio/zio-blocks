@@ -62,7 +62,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
     suite("successful request-response round-trip")(
       test("returns correct result with string param") {
         val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"world"},"id":1}"""
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val result   = extractField(response, "result")
         val jsonrpc  = extractString(response, "jsonrpc")
@@ -76,7 +76,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       },
       test("preserves request id in response") {
         val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":42}"""
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val id       = extractNumber(response, "id")
         assertTrue(id.contains(BigDecimal(42)))
@@ -85,7 +85,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
     suite("error handling")(
       test("method not found returns -32601") {
         val request  = """{"jsonrpc":"2.0","method":"nonexistent","params":{},"id":1}"""
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
@@ -93,7 +93,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       },
       test("parse error returns -32700") {
         val request  = "not valid json{{"
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
@@ -101,7 +101,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       },
       test("missing method returns -32600") {
         val request  = """{"jsonrpc":"2.0","params":{},"id":1}"""
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
@@ -113,7 +113,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       },
       test("handler error returns -32603") {
         val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":1}"""
-        val raw      = failingCodec.handleRequest(request)
+        val raw      = failingCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
@@ -125,11 +125,46 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       },
       test("non-string method returns -32600") {
         val request  = """{"jsonrpc":"2.0","method":123,"params":{},"id":1}"""
-        val raw      = greeterCodec.handleRequest(request)
+        val raw      = greeterCodec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
         assertTrue(code.contains(BigDecimal(-32600)))
+      },
+      test("missing jsonrpc field returns -32600") {
+        val request  = """{"method":"greet","params":{"name":"test"},"id":1}"""
+        val raw      = greeterCodec.handleRequest(request).get
+        val response = parseResponse(raw)
+        val error    = extractField(response, "error")
+        val code     = error.flatMap(e => extractNumber(e, "code"))
+        val message  = error.flatMap(e => extractString(e, "message"))
+        assertTrue(
+          code.contains(BigDecimal(-32600)),
+          message.exists(_.contains("jsonrpc"))
+        )
+      },
+      test("wrong jsonrpc version returns -32600") {
+        val request  = """{"jsonrpc":"1.0","method":"greet","params":{"name":"test"},"id":1}"""
+        val raw      = greeterCodec.handleRequest(request).get
+        val response = parseResponse(raw)
+        val error    = extractField(response, "error")
+        val code     = error.flatMap(e => extractNumber(e, "code"))
+        assertTrue(code.contains(BigDecimal(-32600)))
+      },
+      test("non-object request returns -32600") {
+        val request  = """[1, 2, 3]"""
+        val raw      = greeterCodec.handleRequest(request).get
+        val response = parseResponse(raw)
+        val error    = extractField(response, "error")
+        val code     = error.flatMap(e => extractNumber(e, "code"))
+        assertTrue(code.contains(BigDecimal(-32600)))
+      }
+    ),
+    suite("notification handling")(
+      test("notification without id returns None") {
+        val request = """{"jsonrpc":"2.0","method":"greet","params":{"name":"world"}}"""
+        val result  = greeterCodec.handleRequest(request)
+        assertTrue(result.isEmpty)
       }
     ),
     suite("JsonRpcDeriver integration")(
@@ -138,13 +173,13 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
         val codec   = JsonRpcDeriver.deriveService(rpc)
         val request = """{"jsonrpc":"2.0","method":"unknown","params":{},"id":1}"""
         val raw     = codec.handleRequest(request)
-        assertTrue(raw.contains("-32601"))
+        assertTrue(raw.exists(_.contains("-32601")))
       },
       test("derived codec returns internal error for unbound operations") {
         val rpc      = RPC.derived[GreeterService]
         val codec    = JsonRpcDeriver.deriveService(rpc)
         val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":1}"""
-        val raw      = codec.handleRequest(request)
+        val raw      = codec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         val code     = error.flatMap(e => extractNumber(e, "code"))
@@ -159,7 +194,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
         val rpc      = RPC.derived[GreeterService]
         val codec    = rpc.derive(JsonRpcFormat.deriver)
         val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":1}"""
-        val raw      = codec.handleRequest(request)
+        val raw      = codec.handleRequest(request).get
         val response = parseResponse(raw)
         val error    = extractField(response, "error")
         assertTrue(error.isDefined)
