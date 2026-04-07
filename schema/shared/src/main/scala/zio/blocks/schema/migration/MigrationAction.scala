@@ -51,19 +51,18 @@ object ValueExpr {
   /**
    * Converts a primitive value from one [[PrimitiveType]] to another.
    *
-   * Only numeric widening, numeric-to-string, and string-to-numeric
-   * conversions are supported by the interpreter in [[DynamicMigration]].
-   * Unsupported combinations produce a [[MigrationError]] at runtime.
+   * Only numeric widening, numeric-to-string, and string-to-numeric conversions
+   * are supported by the interpreter in [[DynamicMigration]]. Unsupported
+   * combinations produce a [[MigrationError]] at runtime.
    */
   final case class PrimitiveConvert(
     from: PrimitiveType[_],
-    to:   PrimitiveType[_]
+    to: PrimitiveType[_]
   ) extends ValueExpr
 
   /**
    * Concatenates two string values with the given separator. Used as the
-   * `combiner` in [[MigrationAction.Join]] when both source fields are
-   * strings.
+   * `combiner` in [[MigrationAction.Join]] when both source fields are strings.
    *
    * Interpretation: `left + separator + right`
    */
@@ -85,14 +84,14 @@ object ValueExpr {
 
     final case class PrimitiveConvert(
       from: String,
-      to:   String
+      to: String
     ) extends ValueExprRepr
 
     final case class Concat(separator: String) extends ValueExprRepr
 
     final case class StringSplit(separator: String) extends ValueExprRepr
 
-    implicit lazy val schema: Schema[ValueExprRepr] = Schema.derived[ValueExprRepr]
+    implicit lazy val schema: Schema[ValueExprRepr]                    = Schema.derived[ValueExprRepr]
     implicit lazy val primitiveConvertSchema: Schema[PrimitiveConvert] = Schema.derived[PrimitiveConvert]
   }
 
@@ -190,9 +189,9 @@ object ValueExpr {
  * cover the full range of structural schema evolution operations defined in the
  * ZIO Blocks schema migration specification.
  *
- * Paths are always relative to the root of the [[DynamicValue]] being
- * migrated. The interpreter in [[DynamicMigration.applyAction]] is responsible
- * for evaluating each action against a concrete value.
+ * Paths are always relative to the root of the [[DynamicValue]] being migrated.
+ * The interpreter in [[DynamicMigration.applyAction]] is responsible for
+ * evaluating each action against a concrete value.
  */
 sealed trait MigrationAction
 
@@ -209,7 +208,7 @@ object MigrationAction {
    * Reverse: [[DropField]] with the same `path`.
    */
   final case class AddField(
-    path:         DynamicOptic,
+    path: DynamicOptic,
     defaultValue: ValueExpr
   ) extends MigrationAction
 
@@ -226,11 +225,11 @@ object MigrationAction {
    * [[DynamicOptic.Node.Field]] node; the field is renamed to `newName` in
    * place, preserving its value and position.
    *
-   * Reverse: [[RenameField]] with `path` updated to the new name and
-   * `newName` set to the old name.
+   * Reverse: [[RenameField]] with `path` updated to the new name and `newName`
+   * set to the old name.
    */
   final case class RenameField(
-    path:    DynamicOptic,
+    path: DynamicOptic,
     newName: String
   ) extends MigrationAction
 
@@ -259,7 +258,7 @@ object MigrationAction {
    * Reverse: [[Optionalize]] with the same `path`.
    */
   final case class Mandate(
-    path:        DynamicOptic,
+    path: DynamicOptic,
     defaultExpr: ValueExpr
   ) extends MigrationAction
 
@@ -290,17 +289,17 @@ object MigrationAction {
    * Combines the values at `left` and `right` into a single value written to
    * `target`, using `combiner` to describe the merge operation.
    *
-   * Both source fields are read before either is removed. The `target` path
-   * may be an existing field (overwrite) or a new one. After combining, `left`
-   * and `right` are dropped from the record.
+   * Both source fields are read before either is removed. The `target` path may
+   * be an existing field (overwrite) or a new one. After combining, `left` and
+   * `right` are dropped from the record.
    *
    * Reverse: [[Split]] with `from = target`, `toLeft = left`,
    * `toRight = right`, and an appropriate `splitter`.
    */
   final case class Join(
-    left:     DynamicOptic,
-    right:    DynamicOptic,
-    target:   DynamicOptic,
+    left: DynamicOptic,
+    right: DynamicOptic,
+    target: DynamicOptic,
     combiner: ValueExpr
   ) extends MigrationAction
 
@@ -311,13 +310,13 @@ object MigrationAction {
    * The source field is removed after splitting. The `toLeft` and `toRight`
    * paths may be existing fields (overwrite) or new ones.
    *
-   * Reverse: [[Join]] with `left = toLeft`, `right = toRight`,
-   * `target = from`, and an appropriate `combiner`.
+   * Reverse: [[Join]] with `left = toLeft`, `right = toRight`, `target = from`,
+   * and an appropriate `combiner`.
    */
   final case class Split(
-    from:     DynamicOptic,
-    toLeft:   DynamicOptic,
-    toRight:  DynamicOptic,
+    from: DynamicOptic,
+    toLeft: DynamicOptic,
+    toRight: DynamicOptic,
     splitter: ValueExpr
   ) extends MigrationAction
 
@@ -363,19 +362,19 @@ object MigrationAction {
   /**
    * Renames a [[DynamicValue.Variant]] case from `fromName` to `toName`.
    *
-   * If the value at the root is not a `Variant` with case name `fromName`,
-   * the action is a no-op.
+   * If the value at the root is not a `Variant` with case name `fromName`, the
+   * action is a no-op.
    *
    * Reverse: [[RenameCase]] with `fromName` and `toName` swapped.
    */
   final case class RenameCase(
     fromName: String,
-    toName:   String
+    toName: String
   ) extends MigrationAction
 
   /**
-   * Applies `expr` to the inner value of a [[DynamicValue.Variant]] whose
-   * case name matches `caseName`.
+   * Applies `expr` to the inner value of a [[DynamicValue.Variant]] whose case
+   * name matches `caseName`.
    *
    * If the variant's case name does not match, the action is a no-op.
    *
@@ -383,7 +382,7 @@ object MigrationAction {
    */
   final case class TransformCase(
     caseName: String,
-    expr:     ValueExpr
+    expr: ValueExpr
   ) extends MigrationAction
 
   implicit lazy val schema: Schema[MigrationAction] = Schema.derived[MigrationAction]

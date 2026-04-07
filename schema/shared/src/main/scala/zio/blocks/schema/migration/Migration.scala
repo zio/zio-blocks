@@ -30,20 +30,18 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Reflect, Schema}
  *   1. '''Type-safe apply''': converts `A → DynamicValue`, delegates to the
  *      inner `DynamicMigration`, then converts `DynamicValue → B`, surfacing
  *      [[SchemaError]]s as [[MigrationError]]s.
- *
- *   2. '''Default-value resolution''': any [[ValueExpr.DefaultValue]] inside the
- *      migration is resolved against `toSchema` before the inner
- *      `DynamicMigration` runs. This means
- *      `DynamicMigration` never has to deal with `DefaultValue` at runtime —
- *      it either sees a concrete [[ValueExpr.Constant]] or the action fails
- *      cleanly before execution.
+ *   2. '''Default-value resolution''': any [[ValueExpr.DefaultValue]] inside
+ *      the migration is resolved against `toSchema` before the inner
+ *      `DynamicMigration` runs. This means `DynamicMigration` never has to deal
+ *      with `DefaultValue` at runtime — it either sees a concrete
+ *      [[ValueExpr.Constant]] or the action fails cleanly before execution.
  *
  * ==Laws==
  *   - Identity: `Migration.identity[A].apply(a) == Right(a)` for all `a` and
  *     any `Schema[A]`.
  *   - Reverse: if `m: Migration[A, B]` is structurally invertible then
- *     `m.reverse.apply(m.apply(a)) ≈ Right(a)` (modulo lossy operations such
- *     as `DropField`).
+ *     `m.reverse.apply(m.apply(a)) ≈ Right(a)` (modulo lossy operations such as
+ *     `DropField`).
  *   - Composition: `m1.andThen(m2).apply(a) == m1.apply(a).flatMap(m2.apply)`
  *     for all `a`.
  *
@@ -54,8 +52,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Reflect, Schema}
  */
 final class Migration[A, B](
   val fromSchema: Schema[A],
-  val toSchema:   Schema[B],
-  val migration:  DynamicMigration
+  val toSchema: Schema[B],
+  val migration: DynamicMigration
 ) {
 
   /**
@@ -75,8 +73,7 @@ final class Migration[A, B](
     resolveActions(migration.actions).flatMap { resolvedActions =>
       val resolved = new DynamicMigration(resolvedActions)
       resolved.apply(sourceDv).flatMap { resultDv =>
-        toSchema.fromDynamicValue(resultDv)
-          .left.map(e => MigrationError(e.message))
+        toSchema.fromDynamicValue(resultDv).left.map(e => MigrationError(e.message))
       }
     }
   }
@@ -154,10 +151,12 @@ final class Migration[A, B](
 
     case MigrationAction.TransformCase(caseName, ValueExpr.DefaultValue) =>
       // TransformCase has no single path; require an explicit constant
-      Left(MigrationError(
-        s"DefaultValue cannot be resolved for TransformCase('$caseName'): " +
-          "supply an explicit ValueExpr.Constant instead"
-      ))
+      Left(
+        MigrationError(
+          s"DefaultValue cannot be resolved for TransformCase('$caseName'): " +
+            "supply an explicit ValueExpr.Constant instead"
+        )
+      )
 
     case other =>
       Right(other)
@@ -168,7 +167,8 @@ final class Migration[A, B](
    *
    * Navigates `toSchema`'s reflection tree via [[Schema.get(DynamicOptic)]] to
    * find the sub-reflect at `path`, then calls `getDefaultValue` on it. If the
-   * schema at that path has no registered default, returns a [[MigrationError]].
+   * schema at that path has no registered default, returns a
+   * [[MigrationError]].
    */
   private def resolveDefaultAt(path: DynamicOptic): Either[MigrationError, DynamicValue] =
     extractDefaultFromWholeTarget(path) match {
@@ -177,16 +177,20 @@ final class Migration[A, B](
       case Left(_) =>
         toSchema.get(path) match {
           case None =>
-            Left(MigrationError(
-              s"DefaultValue: no schema found at path ${path.toScalaString} in target schema"
-            ))
+            Left(
+              MigrationError(
+                s"DefaultValue: no schema found at path ${path.toScalaString} in target schema"
+              )
+            )
           case Some(subReflect) =>
             getDefaultDynamic(subReflect) match {
               case Some(dv) => Right(dv)
-              case None =>
-                Left(MigrationError(
-                  s"DefaultValue: target schema has no default value at path ${path.toScalaString}"
-                ))
+              case None     =>
+                Left(
+                  MigrationError(
+                    s"DefaultValue: target schema has no default value at path ${path.toScalaString}"
+                  )
+                )
             }
         }
     }
@@ -209,9 +213,11 @@ final class Migration[A, B](
       case Some(defaultDv) =>
         defaultDv.get(path).one.left.map(e => MigrationError(e.message, path))
       case None =>
-        Left(MigrationError(
-          s"DefaultValue: target schema has no default value at path ${path.toScalaString}"
-        ))
+        Left(
+          MigrationError(
+            s"DefaultValue: target schema has no default value at path ${path.toScalaString}"
+          )
+        )
     }
 
   private def resolveForComposition[C](migration: Migration[_, C]): Chunk[MigrationAction] =
@@ -226,8 +232,8 @@ object Migration {
    */
   def apply[A, B](
     fromSchema: Schema[A],
-    toSchema:   Schema[B],
-    migration:  DynamicMigration
+    toSchema: Schema[B],
+    migration: DynamicMigration
   ): Migration[A, B] = new Migration(fromSchema, toSchema, migration)
 
   /**

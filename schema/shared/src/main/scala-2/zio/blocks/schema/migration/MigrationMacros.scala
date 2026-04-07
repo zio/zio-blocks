@@ -20,14 +20,16 @@ import scala.reflect.NameTransformer
 import scala.reflect.macros.whitebox
 
 /**
- * Scala 2 whitebox macro that converts a selector lambda (e.g. `_.address.street`)
- * into a [[zio.blocks.schema.DynamicOptic]] at compile time.
+ * Scala 2 whitebox macro that converts a selector lambda (e.g.
+ * `_.address.street`) into a [[zio.blocks.schema.DynamicOptic]] at compile
+ * time.
  *
  * This is the Scala 2 counterpart of the Scala 3 [[MigrationMacros]] object.
  * The same selector surface (`each`, `when[T]`, `at(i)`, `atKey(k)`, etc.) is
- * supported. The empty-tree convention from [[zio.blocks.schema.CompanionOptics]]
- * is reused: `q""` signals "root" (`DynamicOptic.root`), any non-empty tree
- * represents the accumulated [[DynamicOptic]] expression up to that node.
+ * supported. The empty-tree convention from
+ * [[zio.blocks.schema.CompanionOptics]] is reused: `q""` signals "root"
+ * (`DynamicOptic.root`), any non-empty tree represents the accumulated
+ * [[DynamicOptic]] expression up to that node.
  *
  * Implicit resolution for `atKey`/`atKeys` (`Schema[K]`) and `searchFor[T]`
  * (`TypeId[T]`) is left to the call site: the emitted tree contains the method
@@ -92,8 +94,7 @@ private[migration] object MigrationMacros {
         q"${parentOrRoot(parent)}.wrapped"
 
       // ── _.at(i) ────────────────────────────────────────────────────────────
-      case q"$_[..$_]($parent).at(..$args)"
-          if args.size == 1 && args.head.tpe.widen.dealias <:< definitions.IntTpe =>
+      case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.widen.dealias <:< definitions.IntTpe =>
         q"${parentOrRoot(parent)}.at(${args.head})"
 
       // ── _.atIndices(i*) ────────────────────────────────────────────────────

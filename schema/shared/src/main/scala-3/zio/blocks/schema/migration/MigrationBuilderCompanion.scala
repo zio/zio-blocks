@@ -25,9 +25,9 @@ package zio.blocks.schema.migration
  * corresponding `*At` method on [[MigrationBuilder]].
  *
  * The selector lambdas support the full set of path operations defined by the
- * [[zio.blocks.schema.CompanionOptics]] DSL:
- * `_.field`, `.when[T]`, `.each`, `.eachKey`, `.eachValue`, `.wrapped[T]`,
- * `.at(i)`, `.atIndices(i*)`, `.atKey(k)`, `.atKeys(k*)`, `.searchFor[T]`.
+ * [[zio.blocks.schema.CompanionOptics]] DSL: `_.field`, `.when[T]`, `.each`,
+ * `.eachKey`, `.eachValue`, `.wrapped[T]`, `.at(i)`, `.atIndices(i*)`,
+ * `.atKey(k)`, `.atKeys(k*)`, `.searchFor[T]`.
  *
  * ==Example==
  * {{{
@@ -77,7 +77,10 @@ object MigrationBuilderCompanion {
      * The selector must address a field that does not yet exist in `A` but
      * exists in `B`. The final path segment becomes the new field name.
      */
-    transparent inline def addField[C](inline selector: B => C, inline defaultValue: ValueExpr): MigrationBuilder[A, B] =
+    transparent inline def addField[C](
+      inline selector: B => C,
+      inline defaultValue: ValueExpr
+    ): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.addFieldImpl[A, B, C]('builder, 'selector, 'defaultValue) }
 
     /**
@@ -100,8 +103,8 @@ object MigrationBuilderCompanion {
     /**
      * Transforms the value at the path described by `selector` using `expr`.
      *
-     * Suitable for in-place value changes that do not alter structural
-     * position (e.g. [[ValueExpr.PrimitiveConvert]], [[ValueExpr.Constant]]).
+     * Suitable for in-place value changes that do not alter structural position
+     * (e.g. [[ValueExpr.PrimitiveConvert]], [[ValueExpr.Constant]]).
      */
     transparent inline def transformValue[C](inline selector: A => C, inline expr: ValueExpr): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.transformValueImpl[A, B, C]('builder, 'selector, 'expr) }
@@ -110,8 +113,8 @@ object MigrationBuilderCompanion {
      * Mandates an optional field at the path described by `selector`,
      * unwrapping it from its `Some`/`None` encoding.
      *
-     * If the field is `None`, `defaultExpr` is evaluated to supply the
-     * required value.
+     * If the field is `None`, `defaultExpr` is evaluated to supply the required
+     * value.
      */
     transparent inline def mandate[C](inline selector: A => C, inline defaultExpr: ValueExpr): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.mandateImpl[A, B, C]('builder, 'selector, 'defaultExpr) }
@@ -129,7 +132,7 @@ object MigrationBuilderCompanion {
      */
     transparent inline def changeType[C](
       inline selector: A => C,
-      inline expr:     ValueExpr.PrimitiveConvert
+      inline expr: ValueExpr.PrimitiveConvert
     ): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.changeTypeImpl[A, B, C]('builder, 'selector, 'expr) }
 
@@ -140,42 +143,49 @@ object MigrationBuilderCompanion {
      * Both source fields are read before either is removed.
      */
     transparent inline def join[L, R, T](
-      inline leftSelector:   A => L,
-      inline rightSelector:  A => R,
+      inline leftSelector: A => L,
+      inline rightSelector: A => R,
       inline targetSelector: B => T,
-      inline combiner:       ValueExpr
+      inline combiner: ValueExpr
     ): MigrationBuilder[A, B] =
-      ${ MigrationBuilderCompanionMacros.joinImpl[A, B, L, R, T](
-        'builder,
-        'leftSelector,
-        'rightSelector,
-        'targetSelector,
-        'combiner
-      ) }
+      ${
+        MigrationBuilderCompanionMacros.joinImpl[A, B, L, R, T](
+          'builder,
+          'leftSelector,
+          'rightSelector,
+          'targetSelector,
+          'combiner
+        )
+      }
 
     /**
      * Splits the value at `fromSelector` into two values written to
      * `toLeftSelector` and `toRightSelector`, using `splitter`.
      */
     transparent inline def split[F, L, R](
-      inline fromSelector:    A => F,
-      inline toLeftSelector:  B => L,
+      inline fromSelector: A => F,
+      inline toLeftSelector: B => L,
       inline toRightSelector: B => R,
-      inline splitter:        ValueExpr
+      inline splitter: ValueExpr
     ): MigrationBuilder[A, B] =
-      ${ MigrationBuilderCompanionMacros.splitImpl[A, B, F, L, R](
-        'builder,
-        'fromSelector,
-        'toLeftSelector,
-        'toRightSelector,
-        'splitter
-      ) }
+      ${
+        MigrationBuilderCompanionMacros.splitImpl[A, B, F, L, R](
+          'builder,
+          'fromSelector,
+          'toLeftSelector,
+          'toRightSelector,
+          'splitter
+        )
+      }
 
     /**
      * Applies `expr` to every element of the sequence at the path described by
      * `selector`.
      */
-    transparent inline def transformElements[C](inline selector: A => C, inline expr: ValueExpr): MigrationBuilder[A, B] =
+    transparent inline def transformElements[C](
+      inline selector: A => C,
+      inline expr: ValueExpr
+    ): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.transformElementsImpl[A, B, C]('builder, 'selector, 'expr) }
 
     /**
@@ -198,8 +208,8 @@ private[migration] object MigrationBuilderCompanionMacros {
   import scala.quoted._
 
   def addFieldImpl[A: Type, B: Type, C: Type](
-    builder:      Expr[MigrationBuilder[A, B]],
-    selector:     Expr[B => C],
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[B => C],
     defaultValue: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[B, C](selector)
@@ -207,7 +217,7 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def dropFieldImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
@@ -215,26 +225,26 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def renameFieldImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    newName:  Expr[String]
+    newName: Expr[String]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.renameFieldAt($path, $newName) }
   }
 
   def transformValueImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    expr:     Expr[ValueExpr]
+    expr: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.transformValueAt($path, $expr) }
   }
 
   def mandateImpl[A: Type, B: Type, C: Type](
-    builder:     Expr[MigrationBuilder[A, B]],
-    selector:    Expr[A => C],
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
     defaultExpr: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
@@ -242,7 +252,7 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def optionalizeImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
@@ -250,20 +260,20 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def changeTypeImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    expr:     Expr[ValueExpr.PrimitiveConvert]
+    expr: Expr[ValueExpr.PrimitiveConvert]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.changeTypeAt($path, $expr) }
   }
 
   def joinImpl[A: Type, B: Type, L: Type, R: Type, T: Type](
-    builder:        Expr[MigrationBuilder[A, B]],
-    leftSelector:   Expr[A => L],
-    rightSelector:  Expr[A => R],
+    builder: Expr[MigrationBuilder[A, B]],
+    leftSelector: Expr[A => L],
+    rightSelector: Expr[A => R],
     targetSelector: Expr[B => T],
-    combiner:       Expr[ValueExpr]
+    combiner: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val leftPath   = MigrationMacros.selectorToDynamicOptic[A, L](leftSelector)
     val rightPath  = MigrationMacros.selectorToDynamicOptic[A, R](rightSelector)
@@ -272,11 +282,11 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def splitImpl[A: Type, B: Type, F: Type, L: Type, R: Type](
-    builder:         Expr[MigrationBuilder[A, B]],
-    fromSelector:    Expr[A => F],
-    toLeftSelector:  Expr[B => L],
+    builder: Expr[MigrationBuilder[A, B]],
+    fromSelector: Expr[A => F],
+    toLeftSelector: Expr[B => L],
     toRightSelector: Expr[B => R],
-    splitter:        Expr[ValueExpr]
+    splitter: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val fromPath    = MigrationMacros.selectorToDynamicOptic[A, F](fromSelector)
     val toLeftPath  = MigrationMacros.selectorToDynamicOptic[B, L](toLeftSelector)
@@ -285,27 +295,27 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def transformElementsImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    expr:     Expr[ValueExpr]
+    expr: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.transformElementsAt($path, $expr) }
   }
 
   def transformKeysImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    expr:     Expr[ValueExpr]
+    expr: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.transformKeysAt($path, $expr) }
   }
 
   def transformValuesImpl[A: Type, B: Type, C: Type](
-    builder:  Expr[MigrationBuilder[A, B]],
+    builder: Expr[MigrationBuilder[A, B]],
     selector: Expr[A => C],
-    expr:     Expr[ValueExpr]
+    expr: Expr[ValueExpr]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.transformValuesAt($path, $expr) }

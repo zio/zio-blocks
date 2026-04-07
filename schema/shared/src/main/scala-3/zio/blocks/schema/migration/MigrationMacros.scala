@@ -27,21 +27,25 @@ import zio.blocks.typeid.TypeId
  *
  * This is the counterpart of `CompanionOptics` for the migration DSL: instead
  * of producing a typed `Optic[S, A]`, it walks the same selector AST and emits
- * a chain of [[DynamicOptic]] node appends (`field`, `caseOf`, `at`, `elements`,
- * etc.).
+ * a chain of [[DynamicOptic]] node appends (`field`, `caseOf`, `at`,
+ * `elements`, etc.).
  *
  * ==Supported selector operations==
  *   - `_.field` / `_._N` → [[DynamicOptic.Node.Field]]
- *   - `_.when[T]` → [[DynamicOptic.Node.Case]] (uses the simple type-symbol name)
+ *   - `_.when[T]` → [[DynamicOptic.Node.Case]] (uses the simple type-symbol
+ *     name)
  *   - `_.each` → [[DynamicOptic.Node.Elements]]
  *   - `_.eachKey` → [[DynamicOptic.Node.MapKeys]]
  *   - `_.eachValue` → [[DynamicOptic.Node.MapValues]]
  *   - `_.wrapped[T]` → [[DynamicOptic.Node.Wrapped]]
  *   - `_.at(i)` → [[DynamicOptic.Node.AtIndex]]
  *   - `_.atIndices(i*)` → [[DynamicOptic.Node.AtIndices]]
- *   - `_.atKey(k)` → [[DynamicOptic.Node.AtMapKey]] (requires `Schema[K]` in scope)
- *   - `_.atKeys(k*)` → [[DynamicOptic.Node.AtMapKeys]] (requires `Schema[K]` in scope)
- *   - `_.searchFor[T]` → [[DynamicOptic.Node.TypeSearch]] (requires `TypeId[T]` in scope)
+ *   - `_.atKey(k)` → [[DynamicOptic.Node.AtMapKey]] (requires `Schema[K]` in
+ *     scope)
+ *   - `_.atKeys(k*)` → [[DynamicOptic.Node.AtMapKeys]] (requires `Schema[K]` in
+ *     scope)
+ *   - `_.searchFor[T]` → [[DynamicOptic.Node.TypeSearch]] (requires `TypeId[T]`
+ *     in scope)
  */
 private[migration] object MigrationMacros {
   import zio.blocks.schema.CommonMacroOps._
@@ -49,9 +53,8 @@ private[migration] object MigrationMacros {
   /**
    * Entry point invoked from the macro DSL extension methods.
    *
-   * Expands `selector` into a compile-time [[DynamicOptic]] expression.
-   * Fails with a compile error if the lambda body contains an unsupported
-   * operation.
+   * Expands `selector` into a compile-time [[DynamicOptic]] expression. Fails
+   * with a compile error if the lambda body contains an unsupported operation.
    */
   def selectorToDynamicOptic[S: Type, A: Type](
     selector: Expr[S => A]
@@ -117,15 +120,13 @@ private[migration] object MigrationMacros {
         Some('{ $parentExpr.mapValues })
 
       // ── _.when[T] ─────────────────────────────────────────────────────────
-      case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree))
-          if hasName(caseTerm, "when") =>
+      case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if hasName(caseTerm, "when") =>
         val caseName   = typeTree.tpe.dealias.typeSymbol.name
         val parentExpr = toNode(parent).getOrElse('{ DynamicOptic.root })
         Some('{ $parentExpr.caseOf(${ Expr(caseName) }) })
 
       // ── _.wrapped[T] ──────────────────────────────────────────────────────
-      case TypeApply(Apply(TypeApply(wrapperTerm, _), List(parent)), List(_))
-          if hasName(wrapperTerm, "wrapped") =>
+      case TypeApply(Apply(TypeApply(wrapperTerm, _), List(parent)), List(_)) if hasName(wrapperTerm, "wrapped") =>
         val parentExpr = toNode(parent).getOrElse('{ DynamicOptic.root })
         Some('{ $parentExpr.wrapped })
 
@@ -145,8 +146,7 @@ private[migration] object MigrationMacros {
         Some('{ $parentExpr.atIndices($indicesExpr: _*) })
 
       // ── _.atKey(k) ────────────────────────────────────────────────────────
-      case Apply(Apply(TypeApply(keyTerm, _), List(parent)), List(key))
-          if hasName(keyTerm, "atKey") =>
+      case Apply(Apply(TypeApply(keyTerm, _), List(parent)), List(key)) if hasName(keyTerm, "atKey") =>
         val keyTpe     = key.tpe.widen.dealias
         val parentExpr = toNode(parent).getOrElse('{ DynamicOptic.root })
         keyTpe.asType match {
@@ -164,7 +164,8 @@ private[migration] object MigrationMacros {
       case Apply(Apply(TypeApply(keysTerm, _), List(parent)), List(Typed(Repeated(keys, _), _)))
           if hasName(keysTerm, "atKeys") =>
         // Determine key type from the first key element's type
-        val keyTpe     = keys.headOption.map(_.tpe.widen.dealias)
+        val keyTpe = keys.headOption
+          .map(_.tpe.widen.dealias)
           .getOrElse(fail("atKeys requires at least one key argument"))
         val parentExpr = toNode(parent).getOrElse('{ DynamicOptic.root })
         keyTpe.asType match {
@@ -201,7 +202,7 @@ private[migration] object MigrationMacros {
       // ── structural _.fieldName via reflectiveSelectable/selectDynamic ────
       case term if unwrapStructuralSelect(term).isDefined =>
         val (parent, fieldName) = unwrapStructuralSelect(term).get
-        val parentExpr = toNode(parent).getOrElse('{ DynamicOptic.root })
+        val parentExpr          = toNode(parent).getOrElse('{ DynamicOptic.root })
         Some('{ $parentExpr.field(${ Expr(fieldName) }) })
 
       // ── Root Ident — the lambda parameter itself ──────────────────────────
@@ -221,7 +222,7 @@ private[migration] object MigrationMacros {
         val (parent, idx) = term match {
           case Apply(Apply(_, List(p)), List(Literal(IntConstant(i))))                => (p, i)
           case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
-          case _ =>
+          case _                                                                      =>
             fail(
               s"Unsupported selector element. Expected: .<field>, .when[T], .at(i), " +
                 s".atIndices(i*), .atKey(k), .atKeys(k*), .each, .eachKey, .eachValue, " +

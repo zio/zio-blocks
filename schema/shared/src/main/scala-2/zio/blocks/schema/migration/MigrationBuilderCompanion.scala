@@ -22,8 +22,9 @@ import scala.language.experimental.macros
  * Scala 2 macro DSL extension methods for [[MigrationBuilder]].
  *
  * Each method accepts a selector lambda that is expanded at compile time into a
- * [[zio.blocks.schema.DynamicOptic]] by [[MigrationMacros.selectorToDynamicOptic]],
- * then delegates to the corresponding `*At` method on [[MigrationBuilder]].
+ * [[zio.blocks.schema.DynamicOptic]] by
+ * [[MigrationMacros.selectorToDynamicOptic]], then delegates to the
+ * corresponding `*At` method on [[MigrationBuilder]].
  */
 object MigrationBuilderCompanion {
   import scala.annotation.compileTimeOnly
@@ -119,10 +120,10 @@ object MigrationBuilderCompanion {
      * value written to `targetSelector`, using `combiner`.
      */
     def join[L, R, T](
-      leftSelector:   A => L,
-      rightSelector:  A => R,
+      leftSelector: A => L,
+      rightSelector: A => R,
       targetSelector: B => T,
-      combiner:       ValueExpr
+      combiner: ValueExpr
     ): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.join[A, B, L, R, T]
 
@@ -131,10 +132,10 @@ object MigrationBuilderCompanion {
      * `toLeftSelector` and `toRightSelector`, using `splitter`.
      */
     def split[F, L, R](
-      fromSelector:    A => F,
-      toLeftSelector:  B => L,
+      fromSelector: A => F,
+      toLeftSelector: B => L,
       toRightSelector: B => R,
-      splitter:        ValueExpr
+      splitter: ValueExpr
     ): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.split[A, B, F, L, R]
 
@@ -162,17 +163,19 @@ object MigrationBuilderCompanion {
 }
 
 /**
- * Whitebox macro implementations backing [[MigrationBuilderCompanion.MigrationBuilderOps]].
+ * Whitebox macro implementations backing
+ * [[MigrationBuilderCompanion.MigrationBuilderOps]].
  *
- * Each method converts its selector lambda to a [[zio.blocks.schema.DynamicOptic]]
- * via [[MigrationMacros.selectorToDynamicOptic]] and delegates to the
- * corresponding `*At` method on [[MigrationBuilder]].
+ * Each method converts its selector lambda to a
+ * [[zio.blocks.schema.DynamicOptic]] via
+ * [[MigrationMacros.selectorToDynamicOptic]] and delegates to the corresponding
+ * `*At` method on [[MigrationBuilder]].
  */
 private[migration] object MigrationBuilderCompanionMacros {
   import scala.reflect.macros.whitebox
 
   def addField[A, B, C](c: whitebox.Context)(
-    selector:     c.Expr[B => C],
+    selector: c.Expr[B => C],
     defaultValue: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
@@ -190,7 +193,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def renameField[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    newName:  c.Expr[String]
+    newName: c.Expr[String]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
@@ -199,7 +202,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def transformValue[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    expr:     c.Expr[ValueExpr]
+    expr: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
@@ -207,7 +210,7 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def mandate[A, B, C](c: whitebox.Context)(
-    selector:    c.Expr[A => C],
+    selector: c.Expr[A => C],
     defaultExpr: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
@@ -225,7 +228,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def changeType[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    expr:     c.Expr[ValueExpr.PrimitiveConvert]
+    expr: c.Expr[ValueExpr.PrimitiveConvert]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
@@ -233,10 +236,10 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def join[A, B, L, R, T](c: whitebox.Context)(
-    leftSelector:   c.Expr[A => L],
-    rightSelector:  c.Expr[A => R],
+    leftSelector: c.Expr[A => L],
+    rightSelector: c.Expr[A => R],
     targetSelector: c.Expr[B => T],
-    combiner:       c.Expr[ValueExpr]
+    combiner: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val leftPath   = MigrationMacros.selectorToDynamicOptic[A, L](c)(leftSelector)
@@ -246,10 +249,10 @@ private[migration] object MigrationBuilderCompanionMacros {
   }
 
   def split[A, B, F, L, R](c: whitebox.Context)(
-    fromSelector:    c.Expr[A => F],
-    toLeftSelector:  c.Expr[B => L],
+    fromSelector: c.Expr[A => F],
+    toLeftSelector: c.Expr[B => L],
     toRightSelector: c.Expr[B => R],
-    splitter:        c.Expr[ValueExpr]
+    splitter: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val fromPath    = MigrationMacros.selectorToDynamicOptic[A, F](c)(fromSelector)
@@ -260,7 +263,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def transformElements[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    expr:     c.Expr[ValueExpr]
+    expr: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
@@ -269,7 +272,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def transformKeys[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    expr:     c.Expr[ValueExpr]
+    expr: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
@@ -278,7 +281,7 @@ private[migration] object MigrationBuilderCompanionMacros {
 
   def transformValues[A, B, C](c: whitebox.Context)(
     selector: c.Expr[A => C],
-    expr:     c.Expr[ValueExpr]
+    expr: c.Expr[ValueExpr]
   ): c.Tree = {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)

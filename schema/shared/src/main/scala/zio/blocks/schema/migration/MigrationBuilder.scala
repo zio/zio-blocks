@@ -23,12 +23,12 @@ import zio.blocks.schema.{DynamicOptic, Reflect, Schema}
  * An immutable builder that accumulates [[MigrationAction]]s and assembles them
  * into a [[Migration]] or [[DynamicMigration]].
  *
- * `MigrationBuilder[A, B]` is the entry point for constructing typed migrations.
- * In normal usage you obtain one via [[MigrationBuilder.apply]] and add actions
- * through the macro DSL methods provided by the platform-specific companion
- * object extensions (Steps 5–8).  The low-level [[withAction]] method is also
- * public so that users can append pre-built [[MigrationAction]]s directly when
- * the macro DSL is not expressive enough.
+ * `MigrationBuilder[A, B]` is the entry point for constructing typed
+ * migrations. In normal usage you obtain one via [[MigrationBuilder.apply]] and
+ * add actions through the macro DSL methods provided by the platform-specific
+ * companion object extensions (Steps 5–8). The low-level [[withAction]] method
+ * is also public so that users can append pre-built [[MigrationAction]]s
+ * directly when the macro DSL is not expressive enough.
  *
  * `MigrationBuilder` itself carries no closures and only stores pure-data
  * [[MigrationAction]] values, so a snapshot of `actions` is fully serializable.
@@ -55,17 +55,16 @@ import zio.blocks.schema.{DynamicOptic, Reflect, Schema}
  */
 final class MigrationBuilder[A, B](
   val fromSchema: Schema[A],
-  val toSchema:   Schema[B],
-  val actions:    Chunk[MigrationAction]
+  val toSchema: Schema[B],
+  val actions: Chunk[MigrationAction]
 ) {
 
   /**
    * Appends a single [[MigrationAction]] to this builder, returning a new
    * builder with the action added at the end.
    *
-   * This is the low-level building block used by all macro DSL methods.
-   * Prefer the typed DSL methods (e.g. `renameField`, `dropField`) where
-   * available.
+   * This is the low-level building block used by all macro DSL methods. Prefer
+   * the typed DSL methods (e.g. `renameField`, `dropField`) where available.
    */
   def withAction(action: MigrationAction): MigrationBuilder[A, B] =
     new MigrationBuilder(fromSchema, toSchema, actions :+ action)
@@ -140,9 +139,9 @@ final class MigrationBuilder[A, B](
    * paths.
    */
   def joinAt(
-    left:     DynamicOptic,
-    right:    DynamicOptic,
-    target:   DynamicOptic,
+    left: DynamicOptic,
+    right: DynamicOptic,
+    target: DynamicOptic,
     combiner: ValueExpr
   ): MigrationBuilder[A, B] =
     withAction(MigrationAction.Join(left, right, target, combiner))
@@ -152,9 +151,9 @@ final class MigrationBuilder[A, B](
    * paths.
    */
   def splitAt(
-    from:     DynamicOptic,
-    toLeft:   DynamicOptic,
-    toRight:  DynamicOptic,
+    from: DynamicOptic,
+    toLeft: DynamicOptic,
+    toRight: DynamicOptic,
     splitter: ValueExpr
   ): MigrationBuilder[A, B] =
     withAction(MigrationAction.Split(from, toLeft, toRight, splitter))
@@ -252,10 +251,13 @@ final class MigrationBuilder[A, B](
       if (toSchema.get(path).isDefined) Chunk.empty
       else Chunk.single(s"$prefix: target schema has no node at ${path.toScalaString}")
 
-    def expectSource(path: DynamicOptic, label: String)(predicate: Reflect.Bound[_] => Boolean, expected: String): Chunk[String] =
+    def expectSource(
+      path: DynamicOptic,
+      label: String
+    )(predicate: Reflect.Bound[_] => Boolean, expected: String): Chunk[String] =
       fromSchema.get(path) match {
         case Some(reflect) if predicate(reflect) => Chunk.empty
-        case Some(_) =>
+        case Some(_)                             =>
           Chunk.single(s"$prefix: source $label at ${path.toScalaString} must be $expected")
         case None =>
           Chunk.single(s"$prefix: source schema has no node at ${path.toScalaString}")
@@ -269,11 +271,13 @@ final class MigrationBuilder[A, B](
         missingSource(path)
 
       case MigrationAction.RenameField(path, newName) =>
-        val base = missingSource(path)
+        val base        = missingSource(path)
         val renamedPath = renameLastField(path, newName)
-        base ++ renamedPath.fold(Chunk.single(
-          s"$prefix: rename path ${path.toScalaString} must end in a field"
-        ))(missingTarget)
+        base ++ renamedPath.fold(
+          Chunk.single(
+            s"$prefix: rename path ${path.toScalaString} must end in a field"
+          )
+        )(missingTarget)
 
       case MigrationAction.TransformValue(path, _) =>
         missingSource(path)

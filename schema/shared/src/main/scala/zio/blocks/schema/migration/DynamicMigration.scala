@@ -57,13 +57,13 @@ object MigrationError {
  * The typed companion [[zio.blocks.schema.migration.Migration]] wraps a
  * `DynamicMigration` with source and target [[zio.blocks.schema.Schema]]s,
  * providing a type-safe interface. Use `DynamicMigration` directly when you
- * need schema-agnostic transformation or when working with external
- * serialized migrations.
+ * need schema-agnostic transformation or when working with external serialized
+ * migrations.
  *
  * ==Laws==
  *   - Identity: `DynamicMigration.identity.apply(v) == Right(v)` for all `v`
- *   - Associativity: `(m1 ++ m2) ++ m3` and `m1 ++ (m2 ++ m3)` produce the
- *     same result when applied to any value
+ *   - Associativity: `(m1 ++ m2) ++ m3` and `m1 ++ (m2 ++ m3)` produce the same
+ *     result when applied to any value
  *   - Best-effort reverse: `m.reverse` produces a migration that approximately
  *     inverts `m`; structural reverses (renames, type changes) are exact, while
  *     lossy operations (drop, constant) cannot be inverted without information
@@ -116,13 +116,11 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
     case MigrationAction.AddField(path, defaultExpr) =>
       evalUnaryExpr(defaultExpr, value).flatMap { dv =>
-        value.insertOrFail(path, dv)
-          .left.map(e => MigrationError(e.message, path))
+        value.insertOrFail(path, dv).left.map(e => MigrationError(e.message, path))
       }
 
     case MigrationAction.DropField(path) =>
-      value.deleteOrFail(path)
-        .left.map(e => MigrationError(e.message, path))
+      value.deleteOrFail(path).left.map(e => MigrationError(e.message, path))
 
     case MigrationAction.RenameField(path, newName) =>
       val nodes = path.nodes
@@ -131,12 +129,11 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       else
         nodes.last match {
           case DynamicOptic.Node.Field(oldName) =>
-            val parentPath = new DynamicOptic(nodes.dropRight(1))
-            val renameInRecord: PartialFunction[DynamicValue, DynamicValue] = {
-              case rec: DynamicValue.Record =>
-                new DynamicValue.Record(rec.fields.map { case (n, v) =>
-                  if (n == oldName) (newName, v) else (n, v)
-                })
+            val parentPath                                                  = new DynamicOptic(nodes.dropRight(1))
+            val renameInRecord: PartialFunction[DynamicValue, DynamicValue] = { case rec: DynamicValue.Record =>
+              new DynamicValue.Record(rec.fields.map { case (n, v) =>
+                if (n == oldName) (newName, v) else (n, v)
+              })
             }
             if (parentPath.nodes.isEmpty)
               renameInRecord.lift(value) match {
@@ -144,14 +141,15 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
                 case None    => Left(MigrationError("RenameField: expected a Record at root", path))
               }
             else
-              value.modifyOrFail(parentPath)(renameInRecord)
-                .left.map(e => MigrationError(e.message, parentPath))
+              value.modifyOrFail(parentPath)(renameInRecord).left.map(e => MigrationError(e.message, parentPath))
 
           case node =>
-            Left(MigrationError(
-              s"RenameField: path must end in a Field node, got: $node",
-              path
-            ))
+            Left(
+              MigrationError(
+                s"RenameField: path must end in a Field node, got: $node",
+                path
+              )
+            )
         }
 
     case MigrationAction.TransformValue(path, expr) =>
@@ -165,29 +163,30 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       for {
         focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
         newVal <- focal match {
-          // Some(x) is encoded as Variant("Some", Record(Chunk(("value", x))))
-          case DynamicValue.Variant("Some", inner: DynamicValue.Record) =>
-            inner.get("value").one
-              .left.map(e => MigrationError(e.message, path))
-          // None is encoded as Variant("None", Record(Chunk.empty))
-          case DynamicValue.Variant("None", _) =>
-            evalUnaryExpr(defaultExpr, value)
-          case other =>
-            Left(MigrationError(
-              s"Mandate: expected an Option variant (Some/None), got: ${other.valueType}",
-              path
-            ))
-        }
+                    // Some(x) is encoded as Variant("Some", Record(Chunk(("value", x))))
+                    case DynamicValue.Variant("Some", inner: DynamicValue.Record) =>
+                      inner.get("value").one.left.map(e => MigrationError(e.message, path))
+                    // None is encoded as Variant("None", Record(Chunk.empty))
+                    case DynamicValue.Variant("None", _) =>
+                      evalUnaryExpr(defaultExpr, value)
+                    case other =>
+                      Left(
+                        MigrationError(
+                          s"Mandate: expected an Option variant (Some/None), got: ${other.valueType}",
+                          path
+                        )
+                      )
+                  }
         result <- value.setOrFail(path, newVal).left.map(e => MigrationError(e.message, path))
       } yield result
 
     case MigrationAction.Optionalize(path) =>
       for {
-        focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
-        some    = new DynamicValue.Variant(
-                    "Some",
-                    new DynamicValue.Record(Chunk.single(("value", focal)))
-                  )
+        focal <- value.get(path).one.left.map(e => MigrationError(e.message, path))
+        some   = new DynamicValue.Variant(
+                 "Some",
+                 new DynamicValue.Record(Chunk.single(("value", focal)))
+               )
         result <- value.setOrFail(path, some).left.map(e => MigrationError(e.message, path))
       } yield result
 
@@ -200,9 +199,9 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
     case MigrationAction.Join(left, right, target, combiner) =>
       for {
-        leftVal    <- value.get(left).one.left.map(e => MigrationError(e.message, left))
-        rightVal   <- value.get(right).one.left.map(e => MigrationError(e.message, right))
-        combined   <- evalBinaryExpr(combiner, leftVal, rightVal)
+        leftVal  <- value.get(left).one.left.map(e => MigrationError(e.message, left))
+        rightVal <- value.get(right).one.left.map(e => MigrationError(e.message, right))
+        combined <- evalBinaryExpr(combiner, leftVal, rightVal)
         // Delete both source fields before inserting the combined target
         afterLeft  <- value.deleteOrFail(left).left.map(e => MigrationError(e.message, left))
         afterRight <- afterLeft.deleteOrFail(right).left.map(e => MigrationError(e.message, right))
@@ -222,17 +221,21 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       for {
         focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
         newSeq <- focal match {
-          case seq: DynamicValue.Sequence =>
-            seq.elements.foldLeft[Either[MigrationError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
-              case (Right(acc), elem) => evalUnaryExpr(expr, elem).map(acc :+ _)
-              case (left, _)          => left
-            }.map(elems => new DynamicValue.Sequence(elems))
-          case other =>
-            Left(MigrationError(
-              s"TransformElements: expected a Sequence, got: ${other.valueType}",
-              path
-            ))
-        }
+                    case seq: DynamicValue.Sequence =>
+                      seq.elements
+                        .foldLeft[Either[MigrationError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+                          case (Right(acc), elem) => evalUnaryExpr(expr, elem).map(acc :+ _)
+                          case (left, _)          => left
+                        }
+                        .map(elems => new DynamicValue.Sequence(elems))
+                    case other =>
+                      Left(
+                        MigrationError(
+                          s"TransformElements: expected a Sequence, got: ${other.valueType}",
+                          path
+                        )
+                      )
+                  }
         result <- value.setOrFail(path, newSeq).left.map(e => MigrationError(e.message, path))
       } yield result
 
@@ -240,17 +243,21 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       for {
         focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
         newMap <- focal match {
-          case m: DynamicValue.Map =>
-            m.entries.foldLeft[Either[MigrationError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-              case (Right(acc), (k, v)) => evalUnaryExpr(expr, k).map(nk => acc :+ ((nk, v)))
-              case (left, _)            => left
-            }.map(entries => new DynamicValue.Map(entries))
-          case other =>
-            Left(MigrationError(
-              s"TransformKeys: expected a Map, got: ${other.valueType}",
-              path
-            ))
-        }
+                    case m: DynamicValue.Map =>
+                      m.entries
+                        .foldLeft[Either[MigrationError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+                          case (Right(acc), (k, v)) => evalUnaryExpr(expr, k).map(nk => acc :+ ((nk, v)))
+                          case (left, _)            => left
+                        }
+                        .map(entries => new DynamicValue.Map(entries))
+                    case other =>
+                      Left(
+                        MigrationError(
+                          s"TransformKeys: expected a Map, got: ${other.valueType}",
+                          path
+                        )
+                      )
+                  }
         result <- value.setOrFail(path, newMap).left.map(e => MigrationError(e.message, path))
       } yield result
 
@@ -258,17 +265,21 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       for {
         focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
         newMap <- focal match {
-          case m: DynamicValue.Map =>
-            m.entries.foldLeft[Either[MigrationError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
-              case (Right(acc), (k, v)) => evalUnaryExpr(expr, v).map(nv => acc :+ ((k, nv)))
-              case (left, _)            => left
-            }.map(entries => new DynamicValue.Map(entries))
-          case other =>
-            Left(MigrationError(
-              s"TransformValues: expected a Map, got: ${other.valueType}",
-              path
-            ))
-        }
+                    case m: DynamicValue.Map =>
+                      m.entries
+                        .foldLeft[Either[MigrationError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+                          case (Right(acc), (k, v)) => evalUnaryExpr(expr, v).map(nv => acc :+ ((k, nv)))
+                          case (left, _)            => left
+                        }
+                        .map(entries => new DynamicValue.Map(entries))
+                    case other =>
+                      Left(
+                        MigrationError(
+                          s"TransformValues: expected a Map, got: ${other.valueType}",
+                          path
+                        )
+                      )
+                  }
         result <- value.setOrFail(path, newMap).left.map(e => MigrationError(e.message, path))
       } yield result
 
@@ -302,7 +313,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * each case below.
    */
   private def evalUnaryExpr(
-    expr:  ValueExpr,
+    expr: ValueExpr,
     focal: DynamicValue
   ): Either[MigrationError, DynamicValue] = expr match {
 
@@ -310,10 +321,12 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       // DefaultValue has no meaning without a target Schema. Callers that
       // resolve defaults from Schema (i.e. Migration[A, B]) should substitute
       // a Constant before delegating to DynamicMigration.
-      Left(MigrationError(
-        "DefaultValue requires target schema context; " +
-          "use Migration[A, B] instead of DynamicMigration directly"
-      ))
+      Left(
+        MigrationError(
+          "DefaultValue requires target schema context; " +
+            "use Migration[A, B] instead of DynamicMigration directly"
+        )
+      )
 
     case ValueExpr.Constant(dv) =>
       Right(dv)
@@ -323,27 +336,35 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
         case prim: DynamicValue.Primitive =>
           applyPrimitiveConvert(conv.from, conv.to, prim.value)
         case other =>
-          Left(MigrationError(
-            s"PrimitiveConvert: expected a Primitive value, got: ${other.valueType}"
-          ))
+          Left(
+            MigrationError(
+              s"PrimitiveConvert: expected a Primitive value, got: ${other.valueType}"
+            )
+          )
       }
 
     case ValueExpr.Concat(_) =>
-      Left(MigrationError(
-        "Concat is a binary combiner; use it as the `combiner` of a Join action, not as a unary transform"
-      ))
+      Left(
+        MigrationError(
+          "Concat is a binary combiner; use it as the `combiner` of a Join action, not as a unary transform"
+        )
+      )
 
     case ValueExpr.StringSplit(sep) =>
       focal match {
         case DynamicValue.Primitive(sv: PrimitiveValue.String) =>
           val parts = sv.value.split(java.util.regex.Pattern.quote(sep), -1)
-          Right(new DynamicValue.Sequence(
-            Chunk.from(parts.map(p => new DynamicValue.Primitive(new PrimitiveValue.String(p)) : DynamicValue))
-          ))
+          Right(
+            new DynamicValue.Sequence(
+              Chunk.from(parts.map(p => new DynamicValue.Primitive(new PrimitiveValue.String(p)): DynamicValue))
+            )
+          )
         case other =>
-          Left(MigrationError(
-            s"StringSplit: expected a String primitive, got: ${other.valueType}"
-          ))
+          Left(
+            MigrationError(
+              s"StringSplit: expected a String primitive, got: ${other.valueType}"
+            )
+          )
       }
   }
 
@@ -352,15 +373,14 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * two inputs. Used by [[MigrationAction.Join]].
    */
   private def evalBinaryExpr(
-    expr:  ValueExpr,
-    left:  DynamicValue,
+    expr: ValueExpr,
+    left: DynamicValue,
     right: DynamicValue
   ): Either[MigrationError, DynamicValue] = expr match {
 
     case ValueExpr.Concat(sep) =>
       (left, right) match {
-        case (DynamicValue.Primitive(lv: PrimitiveValue.String),
-              DynamicValue.Primitive(rv: PrimitiveValue.String)) =>
+        case (DynamicValue.Primitive(lv: PrimitiveValue.String), DynamicValue.Primitive(rv: PrimitiveValue.String)) =>
           Right(new DynamicValue.Primitive(new PrimitiveValue.String(lv.value + sep + rv.value)))
         case _ =>
           Left(MigrationError("Concat: both source fields must be String primitives"))
@@ -375,7 +395,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * input. Used by [[MigrationAction.Split]].
    */
   private def evalSplitExpr(
-    expr:  ValueExpr,
+    expr: ValueExpr,
     focal: DynamicValue
   ): Either[MigrationError, (DynamicValue, DynamicValue)] = expr match {
 
@@ -387,15 +407,19 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
             // Separator not found: left = full string, right = empty string
             Right((focal, new DynamicValue.Primitive(new PrimitiveValue.String(""))))
           } else {
-            Right((
-              new DynamicValue.Primitive(new PrimitiveValue.String(sv.value.substring(0, idx))),
-              new DynamicValue.Primitive(new PrimitiveValue.String(sv.value.substring(idx + sep.length)))
-            ))
+            Right(
+              (
+                new DynamicValue.Primitive(new PrimitiveValue.String(sv.value.substring(0, idx))),
+                new DynamicValue.Primitive(new PrimitiveValue.String(sv.value.substring(idx + sep.length)))
+              )
+            )
           }
         case other =>
-          Left(MigrationError(
-            s"StringSplit splitter: expected a String primitive, got: ${other.valueType}"
-          ))
+          Left(
+            MigrationError(
+              s"StringSplit splitter: expected a String primitive, got: ${other.valueType}"
+            )
+          )
       }
 
     case other =>
@@ -408,19 +432,25 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
   private def applyPrimitiveConvert(
     from: PrimitiveType[_],
-    to:   PrimitiveType[_],
-    pv:   PrimitiveValue
+    to: PrimitiveType[_],
+    pv: PrimitiveValue
   ): Either[MigrationError, DynamicValue] = {
 
     def prim(v: PrimitiveValue): Either[MigrationError, DynamicValue] =
       Right(new DynamicValue.Primitive(v))
 
     def unsupported: Either[MigrationError, DynamicValue] =
-      Left(MigrationError(
-        s"Unsupported PrimitiveConvert: ${from.typeId.name} → ${to.typeId.name}"
-      ))
+      Left(
+        MigrationError(
+          s"Unsupported PrimitiveConvert: ${from.typeId.name} → ${to.typeId.name}"
+        )
+      )
 
-    def parseOrFail[A](raw: String, parse: String => A, wrap: A => PrimitiveValue): Either[MigrationError, DynamicValue] =
+    def parseOrFail[A](
+      raw: String,
+      parse: String => A,
+      wrap: A => PrimitiveValue
+    ): Either[MigrationError, DynamicValue] =
       try prim(wrap(parse(raw)))
       catch {
         case _: Exception =>
@@ -479,9 +509,10 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       case v: PrimitiveValue.Float =>
         to match {
           case _: PrimitiveType.Double     => prim(new PrimitiveValue.Double(v.value.toDouble))
-          case _: PrimitiveType.BigDecimal => prim(new PrimitiveValue.BigDecimal(scala.math.BigDecimal(v.value.toDouble)))
-          case _: PrimitiveType.String     => prim(new PrimitiveValue.String(v.value.toString))
-          case _                           => unsupported
+          case _: PrimitiveType.BigDecimal =>
+            prim(new PrimitiveValue.BigDecimal(scala.math.BigDecimal(v.value.toDouble)))
+          case _: PrimitiveType.String => prim(new PrimitiveValue.String(v.value.toString))
+          case _                       => unsupported
         }
       // ── Double ────────────────────────────────────────────────────────────
       case v: PrimitiveValue.Double =>
@@ -519,16 +550,17 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       // ── String (parse to numeric) ─────────────────────────────────────────
       case v: PrimitiveValue.String =>
         to match {
-          case _: PrimitiveType.Byte       => parseOrFail(v.value, _.toByte,    new PrimitiveValue.Byte(_))
-          case _: PrimitiveType.Short      => parseOrFail(v.value, _.toShort,   new PrimitiveValue.Short(_))
-          case _: PrimitiveType.Int        => parseOrFail(v.value, _.toInt,     new PrimitiveValue.Int(_))
-          case _: PrimitiveType.Long       => parseOrFail(v.value, _.toLong,    new PrimitiveValue.Long(_))
-          case _: PrimitiveType.Float      => parseOrFail(v.value, _.toFloat,   new PrimitiveValue.Float(_))
-          case _: PrimitiveType.Double     => parseOrFail(v.value, _.toDouble,  new PrimitiveValue.Double(_))
-          case _: PrimitiveType.BigInt     => parseOrFail(v.value, scala.math.BigInt(_),     new PrimitiveValue.BigInt(_))
-          case _: PrimitiveType.BigDecimal => parseOrFail(v.value, scala.math.BigDecimal(_), new PrimitiveValue.BigDecimal(_))
-          case _: PrimitiveType.Boolean    => parseOrFail(v.value, _.toBoolean, new PrimitiveValue.Boolean(_))
-          case _                           => unsupported
+          case _: PrimitiveType.Byte       => parseOrFail(v.value, _.toByte, new PrimitiveValue.Byte(_))
+          case _: PrimitiveType.Short      => parseOrFail(v.value, _.toShort, new PrimitiveValue.Short(_))
+          case _: PrimitiveType.Int        => parseOrFail(v.value, _.toInt, new PrimitiveValue.Int(_))
+          case _: PrimitiveType.Long       => parseOrFail(v.value, _.toLong, new PrimitiveValue.Long(_))
+          case _: PrimitiveType.Float      => parseOrFail(v.value, _.toFloat, new PrimitiveValue.Float(_))
+          case _: PrimitiveType.Double     => parseOrFail(v.value, _.toDouble, new PrimitiveValue.Double(_))
+          case _: PrimitiveType.BigInt     => parseOrFail(v.value, scala.math.BigInt(_), new PrimitiveValue.BigInt(_))
+          case _: PrimitiveType.BigDecimal =>
+            parseOrFail(v.value, scala.math.BigDecimal(_), new PrimitiveValue.BigDecimal(_))
+          case _: PrimitiveType.Boolean => parseOrFail(v.value, _.toBoolean, new PrimitiveValue.Boolean(_))
+          case _                        => unsupported
         }
       case _ => unsupported
     }
