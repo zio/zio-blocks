@@ -3,6 +3,8 @@ id: ringbuffer
 title: "RingBuffer"
 ---
 
+import MpmcDiagram from './MpmcDiagram.jsx';
+
 `RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
 
 ```scala
@@ -259,13 +261,7 @@ This pattern ensures that each slot is touched by exactly one producer and one c
 
 To see the sequence buffer in action, use this interactive stepper:
 
-```mdx
-<iframe
-  src="./mpmc-ringbuffer.html"
-  style={{ width: '100%', height: '520px', border: 'none', borderRadius: '8px' }}
-  title="MPMC Ring Buffer Stepper"
-/>
-```
+<MpmcDiagram />
 
 The diagram shows a capacity=4 buffer. Each slot has a stamp that cycles through three states:
 - **Empty** (stamp = `i`) — ready for producer to claim
