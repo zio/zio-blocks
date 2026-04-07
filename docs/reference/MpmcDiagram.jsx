@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from "react";
 
-const CAP = 4;
+const CAP  = 4;
 const MASK = CAP - 1;
 
 const COLOR = {
@@ -20,6 +20,185 @@ function initState() {
   };
 }
 
+// ── Intermediate calculation trace panel ─────────────────────────────────────
+
+function CalcPanel({ calc }) {
+  if (!calc) return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: "1px solid #e8e6df",
+      background: "#f5f4f0",
+      padding: "10px 14px",
+      fontSize: 11, fontFamily: "monospace",
+      color: "#ccc", textAlign: "center",
+    }}>
+      algorithm trace will appear here after each operation
+    </div>
+  );
+
+  const isOffer   = calc.op === "offer";
+  const opColor   = isOffer ? COLOR.write : COLOR.read;
+  const diffZero  = calc.diff === 0;
+  const diffNeg   = calc.diff < 0;
+
+  const decisionColor = diffZero ? opColor : diffNeg ? COLOR.fail : COLOR.warn;
+  const decisionText  = diffZero
+    ? (isOffer
+        ? `✓  diff == 0  →  slot is free  →  CAS pIdx ${calc.pIdx}→${calc.pIdx + 1}, write, stamp seqBuf[${calc.slot}] = ${calc.pIdx + 1}`
+        : `✓  diff == 0  →  data is ready  →  CAS cIdx ${calc.cIdx}→${calc.cIdx + 1}, read, stamp seqBuf[${calc.slot}] = ${calc.cIdx + CAP}`)
+    : diffNeg
+    ? (isOffer
+        ? `✗  diff < 0  →  buffer FULL  →  return false`
+        : `✗  diff < 0  →  buffer EMPTY  →  return null`)
+    : `↻  diff > 0  →  another thread advanced past this slot  →  retry`;
+
+  const rows = isOffer ? [
+    {
+      label: "pIdx",
+      expr:  `pIdx`,
+      val:   String(calc.pIdx),
+      note:  "monotonic producer counter (never resets)",
+      hi:    false,
+    },
+    {
+      label: "slot",
+      expr:  `pIdx & mask`,
+      val:   String(calc.slot),
+      note:  `${calc.pIdx} & ${MASK}  =  ${calc.slot}   (bitmask replaces mod)`,
+      hi:    false,
+    },
+    {
+      label: "seq",
+      expr:  `seqBuf[slot]`,
+      val:   String(calc.seq),
+      note:  `seqBuf[${calc.slot}] = ${calc.seq}   (the slot's current stamp)`,
+      hi:    false,
+    },
+    {
+      label: "diff",
+      expr:  `seq − pIdx`,
+      val:   String(calc.diff),
+      note:  `${calc.seq} − ${calc.pIdx} = ${calc.diff}`,
+      hi:    true,
+    },
+  ] : [
+    {
+      label: "cIdx",
+      expr:  `cIdx`,
+      val:   String(calc.cIdx),
+      note:  "monotonic consumer counter (never resets)",
+      hi:    false,
+    },
+    {
+      label: "slot",
+      expr:  `cIdx & mask`,
+      val:   String(calc.slot),
+      note:  `${calc.cIdx} & ${MASK}  =  ${calc.slot}   (bitmask replaces mod)`,
+      hi:    false,
+    },
+    {
+      label: "seq",
+      expr:  `seqBuf[slot]`,
+      val:   String(calc.seq),
+      note:  `seqBuf[${calc.slot}] = ${calc.seq}   (the slot's current stamp)`,
+      hi:    false,
+    },
+    {
+      label: "expected",
+      expr:  `cIdx + 1`,
+      val:   String(calc.expected),
+      note:  `${calc.cIdx} + 1 = ${calc.expected}   (producer stamps this after writing)`,
+      hi:    false,
+    },
+    {
+      label: "diff",
+      expr:  `seq − expected`,
+      val:   String(calc.diff),
+      note:  `${calc.seq} − ${calc.expected} = ${calc.diff}`,
+      hi:    true,
+    },
+  ];
+
+  return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: `1px solid ${opColor}30`,
+      overflow: "hidden", fontSize: 12,
+    }}>
+      {/* Header */}
+      <div style={{
+        background: `${opColor}14`,
+        padding: "5px 12px",
+        display: "flex", alignItems: "center", gap: 8,
+        borderBottom: `1px solid ${opColor}20`,
+      }}>
+        <span style={{
+          color: opColor, fontFamily: "monospace",
+          fontWeight: 700, fontSize: 12,
+        }}>
+          {isOffer ? "offer()" : "take()"}
+        </span>
+        <span style={{ color: "#bbb", fontSize: 11 }}>
+          — algorithm trace
+        </span>
+      </div>
+
+      {/* Variable rows */}
+      {rows.map((r, i) => (
+        <div key={i} style={{
+          display: "grid",
+          gridTemplateColumns: "62px 140px 36px 1fr",
+          alignItems: "center",
+          gap: 0,
+          padding: "4px 12px",
+          borderBottom: i < rows.length - 1 ? "1px solid #f0ede6" : "none",
+          background: r.hi ? `${opColor}0c` : "transparent",
+        }}>
+          {/* variable name */}
+          <span style={{
+            fontFamily: "monospace", fontSize: 11, fontWeight: r.hi ? 700 : 400,
+            color: r.hi ? opColor : "#aaa",
+          }}>
+            {r.label}
+          </span>
+          {/* formula */}
+          <span style={{
+            fontFamily: "monospace", fontSize: 11, color: "#ccc",
+          }}>
+            = {r.expr}
+          </span>
+          {/* computed value — big & bold */}
+          <span style={{
+            fontFamily: "monospace", fontSize: 14, fontWeight: 700,
+            color: r.hi ? decisionColor : "#555",
+            textAlign: "right", paddingRight: 10,
+          }}>
+            {r.val}
+          </span>
+          {/* arithmetic note */}
+          <span style={{
+            fontFamily: "monospace", fontSize: 10,
+            color: r.hi ? decisionColor + "aa" : "#d8d5cc",
+          }}>
+            {r.note}
+          </span>
+        </div>
+      ))}
+
+      {/* Decision bar */}
+      <div style={{
+        padding: "6px 12px",
+        background: `${decisionColor}10`,
+        borderTop: `1px solid ${decisionColor}28`,
+        fontFamily: "monospace", fontSize: 11,
+        fontWeight: 600, color: decisionColor,
+      }}>
+        {decisionText}
+      </div>
+    </div>
+  );
+}
+
 // ── SVG ring buffer diagram ──────────────────────────────────────────────────
 
 function RingDiagram({ buf, seq, pIdx, cIdx, hiSlots, hiColor }) {
@@ -37,13 +216,12 @@ function RingDiagram({ buf, seq, pIdx, cIdx, hiSlots, hiColor }) {
   const pX  = same ? pCX - 30 : pCX;
   const cX  = same ? cCX + 30 : cCX;
 
-  const szColor =
-    size === CAP ? COLOR.warn : size === 0 ? COLOR.neutral : COLOR.neutral;
+  const szColor = size === CAP ? COLOR.warn : COLOR.neutral;
 
   const statItems = [
-    { label: "size",         val: `${size} / ${CAP}`, col: szColor },
+    { label: "size",         val: `${size} / ${CAP}`, col: szColor      },
     { label: "producer lap", val: `${Math.floor(pIdx / CAP)}`, col: COLOR.write },
-    { label: "consumer lap", val: `${Math.floor(cIdx / CAP)}`, col: COLOR.read },
+    { label: "consumer lap", val: `${Math.floor(cIdx / CAP)}`, col: COLOR.read  },
   ];
 
   return (
@@ -137,24 +315,6 @@ function RingDiagram({ buf, seq, pIdx, cIdx, hiSlots, hiColor }) {
   );
 }
 
-// ── Flash message ────────────────────────────────────────────────────────────
-
-function Flash({ msg, kind }) {
-  const col = { write: COLOR.write, read: COLOR.read, fail: COLOR.fail,
-                warn: COLOR.warn }[kind] ?? "#888";
-  return (
-    <div style={{
-      minHeight: 28, textAlign: "center", fontSize: 12,
-      fontFamily: "monospace", fontWeight: 500,
-      color: col, padding: "2px 0 4px",
-      transition: "opacity .3s",
-      opacity: msg ? 1 : 0,
-    }}>
-      {msg || " "}
-    </div>
-  );
-}
-
 // ── History log ──────────────────────────────────────────────────────────────
 
 function HistoryLog({ entries }) {
@@ -174,13 +334,13 @@ function HistoryLog({ entries }) {
         entries.map((e, i) => {
           const border = {
             write: COLOR.write, read: COLOR.read,
-            fail: COLOR.fail, warn: COLOR.warn,
+            fail:  COLOR.fail,  warn: COLOR.warn,
           }[e.kind] ?? "#ccc";
           return (
             <div key={i} style={{
               display: "flex", gap: 10, padding: "4px 10px",
               borderLeft: `3px solid ${border}`,
-              borderBottom: i < entries.length - 1 ? "1px solid #eee" : "none",
+              borderBottom: i < entries.length - 1 ? "1px solid #f0ede6" : "none",
               color: border,
             }}>
               <span style={{ color: "#bbb", minWidth: 32, fontSize: 10 }}>
@@ -201,16 +361,9 @@ function HistoryLog({ entries }) {
 export default function MpmcRingBuffer() {
   const [state,   setState]   = useState(initState);
   const [input,   setInput]   = useState("A");
-  const [flash,   setFlash]   = useState({ msg: "", kind: "neutral" });
   const [history, setHistory] = useState([]);
   const [hi,      setHi]      = useState({ slots: null, color: null });
-  const flashTimer = useRef(null);
-
-  function showFlash(msg, kind) {
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    setFlash({ msg, kind });
-    flashTimer.current = setTimeout(() => setFlash({ msg: "", kind: "neutral" }), 4400);
-  }
+  const [calc,    setCalc]    = useState(null);
 
   function addLog(msg, kind) {
     setHistory(h => [...h, { msg, kind }]);
@@ -218,7 +371,7 @@ export default function MpmcRingBuffer() {
 
   const doOffer = useCallback(() => {
     const val = input.trim();
-    if (!val) { showFlash("Enter a value to offer.", "warn"); return; }
+    if (!val) return;
 
     setState(prev => {
       const { buf, seq, pIdx, cIdx } = prev;
@@ -226,20 +379,20 @@ export default function MpmcRingBuffer() {
       const s    = seq[slot];
       const diff = s - pIdx;
 
+      // capture trace before mutation
+      setCalc({ op: "offer", pIdx, slot, seq: s, diff });
+
       if (diff === 0) {
         const newBuf = [...buf]; newBuf[slot] = val;
         const newSeq = [...seq]; newSeq[slot] = pIdx + 1;
         const msg = `offer("${val}") → true   [slot ${slot}  seq: ${s}→${newSeq[slot]}  pIdx: ${pIdx}→${pIdx + 1}]`;
-        showFlash(msg, "write");
         addLog(msg, "write");
         setHi({ slots: [slot], color: COLOR.write });
-        // Auto-advance input letter
         if (val.length === 1 && val >= "A" && val < "Z")
           setInput(String.fromCharCode(val.charCodeAt(0) + 1));
         return { buf: newBuf, seq: newSeq, pIdx: pIdx + 1, cIdx };
       } else if (diff < 0) {
         const msg = `offer("${val}") → false  [slot ${slot}  seq=${s}  pIdx=${pIdx}  diff=${diff} < 0 → FULL]`;
-        showFlash(msg, "fail");
         addLog(msg, "fail");
         setHi({ slots: [slot], color: COLOR.fail });
         return prev;
@@ -256,18 +409,18 @@ export default function MpmcRingBuffer() {
       const expected = cIdx + 1;
       const diff     = s - expected;
 
+      setCalc({ op: "take", cIdx, slot, seq: s, expected, diff });
+
       if (diff === 0) {
         const val    = buf[slot];
         const newBuf = [...buf]; newBuf[slot] = null;
         const newSeq = [...seq]; newSeq[slot] = cIdx + CAP;
         const msg = `take() → "${val}"   [slot ${slot}  seq: ${s}→${newSeq[slot]}  cIdx: ${cIdx}→${cIdx + 1}]`;
-        showFlash(msg, "read");
         addLog(msg, "read");
         setHi({ slots: [slot], color: COLOR.read });
         return { buf: newBuf, seq: newSeq, pIdx, cIdx: cIdx + 1 };
       } else if (diff < 0) {
         const msg = `take() → null   [slot ${slot}  seq=${s}  cIdx+1=${expected}  diff=${diff} < 0 → EMPTY]`;
-        showFlash(msg, "fail");
         addLog(msg, "fail");
         setHi({ slots: [slot], color: COLOR.fail });
         return prev;
@@ -279,30 +432,26 @@ export default function MpmcRingBuffer() {
   const doReset = useCallback(() => {
     setState(initState());
     setInput("A");
-    setFlash({ msg: "", kind: "neutral" });
     setHistory([]);
     setHi({ slots: null, color: null });
+    setCalc(null);
   }, []);
 
   const onKey = useCallback((e) => {
     if (e.key === "Enter") doOffer();
   }, [doOffer]);
 
-  // ── styles ────────────────────────────────────────────────────────────────
   const s = {
     wrap: {
       fontFamily: "sans-serif",
-      border: "1px solid #e0ded6",
-      borderRadius: 12,
-      padding: "16px 16px 12px",
-      background: "#fafaf8",
-      maxWidth: 680,
-      margin: "1.5rem auto",
+      border: "1px solid #e0ded6", borderRadius: 12,
+      padding: "16px 16px 12px", background: "#fafaf8",
+      maxWidth: 680, margin: "1.5rem auto",
     },
     heading: {
       fontSize: 13, fontWeight: 600, letterSpacing: "0.04em",
-      textTransform: "uppercase", color: "#888", marginBottom: 12,
-      textAlign: "center",
+      textTransform: "uppercase", color: "#888",
+      marginBottom: 12, textAlign: "center",
     },
     controls: {
       display: "flex", alignItems: "center", gap: 8,
@@ -356,8 +505,6 @@ export default function MpmcRingBuffer() {
         <button style={s.btnReset} onClick={doReset}>Reset</button>
       </div>
 
-      <Flash msg={flash.msg} kind={flash.kind} />
-
       <RingDiagram
         buf={state.buf}
         seq={state.seq}
@@ -367,15 +514,18 @@ export default function MpmcRingBuffer() {
         hiColor={hi.color}
       />
 
+      <CalcPanel calc={calc} />
+
       <div style={{ marginTop: 8 }}>
         <div style={s.logLabel}>Operation history</div>
         <HistoryLog entries={history} />
       </div>
 
       <div style={s.hint}>
-        Type any label · <strong style={{ color: COLOR.write }}>Offer</strong> to
-        enqueue · <strong style={{ color: COLOR.read }}>Take</strong> to dequeue ·
-        watch <code>seq=…</code> stamps advance with every operation
+        Type any label ·{" "}
+        <strong style={{ color: COLOR.write }}>Offer</strong> to enqueue ·{" "}
+        <strong style={{ color: COLOR.read }}>Take</strong> to dequeue ·
+        the trace panel shows every variable the algorithm computes before deciding
       </div>
     </div>
   );

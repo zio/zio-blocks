@@ -219,56 +219,70 @@ The challenge: when multiple producers might try to write to the same slot, and 
 
 **The trick: Give each slot a "ticket number" that changes in a predictable cycle.**
 
-Alongside the data array, there's a `sequenceBuffer` where each slot stores a number (the "stamp"). This stamp acts like a state machine:
+The algorithm runs two parallel arrays of the same length:
 
-- Empty slot: stamp = `i` (the slot's index)
-- Filled slot: stamp = `i + 1`
-- Consumed slot: stamp = `i + capacity`
-- Then it repeats...
+- `buffer[i]` — holds the actual element at position `i`
+- `seqBuf[i]` — holds a *sequence stamp* at position `i`
 
-**How a producer fills a slot:**
+The sequence stamps are the heart of the algorithm. Each stamp encodes the *ownership state* of its slot: who is allowed to act on it and what they are allowed to do.
 
-1. Claim a ticket by atomically incrementing `producerIndex` (this is your "turn")
-2. Find which slot this ticket corresponds to: `slot = ticket % capacity`
-3. Check if the slot's stamp equals the ticket you just claimed
-   - If yes → you own this slot, safe to write
-   - If no → someone else claimed it first, try again
-4. Write your element to the slot
-5. Update the stamp to `ticket + 1` (marks "filled, waiting for consumer")
+On initialization, `seqBuf[i]` is set to `i`. The producer index `pIdx` and consumer index `cIdx` both start at zero. From here, every operation follows the same pattern: read the stamp, compute a single difference (`diff`), and branch on whether `diff` is zero, negative, or positive.
 
-**How a consumer empties a slot:**
+At any moment, slot `i` (where `i = index & mask`) is in exactly one of three states:
 
-1. Claim a ticket by atomically incrementing `consumerIndex`
-2. Find which slot to read: `slot = ticket % capacity`
-3. Check if the slot's stamp equals `ticket + 1`
-   - If yes → there's data waiting for you
-   - If no → either empty or someone else is consuming, try again
-4. Read the element and clear the slot (write `null`)
-5. Update the stamp to `ticket + capacity` (marks "empty, available when producer comes back around")
+| stamp value                 | meaning                                          |
+|-----------------------------|--------------------------------------------------|
+| if `seq == pIdx`            | Slot is free — the producer at `pIdx` may write  |
+| if `seq == cIdx + 1`        | Data written — the consumer at `cIdx` may read   |
+| if `seq == cIdx + capacity` | Slot consumed — free for the producer's next lap |
 
-**Why `+ capacity`?**
+The producer looks for `diff = seq - pIdx == 0`. The consumer looks for `diff = seq - (cIdx + 1) == 0`. In both cases, a negative diff means the other side has fallen behind (buffer full or empty), and a positive diff means another thread already claimed this slot and you should retry.
 
-Think of the sequence numbers as phases of the slot's lifecycle:
-- Phase 0: slots with stamps 0, 1, 2, ... `capacity-1` (initial or after full cycle)
-- Phase 1: slots with stamps `capacity+0`, `capacity+1`, ... `2*capacity-1` (after one consume)
-- Phase 2: slots with stamps `2*capacity+0`, ... (after two consumes)
+#### Diagram
 
-Using `+ capacity` instead of `+ 1` creates a gap between "just filled" and "ready to fill again." When the producer cycles back after `capacity` more operations, it will see exactly the stamp it expects.
-
-This pattern ensures that each slot is touched by exactly one producer and one consumer per cycle, without locks or data races.
-
-**Trade-offs:** This is the most flexible (any number of producers/consumers) but also the most expensive due to CAS on both sides and the sequence buffer overhead. Use it only when you truly need MPMC.
-
-To see the sequence buffer in action, use this interactive stepper:
+To see the sequence buffer in action, use this interactive stepper. The component below implements the algorithm faithfully in React. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch the trace panel show every intermediate variable — `pIdx`, `slot`, `seq`, `diff` — and the exact decision the algorithm makes from them.
 
 <MpmcDiagram />
 
-The diagram shows a capacity=4 buffer. Each slot has a stamp that cycles through three states:
-- **Empty** (stamp = `i`) — ready for producer to claim
-- **Filled** (stamp = `i + 1`) — producer wrote, consumer can take
-- **Consumed** (stamp = `i + capacity`) — consumer emptied, ready for producer again
-
 Click "Step Producer" and "Step Consumer" to see how the algorithm coordinates access handoff without locks.
+
+Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
+
+#### `pIdx` / `cIdx` — the monotonic counters
+
+These two numbers are the heartbeat of the entire algorithm. `pIdx` is the producer's counter and `cIdx` is the consumer's counter. They start at zero and *only ever increase* — they never wrap, never reset, never go backwards. After a million operations `pIdx` might be 1,000,000 and `cIdx` might be 999,996. The raw slot position is derived from them rather than stored directly, which is what makes the algorithm safe for multiple concurrent threads.
+
+#### `slot = idx & mask` — the circular array index
+
+Because the buffer has a power-of-two capacity (4 in the demo), `mask = capacity - 1 = 3`, which in binary is `0011`. The bitwise AND strips everything above the lowest two bits, giving a number in the range `[0, 3]`. This is mathematically identical to `idx % capacity` but costs a single CPU instruction instead of a division. So `pIdx = 7` maps to slot `7 & 3 = 3`, and `pIdx = 8` maps back to slot `8 & 3 = 0` — that is the wrap-around.
+
+#### `seq = seqBuf[slot]` — the sequence stamp
+
+Every slot carries its own stamp, completely independent of the other slots. The stamp is not a lock and not a boolean "occupied/free" flag — it is a number that encodes the *exact generation* of the slot. On construction `seqBuf[i] = i`, so slot 0 starts at 0, slot 1 at 1, and so on. After each write the stamp advances by 1. After each consume it advances by `capacity`. Because of this, slot 0's stamp trail across three laps looks like `0 → 1 → 4 → 5 → 8 → 9 → 12 → 13 …` — it grows forever and never repeats, which is what prevents the ABA problem entirely.
+
+
+#### `expected` (take only) `= cIdx + 1`
+
+The producer, after winning its CAS and writing data, stamps the slot with `pIdx + 1`. So if a producer claimed slot 0 when `pIdx` was 4, it leaves `seqBuf[0] = 5`. The consumer that arrives with `cIdx = 4` therefore looks for `seqBuf[0] == cIdx + 1 == 5`. The `+ 1` is the handshake signal: *"a producer has finished writing here, and you are the right consumer to read it."* The offer trace does not need an `expected` row because the producer compares `seq` directly against `pIdx` (not `pIdx + 1`) — the slot is free when the stamp equals the producer index exactly.
+
+
+#### `diff` — the three-way decision
+
+This is the key insight of the Vyukov algorithm. A single subtraction replaces what would otherwise be a tangle of conditional checks.
+
+For **offer**: `diff = seq − pIdx`
+- `diff == 0` — the stamp exactly matches the producer index, meaning no one has touched this slot since it was last released. The slot is yours. The thread does a CAS on `pIdx`, writes the element, then stamps `seqBuf[slot] = pIdx + 1`.
+- `diff < 0` — the stamp is *behind* the producer index. This means the slot is still occupied by data from the current lap that has not been consumed yet. The buffer is full. Return `false`.
+- `diff > 0` — the stamp is *ahead* of the producer index. Another producer already claimed this slot and advanced past it. Retry the loop with a fresh read of `pIdx`.
+
+For **take**: `diff = seq − expected` where `expected = cIdx + 1`
+- `diff == 0` — the stamp matches exactly what the producer left. Data is ready. CAS on `cIdx`, read the element, null out the slot for GC, stamp `seqBuf[slot] = cIdx + capacity` to release the slot for a future producer on the next lap.
+- `diff < 0` — the stamp is behind what the consumer expects, meaning the producer has not finished writing yet (or has not written at all). The buffer appears empty from this consumer's perspective. Return `null`.
+- `diff > 0` — another consumer already read this slot and advanced past it. Retry.
+
+#### Why all three decisions are safe without any lock
+
+The diff check and the subsequent CAS form an atomic claim. Two producers might both read the same `pIdx` and both see `diff == 0`, but only one will win the CAS that advances `pIdx`. The loser sees the CAS fail, loops back, reads the new `pIdx`, and naturally ends up looking at the next slot. No explicit coordination between threads is ever needed — the sequence stamps and the monotonically increasing indices together make every slot's state self-describing at any point in time.
 
 ## Installation
 
