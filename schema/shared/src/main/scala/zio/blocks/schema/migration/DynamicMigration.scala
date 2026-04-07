@@ -17,7 +17,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveType, PrimitiveValue, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveType, PrimitiveValue}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MigrationError
@@ -38,7 +38,6 @@ final case class MigrationError(message: String, path: DynamicOptic)
 object MigrationError {
   def apply(message: String): MigrationError = new MigrationError(message, DynamicOptic.root)
 
-  implicit lazy val schema: Schema[MigrationError] = Schema.derived[MigrationError]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -638,5 +637,4 @@ object DynamicMigration {
   /** A migration that applies no actions; the identity element for `++`. */
   val identity: DynamicMigration = new DynamicMigration(Chunk.empty)
 
-  implicit lazy val schema: Schema[DynamicMigration] = Schema.derived[DynamicMigration]
 }

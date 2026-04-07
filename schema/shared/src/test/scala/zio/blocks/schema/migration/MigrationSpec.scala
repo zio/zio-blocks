@@ -641,40 +641,6 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(path.toScalaString)(equalTo(".groups.each.tags.each"))
       }
     ),
-    suite("Serialization")(
-      test("ValueExpr round-trips through DynamicValue") {
-        val expr         = ValueExpr.PrimitiveConvert(ptInt, ptLong): ValueExpr
-        val roundTripped =
-          ValueExpr.schema.fromDynamicValue(ValueExpr.schema.toDynamicValue(expr))
-        assert(roundTripped)(isRight(equalTo(expr)))
-      },
-      test("MigrationAction round-trips through DynamicValue") {
-        val action: MigrationAction =
-          MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue)
-        val roundTripped =
-          MigrationAction.schema.fromDynamicValue(MigrationAction.schema.toDynamicValue(action))
-        assert(roundTripped)(isRight(equalTo(action)))
-      },
-      test("DynamicMigration round-trips through DynamicValue") {
-        val migration = new DynamicMigration(
-          Chunk.from(
-            List(
-              MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"),
-              MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue)
-            )
-          )
-        )
-        val roundTripped =
-          DynamicMigration.schema.fromDynamicValue(DynamicMigration.schema.toDynamicValue(migration))
-        assert(roundTripped)(isRight(equalTo(migration)))
-      },
-      test("MigrationError round-trips through DynamicValue") {
-        val error        = MigrationError("boom", DynamicOptic.root.field("name"))
-        val roundTripped =
-          MigrationError.schema.fromDynamicValue(MigrationError.schema.toDynamicValue(error))
-        assert(roundTripped)(isRight(equalTo(error)))
-      }
-    ),
     suite("ValueExpr evaluation")(
       test("DefaultValue fails at DynamicMigration level with clear message") {
         val action = MigrationAction.AddField(DynamicOptic.root.field("x"), ValueExpr.DefaultValue)

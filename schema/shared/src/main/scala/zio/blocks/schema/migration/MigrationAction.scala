@@ -16,8 +16,7 @@
 
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveType, Schema, Validation}
-import zio.blocks.typeid.TypeId
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveType}
 
 /**
  * A pure-data expression describing a value transformation used within a
@@ -75,110 +74,6 @@ object ValueExpr {
    */
   final case class StringSplit(separator: String) extends ValueExpr
 
-  private sealed trait ValueExprRepr
-
-  private object ValueExprRepr {
-    case object DefaultValue extends ValueExprRepr
-
-    final case class Constant(value: DynamicValue) extends ValueExprRepr
-
-    final case class PrimitiveConvert(
-      from: String,
-      to: String
-    ) extends ValueExprRepr
-
-    final case class Concat(separator: String) extends ValueExprRepr
-
-    final case class StringSplit(separator: String) extends ValueExprRepr
-
-    implicit lazy val schema: Schema[ValueExprRepr]                    = Schema.derived[ValueExprRepr]
-    implicit lazy val primitiveConvertSchema: Schema[PrimitiveConvert] = Schema.derived[PrimitiveConvert]
-  }
-
-  implicit lazy val primitiveConvertSchema: Schema[ValueExpr.PrimitiveConvert] =
-    ValueExprRepr.primitiveConvertSchema.transform[ValueExpr.PrimitiveConvert](
-      repr =>
-        ValueExpr.PrimitiveConvert(
-          decodePrimitiveType(repr.from),
-          decodePrimitiveType(repr.to)
-        ),
-      expr =>
-        ValueExprRepr.PrimitiveConvert(
-          encodePrimitiveType(expr.from),
-          encodePrimitiveType(expr.to)
-        )
-    )(TypeId.of[ValueExpr.PrimitiveConvert])
-
-  implicit lazy val schema: Schema[ValueExpr] =
-    ValueExprRepr.schema.transform[ValueExpr](
-      {
-        case ValueExprRepr.DefaultValue =>
-          ValueExpr.DefaultValue
-        case ValueExprRepr.Constant(value) =>
-          ValueExpr.Constant(value)
-        case ValueExprRepr.PrimitiveConvert(from, to) =>
-          ValueExpr.PrimitiveConvert(
-            decodePrimitiveType(from),
-            decodePrimitiveType(to)
-          )
-        case ValueExprRepr.Concat(separator) =>
-          ValueExpr.Concat(separator)
-        case ValueExprRepr.StringSplit(separator) =>
-          ValueExpr.StringSplit(separator)
-      },
-      {
-        case ValueExpr.DefaultValue =>
-          ValueExprRepr.DefaultValue
-        case ValueExpr.Constant(value) =>
-          ValueExprRepr.Constant(value)
-        case expr: ValueExpr.PrimitiveConvert =>
-          ValueExprRepr.PrimitiveConvert(
-            encodePrimitiveType(expr.from),
-            encodePrimitiveType(expr.to)
-          )
-        case ValueExpr.Concat(separator) =>
-          ValueExprRepr.Concat(separator)
-        case ValueExpr.StringSplit(separator) =>
-          ValueExprRepr.StringSplit(separator)
-      }
-    )(TypeId.of[ValueExpr])
-
-  private def encodePrimitiveType(primitiveType: PrimitiveType[_]): String =
-    primitiveType.typeId.name
-
-  private def decodePrimitiveType(name: String): PrimitiveType[_] = name match {
-    case "Unit"           => PrimitiveType.Unit
-    case "Boolean"        => PrimitiveType.Boolean(Validation.None)
-    case "Byte"           => PrimitiveType.Byte(Validation.None)
-    case "Short"          => PrimitiveType.Short(Validation.None)
-    case "Int"            => PrimitiveType.Int(Validation.None)
-    case "Long"           => PrimitiveType.Long(Validation.None)
-    case "Float"          => PrimitiveType.Float(Validation.None)
-    case "Double"         => PrimitiveType.Double(Validation.None)
-    case "Char"           => PrimitiveType.Char(Validation.None)
-    case "String"         => PrimitiveType.String(Validation.None)
-    case "BigInt"         => PrimitiveType.BigInt(Validation.None)
-    case "BigDecimal"     => PrimitiveType.BigDecimal(Validation.None)
-    case "DayOfWeek"      => PrimitiveType.DayOfWeek(Validation.None)
-    case "Duration"       => PrimitiveType.Duration(Validation.None)
-    case "Instant"        => PrimitiveType.Instant(Validation.None)
-    case "LocalDate"      => PrimitiveType.LocalDate(Validation.None)
-    case "LocalDateTime"  => PrimitiveType.LocalDateTime(Validation.None)
-    case "LocalTime"      => PrimitiveType.LocalTime(Validation.None)
-    case "Month"          => PrimitiveType.Month(Validation.None)
-    case "MonthDay"       => PrimitiveType.MonthDay(Validation.None)
-    case "OffsetDateTime" => PrimitiveType.OffsetDateTime(Validation.None)
-    case "OffsetTime"     => PrimitiveType.OffsetTime(Validation.None)
-    case "Period"         => PrimitiveType.Period(Validation.None)
-    case "Year"           => PrimitiveType.Year(Validation.None)
-    case "YearMonth"      => PrimitiveType.YearMonth(Validation.None)
-    case "ZoneId"         => PrimitiveType.ZoneId(Validation.None)
-    case "ZoneOffset"     => PrimitiveType.ZoneOffset(Validation.None)
-    case "ZonedDateTime"  => PrimitiveType.ZonedDateTime(Validation.None)
-    case "Currency"       => PrimitiveType.Currency(Validation.None)
-    case "UUID"           => PrimitiveType.UUID(Validation.None)
-    case other            => throw new IllegalArgumentException(s"Unsupported primitive type: $other")
-  }
 }
 
 /**
@@ -385,5 +280,4 @@ object MigrationAction {
     expr: ValueExpr
   ) extends MigrationAction
 
-  implicit lazy val schema: Schema[MigrationAction] = Schema.derived[MigrationAction]
 }
