@@ -4,6 +4,7 @@ title: "RingBuffer"
 ---
 
 import MpmcDiagram from './MpmcDiagram.jsx';
+import MpscDiagram from './MpscDiagram.jsx';
 
 `RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
 
@@ -210,6 +211,32 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 - The `producerLimit` is updated opportunistically (racy updates are benign) to reflect approximate available capacity.
 
 **Why hybrid?** Multiple producers need CAS to coordinate their offers, but the single consumer can achieve maximum speed using pure FastFlow (no CAS, no reading producer state).
+
+#### Diagram
+
+To see the hybrid algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch the trace panel show every intermediate variable — `pIdx`, `pLimit`, `slot`, `buf[slot]` — and the exact decision the algorithm makes.
+
+<MpscDiagram />
+
+Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
+
+#### `pIdx` — the monotonic producer counter
+
+Like the MPMC algorithm, `pIdx` is the monotonic heartbeat of the producer side. It starts at zero and only ever increases as producers successfully claim slots via CAS. The raw value never wraps, never resets, and never goes backwards. After a million operations `pIdx` might be 1,000,000. This monotonically-increasing counter is the key that allows multiple producers to fairly divide slots without locks: each producer atomically claims the next slot by CASing `pIdx` forward.
+
+#### `pLimit` — the cached producer limit
+
+This is the MPSC optimization. Rather than reading the volatile `consumerIndex` on every `offer`, the producer maintains a cached `pLimit` that represents the highest producer index the consumer has confirmed it can accommodate. On the fast path, a producer just checks `pIdx < pLimit` — a plain read with no atomic operations. When `pLimit` is exhausted (i.e., `pIdx >= pLimit`), the slow path reads `consumerIndex` once, computes `newPLimit = consumerIndex + capacity`, and updates the cache. This batching of consumer reads is what makes MPSC's producer side fast despite multiple threads.
+
+#### `slot = pIdx & mask` — the circular array index
+
+Identical to MPMC: because capacity is a power of two, `mask = capacity - 1`, and the bitwise AND strips high bits to give a slot number in `[0, capacity)`. This is mathematically equivalent to `pIdx % capacity` but costs a single CPU instruction. So `pIdx = 7` maps to slot `7 & 3 = 3`, and `pIdx = 8` wraps back to slot `0`.
+
+#### `buf[slot]` — the FastFlow slot check
+
+The consumer uses the **FastFlow relaxed-poll pattern**: read the array slot directly. If the slot is `null`, either the buffer is empty, or a producer has claimed the slot via CAS but has not yet written the element (still mid-write). In both cases, `take` returns `null` rather than blocking or spinning. This is why the consumer never reads `producerIndex` — it derives all its information from the slots themselves.
+
+The producer writes the element to the slot with release semantics, guaranteeing that the consumer's acquire-read will see the full value once it arrives.
 
 ### `MpmcRingBuffer`: Vyukov/Dmitry Sequence Buffer
 
