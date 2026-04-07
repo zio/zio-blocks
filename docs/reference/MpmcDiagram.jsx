@@ -20,6 +20,123 @@ function initState() {
   };
 }
 
+// ── Prose step summary ────────────────────────────────────────────────────────
+
+function stepDescription(calc) {
+  if (!calc) return null;
+
+  if (calc.op === "offer") {
+    if (calc.diff === 0) {
+      return {
+        color: COLOR.write,
+        paragraphs: [
+          `The producer reads pIdx = ${calc.pIdx} and computes the target slot as ` +
+          `pIdx & mask = ${calc.pIdx} & ${MASK} = ${calc.slot}. ` +
+          `It reads the sequence stamp seqBuf[${calc.slot}] = ${calc.seq}. ` +
+          `The difference seq − pIdx = ${calc.seq} − ${calc.pIdx} = 0 means the stamp ` +
+          `exactly matches the producer counter — this slot has been fully consumed and ` +
+          `recycled, and is now free to be written again.`,
+
+          `The producer performs a CAS to advance pIdx from ${calc.pIdx} to ${calc.pIdx + 1}, ` +
+          `claiming slot ${calc.slot} exclusively against any competing producer. ` +
+          `It writes the element into buf[${calc.slot}], then advances the stamp to ` +
+          `seqBuf[${calc.slot}] = ${calc.pIdx + 1} with a release store. ` +
+          `This new stamp is exactly cIdx + 1 for the consumer currently pointing at this slot, ` +
+          `which is the signal consumers check to know a fully written element is waiting.`,
+        ],
+      };
+    } else if (calc.diff < 0) {
+      return {
+        color: COLOR.fail,
+        paragraphs: [
+          `The producer reads pIdx = ${calc.pIdx} and computes the target slot as ` +
+          `pIdx & mask = ${calc.pIdx} & ${MASK} = ${calc.slot}. ` +
+          `It reads the sequence stamp seqBuf[${calc.slot}] = ${calc.seq}. ` +
+          `The difference seq − pIdx = ${calc.seq} − ${calc.pIdx} = ${calc.diff} is negative.`,
+
+          `A negative diff means the slot's stamp has fallen behind the producer counter. ` +
+          `The slot was written in a previous lap and its consumer has not yet read and ` +
+          `recycled it — the buffer is full. ` +
+          `offer() returns false immediately and no state is changed.`,
+        ],
+      };
+    }
+  } else {
+    if (calc.diff === 0) {
+      return {
+        color: COLOR.read,
+        paragraphs: [
+          `The consumer reads cIdx = ${calc.cIdx} and computes the source slot as ` +
+          `cIdx & mask = ${calc.cIdx} & ${MASK} = ${calc.slot}. ` +
+          `It reads the sequence stamp seqBuf[${calc.slot}] = ${calc.seq}. ` +
+          `The expected stamp is cIdx + 1 = ${calc.expected}. ` +
+          `The difference seq − expected = ${calc.seq} − ${calc.expected} = 0 means the stamp ` +
+          `matches exactly — a producer has written to this slot and advanced the stamp to ` +
+          `signal that a complete element is ready.`,
+
+          `The consumer performs a CAS to advance cIdx from ${calc.cIdx} to ${calc.cIdx + 1}, ` +
+          `claiming the right to read slot ${calc.slot} against any competing consumer. ` +
+          `It reads the element from buf[${calc.slot}] and clears the slot to null. ` +
+          `It then advances the stamp to seqBuf[${calc.slot}] = ${calc.cIdx + CAP} with a release store. ` +
+          `This new stamp is exactly pIdx for the producer that will next wrap around to this slot, ` +
+          `which is the signal producers check to know the slot is free again.`,
+        ],
+      };
+    } else if (calc.diff < 0) {
+      return {
+        color: COLOR.fail,
+        paragraphs: [
+          `The consumer reads cIdx = ${calc.cIdx} and computes the source slot as ` +
+          `cIdx & mask = ${calc.cIdx} & ${MASK} = ${calc.slot}. ` +
+          `It reads the sequence stamp seqBuf[${calc.slot}] = ${calc.seq}. ` +
+          `The expected stamp is cIdx + 1 = ${calc.expected}. ` +
+          `The difference seq − expected = ${calc.seq} − ${calc.expected} = ${calc.diff} is negative.`,
+
+          `A negative diff means no producer has yet written to this slot in the current lap — ` +
+          `the stamp is still behind the value a completed write would have set. ` +
+          `The buffer is empty. take() returns null and cIdx stays at ${calc.cIdx}.`,
+        ],
+      };
+    }
+  }
+
+  return null;
+}
+
+function StepDescription({ calc }) {
+  const desc = stepDescription(calc);
+
+  if (!desc) return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: "1px solid #e8e6df", background: "#f5f4f0",
+      padding: "10px 14px", fontSize: 12,
+      color: "#ccc", textAlign: "center", fontStyle: "italic",
+    }}>
+      step summary will appear here after each operation
+    </div>
+  );
+
+  return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: `1px solid ${desc.color}22`,
+      background: `${desc.color}08`,
+      padding: "10px 14px",
+    }}>
+      {desc.paragraphs.map((p, i) => (
+        <p key={i} style={{
+          margin: i === 0 ? "0 0 6px" : "0",
+          fontSize: 12.5, lineHeight: 1.65,
+          color: "#444",
+        }}>
+          {p}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 // ── Intermediate calculation trace panel ─────────────────────────────────────
 
 function CalcPanel({ calc }) {
@@ -535,7 +652,7 @@ export default function MpmcRingBuffer() {
       fontSize: 11, textAlign: "center", color: "#aaa",
       marginTop: 8, lineHeight: 1.6,
     },
-    logLabel: {
+    sectionLabel: {
       fontSize: 11, color: "#bbb", marginBottom: 4, paddingLeft: 4,
     },
   };
@@ -573,10 +690,18 @@ export default function MpmcRingBuffer() {
         hiColor={hi.color}
       />
 
-      <CalcPanel calc={calc} />
+      <div style={{ marginTop: 8 }}>
+        <div style={s.sectionLabel}>Step summary</div>
+        <StepDescription calc={calc} />
+      </div>
 
       <div style={{ marginTop: 8 }}>
-        <div style={s.logLabel}>Operation history</div>
+        <div style={s.sectionLabel}>Algorithm trace</div>
+        <CalcPanel calc={calc} />
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <div style={s.sectionLabel}>Operation history</div>
         <HistoryLog entries={history} currentIndex={historyIndex} />
       </div>
 
@@ -584,7 +709,8 @@ export default function MpmcRingBuffer() {
         Type any label ·{" "}
         <strong style={{ color: COLOR.write }}>Offer</strong> to enqueue ·{" "}
         <strong style={{ color: COLOR.read }}>Take</strong> to dequeue ·
-        the trace panel shows every variable the algorithm computes before deciding
+        the trace panel shows every variable the algorithm computes before deciding ·
+        use Back / Forward to replay any step
       </div>
     </div>
   );
