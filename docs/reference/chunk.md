@@ -2893,6 +2893,45 @@ val updated = original.updated(1, 25)
 
 **Performance:** O(log n) for tree-structured chunks; O(n) copy for large arrays.
 
+### Type-Safe Primitive Accessors
+
+Chunk provides type-safe accessors to extract primitive values at a specific index. These methods combine index access with type assertion in a single operation:
+
+#### `Chunk#boolean`, `Chunk#byte`, `Chunk#char`, `Chunk#short`, `Chunk#int`, `Chunk#long`, `Chunk#float`, `Chunk#double` — Extract Primitive by Type and Index
+
+Extract a primitive value of a specific type at a given index:
+
+```scala
+trait Chunk[+A] {
+  def boolean(index: Int)(implicit ev: A <:< Boolean): Boolean
+  def byte(index: Int)(implicit ev: A <:< Byte): Byte
+  def char(index: Int)(implicit ev: A <:< Char): Char
+  def short(index: Int)(implicit ev: A <:< Short): Short
+  def int(index: Int)(implicit ev: A <:< Int): Int
+  def long(index: Int)(implicit ev: A <:< Long): Long
+  def float(index: Int)(implicit ev: A <:< Float): Float
+  def double(index: Int)(implicit ev: A <:< Double): Double
+}
+```
+
+These methods provide type-safe access to primitive values:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val boolChunk = Chunk(true, false, true)
+val firstBool = boolChunk.boolean(0)
+
+val intChunk = Chunk(10, 20, 30)
+val secondInt = intChunk.int(1)
+
+val doubleChunk = Chunk(1.5, 2.5, 3.5)
+val thirdDouble = doubleChunk.double(2)
+```
+
+**Performance:** O(log n) typical; O(1) for array-backed chunks.
+
+
 ## Integration
 
 Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
