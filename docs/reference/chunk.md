@@ -95,13 +95,17 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
 
 Supports Scala 2.13.x and 3.x.
 
-## Construction / Creating Instances
+## Factory Methods
 
-Chunk provides multiple factory methods for creating instances from different sources. Choose the method that best matches your data source:
+Chunk provides comprehensive factory methods for creating instances from various sources. Each factory is optimized for its data source with different performance and safety characteristics. Choose based on your data source and use case.
 
-### From Varargs with `Chunk.apply`
+### Direct Construction
 
-The simplest way to create a chunk from individual elements:
+The simplest ways to create chunks from individual elements or single values:
+
+#### `Chunk.apply` — Varargs Constructor
+
+Create a chunk from individual elements using varargs syntax:
 
 ```scala
 object Chunk {
@@ -109,7 +113,7 @@ object Chunk {
 }
 ```
 
-Here's how to create chunks from varargs:
+The simplest way to create chunks from individual elements:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -117,31 +121,15 @@ import zio.blocks.chunk.Chunk
 val numbers = Chunk(1, 2, 3, 4, 5)
 
 val strings = Chunk("alice", "bob", "charlie")
+
+val mixed = Chunk(1, "two", 3.0)
 ```
 
-### Empty Chunk with `Chunk.empty`
+**Performance:** O(n) — creates array-backed chunk, optimal for small to medium sizes.
 
-Create an empty chunk:
+#### `Chunk.single` — Single-Element Constructor
 
-```scala
-object Chunk {
-  def empty[A]: Chunk[A]
-}
-```
-
-Checking the length confirms empty chunks have zero elements:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val empty = Chunk.empty[Int]
-
-empty.length
-```
-
-### Single Element with `Chunk.single`
-
-Efficient constructor for a single-element chunk:
+Create an efficient single-element chunk:
 
 ```scala
 object Chunk {
@@ -149,7 +137,7 @@ object Chunk {
 }
 ```
 
-The single-element constructor is convenient for wrapping individual values:
+Convenient for wrapping individual values without array overhead:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -159,49 +147,119 @@ val one = Chunk.single("hello")
 val singleInt = Chunk.single(42)
 ```
 
-### From Array with `Chunk.fromArray`
+**Performance:** O(1) — specialized for single-element chunks, no array allocation.
 
-Create a chunk backed by an array without copying. The chunk holds a direct reference to the provided array:
+#### `Chunk.empty` — Empty Chunk
+
+Create an empty chunk (singleton instance):
 
 ```scala
 object Chunk {
-  def fromArray[A](array: Array[A]): Chunk[A]
+  def empty[A]: Chunk[A]
 }
 ```
 
-This is a zero-copy operation—the chunk wraps the array in place. However, this creates a critical constraint: **the array must not be mutated after creating the chunk**. If you mutate the source array, those mutations become visible through the chunk, breaking the immutability guarantee:
+Returns the shared empty chunk singleton:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val arr = Array(10, 20, 30)
-val chunk = Chunk.fromArray(arr)
+val empty = Chunk.empty[Int]
 
-// Chunk currently returns: 10, 20, 30
-chunk
+empty.length
+
+empty.isEmpty
 ```
 
-If you mutate the array after creating the chunk, the chunk reflects those changes:
+**Performance:** O(1) — returns shared singleton, no allocation.
 
-```scala mdoc:silent:reset
+### Generation Methods
+
+Create chunks by generating values using functions:
+
+#### `Chunk.fill` — Repeat Element N Times
+
+Create a chunk by repeating an element n times:
+
+```scala
+object Chunk {
+  def fill[A](n: Int)(elem: => A): Chunk[A]
+}
+```
+
+Useful for creating uniform chunks:
+
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
-val arr = Array(10, 20, 30)
-val chunk = Chunk.fromArray(arr)
-arr(0) = 99  // mutating the source array
+val repeated = Chunk.fill(5)("x")
+
+val zeros = Chunk.fill(3)(0)
+
+val ones = Chunk.fill(4)(1)
 ```
 
-The mutation is visible in the chunk:
+**Performance:** O(n) — creates array-backed chunk of size n.
 
-```scala mdoc
-chunk
+#### `Chunk.iterate` — Repeatedly Apply Function
+
+Create a chunk by repeatedly applying a function starting from an initial value:
+
+```scala
+object Chunk {
+  def iterate[A](start: A, len: Int)(f: A => A): Chunk[A]
+}
 ```
 
-To avoid this risk, prefer alternatives that create independent copies: `Chunk.fromIterable` copies data from most iterables (`List`, `Set`, etc.), and `Chunk.from` also creates a copy when needed. Use these when you cannot guarantee the source array will not be mutated.
+Generates sequences by function iteration:
 
-### From Iterable with `Chunk.fromIterable`
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
 
-Convert any Scala iterable (`List`, `Vector`, `Set`, etc.) into a chunk. For `Chunk` and `Vector` inputs, the underlying data may be shared; for other iterables, the data is copied:
+val powers = Chunk.iterate(1, 5)(_ * 2)
+
+val alphabet = Chunk.iterate('a', 3)(c => (c + 1).toChar)
+
+val decreasing = Chunk.iterate(10, 4)(_ - 1)
+```
+
+**Performance:** O(n) — function applied n times sequentially.
+
+#### `Chunk.unfold` — Generate from State
+
+Generate a chunk by repeatedly applying a function that returns an optional value:
+
+```scala
+object Chunk {
+  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Chunk[A]
+}
+```
+
+Powerful for generating chunks from state transitions:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+// Count from 1 to 5
+val counted = Chunk.unfold(1) { n =>
+  if (n <= 5) Some((n, n + 1)) else None
+}
+
+// Generate fibonacci-like sequence
+val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
+  if (a <= 50) Some((a, (b, a + b))) else None
+}
+```
+
+**Performance:** O(n) where n is number of generated elements.
+
+### Collection Conversion Methods
+
+Create chunks from existing Scala collections:
+
+#### `Chunk.fromIterable` — From Scala Collections
+
+Convert any Scala iterable into a chunk:
 
 ```scala
 object Chunk {
@@ -209,7 +267,7 @@ object Chunk {
 }
 ```
 
-You can convert from multiple iterable types at once:
+Supports all Scala collection types (List, Vector, Set, Seq, etc.). For Chunk and Vector, data may be shared; for others, data is copied:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -219,11 +277,37 @@ val chunk = Chunk.fromIterable(list)
 
 val vector = Vector("x", "y", "z")
 val chunkFromVec = Chunk.fromIterable(vector)
+
+val set = Set(10, 20, 30)
+val chunkFromSet = Chunk.fromIterable(set)
 ```
 
-### From Iterator with `Chunk.fromIterator`
+**Performance:** O(n) for most types; O(1) for Vector (data sharing).
 
-Consume an iterator and collect into a chunk:
+#### `Chunk.from` — Generic from Iterable (Alias)
+
+Shorter alias for `fromIterable`:
+
+```scala
+object Chunk {
+  def from[A](it: Iterable[A]): Chunk[A]
+}
+```
+
+Provides a concise name for generic iterable conversion:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val list = List(1, 2, 3)
+val chunk = Chunk.from(list)
+```
+
+**Performance:** Same as `fromIterable`.
+
+#### `Chunk.fromIterator` — From Iterator
+
+Consume an iterator and collect all elements into a chunk:
 
 ```scala
 object Chunk {
@@ -231,16 +315,75 @@ object Chunk {
 }
 ```
 
-Consuming an iterator produces a chunk with all collected elements:
+Exhausts the iterator and builds a chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 
 val iter = Iterator(5, 10, 15)
 val chunk = Chunk.fromIterator(iter)
+
+// Iterator is now exhausted
+val isEmpty = iter.hasNext
 ```
 
-### From `java.nio` Buffers
+**Performance:** O(n) where n is number of elements in iterator.
+
+#### `Chunk.fromArray` — From Array (Zero-Copy)
+
+Create a chunk backed by an array without copying:
+
+```scala
+object Chunk {
+  def fromArray[A](array: Array[A]): Chunk[A]
+}
+```
+
+**⚠️ Critical Warning:** This is a zero-copy operation that **holds a direct reference to the provided array**. The array **must not be mutated** after creating the chunk. Mutations become visible through the chunk:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val arr = Array(10, 20, 30)
+val chunk = Chunk.fromArray(arr)
+
+chunk
+```
+
+Mutating the source array breaks immutability:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+
+val arr = Array(10, 20, 30)
+val chunk = Chunk.fromArray(arr)
+arr(0) = 99  // DANGER: mutation visible through chunk!
+```
+
+The mutation is visible:
+
+```scala mdoc
+chunk
+```
+
+**Safe Alternative:** Use `fromIterable` which copies data and guarantees immutability:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+
+val arr = Array(10, 20, 30)
+val chunk = Chunk.fromIterable(arr.toList)  // Safe copy
+
+// Now mutations don't affect chunk
+```
+
+**Performance:** O(1) zero-copy; O(n) for safe copy alternative.
+
+### Java Interoperability Methods
+
+Create chunks from Java collections and buffers:
+
+#### From `java.nio` Buffers
 
 Create chunks directly from Java NIO buffers (`ByteBuffer`, `CharBuffer`, etc.):
 
@@ -266,92 +409,9 @@ val buffer = ByteBuffer.wrap(Array[Byte](1, 2, 3))
 val chunk = Chunk.fromByteBuffer(buffer)
 ```
 
-### Fill with `Chunk.fill`
+**Performance:** O(n) — copies data from buffer into array-backed chunk.
 
-Create a chunk by repeating an element n times:
-
-```scala
-object Chunk {
-  def fill[A](n: Int)(elem: => A): Chunk[A]
-}
-```
-
-Repeating elements creates uniform chunks:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val repeated = Chunk.fill(5)("x")
-
-val zeros = Chunk.fill(3)(0)
-```
-
-### Iterate with `Chunk.iterate`
-
-Create a chunk by repeatedly applying a function starting from an initial value:
-
-```scala
-object Chunk {
-  def iterate[A](start: A, len: Int)(f: A => A): Chunk[A]
-}
-```
-
-Iteration from a starting value generates sequences:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val powers = Chunk.iterate(1, 5)(_ * 2)
-
-val alphabet = Chunk.iterate('a', 3)(c => (c + 1).toChar)
-```
-
-### Unfold with `Chunk.unfold`
-
-Generate a chunk by repeatedly applying a function that returns an optional value:
-
-```scala
-object Chunk {
-  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Chunk[A]
-}
-```
-
-Unfold lets you generate chunks from state transitions:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-// Count from 1 to 5
-val counted = Chunk.unfold(1) { n =>
-  if (n <= 5) Some((n, n + 1)) else None
-}
-
-// Generate fibonacci-like sequence
-val fibs = Chunk.unfold((1, 1)) { case (a, b) =>
-  if (a <= 50) Some((a, (b, a + b))) else None
-}
-```
-
-### `Chunk.from` — Generic From Iterable
-
-Create a chunk from any Scala `Iterable`:
-
-```scala
-object Chunk {
-  def from[A](it: Iterable[A]): Chunk[A]
-}
-```
-
-`from` is an alias for `fromIterable`, providing a concise name:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val list = List(1, 2, 3)
-val chunk = Chunk.from(list)
-```
-
-### `Chunk.fromJavaIterable` — From Java Iterable
+#### `Chunk.fromJavaIterable` — From Java Iterable
 
 Create a chunk from a Java `Iterable`:
 
@@ -371,7 +431,9 @@ val javaList = Arrays.asList("a", "b", "c")
 val chunk = Chunk.fromJavaIterable(javaList)
 ```
 
-### `Chunk.fromJavaIterator` — From Java Iterator
+**Performance:** O(n) — iterates and copies elements.
+
+#### `Chunk.fromJavaIterator` — From Java Iterator
 
 Consume a Java `Iterator` and collect its elements into a chunk:
 
@@ -391,7 +453,11 @@ val javaIter = Arrays.asList(1, 2, 3).iterator()
 val chunk = Chunk.fromJavaIterator(javaIter)
 ```
 
-### `Chunk.newBuilder` — Get a Builder
+**Performance:** O(n) — exhausts iterator and builds chunk.
+
+### Builder Methods
+
+#### `Chunk.newBuilder` — Get a Builder
 
 Obtain a fresh `ChunkBuilder` for incremental construction:
 
