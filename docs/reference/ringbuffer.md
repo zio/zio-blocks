@@ -214,29 +214,29 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 
 #### Diagram
 
-To see the hybrid algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch the trace panel show every intermediate variable — `pIdx`, `pLimit`, `slot`, `buf[slot]` — and the exact decision the algorithm makes.
+To see the hybrid algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch the trace panel show every intermediate variable — `pIdx`, `cIdx`, `size`, `slot`, `value` — and the exact decision the algorithm makes.
 
 <MpscDiagram />
 
 Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
 
-#### `pIdx` — the monotonic producer counter
+#### `pIdx` / `cIdx` — the monotonic counters
 
-Like the MPMC algorithm, `pIdx` is the monotonic heartbeat of the producer side. It starts at zero and only ever increases as producers successfully claim slots via CAS. The raw value never wraps, never resets, and never goes backwards. After a million operations `pIdx` might be 1,000,000. This monotonically-increasing counter is the key that allows multiple producers to fairly divide slots without locks: each producer atomically claims the next slot by CASing `pIdx` forward.
+Like the MPMC algorithm, both counters start at zero and only ever increase — they never wrap, never reset, never go backwards. `pIdx` is shared by all producer threads: each producer atomically claims the next slot by performing a compare-and-swap (CAS) from `pIdx` to `pIdx + 1`. Whoever wins the CAS owns that slot. `cIdx` is read with a plain load because only one thread ever consumes, so no CAS is needed.
 
-#### `pLimit` — the cached producer limit
+#### `size = pIdx − cIdx` — the occupancy check
 
-This is the MPSC optimization. Rather than reading the volatile `consumerIndex` on every `offer`, the producer maintains a cached `pLimit` that represents the highest producer index the consumer has confirmed it can accommodate. On the fast path, a producer just checks `pIdx < pLimit` — a plain read with no atomic operations. When `pLimit` is exhausted (i.e., `pIdx >= pLimit`), the slow path reads `consumerIndex` once, computes `newPLimit = consumerIndex + capacity`, and updates the cache. This batching of consumer reads is what makes MPSC's producer side fast despite multiple threads.
+Before claiming a slot, the producer checks whether the buffer is full: if `pIdx − cIdx == capacity`, every slot is occupied and `offer` returns `false` immediately. The difference `pIdx − cIdx` is the number of elements currently in the buffer. Under real concurrent access, the JVM implementation maintains a cached `producerLimit` to avoid reading the volatile `consumerIndex` on every `offer` call — but the fundamental check is the same occupancy test shown here.
 
 #### `slot = pIdx & mask` — the circular array index
 
-Identical to MPMC: because capacity is a power of two, `mask = capacity - 1`, and the bitwise AND strips high bits to give a slot number in `[0, capacity)`. This is mathematically equivalent to `pIdx % capacity` but costs a single CPU instruction. So `pIdx = 7` maps to slot `7 & 3 = 3`, and `pIdx = 8` wraps back to slot `0`.
+Because capacity is a power of two, `mask = capacity - 1`, and the bitwise AND strips high bits to give a slot number in `[0, capacity)`. This is mathematically equivalent to `pIdx % capacity` but costs a single CPU instruction. So `pIdx = 7` maps to slot `7 & 3 = 3`, and `pIdx = 8` wraps back to slot `0`.
 
-#### `buf[slot]` — the FastFlow slot check
+#### `value = buf[slot]` — the FastFlow slot check
 
-The consumer uses the **FastFlow relaxed-poll pattern**: read the array slot directly. If the slot is `null`, either the buffer is empty, or a producer has claimed the slot via CAS but has not yet written the element (still mid-write). In both cases, `take` returns `null` rather than blocking or spinning. This is why the consumer never reads `producerIndex` — it derives all its information from the slots themselves.
+The consumer uses the **FastFlow relaxed-poll pattern**: read the array slot directly with acquire semantics. If the slot is `null`, either the buffer is empty, or a producer has won the CAS but has not yet finished writing the element (mid-write). In both cases, `take` returns `null` rather than blocking or spinning — this is the *relaxed poll* semantic. This is why the consumer never reads `pIdx`; it derives all its information from the slot value itself.
 
-The producer writes the element to the slot with release semantics, guaranteeing that the consumer's acquire-read will see the full value once it arrives.
+Once the producer wins its CAS, it writes the element with release semantics. The acquire/release pair guarantees the consumer will see the fully written element as soon as the slot is non-null.
 
 ### `MpmcRingBuffer`: Vyukov/Dmitry Sequence Buffer
 
