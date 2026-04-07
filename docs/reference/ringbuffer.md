@@ -5,6 +5,7 @@ title: "RingBuffer"
 
 import MpmcDiagram from './MpmcDiagram.jsx';
 import MpscDiagram from './MpscDiagram.jsx';
+import SpmcDiagram from './SpmcDiagram.jsx';
 
 `RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
 
@@ -199,6 +200,42 @@ See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
 - **No slot clearing by consumers:** Consumers do not write `null` after reading. Instead, the producer safely overwrites slots once its `producerLimit` check (based on `consumerIndex`) confirms all consumers have advanced past them. This eliminates the race that would occur if a consumer claimed a slot but hadn't yet cleared it.
 
 **Trade-off:** Consumer CAS introduces overhead under contention, but the producer remains extremely fast (no synchronization).
+
+#### Diagram
+
+To see the single-producer multi-consumer algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue (single producer) or **Take** to dequeue (any consumer), and watch the trace panel show every intermediate variable — `pIdx`, `cIdx`, `size`, `slot`, `element` — and the exact decision each side makes.
+
+<SpmcDiagram />
+
+Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
+
+#### `pIdx` — the monotonic producer counter
+
+The producer has its own index that starts at zero and only ever increases. Because only one thread produces, `pIdx` is read and written with plain loads and stores — no CAS is needed. The producer's job is simple: check capacity (`pIdx - cIdx < capacity`), write to the slot, then advance `pIdx`.
+
+#### `cIdx` — the monotonic consumer counter (multi-threaded)
+
+All consumers share a single `consumerIndex` counter. Because multiple consumers may be operating concurrently, each consumer reads `cIdx` with volatile semantics to see the most recent updates, then attempts to atomically advance it via CAS. If the CAS fails, another consumer claimed the slot first and the reader discards their read and retries.
+
+#### `size = pIdx − cIdx` — the occupancy check
+
+Both sides use the same occupancy formula: `pIdx − cIdx` is the number of elements currently in the buffer. The producer checks if `size == capacity` to detect a full buffer. The consumer checks if `size == 0` to detect an empty buffer.
+
+#### `slot = pIdx & mask` or `slot = cIdx & mask` — the circular array index
+
+Identical to all other ring buffer variants: because capacity is a power of two, the bitwise AND `& mask` replaces modulo division, giving a slot number in `[0, capacity)`. So `pIdx = 7` maps to slot `7 & 3 = 3`, and `pIdx = 8` wraps back to slot `0`.
+
+#### `element = buf[slot]` — read-before-CAS
+
+This is the critical SPMC distinction. The consumer reads the element *before* attempting the CAS on `cIdx`. This ordering is essential: once the CAS succeeds and `cIdx` advances, the producer is permitted to overwrite that slot on its next lap. By reading the element first, the consumer guarantees it captures the value while the slot is still logically owned.
+
+In the trace, when a consumer takes an element, you will see the `element` row highlighted — this captures the read that must happen before the CAS.
+
+#### Why SPMC doesn't clear slots
+
+Unlike MPSC (which uses FastFlow's null-check pattern), SPMC determines slot validity purely by index comparison: if `cIdx ≤ slot < pIdx`, the slot is live. After a consumer advances `cIdx`, the slot becomes "stale" — no longer live, but still holding the old value until the producer wraps around and overwrites it. This eliminates the race that would occur if a consumer had to null out the slot while holding the CAS; instead, the producer simply overwrites when it knows the consumer has advanced.
+
+The diagram marks stale slots with a dashed border and a "stale" label in grey.
 
 ### `MpscRingBuffer`: Hybrid FastFlow
 
