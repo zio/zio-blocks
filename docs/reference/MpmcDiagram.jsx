@@ -317,7 +317,7 @@ function RingDiagram({ buf, seq, pIdx, cIdx, hiSlots, hiColor }) {
 
 // ── History log ──────────────────────────────────────────────────────────────
 
-function HistoryLog({ entries }) {
+function HistoryLog({ entries, currentIndex }) {
   const bottomRef = useRef(null);
 
   return (
@@ -336,12 +336,15 @@ function HistoryLog({ entries }) {
             write: COLOR.write, read: COLOR.read,
             fail:  COLOR.fail,  warn: COLOR.warn,
           }[e.kind] ?? "#ccc";
+          const isSelected = currentIndex === i;
           return (
             <div key={i} style={{
               display: "flex", gap: 10, padding: "4px 10px",
               borderLeft: `3px solid ${border}`,
               borderBottom: i < entries.length - 1 ? "1px solid #f0ede6" : "none",
               color: border,
+              background: isSelected ? `${border}0a` : "transparent",
+              fontWeight: isSelected ? 600 : 400,
             }}>
               <span style={{ color: "#bbb", minWidth: 32, fontSize: 10 }}>
                 #{i + 1}
@@ -361,13 +364,46 @@ function HistoryLog({ entries }) {
 export default function MpmcRingBuffer() {
   const [state,   setState]   = useState(initState);
   const [input,   setInput]   = useState("A");
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState([{ msg: "initial state", kind: "neutral", stateSnapshot: initState(), calcSnapshot: null }]);
   const [hi,      setHi]      = useState({ slots: null, color: null });
   const [calc,    setCalc]    = useState(null);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
-  function addLog(msg, kind) {
-    setHistory(h => [...h, { msg, kind }]);
+  function addLog(msg, kind, stateSnapshot, calcSnapshot) {
+    setHistory(h => [...h, { msg, kind, stateSnapshot, calcSnapshot }]);
   }
+
+  const displayedState = historyIndex >= 0 && historyIndex < history.length
+    ? history[historyIndex].stateSnapshot
+    : state;
+
+  const goBack = useCallback(() => {
+    setHistoryIndex(i => {
+      let nextIndex;
+      if (i === -1) nextIndex = history.length - 1;  // Go to last operation
+      else nextIndex = Math.max(0, i - 1);
+
+      if (nextIndex >= 0 && nextIndex < history.length) {
+        setCalc(history[nextIndex].calcSnapshot);
+      }
+      return nextIndex;
+    });
+  }, [history]);
+
+  const goForward = useCallback(() => {
+    setHistoryIndex(i => {
+      let nextIndex;
+      if (i === history.length - 1) nextIndex = -1;  // Go to current state
+      else nextIndex = Math.min(history.length - 1, i + 1);
+
+      if (nextIndex >= 0 && nextIndex < history.length) {
+        setCalc(history[nextIndex].calcSnapshot);
+      } else if (nextIndex === -1) {
+        setCalc(null);
+      }
+      return nextIndex;
+    });
+  }, [history]);
 
   const doOffer = useCallback(() => {
     const val = input.trim();
@@ -385,16 +421,21 @@ export default function MpmcRingBuffer() {
       if (diff === 0) {
         const newBuf = [...buf]; newBuf[slot] = val;
         const newSeq = [...seq]; newSeq[slot] = pIdx + 1;
+        const newState = { buf: newBuf, seq: newSeq, pIdx: pIdx + 1, cIdx };
+        const calcSnapshot = { op: "offer", pIdx, slot, seq: s, diff };
         const msg = `offer("${val}") → true   [slot ${slot}  seq: ${s}→${newSeq[slot]}  pIdx: ${pIdx}→${pIdx + 1}]`;
-        addLog(msg, "write");
+        addLog(msg, "write", newState, calcSnapshot);
         setHi({ slots: [slot], color: COLOR.write });
         if (val.length === 1 && val >= "A" && val < "Z")
           setInput(String.fromCharCode(val.charCodeAt(0) + 1));
-        return { buf: newBuf, seq: newSeq, pIdx: pIdx + 1, cIdx };
+        setHistoryIndex(-1);
+        return newState;
       } else if (diff < 0) {
+        const calcSnapshot = { op: "offer", pIdx, slot, seq: s, diff };
         const msg = `offer("${val}") → false  [slot ${slot}  seq=${s}  pIdx=${pIdx}  diff=${diff} < 0 → FULL]`;
-        addLog(msg, "fail");
+        addLog(msg, "fail", prev, calcSnapshot);
         setHi({ slots: [slot], color: COLOR.fail });
+        setHistoryIndex(-1);
         return prev;
       }
       return prev;
@@ -415,14 +456,19 @@ export default function MpmcRingBuffer() {
         const val    = buf[slot];
         const newBuf = [...buf]; newBuf[slot] = null;
         const newSeq = [...seq]; newSeq[slot] = cIdx + CAP;
+        const newState = { buf: newBuf, seq: newSeq, pIdx, cIdx: cIdx + 1 };
+        const calcSnapshot = { op: "take", cIdx, slot, seq: s, expected, diff };
         const msg = `take() → "${val}"   [slot ${slot}  seq: ${s}→${newSeq[slot]}  cIdx: ${cIdx}→${cIdx + 1}]`;
-        addLog(msg, "read");
+        addLog(msg, "read", newState, calcSnapshot);
         setHi({ slots: [slot], color: COLOR.read });
-        return { buf: newBuf, seq: newSeq, pIdx, cIdx: cIdx + 1 };
+        setHistoryIndex(-1);
+        return newState;
       } else if (diff < 0) {
+        const calcSnapshot = { op: "take", cIdx, slot, seq: s, expected, diff };
         const msg = `take() → null   [slot ${slot}  seq=${s}  cIdx+1=${expected}  diff=${diff} < 0 → EMPTY]`;
-        addLog(msg, "fail");
+        addLog(msg, "fail", prev, calcSnapshot);
         setHi({ slots: [slot], color: COLOR.fail });
+        setHistoryIndex(-1);
         return prev;
       }
       return prev;
@@ -432,9 +478,10 @@ export default function MpmcRingBuffer() {
   const doReset = useCallback(() => {
     setState(initState());
     setInput("A");
-    setHistory([]);
+    setHistory([{ msg: "initial state", kind: "neutral", stateSnapshot: initState(), calcSnapshot: null }]);
     setHi({ slots: null, color: null });
     setCalc(null);
+    setHistoryIndex(-1);
   }, []);
 
   const onKey = useCallback((e) => {
@@ -478,6 +525,12 @@ export default function MpmcRingBuffer() {
       border: "1px solid #d4d2c8", background: "transparent",
       color: "#888", fontSize: 13, cursor: "pointer",
     },
+    btnNav: (disabled) => ({
+      padding: "6px 12px", borderRadius: 8,
+      border: `1px solid ${disabled ? "#e8e6df" : "#d4d2c8"}`, background: "transparent",
+      color: disabled ? "#ccc" : "#888", fontSize: 13, cursor: disabled ? "default" : "pointer",
+      opacity: disabled ? 0.5 : 1,
+    }),
     hint: {
       fontSize: 11, textAlign: "center", color: "#aaa",
       marginTop: 8, lineHeight: 1.6,
@@ -503,13 +556,19 @@ export default function MpmcRingBuffer() {
         <button style={s.btnOffer} onClick={doOffer}>Offer →</button>
         <button style={s.btnTake}  onClick={doTake}>← Take</button>
         <button style={s.btnReset} onClick={doReset}>Reset</button>
+        <button style={s.btnNav(historyIndex === 0)} onClick={goBack} disabled={historyIndex === 0}>
+          ← Back
+        </button>
+        <button style={s.btnNav(historyIndex === -1)} onClick={goForward} disabled={historyIndex === -1}>
+          Forward →
+        </button>
       </div>
 
       <RingDiagram
-        buf={state.buf}
-        seq={state.seq}
-        pIdx={state.pIdx}
-        cIdx={state.cIdx}
+        buf={displayedState.buf}
+        seq={displayedState.seq}
+        pIdx={displayedState.pIdx}
+        cIdx={displayedState.cIdx}
         hiSlots={hi.slots}
         hiColor={hi.color}
       />
@@ -518,7 +577,7 @@ export default function MpmcRingBuffer() {
 
       <div style={{ marginTop: 8 }}>
         <div style={s.logLabel}>Operation history</div>
-        <HistoryLog entries={history} />
+        <HistoryLog entries={history} currentIndex={historyIndex} />
       </div>
 
       <div style={s.hint}>
