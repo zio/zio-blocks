@@ -6,6 +6,7 @@ title: "RingBuffer"
 import MpmcDiagram from './MpmcDiagram.jsx';
 import MpscDiagram from './MpscDiagram.jsx';
 import SpmcDiagram from './SpmcDiagram.jsx';
+import SpscDiagram from './SpscDiagram.jsx';
 
 `RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
 
@@ -188,6 +189,40 @@ ZIO Blocks provides four ring buffer implementations, each optimized for a speci
 **Look-ahead cache:** The producer maintains a local `producerLimit` (derived from `consumerIndex` during slow path). This allows the fast path to check a simple local counter instead of reading the volatile `consumerIndex` on every `offer`. The look-ahead step is `min(capacity/4, 4096)`, balancing between reducing consumer reads and memory usage.
 
 See [Why FastFlow?](#why-fastflow) for a deeper conceptual explanation.
+
+#### Diagram
+
+To see the single-producer single-consumer FastFlow algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch how the producer and consumer coordinate using only release/acquire semantics — no CAS on either side.
+
+<SpscDiagram />
+
+Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
+
+#### `pIdx` — the monotonic producer counter (plain load/store)
+
+The producer reads `pIdx` with a plain load — no atomic operations at all. Since only one thread produces, no synchronization is needed. The producer maintains its own count, never reads `consumerIndex`, and advances `pIdx` after writing with a release store.
+
+#### `cIdx` — the monotonic consumer counter (acquire load)
+
+The producer reads `cIdx` with an acquire load during capacity checking — this is the only time the producer touches the consumer's counter. This acquire pairs with the consumer's release store when advancing `cIdx`, ensuring the producer eventually sees freed slots. The consumer reads its own `cIdx` with a plain load.
+
+#### `size = pIdx − cIdx` — the occupancy check
+
+Both sides use the same occupancy formula, but only during slow paths (rare). On the fast path, neither side reads the other's counter; they rely on slot nullness (FastFlow) for synchronization.
+
+#### `slot = pIdx & mask` or `slot = cIdx & mask` — the circular array index
+
+Identical bitmask arithmetic: `& mask` replaces modulo, giving a slot in `[0, capacity)`.
+
+#### `element = buf[slot]` — no CAS, plain slot reads
+
+Unlike SPMC and SPMC, the consumer reads the slot directly with an acquire load — because there's only one consumer, no read-before-CAS is needed. The consumer is the sole owner of the take path. After reading, the consumer nulls the slot with a release store, which serves two purposes: (1) signals to the producer that the slot is free, and (2) releases any bookkeeping updates to other cores via the release semantics.
+
+#### Why SPSC doesn't read producer state
+
+The consumer never reads `pIdx`. Instead, it reads the slot directly: if the slot is non-null, data is ready. If null, the buffer is empty. The producer wrote a non-null value via a release store, and the consumer reads via an acquire load, forming a happens-before pair. This is the core of FastFlow: **eliminate cross-core reads entirely**.
+
+The diagram marks slots as "live" (still owned by the producer-consumer pair) or "stale" (consumed but not yet overwritten). Unlike SPMC where consumers CAS and have ordering concerns, SPSC clears immediately because only one consumer exists — there's no race.
 
 ### `SpmcRingBuffer`: Index-Based with CAS Consumers
 
