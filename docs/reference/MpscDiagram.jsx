@@ -1,552 +1,617 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from "react";
 
-// ── Module-level constants ─────────────────────────────
 const CAP  = 4;
 const MASK = CAP - 1;
 
 const COLOR = {
-  write:   "#1D9E75",  // green  — successful offer
-  read:    "#378ADD",  // blue   — successful take
-  fail:    "#E24B4A",  // red    — buffer full / empty
-  neutral: "#888780",  // grey   — neutral / initial state
+  write:   "#1D9E75",
+  read:    "#378ADD",
+  fail:    "#E24B4A",
+  neutral: "#888780",
 };
 
-const initState = () => ({
-  buf:    [null, null, null, null],
-  pIdx:   0,
-  cIdx:   0,
-  pLimit: CAP,
-});
+function initState() {
+  return {
+    buf:  Array(CAP).fill(null),
+    pIdx: 0,
+    cIdx: 0,
+  };
+}
 
-// ── Intermediate calculation trace panel ─────────────────────────────
-const CalcPanel = ({ calc }) => {
-  if (!calc) {
-    return (
-      <div style={{ padding: '12px', fontSize: '14px', color: '#888' }}>
-        algorithm trace will appear here after each operation
-      </div>
-    );
+// ── Prose description ─────────────────────────────────────────────────────────
+
+function stepDescription(calc) {
+  if (!calc) return null;
+
+  if (calc.op === "offer") {
+    const full = calc.size >= CAP;
+
+    if (full) {
+      return {
+        color: COLOR.fail,
+        paragraphs: [
+          `The producer reads pIdx = ${calc.pIdx} and cIdx = ${calc.cIdx}. ` +
+          `The difference pIdx − cIdx = ${calc.size} equals the capacity (${CAP}), ` +
+          `which means every slot in the buffer is currently occupied.`,
+
+          `Because the buffer is full, the producer cannot claim a slot. ` +
+          `offer() returns false immediately and the buffer state is unchanged.`,
+        ],
+      };
+    } else {
+      return {
+        color: COLOR.write,
+        paragraphs: [
+          `The producer reads pIdx = ${calc.pIdx} and cIdx = ${calc.cIdx}. ` +
+          `The difference pIdx − cIdx = ${calc.size}, which is less than the capacity (${CAP}), ` +
+          `so there is at least one free slot.`,
+
+          `The target slot is computed as pIdx & mask = ${calc.pIdx} & ${MASK} = ${calc.slot}. ` +
+          `The producer performs a CAS to advance pIdx from ${calc.pIdx} to ${calc.pIdx + 1}, ` +
+          `claiming that slot exclusively. It then writes the element into buf[${calc.slot}] ` +
+          `with release semantics so the consumer can observe it. offer() returns true.`,
+        ],
+      };
+    }
+  } else {
+    const empty = calc.value === null;
+
+    if (empty) {
+      return {
+        color: COLOR.fail,
+        paragraphs: [
+          `The consumer reads cIdx = ${calc.cIdx} with a plain load — no CAS is needed ` +
+          `because only one thread ever consumes. ` +
+          `The source slot is computed as cIdx & mask = ${calc.cIdx} & ${MASK} = ${calc.slot}.`,
+
+          `An acquire-read of buf[${calc.slot}] returns null. ` +
+          `A null slot means either the buffer is empty, or a producer has already ` +
+          `claimed the slot via CAS but has not yet written the element (mid-write). ` +
+          `In both cases the consumer cannot proceed — take() returns null and cIdx stays at ${calc.cIdx}.`,
+        ],
+      };
+    } else {
+      return {
+        color: COLOR.read,
+        paragraphs: [
+          `The consumer reads cIdx = ${calc.cIdx} with a plain load — no CAS is needed ` +
+          `because only one thread ever consumes. ` +
+          `The source slot is computed as cIdx & mask = ${calc.cIdx} & ${MASK} = ${calc.slot}.`,
+
+          `An acquire-read of buf[${calc.slot}] returns "${calc.value}", confirming the slot ` +
+          `holds a fully written element. The consumer clears buf[${calc.slot}] to null ` +
+          `(releasing the slot for future producers) and advances cIdx from ${calc.cIdx} to ${calc.cIdx + 1} ` +
+          `with release semantics. take() returns "${calc.value}".`,
+        ],
+      };
+    }
   }
+}
 
-  const { op, color } = calc;
+function StepDescription({ calc }) {
+  const desc = stepDescription(calc);
 
-  if (op === 'offer') {
-    const { pIdx, pLimit, pLimitRefreshed, cIdx, slot, outcome } = calc;
-    const isFull = outcome === 'full';
-
-    return (
-      <div style={{ border: '1px solid #ddd', borderRadius: '4px', overflow: 'hidden', fontSize: '13px' }}>
-        <div style={{ backgroundColor: color, color: 'white', padding: '8px 12px', fontWeight: 'bold' }}>
-          offer() — algorithm trace
-        </div>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600', width: '80px' }}>pIdx</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>pIdx</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{pIdx}</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>monotonic producer counter (claimed via CAS)</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600' }}>pLimit</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>pLimit</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{pLimit}</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>cached: last known cIdx + capacity</td>
-            </tr>
-            {isFull && (
-              <tr>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600' }}>cIdx</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>consumerIndex</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{cIdx}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>refreshed: stale limit exceeded</td>
-              </tr>
-            )}
-            {isFull && (
-              <tr>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600' }}>newPLimit</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>cIdx + capacity</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{pLimitRefreshed}</td>
-                <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}></td>
-              </tr>
-            )}
-            <tr>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600' }}>slot</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>pIdx & mask</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{slot}</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>bitmask arithmetic</td>
-            </tr>
-
-            <tr style={{ backgroundColor: color + '20' }}>
-              <td style={{ padding: '8px 12px', fontWeight: '600', fontWeight: 'bold' }}>
-                {isFull ? 'pIdx >= newPLimit' : 'pIdx < pLimit'}
-              </td>
-              <td colSpan="2" style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                {isFull ? 'true' : 'true'}
-              </td>
-              <td style={{ padding: '8px 12px', fontSize: '12px', color: '#666' }}></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ backgroundColor: color + '30', padding: '8px 12px', fontSize: '12px', fontWeight: '500', color: '#333' }}>
-          {isFull ? '✗ Buffer FULL → return false' : '✓ Slot free → write to buf[slot], stamp pIdx++'}
-        </div>
-      </div>
-    );
-  }
-
-  if (op === 'take') {
-    const { cIdx, slot, val, outcome } = calc;
-    const isEmpty = outcome === 'empty';
-
-    return (
-      <div style={{ border: '1px solid #ddd', borderRadius: '4px', overflow: 'hidden', fontSize: '13px' }}>
-        <div style={{ backgroundColor: color, color: 'white', padding: '8px 12px', fontWeight: 'bold' }}>
-          take() — algorithm trace
-        </div>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600', width: '80px' }}>cIdx</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>cIdx</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{cIdx}</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>monotonic consumer counter</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontWeight: '600' }}>slot</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace' }}>cIdx & mask</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontWeight: '500' }}>{slot}</td>
-              <td style={{ padding: '8px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>bitmask arithmetic</td>
-            </tr>
-
-            <tr style={{ backgroundColor: color + '20' }}>
-              <td style={{ padding: '8px 12px', fontWeight: '600', fontWeight: 'bold' }}>buf[slot]</td>
-              <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 'bold' }}></td>
-              <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{val === null ? 'null' : JSON.stringify(val)}</td>
-              <td style={{ padding: '8px 12px', fontSize: '12px', color: '#666' }}></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ backgroundColor: color + '30', padding: '8px 12px', fontSize: '12px', fontWeight: '500', color: '#333' }}>
-          {isEmpty ? '✗ Buffer EMPTY (or mid-write) → return null' : '✓ Data ready → read, clear, advance cIdx'}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
-// ── SVG ring buffer diagram ─────────────────────────────
-const RingDiagram = ({ state, highlighted }) => {
-  const { buf, pIdx, cIdx, pLimit } = state;
-
-  const slotWidth = 120;
-  const slotHeight = 80;
-  const slotGap = 40;
-  const totalWidth = 4 * slotWidth + 3 * slotGap + 80;
-  const totalHeight = 280;
+  if (!desc) return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: "1px solid #e8e6df", background: "#f5f4f0",
+      padding: "10px 14px", fontSize: 12,
+      color: "#ccc", textAlign: "center", fontStyle: "italic",
+    }}>
+      step summary will appear here after each operation
+    </div>
+  );
 
   return (
-    <svg viewBox={`0 0 ${totalWidth} ${totalHeight}`} style={{ border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#fafafa' }}>
-      {/* Title */}
-      <text x="20" y="28" fontSize="16" fontWeight="bold" fill="#333">
-        Ring Buffer (capacity = {CAP})
-      </text>
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: `1px solid ${desc.color}22`,
+      background: `${desc.color}08`,
+      padding: "10px 14px",
+    }}>
+      {desc.paragraphs.map((p, i) => (
+        <p key={i} style={{
+          margin: i === 0 ? "0 0 6px" : "0",
+          fontSize: 12.5, lineHeight: 1.65,
+          color: "#444",
+        }}>
+          {p}
+        </p>
+      ))}
+    </div>
+  );
+}
 
-      {/* Four slot boxes */}
-      {[0, 1, 2, 3].map((i) => {
-        const x = 40 + i * (slotWidth + slotGap);
-        const y = 50;
-        const isHighlighted = highlighted && highlighted.slots && highlighted.slots.includes(i);
+// ── Algorithm trace panel ─────────────────────────────────────────────────────
 
+function CalcPanel({ calc }) {
+  if (!calc) return (
+    <div style={{
+      margin: "6px 0 4px", borderRadius: 8,
+      border: "1px solid #e8e6df", background: "#f5f4f0",
+      padding: "10px 14px", fontSize: 11,
+      fontFamily: "monospace", color: "#ccc", textAlign: "center",
+    }}>
+      algorithm trace will appear here after each operation
+    </div>
+  );
+
+  const isOffer   = calc.op === "offer";
+  const opColor   = isOffer ? COLOR.write : COLOR.read;
+
+  let rows;
+  let decisionColor;
+  let decisionText;
+
+  if (isOffer) {
+    const full = calc.size >= CAP;
+    rows = [
+      {
+        label: "pIdx",
+        expr:  "pIdx",
+        val:   String(calc.pIdx),
+        note:  "monotonic producer counter (never resets)",
+        hi:    false,
+      },
+      {
+        label: "cIdx",
+        expr:  "cIdx",
+        val:   String(calc.cIdx),
+        note:  "monotonic consumer counter",
+        hi:    false,
+      },
+      {
+        label: "size",
+        expr:  "pIdx − cIdx",
+        val:   String(calc.size),
+        note:  `${calc.pIdx} − ${calc.cIdx} = ${calc.size}   (current occupancy)`,
+        hi:    true,
+      },
+      {
+        label: "slot",
+        expr:  "pIdx & mask",
+        val:   String(calc.slot),
+        note:  `${calc.pIdx} & ${MASK} = ${calc.slot}   (bitmask replaces mod)`,
+        hi:    false,
+      },
+    ];
+    decisionColor = full ? COLOR.fail : COLOR.write;
+    decisionText  = full
+      ? `✗  size == cap  →  buffer FULL  →  return false`
+      : `✓  size < cap  →  CAS pIdx ${calc.pIdx}→${calc.pIdx + 1}, write buf[${calc.slot}]  →  return true`;
+  } else {
+    const empty = calc.value === null;
+    rows = [
+      {
+        label: "cIdx",
+        expr:  "cIdx",
+        val:   String(calc.cIdx),
+        note:  "plain read — only one consumer thread",
+        hi:    false,
+      },
+      {
+        label: "slot",
+        expr:  "cIdx & mask",
+        val:   String(calc.slot),
+        note:  `${calc.cIdx} & ${MASK} = ${calc.slot}   (bitmask replaces mod)`,
+        hi:    false,
+      },
+      {
+        label: "value",
+        expr:  "buf[slot]",
+        val:   calc.value !== null ? `"${calc.value}"` : "null",
+        note:  calc.value !== null
+          ? `buf[${calc.slot}] = "${calc.value}"   (acquire-read — element is ready)`
+          : `buf[${calc.slot}] = null   (empty or producer mid-write)`,
+        hi:    true,
+      },
+    ];
+    decisionColor = empty ? COLOR.fail : COLOR.read;
+    decisionText  = empty
+      ? `✗  value == null  →  buffer EMPTY  →  return null`
+      : `✓  value ≠ null  →  clear buf[${calc.slot}], cIdx ${calc.cIdx}→${calc.cIdx + 1}  →  return "${calc.value}"`;
+  }
+
+  return (
+    <div style={{
+      margin: "6px 0 0", borderRadius: 8,
+      border: `1px solid ${opColor}30`,
+      overflow: "hidden", fontSize: 12,
+    }}>
+      {/* Header */}
+      <div style={{
+        background: `${opColor}14`, padding: "5px 12px",
+        display: "flex", alignItems: "center", gap: 8,
+        borderBottom: `1px solid ${opColor}20`,
+      }}>
+        <span style={{ color: opColor, fontFamily: "monospace", fontWeight: 700, fontSize: 12 }}>
+          {isOffer ? "offer()" : "take()"}
+        </span>
+        <span style={{ color: "#bbb", fontSize: 11 }}>— algorithm trace</span>
+      </div>
+
+      {/* Variable rows */}
+      {rows.map((r, i) => (
+        <div key={i} style={{
+          display: "grid",
+          gridTemplateColumns: "52px 130px 44px 1fr",
+          alignItems: "center",
+          padding: "4px 12px",
+          borderBottom: i < rows.length - 1 ? "1px solid #f0ede6" : "none",
+          background: r.hi ? `${opColor}0c` : "transparent",
+        }}>
+          <span style={{
+            fontFamily: "monospace", fontSize: 11,
+            fontWeight: r.hi ? 700 : 400,
+            color: r.hi ? opColor : "#aaa",
+          }}>
+            {r.label}
+          </span>
+          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#ccc" }}>
+            = {r.expr}
+          </span>
+          <span style={{
+            fontFamily: "monospace", fontSize: 14, fontWeight: 700,
+            color: r.hi ? decisionColor : "#555",
+            textAlign: "right", paddingRight: 10,
+          }}>
+            {r.val}
+          </span>
+          <span style={{
+            fontFamily: "monospace", fontSize: 10,
+            color: r.hi ? decisionColor + "aa" : "#d8d5cc",
+          }}>
+            {r.note}
+          </span>
+        </div>
+      ))}
+
+      {/* Decision bar */}
+      <div style={{
+        padding: "6px 12px",
+        background: `${decisionColor}10`,
+        borderTop: `1px solid ${decisionColor}28`,
+        fontFamily: "monospace", fontSize: 11,
+        fontWeight: 600, color: decisionColor,
+      }}>
+        {decisionText}
+      </div>
+    </div>
+  );
+}
+
+// ── SVG ring diagram ──────────────────────────────────────────────────────────
+
+function RingDiagram({ buf, pIdx, cIdx, hiSlots, hiColor }) {
+  const size  = pIdx - cIdx;
+  const pSlot = pIdx & MASK;
+  const cSlot = cIdx & MASK;
+  const same  = pSlot === cSlot;
+
+  const SX = [56, 186, 316, 446];
+  const SW = 106, SH = 70, SY = 30;
+  const bot = SY + SH;
+
+  const pCX = SX[pSlot] + SW / 2;
+  const cCX = SX[cSlot] + SW / 2;
+  const pX  = same ? pCX - 28 : pCX;
+  const cX  = same ? cCX + 28 : cCX;
+
+  const szColor = size === CAP ? COLOR.fail : COLOR.neutral;
+
+  const statItems = [
+    { label: "size", val: `${size} / ${CAP}`, col: szColor     },
+    { label: "pIdx", val: `${pIdx}`,           col: COLOR.write },
+    { label: "cIdx", val: `${cIdx}`,           col: COLOR.read  },
+  ];
+
+  return (
+    <svg viewBox="0 0 608 192" style={{ width: "100%", display: "block" }}>
+      <defs>
+        <marker id="arr-mpsc" viewBox="0 0 10 10" refX="8" refY="5"
+          markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </marker>
+      </defs>
+
+      {SX.map((x, i) => {
+        const hi  = hiSlots?.includes(i);
+        const val = buf[i];
+        const col = hi ? hiColor : undefined;
         return (
           <g key={i}>
-            <rect
-              x={x}
-              y={y}
-              width={slotWidth}
-              height={slotHeight}
-              fill={isHighlighted ? (highlighted.color + '30') : '#fff'}
-              stroke={isHighlighted ? highlighted.color : '#ccc'}
-              strokeWidth={isHighlighted ? 2 : 1}
-              rx="4"
-            />
-            <text x={x + slotWidth / 2} y={y + 24} fontSize="13" fontWeight="bold" textAnchor="middle" fill="#333">
+            <rect x={x} y={SY} width={SW} height={SH} rx="8"
+              fill={hi ? col + "18" : "var(--slot-bg, #f5f5f3)"}
+              stroke={hi ? col : val ? "#aaa" : "#d4d2c8"}
+              strokeWidth={hi ? 1.5 : 0.5} />
+            <text x={x + SW / 2} y={SY + 11} textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="10" fill="#888" fontFamily="monospace">
               slot {i}
             </text>
-            <text x={x + slotWidth / 2} y={y + 50} fontSize="14" fontWeight="500" textAnchor="middle" fill="#666">
-              {buf[i] === null ? '—' : buf[i]}
+            <text x={x + SW / 2} y={SY + SH / 2 + 4} textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={val ? 22 : 13} fontWeight={val ? "600" : "400"}
+              fontFamily={val ? "monospace" : "sans-serif"}
+              fill={val ? COLOR.write : "#ccc"}>
+              {val ?? "null"}
             </text>
           </g>
         );
       })}
 
-      {/* Producer index arrow (pIdx) */}
-      <g>
-        <line x1="40" y1="150" x2="40" y2="190" stroke={COLOR.write} strokeWidth="2" markerEnd="url(#arrowGreen)" />
-        <text x="40" y="210" fontSize="12" fontWeight="bold" textAnchor="middle" fill={COLOR.write}>
-          pIdx={pIdx % CAP}
-        </text>
-        <text x="40" y="228" fontSize="11" textAnchor="middle" fill="#888">
-          ({pIdx})
-        </text>
-      </g>
-
-      {/* Consumer index arrow (cIdx) */}
-      <g>
-        <line x1="580" y1="150" x2="580" y2="190" stroke={COLOR.read} strokeWidth="2" />
-        <polygon points="580,190 575,180 585,180" fill={COLOR.read} />
-        <text x="580" y="210" fontSize="12" fontWeight="bold" textAnchor="middle" fill={COLOR.read}>
-          cIdx={cIdx % CAP}
-        </text>
-        <text x="580" y="228" fontSize="11" textAnchor="middle" fill="#888">
-          ({cIdx})
-        </text>
-      </g>
-
-      {/* Stats row */}
-      <text x="40" y="255" fontSize="12" fill="#666">
-        size: {Math.max(0, pIdx - cIdx)} / {CAP}
+      <line x1={pX} y1={bot + 2} x2={pX} y2={bot + 12}
+        stroke={COLOR.write} strokeWidth="1.5" markerEnd="url(#arr-mpsc)" />
+      <text x={pX} y={bot + 24} textAnchor="middle" dominantBaseline="central"
+        fontSize="11" fontFamily="monospace" fill={COLOR.write}>
+        pIdx={pIdx}
       </text>
-      <text x="40" y="275" fontSize="12" fill="#666">
-        pIdx: {pIdx}, pLimit: {pLimit}, cIdx: {cIdx}
+
+      <line x1={cX} y1={bot + 2} x2={cX} y2={bot + 12}
+        stroke={COLOR.read} strokeWidth="1.5" markerEnd="url(#arr-mpsc)" />
+      <text x={cX} y={bot + 24} textAnchor="middle" dominantBaseline="central"
+        fontSize="11" fontFamily="monospace" fill={COLOR.read}>
+        cIdx={cIdx}
       </text>
+
+      {statItems.map((s, n) => {
+        const sx = 100 + n * 200;
+        return (
+          <g key={n}>
+            <text x={sx} y={156} textAnchor="middle" dominantBaseline="central"
+              fontSize="9" fill="#aaa" fontFamily="sans-serif">
+              {s.label}
+            </text>
+            <text x={sx} y={172} textAnchor="middle" dominantBaseline="central"
+              fontSize="14" fontWeight="500" fontFamily="monospace" fill={s.col}>
+              {s.val}
+            </text>
+          </g>
+        );
+      })}
+
+      {[[COLOR.write, "pIdx — producers (CAS)"], [COLOR.read, "cIdx — single consumer"]].map(
+        ([c, label], n) => (
+          <g key={n}>
+            <circle cx={168 + n * 200} cy={188} r="4" fill={c} />
+            <text x={178 + n * 200} y={188} dominantBaseline="central"
+              fontSize="11" fill="#999" fontFamily="sans-serif">
+              {label}
+            </text>
+          </g>
+        )
+      )}
     </svg>
   );
-};
+}
 
-// ── History log ─────────────────────────────
-const HistoryLog = ({ history, currentIndex }) => {
+// ── History log ───────────────────────────────────────────────────────────────
+
+function HistoryLog({ entries, currentIndex }) {
+  const bottomRef = useRef(null);
+
   return (
-    <div
-      style={{
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        maxHeight: '110px',
-        overflowY: 'auto',
-        backgroundColor: '#f9f9f9',
-        fontSize: '12px',
-        fontFamily: 'monospace',
-      }}
-    >
-      {history.length === 0 ? (
-        <div style={{ padding: '12px', color: '#888' }}>history empty</div>
-      ) : (
-        history.map((entry, idx) => {
-          const isSelected = idx === currentIndex;
-          const borderColor = COLOR[entry.kind] || COLOR.neutral;
-
-          return (
-            <div
-              key={idx}
-              style={{
-                padding: '8px 12px',
-                borderLeft: `4px solid ${borderColor}`,
-                backgroundColor: isSelected ? borderColor + '20' : 'transparent',
-                fontWeight: isSelected ? 'bold' : 'normal',
-                display: 'flex',
-                gap: '8px',
-              }}
-            >
-              <span style={{ color: '#aaa', minWidth: '30px' }}>#{idx}</span>
-              <span>{entry.msg}</span>
-            </div>
-          );
-        })
-      )}
+    <div style={{
+      maxHeight: 110, overflowY: "auto",
+      border: "1px solid #e0ded6", borderRadius: 8,
+      fontSize: 11, fontFamily: "monospace",
+    }}>
+      {entries.map((e, i) => {
+        const border = { write: COLOR.write, read: COLOR.read, fail: COLOR.fail }[e.kind] ?? "#ccc";
+        const isSelected = currentIndex === i;
+        return (
+          <div key={i} style={{
+            display: "flex", gap: 10, padding: "4px 10px",
+            borderLeft: `3px solid ${border}`,
+            borderBottom: i < entries.length - 1 ? "1px solid #f0ede6" : "none",
+            color: border,
+            background: isSelected ? `${border}0a` : "transparent",
+            fontWeight: isSelected ? 600 : 400,
+          }}>
+            <span style={{ color: "#bbb", minWidth: 32, fontSize: 10 }}>#{i + 1}</span>
+            <span style={{ flex: 1 }}>{e.msg}</span>
+          </div>
+        );
+      })}
+      <div ref={bottomRef} />
     </div>
   );
-};
+}
 
-// ── Main component ─────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function MpscRingBuffer() {
-  const [state, setState] = useState(initState());
-  const [input, setInput] = useState('A');
-  const [history, setHistory] = useState([
-    { msg: 'initial state', kind: 'neutral', stateSnapshot: initState(), calcSnapshot: null },
-  ]);
-  const [hi, setHi] = useState({ slots: null, color: null });
-  const [calc, setCalc] = useState(null);
-  const [historyIndex, setHistoryIndex] = useState(0);
+  const [state,        setState]        = useState(initState);
+  const [input,        setInput]        = useState("A");
+  const [history,      setHistory]      = useState([{
+    msg: "initial state", kind: "neutral",
+    stateSnapshot: initState(), calcSnapshot: null,
+  }]);
+  const [hi,           setHi]           = useState({ slots: null, color: null });
+  const [calc,         setCalc]         = useState(null);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  function addLog(msg, kind, stateSnapshot, calcSnapshot) {
+    setHistory(h => [...h, { msg, kind, stateSnapshot, calcSnapshot }]);
+  }
 
   const displayedState = historyIndex >= 0 ? history[historyIndex].stateSnapshot : state;
 
-  const doOffer = useCallback(() => {
-    if (input === null || input.trim() === '') return;
-
-    const { buf, pIdx, cIdx, pLimit } = state;
-    let newPLimit = pLimit;
-    let newCIdx = cIdx;
-    let outcome = 'write';
-
-    // Check if we need to refresh pLimit
-    if (pIdx >= pLimit) {
-      // Slow path: refresh from consumer index
-      newCIdx = cIdx;
-      const newLimit = newCIdx + CAP;
-
-      if (pIdx >= newLimit) {
-        // Buffer is FULL
-        outcome = 'full';
-        const calcTrace = {
-          op: 'offer',
-          pIdx,
-          pLimit,
-          pLimitRefreshed: newLimit,
-          cIdx: newCIdx,
-          slot: pIdx & MASK,
-          outcome,
-          color: COLOR.fail,
-        };
-        setCalc(calcTrace);
-        setHi({ slots: [pIdx & MASK], color: COLOR.fail });
-
-        const msg = `offer("${input}") → false  [slot ${pIdx & MASK}  pIdx=${pIdx} >= pLimit=${newLimit} (refreshed) → FULL]`;
-        setHistory((h) => [...h, { msg, kind: 'fail', stateSnapshot: state, calcSnapshot: calcTrace }]);
-        setHistoryIndex(-1);
-        return;
-      }
-      newPLimit = newLimit;
-    }
-
-    // Write to buffer
-    const newBuf = [...buf];
-    const slot = pIdx & MASK;
-    newBuf[slot] = input;
-
-    const newState = {
-      buf: newBuf,
-      pIdx: pIdx + 1,
-      cIdx,
-      pLimit: newPLimit,
-    };
-
-    const calcTrace = {
-      op: 'offer',
-      pIdx,
-      pLimit,
-      pLimitRefreshed: newPLimit,
-      cIdx,
-      slot,
-      outcome,
-      color: COLOR.write,
-    };
-
-    setState(newState);
-    setCalc(calcTrace);
-    setHi({ slots: [slot], color: COLOR.write });
-
-    const nextLetter = String.fromCharCode(input.charCodeAt(0) + 1);
-    setInput(nextLetter);
-
-    const msg = `offer("${input}") → true   [slot ${slot}  buf[${slot}]: null→"${input}"  pIdx: ${pIdx}→${pIdx + 1}]`;
-    setHistory((h) => [...h, { msg, kind: 'write', stateSnapshot: newState, calcSnapshot: calcTrace }]);
-    setHistoryIndex(-1);
-  }, [state, input]);
-
-  const doTake = useCallback(() => {
-    const { buf, pIdx, cIdx } = state;
-    const slot = cIdx & MASK;
-    const val = buf[slot];
-
-    let outcome = 'empty';
-    let color = COLOR.fail;
-    let msg = '';
-
-    if (val === null) {
-      // Empty
-      const calcTrace = {
-        op: 'take',
-        cIdx,
-        slot,
-        val: null,
-        outcome,
-        color,
-      };
-
-      setCalc(calcTrace);
-      setHi({ slots: [slot], color });
-      msg = `take() → null   [slot ${slot}  buf[${slot}]=null → EMPTY]`;
-      setHistory((h) => [...h, { msg, kind: 'fail', stateSnapshot: state, calcSnapshot: calcTrace }]);
-      setHistoryIndex(-1);
-    } else {
-      // Read
-      outcome = 'read';
-      color = COLOR.read;
-
-      const newBuf = [...buf];
-      newBuf[slot] = null;
-
-      const newState = {
-        buf: newBuf,
-        pIdx,
-        cIdx: cIdx + 1,
-        pLimit: state.pLimit,
-      };
-
-      const calcTrace = {
-        op: 'take',
-        cIdx,
-        slot,
-        val,
-        outcome,
-        color,
-      };
-
-      setState(newState);
-      setCalc(calcTrace);
-      setHi({ slots: [slot], color });
-      msg = `take() → "${val}"   [slot ${slot}  buf[${slot}]: "${val}"→null  cIdx: ${cIdx}→${cIdx + 1}]`;
-      setHistory((h) => [...h, { msg, kind: 'read', stateSnapshot: newState, calcSnapshot: calcTrace }]);
-      setHistoryIndex(-1);
-    }
-  }, [state]);
-
-  const doReset = useCallback(() => {
-    const resetState = initState();
-    setState(resetState);
-    setInput('A');
-    setHistory([
-      { msg: 'initial state', kind: 'neutral', stateSnapshot: resetState, calcSnapshot: null },
-    ]);
-    setHi({ slots: null, color: null });
-    setCalc(null);
-    setHistoryIndex(0);
-  }, []);
-
   const goBack = useCallback(() => {
-    if (historyIndex > 0) {
-      const nextIdx = historyIndex - 1;
-      setHistoryIndex(nextIdx);
-      const entry = history[nextIdx];
-      setCalc(entry.calcSnapshot);
-    }
-  }, [historyIndex, history]);
+    setHistoryIndex(i => {
+      const next = i === -1 ? history.length - 1 : Math.max(0, i - 1);
+      setCalc(history[next].calcSnapshot);
+      return next;
+    });
+  }, [history]);
 
   const goForward = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextIdx = historyIndex + 1;
-      setHistoryIndex(nextIdx);
-      const entry = history[nextIdx];
-      setCalc(entry.calcSnapshot);
-    } else if (historyIndex === history.length - 1) {
+    setHistoryIndex(i => {
+      const next = i === history.length - 1 ? -1 : Math.min(history.length - 1, i + 1);
+      if (next >= 0) setCalc(history[next].calcSnapshot);
+      else           setCalc(null);
+      return next;
+    });
+  }, [history]);
+
+  const doOffer = useCallback(() => {
+    const val = input.trim();
+    if (!val) return;
+
+    setState(prev => {
+      const { buf, pIdx, cIdx } = prev;
+      const size = pIdx - cIdx;
+      const slot = pIdx & MASK;
+      const snap = { op: "offer", pIdx, cIdx, size, slot };
+      setCalc(snap);
+
+      if (size >= CAP) {
+        addLog(`offer("${val}") → false  [size=${size}  FULL]`, "fail", prev, snap);
+        setHi({ slots: [slot], color: COLOR.fail });
+        setHistoryIndex(-1);
+        return prev;
+      }
+
+      const newBuf = [...buf]; newBuf[slot] = val;
+      const newState = { buf: newBuf, pIdx: pIdx + 1, cIdx };
+      addLog(`offer("${val}") → true   [slot ${slot}  pIdx: ${pIdx}→${pIdx + 1}]`, "write", newState, snap);
+      setHi({ slots: [slot], color: COLOR.write });
+      if (val.length === 1 && val >= "A" && val < "Z")
+        setInput(String.fromCharCode(val.charCodeAt(0) + 1));
       setHistoryIndex(-1);
-      setCalc(null);
-    }
-  }, [historyIndex, history]);
+      return newState;
+    });
+  }, [input]);
+
+  const doTake = useCallback(() => {
+    setState(prev => {
+      const { buf, pIdx, cIdx } = prev;
+      const slot  = cIdx & MASK;
+      const value = buf[slot];
+      const snap  = { op: "take", cIdx, slot, value };
+      setCalc(snap);
+
+      if (value === null) {
+        addLog(`take() → null   [slot ${slot}  buf[${slot}]=null  EMPTY]`, "fail", prev, snap);
+        setHi({ slots: [slot], color: COLOR.fail });
+        setHistoryIndex(-1);
+        return prev;
+      }
+
+      const newBuf = [...buf]; newBuf[slot] = null;
+      const newState = { buf: newBuf, pIdx, cIdx: cIdx + 1 };
+      addLog(`take() → "${value}"   [slot ${slot}  cIdx: ${cIdx}→${cIdx + 1}]`, "read", newState, snap);
+      setHi({ slots: [slot], color: COLOR.read });
+      setHistoryIndex(-1);
+      return newState;
+    });
+  }, []);
+
+  const doReset = useCallback(() => {
+    setState(initState());
+    setInput("A");
+    setHistory([{ msg: "initial state", kind: "neutral", stateSnapshot: initState(), calcSnapshot: null }]);
+    setHi({ slots: null, color: null });
+    setCalc(null);
+    setHistoryIndex(-1);
+  }, []);
+
+  const s = {
+    wrap: {
+      fontFamily: "sans-serif",
+      border: "1px solid #e0ded6", borderRadius: 12,
+      padding: "16px 16px 12px", background: "#fafaf8",
+      maxWidth: 680, margin: "1.5rem auto",
+    },
+    heading: {
+      fontSize: 13, fontWeight: 600, letterSpacing: "0.04em",
+      textTransform: "uppercase", color: "#888",
+      marginBottom: 12, textAlign: "center",
+    },
+    controls: {
+      display: "flex", alignItems: "center", gap: 8,
+      justifyContent: "center", flexWrap: "wrap", marginBottom: 6,
+    },
+    input: {
+      padding: "6px 10px", borderRadius: 8,
+      border: "1px solid #d4d2c8", background: "#fff",
+      fontSize: 13, fontFamily: "monospace", width: 110,
+      outline: "none", color: "#333",
+    },
+    btnOffer: {
+      padding: "6px 18px", borderRadius: 8, border: "none",
+      background: COLOR.write, color: "#fff",
+      fontSize: 13, fontWeight: 600, cursor: "pointer",
+    },
+    btnTake: {
+      padding: "6px 18px", borderRadius: 8, border: "none",
+      background: COLOR.read, color: "#fff",
+      fontSize: 13, fontWeight: 600, cursor: "pointer",
+    },
+    btnReset: {
+      padding: "6px 14px", borderRadius: 8,
+      border: "1px solid #d4d2c8", background: "transparent",
+      color: "#888", fontSize: 13, cursor: "pointer",
+    },
+    btnNav: (disabled) => ({
+      padding: "6px 12px", borderRadius: 8,
+      border: `1px solid ${disabled ? "#e8e6df" : "#d4d2c8"}`, background: "transparent",
+      color: disabled ? "#ccc" : "#888", fontSize: 13,
+      cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1,
+    }),
+    hint: {
+      fontSize: 11, textAlign: "center", color: "#aaa",
+      marginTop: 8, lineHeight: 1.6,
+    },
+    sectionLabel: { fontSize: 11, color: "#bbb", marginBottom: 4, paddingLeft: 4 },
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '16px', backgroundColor: '#fff', borderRadius: '4px' }}>
-      {/* Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+    <div style={s.wrap}>
+      <div style={s.heading}>MPSC Ring Buffer · Capacity 4</div>
+
+      <div style={s.controls}>
         <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value.slice(0, 6))}
-          onKeyDown={(e) => e.key === 'Enter' && doOffer()}
-          maxLength="6"
-          style={{
-            padding: '6px 10px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            fontWeight: '500',
-          }}
-          placeholder="A"
+          style={s.input} value={input} maxLength={6} placeholder='e.g. "A"'
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && doOffer()}
         />
-        <button
-          onClick={doOffer}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: COLOR.write,
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
-        >
-          Offer →
-        </button>
-        <button
-          onClick={doTake}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: COLOR.read,
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
-        >
-          ← Take
-        </button>
-        <button
-          onClick={doReset}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: '#f0f0f0',
-            color: '#333',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
-        >
-          Reset
-        </button>
-        <button
-          onClick={goBack}
-          disabled={historyIndex === 0}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: historyIndex === 0 ? '#e0e0e0' : '#378ADD',
-            color: historyIndex === 0 ? '#999' : 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: historyIndex === 0 ? 'not-allowed' : 'pointer',
-          }}
-        >
-          ← Back
-        </button>
-        <button
-          onClick={goForward}
-          disabled={historyIndex === -1}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: historyIndex === -1 ? '#e0e0e0' : '#1D9E75',
-            color: historyIndex === -1 ? '#999' : 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            cursor: historyIndex === -1 ? 'not-allowed' : 'pointer',
-          }}
-        >
-          Forward →
-        </button>
+        <button style={s.btnOffer} onClick={doOffer}>Offer →</button>
+        <button style={s.btnTake}  onClick={doTake}>← Take</button>
+        <button style={s.btnReset} onClick={doReset}>Reset</button>
+        <button style={s.btnNav(historyIndex === 0)}  onClick={goBack}    disabled={historyIndex === 0}>← Back</button>
+        <button style={s.btnNav(historyIndex === -1)} onClick={goForward} disabled={historyIndex === -1}>Forward →</button>
       </div>
 
-      {/* SVG Diagram */}
-      <RingDiagram state={displayedState} highlighted={hi} />
+      <RingDiagram
+        buf={displayedState.buf}
+        pIdx={displayedState.pIdx}
+        cIdx={displayedState.cIdx}
+        hiSlots={hi.slots}
+        hiColor={hi.color}
+      />
 
-      {/* Calc panel */}
-      <CalcPanel calc={calc} />
-
-      {/* History log */}
-      <div>
-        <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Operation history:</div>
-        <HistoryLog history={history} currentIndex={historyIndex} />
+      <div style={{ marginTop: 8 }}>
+        <div style={s.sectionLabel}>Step summary</div>
+        <StepDescription calc={calc} />
       </div>
 
-      {/* Hint */}
-      <div style={{ fontSize: '12px', color: '#999', textAlign: 'center' }}>
-        Type a label, press Enter or click Offer/Take. Use Back/Forward to navigate through operations.
+      <div style={{ marginTop: 8 }}>
+        <div style={s.sectionLabel}>Algorithm trace</div>
+        <CalcPanel calc={calc} />
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <div style={s.sectionLabel}>Operation history</div>
+        <HistoryLog entries={history} currentIndex={historyIndex} />
+      </div>
+
+      <div style={s.hint}>
+        Type any label ·{" "}
+        <strong style={{ color: COLOR.write }}>Offer</strong> to enqueue ·{" "}
+        <strong style={{ color: COLOR.read }}>Take</strong> to dequeue ·
+        use Back / Forward to replay any step
       </div>
     </div>
   );
