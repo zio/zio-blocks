@@ -47,20 +47,43 @@ else
 fi
 
 # Extract all public methods from the source
-# This regex looks for:
-# - Lines starting with def (possibly with override/final keywords)
-# - Captures the method name and signature until the closing paren/brace
-# - Excludes private/protected methods
+# Extract public, top-level method names from the primary type body.
+# This is a best-effort parser that:
+# - ignores private/protected defs
+# - only considers defs at brace depth 1 (inside the outer class/object body)
+# - skips nested/local defs inside other blocks
 extract_methods_from_source() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  # Extract method names - find any line containing "def <name>(" and extract <name>
-  grep -oE 'def\s+[a-zA-Z0-9_]+' "$file" | \
-    sed -E 's/def\s+([a-zA-Z0-9_]+)/\1/' | \
-    sort -u
+  awk '
+    BEGIN { brace_depth = 0 }
+    {
+      line = $0
+      current_depth = brace_depth
+
+      if (
+        current_depth == 1 &&
+        line !~ /(^|[^[:alnum:]_])(private|protected)([^[:alnum:]_]|$)/ &&
+        line ~ /^[[:space:]]*(override[[:space:]]+|final[[:space:]]+|inline[[:space:]]+)*def[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/
+      ) {
+        if (match(line, /def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)/)) {
+          name = substr(line, RSTART, RLENGTH)
+          sub(/^def[[:space:]]+/, "", name)
+          print name
+        }
+      }
+
+      opens = gsub(/\{/, "{", line)
+      closes = gsub(/\}/, "}", line)
+      brace_depth += opens - closes
+      if (brace_depth < 0) {
+        brace_depth = 0
+      }
+    }
+  ' "$file" | sort -u
 }
 
 # Extract companion object methods
@@ -84,14 +107,15 @@ extract_object_methods_from_source() {
 }
 
 # Extract documented methods from markdown
-# Looks for backtick-enclosed method references like `methodName` or TypeName#methodName
+# Looks for backtick-enclosed method references like `methodName`, `++`, or TypeName#methodName
+# Supports both identifier-based names (a-zA-Z0-9_) and symbolic names (++, &, |, ^, etc.)
 extract_methods_from_doc() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  grep -oE '`([A-Za-z0-9_#]+)`' "$file" | \
+  grep -oE '`([A-Za-z0-9_#]|(\+\+|:?\+|:\-|:\*|:[/\\|&^%]|[&|^%]|\+:))+`' "$file" | \
     sed -E 's/`//g' | \
     # Extract just the method name if it's Type#method format
     sed -E 's/^[^#]+#//' | \

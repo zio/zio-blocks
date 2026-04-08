@@ -41,7 +41,7 @@ count_violations() {
 count_violations "$(awk '
   /^```/ { in_code = !in_code; next }
   in_code { next }
-  /^[[:space:]]*-[[:space:]]|^[[:space:]]*\*[[:space:]]|^0-9]+\.[[:space:]]/ { in_list = 1 }
+  /^[[:space:]]*-[[:space:]]|^[[:space:]]*\*[[:space:]]|^[0-9]+\.[[:space:]]/ { in_list = 1 }
   in_list && /^[[:space:]]*$/ { in_list = 0 }
   /zio-blocks/ && !/^http/ && !/^.*:.*=.*zio-blocks/ {
     # Remove inline code (backtick-quoted sections) to check if zio-blocks is still there
@@ -132,16 +132,22 @@ count_violations "$(awk '
     if (in_code) {
       in_code = 0
     } else {
-      if (NR > 1 && prev_line !~ /:$/ && prev_line !~ /^[#]/ && prev_line !~ /^$/) {
-        print FILENAME ":" NR ": [Rule 13] code block not preceded by sentence ending with \":\""
-      } else if (NR == 1) {
+      if (NR == 1) {
         print FILENAME ":" NR ": [Rule 13] code block at start of file (no preceding prose)"
+      } else if (!have_prose || last_prose_line !~ /:$/) {
+        print FILENAME ":" NR ": [Rule 13] code block not preceded by sentence ending with \":\""
       }
       in_code = 1
     }
     next
   }
-  { prev_line = $0 }
+  in_code { next }
+  /^[[:space:]]*$/ { next }
+  /^(#+)[[:space:]]/ { next }
+  {
+    last_prose_line = $0
+    have_prose = 1
+  }
 ' "$FILE")"
 
 # Rule 15: "var" in Scala code blocks
