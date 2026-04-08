@@ -1,0 +1,100 @@
+package zio.schema.migration
+
+import scala.annotation.targetName
+import scala.language.implicitConversions
+
+final class MigrationBuilder[A, B] private (
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B],
+    actions: Vector[MigrationAction]
+) {
+
+  // ----------------------------------------------------------------------
+  // Helper: macro to extract a DynamicOptic from a selector `S => X`
+  // ----------------------------------------------------------------------
+  private inline def selectorToOptic[S, X](inline selector: S => X): DynamicOptic =
+    ${ SelectorMacro.impl[S, X]('selector) }
+
+  // ----------------------------------------------------------------------
+  // Record operations – each method is a macro that produces a MigrationAction
+  // ----------------------------------------------------------------------
+  inline def addField(
+    inline target: B => Any,
+    inline default: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.addFieldImpl('this, 'target, 'default) }
+
+  inline def dropField(
+    inline source: A => Any,
+    inline defaultForReverse: SchemaExpr[B, ?] = SchemaExpr.DefaultValue()
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.dropFieldImpl('this, 'source, 'defaultForReverse) }
+
+  inline def renameField(
+    inline from: A => Any,
+    inline to: B => Any
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.renameFieldImpl('this, 'from, 'to) }
+
+  inline def transformField(
+    inline from: A => Any,
+    inline to: B => Any,
+    inline transform: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.transformFieldImpl('this, 'from, 'to, 'transform) }
+
+  inline def mandateField(
+    inline source: A => Option[?],
+    inline target: B => Any,
+    inline default: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.mandateFieldImpl('this, 'source, 'target, 'default) }
+
+  inline def optionalizeField(
+    inline source: A => Any,
+    inline target: B => Option[?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.optionalizeFieldImpl('this, 'source, 'target) }
+
+  inline def changeFieldType(
+    inline source: A => Any,
+    inline target: B => Any,
+    inline converter: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.changeFieldTypeImpl('this, 'source, 'target, 'converter) }
+
+  // ----------------------------------------------------------------------
+  // Enum operations
+  // ----------------------------------------------------------------------
+  inline def renameCase(
+    inline from: String,
+    inline to: String
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.renameCaseImpl('this, 'from, 'to) }
+
+  inline def transformCase[CaseA, CaseB](
+    inline inner: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.transformCaseImpl('this, 'inner) }
+
+  // ----------------------------------------------------------------------
+  // Collections
+  // ----------------------------------------------------------------------
+  inline def transformElements(
+    inline at: A => Vector[?],
+    inline transform: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.transformElementsImpl('this, 'at, 'transform) }
+
+  // ----------------------------------------------------------------------
+  // Maps
+  // ----------------------------------------------------------------------
+  inline def transformKeys(
+    inline at: A => Map[?, ?],
+    inline transform: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.transformKeysImpl('this, 'at, 'transform) }
+
+  inline def transformValues(
+    inline at: A => Map[?, ?],
+    inline transform: SchemaExpr[A, ?]
+  ): MigrationBuilder[A, B] = ${ MigrationBuilderMacro.transformValuesImpl('this, 'at, 'transform) }
+
+  // ----------------------------------------------------------------------
+  // BUILDERS
+  // ----------------------------------------------------------------------
+  /** Full validation – checks that resulting source/target schemas line up with the actions. */
+  inline def build: Migration[A, B] = ${ MigrationBuilderMacro.buildImpl('this, full = true) }
+
+  /** Skip the heavy validation (e.g. during rapid prototyping). */
+  inline def buildPartial: Migration[A, B] = ${ MigrationBuilderMacro.buildImpl('this, full = false) }
+}
