@@ -216,7 +216,7 @@ Identical bitmask arithmetic: `& mask` replaces modulo, giving a slot in `[0, ca
 
 #### `element = buf[slot]` — no CAS, plain slot reads
 
-Unlike SPMC and SPMC, the consumer reads the slot directly with an acquire load — because there's only one consumer, no read-before-CAS is needed. The consumer is the sole owner of the take path. After reading, the consumer nulls the slot with a release store, which serves two purposes: (1) signals to the producer that the slot is free, and (2) releases any bookkeeping updates to other cores via the release semantics.
+Unlike SPMC and MPMC, the consumer reads the slot directly with an acquire load — because there's only one consumer, no read-before-CAS is needed. The consumer is the sole owner of the take path. After reading, the consumer nulls the slot with a release store, which serves two purposes: (1) signals to the producer that the slot is free, and (2) releases any bookkeeping updates to other cores via the release semantics.
 
 #### Why SPSC doesn't read producer state
 
