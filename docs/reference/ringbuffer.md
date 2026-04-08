@@ -496,7 +496,7 @@ SpscRingBuffer[String](0)    // Error: must be > 0
 
 ## Core Operations
 
-Ring buffers provide the same core API across all four implementations: `offer`, `take`, `size`, `isEmpty`, and `isFull`. The SPSC variant additionally provides batch operations `drain` and `fill`.
+Ring buffers provide the same core API across all four implementations: `offer`, `take`, `size`, `isEmpty`, and `isFull`. The SPSC variant additionally provides `fill` for batch production; both SPSC and MPSC provide `drain` for batch consumption.
 
 ### Inserting Elements — `offer`
 
