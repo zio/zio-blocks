@@ -3123,7 +3123,7 @@ val arr = chunk.toArray
 
 Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
 
-**Example: Schema for Chunk data**
+Here's an example of using `Chunk` with schema derivation:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -3161,14 +3161,14 @@ The [DynamicValue](./dynamic-value.md) system also works with Chunk, allowing sc
 
 All code from this guide is available as runnable examples in the appropriate example modules.
 
-**1. Clone the repository and navigate to the project:**
+To run the examples locally, clone the repository and navigate to the project:
 
 ```bash
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-**2. Build and test with sbt:**
+Then build and test with sbt:
 
 ```bash
 # Compile everything
