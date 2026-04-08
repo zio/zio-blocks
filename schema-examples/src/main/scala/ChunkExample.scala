@@ -1,4 +1,4 @@
-import zio.Chunk
+import zio.blocks.chunk.Chunk
 
 /** Minimal runnable example demonstrating basic `Chunk` operations. */
 object ChunkExample extends App {
