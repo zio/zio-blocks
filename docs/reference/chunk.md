@@ -457,6 +457,8 @@ val chunk = Chunk.fromJavaIterator(javaIter)
 
 ### Builder Methods
 
+`ChunkBuilder[A]` is a mutable builder that accumulates elements incrementally and returns a `Chunk[A]` when complete. Use it when building chunks from elements that arrive one at a time or from streaming sources.
+
 #### `Chunk.newBuilder` — Get a Builder
 
 Obtain a fresh `ChunkBuilder` for incremental construction:
@@ -3083,6 +3085,8 @@ val bits = bytes.asBitsByte
 **Performance:** O(n) — creates new chunk with bits.
 
 ### Additional Utility Methods
+
+Beyond the core operations, `Chunk` provides utility methods for inspecting and extracting underlying data:
 
 #### `Chunk#array` — Get Underlying Array
 
