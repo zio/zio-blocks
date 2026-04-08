@@ -68,3 +68,6 @@ scope-examples/src/main/scala/scope/examples/MyApp.scala
 .ck/
 .ckignore
 .cqs/
+website/docs/
+website/node_modules/
+website/build/
