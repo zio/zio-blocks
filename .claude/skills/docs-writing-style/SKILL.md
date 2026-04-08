@@ -67,6 +67,6 @@ allowed-tools: Read, Glob, Grep
 
 ## Dependency Declarations
 
-24. **Use @VERSION@ for versions**: In installation sections, always use `@VERSION@` (angle brackets) in sbt dependency coordinates. The build system substitutes it during publish. Do not instruct readers to replace a placeholder.
+24. **Use @VERSION@ for versions**: In installation sections, always use the literal `@VERSION@` (`@VERSION@` placeholder) in sbt dependency coordinates. The build system substitutes it during publish. Do not instruct readers to replace a placeholder.
 
 ---
