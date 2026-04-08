@@ -201,6 +201,56 @@ object MigrationBuilderCompanion {
      */
     transparent inline def transformValues[C](inline selector: A => C, inline expr: ValueExpr): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.transformValuesImpl[A, B, C]('builder, 'selector, 'expr) }
+
+    /**
+     * Applies a nested [[Migration]] to the value at the path described by
+     * `selector`.
+     *
+     * The value at the selector path is extracted, passed through `migration`,
+     * and the result is written back. Enables composing typed migrations for
+     * nested types within a larger record migration.
+     *
+     * ==Example==
+     * {{{
+     * val addressMigration: Migration[AddressV1, AddressV2] = ...
+     * MigrationBuilder[PersonV1, PersonV2](v1Schema, v2Schema)
+     *   .migrateField(_.address, addressMigration)
+     *   .build
+     * }}}
+     */
+    transparent inline def migrateField[C, D](
+      inline selector: A => C,
+      migration: Migration[C, D]
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.migrateFieldImpl[A, B, C, D]('builder, 'selector, 'migration) }
+
+    /**
+     * Copies the value at the path described by `fromSelector` and inserts it
+     * at the path described by `toSelector`, leaving the source field intact.
+     *
+     * Useful when a field needs to appear in two places during a schema
+     * transition (e.g. rolling deployments) or when duplicating a value into
+     * a newly-introduced location.
+     */
+    transparent inline def copyField[C](
+      inline fromSelector: A => C,
+      inline toSelector: B => C
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.copyFieldImpl[A, B, C]('builder, 'fromSelector, 'toSelector) }
+
+    /**
+     * Moves the value at the path described by `fromSelector` to the path
+     * described by `toSelector`, removing the source field.
+     *
+     * Use `moveField` instead of `renameField` when the target field occupies
+     * a different structural location (different parent record), not just a
+     * different name at the same level.
+     */
+    transparent inline def moveField[C](
+      inline fromSelector: A => C,
+      inline toSelector: B => C
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.moveFieldImpl[A, B, C]('builder, 'fromSelector, 'toSelector) }
   }
 }
 
@@ -319,5 +369,34 @@ private[migration] object MigrationBuilderCompanionMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.transformValuesAt($path, $expr) }
+  }
+
+  def migrateFieldImpl[A: Type, B: Type, C: Type, D: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
+    migration: Expr[Migration[C, D]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
+    '{ $builder.migrateFieldAt($path, $migration.migration) }
+  }
+
+  def copyFieldImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    fromSelector: Expr[A => C],
+    toSelector: Expr[B => C]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](fromSelector)
+    val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](toSelector)
+    '{ $builder.copyFieldAt($fromPath, $toPath) }
+  }
+
+  def moveFieldImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    fromSelector: Expr[A => C],
+    toSelector: Expr[B => C]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](fromSelector)
+    val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](toSelector)
+    '{ $builder.moveFieldAt($fromPath, $toPath) }
   }
 }

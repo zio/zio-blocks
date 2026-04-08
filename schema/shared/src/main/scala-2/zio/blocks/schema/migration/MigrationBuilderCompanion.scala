@@ -159,6 +159,31 @@ object MigrationBuilderCompanion {
      */
     def transformValues[C](selector: A => C, expr: ValueExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.transformValues[A, B, C]
+
+    /**
+     * Applies a nested [[Migration]] to the value at the path described by
+     * `selector`.
+     *
+     * The value at the selector path is extracted, passed through `migration`,
+     * and the result is written back. Enables composing typed migrations for
+     * nested types within a larger record migration.
+     */
+    def migrateField[C, D](selector: A => C, migration: Migration[C, D]): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.migrateField[A, B, C, D]
+
+    /**
+     * Copies the value at the path described by `fromSelector` and inserts it
+     * at the path described by `toSelector`, leaving the source field intact.
+     */
+    def copyField[C](fromSelector: A => C, toSelector: B => C): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.copyField[A, B, C]
+
+    /**
+     * Moves the value at the path described by `fromSelector` to the path
+     * described by `toSelector`, removing the source field.
+     */
+    def moveField[C](fromSelector: A => C, toSelector: B => C): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.moveField[A, B, C]
   }
 }
 
@@ -286,5 +311,34 @@ private[migration] object MigrationBuilderCompanionMacros {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
     q"${c.prefix}.builder.transformValuesAt($path, $expr)"
+  }
+
+  def migrateField[A, B, C, D](c: whitebox.Context)(
+    selector: c.Expr[A => C],
+    migration: c.Expr[Migration[C, D]]
+  ): c.Tree = {
+    import c.universe._
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
+    q"${c.prefix}.builder.migrateFieldAt($path, $migration.migration)"
+  }
+
+  def copyField[A, B, C](c: whitebox.Context)(
+    fromSelector: c.Expr[A => C],
+    toSelector: c.Expr[B => C]
+  ): c.Tree = {
+    import c.universe._
+    val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](c)(fromSelector)
+    val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](c)(toSelector)
+    q"${c.prefix}.builder.copyFieldAt($fromPath, $toPath)"
+  }
+
+  def moveField[A, B, C](c: whitebox.Context)(
+    fromSelector: c.Expr[A => C],
+    toSelector: c.Expr[B => C]
+  ): c.Tree = {
+    import c.universe._
+    val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](c)(fromSelector)
+    val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](c)(toSelector)
+    q"${c.prefix}.builder.moveFieldAt($fromPath, $toPath)"
   }
 }

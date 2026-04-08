@@ -79,7 +79,7 @@ object ValueExpr {
  * A single, serializable step in a [[DynamicMigration]].
  *
  * Every action is addressed by one or more [[DynamicOptic]] paths and carries
- * only pure data — no closures, no lambdas, no reflection. The 14 variants
+ * only pure data — no closures, no lambdas, no reflection. The 17 variants
  * cover the full range of structural schema evolution operations defined in the
  * ZIO Blocks schema migration specification.
  *
@@ -277,6 +277,61 @@ object MigrationAction {
   final case class TransformCase(
     caseName: String,
     expr: ValueExpr
+  ) extends MigrationAction
+
+  /**
+   * Applies a nested [[DynamicMigration]] to the value at `path`.
+   *
+   * The value at `path` is extracted, passed through the nested `migration`,
+   * and the result is written back to `path`. This enables composing migrations
+   * at different structural levels without flattening all operations into a
+   * single action sequence.
+   *
+   * Typical use is via the [[zio.blocks.schema.migration.MigrationBuilder]]
+   * macro DSL method `migrateField`, which accepts a typed
+   * `Migration[C, D]` and extracts its underlying `DynamicMigration`.
+   *
+   * Reverse: [[ApplyMigration]] with `migration.reverse`.
+   */
+  final case class ApplyMigration(
+    path: DynamicOptic,
+    migration: DynamicMigration
+  ) extends MigrationAction
+
+  /**
+   * Copies the value at `from` and inserts it at `to`, leaving `from`
+   * intact.
+   *
+   * Useful for schema evolution where a field must temporarily appear in two
+   * places (e.g. during a rolling deployment) or when a value needs to be
+   * duplicated into a newly-introduced nested structure.
+   *
+   * The `to` path must not already exist in the target value; use
+   * [[TransformValue]] if you want an overwrite instead.
+   *
+   * Reverse: [[DropField]] with `path = to` (the copy is discarded;
+   * the original at `from` is left in place).
+   */
+  final case class CopyField(
+    from: DynamicOptic,
+    to: DynamicOptic
+  ) extends MigrationAction
+
+  /**
+   * Moves the value at `from` to `to`, removing the source field.
+   *
+   * Semantically equivalent to read-from-`from`, delete `from`, insert at `to`
+   * — but expressed as a single atomic action that can be correctly reversed.
+   *
+   * Use `MoveField` instead of [[RenameField]] when the target field occupies a
+   * different structural path (a different parent record), not just a different
+   * name at the same level.
+   *
+   * Reverse: [[MoveField]] with `from` and `to` swapped.
+   */
+  final case class MoveField(
+    from: DynamicOptic,
+    to: DynamicOptic
   ) extends MigrationAction
 
 }

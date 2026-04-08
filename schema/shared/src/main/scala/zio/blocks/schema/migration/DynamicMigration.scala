@@ -298,6 +298,29 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
         case _ =>
           Right(value) // no-op when case name does not match
       }
+
+    case MigrationAction.ApplyMigration(path, migration) =>
+      for {
+        focal  <- value.get(path).one.left.map(e => MigrationError(e.message, path))
+        newVal <- migration
+                    .apply(focal)
+                    .left
+                    .map(e => MigrationError(s"ApplyMigration at ${path.toScalaString}: ${e.message}", path))
+        result <- value.setOrFail(path, newVal).left.map(e => MigrationError(e.message, path))
+      } yield result
+
+    case MigrationAction.CopyField(from, to) =>
+      for {
+        focal  <- value.get(from).one.left.map(e => MigrationError(e.message, from))
+        result <- value.insertOrFail(to, focal).left.map(e => MigrationError(e.message, to))
+      } yield result
+
+    case MigrationAction.MoveField(from, to) =>
+      for {
+        focal     <- value.get(from).one.left.map(e => MigrationError(e.message, from))
+        afterDrop <- value.deleteOrFail(from).left.map(e => MigrationError(e.message, from))
+        result    <- afterDrop.insertOrFail(to, focal).left.map(e => MigrationError(e.message, to))
+      } yield result
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -621,6 +644,16 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
     case MigrationAction.TransformCase(caseName, expr) =>
       MigrationAction.TransformCase(caseName, reverseExpr(expr))
+
+    case MigrationAction.ApplyMigration(path, migration) =>
+      MigrationAction.ApplyMigration(path, migration.reverse)
+
+    case MigrationAction.CopyField(_, to) =>
+      // Reverse drops the copy; the original at `from` is untouched.
+      MigrationAction.DropField(to)
+
+    case MigrationAction.MoveField(from, to) =>
+      MigrationAction.MoveField(to, from)
   }
 
   private def reverseExpr(expr: ValueExpr): ValueExpr = expr match {

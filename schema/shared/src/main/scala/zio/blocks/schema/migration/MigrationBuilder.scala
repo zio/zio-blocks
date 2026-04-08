@@ -191,6 +191,35 @@ final class MigrationBuilder[A, B](
   def transformCase(caseName: String, expr: ValueExpr): MigrationBuilder[A, B] =
     withAction(MigrationAction.TransformCase(caseName, expr))
 
+  /**
+   * Appends an [[MigrationAction.ApplyMigration]] action using an explicit
+   * [[DynamicOptic]] path and a pre-built [[DynamicMigration]].
+   *
+   * The value at `path` in the source record is extracted, transformed by
+   * `migration`, and the result is written back to `path`.
+   */
+  def migrateFieldAt(path: DynamicOptic, migration: DynamicMigration): MigrationBuilder[A, B] =
+    withAction(MigrationAction.ApplyMigration(path, migration))
+
+  /**
+   * Appends a [[MigrationAction.CopyField]] action using explicit
+   * [[DynamicOptic]] paths.
+   *
+   * Reads the value at `from` and inserts a copy at `to`, leaving `from`
+   * intact.
+   */
+  def copyFieldAt(from: DynamicOptic, to: DynamicOptic): MigrationBuilder[A, B] =
+    withAction(MigrationAction.CopyField(from, to))
+
+  /**
+   * Appends a [[MigrationAction.MoveField]] action using explicit
+   * [[DynamicOptic]] paths.
+   *
+   * Reads the value at `from`, removes `from`, and inserts the value at `to`.
+   */
+  def moveFieldAt(from: DynamicOptic, to: DynamicOptic): MigrationBuilder[A, B] =
+    withAction(MigrationAction.MoveField(from, to))
+
   // ─────────────────────────────────────────────────────────────────────────
   // Terminal operations
   // ─────────────────────────────────────────────────────────────────────────
@@ -311,6 +340,15 @@ final class MigrationBuilder[A, B](
 
       case MigrationAction.TransformCase(_, _) =>
         Chunk.empty
+
+      case MigrationAction.ApplyMigration(path, _) =>
+        missingSource(path)
+
+      case MigrationAction.CopyField(from, to) =>
+        missingSource(from) ++ missingTarget(to)
+
+      case MigrationAction.MoveField(from, to) =>
+        missingSource(from) ++ missingTarget(to)
     }
   }
 
