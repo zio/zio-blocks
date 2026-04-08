@@ -122,7 +122,7 @@ The **look-ahead cache** is a further optimization: the producer maintains a loc
 - **Write-once, read-once semantics** — the slot's null/non-null status is the handshake
 - **Cache-line padding** — producer and consumer indices padded to separate cache lines, eliminating false sharing
 
-The result: **lock-free, wait-free** communication that scales linearly with CPU count and achieves nanosecond-scale latencies. This is why FastFlow is the algorithm of choice for SPSC ring buffers in high-performance systems like trading platforms, game engines, and network stacks.
+The result: **lock-free** communication that scales linearly with CPU count and achieves nanosecond-scale latencies. This is why FastFlow is the algorithm of choice for SPSC ring buffers in high-performance systems like trading platforms, game engines, and network stacks. (The slow path's retry on full buffers means the algorithm is not wait-free, though contention is rare.)
 
 ## Overview
 
