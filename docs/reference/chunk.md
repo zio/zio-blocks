@@ -2572,6 +2572,31 @@ val chunk: Chunk[Int] = nonEmpty.toChunk
 val filtered: Chunk[Int] = chunk.filter(_ > 1)
 ```
 
+### Conversion to Scala Cons List
+
+Convert a `NonEmptyChunk` to a Scala cons list (`::[A]`), maintaining the non-empty guarantee:
+
+```scala
+trait NonEmptyChunk[+A] {
+  def toCons[A1 >: A]: ::[A1]
+}
+```
+
+Since `NonEmptyChunk` is guaranteed to be non-empty, conversion to Scala's cons list is safe and always returns a `::` (non-empty list) rather than `Nil`:
+
+```scala mdoc:reset
+import zio.blocks.chunk.NonEmptyChunk
+
+val nonEmpty = NonEmptyChunk(1, 2, 3)
+val consList: scala.collection.immutable.::[Int] = nonEmpty.toCons
+
+// Access head and tail like a normal cons cell
+consList.head
+consList.tail
+```
+
+**Use case:** Interoperability with code expecting Scala cons lists; recursive list processing that relies on the structure being non-empty.
+
 ### Integration with Chunk Operations
 
 Many Chunk operations are available on `NonEmptyChunk` and return `NonEmptyChunk` when the structure is guaranteed to remain non-empty:
