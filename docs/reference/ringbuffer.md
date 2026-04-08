@@ -492,7 +492,7 @@ SpscRingBuffer[String](15)   // Error: not power of 2
 SpscRingBuffer[String](0)    // Error: must be > 0
 ```
 
-`MpmcRingBuffer` additionally requires capacity >= 2 to distinguish between empty and full states in its sequence buffer algorithm.
+`MpmcRingBuffer` additionally requires capacity >= 2 to distinguish between empty and full states in its sequence buffer algorithm. A capacity of 1 is valid for `SpscRingBuffer`, `SpmcRingBuffer`, and `MpscRingBuffer`, but `MpmcRingBuffer` needs at least 2 because its sequence stamp mechanism requires a second slot to distinguish the written-but-not-consumed state from the empty state.
 
 ## Core Operations
 
