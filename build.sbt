@@ -1184,8 +1184,7 @@ lazy val docs = project
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
     ),
-    websiteDir := (ThisBuild / baseDirectory).value.toPath / "website",
-    mdocOut := websiteDir.value.toFile / "docs"
+    mdocOut := baseDirectory.value / "website" / "docs"
   )
   .dependsOn(
     schema.jvm,
