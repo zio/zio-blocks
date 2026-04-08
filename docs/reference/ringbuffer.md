@@ -96,14 +96,6 @@ Ring buffers are high-performance data structures for:
 - **Inter-thread communication** between producers and consumers with predictable latency
 - **Concurrent batch processing** where producers fill elements and consumers drain them
 
-### Core Principles
-
-- **Fixed capacity** — allocated upfront, no dynamic resizing or garbage collection churn
-- **Lock-free** — no mutexes or blocking, uses atomic compare-and-swap (CAS) for coordination
-- **Circular memory** — slots wrap around when indices exceed the capacity, reusing the same array
-- **FIFO ordering** — elements are taken in the order they were offered
-- **Non-nullable elements** — all implementations reject `null` inputs
-
 ## Why Ring Buffers
 
 Ring buffers excel when you need:
@@ -141,6 +133,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-ringbuffer" % "@VERSION@"
 ```
 
 ## SpscRingBuffer — Single Producer, Single Consumer
+
+`SpscRingBuffer[A]` is optimized for the simplest and fastest case: exactly one producer thread and one consumer thread. It uses the **FastFlow** algorithm to eliminate all cross-core cache traffic, achieving nanosecond-scale latencies with no volatile reads on the fast path.
 
 ### Why FastFlow?
 
@@ -436,6 +430,8 @@ sbt "zio-blocks-examples/runMain ringbuffer.BatchExample"
 
 ## SpmcRingBuffer — Single Producer, Multiple Consumers
 
+`SpmcRingBuffer[A]` allows a single producer thread to efficiently feed multiple consumer threads. It uses an **index-based algorithm** where slot validity is determined by comparing producer and consumer indices, allowing multiple consumers to coordinate safely via CAS operations on a shared consumer index.
+
 ### Algorithm
 
 `SpmcRingBuffer` allows a single producer to feed multiple consumers. The algorithm is **index-based**: slot validity is determined by comparing `producerIndex` and `consumerIndex`, not by null-checking slots.
@@ -537,6 +533,8 @@ Ring buffers provide three query methods to check their state. Note that under c
 All four implementations provide the same method signatures: `size`, `isEmpty`, and `isFull`. See the `SpscRingBuffer` Operations section for detailed descriptions and examples of these methods.
 
 ## MpscRingBuffer — Multiple Producers, Single Consumer
+
+`MpscRingBuffer[A]` handles the inverse case: multiple producer threads safely offering elements to a single consumer thread. It uses a **hybrid design** combining producer-side CAS coordination with a FastFlow-style relaxed-poll consumer, balancing producer contention while keeping the consumer blazingly fast.
 
 ### Algorithm
 
@@ -659,6 +657,8 @@ sbt "zio-blocks-examples/runMain ringbuffer.MpscExample"
 ```
 
 ## MpmcRingBuffer — Multiple Producers, Multiple Consumers
+
+`MpmcRingBuffer[A]` is the fully general-purpose implementation for systems with multiple producer and consumer threads. It uses the **Vyukov/Dmitry sequence-buffer algorithm**, a sophisticated lock-free design that coordinates all access through monotonically increasing indices and per-slot sequence stamps—making every slot's state self-describing at any moment.
 
 ### Algorithm
 
