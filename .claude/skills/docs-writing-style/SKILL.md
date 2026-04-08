@@ -42,6 +42,14 @@ allowed-tools: Read, Glob, Grep
     - Between two consecutive code blocks: write a contextualized bridging sentence that explains what the next block demonstrates (especially important for execution blocks that follow signature blocks).
     - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing).
     - **The sentence must end with a colon (`:`)**. A colon signals to the reader that code follows.
+    
+    **Example of correct structure:**
+    
+    When you write: "Here's how to create a chunk with initial elements:" followed by a code fence, the sentence ends with colon — correct. ✅
+    
+    **Example of incorrect structure:**
+    
+    When you write a heading like "#### `Chunk#map` — Transform Elements" and immediately follow it with a code fence (with no prose in between), it violates Rule 15. ❌
 
 ## Code Block Rules
 
@@ -64,6 +72,33 @@ allowed-tools: Read, Glob, Grep
 
 24. **Use @VERSION@ for versions**: In installation sections, always use the literal `@VERSION@` (`@VERSION@` placeholder) in sbt dependency coordinates. The build system substitutes it during publish. Do not instruct readers to replace a placeholder.
 
+## Manual Verification for Non-Mechanical Rules
+
+Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key examples to watch for:
+
+**Rule 2 (Tense)** — Use present tense only:
+- ❌ "will create" (future)
+- ❌ "created" (past)
+- ✅ "creates"
+
+**Rule 3 (No padding)** — Remove filler phrases:
+- ❌ "As we can see, the chunk will accept..."
+- ❌ "It's worth noting that chunks are immutable"
+- ✅ "Chunks are immutable"
+
+**Rule 8 (Qualify method names)** — Always include the type:
+- ❌ "Use `map` to transform elements"
+- ✅ "Use `Chunk#map` to transform elements"
+
+**Rule 9 (Type name alone)** — No qualifier when referring to the type itself:
+- ❌ "Use `Chunk#Chunk` for building chunks"
+- ✅ "Use `Chunk` for building chunks"
+
+**Rule 20 (Contextualized descriptions)** — Avoid generic intro phrases:
+- ❌ "Here's an example:"
+- ❌ "We can see this in action:"
+- ✅ "Splitting creates two chunks from a single index:"
+
 ## Mechanical Validation
 
 To validate documentation against mechanical style rules, run:
@@ -72,6 +107,8 @@ To validate documentation against mechanical style rules, run:
 bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
 ```
 
-This checks Rules 1, 5, 6, 11, 13, 15, and 16. Exit code `0` means all rules pass; exit code `1` means violations were found with details printed to stdout.
+This checks Rules 5, 6, 11, 13, and 15 (code block structure rules). Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
+
+**Note:** Rules 16 (imports) is checked for presence but not completeness. Verify imports manually in code blocks.
 
 ---
