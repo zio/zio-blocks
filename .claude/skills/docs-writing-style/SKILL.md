@@ -107,8 +107,8 @@ To validate documentation against mechanical style rules, run:
 bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
 ```
 
-This checks Rules 5, 6, 11, 13, and 15 (code block structure rules). Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
+This checks Rules 5, 6, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
 
-**Note:** Rules 16 (imports) is checked for presence but not completeness. Verify imports manually in code blocks.
+**Note:** Rule 16 (imports) is not checked mechanically. Verify that all code blocks include necessary imports by visual inspection.
 
 ---

@@ -52,6 +52,7 @@ fi
 # - ignores private/protected defs
 # - only considers defs at brace depth 1 (inside the outer class/object body)
 # - skips nested/local defs inside other blocks
+# - captures both identifier-based names (foo) and symbolic operators (++, &, |, ^, etc.)
 extract_methods_from_source() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -67,9 +68,10 @@ extract_methods_from_source() {
       if (
         current_depth == 1 &&
         line !~ /(^|[^[:alnum:]_])(private|protected)([^[:alnum:]_]|$)/ &&
-        line ~ /^[[:space:]]*(override[[:space:]]+|final[[:space:]]+|inline[[:space:]]+)*def[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/
+        line ~ /^[[:space:]]*(override[[:space:]]+|final[[:space:]]+|inline[[:space:]]+)*def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*|[][!#%&*+\\/:<=>?@\\\\^|~-]+)/
       ) {
-        if (match(line, /def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)/)) {
+        # Extract both identifier-based names and symbolic operator names
+        if (match(line, /def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*|[][!#%&*+\\/:<=>?@\\\\^|~-]+)/)) {
           name = substr(line, RSTART, RLENGTH)
           sub(/^def[[:space:]]+/, "", name)
           print name
@@ -95,11 +97,11 @@ extract_object_methods_from_source() {
 
   # Look for object <TypeName> or object following the class
   awk '
-    /^\s*object\s+'"$TYPE_NAME"'\s*[#{]/ { in_object=1; next }
-    /^\s*object\s+\w+/ { in_object=0 }
-    in_object && /^\s*def\s+/ {
+    /^[[:space:]]*object[[:space:]]+'"$TYPE_NAME"'[[:space:]]*[#{]/ { in_object=1; next }
+    /^[[:space:]]*object[[:space:]]+[a-zA-Z_]/ { in_object=0 }
+    in_object && /^[[:space:]]*def[[:space:]]+/ {
       line=$0
-      sub(/^\s*def\s+/, "", line)
+      sub(/^[[:space:]]*def[[:space:]]+/, "", line)
       sub(/\(.*/, "", line)
       print line
     }
