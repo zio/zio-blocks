@@ -4,13 +4,13 @@ import zio.blocks.ringbuffer.MpscRingBuffer
 import java.util.concurrent.{CountDownLatch, Thread}
 
 object MpscExample extends App {
-  val buffer = MpscRingBuffer[Int](16)
+  val buffer = MpscRingBuffer[java.lang.Integer](16)
   val latch = new CountDownLatch(1)
 
   val producers = (0 until 3).map { id =>
     new Thread(() => {
       for (i <- 1 to 4) {
-        buffer.offer(id * 100 + i)
+        buffer.offer(java.lang.Integer.valueOf(id * 100 + i))
       }
     })
   }
@@ -19,7 +19,7 @@ object MpscExample extends App {
     var received = 0
     while (received < 12) {
       val item = buffer.take()
-      if (!item.eq(null)) {
+      if (item ne null) {
         println(s"Processed: $item")
         received += 1
       }

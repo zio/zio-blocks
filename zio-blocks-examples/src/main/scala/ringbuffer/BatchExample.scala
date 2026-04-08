@@ -4,19 +4,21 @@ import zio.blocks.ringbuffer.SpscRingBuffer
 import java.util.concurrent.{CountDownLatch, Thread}
 
 object BatchExample extends App {
-  val buffer = SpscRingBuffer[Int](64)
+  val buffer = SpscRingBuffer[java.lang.Integer](64)
   val latch = new CountDownLatch(1)
 
   val producer = new Thread(() => {
     var batch = 1
     while (batch <= 3) {
-      val count = buffer.fill(() => { val b = batch; batch += 1; b * 100 }, 10)
-      println(s"Filled $count items in batch")
+      val currentBatch = batch
+      val count = buffer.fill(() => java.lang.Integer.valueOf(currentBatch * 100), 10)
+      println(s"Filled $count items in batch $currentBatch")
+      batch += 1
     }
   })
 
   val consumer = new Thread(() => {
-    val items = scala.collection.mutable.Buffer[Int]()
+    val items = scala.collection.mutable.Buffer[java.lang.Integer]()
     while (items.size < 30) {
       val drained = buffer.drain(items += _, 10)
       if (drained > 0) println(s"Drained $drained items")
