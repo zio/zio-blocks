@@ -339,7 +339,7 @@ object Chunk {
 }
 ```
 
-**⚠️ Critical Warning:** This is a zero-copy operation that **holds a direct reference to the provided array**. The array **must not be mutated** after creating the chunk. Mutations become visible through the chunk:
+**Critical Warning:** This is a zero-copy operation that **holds a direct reference to the provided array**. The array **must not be mutated** after creating the chunk. Mutations become visible through the chunk:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -3103,7 +3103,7 @@ val chunk = Chunk(1, 2, 3, 4, 5)
 val arr = chunk.toArray
 ```
 
-⚠️ **Warning:** The returned array may be shared. For array-backed chunks, mutations may affect the chunk.
+**Warning:** The returned array may be shared. For array-backed chunks, mutations may affect the chunk.
 
 **Performance:** O(1) for array-backed; O(n) for tree-structured chunks (requires materialization).
 
