@@ -42,10 +42,11 @@ jobs:
         with:
           node-version: '24.12.0'
       - name: Install website dependencies
-        if: hashFiles('website/package-lock.json') != ''
-        run: npm install --prefix website
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn install --cwd website
       - name: Check website build process
-        run: sbt docs/clean docs/buildWebsite
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn --cwd website build
 
   lint:
     runs-on: ubuntu-latest
