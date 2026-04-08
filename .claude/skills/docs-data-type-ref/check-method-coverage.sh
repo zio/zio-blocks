@@ -111,16 +111,22 @@ extract_object_methods_from_source() {
 # Extract documented methods from markdown
 # Looks for backtick-enclosed method references like `methodName`, `++`, or TypeName#methodName
 # Supports both identifier-based names (a-zA-Z0-9_) and symbolic names (++, &, |, ^, etc.)
+# Handles method signatures with parameters like `Chunk#:+(a)` by extracting full backtick
+# contents first, then stripping parameter lists
 extract_methods_from_doc() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  grep -oE '`([A-Za-z0-9_#]|(\+\+|:?\+|:\-|:\*|:[/\\|&^%]|[&|^%]|\+:))+`' "$file" | \
+  grep -oE '`[^`]+`' "$file" | \
     sed -E 's/`//g' | \
+    # Strip parameter lists: remove everything from '(' onwards (handles `methodName(...)`)
+    sed -E 's/\(.*//' | \
     # Extract just the method name if it's Type#method format
     sed -E 's/^[^#]+#//' | \
+    # Remove empty lines and non-identifier results
+    grep -E '^[a-zA-Z0-9_+:*/%&|^!<>@\\-]+$' | \
     sort -u
 }
 

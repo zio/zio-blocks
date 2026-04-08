@@ -3,7 +3,7 @@ id: chunk
 title: "Chunk"
 ---
 
-`Chunk[A]` is an **immutable, indexed sequence** of elements of type `A`. Unlike arrays, Chunk provides a purely functional interface with optimized performance for high-level operations. It is lazy on expensive operations like repeated concatenation (which use balanced tree structures) while remaining fast on access.
+`Chunk[A]` is an **immutable, indexed sequence** of elements of type `A`. Unlike `Array`, `Chunk` provides a purely functional interface with optimized performance for high-level operations. It is lazy on expensive operations like repeated concatenation (which use balanced tree structures) while remaining fast on access.
 
 `Chunk[A]`:
 - Is purely functional and immutable
