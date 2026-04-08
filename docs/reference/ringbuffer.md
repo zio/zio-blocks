@@ -202,9 +202,9 @@ Here is a complete walkthrough of every variable in the trace, in the order the 
 
 The producer reads `pIdx` with a plain load — no atomic operations at all. Since only one thread produces, no synchronization is needed. The producer maintains its own count, never reads `consumerIndex`, and advances `pIdx` after writing with a release store.
 
-#### `cIdx` — the monotonic consumer counter (acquire load)
+#### `cIdx` — the monotonic consumer counter
 
-The producer reads `cIdx` with an acquire load during capacity checking — this is the only time the producer touches the consumer's counter. This acquire pairs with the consumer's release store when advancing `cIdx`, ensuring the producer eventually sees freed slots. The consumer reads its own `cIdx` with a plain load.
+SPSC avoids reading `consumerIndex` entirely. Instead of checking the occupancy formula (`pIdx - cIdx`), the producer reads the array slot at `producerIndex + lookAheadStep` to determine if a slot is free (on the slow path when the look-ahead cache is exhausted). This slot-based approach eliminates all counter reads between producer and consumer.
 
 #### `size = pIdx − cIdx` — the occupancy check
 
