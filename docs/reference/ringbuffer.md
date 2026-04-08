@@ -8,7 +8,7 @@ import MpscDiagram from './MpscDiagram.jsx';
 import SpmcDiagram from './SpmcDiagram.jsx';
 import SpscDiagram from './SpscDiagram.jsx';
 
-`RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns.
+`RingBuffer[A]` is a **fixed-size, lock-free queue** for efficiently exchanging elements between producer and consumer threads with minimal contention and cache-line effects. Ring buffers use a circular array to recycle memory, eliminating garbage collection pressure from transient allocations. The module provides four specialized implementations tuned for different producer/consumer thread patterns:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -104,6 +104,8 @@ Ring buffers excel when you need:
 - **Predictable throughput** — no GC overhead since the same memory array is reused forever
 - **Bounded resources** — fixed capacity prevents runaway memory growth and enables backpressure
 - **High concurrency** — multiple implementations optimized for different thread patterns (SPSC, MPMC, etc.)
+
+How do ring buffers compare to other queue and collection types?
 
 ### Comparison with Java and Scala Alternatives
 
@@ -264,11 +266,11 @@ val rb = SpscRingBuffer[String](4)
 When the buffer becomes full, `offer` returns `false`:
 
 ```scala mdoc
-val result1 = rb.offer("a")  // true
-val result2 = rb.offer("b")  // true
-val result3 = rb.offer("c")  // true
-val result4 = rb.offer("d")  // true
-val result5 = rb.offer("e")  // false (Buffer is full, capacity = 4)
+val result1 = rb.offer("a")
+val result2 = rb.offer("b")
+val result3 = rb.offer("c")
+val result4 = rb.offer("d")
+val result5 = rb.offer("e")
 ```
 
 #### Removing Elements — `take`
@@ -286,11 +288,11 @@ Retrieves and removes an element from the front of the buffer. Returns immediate
 We can take elements in FIFO order from our buffer:
 
 ```scala mdoc
-rb.take()  // "a"
-rb.take()  // "b"
-rb.take()  // "c"
-rb.take()  // "d"
-rb.take()  // null (buffer is empty)
+rb.take()
+rb.take()
+rb.take()
+rb.take()
+rb.take()
 ```
 
 #### Checking State — `size`, `isEmpty`, `isFull`
@@ -341,9 +343,9 @@ State queries are cheap but approximate under concurrency:
 rb2.offer("x")
 rb2.offer("y")
 
-rb2.size      // 2
-rb2.isEmpty   // false
-rb2.isFull    // false
+rb2.size
+rb2.isEmpty
+rb2.isFull
 ```
 
 #### Batch Operations — `drain` and `fill`
@@ -386,10 +388,11 @@ Fill avoids repeated `offer` calls when producing elements:
 
 ```scala mdoc:silent:reset
 import zio.blocks.ringbuffer.SpscRingBuffer
+import java.util.concurrent.atomic.AtomicInteger
 
 val rb4 = SpscRingBuffer[String](8)
-var counter = 0
-val filled = rb4.fill(() => { counter += 1; s"item-$counter" }, 5)  // filled = 5
+val counter = new AtomicInteger(0)
+val filled = rb4.fill(() => { counter.incrementAndGet(); s"item-${counter.get()}" }, 5)
 
 println(s"Filled $filled items")
 ```
