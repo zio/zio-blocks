@@ -720,15 +720,15 @@ val lengths = strings.map(_.length)
 
 #### `Chunk#flatMap` — Flat Transformation
 
-Map each element to a chunk and flatten the result:
+Map each element to an iterable collection and flatten the result:
 
 ```scala
 trait Chunk[+A] {
-  def flatMap[B](f: A => Chunk[B]): Chunk[B]
+  def flatMap[B](f: A => IterableOnce[B]): Chunk[B]
 }
 ```
 
-Flat-mapping chains transformations and flattens the result:
+Flat-mapping chains transformations and flattens the result. The function can return any `IterableOnce` (such as `Chunk`, `List`, `Vector`, `Array`, etc.):
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1308,7 +1308,7 @@ chunk.slice(2, 5)
 
 Split the chunk into N equally-sized chunks. When the chunk size is not evenly divisible, remainder elements are distributed into earlier chunks. If n exceeds the chunk's length, the result contains at most chunk.length single-element chunks.
 
-Note: Passing n ≤ 0 throws ArithmeticException; n must be a positive integer.
+Note: Passing `0` throws `ArithmeticException` due to division by zero. Negative values are not rejected by the current implementation and may produce unexpected results, so `n` should always be positive in normal use.
 
 The method signature is:
 
@@ -3071,53 +3071,9 @@ val inverted = bytes.map(b => (~b).toByte)
 
 **Performance:** O(n) — processes all elements.
 
-#### `Chunk#asBits` — Convert to Bit Representation
-
-Convert a numeric chunk to a chunk of boolean bits:
-
-```scala
-trait Chunk[+A] {
-  def asBits: Chunk[Boolean]
-}
-```
-
-Converting to bit representation (available as `asBitsByte`, `asBitsInt`, `asBitsLong`):
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val bytes = Chunk[Byte](1, 2, 4)
-val bits = bytes.asBitsByte
-```
-
-**Performance:** O(n) — creates new chunk with bits.
-
 ### Additional Utility Methods
 
 Beyond the core operations, `Chunk` provides utility methods for inspecting and extracting underlying data:
-
-#### `Chunk#array` — Get Underlying Array
-
-Extract the underlying array representation:
-
-```scala
-trait Chunk[+A] {
-  def array: Array[A]
-}
-```
-
-Getting the underlying array:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3, 4, 5)
-val arr = chunk.toArray
-```
-
-**Warning:** The returned array may be shared. For array-backed chunks, mutations may affect the chunk.
-
-**Performance:** O(1) for array-backed; O(n) for tree-structured chunks (requires materialization).
 
 ## Integration
 
