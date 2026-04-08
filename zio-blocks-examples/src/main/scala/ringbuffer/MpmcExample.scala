@@ -1,12 +1,13 @@
 package ringbuffer
 
 import zio.blocks.ringbuffer.MpmcRingBuffer
-import java.util.concurrent.{CountDownLatch, Thread, atomic}
+import java.util.concurrent.{CountDownLatch, Thread}
+import java.util.concurrent.atomic.AtomicInteger
 
 object MpmcExample extends App {
   val buffer = MpmcRingBuffer[String](32)
-  val processed = new atomic.AtomicInteger(0)
-  val latch = new CountDownLatch(1)
+  val processed = new AtomicInteger(0)
+  val latch = new CountDownLatch(2)
 
   val producers = (0 until 2).map { id =>
     new Thread(() => {
@@ -20,17 +21,17 @@ object MpmcExample extends App {
     new Thread(() => {
       while (processed.get() < 10) {
         val task = buffer.take()
-        if (!task.eq(null)) {
+        if (task ne null) {
           println(s"Worker processing: $task")
           processed.incrementAndGet()
         }
       }
+      latch.countDown()
     })
   }
 
   (producers ++ consumers).foreach(_.start())
   producers.foreach(_.join())
-  while (processed.get() < 10) Thread.sleep(1)
-  latch.countDown()
+  latch.await()
   println("All tasks completed")
 }
