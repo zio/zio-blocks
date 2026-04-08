@@ -288,8 +288,8 @@ object MigrationAction {
    * single action sequence.
    *
    * Typical use is via the [[zio.blocks.schema.migration.MigrationBuilder]]
-   * macro DSL method `migrateField`, which accepts a typed
-   * `Migration[C, D]` and extracts its underlying `DynamicMigration`.
+   * macro DSL method `migrateField`, which accepts a typed `Migration[C, D]`
+   * and extracts its underlying `DynamicMigration`.
    *
    * Reverse: [[ApplyMigration]] with `migration.reverse`.
    */
@@ -299,8 +299,7 @@ object MigrationAction {
   ) extends MigrationAction
 
   /**
-   * Copies the value at `from` and inserts it at `to`, leaving `from`
-   * intact.
+   * Copies the value at `from` and inserts it at `to`, leaving `from` intact.
    *
    * Useful for schema evolution where a field must temporarily appear in two
    * places (e.g. during a rolling deployment) or when a value needs to be
@@ -309,8 +308,8 @@ object MigrationAction {
    * The `to` path must not already exist in the target value; use
    * [[TransformValue]] if you want an overwrite instead.
    *
-   * Reverse: [[DropField]] with `path = to` (the copy is discarded;
-   * the original at `from` is left in place).
+   * Reverse: [[DropField]] with `path = to` (the copy is discarded; the
+   * original at `from` is left in place).
    */
   final case class CopyField(
     from: DynamicOptic,

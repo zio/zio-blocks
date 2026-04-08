@@ -229,8 +229,8 @@ object MigrationBuilderCompanion {
      * at the path described by `toSelector`, leaving the source field intact.
      *
      * Useful when a field needs to appear in two places during a schema
-     * transition (e.g. rolling deployments) or when duplicating a value into
-     * a newly-introduced location.
+     * transition (e.g. rolling deployments) or when duplicating a value into a
+     * newly-introduced location.
      */
     transparent inline def copyField[C](
       inline fromSelector: A => C,
@@ -242,8 +242,8 @@ object MigrationBuilderCompanion {
      * Moves the value at the path described by `fromSelector` to the path
      * described by `toSelector`, removing the source field.
      *
-     * Use `moveField` instead of `renameField` when the target field occupies
-     * a different structural location (different parent record), not just a
+     * Use `moveField` instead of `renameField` when the target field occupies a
+     * different structural location (different parent record), not just a
      * different name at the same level.
      */
     transparent inline def moveField[C](
