@@ -7,7 +7,7 @@ title: "Chunk"
 
 `Chunk[A]`:
 - Is purely functional and immutable
-- Provides O(1) random access via the `apply` method
+- Provides O(1) typical random access (O(log n) worst-case for tree-structured chunks)
 - Optimizes concatenation using balanced tree structures (Conc-Trees)
 - Automatically specializes primitive types for efficiency without boxing
 - Lazily materializes only when necessary to maintain performance
@@ -482,7 +482,7 @@ val result = builder.result()
 
 `ChunkBuilder[A]` is a mutable builder that accumulates elements and returns a `Chunk[A]`. Use it when building chunks from elements that arrive incrementally—over time, from streaming sources, or when the total size is unknown in advance.
 
-When constructing a chunk from multiple sources, the naive approach—concatenating partial chunks together—incurs O(n²) complexity: each concatenation must rebalance the tree. Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by using an internal buffering strategy: elements accumulate in a small array, and only when full does the array append to the growing chunk tree. This yields O(1) amortized append cost—comparable to dynamically sized arrays, but without re-copying overhead. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
+When constructing a chunk from multiple sources, repeatedly calling `++` creates additional tree nodes and increases access depth (O(log n) per operation). Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by using an internal buffering strategy: elements accumulate in a small array, and only when full does the array append to the growing chunk tree. This yields O(1) amortized append cost—comparable to dynamically sized arrays, but without re-copying overhead. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
 
 | Scenario                                                                                   | Right choice                                 |
 |--------------------------------------------------------------------------------------------|----------------------------------------------|
@@ -520,7 +520,7 @@ def fetchAllRecords(): Chunk[String] = {
 }
 ```
 
-In this scenario, the API may return 100 pages before completion. Using `Chunk.apply` would require buffering all responses in memory first. Using naive concatenation would degrade to O(n²) as the chunk grows. `ChunkBuilder` handles pagination efficiently by maintaining a single O(1) append mechanism throughout.
+In this scenario, the API may return 100 pages before completion. Using `Chunk.apply` would require buffering all responses in memory first. Using naive `++` concatenation repeatedly would create deep tree structures with O(log n) access overhead. `ChunkBuilder` handles pagination efficiently by maintaining a single O(1) amortized append mechanism throughout.
 
 ## Core Operations
 
@@ -1716,10 +1716,11 @@ val chunk2 = Chunk(1, 2, 3)
 
 chunk1.hashCode == chunk2.hashCode
 
-// Chunks can be used in Maps and Sets
 val chunkSet = Set(chunk1)
-chunkSet.contains(chunk2)  // true due to equals and hashCode consistency
+chunkSet.contains(chunk2)
 ```
+
+Chunks can be reliably used in Maps and Sets because equal chunks have equal hash codes.
 
 #### `Chunk#foreach` — Iteration with Side Effects
 
@@ -1852,26 +1853,6 @@ val chunk = Chunk(1, 2, 3)
 ```scala mdoc
 chunk.toVector
 ```
-
-#### `Chunk#toCons` — To Scala Cons List
-
-Convert the chunk to a Scala cons list (head :: tail structure):
-
-```scala
-trait Chunk[+A] {
-  def toCons: List[A]  // using :: cons operator
-}
-```
-
-This is an alternative way to express chunks as immutable linked lists, useful for recursive processing:
-
-```scala mdoc:reset
-import zio.blocks.chunk.Chunk
-
-val chunk = Chunk(1, 2, 3)
-val consList = chunk.toList  // cons representation
-```
-
 
 ### Specialized Accessors for Primitive Types
 
@@ -2422,13 +2403,16 @@ val empty = Chunk.empty[Int]
 val nothingHere: Option[NonEmptyChunk[Int]] = NonEmptyChunk.fromChunk(empty)
 ```
 
-Create from a Scala cons list using `fromCons`:
+Create from a Scala cons list using `fromCons` (requires a non-empty cons list):
 
 ```scala mdoc:reset
 import zio.blocks.chunk.NonEmptyChunk
 
 val list = 1 :: 2 :: 3 :: Nil
-val nonEmpty = NonEmptyChunk.fromCons(list.asInstanceOf[scala.collection.immutable.::[Int]])
+val nonEmpty = list match {
+  case cons: scala.collection.immutable.::[Int] => NonEmptyChunk.fromCons(cons)
+  case _ => throw new IllegalArgumentException("list must be non-empty")
+}
 ```
 
 Create from an iterable with at least one guaranteed element using `fromIterable`:
@@ -2963,11 +2947,13 @@ final class NonEmptyChunk[+A] {
 
 Example usage pattern:
 
-```scala
-// Convert first int to string, then concatenate with remaining ints
-val chunk: NonEmptyChunk[Int] = NonEmptyChunk(Chunk(10, 20, 30, 40))
-val result: String = chunk.reduceMapLeft(_.toString)((acc, n) => acc + ", " + n)
-// result: "10, 20, 30, 40"
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val chunk = Chunk(10, 20, 30, 40)
+val nonEmpty = NonEmptyChunk(chunk)
+val result: String = nonEmpty.reduceMapLeft(_.toString)((acc, n) => acc + ", " + n)
+result
 ```
 
 **Use case:** Transforming and aggregating data in a single pass with type conversion.
@@ -2986,11 +2972,13 @@ final class NonEmptyChunk[+A] {
 
 Example usage pattern:
 
-```scala
-// Build a string from right-to-left with ints
-val chunk: NonEmptyChunk[Int] = NonEmptyChunk(Chunk(1, 2, 3, 4))
-val result: String = chunk.reduceMapRight(_.toString)((n, acc) => n.toString + ", " + acc)
-// result: "1, 2, 3, 4"
+```scala mdoc:reset
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val chunk = Chunk(1, 2, 3, 4)
+val nonEmpty = NonEmptyChunk(chunk)
+val result: String = nonEmpty.reduceMapRight(_.toString)((n, acc) => n.toString + ", " + acc)
+result
 ```
 
 **Use case:** Right-associative operations like building cons-lists or reverse-order processing.
