@@ -1,0 +1,10 @@
+package zio.schema.migration
+
+object Migration {
+  /** Start constructing a migration from the structural source to the target. */
+  def newBuilder[A, B](
+    using src: Schema[A],
+    using tgt: Schema[B]
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder[A, B](src, tgt, Vector.empty)
+}
