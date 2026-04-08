@@ -41,6 +41,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '24.12.0'
+      - name: Install yarn
+        run: npm install -g yarn
       - name: Install website dependencies
         if: hashFiles('website/yarn.lock') != ''
         run: yarn install --cwd website
