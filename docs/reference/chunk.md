@@ -27,6 +27,8 @@ sealed abstract class Chunk[+A]
 
 Chunk represents a chunk of values. The implementation is backed by arrays for small chunks but transitions to lazy concatenation trees (`Chunk.Concat`) when building large chunks through repeated concatenation. This design eliminates the O(n²) behavior of naive list concatenation while remaining efficient for both element access and transformation.
 
+`Chunk` has four main internal representations:
+
 ```
                ┌─────────────────────────────┐ 
                │           Chunk[A]          │
@@ -1308,6 +1310,8 @@ Split the chunk into N equally-sized chunks. When the chunk size is not evenly d
 
 Note: Passing n ≤ 0 throws ArithmeticException; n must be a positive integer.
 
+The method signature is:
+
 ```scala
 trait Chunk[+A] {
   def split(n: Int): Chunk[Chunk[A]]
@@ -1331,6 +1335,8 @@ val splitInto3 = uneven.split(3)
 `span(f)` splits the chunk into a prefix where the predicate holds, and the remainder. It stops at the first element where the predicate becomes false.
 
 `splitWhere(f)` is similar but has inverted logic: it splits at the first element where the predicate becomes true.
+
+The method signatures are:
 
 ```scala
 trait Chunk[+A] {
@@ -1424,6 +1430,8 @@ numbers.takeWhile(_ % 2 != 0)
 #### `Chunk#splitAt` — Split at Index
 
 Split the chunk into two chunks at a given index: the first contains elements `[0, until)`, the second contains the remainder.
+
+The method signature is:
 
 ```scala
 trait Chunk[+A] {
