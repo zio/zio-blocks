@@ -6,8 +6,8 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'website',
-  url: 'https://zio.dev/website',
+  title: 'ZIO Blocks',
+  url: 'https://localhost:3000',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
@@ -29,7 +29,7 @@ const config = {
           id: 'default',
           path: './docs',
           routeBasePath: '/',
-          sidebarPath: require.resolve('./docs/sidebars.js'),
+          sidebarPath: require.resolve('../docs/sidebars.js'),
        },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -42,7 +42,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'website',
+        title: 'ZIO Blocks',
       },
       prism: {
         theme: lightCodeTheme,
