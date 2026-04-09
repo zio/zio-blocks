@@ -1,15 +1,15 @@
 ---
-name: docs-skill-introspection
+name: docs-skill-retrospection
 description: >
-  Analyze a recent docs-* skill execution against its documented workflow. Identifies
-  deviations, unclear instructions, missing edge cases, and better approaches. Applies
-  targeted improvements to the skill file. Run after any docs-* skill to close the
-  feedback loop.
+  Analyze a recent docs-* skill execution to close the feedback loop. Identifies
+  deviations from documented workflow, unclear instructions, missing edge cases,
+  and better approaches. Applies targeted improvements to the skill file based on
+  what was learned. Run after any docs-* skill to capture retrospective insights.
 argument-hint: "<skill-name>"
 allowed-tools: Read, Glob, Grep, Edit, Bash
 ---
 
-# Docs Skill Introspection
+# Docs Skill Retrospection
 
 ## Argument
 
@@ -44,7 +44,7 @@ Review the current conversation history — specifically the most recent executi
 - Any tool calls made that are not described in the skill
 - Any mistakes encountered and how they were resolved
 
-If this is a cross-session introspection (the skill was run in a previous conversation),
+If this is a cross-session retrospection (the skill was run in a previous conversation),
 read the most recent JSONL file:
 
 ```bash
@@ -92,7 +92,7 @@ Rules:
 
 ```bash
 git add .claude/skills/<skill-name>/SKILL.md
-git commit -m "skill(<skill-name>): introspection improvements from <task-slug>"
+git commit -m "skill(<skill-name>): retrospection improvements from <task-slug>"
 ```
 
 Use a brief `<task-slug>` that identifies what the skill was run for (e.g.,
@@ -113,9 +113,15 @@ Output a concise summary:
 ### Why inline, not a subagent
 
 Skills run inline (the `Skill` tool loads content into Claude's prompt). This means Claude
-has the entire conversation history available during introspection — no JSONL parsing is
+has the entire conversation history available during retrospection — no JSONL parsing is
 needed for the common case (same-session, just ran the skill). The JSONL path is included
 as a fallback for cross-session use.
+
+### Feedback loop closure
+
+Retrospection closes the feedback loop: a skill is executed → deviations are observed →
+the skill is improved → better outcomes on future runs. This continuous improvement
+cycle keeps skills accurate, clear, and effective over time.
 
 ### Deviation categories (design rationale)
 
@@ -125,6 +131,7 @@ different output) are explicitly excluded to keep the skill file stable and prev
 
 ### Commit scope
 
-One commit per introspection run (not one per deviation). The introspection output is
-cohesive — it describes a single execution's findings — so batching is appropriate here,
-unlike the documentation compliance skills where one commit per rule violation makes sense.
+One commit per retrospection run (not one per deviation). The retrospection output is
+cohesive — it describes a single execution's findings and improvements — so batching is
+appropriate here, unlike the documentation compliance skills where one commit per rule
+violation makes sense.
