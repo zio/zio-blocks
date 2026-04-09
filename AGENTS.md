@@ -102,6 +102,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Follow workflow phases in order
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
+- In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
 - Document new data types in `docs/`; update existing docs when behavior changes
 - **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client generateReadme` to regenerate `README.md`.
 

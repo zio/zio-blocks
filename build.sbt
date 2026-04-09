@@ -1183,13 +1183,15 @@ lazy val docs = project
           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
-    )
+    ),
+    mdocOut := (ThisBuild / baseDirectory).value / "website" / "docs"
   )
   .dependsOn(
     schema.jvm,
     markdown.jvm,
     context.jvm,
     scope.jvm,
+    ringbuffer.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
