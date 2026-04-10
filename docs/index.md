@@ -616,6 +616,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
   - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
   - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
+- [Schema Migration System](./guides/schema-migration-system.md) - Pure, serializable migrations between schema versions
 
 ### Other Blocks
 
