@@ -25,7 +25,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | 🚧 In Development |
+| **Streams** | Pull-based streaming primitives | ✅ Available |
 
 ## Core Principles
 
@@ -628,6 +628,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
+- [Stream](./reference/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 
 ### Guides
 

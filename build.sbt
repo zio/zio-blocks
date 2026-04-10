@@ -1192,6 +1192,7 @@ lazy val docs = project
     context.jvm,
     scope.jvm,
     ringbuffer.jvm,
+    streams.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
