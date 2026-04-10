@@ -25,6 +25,11 @@ inThisBuild(
         "john@degoes.net",
         url("https://degoes.net")
       )
+    ),
+    semanticdbEnabled := true,
+    semanticdbVersion := scalafixSemanticdb.revision,
+    Compile / scalacOptions ++= Seq(
+      "-Ysemanticdb"
     )
   )
 )
