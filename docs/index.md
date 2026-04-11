@@ -628,9 +628,9 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
-- [Stream](./reference/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
-- [Pipeline](./reference/pipeline.md) - Reusable, composable stream transformations
-- [Sink](./reference/sink.md) - Stream consumers that produce typed results
+- [Stream](./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
+- [Pipeline](./reference/streams/pipeline.md) - Reusable, composable stream transformations
+- [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
 
 ### Guides
 

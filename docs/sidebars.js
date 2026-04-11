@@ -64,9 +64,16 @@ const sidebars = {
          "reference/media-type",
          "reference/http-model",
          "reference/ringbuffer",
-         "reference/stream",
-         "reference/pipeline",
-         "reference/sink",
+         {
+           type: "category",
+           label: "Streams",
+           link: { type: "doc", id: "reference/streams/index" },
+           items: [
+             "reference/streams/stream",
+             "reference/streams/pipeline",
+             "reference/streams/sink",
+           ]
+         },
       ]
     },
     {
