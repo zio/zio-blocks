@@ -612,7 +612,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.6.4",
+      "org.mongodb" % "bson"         % "5.6.5",
       "dev.zio"    %% "zio-test"     % "2.1.25" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.25" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -1183,13 +1183,15 @@ lazy val docs = project
           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
-    )
+    ),
+    mdocOut := (ThisBuild / baseDirectory).value / "website" / "docs"
   )
   .dependsOn(
     schema.jvm,
     markdown.jvm,
     context.jvm,
     scope.jvm,
+    ringbuffer.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
