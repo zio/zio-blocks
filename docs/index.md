@@ -629,6 +629,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
 - [Stream](./reference/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
+- [Pipeline](./reference/pipeline.md) - Reusable, composable stream transformations
 
 ### Guides
 
