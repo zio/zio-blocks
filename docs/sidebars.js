@@ -66,6 +66,7 @@ const sidebars = {
          "reference/ringbuffer",
          "reference/stream",
          "reference/pipeline",
+         "reference/sink",
       ]
     },
     {
