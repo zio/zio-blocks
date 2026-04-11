@@ -273,8 +273,8 @@ object MigrationAction {
   ) extends MigrationAction
 
   /**
-   * Applies `inner` to the payload of a [[DynamicValue.Variant]] at `at` when its
-   * case name matches `caseName`. Paths inside `inner` are relative to that
+   * Applies `inner` to the payload of a [[DynamicValue.Variant]] at `at` when
+   * its case name matches `caseName`. Paths inside `inner` are relative to that
    * payload (typically starting with [[DynamicOptic.root]]).
    *
    * If the value at `at` is not a matching variant, the action is a no-op.

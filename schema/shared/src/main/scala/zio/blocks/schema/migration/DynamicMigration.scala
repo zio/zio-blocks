@@ -293,7 +293,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       } else {
         for {
           focal <- value.get(at).one.left.map(e => MigrationError(e.message, at))
-          out <- focal match {
+          out   <- focal match {
                    case v: DynamicValue.Variant if v.caseNameValue == fromName =>
                      Right(new DynamicValue.Variant(toName, v.value))
                    case _ =>
@@ -318,7 +318,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
       } else {
         for {
           focal <- value.get(at).one.left.map(e => MigrationError(e.message, at))
-          out <- focal match {
+          out   <- focal match {
                    case v: DynamicValue.Variant if v.caseNameValue == caseName =>
                      inner
                        .apply(v.value)

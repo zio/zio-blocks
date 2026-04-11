@@ -247,11 +247,11 @@ final class MigrationBuilder[A, B](
    * `Migration`.
    *
    * Validation uses the concrete [[Schema]] instances on this builder (paths
-   * are checked with [[Schema.get]]). Macro DSL methods already expand selector
-   * lambdas to [[DynamicOptic]] at compile time; they do not, on their own,
-   * prove that those paths exist in every possible runtime schema value—call
-   * `build` (or inspect [[validate]]) to catch incompatible schemas before
-   * applying the migration.
+   * are checked with the `Schema#get` overload that takes a [[DynamicOptic]]).
+   * Macro DSL methods already expand selector lambdas to [[DynamicOptic]] at
+   * compile time; they do not, on their own, prove that those paths exist in
+   * every possible runtime schema value—call `build` (or inspect [[validate]])
+   * to catch incompatible schemas before applying the migration.
    */
   def build: Migration[A, B] =
     validateBuild().fold(

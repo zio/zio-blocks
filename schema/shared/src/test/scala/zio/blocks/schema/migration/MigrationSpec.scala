@@ -625,7 +625,7 @@ object MigrationSpec extends SchemaBaseSpec {
           "Some",
           DynamicMigration.transformPayload(ValueExpr.Constant(str("replaced")))
         )
-        val dv     = new DynamicValue.Variant("None", new DynamicValue.Record(Chunk.empty))
+        val dv = new DynamicValue.Variant("None", new DynamicValue.Record(Chunk.empty))
         assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
       }
     ),
@@ -1000,7 +1000,7 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("TransformCase reverses inner DynamicMigration") {
         val inner = DynamicMigration.transformPayload(ValueExpr.PrimitiveConvert(ptInt, ptLong))
-        val m = new DynamicMigration(
+        val m     = new DynamicMigration(
           Chunk.single(MigrationAction.TransformCase(DynamicOptic.root, "Foo", inner))
         )
         m.reverse.actions.head match {

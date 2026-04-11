@@ -33,8 +33,8 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Reflect, Schema}
  *   2. '''Default-value resolution''': any [[ValueExpr.DefaultValue]] inside
  *      the migration (including nested [[MigrationAction.ApplyMigration]] /
  *      [[MigrationAction.TransformCase]] steps) is resolved against `toSchema`
- *      before the inner `DynamicMigration` runs. The macro DSL surfaces this
- *      as [[SchemaExpr.DefaultValue]] for `addField` and `mandate`. After
+ *      before the inner `DynamicMigration` runs. The macro DSL surfaces this as
+ *      [[SchemaExpr.DefaultValue]] for `addField` and `mandate`. After
  *      resolution, `DynamicMigration` only sees concrete [[ValueExpr.Constant]]
  *      nodes (or fails before execution).
  *
@@ -115,8 +115,9 @@ final class Migration[A, B](
 
   /**
    * Replaces every [[ValueExpr.DefaultValue]] in `actions` (including inside
-   * nested [[MigrationAction.ApplyMigration]] and [[MigrationAction.TransformCase]]
-   * pipelines) with a concrete [[ValueExpr.Constant]] sourced from `toSchema`.
+   * nested [[MigrationAction.ApplyMigration]] and
+   * [[MigrationAction.TransformCase]] pipelines) with a concrete
+   * [[ValueExpr.Constant]] sourced from `toSchema`.
    *
    * Resolution strategy:
    *   - Navigate `toSchema` to the sub-reflect at the action's path.
@@ -135,9 +136,7 @@ final class Migration[A, B](
   private def resolveOne(action: MigrationAction): Either[MigrationError, MigrationAction] = action match {
 
     case MigrationAction.ApplyMigration(path, dm) =>
-      resolveActions(dm.actions).map(resolved =>
-        MigrationAction.ApplyMigration(path, new DynamicMigration(resolved))
-      )
+      resolveActions(dm.actions).map(resolved => MigrationAction.ApplyMigration(path, new DynamicMigration(resolved)))
 
     case MigrationAction.TransformCase(at, caseName, dm) =>
       resolveActions(dm.actions).map(resolved =>

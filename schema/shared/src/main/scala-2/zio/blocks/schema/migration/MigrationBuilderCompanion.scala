@@ -74,7 +74,10 @@ object MigrationBuilderCompanion {
     def addField[C](selector: B => C, defaultValue: ValueExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.addField[A, B, C]
 
-    /** @see [[MigrationBuilderCompanion.addField]] — uses [[SchemaExpr.DefaultValue]]. */
+    /**
+     * Same as the overload taking [[ValueExpr]], but the initializer is
+     * [[SchemaExpr.DefaultValue]] (target-schema default at that path).
+     */
     def addField[C](selector: B => C, defaultExpr: SchemaExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.addFieldSchemaExpr[A, B, C]
 
@@ -105,7 +108,10 @@ object MigrationBuilderCompanion {
     def mandate[C](selector: A => C, defaultExpr: ValueExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.mandate[A, B, C]
 
-    /** @see [[MigrationBuilderCompanion.mandate]] — uses [[SchemaExpr.DefaultValue]]. */
+    /**
+     * Same as the overload taking [[ValueExpr]], but the default when
+     * unwrapping `None` is [[SchemaExpr.DefaultValue]].
+     */
     def mandate[C](selector: A => C, defaultExpr: SchemaExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.mandateSchemaExpr[A, B, C]
 
