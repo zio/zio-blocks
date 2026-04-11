@@ -2021,7 +2021,7 @@ object Email {
 
 The `Deriver` trait receives a `TypeId` for each node in the schema. Methods like `deriveRecord` and `deriveVariant` include a `typeId: TypeId[A]` parameter alongside fields/cases, bindings, documentation, modifiers, and more. This lets you inspect the type's structure, annotations, and relationships when generating code.
 
-For details on the full `Deriver` API and how to implement custom derivers, see the [Type Class Derivation](./type-class-derivation.md) reference.
+For details on the full `Deriver` API and how to implement custom derivers, see the [Type Class Derivation](./zio-blocks-schema/type-class-derivation.md) reference.
 
 ## Comparison with Alternatives
 

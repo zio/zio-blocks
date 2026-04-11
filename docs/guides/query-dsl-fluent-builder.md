@@ -962,7 +962,7 @@ println(renderSelect(orderQuery))
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** — Building query expressions with reified optics
 - **[Part 2: SQL Generation](./query-dsl-sql.md)** — Translating built-in expressions to SQL
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** — Adding custom operators beyond SchemaExpr
-- **[SchemaExpr Reference](../reference/schema-expr.md)** — Full API coverage of expression types
-- **[Optics Reference](../reference/optics.md)** — Lens, Prism, Optional, and Traversal
+- **[SchemaExpr Reference](../reference/zio-blocks-schema/schema-expr.md)** — Full API coverage of expression types
+- **[Optics Reference](../reference/zio-blocks-schema/optics.md)** — Lens, Prism, Optional, and Traversal
 
 The builder pattern shown here extends naturally to JOIN clauses (using lenses from multiple table types), subqueries (nesting `SelectStmt` in WHERE conditions), and parameterized queries (collecting `?` placeholders and parameter values during rendering). Each of these builds on the same foundation: optics for column names, `Expr` for conditions, and immutable builders for statement structure.

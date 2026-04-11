@@ -339,7 +339,7 @@ When `F[_, _] = NoBinding` in `Reflect[F[_, _], A]` the `Reflect` structure cont
 1. **Schema serialization**: Convert schemas to JSON Schema or other formats, making them portable
 2. **Schema rebinding**: Deserialize a schema and rebind it using a `TypeRegistry`, so it becomes type-safe and operational again
 
-We will cover schema serialization and rebinding in more detail in the `Reflect` data type documentation page. For the full API of the binding lookup mechanism used during rebinding, see [BindingResolver](./binding-resolver.md).
+We will cover schema serialization and rebinding in more detail in the `Reflect` data type documentation page. For the full API of the binding lookup mechanism used during rebinding, see [BindingResolver](../binding-resolver.md).
 
 ## Summary
 
