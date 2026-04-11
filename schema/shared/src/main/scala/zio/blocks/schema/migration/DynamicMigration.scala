@@ -97,7 +97,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    *   - `ChangeType(path, PrimitiveConvert(a, b))` ↔
    *     `ChangeType(path, PrimitiveConvert(b, a))`
    *   - `Join` ↔ `Split`
-   *   - `RenameCase(a, b)` ↔ `RenameCase(b, a)`
+   *   - `RenameCase(at, a, b)` ↔ `RenameCase(at, b, a)`
    *   - Lossy operations (`DropField`, `Constant`) reverse to `DefaultValue`,
    *     which requires schema context to evaluate.
    */
@@ -282,21 +282,54 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
         result <- value.setOrFail(path, newMap).left.map(e => MigrationError(e.message, path))
       } yield result
 
-    case MigrationAction.RenameCase(fromName, toName) =>
-      value match {
-        case v: DynamicValue.Variant if v.caseNameValue == fromName =>
-          Right(new DynamicValue.Variant(toName, v.value))
-        case _ =>
-          Right(value) // no-op when case name does not match
+    case MigrationAction.RenameCase(at, fromName, toName) =>
+      if (at.nodes.isEmpty) {
+        value match {
+          case v: DynamicValue.Variant if v.caseNameValue == fromName =>
+            Right(new DynamicValue.Variant(toName, v.value))
+          case _ =>
+            Right(value)
+        }
+      } else {
+        for {
+          focal <- value.get(at).one.left.map(e => MigrationError(e.message, at))
+          out <- focal match {
+                   case v: DynamicValue.Variant if v.caseNameValue == fromName =>
+                     Right(new DynamicValue.Variant(toName, v.value))
+                   case _ =>
+                     Right(focal)
+                 }
+          result <- value.setOrFail(at, out).left.map(e => MigrationError(e.message, at))
+        } yield result
       }
 
-    case MigrationAction.TransformCase(caseName, expr) =>
-      value match {
-        case v: DynamicValue.Variant if v.caseNameValue == caseName =>
-          evalUnaryExpr(expr, v.value)
-            .map(newVal => new DynamicValue.Variant(caseName, newVal))
-        case _ =>
-          Right(value) // no-op when case name does not match
+    case MigrationAction.TransformCase(at, caseName, inner) =>
+      if (at.nodes.isEmpty) {
+        value match {
+          case v: DynamicValue.Variant if v.caseNameValue == caseName =>
+            inner
+              .apply(v.value)
+              .map(newVal => new DynamicValue.Variant(caseName, newVal))
+              .left
+              .map(e => MigrationError(s"TransformCase: ${e.message}", at))
+          case _ =>
+            Right(value)
+        }
+      } else {
+        for {
+          focal <- value.get(at).one.left.map(e => MigrationError(e.message, at))
+          out <- focal match {
+                   case v: DynamicValue.Variant if v.caseNameValue == caseName =>
+                     inner
+                       .apply(v.value)
+                       .map(newVal => new DynamicValue.Variant(caseName, newVal))
+                       .left
+                       .map(e => MigrationError(s"TransformCase at ${at.toScalaString}: ${e.message}", at))
+                   case _ =>
+                     Right(focal)
+                 }
+          result <- value.setOrFail(at, out).left.map(e => MigrationError(e.message, at))
+        } yield result
       }
 
     case MigrationAction.ApplyMigration(path, migration) =>
@@ -639,11 +672,11 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
     case MigrationAction.TransformValues(path, expr) =>
       MigrationAction.TransformValues(path, reverseExpr(expr))
 
-    case MigrationAction.RenameCase(fromName, toName) =>
-      MigrationAction.RenameCase(toName, fromName)
+    case MigrationAction.RenameCase(at, fromName, toName) =>
+      MigrationAction.RenameCase(at, toName, fromName)
 
-    case MigrationAction.TransformCase(caseName, expr) =>
-      MigrationAction.TransformCase(caseName, reverseExpr(expr))
+    case MigrationAction.TransformCase(at, caseName, inner) =>
+      MigrationAction.TransformCase(at, caseName, inner.reverse)
 
     case MigrationAction.ApplyMigration(path, migration) =>
       MigrationAction.ApplyMigration(path, migration.reverse)
@@ -669,5 +702,13 @@ object DynamicMigration {
 
   /** A migration that applies no actions; the identity element for `++`. */
   val identity: DynamicMigration = new DynamicMigration(Chunk.empty)
+
+  /**
+   * A single-step migration that runs `expr` on the focal value (paths inside
+   * `expr`'s action use [[DynamicOptic.root]] relative to that value). Used to
+   * implement `transformCase` sugar from a [[ValueExpr]].
+   */
+  def transformPayload(expr: ValueExpr): DynamicMigration =
+    new DynamicMigration(Chunk.single(MigrationAction.TransformValue(DynamicOptic.root, expr)))
 
 }

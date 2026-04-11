@@ -590,8 +590,8 @@ object MigrationSpec extends SchemaBaseSpec {
       }
     ),
     suite("RenameCase")(
-      test("renames a matching variant case") {
-        val action = MigrationAction.RenameCase("Red", "Crimson")
+      test("renames a matching variant case at root") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
         val dv     = new DynamicValue.Variant("Red", new DynamicValue.Record(Chunk.empty))
         val result = new DynamicMigration(Chunk.single(action)).apply(dv)
         assert(result)(
@@ -603,20 +603,28 @@ object MigrationSpec extends SchemaBaseSpec {
         )
       },
       test("is a no-op when case name does not match") {
-        val action = MigrationAction.RenameCase("Red", "Crimson")
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
         val dv     = new DynamicValue.Variant("Blue", new DynamicValue.Record(Chunk.empty))
         assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
       }
     ),
     suite("TransformCase")(
-      test("transforms the inner value of a matching case") {
-        val action = MigrationAction.TransformCase("Some", ValueExpr.Constant(str("replaced")))
+      test("transforms the inner value of a matching case at root") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Some",
+          DynamicMigration.transformPayload(ValueExpr.Constant(str("replaced")))
+        )
         val dv     = new DynamicValue.Variant("Some", str("original"))
         val result = new DynamicMigration(Chunk.single(action)).apply(dv)
         assert(result)(isRight(equalTo(new DynamicValue.Variant("Some", str("replaced")))))
       },
       test("is a no-op when case name does not match") {
-        val action = MigrationAction.TransformCase("Some", ValueExpr.Constant(str("replaced")))
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Some",
+          DynamicMigration.transformPayload(ValueExpr.Constant(str("replaced")))
+        )
         val dv     = new DynamicValue.Variant("None", new DynamicValue.Record(Chunk.empty))
         assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
       }
@@ -668,9 +676,10 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("RenameCase reverses by swapping names") {
-        val m = new DynamicMigration(Chunk.single(MigrationAction.RenameCase("Red", "Crimson")))
+        val m = new DynamicMigration(Chunk.single(MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")))
         m.reverse.actions.head match {
-          case MigrationAction.RenameCase(f, t) =>
+          case MigrationAction.RenameCase(at, f, t) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
             assert(f)(equalTo("Crimson")) && assert(t)(equalTo("Red"))
           case other => assert(other.toString)(equalTo("RenameCase"))
         }
@@ -989,14 +998,20 @@ object MigrationSpec extends SchemaBaseSpec {
           case other => assert(other.toString)(equalTo("TransformValues"))
         }
       },
-      test("TransformCase reverses to TransformCase with reversed expr") {
+      test("TransformCase reverses inner DynamicMigration") {
+        val inner = DynamicMigration.transformPayload(ValueExpr.PrimitiveConvert(ptInt, ptLong))
         val m = new DynamicMigration(
-          Chunk.single(MigrationAction.TransformCase("Foo", ValueExpr.PrimitiveConvert(ptInt, ptLong)))
+          Chunk.single(MigrationAction.TransformCase(DynamicOptic.root, "Foo", inner))
         )
         m.reverse.actions.head match {
-          case MigrationAction.TransformCase("Foo", ValueExpr.PrimitiveConvert(f, t)) =>
-            assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
-            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+          case MigrationAction.TransformCase(at, "Foo", revInner) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            (revInner.actions.head match {
+              case MigrationAction.TransformValue(_, ValueExpr.PrimitiveConvert(f, t)) =>
+                assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
+                assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+              case other => assert(other.toString)(equalTo("TransformValue"))
+            })
           case other => assert(other.toString)(equalTo("TransformCase"))
         }
       },
@@ -1083,10 +1098,17 @@ object MigrationSpec extends SchemaBaseSpec {
         assert(rev.fromSchema)(equalTo(PersonV2.schema)) &&
         assert(rev.toSchema)(equalTo(PersonV1.schema))
       },
-      test("TransformCase with DefaultValue fails in resolveAction") {
-        val action = MigrationAction.TransformCase("Foo", ValueExpr.DefaultValue)
-        val m      = new Migration(PersonV1.schema, PersonV2.schema, new DynamicMigration(Chunk.single(action)))
-        assert(m.apply(PersonV1("Alice", 30)))(isLeft)
+      test("TransformCase nested inner migration runs multiple steps on payload") {
+        val inner = new DynamicMigration(
+          Chunk(
+            MigrationAction.TransformValue(DynamicOptic.root, ValueExpr.Constant(int(1))),
+            MigrationAction.TransformValue(DynamicOptic.root, ValueExpr.Constant(int(2)))
+          )
+        )
+        val action = MigrationAction.TransformCase(DynamicOptic.root, "U", inner)
+        val dv     = new DynamicValue.Variant("U", int(0))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(new DynamicValue.Variant("U", int(2)))))
       },
       test("MigrationError with path preserves path") {
         val path = DynamicOptic.root.field("x")
@@ -1324,25 +1346,37 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("RenameCase migration transforms enum variant") {
         val m = MigrationBuilder[Color, Color](Color.schema, Color.schema)
-          .renameCase("Red", "Crimson")
+          .renameCase((c: Color) => c, "Red", "Crimson")
           .buildPartial
         val result = m.apply(Red)
         assert(result)(isLeft) // Crimson is not a valid Color case, schema decode fails
       },
+      test("renameCase at nested field produces path-based RenameCase") {
+        val b = MigrationBuilder[Painted, Painted](Painted.schema, Painted.schema)
+          .renameCase(_.color, "Red", "Crimson")
+        b.actions.head match {
+          case MigrationAction.RenameCase(p, "Red", "Crimson") =>
+            assert(p)(equalTo(DynamicOptic.root.field("color")))
+          case other => assert(other.toString)(equalTo("RenameCase"))
+        }
+      },
       test("renameCase builder produces correct action") {
         val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
-          .renameCase("Red", "Crimson")
+          .renameCase((c: Color) => c, "Red", "Crimson")
         b.actions.head match {
-          case MigrationAction.RenameCase("Red", "Crimson") => assertCompletes
-          case other                                        => assert(other.toString)(equalTo("RenameCase"))
+          case MigrationAction.RenameCase(at, "Red", "Crimson") =>
+            assert(at)(equalTo(DynamicOptic.root))
+          case other => assert(other.toString)(equalTo("RenameCase"))
         }
       },
       test("transformCase builder produces correct action") {
         val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
-          .transformCase("Blue", ValueExpr.Constant(str("replaced")))
+          .transformCase((c: Color) => c, "Blue", ValueExpr.Constant(str("replaced")))
         b.actions.head match {
-          case MigrationAction.TransformCase("Blue", _) => assertCompletes
-          case other                                    => assert(other.toString)(equalTo("TransformCase"))
+          case MigrationAction.TransformCase(at, "Blue", inner) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            assert(inner.actions.length)(equalTo(1))
+          case other => assert(other.toString)(equalTo("TransformCase"))
         }
       },
       test("Migration.andThen law: equal to sequential apply") {
@@ -1462,10 +1496,9 @@ object MigrationSpec extends SchemaBaseSpec {
             .elements
         )(equalTo(Chunk.from(List(long(1L), long(2L), long(3L)))))
       },
-      test("RenameCase is no-op on non-Variant") {
-        val action = MigrationAction.RenameCase("Red", "Crimson")
+      test("RenameCase is no-op when focal is not a Variant") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root.field("color"), "Red", "Crimson")
         val dv     = rec("color" -> str("Red"))
-        // RenameCase at root on a Record: not a Variant, so it's a no-op
         assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
       },
       test("structural reverse preserves action count for all 17 action types") {
@@ -1486,8 +1519,12 @@ object MigrationSpec extends SchemaBaseSpec {
           MigrationAction.TransformElements(path, ValueExpr.Constant(int(0))),
           MigrationAction.TransformKeys(path, ValueExpr.Constant(str("k"))),
           MigrationAction.TransformValues(path, ValueExpr.Constant(int(0))),
-          MigrationAction.RenameCase("A", "B"),
-          MigrationAction.TransformCase("A", ValueExpr.Constant(int(0))),
+          MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            "A",
+            DynamicMigration.transformPayload(ValueExpr.Constant(int(0)))
+          ),
           MigrationAction.ApplyMigration(path, subM),
           MigrationAction.CopyField(path, path2),
           MigrationAction.MoveField(path, path2)
@@ -2100,18 +2137,22 @@ object MigrationSpec extends SchemaBaseSpec {
         }
       },
       test("renameCase builds RenameCase action") {
-        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema).renameCase("Red", "Crimson")
+        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .renameCase((c: Color) => c, "Red", "Crimson")
         b.actions.head match {
-          case MigrationAction.RenameCase(f, t) => assert(f)(equalTo("Red")) && assert(t)(equalTo("Crimson"))
-          case other                            => assert(other.toString)(equalTo("RenameCase"))
+          case MigrationAction.RenameCase(at, f, t) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            assert(f)(equalTo("Red")) && assert(t)(equalTo("Crimson"))
+          case other => assert(other.toString)(equalTo("RenameCase"))
         }
       },
       test("transformCase builds TransformCase action") {
         val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
-          .transformCase("Blue", ValueExpr.Constant(str("blue")))
+          .transformCase((c: Color) => c, "Blue", ValueExpr.Constant(str("blue")))
         b.actions.head match {
-          case MigrationAction.TransformCase(n, _) => assert(n)(equalTo("Blue"))
-          case other                               => assert(other.toString)(equalTo("TransformCase"))
+          case MigrationAction.TransformCase(at, n, _) =>
+            assert(at)(equalTo(DynamicOptic.root)) && assert(n)(equalTo("Blue"))
+          case other => assert(other.toString)(equalTo("TransformCase"))
         }
       },
       test("migrateFieldAt builds ApplyMigration action") {
@@ -2544,8 +2585,12 @@ object MigrationSpec extends SchemaBaseSpec {
         val dv = new DynamicValue.Variant("Old", str("payload"))
         val m  = new DynamicMigration(
           Chunk(
-            MigrationAction.RenameCase("Old", "New"),
-            MigrationAction.TransformCase("New", ValueExpr.Constant(str("updated")))
+            MigrationAction.RenameCase(DynamicOptic.root, "Old", "New"),
+            MigrationAction.TransformCase(
+              DynamicOptic.root,
+              "New",
+              DynamicMigration.transformPayload(ValueExpr.Constant(str("updated")))
+            )
           )
         )
         val result = m.apply(dv)
@@ -2739,12 +2784,20 @@ object MigrationSpec extends SchemaBaseSpec {
           case other                           => assert(other.toString)(equalTo("MoveField"))
         })
       },
-      test("DefaultValue in TransformCase fails in resolveAction with clear message") {
-        val action = MigrationAction.TransformCase("Foo", ValueExpr.DefaultValue)
-        val m      = new Migration(PersonV1.schema, PersonV1.schema, new DynamicMigration(Chunk.single(action)))
-        val result = m.apply(PersonV1("Alice", 30))
-        assert(result)(isLeft) &&
-        assert(result.left.toOption.map(_.message))(isSome(containsString("TransformCase")))
+      test("TransformCase at nested path runs inner migration on variant payload") {
+        val inner  = DynamicMigration.transformPayload(ValueExpr.Constant(str("ok")))
+        val action = MigrationAction.TransformCase(DynamicOptic.root.field("label"), "Some", inner)
+        val dv     = rec("id" -> int(1), "label" -> new DynamicValue.Variant("Some", str("old")))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "label")
+            .get
+            ._2
+        )(equalTo(new DynamicValue.Variant("Some", str("ok"))))
       }
     )
   )

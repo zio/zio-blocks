@@ -22,17 +22,6 @@
           }
         ]
       }
-    ],
-    "PreCommit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "code-review-graph detect-changes --brief",
-            "timeout": 10000
-          }
-        ]
-      }
     ]
   }
 }

@@ -37,6 +37,10 @@ object ValueExpr {
    * Signals that the field's default value should be sourced from the target
    * schema at runtime. Used in [[MigrationAction.AddField]] and
    * [[MigrationAction.Mandate]] when no explicit default is provided.
+   *
+   * For the macro DSL, prefer [[SchemaExpr.DefaultValue]] with `addField` and
+   * `mandate`; this case remains the wire encoding for reverse migrations and
+   * nested [[DynamicMigration]] steps.
    */
   case object DefaultValue extends ValueExpr
 
@@ -254,29 +258,33 @@ object MigrationAction {
   ) extends MigrationAction
 
   /**
-   * Renames a [[DynamicValue.Variant]] case from `fromName` to `toName`.
+   * Renames a [[DynamicValue.Variant]] case from `fromName` to `toName` at the
+   * value addressed by `at`.
    *
-   * If the value at the root is not a `Variant` with case name `fromName`, the
+   * If the value at `at` is not a `Variant` with case name `fromName`, the
    * action is a no-op.
    *
    * Reverse: [[RenameCase]] with `fromName` and `toName` swapped.
    */
   final case class RenameCase(
+    at: DynamicOptic,
     fromName: String,
     toName: String
   ) extends MigrationAction
 
   /**
-   * Applies `expr` to the inner value of a [[DynamicValue.Variant]] whose case
-   * name matches `caseName`.
+   * Applies `inner` to the payload of a [[DynamicValue.Variant]] at `at` when its
+   * case name matches `caseName`. Paths inside `inner` are relative to that
+   * payload (typically starting with [[DynamicOptic.root]]).
    *
-   * If the variant's case name does not match, the action is a no-op.
+   * If the value at `at` is not a matching variant, the action is a no-op.
    *
-   * Reverse: [[TransformCase]] with the inverse of `expr`, if one exists.
+   * Reverse: [[TransformCase]] with `inner.reverse`.
    */
   final case class TransformCase(
+    at: DynamicOptic,
     caseName: String,
-    expr: ValueExpr
+    inner: DynamicMigration
   ) extends MigrationAction
 
   /**

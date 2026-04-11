@@ -68,3 +68,7 @@ scope-examples/src/main/scala/scope/examples/MyApp.scala
 .ck/
 .ckignore
 .cqs/
+.claude
+.cursor
+.code-review-graph
+.codex

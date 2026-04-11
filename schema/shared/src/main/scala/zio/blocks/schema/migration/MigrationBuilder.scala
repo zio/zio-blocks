@@ -180,16 +180,30 @@ final class MigrationBuilder[A, B](
     withAction(MigrationAction.TransformValues(path, expr))
 
   /**
-   * Appends a [[MigrationAction.RenameCase]] action.
+   * Appends a [[MigrationAction.RenameCase]] at the given path.
    */
-  def renameCase(fromName: String, toName: String): MigrationBuilder[A, B] =
-    withAction(MigrationAction.RenameCase(fromName, toName))
+  def renameCaseAt(at: DynamicOptic, fromName: String, toName: String): MigrationBuilder[A, B] =
+    withAction(MigrationAction.RenameCase(at, fromName, toName))
 
   /**
-   * Appends a [[MigrationAction.TransformCase]] action.
+   * Appends a [[MigrationAction.TransformCase]] that runs `inner` on the
+   * payload of the variant at `at` when its case name matches `caseName`.
    */
-  def transformCase(caseName: String, expr: ValueExpr): MigrationBuilder[A, B] =
-    withAction(MigrationAction.TransformCase(caseName, expr))
+  def transformCaseAt(at: DynamicOptic, caseName: String, inner: DynamicMigration): MigrationBuilder[A, B] =
+    withAction(MigrationAction.TransformCase(at, caseName, inner))
+
+  /**
+   * Same as [[transformCaseAt]] with a single [[ValueExpr]] applied to the case
+   * payload (see [[DynamicMigration.transformPayload]]).
+   */
+  def transformCaseExprAt(at: DynamicOptic, caseName: String, expr: ValueExpr): MigrationBuilder[A, B] =
+    transformCaseAt(at, caseName, DynamicMigration.transformPayload(expr))
+
+  /**
+   * Validates accumulated actions the same way as [[build]], but returns errors
+   * instead of throwing.
+   */
+  def validate: Either[Chunk[String], Unit] = validateBuild()
 
   /**
    * Appends an [[MigrationAction.ApplyMigration]] action using an explicit
@@ -231,6 +245,13 @@ final class MigrationBuilder[A, B](
    * [[DynamicMigration]] wrapping a snapshot of the current `actions`. Further
    * calls to `withAction` on this builder do not affect the returned
    * `Migration`.
+   *
+   * Validation uses the concrete [[Schema]] instances on this builder (paths
+   * are checked with [[Schema.get]]). Macro DSL methods already expand selector
+   * lambdas to [[DynamicOptic]] at compile time; they do not, on their own,
+   * prove that those paths exist in every possible runtime schema value—call
+   * `build` (or inspect [[validate]]) to catch incompatible schemas before
+   * applying the migration.
    */
   def build: Migration[A, B] =
     validateBuild().fold(
@@ -292,6 +313,18 @@ final class MigrationBuilder[A, B](
           Chunk.single(s"$prefix: source schema has no node at ${path.toScalaString}")
       }
 
+    def expectTarget(
+      path: DynamicOptic,
+      label: String
+    )(predicate: Reflect.Bound[_] => Boolean, expected: String): Chunk[String] =
+      toSchema.get(path) match {
+        case Some(reflect) if predicate(reflect) => Chunk.empty
+        case Some(_)                             =>
+          Chunk.single(s"$prefix: target $label at ${path.toScalaString} must be $expected")
+        case None =>
+          Chunk.single(s"$prefix: target schema has no node at ${path.toScalaString}")
+      }
+
     action match {
       case MigrationAction.AddField(path, _) =>
         missingTarget(path)
@@ -335,11 +368,13 @@ final class MigrationBuilder[A, B](
       case MigrationAction.TransformValues(path, _) =>
         expectSource(path, "path")(_.isMap, "a map")
 
-      case MigrationAction.RenameCase(_, _) =>
-        Chunk.empty
+      case MigrationAction.RenameCase(at, _, _) =>
+        expectSource(at, "path")(_.isVariant, "a variant") ++
+          expectTarget(at, "path")(_.isVariant, "a variant")
 
-      case MigrationAction.TransformCase(_, _) =>
-        Chunk.empty
+      case MigrationAction.TransformCase(at, _, _) =>
+        expectSource(at, "path")(_.isVariant, "a variant") ++
+          expectTarget(at, "path")(_.isVariant, "a variant")
 
       case MigrationAction.ApplyMigration(path, _) =>
         missingSource(path)

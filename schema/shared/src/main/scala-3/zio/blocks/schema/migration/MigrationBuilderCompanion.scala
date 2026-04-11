@@ -34,7 +34,7 @@ package zio.blocks.schema.migration
  * MigrationBuilder[UserV1, UserV2](v1Schema, v2Schema)
  *   .renameField(_.name, "fullName")
  *   .dropField(_.legacyId)
- *   .addField(_.age, ValueExpr.DefaultValue)
+ *   .addField(_.age, SchemaExpr.DefaultValue)
  *   .build
  * }}}
  */
@@ -84,6 +84,16 @@ object MigrationBuilderCompanion {
       ${ MigrationBuilderCompanionMacros.addFieldImpl[A, B, C]('builder, 'selector, 'defaultValue) }
 
     /**
+     * Like [[addField]] with [[SchemaExpr.DefaultValue]] as the field
+     * initializer (target-schema default at that path).
+     */
+    transparent inline def addField[C](
+      inline selector: B => C,
+      inline defaultExpr: SchemaExpr
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.addFieldSchemaExprImpl[A, B, C]('builder, 'selector, 'defaultExpr) }
+
+    /**
      * Removes the field at the path described by `selector` from the source
      * record.
      */
@@ -118,6 +128,13 @@ object MigrationBuilderCompanion {
      */
     transparent inline def mandate[C](inline selector: A => C, inline defaultExpr: ValueExpr): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.mandateImpl[A, B, C]('builder, 'selector, 'defaultExpr) }
+
+    /**
+     * Like [[mandate]] with [[SchemaExpr.DefaultValue]] when the optional is
+     * `None`.
+     */
+    transparent inline def mandate[C](inline selector: A => C, inline defaultExpr: SchemaExpr): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.mandateSchemaExprImpl[A, B, C]('builder, 'selector, 'defaultExpr) }
 
     /**
      * Optionalizes a required field at the path described by `selector`,
@@ -251,6 +268,38 @@ object MigrationBuilderCompanion {
       inline toSelector: B => C
     ): MigrationBuilder[A, B] =
       ${ MigrationBuilderCompanionMacros.moveFieldImpl[A, B, C]('builder, 'fromSelector, 'toSelector) }
+
+    /**
+     * Renames an enumeration / variant case at the path given by `selector`.
+     */
+    transparent inline def renameCase[C](
+      inline selector: A => C,
+      inline fromName: String,
+      inline toName: String
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.renameCaseImpl[A, B, C]('builder, 'selector, 'fromName, 'toName) }
+
+    /**
+     * Transforms the payload of variant case `caseName` at `selector` using a
+     * single [[ValueExpr]] (sugar over [[DynamicMigration.transformPayload]]).
+     */
+    transparent inline def transformCase[C](
+      inline selector: A => C,
+      inline caseName: String,
+      inline expr: ValueExpr
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.transformCaseExprImpl[A, B, C]('builder, 'selector, 'caseName, 'expr) }
+
+    /**
+     * Transforms the payload of variant case `caseName` at `selector` using a
+     * nested [[DynamicMigration]] (multiple steps on the case payload).
+     */
+    transparent inline def transformCaseNested[C](
+      inline selector: A => C,
+      inline caseName: String,
+      inner: DynamicMigration
+    ): MigrationBuilder[A, B] =
+      ${ MigrationBuilderCompanionMacros.transformCaseNestedImpl[A, B, C]('builder, 'selector, 'caseName, 'inner) }
   }
 }
 
@@ -264,6 +313,21 @@ private[migration] object MigrationBuilderCompanionMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[B, C](selector)
     '{ $builder.addFieldAt($path, $defaultValue) }
+  }
+
+  def addFieldSchemaExprImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[B => C],
+    defaultExpr: Expr[SchemaExpr]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    defaultExpr match {
+      case '{ SchemaExpr.DefaultValue } =>
+        val path = MigrationMacros.selectorToDynamicOptic[B, C](selector)
+        '{ $builder.addFieldAt($path, ValueExpr.DefaultValue) }
+      case _ =>
+        report.errorAndAbort(s"Unsupported SchemaExpr: ${defaultExpr.show}")
+    }
   }
 
   def dropFieldImpl[A: Type, B: Type, C: Type](
@@ -299,6 +363,21 @@ private[migration] object MigrationBuilderCompanionMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
     '{ $builder.mandateAt($path, $defaultExpr) }
+  }
+
+  def mandateSchemaExprImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
+    defaultExpr: Expr[SchemaExpr]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    defaultExpr match {
+      case '{ SchemaExpr.DefaultValue } =>
+        val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
+        '{ $builder.mandateAt($path, ValueExpr.DefaultValue) }
+      case _ =>
+        report.errorAndAbort(s"Unsupported SchemaExpr: ${defaultExpr.show}")
+    }
   }
 
   def optionalizeImpl[A: Type, B: Type, C: Type](
@@ -398,5 +477,35 @@ private[migration] object MigrationBuilderCompanionMacros {
     val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](fromSelector)
     val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](toSelector)
     '{ $builder.moveFieldAt($fromPath, $toPath) }
+  }
+
+  def renameCaseImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
+    fromName: Expr[String],
+    toName: Expr[String]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
+    '{ $builder.renameCaseAt($path, $fromName, $toName) }
+  }
+
+  def transformCaseExprImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
+    caseName: Expr[String],
+    expr: Expr[ValueExpr]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
+    '{ $builder.transformCaseExprAt($path, $caseName, $expr) }
+  }
+
+  def transformCaseNestedImpl[A: Type, B: Type, C: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => C],
+    caseName: Expr[String],
+    inner: Expr[DynamicMigration]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](selector)
+    '{ $builder.transformCaseAt($path, $caseName, $inner) }
   }
 }

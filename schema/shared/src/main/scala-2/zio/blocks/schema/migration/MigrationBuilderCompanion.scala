@@ -74,6 +74,10 @@ object MigrationBuilderCompanion {
     def addField[C](selector: B => C, defaultValue: ValueExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.addField[A, B, C]
 
+    /** @see [[MigrationBuilderCompanion.addField]] — uses [[SchemaExpr.DefaultValue]]. */
+    def addField[C](selector: B => C, defaultExpr: SchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.addFieldSchemaExpr[A, B, C]
+
     /**
      * Removes the field at the path described by `selector` from the source
      * record.
@@ -100,6 +104,10 @@ object MigrationBuilderCompanion {
      */
     def mandate[C](selector: A => C, defaultExpr: ValueExpr): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.mandate[A, B, C]
+
+    /** @see [[MigrationBuilderCompanion.mandate]] — uses [[SchemaExpr.DefaultValue]]. */
+    def mandate[C](selector: A => C, defaultExpr: SchemaExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.mandateSchemaExpr[A, B, C]
 
     /**
      * Optionalizes a required field at the path described by `selector`,
@@ -184,6 +192,15 @@ object MigrationBuilderCompanion {
      */
     def moveField[C](fromSelector: A => C, toSelector: B => C): MigrationBuilder[A, B] =
       macro MigrationBuilderCompanionMacros.moveField[A, B, C]
+
+    def renameCase[C](selector: A => C, fromName: String, toName: String): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.renameCase[A, B, C]
+
+    def transformCase[C](selector: A => C, caseName: String, expr: ValueExpr): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.transformCaseExpr[A, B, C]
+
+    def transformCaseNested[C](selector: A => C, caseName: String, inner: DynamicMigration): MigrationBuilder[A, B] =
+      macro MigrationBuilderCompanionMacros.transformCaseNested[A, B, C]
   }
 }
 
@@ -206,6 +223,17 @@ private[migration] object MigrationBuilderCompanionMacros {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[B, C](c)(selector)
     q"${c.prefix}.builder.addFieldAt($path, $defaultValue)"
+  }
+
+  def addFieldSchemaExpr[A, B, C](c: whitebox.Context)(
+    selector: c.Expr[B => C],
+    defaultExpr: c.Expr[SchemaExpr]
+  ): c.Tree = {
+    import c.universe._
+    if (defaultExpr.tree.isEmpty)
+      c.abort(c.enclosingPosition, "SchemaExpr argument is required")
+    val path = MigrationMacros.selectorToDynamicOptic[B, C](c)(selector)
+    q"${c.prefix}.builder.addFieldAt($path, _root_.zio.blocks.schema.migration.ValueExpr.DefaultValue)"
   }
 
   def dropField[A, B, C](c: whitebox.Context)(
@@ -241,6 +269,17 @@ private[migration] object MigrationBuilderCompanionMacros {
     import c.universe._
     val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
     q"${c.prefix}.builder.mandateAt($path, $defaultExpr)"
+  }
+
+  def mandateSchemaExpr[A, B, C](c: whitebox.Context)(
+    selector: c.Expr[A => C],
+    defaultExpr: c.Expr[SchemaExpr]
+  ): c.Tree = {
+    import c.universe._
+    if (defaultExpr.tree.isEmpty)
+      c.abort(c.enclosingPosition, "SchemaExpr argument is required")
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
+    q"${c.prefix}.builder.mandateAt($path, _root_.zio.blocks.schema.migration.ValueExpr.DefaultValue)"
   }
 
   def optionalize[A, B, C](c: whitebox.Context)(
@@ -340,5 +379,35 @@ private[migration] object MigrationBuilderCompanionMacros {
     val fromPath = MigrationMacros.selectorToDynamicOptic[A, C](c)(fromSelector)
     val toPath   = MigrationMacros.selectorToDynamicOptic[B, C](c)(toSelector)
     q"${c.prefix}.builder.moveFieldAt($fromPath, $toPath)"
+  }
+
+  def renameCase[A, B, C](c: whitebox.Context)(
+    selector: c.Expr[A => C],
+    fromName: c.Expr[String],
+    toName: c.Expr[String]
+  ): c.Tree = {
+    import c.universe._
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
+    q"${c.prefix}.builder.renameCaseAt($path, $fromName, $toName)"
+  }
+
+  def transformCaseExpr[A, B, C](c: whitebox.Context)(
+    selector: c.Expr[A => C],
+    caseName: c.Expr[String],
+    expr: c.Expr[ValueExpr]
+  ): c.Tree = {
+    import c.universe._
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
+    q"${c.prefix}.builder.transformCaseExprAt($path, $caseName, $expr)"
+  }
+
+  def transformCaseNested[A, B, C](c: whitebox.Context)(
+    selector: c.Expr[A => C],
+    caseName: c.Expr[String],
+    inner: c.Expr[DynamicMigration]
+  ): c.Tree = {
+    import c.universe._
+    val path = MigrationMacros.selectorToDynamicOptic[A, C](c)(selector)
+    q"${c.prefix}.builder.transformCaseAt($path, $caseName, $inner)"
   }
 }

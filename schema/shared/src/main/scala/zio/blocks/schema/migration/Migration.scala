@@ -31,10 +31,12 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Reflect, Schema}
  *      inner `DynamicMigration`, then converts `DynamicValue → B`, surfacing
  *      [[SchemaError]]s as [[MigrationError]]s.
  *   2. '''Default-value resolution''': any [[ValueExpr.DefaultValue]] inside
- *      the migration is resolved against `toSchema` before the inner
- *      `DynamicMigration` runs. This means `DynamicMigration` never has to deal
- *      with `DefaultValue` at runtime — it either sees a concrete
- *      [[ValueExpr.Constant]] or the action fails cleanly before execution.
+ *      the migration (including nested [[MigrationAction.ApplyMigration]] /
+ *      [[MigrationAction.TransformCase]] steps) is resolved against `toSchema`
+ *      before the inner `DynamicMigration` runs. The macro DSL surfaces this
+ *      as [[SchemaExpr.DefaultValue]] for `addField` and `mandate`. After
+ *      resolution, `DynamicMigration` only sees concrete [[ValueExpr.Constant]]
+ *      nodes (or fails before execution).
  *
  * ==Laws==
  *   - Identity: `Migration.identity[A].apply(a) == Right(a)` for all `a` and
@@ -112,8 +114,9 @@ final class Migration[A, B](
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Replaces every [[ValueExpr.DefaultValue]] in `actions` with a concrete
-   * [[ValueExpr.Constant]] sourced from `toSchema`.
+   * Replaces every [[ValueExpr.DefaultValue]] in `actions` (including inside
+   * nested [[MigrationAction.ApplyMigration]] and [[MigrationAction.TransformCase]]
+   * pipelines) with a concrete [[ValueExpr.Constant]] sourced from `toSchema`.
    *
    * Resolution strategy:
    *   - Navigate `toSchema` to the sub-reflect at the action's path.
@@ -125,11 +128,21 @@ final class Migration[A, B](
     actions: Chunk[MigrationAction]
   ): Either[MigrationError, Chunk[MigrationAction]] =
     actions.foldLeft[Either[MigrationError, Chunk[MigrationAction]]](Right(Chunk.empty)) {
-      case (Right(acc), action) => resolveAction(action).map(acc :+ _)
+      case (Right(acc), action) => resolveOne(action).map(acc :+ _)
       case (left, _)            => left
     }
 
-  private def resolveAction(action: MigrationAction): Either[MigrationError, MigrationAction] = action match {
+  private def resolveOne(action: MigrationAction): Either[MigrationError, MigrationAction] = action match {
+
+    case MigrationAction.ApplyMigration(path, dm) =>
+      resolveActions(dm.actions).map(resolved =>
+        MigrationAction.ApplyMigration(path, new DynamicMigration(resolved))
+      )
+
+    case MigrationAction.TransformCase(at, caseName, dm) =>
+      resolveActions(dm.actions).map(resolved =>
+        MigrationAction.TransformCase(at, caseName, new DynamicMigration(resolved))
+      )
 
     case MigrationAction.AddField(path, ValueExpr.DefaultValue) =>
       resolveDefaultAt(path).map(dv => MigrationAction.AddField(path, ValueExpr.Constant(dv)))
@@ -148,15 +161,6 @@ final class Migration[A, B](
 
     case MigrationAction.TransformValues(path, ValueExpr.DefaultValue) =>
       resolveDefaultAt(path).map(dv => MigrationAction.TransformValues(path, ValueExpr.Constant(dv)))
-
-    case MigrationAction.TransformCase(caseName, ValueExpr.DefaultValue) =>
-      // TransformCase has no single path; require an explicit constant
-      Left(
-        MigrationError(
-          s"DefaultValue cannot be resolved for TransformCase('$caseName'): " +
-            "supply an explicit ValueExpr.Constant instead"
-        )
-      )
 
     case other =>
       Right(other)
