@@ -36,10 +36,17 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case None => Right(value)
         }
 
+      case ChangeType(at, _, _) =>
+        // Primitive -> primitive: keep value as-is (DynamicValue handles type)
+        getPath(value, at.segments.toList) match {
+          case Some(v) => Right(setPath(value, at.segments.toList, v))
+          case None => Right(value)
+        }
+
       case Mandate(at, default) =>
         getPath(value, at.segments.toList) match {
           case Some(DynamicValue.NoneValue) | None => eval(default).map(dv => setPath(value, at.segments.toList, dv))
-          case Some(v) => Right(value)
+          case Some(_) => Right(value)
         }
 
       case Optionalize(at) =>
@@ -48,13 +55,12 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case None => Right(value)
         }
 
-      // Stubs para os outros 7 (ficam para #671)
       case _ => Right(value)
     }
 
   private def eval(expr: SchemaExpr[?,?]): Either[MigrationError, DynamicValue] = expr match {
     case SchemaExpr.DefaultValue => Right(Primitive(null))
-    case SchemaExpr.Const(v) => Right(DynamicValue.fromAny(v))
+    case SchemaExpr.Const(v) => Right(Primitive(v))
   }
 
   private def getPath(v: DynamicValue, path: List[String]): Option[DynamicValue] = (v, path) match {

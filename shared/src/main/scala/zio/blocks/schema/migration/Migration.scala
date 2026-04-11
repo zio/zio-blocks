@@ -9,7 +9,7 @@ final case class Migration[A, B](
 ) {
   def apply(value: A): Either[MigrationError, B] =
     toDynamic(schemaA.toDynamic(value))
-     .flatMap(_.toTypedValue(schemaB).left.map(e => MigrationError(e.toString)))
+     .flatMap(_.toTypedValue(schemaB).left.map(err => MigrationError(err.toString)))
 
   def ++[C](that: Migration[B, C]): Migration[A, C] =
     Migration(toDynamic ++ that.toDynamic, schemaA, that.schemaB)

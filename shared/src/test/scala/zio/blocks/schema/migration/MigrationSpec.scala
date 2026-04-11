@@ -15,7 +15,6 @@ object MigrationSpec extends ZIOSpecDefault {
       val migration = Migration.newBuilder[PersonV0, Person]
        .addField(_.age, SchemaExpr.Const(0))
        .build
-
       val result = migration(PersonV0("Eliene"))
       assertTrue(result == Right(Person("Eliene", 0)))
     },
@@ -23,9 +22,20 @@ object MigrationSpec extends ZIOSpecDefault {
       val migration = Migration.newBuilder[Person, PersonV0]
        .dropField(_.age)
        .build
-
       val result = migration(Person("Eliene", 30))
       assertTrue(result == Right(PersonV0("Eliene")))
+    },
+    test("rename field") {
+      case class Old(n: String)
+      case class New(name: String)
+      implicit val s1: Schema[Old] = Schema.derived
+      implicit val s2: Schema[New] = Schema.derived
+
+      val migration = Migration.newBuilder[Old, New]
+       .rename(_.n, "name")
+       .build
+      val result = migration(Old("test"))
+      assertTrue(result == Right(New("test")))
     }
   )
 }
