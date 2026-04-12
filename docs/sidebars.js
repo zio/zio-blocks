@@ -11,31 +11,73 @@ const sidebars = {
            label: "ZIO Blocks Schema",
            link: { type: "doc", id: "reference/schema/schema-index" },
            items: [
-             "reference/schema/allows",
-             "reference/schema/binding",
-             "reference/schema/codec",
-             "reference/schema/dynamic-optic",
-             "reference/schema/dynamic-schema",
-             "reference/schema/dynamic-value",
-             "reference/schema/formats",
-             "reference/schema/json",
-             "reference/schema/json-differ",
-             "reference/schema/json-patch",
-             "reference/schema/json-schema",
-             "reference/schema/lazy",
-             "reference/schema/modifier",
-             "reference/schema/optics",
-             "reference/schema/patch",
-             "reference/schema/reflect",
-             "reference/schema/registers",
-             "reference/schema/schema",
-             "reference/schema/schema-error",
-             "reference/schema/schema-expr",
-             "reference/schema/structural-types",
-             "reference/schema/syntax",
-             "reference/schema/type-class-derivation",
-             "reference/schema/validation",
-             "reference/schema/xml",
+             {
+               type: "category",
+               label: "Core Type System",
+               collapsed: false,
+               items: [
+                 "reference/schema/schema",
+                 "reference/schema/reflect",
+                 "reference/schema/binding",
+                 "reference/schema/registers",
+                 "reference/schema/structural-types",
+               ]
+             },
+             {
+               type: "category",
+               label: "Dynamic & Runtime Data",
+               collapsed: false,
+               items: [
+                 "reference/schema/dynamic-value",
+                 "reference/schema/dynamic-schema",
+                 "reference/schema/lazy",
+               ]
+             },
+             {
+               type: "category",
+               label: "Navigation & Transformation",
+               collapsed: false,
+               items: [
+                 "reference/schema/optics",
+                 "reference/schema/dynamic-optic",
+                 "reference/schema/schema-expr",
+                 "reference/schema/patch",
+                 "reference/schema/modifier",
+               ]
+             },
+             {
+               type: "category",
+               label: "Serialization",
+               collapsed: false,
+               items: [
+                 "reference/schema/codec",
+                 "reference/schema/formats",
+                 "reference/schema/type-class-derivation",
+                 "reference/schema/syntax",
+               ]
+             },
+             {
+               type: "category",
+               label: "Formats",
+               collapsed: false,
+               items: [
+                 "reference/schema/json",
+                 "reference/schema/json-patch",
+                 "reference/schema/json-differ",
+                 "reference/schema/json-schema",
+                 "reference/schema/xml",
+               ]
+             },
+             {
+               type: "category",
+               label: "Validation & Errors",
+               collapsed: false,
+               items: [
+                 "reference/schema/validation",
+                 "reference/schema/schema-error",
+                 "reference/schema/allows",
+               ]
+             },
            ]
          },
          "reference/binding-resolver",
