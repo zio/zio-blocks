@@ -466,4 +466,4 @@ val rebound: Schema[Address] = Schema[Address].toDynamicSchema.rebind[Address](r
 If `DynamicSchema#rebind` cannot find a binding for any type present in the unbound schema tree, it throws at runtime. Make sure the resolver covers every concrete type—records, variants, wrappers, primitives, and collections—that appears in the schema.
 :::
 
-See [Binding](./binding.md) for details on each binding kind, and [Schema](./schema.md) for the overall structure of the schema system.
+See [Binding](./schema/binding.md) for details on each binding kind, and [Schema](./schema/schema.md) for the overall structure of the schema system.
