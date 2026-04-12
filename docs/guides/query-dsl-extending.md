@@ -737,7 +737,7 @@ println(s"SELECT name, price, ${exprToSql(tier)} AS tier FROM products")
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 2: SQL Generation](./query-dsl-sql.md)** -- Translating built-in expressions to SQL
 - **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
-- **[SchemaExpr Reference](../reference/zio-blocks-schema/schema-expr.md)** -- Full API coverage of expression types
-- **[Optics Reference](../reference/zio-blocks-schema/optics.md)** -- Lens, Prism, Optional, and Traversal
+- **[SchemaExpr Reference](../reference/schema/schema-expr.md)** -- Full API coverage of expression types
+- **[Optics Reference](../reference/schema/optics.md)** -- Lens, Prism, Optional, and Traversal
 
 The translation pattern shown here extends to any domain where `SchemaExpr` falls short. The same approach works for MongoDB operators (`$in`, `$exists`, `$elemMatch`), Elasticsearch queries (`terms`, `range`, `exists`), or GraphQL filters. Define an independent ADT, provide a `fromSchemaExpr` translation, add your domain-specific nodes, and write a single unified interpreter.

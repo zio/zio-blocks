@@ -583,36 +583,36 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Core Schema Concepts
 
-- [Schema](./reference/zio-blocks-schema/schema.md) - Core schema definitions and derivation
-- [Allows](./reference/zio-blocks-schema/allows.md) - Compile-time structural grammar constraints
-- [Reflect](./reference/zio-blocks-schema/reflect.md) - Structural reflection API
-- [Binding](./reference/zio-blocks-schema/binding.md) - Runtime constructors and deconstructors
+- [Schema](./reference/schema/schema.md) - Core schema definitions and derivation
+- [Allows](./reference/schema/allows.md) - Compile-time structural grammar constraints
+- [Reflect](./reference/schema/reflect.md) - Structural reflection API
+- [Binding](./reference/schema/binding.md) - Runtime constructors and deconstructors
 - [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
-- [Registers](./reference/zio-blocks-schema/registers.md) - Register-based primitive storage
+- [Registers](./reference/schema/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
 
-- [Optics](./reference/zio-blocks-schema/optics.md) - Lenses, prisms, and traversals
-- [SchemaExpr](./reference/zio-blocks-schema/schema-expr.md) - Schema-aware expressions for queries and validation
+- [Optics](./reference/schema/optics.md) - Lenses, prisms, and traversals
+- [SchemaExpr](./reference/schema/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
-- [DynamicValue](./reference/zio-blocks-schema/dynamic-value.md) - Schema-less dynamic values
-- [DynamicSchema](./reference/zio-blocks-schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
+- [DynamicValue](./reference/schema/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
-- [Codec & Format](./reference/zio-blocks-schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](./reference/zio-blocks-schema/json.md) - JSON codec and parsing
-- [JsonPatch](./reference/zio-blocks-schema/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](./reference/zio-blocks-schema/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](./reference/zio-blocks-schema/json-schema.md) - JSON Schema generation and validation
-- [Formats](./reference/zio-blocks-schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
-- [Extension Syntax](./reference/zio-blocks-schema/syntax.md) - `.toJson`, `.fromJson`, and more
+- [Codec & Format](./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
+- [JSON](./reference/schema/json.md) - JSON codec and parsing
+- [JsonPatch](./reference/schema/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
+- [JSON Schema](./reference/schema/json-schema.md) - JSON Schema generation and validation
+- [Formats](./reference/schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
 
-- [Patching](./reference/zio-blocks-schema/patch.md) - Serializable data transformations
-- [SchemaError](./reference/zio-blocks-schema/schema-error.md) - Structured error type for schema operations
-- [Validation](./reference/zio-blocks-schema/validation.md) - Data validation and error handling
+- [Patching](./reference/schema/patch.md) - Serializable data transformations
+- [SchemaError](./reference/schema/schema-error.md) - Structured error type for schema operations
+- [Validation](./reference/schema/validation.md) - Data validation and error handling
 - [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
   - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
   - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
