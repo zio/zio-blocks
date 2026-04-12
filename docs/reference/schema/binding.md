@@ -1,7 +1,6 @@
 ---
 id: binding
-title: "The Binding Data Type"
-sidebar_label: Binding
+title: "Binding"
 ---
 
 `Binding` is a sealed trait in ZIO Blocks that provides the operational machinery for constructing and deconstructing values of schema-described types. While `Reflect` describes the **structure** of data types, `Binding` provides the **behavior** needed to work with those types at runtime.
