@@ -1,5 +1,5 @@
 ---
-id: schema-index
+id: index
 title: "ZIO Blocks Schema"
 ---
 

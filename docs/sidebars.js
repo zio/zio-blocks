@@ -9,7 +9,7 @@ const sidebars = {
          {
            type: "category",
            label: "ZIO Blocks Schema",
-           link: { type: "doc", id: "reference/schema/schema-index" },
+           link: { type: "doc", id: "reference/schema/index" },
            items: [
              {
                type: "category",
@@ -20,29 +20,29 @@ const sidebars = {
                  "reference/schema/reflect",
                  "reference/schema/binding",
                  "reference/schema/registers",
+                 "reference/schema/binding-resolver",
+                 "reference/schema/modifier",
                  "reference/schema/structural-types",
                ]
              },
              {
                type: "category",
-               label: "Dynamic & Runtime Data",
+               label: "Dynamic Values",
                collapsed: false,
                items: [
                  "reference/schema/dynamic-value",
                  "reference/schema/dynamic-schema",
-                 "reference/schema/lazy",
                ]
              },
              {
                type: "category",
-               label: "Navigation & Transformation",
+               label: "Reflective Optics",
                collapsed: false,
                items: [
                  "reference/schema/optics",
                  "reference/schema/dynamic-optic",
                  "reference/schema/schema-expr",
                  "reference/schema/patch",
-                 "reference/schema/modifier",
                ]
              },
              {
@@ -50,22 +50,30 @@ const sidebars = {
                label: "Serialization",
                collapsed: false,
                items: [
-                 "reference/schema/codec",
-                 "reference/schema/formats",
                  "reference/schema/type-class-derivation",
-                 "reference/schema/syntax",
-               ]
-             },
-             {
-               type: "category",
-               label: "Formats",
-               collapsed: false,
-               items: [
-                 "reference/schema/json",
-                 "reference/schema/json-patch",
-                 "reference/schema/json-differ",
-                 "reference/schema/json-schema",
-                 "reference/schema/xml",
+                 "reference/schema/codec",
+                 {
+                   type: "category",
+                   label: "Formats",
+                   link: { type: "doc", id: "reference/schema/formats" },
+                   collapsed: false,
+                   items: [
+                     {
+                       type: "category",
+                       label: "Json Format",
+                       link: { type: "doc", id: "reference/schema/formats" },
+                       collapsed: false,
+                       items: [
+                         "reference/schema/json",
+                         "reference/schema/json-patch",
+                         "reference/schema/json-differ",
+                         "reference/schema/json-schema",
+                       ]
+                     },
+                     "reference/schema/xml",
+                   ]
+                 },
+                 "reference/schema/lazy",
                ]
              },
              {
@@ -78,19 +86,19 @@ const sidebars = {
                  "reference/schema/allows",
                ]
              },
+             {
+               type: "category",
+               label: "Schema Evolution",
+               link: { type: "doc", id: "reference/schema-evolution/index" },
+               items: [
+                 "reference/schema/schema-evolution/into",
+                 "reference/schema/schema-evolution/as",
+               ]
+             },
+             "reference/schema/syntax",
            ]
          },
-         "reference/binding-resolver",
          "reference/typeid",
-         {
-           type: "category",
-           label: "Schema Evolution",
-           link: { type: "doc", id: "reference/schema-evolution/index" },
-           items: [
-             "reference/schema-evolution/into",
-             "reference/schema-evolution/as",
-           ]
-         },
          "reference/context",
          {
            type: "category",
