@@ -52,13 +52,15 @@ jobs:
       - name: Check website build process
         if: hashFiles('website/yarn.lock') != ''
         run: yarn --cwd website build
-      - name: Cache Website's Build Artifacts
+      - name: Upload website build artifact
         uses: actions/upload-artifact@v7
         with:
           name: website-artifact
           path: ./website/build
           overwrite: true
-      - name: Save PR Metadata
+          retention-days: 30
+        if: hashFiles('website/yarn.lock') != '' && github.event_name == 'pull_request'
+      - name: Upload PR Metadata
         if: github.event_name == 'pull_request'
         run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
       - name: Upload PR Metadata
