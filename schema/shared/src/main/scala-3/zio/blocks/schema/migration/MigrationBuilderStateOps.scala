@@ -16,7 +16,6 @@
 
 package zio.blocks.schema.migration
 
-import scala.annotation.publicInBinary
 import zio.blocks.schema.{DynamicOptic, SchemaExpr}
 
 /**
@@ -27,7 +26,6 @@ import zio.blocks.schema.{DynamicOptic, SchemaExpr}
  * methods with string literals so the action state carries literal singleton
  * types (e.g. `"age"`) rather than widened `String & Singleton`.
  */
-@publicInBinary
 private[migration] object MigrationBuilderStateOps {
 
   def addField[A, B, Acts <: Tuple, F <: String & Singleton](
