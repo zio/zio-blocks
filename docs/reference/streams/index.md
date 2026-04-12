@@ -131,6 +131,309 @@ All benchmarks use 10,000 elements, measured in operations per second (higher is
 
 ZB Streams leads in every single-operator benchmark and maintains its advantage as pipeline depth increases. The "mixed depth" rows show cascading `map`/`filter`/`flatMap` stages — ZB Streams degrades gracefully thanks to its trampolined execution model, while libraries without stack-safety (Ox) or with high per-element overhead (fs2, Pekko) fall off sharply.
 
+## Core mental model
+
+### 1) `Stream[E, A]` -- a lazy sequence
+
+A `Stream[+E, +A]` is a **description** of a potentially infinite sequence of elements of type `A` that may fail with an error of type `E`. It is covariant in both type parameters.
+
+Nothing happens when you construct a stream or chain transformations. Execution only begins when you call a terminal operation (`run`, `runCollect`, `runDrain`, `head`, `count`, etc.). Terminal operations return `Either[E, Z]`:
+
+- `Left(e)` -- a typed stream error
+- `Right(z)` -- the successful result
+
+Untyped defects (unexpected exceptions) propagate as thrown exceptions, not as `Left` values.
+
+```scala
+// This does nothing -- it's just a description
+val description: Stream[Nothing, Int] =
+  Stream.range(0, 1_000_000)
+    .filter(_ % 7 == 0)
+    .map(_ * 2)
+    .take(100)
+
+// Only this line executes the pipeline
+val result: Either[Nothing, Chunk[Int]] = description.runCollect
+```
+
+Streams render their pipeline structure as a human-readable string:
+
+```scala
+val s = Stream.range(0, 100).map(_ + 1).filter(_ > 50).take(10)
+println(s)  // Stream.range(0, 100).map(...).filter(...).take(10)
+```
+
+This makes debugging and logging straightforward -- you can see exactly what transformations a stream applies without running it.
+
+---
+
+### 2) `Sink[E, A, Z]` -- a consumer
+
+A `Sink[+E, -A, +Z]` consumes elements of type `A` from a stream and produces a final result of type `Z`. Sinks are passed to `Stream.run`:
+
+```scala
+val stream = Stream.range(1, 101)
+
+// Built-in sinks
+val total: Either[Nothing, Long]        = stream.run(Sink.count)
+val items: Either[Nothing, Chunk[Int]]  = stream.run(Sink.collectAll)
+val sum:   Either[Nothing, Long]        = stream.run(Sink.sumInt)
+val first: Either[Nothing, Option[Int]] = stream.run(Sink.head)
+```
+
+Most sinks also have convenience methods directly on `Stream`:
+
+```scala
+stream.count       // Either[Nothing, Long]
+stream.runCollect  // Either[Nothing, Chunk[Int]]
+stream.head        // Either[Nothing, Option[Int]]
+stream.last        // Either[Nothing, Option[Int]]
+```
+
+Sinks compose with `contramap` (pre-process input) and `map` (post-process result):
+
+```scala
+val lengthSink: Sink[Nothing, String, Long] =
+  Sink.sumInt.contramap[String](_.length)
+
+val doubled: Sink[Nothing, Int, Long] =
+  Sink.sumInt.map(_ * 2)
+```
+
+Built-in sinks:
+
+| Sink | Result type | Description |
+|---|---|---|
+| `Sink.collectAll` | `Chunk[A]` | Collects all elements |
+| `Sink.drain` | `Unit` | Consumes and discards all elements |
+| `Sink.count` | `Long` | Counts elements |
+| `Sink.foldLeft(z)(f)` | `Z` | Left fold with initial value |
+| `Sink.foreach(f)` | `Unit` | Side-effect per element |
+| `Sink.head` | `Option[A]` | First element |
+| `Sink.last` | `Option[A]` | Last element |
+| `Sink.take(n)` | `Chunk[A]` | First n elements |
+| `Sink.exists(p)` | `Boolean` | Short-circuiting existential |
+| `Sink.forall(p)` | `Boolean` | Short-circuiting universal |
+| `Sink.find(p)` | `Option[A]` | First matching element |
+| `Sink.sumInt` | `Long` | Sum of Ints (zero-boxing) |
+| `Sink.sumLong` | `Long` | Sum of Longs (zero-boxing) |
+| `Sink.sumFloat` | `Double` | Sum of Floats (zero-boxing) |
+| `Sink.sumDouble` | `Double` | Sum of Doubles (zero-boxing) |
+| `Sink.fromOutputStream(os)` | `Unit` | Writes bytes to an `OutputStream` |
+| `Sink.fromJavaWriter(w)` | `Unit` | Writes chars to a `java.io.Writer` |
+| `Sink.fail(e)` | `Nothing` | Fails immediately |
+| `Sink.create(f)` | `Z` | Custom sink from `Reader[A] => Z` |
+
+---
+
+### 3) `Pipeline[In, Out]` -- reusable transformation
+
+A `Pipeline[-In, +Out]` is a reusable stream transformation. It decouples the transformation logic from any specific stream, so you can define it once and apply it many times.
+
+```scala
+// Define a reusable pipeline
+val normalize: Pipeline[Int, Double] =
+  Pipeline.filter[Int](_ > 0)
+    .andThen(Pipeline.map[Int, Double](_.toDouble / 100.0))
+
+// Apply to different streams
+val result1 = Stream.range(-10, 10).via(normalize).runCollect
+val result2 = Stream(42, -5, 100, 0).via(normalize).runCollect
+```
+
+Pipelines compose with `andThen`:
+
+```scala
+val step1: Pipeline[String, Int] =
+  Pipeline.map[String, Int](_.length)
+
+val step2: Pipeline[Int, Int] =
+  Pipeline.filter[Int](_ > 3)
+
+val combined: Pipeline[String, Int] =
+  step1.andThen(step2)
+```
+
+You can also apply a pipeline to a sink with `andThenSink` / `applyToSink`, which pre-processes the sink's input:
+
+```scala
+val countLong: Sink[Nothing, String, Long] =
+  Pipeline.map[String, Int](_.length)
+    .andThenSink(Sink.sumInt)
+```
+
+Built-in pipeline factories:
+
+| Factory | Description |
+|---|---|
+| `Pipeline.map(f)` | Transform each element |
+| `Pipeline.filter(p)` | Keep elements matching predicate |
+| `Pipeline.collect(pf)` | Partial function -- filter + map |
+| `Pipeline.take(n)` | Keep first n elements |
+| `Pipeline.drop(n)` | Skip first n elements |
+| `Pipeline.identity` | Pass-through (useful as a base for composition) |
+
+---
+
+### 4) `Reader[A]` -- low-level pull source
+
+`Reader[+Elem]` is the low-level, pull-based source that backs every stream. Most users will never interact with `Reader` directly; it is the compilation target when a stream runs.
+
+The protocol is simple:
+
+- `read(sentinel)` -- returns the next element, or `sentinel` when exhausted
+- `close()` -- signal the consumer is done
+- `isClosed` -- check whether the reader has been closed
+
+For primitive types, specialized methods avoid boxing:
+
+- `readInt(sentinel: Long): Long`
+- `readLong(sentinel: Long): Long`
+- `readFloat(sentinel: Double): Double`
+- `readDouble(sentinel: Double): Double`
+
+You interact with `Reader` in two situations:
+
+1. **Custom sources** -- create a stream from a `Reader` via `Stream.fromReader`
+2. **Manual pull** -- open a stream for element-by-element control via `stream.start`
+
+```scala
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  // Open a stream for manual pulling
+  val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
+
+  $(reader) { r =>
+    var v = r.read(-1)
+    while v != -1 do
+      println(v)   // prints 1, 2, 3, 4, 5
+      v = r.read(-1)
+  }
+  // reader is closed automatically when scope exits
+}
+```
+
+---
+
+### 5) Error handling
+
+Streams distinguish between two kinds of failures:
+
+- **Typed errors** (`E`) -- domain errors you expect and handle. These appear as `Left` in the `Either` result.
+- **Defects** (`Throwable`) -- unexpected exceptions. These propagate as thrown exceptions, bypassing the `Either` channel.
+
+```scala
+// Create a failing stream
+val failing: Stream[String, Int] =
+  Stream(1, 2, 3) ++ Stream.fail("oops") ++ Stream(4, 5)
+
+// catchAll: recover from typed errors
+val recovered: Stream[Nothing, Int] =
+  failing.catchAll(_ => Stream(99))
+
+recovered.runCollect  // Right(Chunk(1, 2, 3, 99))
+```
+
+Error handling operators:
+
+| Operator | Description |
+|---|---|
+| `catchAll(f: E => Stream[E2, A])` | Recover from all typed errors |
+| `catchDefect(pf: PartialFunction[Throwable, Stream[E1, A]])` | Recover from matching defects |
+| `mapError(f: E => E2)` | Transform the error type |
+| `orElse(that)` / `\|\|(that)` | Fall back to another stream on error |
+
+---
+
+### 6) Resource safety
+
+Streams integrate with `zio.blocks.scope.Scope` for deterministic finalization. Several constructors guarantee that acquired resources are released when the stream closes, whether it completes normally, short-circuits, or fails.
+
+#### `fromAcquireRelease`
+
+The primary resource-safe constructor. Acquires a resource, uses it to produce a stream, and guarantees the release function runs on close:
+
+```scala
+import java.io.BufferedReader
+import java.io.FileReader
+
+val lines: Stream[Nothing, String] =
+  Stream.fromAcquireRelease(
+    acquire = new BufferedReader(new FileReader("data.txt")),
+    release = _.close()
+  ) { reader =>
+    Stream.unfold(()) { _ =>
+      Option(reader.readLine()).map(line => (line, ()))
+    }
+  }
+
+// The BufferedReader is closed when the stream finishes,
+// even if the consumer takes only a few lines
+lines.take(5).runCollect
+```
+
+If the resource is `AutoCloseable`, the release function defaults to calling `close()`:
+
+```scala
+val lines: Stream[Nothing, String] =
+  Stream.fromAcquireRelease(
+    acquire = new BufferedReader(new FileReader("data.txt"))
+  ) { reader =>
+    Stream.unfold(()) { _ =>
+      Option(reader.readLine()).map(line => (line, ()))
+    }
+  }
+```
+
+#### `fromResource`
+
+Integrates with `zio.blocks.scope.Resource` directly:
+
+```scala
+import zio.blocks.scope.Resource
+
+val resource: Resource[BufferedReader] =
+  Resource.fromAutoCloseable(new BufferedReader(new FileReader("data.txt")))
+
+val lines: Stream[Nothing, String] =
+  Stream.fromResource(resource) { reader =>
+    Stream.unfold(()) { _ =>
+      Option(reader.readLine()).map(line => (line, ()))
+    }
+  }
+```
+
+#### `ensuring` and `defer`
+
+For attaching finalizers to existing streams:
+
+```scala
+// ensuring: run a finalizer when the stream closes
+val withCleanup: Stream[Nothing, Int] =
+  Stream.range(1, 11).ensuring(println("stream closed"))
+
+// defer: register a release action (runs on close, not on construction)
+val withDefer: Stream[Nothing, Int] =
+  Stream.defer(println("cleanup")) ++ Stream.range(1, 6)
+```
+
+#### `start` with `Scope`
+
+For manual pull-based consumption with scope-managed lifetime:
+
+```scala
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  import scope.*
+  val reader = Stream.range(1, 100).start(using scope)
+  // reader is automatically closed when scope exits
+}
+```
+
 ## Primitive Specialization
 
 ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`readLong`/`readFloat`/`readDouble` methods, so no `java.lang.Integer` wrappers are allocated.
@@ -191,3 +494,388 @@ Supported Scala versions: 2.13.x and 3.x.
 - **Use `Sink.create`** as an escape hatch when none of the built-in sinks fit.
 - **`suspend`** is your friend for recursive or self-referential stream definitions, preventing stack overflow during construction.
 - **Typed errors vs. defects**: use `Stream.fail` for expected domain errors and `Stream.die` for programmer errors. Use `catchAll` for the former, `catchDefect` for the latter.
+
+## Usage examples
+
+### Creating streams
+
+```scala
+import zio.blocks.streams.*
+import zio.blocks.chunk.Chunk
+
+// From explicit elements
+Stream(1, 2, 3)                              // Stream[Nothing, Int]
+Stream("a", "b", "c")                        // Stream[Nothing, String]
+
+// From collections
+Stream.fromChunk(Chunk(1, 2, 3))             // Stream[Nothing, Int]
+Stream.fromIterable(List("x", "y", "z"))     // Stream[Nothing, String]
+Stream.fromIterator(Iterator.from(1))        // Stream[Nothing, Int] (lazy)
+
+// Ranges
+Stream.range(0, 100)                         // 0 to 99
+Stream.fromRange(1 to 50)                    // 1 to 50
+
+// Single values (primitive-specialized)
+Stream.succeed(42)                           // Stream[Nothing, Int]
+Stream.succeed(3.14)                         // Stream[Nothing, Double]
+Stream.succeed("hello")                      // Stream[Nothing, String]
+
+// Special streams
+Stream.empty                                 // Stream[Nothing, Nothing]
+Stream.fail("error")                         // Stream[String, Nothing]
+Stream.die(new Exception("defect"))          // throws on evaluation
+
+// Generators
+Stream.repeat(1)                             // infinite stream of 1s
+Stream.iterate(1)(_ * 2)                     // 1, 2, 4, 8, 16, ...
+Stream.repeatThunk(scala.util.Random.nextInt(100))  // infinite random ints
+Stream.unfold(0)(n =>                        // 0, 1, 2, ..., 9
+  if n < 10 then Some((n, n + 1)) else None
+)
+
+// Side-effects
+Stream.eval(println("hello"))               // prints, emits nothing
+Stream.attempt(someFallibleCall())           // captures exceptions as typed errors
+Stream.attemptEval(riskyEffect())            // same, for Unit-returning effects
+
+// Deferred construction (useful for recursion)
+Stream.suspend(expensiveStreamBuilder())
+
+// I/O sources (auto-closing)
+Stream.fromInputStream(inputStream)          // Stream[IOException, Int] (bytes as 0-255, auto-closes)
+Stream.fromJavaReader(javaReader)            // Stream[IOException, Char] (auto-closes)
+
+// I/O sources (borrowing -- caller manages lifetime)
+Stream.fromInputStreamUnmanaged(inputStream) // Stream[IOException, Int] (does NOT close)
+Stream.fromJavaReaderUnmanaged(javaReader)   // Stream[IOException, Char] (does NOT close)
+```
+
+---
+
+### Transforming streams
+
+```scala
+val s = Stream.range(1, 21) // 1 to 20
+
+// map: transform each element
+s.map(_ * 2)                                 // 2, 4, 6, ..., 40
+
+// filter: keep matching elements
+s.filter(_ % 3 == 0)                         // 3, 6, 9, 12, 15, 18
+
+// flatMap: expand each element into a sub-stream
+s.flatMap(n => Stream(n, n * 10))            // 1, 10, 2, 20, 3, 30, ...
+
+// collect: partial function (filter + map)
+s.collect { case n if n % 2 == 0 => n / 2 } // 1, 2, 3, ..., 10
+
+// take / drop / takeWhile
+s.take(5)                                    // 1, 2, 3, 4, 5
+s.drop(15)                                   // 16, 17, 18, 19, 20
+s.takeWhile(_ < 8)                           // 1, 2, 3, 4, 5, 6, 7
+
+// scan: running accumulator (emits initial value + one value per element)
+Stream(1, 2, 3, 4).scan(0)(_ + _)           // 0, 1, 3, 6, 10
+
+// mapAccum: stateful transformation
+s.mapAccum(0) { (acc, n) =>
+  val newAcc = acc + n
+  (newAcc, newAcc)
+}
+// running sum: 1, 3, 6, 10, 15, ...
+
+// grouped: collect into fixed-size chunks
+Stream.range(1, 11).grouped(3)
+// Chunk(1,2,3), Chunk(4,5,6), Chunk(7,8,9), Chunk(10)
+
+// sliding: overlapping windows
+Stream.range(1, 7).sliding(3, 1)
+// Chunk(1,2,3), Chunk(2,3,4), Chunk(3,4,5), Chunk(4,5,6)
+
+// intersperse: insert separator between elements
+Stream("a", "b", "c").intersperse(",")       // "a", ",", "b", ",", "c"
+
+// distinct / distinctBy: deduplication
+Stream(1, 2, 2, 3, 1, 3).distinct            // 1, 2, 3
+Stream("ab", "cd", "ae").distinctBy(_.head)   // "ab", "cd"
+
+// zipWithIndex: pair elements with their 0-based index
+Stream("a", "b", "c").zipWithIndex
+// ("a", 0L), ("b", 1L), ("c", 2L)
+
+// tapEach: side-effect without changing elements
+s.tapEach(n => println(s"processing $n"))
+
+// concat: sequence two streams
+Stream(1, 2) ++ Stream(3, 4)                // 1, 2, 3, 4
+
+// repeated: restart on completion
+Stream(1, 2, 3).repeated.take(8)             // 1, 2, 3, 1, 2, 3, 1, 2
+
+// via: apply a Pipeline
+s.via(Pipeline.filter[Int](_ > 10))          // 11, 12, ..., 20
+```
+
+---
+
+### Zipping streams with `&&`
+
+The `&&` operator zips two streams element-by-element into tuples. The resulting stream ends when either input is exhausted.
+
+```scala
+val names: Stream[Nothing, String] = Stream("Alice", "Bob", "Charlie")
+val ages:  Stream[Nothing, Int]    = Stream(30, 25, 35)
+val ids:   Stream[Nothing, Long]   = Stream(1L, 2L, 3L)
+
+// Two-way zip
+val pairs: Stream[Nothing, (String, Int)] = names && ages
+pairs.runCollect // Right(Chunk(("Alice", 30), ("Bob", 25), ("Charlie", 35)))
+
+// Three-way zip -- tuples flatten automatically
+val triples: Stream[Nothing, (String, Int, Long)] = names && ages && ids
+triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie", 35, 3L)))
+```
+
+When the error types differ, they widen via union:
+
+```scala
+val s1: Stream[String, Int]  = Stream(1, 2, 3)
+val s2: Stream[IOException, Int] = Stream(4, 5, 6)
+val zipped: Stream[String | IOException, (Int, Int)] = s1 && s2
+```
+
+---
+
+### Primitive specialization
+
+ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`writeInt` (or the corresponding type) methods, so no `java.lang.Integer` wrappers are allocated.
+
+```scala
+// This entire pipeline runs with ZERO boxing of the Int elements.
+// Every step uses specialized readInt/writeInt internally.
+val sum: Either[Nothing, Long] =
+  Stream.range(0, 1_000_000)   // Int-specialized source
+    .filter(_ % 2 == 0)        // Int-specialized filter
+    .map(_ * 3)                 // Int->Int specialized map
+    .runFold(0L)(_ + _)         // Long-specialized accumulator
+
+// Compare: in fs2 or ZIO Streams, every Int would be boxed to java.lang.Integer
+// at each pipeline stage boundary.
+```
+
+This matters most for numeric workloads -- data processing, statistics, encoding/decoding -- where millions of elements flow through multi-stage pipelines. The benchmark results above reflect this advantage directly.
+
+---
+
+### Consuming streams
+
+```scala
+val s = Stream.range(1, 11) // 1 to 10
+
+// Collect all elements
+s.runCollect              // Right(Chunk(1, 2, 3, ..., 10))
+
+// Discard all elements (run for side-effects only)
+s.tapEach(println).runDrain
+
+// Fold
+s.runFold(0)(_ + _)       // Right(55)              (Int accumulator)
+s.runFold(0L)(_ + _)      // Right(55L)             (Long accumulator)
+s.runFold(0.0)(_ + _)     // Right(55.0)            (Double accumulator)
+
+// Foreach
+s.runForeach(n => println(n))
+s.foreach(n => println(n))  // alias
+
+// Aggregates
+s.count                   // Right(10L)
+s.head                    // Right(Some(1))
+s.last                    // Right(Some(10))
+s.exists(_ > 5)           // Right(true)
+s.forall(_ > 0)           // Right(true)
+s.find(_ > 7)             // Right(Some(8))
+
+// Run with an explicit Sink
+s.run(Sink.sumInt)        // Right(55L)
+s.run(Sink.take(3))       // Right(Chunk(1, 2, 3))
+```
+
+---
+
+### Error handling patterns
+
+```scala
+// Typed error: appears in Either
+val result = Stream.fail("not found").runCollect
+// result: Left("not found")
+
+// Recover and continue
+val safe =
+  Stream(1, 2) ++ Stream.fail("oops") ++ Stream(3)
+val recovered = safe.catchAll(_ => Stream(99)).runCollect
+// Right(Chunk(1, 2, 99))
+
+// Transform error type
+val mapped =
+  Stream.fail("bad input")
+    .mapError(msg => new IllegalArgumentException(msg))
+// Stream[IllegalArgumentException, Nothing]
+
+// Fallback stream
+val primary: Stream[String, Int] = Stream.fail("down")
+val backup:  Stream[String, Int] = Stream(1, 2, 3)
+val result2 = (primary || backup).runCollect
+// Right(Chunk(1, 2, 3))
+
+// Catch defects (unexpected exceptions)
+val risky: Stream[Nothing, Int] =
+  Stream(1, 2, 3).map { n =>
+    if n == 2 then throw new ArithmeticException("boom")
+    else n
+  }
+
+val handled = risky.catchDefect {
+  case _: ArithmeticException => Stream(0)
+}.runCollect
+// Right(Chunk(1, 0))
+```
+
+---
+
+### Resource safety patterns
+
+```scala
+import zio.blocks.streams.*
+import zio.blocks.scope.*
+
+// Bracket pattern: acquire/use/release
+def fileLines(path: String): Stream[Nothing, String] =
+  Stream.fromAcquireRelease(
+    acquire = scala.io.Source.fromFile(path),
+    release = _.close()
+  ) { source =>
+    Stream.fromIterable(source.getLines().toList)
+  }
+
+// Compose resource-safe streams -- both resources are released
+val merged =
+  fileLines("input1.txt") ++ fileLines("input2.txt")
+
+// Only reads 10 lines; both files are still closed properly
+merged.take(10).runCollect
+
+// ensuring: attach a finalizer
+var cleaned = false
+Stream.range(1, 6)
+  .ensuring { cleaned = true }
+  .take(2)
+  .runDrain
+// cleaned == true, even though only 2 of 5 elements were consumed
+
+// defer: register cleanup that runs on stream close
+val withDefer =
+  Stream.defer(println("releasing lock")) ++
+  Stream.range(1, 100)
+```
+
+---
+
+### NIO integration (JVM only)
+
+On the JVM, `NioStreams` and `NioSinks` provide zero-copy integration with `java.nio` buffers and channels.
+
+#### `NioStreams` -- creating streams from NIO sources
+
+```scala
+import zio.blocks.streams.*
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.{Paths, StandardOpenOption}
+
+// From a ByteBuffer
+val buf = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4, 5))
+NioStreams.fromByteBuffer(buf).runCollect
+// Right(Chunk(1, 2, 3, 4, 5))
+
+// Typed buffer views (zero-boxing)
+val intBuf = ByteBuffer.allocate(16).putInt(1).putInt(2).putInt(3).putInt(4).flip()
+NioStreams.fromByteBufferInt(intBuf).runCollect
+// Right(Chunk(1, 2, 3, 4))
+
+// Similarly: fromByteBufferLong, fromByteBufferFloat, fromByteBufferDouble
+
+// From a ReadableByteChannel (auto-closing)
+val ch = FileChannel.open(Paths.get("data.bin"), StandardOpenOption.READ)
+val bytes = NioStreams.fromChannel(ch, bufSize = 4096).runCollect
+// ch is closed automatically when the stream completes
+
+// From a ReadableByteChannel (borrowing -- caller manages lifetime)
+val ch2 = FileChannel.open(Paths.get("data.bin"), StandardOpenOption.READ)
+val bytes2 = NioStreams.fromChannelUnmanaged(ch2, bufSize = 4096).runCollect
+ch2.close() // caller is responsible for closing
+```
+
+#### `NioSinks` -- writing to NIO targets
+
+```scala
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.{Paths, StandardOpenOption}
+
+// Write to a ByteBuffer
+val outBuf = ByteBuffer.allocate(1024)
+Stream.fromInputStream(inputStream).run(NioSinks.fromByteBuffer(outBuf))
+
+// Typed buffer sinks (zero-boxing)
+Stream.range(1, 5).run(NioSinks.fromByteBufferInt(outBuf))
+// Also: fromByteBufferLong, fromByteBufferFloat, fromByteBufferDouble
+
+// Write to a WritableByteChannel (buffered)
+val outCh = FileChannel.open(
+  Paths.get("output.bin"),
+  StandardOpenOption.WRITE, StandardOpenOption.CREATE
+)
+Stream.fromInputStream(inputStream).run(NioSinks.fromChannel(outCh))
+outCh.close()
+```
+
+---
+
+### Pipeline composition
+
+```scala
+import zio.blocks.streams.*
+
+// Build reusable transformation steps
+val parseInts: Pipeline[String, Int] =
+  Pipeline.collect[String, Int] {
+    case s if s.matches("-?\\d+") => s.toInt
+  }
+
+val positiveOnly: Pipeline[Int, Int] =
+  Pipeline.filter[Int](_ > 0)
+
+val doubled: Pipeline[Int, Int] =
+  Pipeline.map[Int, Int](_ * 2)
+
+// Compose into a single pipeline
+val fullPipeline: Pipeline[String, Int] =
+  parseInts
+    .andThen(positiveOnly)
+    .andThen(doubled)
+
+// Apply to any stream of strings
+Stream("10", "abc", "-3", "7", "0", "25")
+  .via(fullPipeline)
+  .runCollect
+// Right(Chunk(20, 14, 50))
+
+// Apply to a sink (pre-process the sink's input)
+val sumPositiveDoubled: Sink[Nothing, String, Long] =
+  fullPipeline.andThenSink(Sink.sumInt)
+
+Stream("10", "abc", "-3", "7", "0", "25")
+  .run(sumPositiveDoubled)
+// Right(84L)
+```
