@@ -64,7 +64,7 @@ object MigrationAction {
   ) extends MigrationAction {
     // Requires a default to structurally reverse a mandate, so we pass fallback None or generic
     // However, exact structural reflection expects best-effort
-    def reverse: MigrationAction = Mandate(at, DynamicValue.None) 
+    def reverse: MigrationAction = Mandate(at, DynamicValue.NoneValue) 
   }
 
   // ===== Enum Actions =====
