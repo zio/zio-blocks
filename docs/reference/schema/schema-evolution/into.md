@@ -782,7 +782,7 @@ backToMap
 
 ## Related Type: `As[A, B]`
 
-`As[A, B]` extends `Into[A, B]` with a reverse direction, enabling round-trip safe bidirectional conversions. Because `As` must guarantee that `A → B → A` restores the original value, it applies stricter derivation constraints than `Into`. See [As](./as.md) for the full reference.
+`As[A, B]` extends `Into[A, B]` with a reverse direction, enabling round-trip safe bidirectional conversions. Because `As` must guarantee that `A → B → A` restores the original value, it applies stricter derivation constraints than `Into`. See [As](as.md) for the full reference.
 
 ## Best Practices
 

@@ -41,7 +41,7 @@ DynamicSchema         ←── reconstructed from storage
 Schema[OrderPlaced]   ←── operational again, can encode and decode
 ```
 
-This pattern enables schema registries: the Checkout Service registers its event schema on startup; the Fulfillment Service fetches it and rebinds it against its own type definitions, guaranteeing it uses the exact schema that was in effect when the event was encoded. See [BindingResolver](./binding-resolver.md) for the complete rebinding API.
+This pattern enables schema registries: the Checkout Service registers its event schema on startup; the Fulfillment Service fetches it and rebinds it against its own type definitions, guaranteeing it uses the exact schema that was in effect when the event was encoded. See [BindingResolver](binding-resolver.md) for the complete rebinding API.
 
 ## Creating a DynamicSchema
 
@@ -267,7 +267,7 @@ rebound.fromDynamicValue(encoded)
 If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Map`, `Option`, and other standard collections.
 :::
 
-See [BindingResolver](./binding-resolver.md) for the full resolver API including `BindingResolver.reflection` for automatic binding via reflection.
+See [BindingResolver](binding-resolver.md) for the full resolver API including `BindingResolver.reflection` for automatic binding via reflection.
 
 ## Structural Navigation
 
@@ -456,7 +456,7 @@ gatewaySchema.fromDynamicValue(incoming)
 
 ### With `BindingResolver`
 
-The primary consumer of `DynamicSchema` in a type-safe context is `DynamicSchema#rebind`, which requires a `BindingResolver` to reattach runtime bindings. See [BindingResolver](./binding-resolver.md) for the complete rebinding API, including `BindingResolver.reflection` for automatic binding discovery.
+The primary consumer of `DynamicSchema` in a type-safe context is `DynamicSchema#rebind`, which requires a `BindingResolver` to reattach runtime bindings. See [BindingResolver](binding-resolver.md) for the complete rebinding API, including `BindingResolver.reflection` for automatic binding discovery.
 
 ### With `DynamicOptic`
 

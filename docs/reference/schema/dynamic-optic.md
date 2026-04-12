@@ -26,7 +26,7 @@ val result = data.get(path).one
 ```
 
 :::tip
-For a practical example of extracting column names from `DynamicOptic` paths to generate SQL, see the [Query DSL Part 2: SQL Generation](../guides/query-dsl-sql.md) guide.
+For a practical example of extracting column names from `DynamicOptic` paths to generate SQL, see the [Query DSL Part 2: SQL Generation](../../guides/query-dsl-sql.md) guide.
 :::
 
 ## Motivation
@@ -57,7 +57,7 @@ The relationship between typed and dynamic optics:
 └──────────────────┘             └──────────────────┘
 ```
 
-The `Optic[S, A]` and `DynamicOptic` types serve complementary roles in ZIO Blocks' optics system. `Optic[S, A]` provides compile-time type safety through macros or manual construction, operates on typed Scala values, and can be converted to a `DynamicOptic` via the `optic.toDynamic` method. In contrast, `DynamicOptic` performs runtime type checking and is constructed through a builder API or [path interpolator](../path-interpolator.md), operating directly on [DynamicValue](./dynamic-value.md), [Schema](./schema.md), and [Reflect](./reflect.md) representations. 
+The `Optic[S, A]` and `DynamicOptic` types serve complementary roles in ZIO Blocks' optics system. `Optic[S, A]` provides compile-time type safety through macros or manual construction, operates on typed Scala values, and can be converted to a `DynamicOptic` via the `optic.toDynamic` method. In contrast, `DynamicOptic` performs runtime type checking and is constructed through a builder API or [path interpolator](../../path-interpolator.md), operating directly on [DynamicValue](./dynamic-value.md), [Schema](./schema.md), and [Reflect](./reflect.md) representations. 
 
 ## Design & Structure
 
@@ -157,7 +157,7 @@ Note: `.atKey` and `.atKeys` require an implicit `Schema[K]` to convert the type
 
 ### Path Interpolator
 
-The [`p"..."` path interpolator](../path-interpolator.md) provides a concise compile-time syntax for building
+The [`p"..."` path interpolator](../../path-interpolator.md) provides a concise compile-time syntax for building
 `DynamicOptic` values:
 
 ```scala mdoc:compile-only
@@ -181,7 +181,7 @@ val success = p".result<Success>.value"
 val complex = p""".groups[*].members[0].contacts{"email"}"""
 ```
 
-See [Path Interpolator](../path-interpolator.md) for the full syntax reference.
+See [Path Interpolator](../../path-interpolator.md) for the full syntax reference.
 
 ### From Typed Optics
 
@@ -360,7 +360,7 @@ expected Email, but got Push
 
 `DynamicOptic` provides two string formats for different contexts:
 
-- **`toString`** — Compact path syntax matching the [`p"..."` interpolator](../path-interpolator.md) format
+- **`toString`** — Compact path syntax matching the [`p"..."` interpolator](../../path-interpolator.md) format
 - **`toScalaString`** — Scala method call syntax used in error messages
 
 | Node                      | `toString`   | `toScalaString`     |

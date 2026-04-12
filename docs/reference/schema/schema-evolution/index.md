@@ -18,7 +18,7 @@ Schema evolution is the process of changing data structures over time while keep
 
 ## `Into[A, B]` — One-Way Conversion
 
-[`Into[A, B]`](./into.md) converts a value of type `A` to `Either[SchemaError, B]`. It is the right choice whenever the migration is asymmetric — for example, when adding a field with a default value, removing a field, or transforming data in a way that cannot be reversed.
+[`Into[A, B]`](into.md) converts a value of type `A` to `Either[SchemaError, B]`. It is the right choice whenever the migration is asymmetric — for example, when adding a field with a default value, removing a field, or transforming data in a way that cannot be reversed.
 
 Typical use cases:
 
@@ -28,7 +28,7 @@ Typical use cases:
 
 ## `As[A, B]` — Bidirectional Round-Trip
 
-[`As[A, B]`](./as.md) extends `Into[A, B]` with a `from(b: B): Either[SchemaError, A]` reverse direction. It guarantees that `A → B → A` restores the original value (within the constraints of numeric precision and optional fields). Use `As` when both sides of the conversion must remain in sync.
+[`As[A, B]`](as.md) extends `Into[A, B]` with a `from(b: B): Either[SchemaError, A]` reverse direction. It guarantees that `A → B → A` restores the original value (within the constraints of numeric precision and optional fields). Use `As` when both sides of the conversion must remain in sync.
 
 Typical use cases:
 

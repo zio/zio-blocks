@@ -1,6 +1,7 @@
 ---
 id: xml
 title: "XML"
+sidebar_label: "XML Format"
 ---
 
 `Xml` is a **sealed trait representing XML nodes**. It provides a type-safe, immutable representation of all valid XML document structures including elements, text nodes, CDATA sections, comments, and processing instructions.
