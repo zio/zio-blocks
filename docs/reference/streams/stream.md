@@ -1089,6 +1089,61 @@ A `Sink[+E, -A, +Z]` is a consumer of elements of type `A` that produces a resul
 
 When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the sink drains it, consuming all elements and producing the result.
 
+## Low-Level Pull with Reader
+
+`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Most users never interact with `Reader` directly — it is the compilation target when a stream runs. However, you can open a stream for manual element-by-element pulling using `start` with a `Scope`.
+
+### Manual Pull via `start`
+
+`start` — Opens a stream for manual pulling within a `Scope`. The reader is closed automatically when the scope exits.
+
+```scala
+trait Stream[+E, +A] {
+  def start(using scope: Scope): scope.$[Reader[A]]
+}
+```
+
+```scala
+import zio.blocks.streams.*
+import zio.blocks.streams.io.Reader
+import zio.blocks.scope.*
+
+Scope.global.scoped { scope =>
+  import scope.*
+
+  // Open a stream for manual pulling
+  val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
+
+  $(reader) { r =>
+    var v = r.read(-1)
+    while (v != -1) {
+      println(v)   // prints 1, 2, 3, 4, 5
+      v = r.read(-1)
+    }
+  }
+  // reader is closed automatically when scope exits
+}
+```
+
+### The Reader Protocol
+
+The pull protocol uses a **sentinel value** to signal end-of-stream:
+
+- `read(sentinel)` — returns the next element, or `sentinel` when exhausted
+- `close()` — signals the consumer is done
+- `isClosed` — checks whether the reader has been closed
+
+For primitive types, specialized methods avoid boxing:
+
+- `readInt(sentinel: Long): Long`
+- `readLong(sentinel: Long): Long`
+- `readFloat(sentinel: Double): Double`
+- `readDouble(sentinel: Double): Double`
+
+:::note
+Avoid holding references to a `Reader` obtained via `start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
+:::
+
 ## Implementation Notes
 
 ### JVM Primitive Specialization
