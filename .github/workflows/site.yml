@@ -1,0 +1,34 @@
+name: Build and Deploy Documentation
+on:
+  pull_request: [opened, synchronize, reopened]
+  release: [published]
+  workflow_dispatch: []
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: website/yarn.lock
+
+      - name: Run build script
+        run: ./build.sh
+        env:
+          NODE_ENV: production
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    needs: build
+    steps:
+      - name: Trigger Netlify Deploy
+        env:
+          NETLIFY_DEPLOY_WEBHOOK: ${{ secrets.NETLIFY_DEPLOY_WEBHOOK }}
+        run: curl -X POST -d {} "${{ secrets.NETLIFY_DEPLOY_WEBHOOK }}"

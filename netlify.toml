@@ -1,0 +1,11 @@
+[build]
+command = "./build.sh"
+publish = "website/build"
+
+[context.deploy-preview]
+command = "./build.sh"
+publish = "website/build"
+
+[context.production]
+command = "./build.sh"
+publish = "website/build"
