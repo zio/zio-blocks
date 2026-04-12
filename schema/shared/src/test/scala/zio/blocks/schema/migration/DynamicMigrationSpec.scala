@@ -20,9 +20,9 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema, SchemaBaseSpec, Sc
 import zio.test._
 
 object DynamicMigrationSpec extends SchemaBaseSpec {
-  private def string(value: String): DynamicValue = Schema[String].toDynamicValue(value)
-  private def int(value: Int): DynamicValue       = Schema[Int].toDynamicValue(value)
-  private def bool(value: Boolean): DynamicValue  = Schema[Boolean].toDynamicValue(value)
+  private def string(value: String): DynamicValue                        = Schema[String].toDynamicValue(value)
+  private def int(value: Int): DynamicValue                              = Schema[Int].toDynamicValue(value)
+  private def bool(value: Boolean): DynamicValue                         = Schema[Boolean].toDynamicValue(value)
   private def defaultExpr[A](schema: Schema[A]): SchemaExpr.DefaultValue =
     SchemaExpr.DefaultValue(schema.getDefaultValue.map(schema.toDynamicValue).getOrElse(DynamicValue.Null))
 
@@ -145,7 +145,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
             "name" -> string("Alice")
           )
 
-        val action   = Rename(DynamicOptic.root.field("name"), to = "fullName")
+        val action    = Rename(DynamicOptic.root.field("name"), to = "fullName")
         val migration = DynamicMigration(Vector(action))
 
         val roundTrip =
@@ -195,8 +195,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
             "name" -> string("Alice")
           )
 
-        val schema1 = Schema[Int].defaultValue(1)
-        val schema2 = Schema[Int].defaultValue(2)
+        val schema1   = Schema[Int].defaultValue(1)
+        val schema2   = Schema[Int].defaultValue(2)
         val migration =
           DynamicMigration(
             Vector(
@@ -347,7 +347,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         val expected =
           DynamicValue.Record(
             "people" -> DynamicValue.Sequence(
-              DynamicValue.Record("name" -> string("Alice")),
+              DynamicValue.Record("name"     -> string("Alice")),
               DynamicValue.Record("fullName" -> string("Bob"))
             )
           )
@@ -375,7 +375,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           DynamicValue.Record(
             "people" -> DynamicValue.Sequence(
               DynamicValue.Record("name" -> string("Alice"), "age" -> int(0)),
-              DynamicValue.Record("name" -> string("Bob"), "age" -> int(0))
+              DynamicValue.Record("name" -> string("Bob"), "age"   -> int(0))
             )
           )
 
@@ -402,7 +402,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           DynamicValue.Record(
             "people" -> DynamicValue.Sequence(
               DynamicValue.Record("fullName" -> string("Alice")),
-              DynamicValue.Record("name" -> string("Bob")),
+              DynamicValue.Record("name"     -> string("Bob")),
               DynamicValue.Record("fullName" -> string("Carol"))
             )
           )
@@ -497,8 +497,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
             "name" -> string("Alice")
           )
 
-        val action   = Rename(DynamicOptic.root.field("address").field("street"), to = "streetName")
-        val out = DynamicMigration(Vector(action))(in)
+        val action = Rename(DynamicOptic.root.field("address").field("street"), to = "streetName")
+        val out    = DynamicMigration(Vector(action))(in)
 
         assertTrue(out match {
           case Left(FieldNotFound(path, field)) =>
@@ -540,7 +540,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
 
         assertTrue(out match {
           case Left(MigrationFailed(path, _)) => path == action.at
-          case _                             => false
+          case _                              => false
         })
       },
       test("RenameCase fails with TypeMismatch when target is not a variant") {
@@ -714,7 +714,10 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           DynamicMigration(
             Vector(
               Rename(DynamicOptic.root.field("name"), to = "fullName"),
-              TransformValue(DynamicOptic.root.field("fullName"), SchemaExpr.Literal[Any, String]("Bob", Schema[String]))
+              TransformValue(
+                DynamicOptic.root.field("fullName"),
+                SchemaExpr.Literal[Any, String]("Bob", Schema[String])
+              )
             )
           )
 
@@ -779,7 +782,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
           )
 
         val ageSchema = Schema[Int].defaultValue(0)
-        val nested =
+        val nested    =
           Vector(
             Rename(DynamicOptic.root.field("name"), to = "fullName"),
             AddField(DynamicOptic.root.field("age"), defaultExpr(ageSchema))
@@ -804,7 +807,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
         assertTrue(migration(in) == Right(expected))
       },
       test("RenameCase on root variant (no parent path)") {
-        val in       = DynamicValue.Variant("Red", DynamicValue.Record())
+        val in        = DynamicValue.Variant("Red", DynamicValue.Record())
         val migration = DynamicMigration(Vector(RenameCase(DynamicOptic.root, from = "Red", to = "Crimson")))
         val expected  = DynamicValue.Variant("Crimson", DynamicValue.Record())
         assertTrue(migration(in) == Right(expected))
@@ -836,8 +839,16 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
             "f0" -> string("x")
           )
 
-        val m1 = DynamicMigration(Vector(Rename(DynamicOptic.root.field("f0"), to = "f1"), Rename(DynamicOptic.root.field("f1"), to = "f2")))
-        val m2 = DynamicMigration(Vector(Rename(DynamicOptic.root.field("f2"), to = "f3"), Rename(DynamicOptic.root.field("f3"), to = "f4"), Rename(DynamicOptic.root.field("f4"), to = "f5")))
+        val m1 = DynamicMigration(
+          Vector(Rename(DynamicOptic.root.field("f0"), to = "f1"), Rename(DynamicOptic.root.field("f1"), to = "f2"))
+        )
+        val m2 = DynamicMigration(
+          Vector(
+            Rename(DynamicOptic.root.field("f2"), to = "f3"),
+            Rename(DynamicOptic.root.field("f3"), to = "f4"),
+            Rename(DynamicOptic.root.field("f4"), to = "f5")
+          )
+        )
         val m3 = DynamicMigration(
           Vector(
             Rename(DynamicOptic.root.field("f5"), to = "f6"),
@@ -867,7 +878,7 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
 
         assertTrue(out match {
           case Left(MigrationFailed(path, _)) => path == action.at
-          case _                             => false
+          case _                              => false
         })
       },
       test("reverse of RenameCase is correct") {
@@ -948,8 +959,8 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
                 "name" -> string("Alice")
               )
 
-            val schema = Schema[Int].defaultValue(i)
-            val expr   = defaultExpr(schema)
+            val schema    = Schema[Int].defaultValue(i)
+            val expr      = defaultExpr(schema)
             val migration =
               DynamicMigration(
                 Vector(
@@ -978,4 +989,3 @@ object DynamicMigrationSpec extends SchemaBaseSpec {
       }
     )
 }
-

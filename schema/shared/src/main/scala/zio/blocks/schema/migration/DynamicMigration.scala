@@ -20,12 +20,14 @@ import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.{DynamicOptic, DynamicValue, OpticCheck, SchemaExpr}
 
 /**
- * A migration program that operates purely on [[zio.blocks.schema.DynamicValue]]
- * using [[zio.blocks.schema.DynamicOptic]] paths.
+ * A migration program that operates purely on
+ * [[zio.blocks.schema.DynamicValue]] using [[zio.blocks.schema.DynamicOptic]]
+ * paths.
  *
  * Actions are applied sequentially in the order they appear in `actions`.
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
+
   /**
    * Applies this migration to `value`, executing actions sequentially and
    * returning the first error encountered (if any).
@@ -63,21 +65,26 @@ object DynamicMigration {
           case Right((parentPath, fieldName)) =>
             for {
               defaultValue <- evalOne(a.default, (), a.at)
-              updated <- updateAtPath(value, parentPath, a.at, {
-                case r: DynamicValue.Record =>
-                  val fields = r.fields
-                  val len    = fields.length
-                  var idx    = 0
-                  var exists = false
-                  while (idx < len && !exists) {
-                    if (fields(idx)._1 == fieldName) exists = true
-                    idx += 1
-                  }
-                  if (exists) new Right(r) // already exists: leave as-is
-                  else new Right(new DynamicValue.Record(fields.appended((fieldName, defaultValue))))
-                case other =>
-                  new Left(TypeMismatch(a.at, expected = "Record", got = other.valueType.toString))
-              })
+              updated      <- updateAtPath(
+                           value,
+                           parentPath,
+                           a.at,
+                           {
+                             case r: DynamicValue.Record =>
+                               val fields = r.fields
+                               val len    = fields.length
+                               var idx    = 0
+                               var exists = false
+                               while (idx < len && !exists) {
+                                 if (fields(idx)._1 == fieldName) exists = true
+                                 idx += 1
+                               }
+                               if (exists) new Right(r) // already exists: leave as-is
+                               else new Right(new DynamicValue.Record(fields.appended((fieldName, defaultValue))))
+                             case other =>
+                               new Left(TypeMismatch(a.at, expected = "Record", got = other.valueType.toString))
+                           }
+                         )
             } yield updated
           case Left(error) => new Left(MigrationFailed(a.at, error))
         }
@@ -85,41 +92,51 @@ object DynamicMigration {
       case d: DropField =>
         splitFieldPath(d.at) match {
           case Right((parentPath, fieldName)) =>
-            updateAtPath(value, parentPath, d.at, {
-              case r: DynamicValue.Record =>
-                val fields    = r.fields
-                val newFields = fields.filterNot(_._1 == fieldName)
-                if (newFields.length == fields.length) new Left(FieldNotFound(d.at, fieldName))
-                else new Right(new DynamicValue.Record(newFields))
-              case other =>
-                new Left(TypeMismatch(d.at, expected = "Record", got = other.valueType.toString))
-            })
+            updateAtPath(
+              value,
+              parentPath,
+              d.at,
+              {
+                case r: DynamicValue.Record =>
+                  val fields    = r.fields
+                  val newFields = fields.filterNot(_._1 == fieldName)
+                  if (newFields.length == fields.length) new Left(FieldNotFound(d.at, fieldName))
+                  else new Right(new DynamicValue.Record(newFields))
+                case other =>
+                  new Left(TypeMismatch(d.at, expected = "Record", got = other.valueType.toString))
+              }
+            )
           case Left(error) => new Left(MigrationFailed(d.at, error))
         }
 
       case r: Rename =>
         splitFieldPath(r.at) match {
           case Right((parentPath, from)) =>
-            updateAtPath(value, parentPath, r.at, {
-              case rec: DynamicValue.Record =>
-                val fields = rec.fields
-                val len    = fields.length
-                val b      = ChunkBuilder.make[(String, DynamicValue)](len)
-                var idx    = 0
-                var found  = false
-                while (idx < len) {
-                  val kv = fields(idx)
-                  if (kv._1 == from) {
-                    found = true
-                    b.addOne((r.to, kv._2))
-                  } else b.addOne(kv)
-                  idx += 1
-                }
-                if (!found) new Left(FieldNotFound(r.at, from))
-                else new Right(new DynamicValue.Record(b.result()))
-              case other =>
-                new Left(TypeMismatch(r.at, expected = "Record", got = other.valueType.toString))
-            })
+            updateAtPath(
+              value,
+              parentPath,
+              r.at,
+              {
+                case rec: DynamicValue.Record =>
+                  val fields = rec.fields
+                  val len    = fields.length
+                  val b      = ChunkBuilder.make[(String, DynamicValue)](len)
+                  var idx    = 0
+                  var found  = false
+                  while (idx < len) {
+                    val kv = fields(idx)
+                    if (kv._1 == from) {
+                      found = true
+                      b.addOne((r.to, kv._2))
+                    } else b.addOne(kv)
+                    idx += 1
+                  }
+                  if (!found) new Left(FieldNotFound(r.at, from))
+                  else new Right(new DynamicValue.Record(b.result()))
+                case other =>
+                  new Left(TypeMismatch(r.at, expected = "Record", got = other.valueType.toString))
+              }
+            )
           case Left(error) => new Left(MigrationFailed(r.at, error))
         }
 
@@ -127,64 +144,79 @@ object DynamicMigration {
         updateAtPath(value, t.at, t.at, dv => evalOne(t.transform, dv, t.at))
 
       case r: RenameCase =>
-        updateAtPath(value, r.at, r.at, {
-          case v: DynamicValue.Variant =>
-            if (v.caseNameValue == r.from) new Right(new DynamicValue.Variant(r.to, v.value))
-            else new Left(MigrationFailed(r.at, s"Variant case '${v.caseNameValue}' does not match '${r.from}'"))
-          case other =>
-            new Left(TypeMismatch(r.at, expected = "Variant", got = other.valueType.toString))
-        })
+        updateAtPath(
+          value,
+          r.at,
+          r.at,
+          {
+            case v: DynamicValue.Variant =>
+              if (v.caseNameValue == r.from) new Right(new DynamicValue.Variant(r.to, v.value))
+              else new Left(MigrationFailed(r.at, s"Variant case '${v.caseNameValue}' does not match '${r.from}'"))
+            case other =>
+              new Left(TypeMismatch(r.at, expected = "Variant", got = other.valueType.toString))
+          }
+        )
 
       case t: TransformCase =>
         val nested = DynamicMigration(t.actions)
         updateAtPath(value, t.at, t.at, dv => nested(dv))
 
       case t: TransformElements =>
-        updateAtPath(value, t.at, t.at, {
-          case s: DynamicValue.Sequence =>
-            val elements = s.elements
-            val len      = elements.length
-            val b        = ChunkBuilder.make[DynamicValue](len)
-            var idx      = 0
-            var error: Option[MigrationError] = None
-            while (idx < len && error.isEmpty) {
-              evalOne(t.transform, elements(idx), t.at) match {
-                case Right(nv) => b.addOne(nv)
-                case Left(err) => error = Some(err)
+        updateAtPath(
+          value,
+          t.at,
+          t.at,
+          {
+            case s: DynamicValue.Sequence =>
+              val elements                      = s.elements
+              val len                           = elements.length
+              val b                             = ChunkBuilder.make[DynamicValue](len)
+              var idx                           = 0
+              var error: Option[MigrationError] = None
+              while (idx < len && error.isEmpty) {
+                evalOne(t.transform, elements(idx), t.at) match {
+                  case Right(nv) => b.addOne(nv)
+                  case Left(err) => error = Some(err)
+                }
+                idx += 1
               }
-              idx += 1
-            }
-            error match {
-              case Some(err) => new Left(err)
-              case None      => new Right(new DynamicValue.Sequence(b.result()))
-            }
-          case other =>
-            new Left(TypeMismatch(t.at, expected = "Sequence", got = other.valueType.toString))
-        })
+              error match {
+                case Some(err) => new Left(err)
+                case None      => new Right(new DynamicValue.Sequence(b.result()))
+              }
+            case other =>
+              new Left(TypeMismatch(t.at, expected = "Sequence", got = other.valueType.toString))
+          }
+        )
 
       case t: TransformValues =>
-        updateAtPath(value, t.at, t.at, {
-          case m: DynamicValue.Map =>
-            val entries = m.entries
-            val len     = entries.length
-            val b       = ChunkBuilder.make[(DynamicValue, DynamicValue)](len)
-            var idx     = 0
-            var error: Option[MigrationError] = None
-            while (idx < len && error.isEmpty) {
-              val kv = entries(idx)
-              evalOne(t.transform, kv._2, t.at) match {
-                case Right(nv) => b.addOne((kv._1, nv))
-                case Left(err) => error = Some(err)
+        updateAtPath(
+          value,
+          t.at,
+          t.at,
+          {
+            case m: DynamicValue.Map =>
+              val entries                       = m.entries
+              val len                           = entries.length
+              val b                             = ChunkBuilder.make[(DynamicValue, DynamicValue)](len)
+              var idx                           = 0
+              var error: Option[MigrationError] = None
+              while (idx < len && error.isEmpty) {
+                val kv = entries(idx)
+                evalOne(t.transform, kv._2, t.at) match {
+                  case Right(nv) => b.addOne((kv._1, nv))
+                  case Left(err) => error = Some(err)
+                }
+                idx += 1
               }
-              idx += 1
-            }
-            error match {
-              case Some(err) => new Left(err)
-              case None      => new Right(new DynamicValue.Map(b.result()))
-            }
-          case other =>
-            new Left(TypeMismatch(t.at, expected = "Map", got = other.valueType.toString))
-        })
+              error match {
+                case Some(err) => new Left(err)
+                case None      => new Right(new DynamicValue.Map(b.result()))
+              }
+            case other =>
+              new Left(TypeMismatch(t.at, expected = "Map", got = other.valueType.toString))
+          }
+        )
 
       case other =>
         new Left(MigrationFailed(other.at, s"Unsupported migration action: ${other.getClass.getSimpleName}"))
@@ -241,8 +273,8 @@ object DynamicMigration {
               if (kv._1 == name) {
                 found = true
                 updateAtPath(kv._2, nodes, index + 1, actionAt, f) match {
-                  case Right(nv)  => b.addOne((kv._1, nv))
-                  case Left(err)  => return new Left(err)
+                  case Right(nv) => b.addOne((kv._1, nv))
+                  case Left(err) => return new Left(err)
                 }
               } else b.addOne(kv)
               idx += 1
@@ -372,8 +404,8 @@ object DynamicMigration {
             var idx = 0
             while (idx < len) {
               updateAtPath(elements(idx), nodes, index + 1, actionAt, f) match {
-                case Right(nv)  => b.addOne(nv)
-                case Left(err)  => return new Left(err)
+                case Right(nv) => b.addOne(nv)
+                case Left(err) => return new Left(err)
               }
               idx += 1
             }
@@ -393,8 +425,8 @@ object DynamicMigration {
             while (idx < len) {
               val kv = entries(idx)
               updateAtPath(kv._1, nodes, index + 1, actionAt, f) match {
-                case Right(nk)  => b.addOne((nk, kv._2))
-                case Left(err)  => return new Left(err)
+                case Right(nk) => b.addOne((nk, kv._2))
+                case Left(err) => return new Left(err)
               }
               idx += 1
             }
@@ -414,8 +446,8 @@ object DynamicMigration {
             while (idx < len) {
               val kv = entries(idx)
               updateAtPath(kv._2, nodes, index + 1, actionAt, f) match {
-                case Right(nv)  => b.addOne((kv._1, nv))
-                case Left(err)  => return new Left(err)
+                case Right(nv) => b.addOne((kv._1, nv))
+                case Left(err) => return new Left(err)
               }
               idx += 1
             }

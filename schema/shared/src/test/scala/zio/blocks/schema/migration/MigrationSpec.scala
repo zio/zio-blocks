@@ -65,7 +65,8 @@ object MigrationSpec extends SchemaBaseSpec {
   private val v2ToV3: Migration[PersonV2, PersonV3] = {
     val activeSchema = Schema[Boolean].defaultValue(false)
     Migration(
-      dynamicMigration = DynamicMigration(Vector(AddField(DynamicOptic.root.field("active"), defaultExpr(activeSchema)))),
+      dynamicMigration =
+        DynamicMigration(Vector(AddField(DynamicOptic.root.field("active"), defaultExpr(activeSchema)))),
       sourceSchema = Schema[PersonV2],
       targetSchema = Schema[PersonV3]
     )
@@ -157,7 +158,7 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(m.apply(a) == Right(a))
       },
       test("three-way composition associativity") {
-        val a = PersonV1("Alice")
+        val a     = PersonV1("Alice")
         val left  = (v1ToV2.andThen(v2ToV3)).andThen(v3ToV4).apply(a)
         val right = v1ToV2.andThen(v2ToV3.andThen(v3ToV4)).apply(a)
         assertTrue(left == right)
@@ -169,18 +170,21 @@ object MigrationSpec extends SchemaBaseSpec {
       },
       test("migration error propagates from inner DynamicMigration") {
         val activeSchema = Schema[Boolean].defaultValue(false)
-        val bad =
+        val bad          =
           Migration(
-            dynamicMigration = DynamicMigration(Vector(DropField(DynamicOptic.root.field("doesNotExist"), defaultExpr(activeSchema)))),
+            dynamicMigration =
+              DynamicMigration(Vector(DropField(DynamicOptic.root.field("doesNotExist"), defaultExpr(activeSchema)))),
             sourceSchema = Schema[PersonV2],
             targetSchema = Schema[PersonV2]
           )
 
-        assertTrue(bad(PersonV2("Alice")) == Left(FieldNotFound(DynamicOptic.root.field("doesNotExist"), "doesNotExist")))
+        assertTrue(
+          bad(PersonV2("Alice")) == Left(FieldNotFound(DynamicOptic.root.field("doesNotExist"), "doesNotExist"))
+        )
       },
       test("newBuilder produces same result as manual Migration construction") {
         val manual = v1ToV2
-        val built =
+        val built  =
           Migration
             .newBuilder[PersonV1, PersonV2]
             .renameField(DynamicOptic.root.field("name"), to = "fullName")
@@ -192,13 +196,17 @@ object MigrationSpec extends SchemaBaseSpec {
       test("two independent migrations on different fields commute") {
         val mA =
           Migration(
-            dynamicMigration = DynamicMigration(Vector(TransformValue(DynamicOptic.root.field("a"), SchemaExpr.Literal[Any, String]("x", Schema[String])))),
+            dynamicMigration = DynamicMigration(
+              Vector(TransformValue(DynamicOptic.root.field("a"), SchemaExpr.Literal[Any, String]("x", Schema[String])))
+            ),
             sourceSchema = Schema[TwoFields],
             targetSchema = Schema[TwoFields]
           )
         val mB =
           Migration(
-            dynamicMigration = DynamicMigration(Vector(TransformValue(DynamicOptic.root.field("b"), SchemaExpr.Literal[Any, Int](1, Schema[Int])))),
+            dynamicMigration = DynamicMigration(
+              Vector(TransformValue(DynamicOptic.root.field("b"), SchemaExpr.Literal[Any, Int](1, Schema[Int])))
+            ),
             sourceSchema = Schema[TwoFields],
             targetSchema = Schema[TwoFields]
           )
@@ -218,4 +226,3 @@ object MigrationSpec extends SchemaBaseSpec {
       }
     )
 }
-

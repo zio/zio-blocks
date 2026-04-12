@@ -26,6 +26,7 @@ import zio.blocks.schema.{DynamicOptic, SchemaExpr}
  * expected to be interpreted by [[DynamicMigration]].
  */
 sealed trait MigrationAction extends Product with Serializable {
+
   /** The path this action targets within the dynamic value being migrated. */
   def at: DynamicOptic
 
@@ -103,7 +104,8 @@ final case class Optionalize(at: DynamicOptic) extends MigrationAction {
  *
  * This action is a placeholder for a higher-level record join operation.
  */
-final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]) extends MigrationAction {
+final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _])
+    extends MigrationAction {
   def reverse: MigrationAction = this
 }
 
@@ -112,7 +114,8 @@ final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combi
  *
  * This action is a placeholder for a higher-level record split operation.
  */
-final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]) extends MigrationAction {
+final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _])
+    extends MigrationAction {
   def reverse: MigrationAction = this
 }
 
@@ -153,4 +156,3 @@ final case class TransformKeys(at: DynamicOptic, transform: SchemaExpr[Any, _]) 
 final case class TransformValues(at: DynamicOptic, transform: SchemaExpr[Any, _]) extends MigrationAction {
   def reverse: MigrationAction = this
 }
-

@@ -25,4 +25,3 @@ package zio.blocks.schema.migration
 trait MigrationBuilderBuildVersionSpecific[A, B] { self: MigrationBuilder[A, B] =>
   def build: Migration[A, B] = self.buildPartial
 }
-

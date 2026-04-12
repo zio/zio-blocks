@@ -29,7 +29,10 @@ class MigrationBuilder[A, B] private[migration] (
   val targetSchema: Schema[B],
   val actions: Vector[MigrationAction]
 ) extends MigrationBuilderBuildVersionSpecific[A, B] { self =>
-  /** Type-level migration state used for compile-time validation (Scala 3 only). */
+
+  /**
+   * Type-level migration state used for compile-time validation (Scala 3 only).
+   */
   type Actions
 
   /**
@@ -55,7 +58,9 @@ class MigrationBuilder[A, B] private[migration] (
       .asInstanceOf[MigrationBuilder[A, B] { type Actions = self.Actions }]
 
   /** Renames the field referenced by `at` to `to`. */
-  private[migration] def renameField(at: DynamicOptic, to: String): MigrationBuilder[A, B] { type Actions = self.Actions } =
+  private[migration] def renameField(at: DynamicOptic, to: String): MigrationBuilder[A, B] {
+    type Actions = self.Actions
+  } =
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ Rename(at, to))
       .asInstanceOf[MigrationBuilder[A, B] { type Actions = self.Actions }]
 

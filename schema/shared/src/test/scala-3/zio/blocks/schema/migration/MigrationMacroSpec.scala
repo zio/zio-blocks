@@ -81,7 +81,7 @@ object MigrationMacroSpec extends SchemaBaseSpec {
       },
       test("addField macro expands correctly") {
         val activeSchema = Schema[Boolean].defaultValue(false)
-        val migration =
+        val migration    =
           Migration
             .newBuilder[AddFieldV1, AddFieldV2]
             .addField(_.active, defaultExpr(activeSchema))
@@ -91,7 +91,7 @@ object MigrationMacroSpec extends SchemaBaseSpec {
       },
       test("dropField macro expands correctly") {
         val activeSchema = Schema[Boolean].defaultValue(false)
-        val migration =
+        val migration    =
           Migration
             .newBuilder[DropFieldV1, DropFieldV2]
             .dropField(_.active, defaultExpr(activeSchema))
@@ -112,7 +112,7 @@ object MigrationMacroSpec extends SchemaBaseSpec {
         // This MUST compile with .build (not .buildPartial).
         // If Actions type is widened after the first call, build will fail.
         val activeSchema = Schema[Boolean].defaultValue(false)
-        val migration =
+        val migration    =
           Migration
             .newBuilder[ChainV1, ChainV2]
             .renameField(_.name, _.fullName)

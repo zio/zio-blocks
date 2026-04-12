@@ -35,4 +35,3 @@ final case class TypeMismatch(path: DynamicOptic, expected: String, got: String)
 
 /** The migration failed for a domain-specific reason at a particular path. */
 final case class MigrationFailed(path: DynamicOptic, cause: String) extends MigrationError
-

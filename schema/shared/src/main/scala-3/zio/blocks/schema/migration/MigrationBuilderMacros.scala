@@ -33,8 +33,8 @@ import zio.blocks.schema.Schema
 private[migration] object MigrationBuilderMacros {
   private sealed trait Action
   private final case class Rename(oldName: String, newName: String) extends Action
-  private final case class Add(fieldName: String) extends Action
-  private final case class Drop(fieldName: String) extends Action
+  private final case class Add(fieldName: String)                   extends Action
+  private final case class Drop(fieldName: String)                  extends Action
 
   def validateAndBuild[A: Type, B: Type, Actions: Type](
     builder: Expr[MigrationBuilder[A, B]]
@@ -86,7 +86,7 @@ private[migration] object MigrationBuilderMacros {
     def stringLiteral(tpe: TypeRepr): Option[String] =
       tpe.dealias match {
         case ConstantType(StringConstant(s)) => Some(s)
-        case ConstantType(c) =>
+        case ConstantType(c)                 =>
           c.value match {
             case s: String => Some(s)
             case _         => None
@@ -176,10 +176,10 @@ private[migration] object MigrationBuilderMacros {
            |From fields: ${from0.mkString("(", ", ", ")")}
            |To fields:   ${to0.mkString("(", ", ", ")")}
            |Actions:     ${actions0.map {
-                            case Rename(o, n) => s"rename($o->$n)"
-                            case Add(f)       => s"add($f)"
-                            case Drop(f)      => s"drop($f)"
-                          }.mkString("[", ", ", "]")}
+            case Rename(o, n) => s"rename($o->$n)"
+            case Add(f)       => s"add($f)"
+            case Drop(f)      => s"drop($f)"
+          }.mkString("[", ", ", "]")}
            |After:       ${migrated.mkString("(", ", ", ")")}
            |Missing:     ${missing.mkString("[", ", ", "]")}
            |Extra:       ${extra.mkString("[", ", ", "]")}

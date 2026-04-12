@@ -24,11 +24,15 @@ import zio.blocks.schema.{Schema, SchemaExpr}
  * Scala 3 version-specific surface for [[MigrationBuilder]].
  *
  * This provides:
- * - an `apply` constructor that seeds the builder type-state with `EmptyTuple`
- * - selector-based methods that accumulate type-state (for `.build` validation)
+ *   - an `apply` constructor that seeds the builder type-state with
+ *     `EmptyTuple`
+ *   - selector-based methods that accumulate type-state (for `.build`
+ *     validation)
  */
 trait MigrationBuilderVersionSpecific {
-  def apply[A, B](sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] { type Actions = EmptyTuple } =
+  def apply[A, B](sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] {
+    type Actions = EmptyTuple
+  } =
     new MigrationBuilder[A, B](sourceSchema, targetSchema, Vector.empty) {
       type Actions = EmptyTuple
     }
@@ -135,12 +139,13 @@ private object MigrationBuilderVersionSpecificImpl {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val _ = (sa, sb)
+    val _    = (sa, sb)
     val path = MigrationMacros.selectorToDynamicOptic[B, Any](at)
     val name = selectorLeafFieldName[B, Any](at)
 
-    val ops     = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
-    val addSym  = Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("addField").head
+    val ops    = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
+    val addSym =
+      Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("addField").head
     val fType   = ConstantType(StringConstant(name))
     val applied = Apply(
       TypeApply(Select(ops, addSym), List(TypeTree.of[A], TypeTree.of[B], TypeTree.of[Acts], Inferred(fType))),
@@ -159,12 +164,13 @@ private object MigrationBuilderVersionSpecificImpl {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val _ = (sa, sb)
+    val _    = (sa, sb)
     val path = MigrationMacros.selectorToDynamicOptic[A, Any](at)
     val name = selectorLeafFieldName[A, Any](at)
 
     val ops     = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
-    val dropSym = Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("dropField").head
+    val dropSym =
+      Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("dropField").head
     val fType   = ConstantType(StringConstant(name))
     val applied = Apply(
       TypeApply(Select(ops, dropSym), List(TypeTree.of[A], TypeTree.of[B], TypeTree.of[Acts], Inferred(fType))),
@@ -183,15 +189,16 @@ private object MigrationBuilderVersionSpecificImpl {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val _ = (sa, sb)
+    val _    = (sa, sb)
     val path = MigrationMacros.selectorToDynamicOptic[A, Any](from)
     val old  = selectorLeafFieldName[A, Any](from)
     val neu  = selectorLeafFieldName[B, Any](to)
 
-    val ops      = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
-    val renSym   = Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("renameField").head
-    val oldType  = ConstantType(StringConstant(old))
-    val newType  = ConstantType(StringConstant(neu))
+    val ops    = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
+    val renSym =
+      Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("renameField").head
+    val oldType = ConstantType(StringConstant(old))
+    val newType = ConstantType(StringConstant(neu))
     val applied = Apply(
       TypeApply(
         Select(ops, renSym),
@@ -212,14 +219,15 @@ private object MigrationBuilderVersionSpecificImpl {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val _ = (sa, sb)
+    val _    = (sa, sb)
     val path = MigrationMacros.selectorToDynamicOptic[A, Any](at)
 
     // TransformValue does not affect structural field coverage, so we do not
     // add it to the type-state.
-    val ops      = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
-    val trSym    = Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("transformField").head
-    val applied  = Apply(
+    val ops   = Ref(Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps"))
+    val trSym =
+      Symbol.requiredModule("zio.blocks.schema.migration.MigrationBuilderStateOps").methodMember("transformField").head
+    val applied = Apply(
       TypeApply(Select(ops, trSym), List(TypeTree.of[A], TypeTree.of[B], TypeTree.of[Acts])),
       List(builder.asTerm, path.asTerm, transform.asTerm)
     )

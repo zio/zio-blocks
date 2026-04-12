@@ -86,4 +86,3 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       }
     )
 }
-

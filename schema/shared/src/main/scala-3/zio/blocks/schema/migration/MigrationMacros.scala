@@ -98,4 +98,3 @@ private[migration] object MigrationMacros {
     opticExpr
   }
 }
-

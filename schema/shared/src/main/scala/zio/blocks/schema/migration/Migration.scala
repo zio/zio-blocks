@@ -30,6 +30,7 @@ final case class Migration[A, B](
   sourceSchema: Schema[A],
   targetSchema: Schema[B]
 ) {
+
   /**
    * Migrates a value of type `A` to type `B`.
    *
@@ -40,10 +41,10 @@ final case class Migration[A, B](
     for {
       dv       <- Right(sourceSchema.toDynamicValue(value))
       migrated <- dynamicMigration(dv)
-      result <- targetSchema
-        .fromDynamicValue(migrated)
-        .left
-        .map(e => MigrationFailed(DynamicOptic.root, e.toString))
+      result   <- targetSchema
+                  .fromDynamicValue(migrated)
+                  .left
+                  .map(e => MigrationFailed(DynamicOptic.root, e.toString))
     } yield result
 
   /** Sequentially composes this migration with `that` migration. */
@@ -59,6 +60,7 @@ final case class Migration[A, B](
 }
 
 object Migration {
+
   /** The identity migration, which applies no dynamic actions. */
   def identity[A](schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration(Vector.empty), schema, schema)
