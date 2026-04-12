@@ -46,7 +46,7 @@ jobs:
           publish-dir: ./website-artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           deploy-message: "Deploy preview from ${{ github.repository }} PR #${{ steps.pr.outputs.number }}"
-          alias: "${{ github.event.repository.name }}-pr-${{ github.event.pull_request.number }}"
+          alias: "${{ github.event.repository.name }}-pr-${{ steps.pr.outputs.number }}"
           enable-pull-request-comment: false
           enable-commit-comment: false
         env:
