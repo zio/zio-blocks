@@ -89,7 +89,7 @@ const sidebars = {
              {
                type: "category",
                label: "Schema Evolution",
-               link: { type: "doc", id: "reference/schema-evolution/index" },
+               link: { type: "doc", id: "reference/schema/schema-evolution/index" },
                items: [
                  "reference/schema/schema-evolution/into",
                  "reference/schema/schema-evolution/as",
