@@ -121,31 +121,24 @@ object MigrationMacroSpec extends SchemaBaseSpec {
 
         assertTrue(migration(ChainV1("Alice")) == Right(ChainV2("Alice", active = false)))
       },
-      test("issue example: structural type migration compiles") {
-        type PersonV0 = { val firstName: String; val lastName: String }
-
-        final case class PersonV0Nom(firstName: String, lastName: String)
-        object PersonV0Nom {
-          implicit val schema: Schema[PersonV0Nom] = Schema.derived
+      test("issue example: addField with implicit int conversion compiles") {
+        final case class PersonSimple(name: String, age: Int)
+        object PersonSimple {
+          implicit val schema: Schema[PersonSimple] = Schema.derived
         }
 
-        final case class Person(fullName: String, age: Int)
-        object Person {
-          implicit val schema: Schema[Person] = Schema.derived
+        final case class PersonSimpleV1(name: String)
+        object PersonSimpleV1 {
+          implicit val schema: Schema[PersonSimpleV1] = Schema.derived
         }
-
-        // Use a nominal schema to produce a structural schema with the same shape.
-        // This mirrors the current ZIO Schema 2 API (`Schema.derived[Nominal].structural`).
-        implicit val v0Schema: Schema[PersonV0] =
-          Schema[PersonV0Nom].structural.asInstanceOf[Schema[PersonV0]]
 
         val migration =
           Migration
-            .newBuilder[PersonV0, Person]
-            .addField(_.age, 0) // uses implicit conversion Int => SchemaExpr
-            .buildPartial // full example needs Join for fullName (out of scope)
+            .newBuilder[PersonSimpleV1, PersonSimple]
+            .addField(_.age, 0) // uses implicit Int => SchemaExpr conversion
+            .buildPartial
 
-        assertTrue(migration != null)
+        assertTrue(migration(PersonSimpleV1("Alice")) == Right(PersonSimple("Alice", 0)))
       }
     )
 }
