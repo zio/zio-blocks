@@ -79,8 +79,8 @@ addCommandAlias(
       List("++3.8.2", setVersion, noDoc) ++ golem,
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
-      // Scala 2.12 for sbt plugin and build codegen
-      List("++2.12.21!", setVersion, noDoc, "zioGolemBuildCodegen/publishLocal", "zioGolemSbt/publishLocal")
+      // Scala 2.12 for sbt plugin
+      List("++2.12.21!", setVersion, noDoc, "zioGolemSbt/publishLocal")
     ).flatten.mkString("; ")
   }
 )
