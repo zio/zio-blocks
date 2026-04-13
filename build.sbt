@@ -79,8 +79,8 @@ addCommandAlias(
       List("++3.8.2", setVersion, noDoc) ++ golem,
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
-      // Scala 2.12 for sbt plugin and build codegen (codegen has static version)
-      List("++2.12.21!", noDoc, "zioGolemBuildCodegen/publishLocal", "zioGolemSbt/publishLocal")
+      // Scala 2.12 for sbt plugin and build codegen
+      List("++2.12.21!", setVersion, noDoc, "zioGolemBuildCodegen/publishLocal", "zioGolemSbt/publishLocal")
     ).flatten.mkString("; ")
   }
 )
@@ -1034,7 +1034,6 @@ lazy val zioGolemBuildCodegen = project
     publish / skip     := true,
     name               := "zio-golem-build-codegen",
     organization       := "dev.zio",
-    version            := "0.0.0-SNAPSHOT",
     crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
     scalaVersion       := BuildHelper.Scala33,
     libraryDependencies ++= Seq(
