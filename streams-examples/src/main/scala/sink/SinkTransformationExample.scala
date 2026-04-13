@@ -34,14 +34,14 @@ object SinkTransformationExample extends App {
   val parseInts: Sink[Nothing, String, Long] =
     Sink.sumInt.contramap[String](_.toInt)
 
-  show(Stream("10", "20", "30"))
+  show(Stream("10", "20", "30").run(parseInts))
 
   // 3. map — transform result
   println("\n3. Sink.map — transform the result:")
   val countFormatted: Sink[Nothing, Any, String] =
     Sink.count.map(n => s"Processed $n elements")
 
-  show(Stream(1, 2, 3))
+  show(Stream(1, 2, 3).run(countFormatted))
 
   // 4. Chaining contramap + map
   println("\n4. Chaining contramap + map:")
@@ -58,11 +58,11 @@ object SinkTransformationExample extends App {
   case class ParseError(msg: String) extends AppError
 
   val failingSink = Sink.fail("raw error").mapError[AppError](msg => ParseError(msg))
-  show(Stream(1))
+  show(Stream(1).run(failingSink))
 
   // 6. fail — immediately fail
   println("\n6. Sink.fail — immediate failure:")
-  show(Stream(1, 2, 3))
+  show(Stream(1, 2, 3).run(Sink.fail("error")))
 
   // 7. Pipeline.andThenSink integration
   println("\n7. Pipeline.andThenSink — pipeline pre-processes before sink:")
@@ -71,7 +71,7 @@ object SinkTransformationExample extends App {
       .map[String, String](_.trim.toLowerCase)
       .andThenSink(Sink.collectAll[String])
 
-  show(Stream("  Hello ", " WORLD  "))
+  show(Stream("  Hello ", " WORLD  ").run(cleanAndCollect))
 
   // 8. Equivalence: via + run == andThenSink + run
   println("\n8. Equivalence law: via + run == andThenSink + run:")
@@ -99,7 +99,7 @@ object SinkTransformationExample extends App {
 
   val metricAvgSink: Sink[Nothing, Metric, Double] =
     Sink
-      .foldLeft[(Double, Int), Metric]((0.0, 0)) { case ((sum, count), m) =>
+      .foldLeft[Metric, (Double, Int)]((0.0, 0)) { case ((sum, count), m) =>
         (sum + m.value, count + 1)
       }
       .map { case (sum, count) => if (count == 0) 0.0 else sum / count }

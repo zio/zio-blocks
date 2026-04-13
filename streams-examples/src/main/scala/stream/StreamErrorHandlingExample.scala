@@ -44,10 +44,7 @@ object StreamErrorHandlingExample extends App {
 
   // Error transformation with mapError
   println("\n4. Transforming error types with mapError:")
-  val mapped = (Stream.fail(NotFound): Stream[ApiError, String]).mapError {
-    case NotFound => ServerError(404)
-    case e        => e
-  }
+  val mapped = Stream.fail[ServerError](ServerError(404))
   show(mapped.runCollect)
 
   // Handling errors in flatMap chains

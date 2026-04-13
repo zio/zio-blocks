@@ -60,13 +60,7 @@ object StreamResourceExample extends App {
   )(db => Stream.fromIterable(db.query("users")))
 
   val result1 = managed.runCollect
-  show(
-    """Stream.fromAcquireRelease(
-      |  acquire = Database("main"),
-      |  release = _.close()
-      |)(db => Stream.fromIterable(db.query("users")))
-      |.runCollect""".stripMargin
-  )(result1)
+  show(result1)
   show(log.toList)
 
   // Ensuring cleanup

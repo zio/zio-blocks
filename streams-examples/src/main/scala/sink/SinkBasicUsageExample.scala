@@ -17,7 +17,6 @@
 package sink
 
 import zio.blocks.streams.*
-import zio.blocks.chunk.Chunk
 import util.ShowExpr.show
 
 object SinkBasicUsageExample extends App {

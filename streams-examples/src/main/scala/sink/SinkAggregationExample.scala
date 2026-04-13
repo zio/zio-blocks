@@ -29,7 +29,7 @@ object SinkAggregationExample extends App {
 
   println("\n   foldLeft with string concatenation:")
   val concat = Stream("a", "b", "c").run(Sink.foldLeft("")(_ + _))
-  show(_ + _)
+  show(concat)
   // 2. sumInt — typed numeric sum
   println("\n2. Sink.sumInt — returns Long to avoid overflow:")
   val intSum = Stream(1, 2, 3, 4, 5).run(Sink.sumInt)
@@ -74,7 +74,7 @@ object SinkAggregationExample extends App {
   // 8. Complex aggregation: combine foldLeft with map
   println("\n8. Complex aggregation — average via foldLeft + map:")
   val average = Sink
-    .foldLeft[(Int, Int), Int]((0, 0)) { case ((sum, count), x) =>
+    .foldLeft[Int, (Int, Int)]((0, 0)) { case ((sum, count), x) =>
       (sum + x, count + 1)
     }
     .map { case (sum, count) =>
