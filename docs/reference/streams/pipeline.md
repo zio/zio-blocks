@@ -390,7 +390,7 @@ This adds a small overhead compared to direct stream application, because an int
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `schema-examples` module.
+All code from this guide is available as runnable examples in the `streams-examples` module.
 
 **1. Clone the repository and navigate to the project:**
 
@@ -408,13 +408,13 @@ This example demonstrates all six Pipeline factory methods: `map`, `filter`, `co
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/pipeline/PipelineBasicUsageExample.scala")
+SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineBasicUsageExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/pipeline/PipelineBasicUsageExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/pipeline/PipelineBasicUsageExample.scala))
 
 ```bash
-sbt "schema-examples/runMain pipeline.PipelineBasicUsageExample"
+sbt "streams-examples/runMain pipeline.PipelineBasicUsageExample"
 ```
 
 ### Pipeline Composition
@@ -424,13 +424,13 @@ This example shows how to compose pipelines with `andThen`, apply them to multip
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/pipeline/PipelineCompositionExample.scala")
+SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineCompositionExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/pipeline/PipelineCompositionExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/pipeline/PipelineCompositionExample.scala))
 
 ```bash
-sbt "schema-examples/runMain pipeline.PipelineCompositionExample"
+sbt "streams-examples/runMain pipeline.PipelineCompositionExample"
 ```
 
 ### Sink Integration
@@ -440,11 +440,11 @@ This example demonstrates applying pipelines to sinks with `andThenSink`, showin
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/pipeline/PipelineSinkIntegrationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineSinkIntegrationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/pipeline/PipelineSinkIntegrationExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/pipeline/PipelineSinkIntegrationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain pipeline.PipelineSinkIntegrationExample"
+sbt "streams-examples/runMain pipeline.PipelineSinkIntegrationExample"
 ```
