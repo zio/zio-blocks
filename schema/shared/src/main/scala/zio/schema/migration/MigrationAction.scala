@@ -1,6 +1,6 @@
 package zio.schema.migration
 
-import zio.schema.DynamicValue
+import zio.blocks.schema.DynamicValue
 
 /**
  * An algebraic data type representing a singular structural transformation across a schema.
@@ -44,14 +44,6 @@ object MigrationAction {
     }
   }
 
-  final case class TransformValue(
-    at: DynamicOptic,
-    transform: DynamicValue => DynamicValue,
-    reverseTransform: DynamicValue => DynamicValue
-  ) extends MigrationAction {
-    def reverse: MigrationAction = TransformValue(at, reverseTransform, transform)
-  }
-
   final case class Mandate(
     at: DynamicOptic,
     default: DynamicValue
@@ -86,27 +78,4 @@ object MigrationAction {
 
   // ===== Collection & Map Actions =====
 
-  final case class TransformElements(
-    at: DynamicOptic,
-    transform: DynamicValue => DynamicValue,
-    reverseTransform: DynamicValue => DynamicValue
-  ) extends MigrationAction {
-    def reverse: MigrationAction = TransformElements(at, reverseTransform, transform)
-  }
-
-  final case class TransformKeys(
-    at: DynamicOptic,
-    transform: DynamicValue => DynamicValue,
-    reverseTransform: DynamicValue => DynamicValue
-  ) extends MigrationAction {
-    def reverse: MigrationAction = TransformKeys(at, reverseTransform, transform)
-  }
-
-  final case class TransformValues(
-    at: DynamicOptic,
-    transform: DynamicValue => DynamicValue,
-    reverseTransform: DynamicValue => DynamicValue
-  ) extends MigrationAction {
-    def reverse: MigrationAction = TransformValues(at, reverseTransform, transform)
-  }
 }

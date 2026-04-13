@@ -1,7 +1,7 @@
 package zio.schema.migration
 
-import zio.schema.Schema
-import zio.schema.DynamicValue
+import zio.blocks.schema.Schema
+import zio.blocks.schema.DynamicValue
 
 /**
  * High-level typed API that wraps the pure structural `DynamicMigration`.
@@ -15,8 +15,8 @@ final case class Migration[A, B](
 
   /** Applies the structural migration, transitioning an A to a B */
   def apply(value: A): Either[MigrationError, B] =
-    dynamicMigration.apply(sourceSchema.toDynamic(value)).flatMap { dynamicTarget =>
-      targetSchema.fromDynamic(dynamicTarget) match {
+    dynamicMigration.apply(sourceSchema.toDynamicValue(value)).flatMap { dynamicTarget =>
+      targetSchema.fromDynamicValue(dynamicTarget) match {
         case Left(err) => Left(MigrationError.UnrecoverableParseError(s"Decoding failed: $err"))
         case Right(v)  => Right(v)
       }
@@ -68,10 +68,10 @@ class MigrationBuilder[A, B](
   def renameField(fromOp: DynamicOptic, toName: String): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Rename(fromOp, toName))
 
-  def mandateField(_: DynamicOptic, targetOp: DynamicOptic, default: DynamicValue): MigrationBuilder[A, B] =
+  def mandateField(targetOp: DynamicOptic, default: DynamicValue): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Mandate(targetOp, default))
 
-  def optionalizeField(_: DynamicOptic, targetOp: DynamicOptic): MigrationBuilder[A, B] =
+  def optionalizeField(targetOp: DynamicOptic): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Optionalize(targetOp))
 
   def renameCase(atOp: DynamicOptic, fromTag: String, toTag: String): MigrationBuilder[A, B] =
