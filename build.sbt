@@ -1036,7 +1036,7 @@ lazy val zioGolemBuildCodegen = project
     crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
     scalaVersion       := BuildHelper.Scala33,
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.14.7",
+      "org.scalameta" %% "scalameta" % "4.16.0",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
