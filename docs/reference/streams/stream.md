@@ -5,7 +5,7 @@ title: "Stream"
 
 `Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions:
 
-```scala mdoc:compile-only
+```scala
 abstract class Stream[+E, +A] {
   def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
   def runCollect: Either[E, Chunk[A]]
@@ -44,11 +44,14 @@ The problem: `List` eagerly applies `.map` and `.filter` to all 1 million elemen
 With `Stream[E, A]`, the architecture is **inverted**: the **sink (consumer) pulls** from the stream. If the sink asks for only 10 elements, only ~20 calculations occur (enough to find 10 valid results after filtering):
 
 ```scala mdoc:compile-only
+import zio.blocks.streams.*
+
 // With Stream (lazy, pull-based evaluation)
-Stream.fromRange(1, 1_000_001)
-  .map(_ * 2)
-  .filter(_ > 10)
-  .run(Sink.take(10))
+val result: Either[Nothing, zio.blocks.chunk.Chunk[Int]] =
+  Stream.fromRange((1 to 100))
+    .map(_ * 2)
+    .filter(_ > 10)
+    .run(Sink.take(10))
 // ✓ Computation stops after 10 valid elements are produced
 // Only necessary work: ~20 multiplications, ~20 comparisons
 ```
@@ -60,7 +63,9 @@ This **short-circuiting** behavior is automatic and requires no special syntax.
 When you open resources (file handles, network connections, database cursors), you must release them in **all** code paths—success, error, and even mid-stream cancellation. With eager sequences, this burden falls on the caller:
 
 ```scala mdoc:compile-only
-// With Scala List (manual resource management)
+import java.io.*
+
+// With traditional Scala (manual resource management)
 var file: BufferedReader = null
 try {
   file = new BufferedReader(new FileReader("data.txt"))
@@ -85,14 +90,18 @@ try {
 With `Stream[E, A]`, resource cleanup is **automatic, composable, and guaranteed**—even on error or if the sink cancels early:
 
 ```scala mdoc:compile-only
+import zio.blocks.streams.*
+import java.io.*
+
 // With Stream (resource-safe RAII)
-Stream
-  .fromFile("data.txt")  // acquires file handle lazily
-  .map(_.length)
-  .run(Sink.take(10))
-  // ✓ Automatically closes file in finally block
-  // ✓ Works on success, error, or if Sink.take(10) stops early
-  // ✓ Multiple resources compose naturally: no nested try/catch pyramid
+val result: Either[IOException, zio.blocks.chunk.Chunk[Char]] =
+  Stream
+    .fromJavaReader(new FileReader("data.txt"))  // acquires file handle lazily
+    .grouped(10)  // group chars into chunks
+    .run(Sink.take(10))  // take first 10 groups
+// ✓ Automatically closes file in finally block
+// ✓ Works on success, error, or if Sink.take(10) stops early
+// ✓ Multiple resources compose naturally: no nested try/catch pyramid
 ```
 
 The key difference: `Stream` releases resources via **RAII** (Resource Acquisition Is Initialization) — the resource's lifetime is bound to the compiled stream's `close()` method, which the terminal operation (`run`) always calls in a `finally` block.
