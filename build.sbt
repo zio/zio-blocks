@@ -1149,11 +1149,6 @@ lazy val `schema-examples` = project
     libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s",
-    // Pipeline examples are mdoc-embedded and not compiled directly
-    Compile / sources := {
-      val all = (Compile / sources).value
-      all.filterNot(f => f.getPath.contains("/pipeline/"))
-    }
   )
   .dependsOn(`schema-examples-macros`)
   .dependsOn(
