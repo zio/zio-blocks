@@ -1036,8 +1036,7 @@ lazy val zioGolemBuildCodegen = project
     name                    := "zio-golem-build-codegen",
     organization            := "dev.zio",
     version                 := "0.0.0-SNAPSHOT",
-    crossScalaVersions      := Seq("2.12.21", BuildHelper.Scala33),
-    scalaVersion            := BuildHelper.Scala33,
+    scalaVersion            := "2.12.21",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta" % "4.16.0",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
