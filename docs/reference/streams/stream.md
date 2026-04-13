@@ -91,17 +91,19 @@ With `Stream[E, A]`, resource cleanup is **automatic, composable, and guaranteed
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
+import java.io.*
 
 // With Stream (resource-safe RAII)
-val result: Either[Nothing, zio.blocks.chunk.Chunk[Int]] =
+// Open a file and count non-whitespace characters
+val charCount: Either[IOException, Long] =
   Stream
-    .fromRange((1 to 100))  // lazy stream source
-    .ensuring(println("Cleanup: stream closing"))  // finalizer runs in all cases
-    .map(_ * 2)
-    .run(Sink.take(10))  // take only 10 elements
-// ✓ Automatically calls cleanup in finally block
-// ✓ Works on success, error, or if Sink.take(10) stops early
-// ✓ Multiple resources compose naturally: no nested try/catch pyramid
+    .fromJavaReader(new FileReader("build.sbt"))  // lazily acquires file handle
+    .filter(!_.isWhitespace)  // process only non-whitespace
+    .count  // count all matching characters
+// ✓ File automatically closes in finally block (success or error)
+// ✓ If FileReader throws, or filter throws, or count throws—cleanup still runs
+// ✓ No manual try/finally needed; no resource leak risk
+// ✓ Multiple resources (files, connections, etc.) compose naturally
 ```
 
 The key difference: `Stream` releases resources via **RAII** (Resource Acquisition Is Initialization) — the resource's lifetime is bound to the compiled stream's `close()` method, which the terminal operation (`run`) always calls in a `finally` block.
