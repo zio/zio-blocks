@@ -190,6 +190,7 @@ lazy val root = project
     `streams-benchmark`,
     docs,
     `schema-examples`,
+    `streams-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
@@ -1145,7 +1146,18 @@ lazy val `schema-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4")
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s",
+    // Stream, pipeline, and sink examples are mdoc-embedded and not compiled directly
+    Compile / sources := {
+      val all = (Compile / sources).value
+      all.filterNot(f =>
+        f.getPath.contains("/stream/") ||
+          f.getPath.contains("/pipeline/") ||
+          f.getPath.contains("/sink/")
+      )
+    }
   )
   .dependsOn(`schema-examples-macros`)
   .dependsOn(
@@ -1159,6 +1171,23 @@ lazy val `schema-examples` = project
     `schema-avro`,
     `schema-thrift`,
     `schema-bson`
+  )
+
+lazy val `streams-examples` = project
+  .in(file("streams-examples"))
+  .settings(stdSettings("zio-blocks-streams-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
+  )
+  .dependsOn(
+    streams.jvm,
+    chunk.jvm
   )
 
 lazy val docs = project

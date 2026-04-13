@@ -440,11 +440,11 @@ This example demonstrates the most common writer factories: `single`, `limited`,
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/writer/WriterBasicConstructionExample.scala")
+SourceFile.print("streams-examples/src/main/scala/writer/WriterBasicConstructionExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain writer.WriterBasicConstructionExample"
+sbt "streams-examples/runMain writer.WriterBasicConstructionExample"
 ```
 
 ### Composition and Transformation
@@ -454,11 +454,11 @@ This example shows writer composition with `++` (concat), transformation with `c
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/writer/WriterCompositionExample.scala")
+SourceFile.print("streams-examples/src/main/scala/writer/WriterCompositionExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain writer.WriterCompositionExample"
+sbt "streams-examples/runMain writer.WriterCompositionExample"
 ```
 
 ### I/O Adapters
@@ -468,9 +468,9 @@ This example demonstrates I/O integration with `fromOutputStream` and `fromWrite
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/writer/WriterIOAdapterExample.scala")
+SourceFile.print("streams-examples/src/main/scala/writer/WriterIOAdapterExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain writer.WriterIOAdapterExample"
+sbt "streams-examples/runMain writer.WriterIOAdapterExample"
 ```

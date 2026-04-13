@@ -647,11 +647,11 @@ This example demonstrates the most common reader factories: `fromChunk`, `fromIt
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/reader/ReaderBasicConstructionExample.scala")
+SourceFile.print("streams-examples/src/main/scala/reader/ReaderBasicConstructionExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain reader.ReaderBasicConstructionExample"
+sbt "streams-examples/runMain reader.ReaderBasicConstructionExample"
 ```
 
 ### Primitive Specialization and Bulk Operations
@@ -661,11 +661,11 @@ This example shows how primitive readers avoid boxing through `jvmType` dispatch
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/reader/ReaderPrimitiveSpecializationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/reader/ReaderPrimitiveSpecializationExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain reader.ReaderPrimitiveSpecializationExample"
+sbt "streams-examples/runMain reader.ReaderPrimitiveSpecializationExample"
 ```
 
 ### Composition and Resource Management
@@ -675,9 +675,9 @@ This example demonstrates reader composition with `++`, resource cleanup with `w
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/reader/ReaderCompositionExample.scala")
+SourceFile.print("streams-examples/src/main/scala/reader/ReaderCompositionExample.scala")
 ```
 
 ```bash
-sbt "schema-examples/runMain reader.ReaderCompositionExample"
+sbt "streams-examples/runMain reader.ReaderCompositionExample"
 ```

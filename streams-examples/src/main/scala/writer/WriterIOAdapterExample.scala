@@ -17,7 +17,6 @@
 package writer
 
 import zio.blocks.streams.io.Writer
-import zio.blocks.chunk.Chunk
 import java.io.{ByteArrayOutputStream, StringWriter, OutputStreamWriter => JOutputStreamWriter}
 
 /**
