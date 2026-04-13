@@ -1148,7 +1148,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
     scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
   .dependsOn(`schema-examples-macros`)
   .dependsOn(
