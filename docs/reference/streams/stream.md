@@ -21,9 +21,9 @@ abstract class Stream[+E, +A] {
 
 ## Overview
 
-### The Problem
+### Motivation
 
-Traditional eager sequences (like Scala `List`) fall short in **two critical dimensions**:
+Traditional eager sequences (like Scala `List`) fall short in **three critical dimensions**. Here's what `Stream[E, A]` solves for each:
 
 **1. Efficiency — Wasteful Computation**
 
@@ -168,14 +168,6 @@ result match {
 ```
 
 The key distinction: `Either[ParseError, Z]` means domain errors are *recoverable* via `Left`; any uncaught `Throwable` defect propagates as an exception, which is correct—you cannot recover from running out of memory, only from bad input.
-
-### The Solution
-
-`Stream[E, A]` solves this by combining:
-- **Lazy evaluation**: nothing runs until a terminal operation (`run`, `runCollect`, `head`, etc.) is called
-- **Pull-based architecture**: the sink (consumer) pulls elements from the stream, not the other way around. This naturally short-circuits: if the sink says "stop," the stream stops, avoiding unnecessary work
-- **Resource-safe RAII**: resources acquired during stream compilation are released in the compiled `Reader`'s `close()` method, which is always called in a `finally` block by the terminal operation, even on error
-- **Typed error separation**: typed errors (`E`) are distinct from untyped defects (`Throwable`), enabling proper error recovery strategies
 
 ### Architecture
 
