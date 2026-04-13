@@ -91,15 +91,15 @@ With `Stream[E, A]`, resource cleanup is **automatic, composable, and guaranteed
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
-import java.io.*
 
 // With Stream (resource-safe RAII)
-val result: Either[IOException, zio.blocks.chunk.Chunk[Char]] =
+val result: Either[Nothing, zio.blocks.chunk.Chunk[Int]] =
   Stream
-    .fromJavaReader(new FileReader("data.txt"))  // acquires file handle lazily
-    .grouped(10)  // group chars into chunks
-    .run(Sink.take(10))  // take first 10 groups
-// ✓ Automatically closes file in finally block
+    .fromRange((1 to 100))  // lazy stream source
+    .ensuring(println("Cleanup: stream closing"))  // finalizer runs in all cases
+    .map(_ * 2)
+    .run(Sink.take(10))  // take only 10 elements
+// ✓ Automatically calls cleanup in finally block
 // ✓ Works on success, error, or if Sink.take(10) stops early
 // ✓ Multiple resources compose naturally: no nested try/catch pyramid
 ```
