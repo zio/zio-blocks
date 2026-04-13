@@ -260,10 +260,8 @@ Because pipelines are values, you can build them dynamically:
 import zio.blocks.streams.*
 
 def buildPipeline(limit: Option[Int], onlyPositive: Boolean): Pipeline[Int, Int] = {
-  var pipe: Pipeline[Int, Int] = Pipeline.identity[Int]
-  if (onlyPositive) pipe = pipe.andThen(Pipeline.filter(_ > 0))
-  limit.foreach(n => pipe = pipe.andThen(Pipeline.take(n.toLong)))
-  pipe
+  val base = if (onlyPositive) Pipeline.identity[Int].andThen(Pipeline.filter(_ > 0)) else Pipeline.identity[Int]
+  limit.fold(base)(n => base.andThen(Pipeline.take(n.toLong)))
 }
 ```
 
