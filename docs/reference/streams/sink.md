@@ -539,13 +539,13 @@ This example demonstrates the most commonly used built-in sinks: `drain`, `count
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/sink/SinkBasicUsageExample.scala")
+SourceFile.print("streams-examples/src/main/scala/sink/SinkBasicUsageExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/sink/SinkBasicUsageExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkBasicUsageExample.scala))
 
 ```bash
-sbt "schema-examples/runMain sink.SinkBasicUsageExample"
+sbt "streams-examples/runMain sink.SinkBasicUsageExample"
 ```
 
 ### Aggregation and Search
@@ -555,13 +555,13 @@ This example shows aggregation sinks (`foldLeft`, `sumInt`, `sumDouble`) and sea
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/sink/SinkAggregationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/sink/SinkAggregationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/sink/SinkAggregationExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkAggregationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain sink.SinkAggregationExample"
+sbt "streams-examples/runMain sink.SinkAggregationExample"
 ```
 
 ### Transformations and Composition
@@ -571,11 +571,11 @@ This example demonstrates `contramap`, `map`, `mapError`, `fail`, `create`, and 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/sink/SinkTransformationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/sink/SinkTransformationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/sink/SinkTransformationExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkTransformationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain sink.SinkTransformationExample"
+sbt "streams-examples/runMain sink.SinkTransformationExample"
 ```
