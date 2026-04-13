@@ -251,13 +251,13 @@ sbt "schema-examples/runMain <package>.<ObjectName>"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName2>.scala")
+SourceFile.print("<module_name>-examples/src/main/scala/<package>/<ObjectName2>.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName2>.scala))
 
 ```bash
-sbt "schema-examples/runMain <package>.<ObjectName2>"
+sbt "<module_name>-examples/runMain <package>.<ObjectName2>"
 ```
 
 Rules for this section:
@@ -270,7 +270,7 @@ Rules for this section:
 
 ### Embedding Example Files with `SourceFile`
 
-**Required for "Running the Examples" section:** Use `SourceFile.print` to embed full source from `schema-examples/` for each example.
+**Required for "Running the Examples" section:** Use `SourceFile.print` to embed full source from `<module_name>-examples/` for each example.
 
 `SourceFile.print` reads the file at mdoc compile time and emits a fenced code block with the file path shown as the title. This keeps docs and examples in sync automatically.
 
@@ -279,7 +279,7 @@ Rules for this section:
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
+SourceFile.print("<module_name>-examples/src/main/scala/<package>/<ExampleFile>.scala")
 ```
 
 **Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use `import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print` inside mdoc sessions.
@@ -311,7 +311,7 @@ Exit codes: 0=complete, 1=missing, 2=source not found. Verify results manually.
 
 ## Step 4: Write Examples
 
-Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
+Create focused `App` objects in `<module_name>-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
 
 - **Package**: matches directory name (e.g., `package into` for `into/`)
 - **Object**: extends `App` for independent execution
