@@ -3,7 +3,14 @@ id: stream
 title: "Stream"
 ---
 
-`Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions.
+`Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions:
+
+```scala
+abstract class Stream[+E, +A] {
+  def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
+  def runCollect: Either[E, Chunk[A]]
+}
+```
 
 `Stream` is purely functional, referentially transparent, and resource-safe:
 - **Lazy**: descriptions of pipelines, not eager computations
@@ -11,17 +18,6 @@ title: "Stream"
 - **Pull-based**: execution is driven from the sink backward through the pipeline
 - **Typed errors**: distinguish recoverable errors (`E`) from untyped defects (`Throwable`)
 - **Resource-safe**: RAII semantics ensure resources are released in all cases
-
-```scala
-abstract class Stream[+E, +A] {
-  def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
-  def runCollect: Either[E, Chunk[A]]
-  def map[B](f: A => B): Stream[E, B]
-  def flatMap[E2, B](f: A => Stream[E2, B]): Stream[E | E2, B]
-  def filter(pred: A => Boolean): Stream[E, A]
-  def ++[E2, A2](that: Stream[E2, A2]): Stream[E | E2, A | A2]
-}
-```
 
 ## Overview
 
