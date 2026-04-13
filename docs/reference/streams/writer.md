@@ -54,7 +54,7 @@ Key characteristics:
 
 ### Creating Predefined Writers
 
-`Writer.closed` — A pre-closed writer that rejects all writes. Useful as a base case for empty streams.
+`Writer.closed` — A pre-closed writer that rejects all writes. Useful as a base case for empty streams:
 
 ```scala
 object Writer {
@@ -72,7 +72,7 @@ println(w.isClosed)         // true
 
 ### Single Element
 
-`Writer.single` — Creates a writer that accepts exactly one element, then auto-closes. The dual of `Reader.single`.
+`Writer.single` — Creates a writer that accepts exactly one element, then auto-closes. The dual of `Reader.single`:
 
 ```scala
 object Writer {
@@ -91,7 +91,7 @@ println(w.isClosed)         // true
 
 ### Limited Capacity
 
-`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then auto-closes. The dual of `Stream.take`.
+`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then auto-closes. The dual of `Stream.take`:
 
 ```scala
 object Writer {
@@ -130,7 +130,7 @@ object Writer {
 
 ### Writing Elements
 
-`write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `fail()`.
+`write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `fail()`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -149,7 +149,7 @@ println(s"First: $result1, Second: $result2")
 
 ### Bulk Writing
 
-`writeAll` — Writes every element in a chunk. Returns the suffix not delivered. If the writer is already closed, returns the entire chunk. Exceptions from individual writes propagate to the caller.
+`writeAll` — Writes every element in a chunk. Returns the suffix not delivered. If the writer is already closed, returns the entire chunk. Exceptions from individual writes propagate to the caller:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -169,9 +169,9 @@ println(s"Remaining: $remaining")  // Chunk(2, 3)
 
 ### Specialized Writes
 
-For primitive types, specialized write methods avoid boxing by using subtype witnesses:
+For primitive types, specialized write methods avoid boxing by using subtype witnesses.
 
-`writeInt` — Specialized `Int` write. Requires implicit evidence that `Int` is a subtype of `Elem`.
+`writeInt` — Specialized `Int` write. Requires implicit evidence that `Int` is a subtype of `Elem`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -179,7 +179,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeLong` — Specialized `Long` write.
+`writeLong` — Specialized `Long` write:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -187,7 +187,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeFloat` — Specialized `Float` write.
+`writeFloat` — Specialized `Float` write:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -195,7 +195,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeDouble` — Specialized `Double` write.
+`writeDouble` — Specialized `Double` write:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -205,7 +205,7 @@ abstract class Writer[-Elem] {
 
 ### Byte and Character Writes
 
-`writeByte` — Specialized byte write. Avoids boxing when `Elem = Byte`. Requires evidence that `Byte` is a subtype of `Elem`.
+`writeByte` — Specialized byte write. Avoids boxing when `Elem = Byte`. Requires evidence that `Byte` is a subtype of `Elem`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -213,7 +213,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeBytes` — Blocking bulk byte write. Calls `writeByte` for each byte in `buf[offset, offset+len)`, stopping early if the channel closes. Returns the number of bytes successfully written.
+`writeBytes` — Blocking bulk byte write. Calls `writeByte` for each byte in `buf[offset, offset+len)`, stopping early if the channel closes. Returns the number of bytes successfully written:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -221,7 +221,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeChar` — Specialized `Char` write. Requires evidence that `Char` is a subtype of `Elem`.
+`writeChar` — Specialized `Char` write. Requires evidence that `Char` is a subtype of `Elem`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -229,7 +229,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeShort` — Specialized `Short` write. Requires evidence that `Short` is a subtype of `Elem`.
+`writeShort` — Specialized `Short` write. Requires evidence that `Short` is a subtype of `Elem`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -237,7 +237,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeBoolean` — Specialized `Boolean` write. Requires evidence that `Boolean` is a subtype of `Elem`.
+`writeBoolean` — Specialized `Boolean` write. Requires evidence that `Boolean` is a subtype of `Elem`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -247,7 +247,7 @@ abstract class Writer[-Elem] {
 
 ### State Checks
 
-`isClosed` — Returns `true` if the writer is closed. Monotone: once `true`, never returns `false`.
+`isClosed` — Returns `true` if the writer is closed. Monotone: once `true`, never returns `false`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -255,13 +255,15 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy.
+`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy:
 
 ```scala
 abstract class Writer[-Elem] {
   def writeable(): Boolean
 }
 ```
+
+Check writer capacity before writing:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -276,7 +278,7 @@ println(w.writeable())      // false (closed after accepting one)
 
 ### Concatenation
 
-`concat` — Returns a `Writer` that writes to `this` until it closes, then transparently switches to `next`. If `this` closes with an error, the error is propagated immediately without consulting `next`. The dual of `Reader.concat`.
+`concat` — Returns a `Writer` that writes to `this` until it closes, then transparently switches to `next`. If `this` closes with an error, the error is propagated immediately without consulting `next`. The dual of `Reader.concat`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -284,13 +286,15 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`++` — Alias for `concat`. Syntactic sugar for composing writers.
+`++` — Alias for `concat`. Syntactic sugar for composing writers:
 
 ```scala
 abstract class Writer[-Elem] {
   def ++[Elem1 <: Elem](next: => Writer[Elem1]): Writer[Elem1]
 }
 ```
+
+Here is how concatenation switches to the next writer when the first closes:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -317,13 +321,15 @@ println(collected.toList)  // List(5, 200)
 
 ### Transformation
 
-`contramap` — Returns a `Writer` that transforms incoming elements with `g` before passing them to this writer. All other operations (`isClosed`, `close`, `fail`) delegate unchanged.
+`contramap` — Returns a `Writer` that transforms incoming elements with `g` before passing them to this writer. All other operations (`isClosed`, `close`, `fail`) delegate unchanged:
 
 ```scala
 abstract class Writer[-Elem] {
   def contramap[Elem2](g: Elem2 => Elem): Writer[Elem2]
 }
 ```
+
+Transform the input type before writing:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -342,7 +348,7 @@ intWriter.write(42)   // Prints: Writing: 42
 
 ### Clean Closure
 
-`close` — Closes the writer cleanly. After this call, `write()` returns `false` and `isClosed` returns `true`. Idempotent.
+`close` — Closes the writer cleanly. After this call, `write()` returns `false` and `isClosed` returns `true`. Idempotent:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -352,13 +358,15 @@ abstract class Writer[-Elem] {
 
 ### Error Closure
 
-`fail` — Closes the writer with an error. After this call, `isClosed` returns `true`. Subclasses that override this method may cause `write()` to throw `error` on subsequent calls; the default simply delegates to `close()`. Both `close()` and `fail()` are idempotent; only the first call wins.
+`fail` — Closes the writer with an error. After this call, `isClosed` returns `true`. Subclasses that override this method may cause `write()` to throw `error` on subsequent calls; the default simply delegates to `close()`. Both `close()` and `fail()` are idempotent; only the first call wins:
 
 ```scala
 abstract class Writer[-Elem] {
   def fail(error: Throwable): Unit
 }
 ```
+
+Close a writer with an error:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -422,7 +430,7 @@ Both `close()` and `fail()` are idempotent: only the first call wins. Subsequent
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `schema-examples` module.
+All code from this guide is available as runnable examples in the `streams-examples` module.
 
 **1. Clone the repository and navigate to the project:**
 
