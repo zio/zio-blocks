@@ -28,8 +28,7 @@ object PipelineCompositionExample extends App {
   val double         = Pipeline.map[Int, Int](_ * 2)
   val composed       = filterPositive.andThen(double)
 
-  show("Stream(-3, -1, 0, 2, 5).via(filter(_ > 0).andThen(map(_ * 2))).runCollect")(
-    Stream(-3, -1, 0, 2, 5).via(composed).runCollect
+  show(Stream(-3, -1, 0, 2, 5).via(composed).runCollect
   )
 
   // 2. Multi-stage pipeline
@@ -39,8 +38,7 @@ object PipelineCompositionExample extends App {
     .andThen(Pipeline.map[Int, Int](_ * 10))
     .andThen(Pipeline.take(3))
 
-  show("Stream(1..10).via(filter(even).andThen(map(*10)).andThen(take(3))).runCollect")(
-    Stream.range(1, 11).via(multiStage).runCollect
+  show(Stream.range(1, 11).via(multiStage).runCollect
   )
 
   // 3. Reusing the same pipeline across different streams
@@ -50,8 +48,8 @@ object PipelineCompositionExample extends App {
   val dataset1 = Stream(150, -20, 75, 200, -10)
   val dataset2 = Stream(50, 100, -5, 300)
 
-  show("dataset1.via(normalize).runCollect")(dataset1.via(normalize).runCollect)
-  show("dataset2.via(normalize).runCollect")(dataset2.via(normalize).runCollect)
+  show(dataset1.via(normalize).runCollect)
+  show(dataset2.via(normalize).runCollect)
 
   // 4. Category law: left identity
   println("\n4. Category law — left identity (identity andThen p == p):")
@@ -60,14 +58,14 @@ object PipelineCompositionExample extends App {
 
   val withIdentityL   = data.via(Pipeline.identity[Int].andThen(pipe)).runCollect
   val withoutIdentity = data.via(pipe).runCollect
-  show("identity.andThen(p).result")(withIdentityL)
-  show("p.result (should match)")(withoutIdentity)
+  show(withIdentityL)
+  show(withoutIdentity)
 
   // 5. Category law: right identity
   println("\n5. Category law — right identity (p andThen identity == p):")
   val withIdentityR = data.via(pipe.andThen(Pipeline.identity[Int])).runCollect
-  show("p.andThen(identity).result")(withIdentityR)
-  show("p.result (should match)")(withoutIdentity)
+  show(withIdentityR)
+  show(withoutIdentity)
 
   // 6. Category law: associativity
   println("\n6. Category law — associativity ((p andThen q) andThen r == p andThen (q andThen r)):")
@@ -79,8 +77,8 @@ object PipelineCompositionExample extends App {
   val rightGrouped = p.andThen(q.andThen(r))
 
   val source = Stream(-1, 2, -3, 4, 5, 6)
-  show("(p andThen q) andThen r")(source.via(leftGrouped).runCollect)
-  show("p andThen (q andThen r) (should match)")(source.via(rightGrouped).runCollect)
+  show(source.via(leftGrouped).runCollect)
+  show(source.via(rightGrouped).runCollect)
 
   // 7. Building pipelines conditionally
   println("\n7. Building pipelines conditionally:")
@@ -92,12 +90,10 @@ object PipelineCompositionExample extends App {
   }
 
   val conditionalPipe = buildPipeline(limit = Some(3), onlyPositive = true)
-  show("buildPipeline(limit=3, onlyPositive=true) on Stream(-1, 2, -3, 4, 5, 6)")(
-    Stream(-1, 2, -3, 4, 5, 6).via(conditionalPipe).runCollect
+  show(Stream(-1, 2, -3, 4, 5, 6).via(conditionalPipe).runCollect
   )
 
   val noPipe = buildPipeline(limit = None, onlyPositive = false)
-  show("buildPipeline(limit=None, onlyPositive=false) on Stream(-1, 2, -3)")(
-    Stream(-1, 2, -3).via(noPipe).runCollect
+  show(Stream(-1, 2, -3).via(noPipe).runCollect
   )
 }

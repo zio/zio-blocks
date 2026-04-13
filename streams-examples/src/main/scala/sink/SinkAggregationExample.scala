@@ -25,52 +25,51 @@ object SinkAggregationExample extends App {
   // 1. foldLeft — general accumulation
   println("1. Sink.foldLeft — general accumulation:")
   val sum = Stream(1, 2, 3, 4, 5).run(Sink.foldLeft(0)(_ + _))
-  show("Stream(1..5).run(Sink.foldLeft(0)(_ + _))")(sum)
+  show(sum)
 
   println("\n   foldLeft with string concatenation:")
   val concat = Stream("a", "b", "c").run(Sink.foldLeft("")(_ + _))
-  show("Stream(a, b, c).run(Sink.foldLeft(\"\")(_ + _))")(concat)
-
+  show(_ + _)
   // 2. sumInt — typed numeric sum
   println("\n2. Sink.sumInt — returns Long to avoid overflow:")
   val intSum = Stream(1, 2, 3, 4, 5).run(Sink.sumInt)
-  show("Stream(1..5).run(Sink.sumInt)")(intSum)
+  show(intSum)
 
   // 3. sumDouble — typed floating point sum
   println("\n3. Sink.sumDouble:")
   val doubleSum = Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)
-  show("Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)")(doubleSum)
+  show(doubleSum)
 
   // 4. exists — short-circuits on first match
   println("\n4. Sink.exists — short-circuits on first match:")
   val hasNegative = Stream(1, 2, -3, 4).run(Sink.exists[Int](_ < 0))
-  show("Stream(1, 2, -3, 4).run(Sink.exists(_ < 0))")(hasNegative)
+  show(hasNegative)
 
   val noNegative = Stream(1, 2, 3, 4).run(Sink.exists[Int](_ < 0))
-  show("Stream(1, 2, 3, 4).run(Sink.exists(_ < 0))")(noNegative)
+  show(noNegative)
 
   // 5. forall — all elements must match
   println("\n5. Sink.forall — all elements must match:")
   val allPositive = Stream(1, 2, 3).run(Sink.forall[Int](_ > 0))
-  show("Stream(1, 2, 3).run(Sink.forall(_ > 0))")(allPositive)
+  show(allPositive)
 
   val notAllPositive = Stream(1, -2, 3).run(Sink.forall[Int](_ > 0))
-  show("Stream(1, -2, 3).run(Sink.forall(_ > 0))")(notAllPositive)
+  show(notAllPositive)
 
   // 6. find — first element matching predicate
   println("\n6. Sink.find — first matching element:")
   val firstEven = Stream(1, 3, 4, 6, 8).run(Sink.find[Int](_ % 2 == 0))
-  show("Stream(1, 3, 4, 6, 8).run(Sink.find(_ % 2 == 0))")(firstEven)
+  show(firstEven)
 
   val noMatch = Stream(1, 3, 5, 7).run(Sink.find[Int](_ % 2 == 0))
-  show("Stream(1, 3, 5, 7).run(Sink.find(_ % 2 == 0))")(noMatch)
+  show(noMatch)
 
   // 7. foreach — side effects
   println("\n7. Sink.foreach — apply side effects:")
   val items  = scala.collection.mutable.Buffer[String]()
   val result = Stream("x", "y", "z").run(Sink.foreach[String](s => items += s))
-  show("Stream(x, y, z).run(Sink.foreach(items += _))")(result)
-  show("items collected")(items.toList)
+  show(result)
+  show(items.toList)
 
   // 8. Complex aggregation: combine foldLeft with map
   println("\n8. Complex aggregation — average via foldLeft + map:")
@@ -83,5 +82,5 @@ object SinkAggregationExample extends App {
     }
 
   val avg = Stream(10, 20, 30, 40).run(average)
-  show("Stream(10, 20, 30, 40).run(averageSink)")(avg)
+  show(avg)
 }

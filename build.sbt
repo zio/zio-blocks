@@ -1178,7 +1178,8 @@ lazy val `streams-examples` = project
   )
   .dependsOn(
     streams.jvm,
-    chunk.jvm
+    chunk.jvm,
+    `schema-examples-macros`
   )
 
 lazy val docs = project

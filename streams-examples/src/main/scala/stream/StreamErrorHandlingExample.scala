@@ -30,25 +30,17 @@ object StreamErrorHandlingExample extends App {
   // Basic fail
   println("1. Creating a failing stream:")
   val failed: Stream[ApiError, String] = Stream.fail(NotFound)
-  show("Stream.fail(NotFound).runCollect")(failed.runCollect)
+  show(failed.runCollect)
 
   // catchAll for recovery
   println("\n2. Recovering from errors with catchAll:")
   val recovered = Stream.fail(NotFound).catchAll(_ => Stream.succeed("default-value"))
-  show(
-    """Stream.fail(NotFound)
-      |  .catchAll(_ => Stream.succeed("default-value"))
-      |  .runCollect""".stripMargin
-  )(recovered.runCollect)
+  show(recovered.runCollect)
 
   // orElse for recovery
   println("\n3. Using orElse (lazy fallback evaluation):")
   val fallback = Stream.fail(NotFound) || Stream(1, 2, 3)
-  show(
-    """Stream.fail(NotFound)
-      | || Stream(1, 2, 3)
-      |runCollect""".stripMargin
-  )(fallback.runCollect)
+  show(fallback.runCollect)
 
   // Error transformation with mapError
   println("\n4. Transforming error types with mapError:")
@@ -56,11 +48,7 @@ object StreamErrorHandlingExample extends App {
     case NotFound => ServerError(404)
     case e        => e
   }
-  show(
-    """Stream.fail(NotFound)
-      |  .mapError(NotFound => ServerError(404))
-      |  .runCollect""".stripMargin
-  )(mapped.runCollect)
+  show(mapped.runCollect)
 
   // Handling errors in flatMap chains
   println("\n5. Error handling in flatMap chains:")
@@ -68,11 +56,7 @@ object StreamErrorHandlingExample extends App {
     if (x == 3) Stream.fail(ValidationError(s"Cannot process $x"))
     else Stream(x * 10)
   }
-  show(
-    """Stream(1, 2, 3, 4)
-      |  .flatMap(x => if (x == 3) fail else Stream(x*10))
-      |  .runCollect""".stripMargin
-  )(chain.runCollect)
+  show(chain.runCollect)
 
   // Recovering from errors in flatMap
   println("\n6. Recovering from errors with catchAll in chains:")
@@ -82,12 +66,7 @@ object StreamErrorHandlingExample extends App {
   }
     .catchAll(_ => Stream.succeed(-1))
 
-  show(
-    """Stream(1, 2, 3, 4)
-      |  .flatMap(x => if (x == 3) fail else Stream(x*10))
-      |  .catchAll(_ => Stream.succeed(-1))
-      |  .runCollect""".stripMargin
-  )(recovered_chain.runCollect)
+  show(recovered_chain.runCollect)
 
   // Handling defects (exceptions)
   println("\n7. Catching defects (exceptions) with catchDefect:")
@@ -95,11 +74,7 @@ object StreamErrorHandlingExample extends App {
   val safe  = risky.catchDefect { case _: NumberFormatException =>
     Stream.succeed(-1)
   }
-  show(
-    """Stream.attempt("not-a-number".toInt)
-      |  .catchDefect { case _: NumberFormatException => Stream.succeed(-1) }
-      |  .runCollect""".stripMargin
-  )(safe.runCollect)
+  show(safe.runCollect)
 
   // Multiple error branches
   println("\n8. Distinguishing error types in recovery:")
@@ -115,8 +90,5 @@ object StreamErrorHandlingExample extends App {
     case _                    => Stream("unknown error")
   }
 
-  show(
-    """Stream with multiple error types
-      |handled with pattern matching""".stripMargin
-  )(multi_errors.runCollect)
+  show(multi_errors.runCollect)
 }

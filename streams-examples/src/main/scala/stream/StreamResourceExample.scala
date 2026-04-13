@@ -67,7 +67,7 @@ object StreamResourceExample extends App {
       |)(db => Stream.fromIterable(db.query("users")))
       |.runCollect""".stripMargin
   )(result1)
-  show("Resource lifecycle")(log.toList)
+  show(log.toList)
 
   // Ensuring cleanup
   println("\n2. Using ensuring for guaranteed cleanup:")
@@ -82,14 +82,9 @@ object StreamResourceExample extends App {
     }
 
   val result2 = withEnsure.runCollect
-  show(
-    """Stream(1, 2, 3)
-      |  .tapEach(x => println(x))
-      |  .ensuring(cleanup)
-      |  .runCollect""".stripMargin
-  )(result2)
-  show("Cleanup order")(log.toList)
-  show("Finalizing was called")(finalizing)
+  show(result2)
+  show(log.toList)
+  show(finalizing)
 
   // Error safety
   println("\n3. Cleanup happens even on error:")
@@ -115,11 +110,8 @@ object StreamResourceExample extends App {
   )
 
   val result3 = errorStream.runCollect
-  show(
-    """Stream with error:
-      |resource still cleaned up""".stripMargin
-  )(result3)
-  show("Lifecycle even on error")(log.toList)
+  show(result3)
+  show(log.toList)
 
   // Multiple nested resources
   println("\n4. Multiple nested resources with proper cleanup order:")
@@ -151,13 +143,8 @@ object StreamResourceExample extends App {
   )
 
   val result4 = nested.runCollect
-  show(
-    """Stream with nested resources:
-      |db1.fromAcquireRelease(
-      |  db2.fromAcquireRelease(...)
-      |)""".stripMargin
-  )(result4)
-  show("Nested cleanup order (LIFO)")(log.toList)
+  show(result4)
+  show(log.toList)
 
   // AutoCloseable integration
   println("\n5. Using AutoCloseable for simpler cleanup:")
@@ -177,12 +164,6 @@ object StreamResourceExample extends App {
   )(db => Stream.succeed(42))
 
   val result5 = autoCloseable.runCollect
-  show(
-    """Stream.fromAcquireRelease(
-      |  acquire = new AutoCloseableDb()
-      |  // release defaults to .close()
-      |)(db => Stream.succeed(42))
-      |.runCollect""".stripMargin
-  )(result5)
-  show("AutoCloseable cleanup")(log.toList)
+  show(result5)
+  show(log.toList)
 }
