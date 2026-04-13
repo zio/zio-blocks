@@ -85,11 +85,11 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
 ```
 
 ### Example: Optics
