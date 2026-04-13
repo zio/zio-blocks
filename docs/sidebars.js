@@ -118,7 +118,6 @@ const sidebars = {
          "reference/docs",
          "reference/media-type",
          "reference/http-model",
-         "reference/streams",
          "reference/chunk",
          "path-interpolator",
          "reference/ringbuffer",
