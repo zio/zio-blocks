@@ -1,6 +1,6 @@
 package zio.schema.migration
 
-import zio.schema.DynamicValue
+import zio.blocks.schema.DynamicValue
 import scala.collection.immutable.ListMap
 
 /**
