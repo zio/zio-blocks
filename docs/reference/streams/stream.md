@@ -5,7 +5,7 @@ title: "Stream"
 
 `Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions:
 
-```scala
+```scala mdoc:compile-only
 abstract class Stream[+E, +A] {
   def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
   def runCollect: Either[E, Chunk[A]]
@@ -23,7 +23,79 @@ abstract class Stream[+E, +A] {
 
 ### The Problem
 
-Eager evaluation is wasteful. If you have a large dataset and only need the first 10 elements, eager evaluation forces you to process all of them. Similarly, resource management is error-prone: if you acquire a file handle, network connection, or database cursor, you must remember to release it in all code paths (success, error, cancellation). Traditional eager sequences (like Scala `List`) fall short in both dimensions.
+Traditional eager sequences (like Scala `List`) fall short in **two critical dimensions**:
+
+**1. Efficiency — Wasteful Computation**
+
+With eager evaluation, the entire dataset is processed upfront, regardless of how many elements you actually need:
+
+```scala mdoc:compile-only
+// With Scala List (eager evaluation)
+val data = (1 to 1_000_000).toList
+val result = data
+  .map(_ * 2)          // eagerly: 1M multiplications
+  .filter(_ > 10)      // eagerly: 1M comparisons
+  .take(10)            // finally: keep only 10
+// ❌ Wasted work: computed and discarded 999,990 elements!
+```
+
+The problem: `List` eagerly applies `.map` and `.filter` to all 1 million elements, even though only the first 10 passing elements matter. In data processing pipelines (parsing CSV files, filtering logs, transforming sensor streams), this is enormously wasteful.
+
+With `Stream[E, A]`, the architecture is **inverted**: the **sink (consumer) pulls** from the stream. If the sink asks for only 10 elements, only ~20 calculations occur (enough to find 10 valid results after filtering):
+
+```scala mdoc:compile-only
+// With Stream (lazy, pull-based evaluation)
+Stream.fromRange(1, 1_000_001)
+  .map(_ * 2)
+  .filter(_ > 10)
+  .run(Sink.take(10))
+// ✓ Computation stops after 10 valid elements are produced
+// Only necessary work: ~20 multiplications, ~20 comparisons
+```
+
+This **short-circuiting** behavior is automatic and requires no special syntax.
+
+**2. Resource Management — Error-Prone Cleanup**
+
+When you open resources (file handles, network connections, database cursors), you must release them in **all** code paths—success, error, and even mid-stream cancellation. With eager sequences, this burden falls on the caller:
+
+```scala mdoc:compile-only
+// With Scala List (manual resource management)
+var file: BufferedReader = null
+try {
+  file = new BufferedReader(new FileReader("data.txt"))
+  val lines = LazyList.unfold(()) { _ =>
+    val line = file.readLine()
+    if (line != null) Some((line, ())) else None
+  }.toList  // ❌ Forces eager evaluation; still must cleanup!
+  
+  val result = lines.map(_.length).take(10).sum
+  result
+} catch {
+  case e: IOException =>
+    throw e
+} finally {
+  if (file != null) file.close()  // ✓ Manual cleanup in finally
+}
+// ❌ Problem: You must remember the finally block
+// ❌ Problem: If `.map` or `.take` throws, the file still closes (but it's easy to forget!)
+// ❌ Problem: Scale to 10 resources? 50 resources? Manually nesting becomes error-prone
+```
+
+With `Stream[E, A]`, resource cleanup is **automatic, composable, and guaranteed**—even on error or if the sink cancels early:
+
+```scala mdoc:compile-only
+// With Stream (resource-safe RAII)
+Stream
+  .fromFile("data.txt")  // acquires file handle lazily
+  .map(_.length)
+  .run(Sink.take(10))
+  // ✓ Automatically closes file in finally block
+  // ✓ Works on success, error, or if Sink.take(10) stops early
+  // ✓ Multiple resources compose naturally: no nested try/catch pyramid
+```
+
+The key difference: `Stream` releases resources via **RAII** (Resource Acquisition Is Initialization) — the resource's lifetime is bound to the compiled stream's `close()` method, which the terminal operation (`run`) always calls in a `finally` block.
 
 ### The Solution
 
