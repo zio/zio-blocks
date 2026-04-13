@@ -27,22 +27,21 @@ object SinkTransformationExample extends App {
   val stringLengthSum: Sink[Nothing, String, Long] =
     Sink.sumInt.contramap[String](_.length)
 
-  show(Stream("hello", "world").run(stringLengthSum)
-  )
+  show(Stream("hello", "world").run(stringLengthSum))
 
   // 2. contramap — change element type
   println("\n2. contramap to convert types:")
   val parseInts: Sink[Nothing, String, Long] =
     Sink.sumInt.contramap[String](_.toInt)
 
-  show(Stream("10", "20", "30")
+  show(Stream("10", "20", "30"))
 
   // 3. map — transform result
   println("\n3. Sink.map — transform the result:")
   val countFormatted: Sink[Nothing, Any, String] =
     Sink.count.map(n => s"Processed $n elements")
 
-  show(Stream(1, 2, 3)
+  show(Stream(1, 2, 3))
 
   // 4. Chaining contramap + map
   println("\n4. Chaining contramap + map:")
@@ -50,8 +49,7 @@ object SinkTransformationExample extends App {
     .contramap[String](_.length)
     .map(total => s"Total chars: $total")
 
-  show(Stream("hi", "hello").run(pipeline)
-  )
+  show(Stream("hi", "hello").run(pipeline))
 
   // 5. mapError — transform error channel
   println("\n5. Sink.mapError — transform errors:")
@@ -60,11 +58,11 @@ object SinkTransformationExample extends App {
   case class ParseError(msg: String) extends AppError
 
   val failingSink = Sink.fail("raw error").mapError[AppError](msg => ParseError(msg))
-  show(Stream(1)
+  show(Stream(1))
 
   // 6. fail — immediately fail
   println("\n6. Sink.fail — immediate failure:")
-  show(Stream(1, 2, 3)
+  show(Stream(1, 2, 3))
 
   // 7. Pipeline.andThenSink integration
   println("\n7. Pipeline.andThenSink — pipeline pre-processes before sink:")
@@ -73,7 +71,7 @@ object SinkTransformationExample extends App {
       .map[String, String](_.trim.toLowerCase)
       .andThenSink(Sink.collectAll[String])
 
-  show(Stream("  Hello ", " WORLD  ")
+  show(Stream("  Hello ", " WORLD  "))
 
   // 8. Equivalence: via + run == andThenSink + run
   println("\n8. Equivalence law: via + run == andThenSink + run:")

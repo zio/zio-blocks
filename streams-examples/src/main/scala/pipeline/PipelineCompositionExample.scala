@@ -28,8 +28,7 @@ object PipelineCompositionExample extends App {
   val double         = Pipeline.map[Int, Int](_ * 2)
   val composed       = filterPositive.andThen(double)
 
-  show(Stream(-3, -1, 0, 2, 5).via(composed).runCollect
-  )
+  show(Stream(-3, -1, 0, 2, 5).via(composed).runCollect)
 
   // 2. Multi-stage pipeline
   println("\n2. Multi-stage pipeline (filter → map → take):")
@@ -38,8 +37,7 @@ object PipelineCompositionExample extends App {
     .andThen(Pipeline.map[Int, Int](_ * 10))
     .andThen(Pipeline.take(3))
 
-  show(Stream.range(1, 11).via(multiStage).runCollect
-  )
+  show(Stream.range(1, 11).via(multiStage).runCollect)
 
   // 3. Reusing the same pipeline across different streams
   println("\n3. Reusing the same pipeline across different streams:")
@@ -90,10 +88,8 @@ object PipelineCompositionExample extends App {
   }
 
   val conditionalPipe = buildPipeline(limit = Some(3), onlyPositive = true)
-  show(Stream(-1, 2, -3, 4, 5, 6).via(conditionalPipe).runCollect
-  )
+  show(Stream(-1, 2, -3, 4, 5, 6).via(conditionalPipe).runCollect)
 
   val noPipe = buildPipeline(limit = None, onlyPositive = false)
-  show(Stream(-1, 2, -3).via(noPipe).runCollect
-  )
+  show(Stream(-1, 2, -3).via(noPipe).runCollect)
 }

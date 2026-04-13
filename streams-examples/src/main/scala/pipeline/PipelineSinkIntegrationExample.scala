@@ -27,8 +27,7 @@ object PipelineSinkIntegrationExample extends App {
   val doubler        = Pipeline.map[Int, Int](_ * 2)
   val collectDoubled = doubler.andThenSink(Sink.collectAll[Int])
 
-  show(Stream(1, 2, 3).run(collectDoubled)
-  )
+  show(Stream(1, 2, 3).run(collectDoubled))
 
   // 2. Equivalence law: via + run == run + andThenSink
   println("\n2. Equivalence law: stream.via(p).run(sink) == stream.run(p.andThenSink(sink)):")
@@ -58,15 +57,13 @@ object PipelineSinkIntegrationExample extends App {
     .filter[Int](_ > 0)
     .andThenSink(Sink.foldLeft(0)((acc, x) => acc + x))
 
-  show(Stream(-5, 3, -2, 7, 1).run(sumPositives)
-  )
+  show(Stream(-5, 3, -2, 7, 1).run(sumPositives))
 
   // 5. andThenSink with head/find
   println("\n5. Pipeline + head/find sinks:")
   val firstEven = Pipeline.filter[Int](_ % 2 == 0).andThenSink(Sink.head[Int])
 
-  show(Stream(1, 3, 4, 6).run(firstEven)
-  )
+  show(Stream(1, 3, 4, 6).run(firstEven))
 
   // 6. Multiple pipelines, same sink
   println("\n6. Multiple pipelines applied to the same sink:")
@@ -88,6 +85,5 @@ object PipelineSinkIntegrationExample extends App {
 
   val processedSum = processingPipe.andThenSink(Sink.foldLeft(0)(_ + _))
 
-  show(Stream(-1, 5, 3, 8, 2, 9).run(processedSum)
-  )
+  show(Stream(-1, 5, 3, 8, 2, 9).run(processedSum))
 }
