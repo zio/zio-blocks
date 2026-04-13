@@ -632,6 +632,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Pipeline](./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
+- [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
 
 ### Guides
 

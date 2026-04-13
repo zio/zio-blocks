@@ -130,6 +130,7 @@ const sidebars = {
              "reference/streams/pipeline",
              "reference/streams/sink",
              "reference/streams/reader",
+             "reference/streams/writer",
            ]
          },
       ]
