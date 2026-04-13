@@ -1185,11 +1185,11 @@ sbt "schema-examples/compile"
 
 ## Going Further
 
-- [Schema Reference](../reference/schema.md) — full `Schema[A]` API
-- [Reflect Reference](../reference/reflect.md) — the `Reflect[F, A]` node types
-- [Binding Reference](../reference/binding.md) — constructors, deconstructors, and the register system
-- [Optics Reference](../reference/optics.md) — `Lens`, `Prism`, `Optional`, `Traversal`
-- [Type Class Derivation Guide](../reference/type-class-derivation.md) — implementing `Deriver[TC]`
-- [Codec Reference](../reference/codec.md) — the `Format` and `Codec` infrastructure
-- [DynamicValue Reference](../reference/dynamic-value.md) — the `DynamicValue` API
-- [Validation Reference](../reference/validation.md) — built-in validation constraints
+- [Schema Reference](../reference/schema/schema.md) — full `Schema[A]` API
+- [Reflect Reference](../reference/schema/reflect.md) — the `Reflect[F, A]` node types
+- [Binding Reference](../reference/schema/binding.md) — constructors, deconstructors, and the register system
+- [Optics Reference](../reference/schema/optics.md) — `Lens`, `Prism`, `Optional`, `Traversal`
+- [Type Class Derivation Guide](../reference/schema/type-class-derivation.md) — implementing `Deriver[TC]`
+- [Codec Reference](../reference/schema/codec.md) — the `Format` and `Codec` infrastructure
+- [DynamicValue Reference](../reference/schema/dynamic-value.md) — the `DynamicValue` API
+- [Validation Reference](../reference/schema/validation.md) — built-in validation constraints

@@ -50,7 +50,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 import zio.blocks.schema._
 ```
 
-This guide assumes familiarity with ZIO Blocks schemas and basic optics. See the [Schema](../reference/schema.md) and [Optics](../reference/optics.md) reference pages for background.
+This guide assumes familiarity with ZIO Blocks schemas and basic optics. See the [Schema](../reference/schema/schema.md) and [Optics](../reference/schema/optics.md) reference pages for background.
 
 ## Defining Your Domain
 
@@ -464,9 +464,9 @@ catalog.foreach { p =>
 - **[Part 2: SQL Generation](./query-dsl-sql.md)** -- Translating query expressions to SQL
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
 - **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
-- **[Optics Reference](../reference/optics.md)** -- Full API coverage of Lens, Prism, Optional, and Traversal
-- **[DynamicOptic Reference](../reference/dynamic-optic.md)** -- Runtime optic paths for programmatic query construction
-- **[Schema Reference](../reference/schema.md)** -- Schema derivation and type-level metadata
+- **[Optics Reference](../reference/schema/optics.md)** -- Full API coverage of Lens, Prism, Optional, and Traversal
+- **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic query construction
+- **[Schema Reference](../reference/schema/schema.md)** -- Schema derivation and type-level metadata
 - **[Path Interpolator](../path-interpolator.md)** -- String-based path construction with `p"..."` syntax
 
 The `SchemaExpr` expression tree is a sealed trait, making it straightforward to write interpreters that translate queries to SQL, MongoDB filters, Elasticsearch queries, or any other target language. Because each optic carries its `DynamicOptic` path (via `toDynamic`), you can extract field names and paths programmatically for these translations.

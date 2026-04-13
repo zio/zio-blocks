@@ -650,8 +650,8 @@ println(toSql(Product.price * 0.9))
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
 - **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
-- **[SchemaExpr Reference](../reference/schema-expr.md)** -- Full API coverage of expression types
-- **[Optics Reference](../reference/optics.md)** -- Lens, Prism, Optional, and Traversal
-- **[DynamicOptic Reference](../reference/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction
+- **[SchemaExpr Reference](../reference/schema/schema-expr.md)** -- Full API coverage of expression types
+- **[Optics Reference](../reference/schema/optics.md)** -- Lens, Prism, Optional, and Traversal
+- **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction
 
 The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` is a sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: pattern match on the AST, map operators, and extract field names from optic paths.

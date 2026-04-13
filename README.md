@@ -588,7 +588,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Allows](docs/./reference/allows.md) - Compile-time structural grammar constraints
 - [Reflect](docs/./reference/reflect.md) - Structural reflection API
 - [Binding](docs/./reference/binding.md) - Runtime constructors and deconstructors
-- [BindingResolver](docs/./reference/binding-resolver.md) - Binding lookup and schema rebinding
+- [BindingResolver](docs/reference/schema/binding-resolver.md) - Binding lookup and schema rebinding
 - [Registers](docs/./reference/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
@@ -614,9 +614,9 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Patching](docs/./reference/patch.md) - Serializable data transformations
 - [SchemaError](docs/./reference/schema-error.md) - Structured error type for schema operations
 - [Validation](docs/./reference/validation.md) - Data validation and error handling
-- [Schema Evolution](docs/./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
-  - [Into](docs/./reference/schema-evolution/into.md) - One-way conversion with validation
-  - [As](docs/./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
+- [Schema Evolution](docs/reference/schema/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](docs/reference/schema/schema-evolution/into.md) - One-way conversion with validation
+  - [As](docs/reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 

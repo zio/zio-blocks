@@ -52,6 +52,26 @@ jobs:
       - name: Check website build process
         if: hashFiles('website/yarn.lock') != ''
         run: yarn --cwd website build
+      - name: Upload website build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-artifact
+          path: ./website/build
+          overwrite: true
+          retention-days: 30
+        if: hashFiles('website/yarn.lock') != '' && github.event_name == 'pull_request'
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-metadata
+          path: pr-number.txt
+          overwrite: true
+      - name: Print All Generated Files
+        run: find ./website/build -print
 
   lint:
     runs-on: ubuntu-latest

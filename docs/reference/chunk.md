@@ -3077,7 +3077,7 @@ Beyond the core operations, `Chunk` provides utility methods for inspecting and 
 
 ## Integration
 
-Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
+Chunk integrates deeply with ZIO Blocks' schema system through the [Reflect](./schema/reflect.md) module. When deriving schemas for collection types, `Chunk` is recognized as a key sequence type alongside `List`, `Vector`, and `Set`.
 
 Here's an example of using `Chunk` with schema derivation:
 
@@ -3093,7 +3093,7 @@ object Event {
 // Automatically derives Schema[Chunk[String]] for the tags field
 ```
 
-Chunks work naturally with the [Codec](./codec.md) system for serialization and deserialization:
+Chunks work naturally with the [Codec](./schema/codec.md) system for serialization and deserialization:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -3111,7 +3111,7 @@ val decoded: Option[Chunk[Int]] = json match {
 }
 ```
 
-The [DynamicValue](./dynamic-value.md) system also works with Chunk, allowing schema-driven navigation of chunk data.
+The [DynamicValue](./schema/dynamic-value.md) system also works with Chunk, allowing schema-driven navigation of chunk data.
 
 ## Running the Examples
 
