@@ -1,8 +1,8 @@
 package zio.schema.migration
 
 /**
- * A pure data representation of a path into a `DynamicValue`.
- * Represents optical traversals without requiring runtime reflection or closures.
+ * A pure data representation of a path into a `DynamicValue`. Represents
+ * optical traversals without requiring runtime reflection or closures.
  */
 sealed trait DynamicOptic extends Serializable { self =>
   import DynamicOptic._
@@ -12,8 +12,8 @@ sealed trait DynamicOptic extends Serializable { self =>
    */
   final def ++(that: DynamicOptic): DynamicOptic =
     (self, that) match {
-      case (End, other) => other
-      case (other, End) => other
+      case (End, other)                      => other
+      case (other, End)                      => other
       case (RecordField(name, next1), other) => RecordField(name, next1 ++ other)
       case (SequenceElement(next1), other)   => SequenceElement(next1 ++ other)
       case (MapKey(next1), other)            => MapKey(next1 ++ other)
@@ -23,11 +23,12 @@ sealed trait DynamicOptic extends Serializable { self =>
     }
 
   /**
-   * Modifies the leaf of this optic path. Used to algebraically compute structural inverses.
+   * Modifies the leaf of this optic path. Used to algebraically compute
+   * structural inverses.
    */
   final def mapLeaf(f: End.type => DynamicOptic): DynamicOptic =
     self match {
-      case End => f(End)
+      case End                     => f(End)
       case RecordField(name, next) => RecordField(name, next.mapLeaf(f))
       case SequenceElement(next)   => SequenceElement(next.mapLeaf(f))
       case MapKey(next)            => MapKey(next.mapLeaf(f))
@@ -37,33 +38,34 @@ sealed trait DynamicOptic extends Serializable { self =>
     }
 
   /**
-   * Retrieves the final node before End, returning its parent optic and the leaf node itself.
+   * Retrieves the final node before End, returning its parent optic and the
+   * leaf node itself.
    */
   final def popLeaf: (DynamicOptic, DynamicOptic) = {
-    def loop(optic: DynamicOptic): (DynamicOptic, DynamicOptic) = 
+    def loop(optic: DynamicOptic): (DynamicOptic, DynamicOptic) =
       optic match {
-        case End => (End, End)
-        case RecordField(name, End) => (End, RecordField(name, End))
-        case RecordField(name, next) => 
+        case End                     => (End, End)
+        case RecordField(name, End)  => (End, RecordField(name, End))
+        case RecordField(name, next) =>
           val (parent, leaf) = loop(next)
           (RecordField(name, parent), leaf)
-        case SequenceElement(End) => (End, SequenceElement(End))
+        case SequenceElement(End)  => (End, SequenceElement(End))
         case SequenceElement(next) =>
           val (parent, leaf) = loop(next)
           (SequenceElement(parent), leaf)
-        case MapKey(End) => (End, MapKey(End))
+        case MapKey(End)  => (End, MapKey(End))
         case MapKey(next) =>
           val (parent, leaf) = loop(next)
           (MapKey(parent), leaf)
-        case MapValue(End) => (End, MapValue(End))
+        case MapValue(End)  => (End, MapValue(End))
         case MapValue(next) =>
           val (parent, leaf) = loop(next)
           (MapValue(parent), leaf)
-        case EnumCase(t, End) => (End, EnumCase(t, End))
+        case EnumCase(t, End)  => (End, EnumCase(t, End))
         case EnumCase(t, next) =>
           val (parent, leaf) = loop(next)
           (EnumCase(t, parent), leaf)
-        case Optional(End) => (End, Optional(End))
+        case Optional(End)  => (End, Optional(End))
         case Optional(next) =>
           val (parent, leaf) = loop(next)
           (Optional(parent), leaf)
@@ -73,6 +75,7 @@ sealed trait DynamicOptic extends Serializable { self =>
 }
 
 object DynamicOptic {
+
   /** The terminal leaf of the optic path. */
   case object End extends DynamicOptic
 

@@ -11,7 +11,7 @@ object MigrationError {
   final case class PathNotFound(optic: DynamicOptic, value: zio.schema.DynamicValue) extends MigrationError {
     def message: String = s"Cannot apply migration action. Optic path $optic not found in $value."
   }
-  
+
   final case class InvalidTypeCorrection(expected: String, actual: String, optic: DynamicOptic) extends MigrationError {
     def message: String = s"Type mismatch at path $optic. Expected $expected but found $actual."
   }

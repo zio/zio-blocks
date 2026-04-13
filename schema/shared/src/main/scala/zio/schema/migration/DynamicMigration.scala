@@ -4,8 +4,9 @@ import zio.blocks.schema.DynamicValue
 import scala.collection.immutable.ListMap
 
 /**
- * The pure data representation of a schema migration capable of serializing 
- * identically across memory nodes, executing completely abstract of `A` and `B` types.
+ * The pure data representation of a schema migration capable of serializing
+ * identically across memory nodes, executing completely abstract of `A` and `B`
+ * types.
  */
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
 
@@ -85,7 +86,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
                 Right(DynamicValue.Sequence(seq.values.map(transform)))
               case _ =>
                 val transformed = seq.values.map(item => applyAction(item, next, action))
-                val err = transformed.collectFirst { case Left(e) => e }
+                val err         = transformed.collectFirst { case Left(e) => e }
                 err.toLeft(DynamicValue.Sequence(transformed.collect { case Right(v) => v }))
             }
           case _ => Left(MigrationError.InvalidTypeCorrection("Sequence", value.getClass.getSimpleName, optic))
@@ -99,7 +100,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
                 Right(DynamicValue.Dictionary(dict.entries.map { case (k, v) => (transform(k), v) }))
               case _ =>
                 val transformed = dict.entries.map { case (k, v) => applyAction(k, next, action).map(nk => (nk, v)) }
-                val err = transformed.collectFirst { case Left(e) => e }
+                val err         = transformed.collectFirst { case Left(e) => e }
                 err.toLeft(DynamicValue.Dictionary(transformed.collect { case Right(v) => v }))
             }
           case _ => Left(MigrationError.InvalidTypeCorrection("Dictionary", value.getClass.getSimpleName, optic))
@@ -109,12 +110,12 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
         value match {
           case dict: DynamicValue.Dictionary =>
             action match {
-               case MigrationAction.TransformValues(_, transform, _) if next == End =>
-                 Right(DynamicValue.Dictionary(dict.entries.map { case (k, v) => (k, transform(v)) }))
-               case _ =>
-                 val transformed = dict.entries.map { case (k, v) => applyAction(v, next, action).map(nv => (k, nv)) }
-                 val err = transformed.collectFirst { case Left(e) => e }
-                 err.toLeft(DynamicValue.Dictionary(transformed.collect { case Right(v) => v }))
+              case MigrationAction.TransformValues(_, transform, _) if next == End =>
+                Right(DynamicValue.Dictionary(dict.entries.map { case (k, v) => (k, transform(v)) }))
+              case _ =>
+                val transformed = dict.entries.map { case (k, v) => applyAction(v, next, action).map(nv => (k, nv)) }
+                val err         = transformed.collectFirst { case Left(e) => e }
+                err.toLeft(DynamicValue.Dictionary(transformed.collect { case Right(v) => v }))
             }
           case _ => Left(MigrationError.InvalidTypeCorrection("Dictionary", value.getClass.getSimpleName, optic))
         }
@@ -143,7 +144,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
           case DynamicValue.SomeValue(inner) =>
             applyAction(inner, next, action).map(DynamicValue.SomeValue(_))
           case DynamicValue.NoneValue => Right(DynamicValue.NoneValue)
-          case _ => Left(MigrationError.InvalidTypeCorrection("Optional", value.getClass.getSimpleName, optic))
+          case _                      => Left(MigrationError.InvalidTypeCorrection("Optional", value.getClass.getSimpleName, optic))
         }
     }
   }

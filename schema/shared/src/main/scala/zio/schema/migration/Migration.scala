@@ -4,8 +4,8 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.DynamicValue
 
 /**
- * High-level typed API that wraps the pure structural `DynamicMigration`.
- * This carries the type bindings without polluting the serializable logic.
+ * High-level typed API that wraps the pure structural `DynamicMigration`. This
+ * carries the type bindings without polluting the serializable logic.
  */
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
@@ -23,7 +23,7 @@ final case class Migration[A, B](
     }
 
   /**
-   * Compose migrations sequentially. 
+   * Compose migrations sequentially.
    */
   def ++[C](that: Migration[B, C]): Migration[A, C] =
     Migration(
@@ -35,7 +35,8 @@ final case class Migration[A, B](
   def andThen[C](that: Migration[B, C]): Migration[A, C] = this ++ that
 
   /**
-   * Reverse structural migration. Note: Runtime behavior is best-effort for some complex inversions.
+   * Reverse structural migration. Note: Runtime behavior is best-effort for
+   * some complex inversions.
    */
   def reverse: Migration[B, A] =
     Migration(
@@ -47,9 +48,9 @@ final case class Migration[A, B](
 
 /**
  * MigrationBuilder provides the DSL/fluent syntax for accumulating operations.
- * NOTE: S => A parameters conceptually represent AST paths. In real compilation,
- * these require Scala 3 inline macros to extract `DynamicOptic`. Left as pure-AST 
- * proxies for integration.
+ * NOTE: S => A parameters conceptually represent AST paths. In real
+ * compilation, these require Scala 3 inline macros to extract `DynamicOptic`.
+ * Left as pure-AST proxies for integration.
  */
 class MigrationBuilder[A, B](
   sourceSchema: Schema[A],
@@ -58,7 +59,7 @@ class MigrationBuilder[A, B](
 ) {
 
   // Purely building up the underlying Algebraic Model:
-  
+
   def addField(targetOp: DynamicOptic, default: DynamicValue): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.AddField(targetOp, default))
 
@@ -90,6 +91,7 @@ class MigrationBuilder[A, B](
 }
 
 object Migration {
+
   /** Creates an identity migration between identical schemas */
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     Migration(DynamicMigration(Vector.empty), schema, schema)

@@ -3,7 +3,8 @@ package zio.schema.migration
 import zio.blocks.schema.DynamicValue
 
 /**
- * An algebraic data type representing a singular structural transformation across a schema.
+ * An algebraic data type representing a singular structural transformation
+ * across a schema.
  */
 sealed trait MigrationAction extends Serializable {
   def at: DynamicOptic
@@ -56,7 +57,7 @@ object MigrationAction {
   ) extends MigrationAction {
     // Requires a default to structurally reverse a mandate, so we pass fallback None or generic
     // However, exact structural reflection expects best-effort
-    def reverse: MigrationAction = Mandate(at, DynamicValue.NoneValue) 
+    def reverse: MigrationAction = Mandate(at, DynamicValue.NoneValue)
   }
 
   // ===== Enum Actions =====
