@@ -108,6 +108,67 @@ val charCount: Either[IOException, Long] =
 
 The key difference: `Stream` releases resources via **RAII** (Resource Acquisition Is Initialization) — the resource's lifetime is bound to the compiled stream's `close()` method, which the terminal operation (`run`) always calls in a `finally` block.
 
+**3. Error Handling — Untyped Errors**
+
+Traditional error handling conflates two categories: recoverable **domain errors** (e.g., parsing failed, validation failed) and fatal **defects** (e.g., `OutOfMemoryError`, `NullPointerException`). This makes it hard to write correct error recovery code:
+
+```scala mdoc:compile-only
+import scala.util.Try
+
+// With Try/catch (untyped errors)
+case class ParseError(msg: String)
+
+def parseLines(lines: List[String]): Try[List[Int]] = Try {
+  lines.map { line =>
+    line.toInt  // throws NumberFormatException (defect, not domain error!)
+  }
+}
+
+val result = parseLines(List("1", "abc", "3"))
+result match {
+  case util.Success(nums) => println(s"Parsed: $nums")
+  case util.Failure(e) =>
+    // ❌ Can't tell if 'e' is a parse error or a JVM defect
+    // ❌ Must handle *all* exceptions the same way
+    // ❌ Domain logic mixed with system-level exception handling
+    println(s"Error: $e")
+}
+```
+
+With `Stream[E, A]`, typed errors (`E`) are distinct from untyped defects (`Throwable`), enabling proper error recovery:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+case class ParseError(msg: String)
+
+// With Stream (typed errors)
+val result: Either[ParseError, zio.blocks.chunk.Chunk[Int]] =
+  Stream
+    .fromIterable(List("1", "abc", "3"))
+    .flatMap { line =>
+      try {
+        Stream.succeed(line.toInt)  // success path
+      } catch {
+        case _: NumberFormatException =>
+          Stream.fail(ParseError(s"Not a number: $line"))  // typed error
+      }
+    }
+    .runCollect
+
+result match {
+  case Left(parseError) =>
+    // ✓ This branch is *only* for domain errors we chose to surface
+    println(s"Parse error: ${parseError.msg}")
+  case Right(nums) =>
+    // ✓ Untyped defects (OutOfMemoryError, etc.) propagate as exceptions
+    // ✓ Clear separation: Either[E, Z] is for recovery, uncaught exceptions are fatal
+    println(s"Parsed: ${nums}")
+}
+```
+
+The key distinction: `Either[ParseError, Z]` means domain errors are *recoverable* via `Left`; any uncaught `Throwable` defect propagates as an exception, which is correct—you cannot recover from running out of memory, only from bad input.
+
 ### The Solution
 
 `Stream[E, A]` solves this by combining:
