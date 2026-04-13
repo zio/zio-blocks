@@ -1174,16 +1174,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
     scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s",
-    // Stream, pipeline, and sink examples are mdoc-embedded and not compiled directly
-    Compile / sources := {
-      val all = (Compile / sources).value
-      all.filterNot(f =>
-        f.getPath.contains("/stream/") ||
-          f.getPath.contains("/pipeline/") ||
-          f.getPath.contains("/sink/")
-      )
-    }
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
   .dependsOn(
     streams.jvm,
