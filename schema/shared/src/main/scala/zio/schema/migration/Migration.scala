@@ -74,8 +74,8 @@ class MigrationBuilder[A, B](
   def optionalizeField(_: DynamicOptic, targetOp: DynamicOptic): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Optionalize(targetOp))
 
-  def renameCase(_: DynamicOptic, fromTag: String, toTag: String): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.RenameCase(_, fromTag, toTag))
+  def renameCase(atOp: DynamicOptic, fromTag: String, toTag: String): MigrationBuilder[A, B] =
+    copy(actions = actions :+ MigrationAction.RenameCase(atOp, fromTag, toTag))
 
   def transformCase(atOp: DynamicOptic, caseActions: Vector[MigrationAction]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformCase(atOp, caseActions))
