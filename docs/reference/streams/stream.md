@@ -64,7 +64,7 @@ This **short-circuiting** behavior is automatic and requires no special syntax.
 
 When you open resources (file handles, network connections, database cursors), you must release them in **all** code paths—success, error, and even mid-stream cancellation. With eager sequences, this burden falls on the caller:
 
-```scala mdoc:compile-only
+```scala
 import java.io.*
 
 // ❌ With traditional Scala (manual resource management)
