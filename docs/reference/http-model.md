@@ -1297,7 +1297,144 @@ This design shines in three ways:
 
 ### No Streaming
 
-Bodies are fully materialized `Chunk[Byte]`. Streaming is left to higher-level HTTP libraries that compose with this data model. This keeps the model simple and effect-free.
+Let's say you're downloading a 500MB video file over HTTP. Should your `Body` object represent that as:
+
+**Option A: A single `Chunk[Byte]` with all 500MB in memory?**
+```scala
+val body = Body(data = Chunk[Byte](/* 500MB of bytes */))
+// Everything loaded into RAM at once
+```
+
+**Option B: A Stream that yields bytes incrementally as they arrive?**
+```scala
+val body = Body(data = Stream[Byte]) // Yields chunks as they download
+// Only a small buffer in RAM; the rest comes from the network
+```
+
+Most HTTP libraries choose Option B for large files — streaming makes sense when you want to process data *as it arrives* without loading everything into memory first.
+
+**But http-model chose Option A: fully materialized bodies.** Here's why.
+
+### The Streaming Trade-off
+
+Streaming sounds great on paper — save memory, start processing immediately — but it brings complexity:
+
+**Streaming requires effects:**
+```scala
+// With streaming, reading a body becomes an effect:
+val body: Body = request.body
+val bytes: IO[Chunk[Byte]] = body.stream.runCollect()
+// Reading the body is now an IO operation, not a pure value!
+```
+
+This couples `Body` to a specific effect system (ZIO, Cats Effect, Scala Futures, etc.). Different effect systems have different streaming abstractions, and your `Body` type would need to know about all of them — or you'd lock users into one.
+
+**Streaming requires error handling:**
+```scala
+// With streaming, errors can happen mid-stream:
+body.stream.fold(
+  error => handleNetworkFailure(error),      // Network cut out!
+  chunk => processChunk(chunk),
+  () => done()
+)
+// You must handle errors at every chunk boundary
+```
+
+**Streaming complicates testing:**
+```scala
+// Testing code that consumes streams is verbose:
+val testStream = Stream(
+  Chunk(1, 2, 3),
+  Chunk(4, 5, 6),
+  Chunk(7, 8, 9)
+).flatMap(_.stream)
+// vs. just: Chunk(1, 2, 3, 4, 5, 6, 7, 8, 9)
+```
+
+### http-model's Choice: Pure, Materialized Bodies
+
+http-model makes a different trade-off. A `Body` is just raw bytes — immutable, fully loaded, and effect-free:
+
+```scala
+final class Body(
+  val data: Chunk[Byte],
+  val contentType: ContentType
+)
+
+// That's it. No effects, no streaming, no surprises.
+val body = Body(
+  data = Chunk.fromArray(myBytes),
+  contentType = ContentType.ApplicationJson
+)
+
+// Reading the body is a pure operation:
+val bytes: Chunk[Byte] = body.data  // No IO, no effect system needed
+val asString: String = body.asString(Charset.UTF8)  // Pure
+```
+
+### Why This Works
+
+**For most HTTP use cases, bodies are small:**
+- JSON API responses: typically 1–100KB
+- Form submissions: a few KB
+- HTML pages: 10–500KB
+
+Most real-world HTTP bodies fit comfortably in memory. Even a 10MB response is manageable for a single request.
+
+**When you need to handle large bodies, you use a streaming library:**
+
+```scala
+// For downloading a 500MB video, you don't use http-model alone:
+val httpClient: HttpClient = ...  // ZIO HTTP, Akka HTTP, etc.
+
+// The client handles streaming internally
+httpClient.download(url) { bytes =>
+  // Process chunks as they arrive
+  writeToFile(bytes)
+}
+
+// http-model's Body type represents *finished* HTTP messages:
+// - Small responses (JSON API calls)
+// - File uploads from clients
+// - Cache entries
+// - Request/response snapshots for logging
+
+// Streaming HTTP body handling is left to the HTTP client/server framework
+```
+
+### The Separation of Concerns
+
+Think of http-model as a **pure data layer** and streaming libraries as the **I/O layer**:
+
+```
+Your Application Code
+        ↓
+    (uses)
+        ↓
+┌─────────────────────┐
+│   HTTP Client       │ (ZIO HTTP, Akka HTTP, etc.)
+│   (does streaming)  │
+└─────────────────────┘
+        ↓
+    (wraps/unwraps)
+        ↓
+┌─────────────────────┐
+│  http-model Body    │ (pure, immutable, fully materialized)
+│  (no effects)       │
+└─────────────────────┘
+```
+
+When an HTTP request arrives, the client library reads the stream and constructs a `Body` with all bytes loaded. When you send a response, the client library takes the `Body` bytes and streams them to the network. http-model handles the "in-memory representation" part; the framework handles the "network I/O" part.
+
+### The Benefit: Simplicity and Portability
+
+Because `Body` has no streaming, no effects, and no I/O:
+
+- ✓ It works in any Scala project (no ZIO, no Cats Effect required)
+- ✓ Your request/response logic is testable and pure
+- ✓ You can cache, serialize, copy, and manipulate bodies easily
+- ✓ No async/await complexity in your domain logic
+- ✓ Any HTTP library (ZIO, Akka, Play, Scala.js) can use the same `Body` type
 
 ### Zero ZIO Dependency
 
