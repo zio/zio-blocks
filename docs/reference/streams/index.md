@@ -41,6 +41,38 @@ These types form a clean pipeline:
 | `Pipeline[-In, +Out]`   | Element transformer     | `pipe.andThen(other)`   |
 | `Sink[+E, -A, +Z]`      | Consumer → result       | `stream.run(sink)`      |
 
+### Execution Flow
+
+Operations on streams transform the pipeline and ultimately run it against a sink:
+
+```
+┌──────────────────────────────────┐
+│ Stream[E, A]                     │
+│ (lazy description)               │
+└──────────────────┬───────────────┘
+                   │
+      .flatMap, .map, .filter, etc.
+                   │
+┌──────────────────▼───────────────┐
+│ Pipeline[-In, +Out]              │
+│ (stream → stream transformation) │
+└──────────────────┬───────────────┘
+                   │
+        .via(pipe)
+                   │
+┌──────────────────▼───────────────┐
+│ Sink[E, A, Z]                    │
+│ (stream consumer → result Z)     │
+└──────────────────┬───────────────┘
+                   │
+         .run(sink)
+                   │
+┌──────────────────▼───────────────┐
+│ Either[E, Z]                     │
+│ (synchronous result)             │
+└──────────────────────────────────┘
+```
+
 ### Quick Start
 
 ```scala

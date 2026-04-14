@@ -172,36 +172,6 @@ result match {
 
 The key distinction: `Either[ParseError, Z]` means domain errors are *recoverable* via `Left`; any uncaught `Throwable` defect propagates as an exception, which is correct—you cannot recover from running out of memory, only from bad input.
 
-### Architecture
-
-```
-┌──────────────────────────────────┐
-│ Stream[E, A]                     │
-│ (lazy description)               │
-└──────────────────┬───────────────┘
-                   │
-      .flatMap, .map, .filter, etc.
-                   │
-┌──────────────────▼───────────────┐
-│ Pipeline[-In, +Out]              │
-│ (stream → stream transformation) │
-└──────────────────┬───────────────┘
-                   │
-        .via(pipe)
-                   │
-┌──────────────────▼───────────────┐
-│ Sink[E, A, Z]                    │
-│ (stream consumer → result Z)     │
-└──────────────────┬───────────────┘
-                   │
-         .run(sink)
-                   │
-┌──────────────────▼───────────────┐
-│ Either[E, Z]                     │
-│ (synchronous result)             │
-└──────────────────────────────────┘
-```
-
 ## Installation
 
 Add the Streams module to your SBT build:
