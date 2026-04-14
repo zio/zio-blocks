@@ -1248,6 +1248,8 @@ val sum = nums.run(Sink.foldLeft(0)((acc, x) => acc + x))
 
 ### Discarding Results
 
+These operations consume streams without collecting their elements, useful when you only care about side effects:
+
 #### `Stream#runDrain`
 
 Consumes all elements and discards them, returning `Unit`:
