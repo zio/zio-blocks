@@ -1248,57 +1248,52 @@ This eliminates double-encoding bugs and clarifies responsibilities.
 
 ### Lazy Header Parsing
 
-**The Problem: Why Eager Parsing Wastes Work**
+Imagine you're building a high-traffic microservice that receives thousands of HTTP requests per second. Each request arrives with 20–30 headers: `content-type`, `authorization`, `cache-control`, `etag`, `x-request-id`, `x-trace-id`, custom headers your team added, and more.
 
-Typical HTTP requests carry 20+ headers, but your code uses only 2-3 of them. Most libraries parse **all headers immediately** when the request arrives — wasting 80-90% of parsing effort on headers you'll never ask for:
+Here's the problem: Your handler only *actually needs* three of those headers:
 
 ```scala
-// Request arrives with 20 headers
-val request = Request(...)  // Parses all 20 headers right now
-
-// Your code only needs 3
-val auth = request.headers.get("authorization")   // Use 1
-val ct = request.headers.get("content-type")      // Use 2
-val id = request.headers.get("x-request-id")      // Use 3
-
-// The other 17 headers? Already parsed, taking memory, doing nothing
+def handleRequest(request: Request): Response = {
+  val authToken = request.headers.get("authorization")
+  val contentType = request.headers.get("content-type")
+  val requestId = request.headers.get("x-request-id")
+  
+  // The other 17+ headers? Never touched.
+  processRequest(authToken, contentType, requestId)
+}
 ```
 
-In a microservice handling 10,000 requests/second:
-- Eager parsing: 200,000 headers/second (20 × 10,000)
-- You actually use: 30,000 headers/second (3 × 10,000)
-- **Wasted: 170,000 parses/second** 🔥
+If the `Headers` class eagerly parsed all 20+ headers the moment the request arrived, you'd be wasting CPU time parsing headers you don't care about. With 1,000 requests/second, that's parsing 20,000 unnecessary headers per second.
 
-**The Solution: Parse Only What You Need**
+**http-model's solution: Parse headers only when you ask for them.**
 
-Store headers as raw strings and parse them **on first access**, then **cache the result**:
+Internally, `Headers` stores header names and values as raw strings. When you call `headers.get("authorization")` for the *first time*, it parses that specific header value into a typed structure (extracting charset, splitting directives, validating format, etc.), then *caches* the result. The second time you ask for the same header, it returns the cached parsed value instantly — no re-parsing.
 
 ```scala
 val headers = Headers(
   "content-type" -> "application/json; charset=utf-8",
-  "authorization" -> "Bearer token123",
-  "x-request-id" -> "abc-123"
+  "authorization" -> "Bearer abc123xyz",
+  "cache-control" -> "no-cache, max-age=3600",
+  // ... 17 more headers
 )
 
-// First access: parse and cache
-val ct = headers.get(Header.ContentType)
-// Parses "application/json; charset=utf-8" 
-// → ContentType(mediaType = ApplicationJson, charset = Some(UTF8))
-// Caches the result
+// First access: parses "content-type" string
+val ct1 = headers.get("content-type")
+// Internally parsed and cached as: ContentType(mediaType=ApplicationJson, charset=UTF8)
 
-// Second access: instant (cached)
-val ct2 = headers.get(Header.ContentType)  // Returns cached result, no re-parsing
+// Second access: returns cached parsed result (no parsing!)
+val ct2 = headers.get("content-type")  // Instant — already cached
+
+// Other headers never accessed? Never parsed. ✓
 ```
 
-Internally, headers maintains two arrays:
-- **Raw strings** — stored as-is (instant)
-- **Parsed cache** — populated on first access, then O(1) lookups
+This design shines in three ways:
 
-**Benefits:**
+**Performance**: Only pay the cost for headers you actually use. With 20 headers and using 3, that's an ~85% reduction in parsing work. At scale (thousands of requests/second), this savings compounds dramatically.
 
-1. **Performance** — Parse only headers you use (85%+ reduction in busy services)
-2. **Robustness** — Malformed headers you never ask for don't cause failures or rejection
-3. **Efficiency** — Each header parsed once, cached forever; subsequent accesses are instant
+**Robustness**: Custom or unknown headers don't cause parsing failures. If a header can't be parsed, it stays as a raw string, and your code can still access it as a plain value without crashing the handler.
+
+**Simplicity**: Your code is clean — you just ask for headers by name, and http-model handles parsing transparently. No manual string manipulation or error handling on your end.
 
 ### No Streaming
 
