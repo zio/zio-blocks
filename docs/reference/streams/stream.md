@@ -549,9 +549,7 @@ val doubled = nums.map(_ * 2)
 val result = doubled.runCollect
 ```
 
-★ Insight ─────────────────────────────────
-`map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
-─────────────────────────────────────────────
+**Key point:** `map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
 
 `mapError[E2]` — Transforms typed errors without affecting elements.
 
