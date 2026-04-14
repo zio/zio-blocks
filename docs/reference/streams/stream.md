@@ -734,6 +734,8 @@ val result = numbers.runCollect
 
 ### Stateful Transformations
 
+These operations maintain internal state while processing elements, allowing you to fold computations into the transformation:
+
 #### `Stream#mapAccum[S, B]`
 
 Maintains state while transforming each element:
