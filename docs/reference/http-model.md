@@ -33,20 +33,34 @@ final class Body(val data: Chunk[Byte], val contentType: ContentType)
 
 ## Motivation
 
-HTTP libraries often couple protocol concerns with effects and streaming, making it difficult to:
+### The Problem: Protocol, Effects, and Coupling
 
-- Share data structures across client and server implementations
-- Serialize requests/responses for caching, testing, or transmission
-- Work with HTTP primitives without committing to a specific effect system
-- Parse and manipulate headers, URLs, and query parameters in a type-safe way
+Imagine building a distributed system where you need an HTTP client to call external APIs and an HTTP server to handle incoming requests. Your first instinct is to reach for a popular HTTP library. But here's the trouble: most HTTP libraries bake "effects" (I/O operations, streaming, async) directly into their data structures.
 
-`zio-http-model` solves this by providing:
+This creates a coupling problem:
 
-- **Pure data types** — All types are immutable, no side effects, no I/O
-- **Zero dependencies** — No ZIO, no external libraries; uses only `zio-blocks-chunk`
-- **Incremental parsing** — Headers parse typed headers on first access and cache the result
-- **Efficient collections** — Parallel array-backed Headers and QueryParams for high-performance lookups
-- **Composable** — Types work together naturally without forcing a specific architecture
+**Scenario 1: Sharing Types Across Layers**
+You want your client request logic (building a request to send) to use the same types as your server request handling (receiving and parsing a request). But your HTTP library makes this difficult — the `Request` type is tied to async effects, file streams, or a specific Scala version's IO model. Sharing becomes messy.
+
+**Scenario 2: Testing Without Effects**
+You're writing unit tests for your request-building logic. You want to serialize a request to JSON for snapshots, or cache requests for debugging. But your `Request` type requires pulling in async runtimes, streaming libraries, or other baggage you don't need in tests. A simple unit test becomes a production-grade effect setup.
+
+**Scenario 3: Lock-In**
+You've built your entire API client around ZIO's HTTP library, but your team decides to use Akka for one microservice. Now your request/response types aren't portable — they're coupled to ZIO. Refactoring is painful.
+
+### The Solution: Pure HTTP Data
+
+`zio-http-model` separates **protocol concerns** (representing HTTP messages) from **effect concerns** (actually sending/receiving them). It provides:
+
+- **Pure immutable data types** — `Request`, `Response`, `URL`, `Headers`, `Body` are just data. No effects, no I/O, no surprises. You can use them anywhere: tests, serialization, caching, multiple effect systems.
+
+- **Zero dependencies beyond Chunk** — Not coupled to ZIO, Akka, or any runtime. Your HTTP data structures work in any Scala application.
+
+- **Incremental, lazy parsing** — Headers are parsed on first access and cached. You pay only for what you use.
+
+- **Efficient, composable** — Headers and QueryParams use parallel array-backed collections for fast lookups. Types compose naturally without forcing a single architectural path.
+
+This separation is powerful: you can build, manipulate, serialize, and test HTTP messages using pure data, then hand them off to any HTTP client/server library (ZIO, Akka, Play, etc.) for the actual I/O work. Your domain logic stays portable and testable.
 
 
 ## Installation
