@@ -21,6 +21,8 @@ abstract class Stream[+E, +A] {
 
 ## Overview
 
+`Stream[E, A]` addresses three core limitations of traditional eager sequence libraries:
+
 ### Motivation
 
 Traditional eager sequences (like Scala `List`) fall short in **three critical dimensions**. Here's what `Stream[E, A]` solves for each:
@@ -189,6 +191,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 Supported Scala versions: 2.13.x and 3.x.
 
 ## Construction
+
+Streams can be created from constants, collections, resources, and pull-based sources:
 
 ### Constant Streams
 
@@ -529,6 +533,8 @@ object Stream {
 
 ## Transformations
 
+Streams provide powerful operations for transforming elements, flattening nested structures, filtering, and managing state:
+
 ### Element-wise Transformations
 
 `map[B]` — Applies a function to each element.
@@ -668,6 +674,8 @@ val result = expanded.runCollect
 
 ## Windowing
 
+Streams can be grouped, sliced, and scanned to process data in temporal windows:
+
 ### Chunking
 
 `grouped[A]` — Collects elements into fixed-size chunks.
@@ -707,6 +715,8 @@ val result = windows.runCollect
 ```
 
 ## Combining Streams
+
+Streams can be sequentially concatenated, zipped together, or merged:
 
 ### Sequential Concatenation
 
@@ -773,6 +783,8 @@ val result = flat.runCollect
 ```
 
 ## Other Operations
+
+Common utilities for deduplication, draining, and error recovery:
 
 ### Filtering Duplicates
 
@@ -900,6 +912,8 @@ val result = logged.runCollect
 
 ## Error Handling
 
+Streams distinguish between recoverable domain errors and fatal defects, with flexible recovery patterns:
+
 ### Recovering from Typed Errors
 
 `catchAll[E2, A1]` — Recovers from any typed error by switching to a recovery stream.
@@ -966,6 +980,8 @@ val result = safe.runCollect
 ```
 
 ## Resource Management
+
+Streams provide RAII-based resource guarantees with finalizers and cancellation safety:
 
 ### Ensuring Cleanup
 
@@ -1144,6 +1160,8 @@ trait Stream[+E, +A] {
 
 ## Integration with Pipeline and Sink
 
+Streams compose with pipelines and sinks to form complete data processing flows:
+
 ### Using Pipelines
 
 `via[B]` — Applies a `Pipeline[A, B]` transformation to the stream.
@@ -1249,6 +1267,8 @@ Avoid holding references to a `Reader` obtained via `start` outside its `Scope`.
 :::
 
 ## Implementation Notes
+
+ZIO Blocks Streams achieves zero-boxing via compile-time type detection and dual compilation strategies:
 
 ### JVM Primitive Specialization
 
