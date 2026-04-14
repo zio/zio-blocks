@@ -572,6 +572,8 @@ val result = stream.runCollect
 
 ### Resource Management
 
+Streams can be built from resources that need to be acquired and released, ensuring cleanup happens automatically:
+
 #### `Stream.fromAcquireRelease[R, E, A]`
 
 Acquires a resource, uses it in a stream, and releases it afterward:
