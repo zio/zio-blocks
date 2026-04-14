@@ -45,9 +45,8 @@ Create a package directory matching the document's kebab-case id (convert to val
 ```
 
 Where `<examples-module>` is one of:
-- `schema-examples` (for schema-related docs)
 - `<module>-examples` (for module references, e.g., `http-model-examples`)
-- `examples` or similar (for guides and tutorials)
+- `zio-blocks-examples` (for guides and tutorials, or integration examples spanning multiple modules)
 
 **Name conversion rule**: Drop hyphens. For example:
 - `query-dsl-sql` → `querydsl` (lowercase, hyphens removed)
