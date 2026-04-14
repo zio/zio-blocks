@@ -16,6 +16,7 @@
 
 package zio.blocks.schema
 
+import scala.language.implicitConversions
 import zio.blocks.chunk.Chunk
 
 /**
@@ -70,6 +71,26 @@ object SchemaExpr {
 
     private[this] val result        = new Right(Chunk.single(value))
     private[this] val dynamicResult = new Right(Chunk.single(schema.toDynamicValue(value)))
+  }
+
+  implicit def fromInt(value: Int): SchemaExpr[Any, Any] =
+    Literal[Any, Int](value, Schema[Int])
+
+  implicit def fromLong(value: Long): SchemaExpr[Any, Any] =
+    Literal[Any, Long](value, Schema[Long])
+
+  implicit def fromString(value: String): SchemaExpr[Any, Any] =
+    Literal[Any, String](value, Schema[String])
+
+  implicit def fromBoolean(value: Boolean): SchemaExpr[Any, Any] =
+    Literal[Any, Boolean](value, Schema[Boolean])
+
+  final case class DefaultValue(value: DynamicValue) extends SchemaExpr[Any, Any] {
+    def eval(input: Any): Either[OpticCheck, Seq[Any]] =
+      new Right(Chunk.single(value))
+
+    def evalDynamic(input: Any): Either[OpticCheck, Seq[DynamicValue]] =
+      new Right(Chunk.single(value))
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {

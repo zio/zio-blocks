@@ -45,6 +45,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def elements: DynamicOptic = new DynamicOptic(nodes.appended(Node.Elements))
 
+  def each: DynamicOptic = elements
+
   def mapKeys: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapKeys))
 
   def mapValues: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapValues))
