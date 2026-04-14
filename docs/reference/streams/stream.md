@@ -338,6 +338,16 @@ object Stream {
 }
 ```
 
+Create a stream from an iterator and collect all elements:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val iter = Iterator(10, 20, 30, 40)
+val stream = Stream.fromIterator(iter)
+val result = stream.runCollect
+```
+
 ### From Ranges
 
 #### `Stream.range`
@@ -367,6 +377,16 @@ Converts a Scala `Range` object:
 object Stream {
   def fromRange(range: Range): Stream[Nothing, Int]
 }
+```
+
+Create a stream from a `Range` and collect elements:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val range = 1 to 10 by 2
+val stream = Stream.fromRange(range)
+val result = stream.runCollect
 ```
 
 ### Generators
@@ -427,11 +447,11 @@ object Stream {
 
 Use `eval` when you want a side effect in a stream (e.g., logging, metrics) but no element:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
-val logged = Stream(1, 2, 3)
-  .tapEach(x => println(s"Processing: $x"))
+val sideEffect = Stream.eval(println("Executing side effect"))
+val result = sideEffect.runDrain
 ```
 
 #### `Stream.attempt[A]`
@@ -465,6 +485,15 @@ object Stream {
 }
 ```
 
+Defer side effects until the stream executes:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val deferred = Stream.defer(println("Effect runs when stream executes"))
+val result = deferred.runDrain
+```
+
 #### `Stream.suspend[E, A]`
 
 Defers the creation of a stream until run time, useful for recursive stream definitions:
@@ -473,6 +502,18 @@ Defers the creation of a stream until run time, useful for recursive stream defi
 object Stream {
   def suspend[E, A](stream: => Stream[E, A]): Stream[E, A]
 }
+```
+
+Define a recursive stream safely:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+def countDown(n: Int): Stream[Nothing, Int] =
+  if (n <= 0) Stream.empty
+  else Stream.suspend(Stream.succeed(n) ++ countDown(n - 1))
+
+val result = countDown(5).runCollect
 ```
 
 ### I/O
@@ -506,6 +547,17 @@ Reads characters from a Java `Reader`:
 object Stream {
   def fromJavaReader(r: java.io.Reader): Stream[java.io.IOException, Char]
 }
+```
+
+Read characters from a string reader:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import java.io.StringReader
+
+val reader = new StringReader("hello world")
+val stream = Stream.fromJavaReader(reader)
+val result = stream.runCollect
 ```
 
 ### Resource Management
@@ -553,6 +605,26 @@ Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream:
 object Stream {
   def fromResource[R, E, A](resource: Resource[R])(use: R => Stream[E, A]): Stream[E, A]
 }
+```
+
+When you need a resource to live for the entire duration of the stream, `fromResource` acquires it at the stream's start and releases it when the stream terminates:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import zio.blocks.scope.Resource
+
+val resource = Resource.acquireRelease(acquire = {
+  println("Acquiring resource")
+  42
+})(release = { value =>
+  println(s"Releasing resource with value: $value")
+})
+
+val stream = Stream.fromResource(resource) { value =>
+  Stream(value, value * 2, value * 3)
+}
+
+val result = stream.runCollect
 ```
 
 ## Transformations
@@ -862,6 +934,24 @@ trait Stream[+E, +A] {
 }
 ```
 
+This deduplicates elements by a computed key, keeping only the first occurrence of each key:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+case class Person(id: Int, name: String)
+
+val people = Stream(
+  Person(1, "Alice"),
+  Person(2, "Bob"),
+  Person(1, "Alice2"),  // same id as first, dropped
+  Person(3, "Charlie")
+)
+
+val unique = people.distinctBy(_.id)
+val result = unique.runCollect
+```
+
 ### Skipping and Taking
 
 #### `Stream#drop`
@@ -872,6 +962,16 @@ Skips the first `n` elements:
 trait Stream[+E, +A] {
   def drop(n: Long): Stream[E, A]
 }
+```
+
+Dropping the first 3 elements and collecting the remainder:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+val remaining = nums.drop(3)
+val result = remaining.runCollect
 ```
 
 #### `Stream#take`
@@ -902,6 +1002,16 @@ Emits elements while a predicate is true, then stops:
 trait Stream[+E, +A] {
   def takeWhile(pred: A => Boolean): Stream[E, A]
 }
+```
+
+Taking elements while they are less than 6 stops early without processing the rest:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+val firstFive = nums.takeWhile(_ < 6)
+val result = firstFive.runCollect
 ```
 
 ### Interspersing
@@ -1188,6 +1298,15 @@ trait Stream[+E, +A] {
 }
 ```
 
+Counting elements in a stream:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val total = nums.count
+```
+
 #### `Stream#head`
 
 Returns the first element (or `None` if empty):
@@ -1196,6 +1315,15 @@ Returns the first element (or `None` if empty):
 trait Stream[+E, +A] {
   def head: Either[E, Option[A]]
 }
+```
+
+Getting the first element without collecting the entire stream:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val first = nums.head
 ```
 
 #### `Stream#last`
@@ -1208,6 +1336,15 @@ trait Stream[+E, +A] {
 }
 ```
 
+Getting the final element of the stream:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val last = nums.last
+```
+
 #### `Stream#find[A]`
 
 Returns the first element satisfying a predicate:
@@ -1216,6 +1353,15 @@ Returns the first element satisfying a predicate:
 trait Stream[+E, +A] {
   def find(pred: A => Boolean): Either[E, Option[A]]
 }
+```
+
+Finding the first element matching a condition:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val firstEven = nums.find(_ % 2 == 0)
 ```
 
 #### `Stream#exists[A]`
@@ -1228,6 +1374,15 @@ trait Stream[+E, +A] {
 }
 ```
 
+Checking if any element is greater than 35:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val hasLargeValue = nums.exists(_ > 35)
+```
+
 #### `Stream#forall[A]`
 
 Returns `true` if all elements satisfy a predicate, short-circuiting:
@@ -1236,6 +1391,15 @@ Returns `true` if all elements satisfy a predicate, short-circuiting:
 trait Stream[+E, +A] {
   def forall(pred: A => Boolean): Either[E, Boolean]
 }
+```
+
+Checking if all elements are positive:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val nums = Stream(10, 20, 30, 40, 50)
+val allPositive = nums.forall(_ > 0)
 ```
 
 ## Integration with Pipeline and Sink
