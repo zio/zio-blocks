@@ -233,7 +233,7 @@ Run `/docs-verify-compliance` skill.
 
 ## Step 4: Write Examples
 
-Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
+Create focused `App` objects in `<module_name>-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
 
 - **Package**: matches directory name (e.g., `package into` for `into/`)
 - **Object**: extends `App` for independent execution
