@@ -526,6 +526,8 @@ val result = countDown(5).runCollect
 
 ### I/O
 
+Streams can read from external I/O sources like files and readers, automatically managing resource cleanup:
+
 #### `Stream.fromInputStream`
 
 Reads bytes from a Java `InputStream`, managing the resource:
