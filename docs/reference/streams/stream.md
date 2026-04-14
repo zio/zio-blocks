@@ -352,6 +352,8 @@ val result = stream.runCollect
 
 ### From Ranges
 
+Streams can be created from numeric ranges, providing an efficient way to generate sequences of integers without allocating memory upfront:
+
 #### `Stream.range`
 
 Emits integers from `from` (inclusive) to `until` (exclusive):
