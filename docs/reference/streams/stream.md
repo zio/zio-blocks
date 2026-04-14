@@ -561,7 +561,9 @@ Streams provide powerful operations for transforming elements, flattening nested
 
 ### Element-wise Transformations
 
-`map[B]` — Applies a function to each element.:
+#### `Stream#map[B]`
+
+Applies a function to each element:
 
 ```scala
 trait Stream[+E, +A] {
@@ -581,7 +583,9 @@ val result = doubled.runCollect
 
 **Key point:** `map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
 
-`mapError[E2]` — Transforms typed errors without affecting elements.:
+#### `Stream#mapError[E2]`
+
+Transforms typed errors without affecting elements:
 
 ```scala
 trait Stream[+E, +A] {
@@ -602,7 +606,9 @@ val mayFail: Stream[NetworkError, String] = Stream.fail(NetworkError())
 val mapped = mayFail.mapError(e => ServerError("Connection failed"))
 ```
 
-`filter` — Emits only elements that satisfy a predicate.:
+#### `Stream#filter`
+
+Emits only elements that satisfy a predicate:
 
 ```scala
 trait Stream[+E, +A] {
@@ -620,7 +626,9 @@ val evens = nums.filter(_ % 2 == 0)
 val result = evens.runCollect
 ```
 
-`collect[B]` — Applies a partial function, emitting only defined results.:
+#### `Stream#collect[B]`
+
+Applies a partial function, emitting only defined results:
 
 ```scala
 trait Stream[+E, +A] {
@@ -640,7 +648,9 @@ val result = numbers.runCollect
 
 ### Stateful Transformations
 
-`mapAccum[S, B]` — Maintains state while transforming each element.:
+#### `Stream#mapAccum[S, B]`
+
+Maintains state while transforming each element:
 
 ```scala
 trait Stream[+E, +A] {
@@ -658,7 +668,9 @@ val indexed = nums.mapAccum(0)((idx, x) => (idx + 1, (idx, x)))
 val result = indexed.runCollect
 ```
 
-`scan[S]` — Like `mapAccum`, but also emits the state at each step (not the mapped value).:
+#### `Stream#scan[S]`
+
+Like `mapAccum`, but also emits the state at each step (not the mapped value):
 
 ```scala
 trait Stream[+E, +A] {
