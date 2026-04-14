@@ -1030,11 +1030,10 @@ lazy val zioGolemIntegrationTests = project
 lazy val zioGolemBuildCodegen = project
   .in(file("golem/codegen"))
   .settings(
-    publish / skip     := true,
-    name               := "zio-golem-build-codegen",
-    organization       := "dev.zio",
-    crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
-    scalaVersion       := BuildHelper.Scala33,
+    publish / skip := true,
+    name           := "zio-golem-build-codegen",
+    organization   := "dev.zio",
+    scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta" % "4.16.0",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
