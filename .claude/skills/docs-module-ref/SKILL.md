@@ -275,6 +275,124 @@ title: "<TypeName>"
 
 ---
 
+## Step 5.5: Running the Examples (Optional)
+
+**Only include this section if the module has companion example files.** If no dedicated example files exist, omit this section entirely and rely on inline code examples throughout the documentation.
+
+### When to Add This Section
+
+**Before proceeding with type documentation, ask the user:**
+
+> Would you like to include standalone, runnable examples for this module? If yes, should we create them in a `<module>-examples` module before writing the documentation, or do you want to rely on inline code examples within the type sections?
+
+**Decision tree based on user response:**
+
+**Option A: Create standalone examples first (recommended for substantial modules)**
+1. User confirms they want standalone examples
+2. Create a new `<module>-examples` module in the project if it doesn't exist
+3. Write one `App` object per realistic use case (typically 3-5 examples per module)
+4. Each example should demonstrate **multi-type composition** — how different types from the module work together to solve a real problem
+5. Each example should be self-contained and runnable with `sbt <module>-examples/runMain <package>.<ObjectName>`
+6. After examples are created and tested, write the "Running the Examples" documentation section that embeds and describes these examples
+
+**Option B: Use inline examples only (for smaller modules or rapid documentation)**
+1. User confirms they prefer inline examples only
+2. Skip the "Running the Examples" section entirely
+3. Embed code examples throughout the type documentation sections to demonstrate multi-type composition
+4. These inline examples should still show realistic patterns and how types work together
+
+**Option C: Examples already exist**
+1. User confirms examples already exist in `<module>-examples`
+2. Review them to ensure each demonstrates multi-type composition and a realistic pattern
+3. Write the "Running the Examples" section describing each example
+
+### Structure for Running the Examples
+
+Place this section at the end of the **module index** (for hierarchical) or at the end of the **flat file** (for flat structure), after all type documentation.
+
+Use this template:
+
+```markdown
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `<module>-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+### <Example Title>
+
+<Short description of what this App demonstrates and the use case it covers. Explain which types from the module work together in this example.>
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("<module>-examples/src/main/scala/<package>/<ObjectName>.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/<module>-examples/src/main/scala/<package>/<ObjectName>.scala))
+
+```bash
+sbt "<module>-examples/runMain <package>.<ObjectName>"
+```
+
+### <Next Example Title>
+
+<Short description highlighting which types compose in this example.>
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("<module>-examples/src/main/scala/<package>/<ObjectName2>.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/<module>-examples/src/main/scala/<package>/<ObjectName2>.scala))
+
+```bash
+sbt "<module>-examples/runMain <package>.<ObjectName2>"
+```
+```
+
+### Rules for This Section
+
+**Scope:**
+- List **every `App` object** in the examples module, one entry per object
+- Each example should demonstrate **multi-type composition** (how types from the module work together), not isolated single-type usage
+- Each example should solve a **realistic problem** or demonstrate a **practical pattern**
+
+**Formatting:**
+- For each entry: use a `###` heading (simple, concise title like "Basic HTTP Request", "Error Handling"), followed by a short descriptive paragraph
+- The paragraph explains what the example demonstrates and which types/patterns it covers
+- Embed full source with `SourceFile.print` (keeps docs and examples in sync automatically)
+- Include source link and run command
+- Keep the numbered steps (clone, run individually) in that order; do not add or remove steps
+
+**Embedding Example Files with `SourceFile`:**
+
+Use `SourceFile.print` to embed full source from `<module>-examples/` for each example. This reads the file at mdoc compile time and emits a fenced code block with the file path shown as the title.
+
+**Pattern:**
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("<module>-examples/src/main/scala/<package>/<ExampleFile>.scala")
+```
+
+**Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use `import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print` inside mdoc sessions.
+
+**Optional parameters for `SourceFile.print`:**
+- `lines = Seq((from, to))` — include only specific line ranges (1-indexed)
+- `showLineNumbers = true` — render with line numbers
+- `showTitle = false` — suppress the file path title
+
+---
+
 ## Step 6: Integration
 
 Use the **`docs-integrate`** skill for the full checklist:
