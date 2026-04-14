@@ -106,6 +106,10 @@ Response ───────────────────────�
   └─ version: Version (HTTP protocol version)
 ```
 
+### How Types Compose in Practice
+
+These types don't exist in isolation — they work together as you build requests and handle responses. The hierarchy above shows the structure, but understanding the actual workflow reveals why each piece is important. Here's how they compose:
+
 **Typical flow:**
 1. **Build URL** — Parse or construct a URL with path segments and query parameters
 2. **Create Request** — Combine method, URL, headers, and body into a Request
