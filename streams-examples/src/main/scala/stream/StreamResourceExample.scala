@@ -161,3 +161,16 @@ object StreamResourceExample extends App {
   show(result5)
   show(log.toList)
 }
+
+object X extends App {
+  import zio.blocks.streams.*
+  import java.io.*
+
+  val charCount: Either[IOException, Long] =
+    Stream
+      .fromJavaReader(new FileReader("/tmp/test.txt")) // lazily acquires file handle
+      .filter(!_.isWhitespace)                         // process only non-whitespace
+      .count                                           // count all matching characters
+
+  println(charCount) // prints Right(count) or Left(IOException)
+}

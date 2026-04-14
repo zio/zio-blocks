@@ -66,16 +66,19 @@ When you open resources (file handles, network connections, database cursors), y
 import java.io.*
 
 // With traditional Scala (manual resource management)
+// Count non-whitespace characters
 var file: BufferedReader = null
 try {
-  file = new BufferedReader(new FileReader("data.txt"))
-  val lines = LazyList.unfold(()) { _ =>
-    val line = file.readLine()
-    if (line != null) Some((line, ())) else None
-  }.toList  // ❌ Forces eager evaluation; still must cleanup!
-  
-  val result = lines.map(_.length).take(10).sum
-  result
+  file = new BufferedReader(new FileReader("build.sbt"))
+  var count = 0L
+  var char = file.read()
+  while (char != -1) {
+    if (!Character.isWhitespace(char)) {
+      count += 1
+    }
+    char = file.read()
+  }
+  count
 } catch {
   case e: IOException =>
     throw e
@@ -83,7 +86,7 @@ try {
   if (file != null) file.close()  // ✓ Manual cleanup in finally
 }
 // ❌ Problem: You must remember the finally block
-// ❌ Problem: If `.map` or `.take` throws, the file still closes (but it's easy to forget!)
+// ❌ Problem: If an exception occurs in the loop, cleanup must still run (easy to forget!)
 // ❌ Problem: Scale to 10 resources? 50 resources? Manually nesting becomes error-prone
 ```
 
