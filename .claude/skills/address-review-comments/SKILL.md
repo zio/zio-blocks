@@ -275,8 +275,6 @@ gh api graphql -f query='mutation {
 
 4. **Group related changes** — If multiple comments relate to the same issue, fix them all and respond once, then mark all as resolved together.
 
-4. **Commit atomically** — Each commit should address one logical piece of feedback. Avoid bundling unrelated fixes.
-
 5. **Show respect for the reviewer's time** — Their feedback is a gift. Even if you disagree, acknowledge the effort and explain your position clearly.
 
 6. **Use reply-to-comment chains** — In GitHub, you can reply to specific lines within a comment thread. Use this to keep discussion organized.
