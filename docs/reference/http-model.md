@@ -1248,11 +1248,57 @@ This eliminates double-encoding bugs and clarifies responsibilities.
 
 ### Lazy Header Parsing
 
-`Headers` stores raw string values and parses typed headers on first access. Parsed results are cached for O(1) subsequent lookups. This design:
+**The Problem: Why Eager Parsing Wastes Work**
 
-- Avoids parsing headers that are never accessed
-- Avoids re-parsing the same header multiple times
-- Supports unknown/custom headers without parsing failures
+Typical HTTP requests carry 20+ headers, but your code uses only 2-3 of them. Most libraries parse **all headers immediately** when the request arrives — wasting 80-90% of parsing effort on headers you'll never ask for:
+
+```scala
+// Request arrives with 20 headers
+val request = Request(...)  // Parses all 20 headers right now
+
+// Your code only needs 3
+val auth = request.headers.get("authorization")   // Use 1
+val ct = request.headers.get("content-type")      // Use 2
+val id = request.headers.get("x-request-id")      // Use 3
+
+// The other 17 headers? Already parsed, taking memory, doing nothing
+```
+
+In a microservice handling 10,000 requests/second:
+- Eager parsing: 200,000 headers/second (20 × 10,000)
+- You actually use: 30,000 headers/second (3 × 10,000)
+- **Wasted: 170,000 parses/second** 🔥
+
+**The Solution: Parse Only What You Need**
+
+Store headers as raw strings and parse them **on first access**, then **cache the result**:
+
+```scala
+val headers = Headers(
+  "content-type" -> "application/json; charset=utf-8",
+  "authorization" -> "Bearer token123",
+  "x-request-id" -> "abc-123"
+)
+
+// First access: parse and cache
+val ct = headers.get(Header.ContentType)
+// Parses "application/json; charset=utf-8" 
+// → ContentType(mediaType = ApplicationJson, charset = Some(UTF8))
+// Caches the result
+
+// Second access: instant (cached)
+val ct2 = headers.get(Header.ContentType)  // Returns cached result, no re-parsing
+```
+
+Internally, headers maintains two arrays:
+- **Raw strings** — stored as-is (instant)
+- **Parsed cache** — populated on first access, then O(1) lookups
+
+**Benefits:**
+
+1. **Performance** — Parse only headers you use (85%+ reduction in busy services)
+2. **Robustness** — Malformed headers you never ask for don't cause failures or rejection
+3. **Efficiency** — Each header parsed once, cached forever; subsequent accesses are instant
 
 ### No Streaming
 
