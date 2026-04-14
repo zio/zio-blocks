@@ -1204,6 +1204,8 @@ All terminal operations are synchronous and return `Either[E, Z]`. The error typ
 
 ### Collecting Results
 
+These operations accumulate or examine stream results, running the entire stream to completion:
+
 #### `Stream#runCollect`
 
 Collects all elements into a `Chunk[A]`:
