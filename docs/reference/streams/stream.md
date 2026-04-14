@@ -1323,11 +1323,13 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-**2. Run individual examples with sbt:**
+**2. Run individual examples with sbt.** Here are the available examples:
+
+---
 
 ### Basic Usage
 
-This example demonstrates constructing streams from collections, transforming elements with `map` and `filter`, and collecting results.
+This example demonstrates constructing streams from collections, transforming elements with `map` and `filter`, and collecting results:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1343,7 +1345,7 @@ sbt "streams-examples/runMain stream.StreamBasicUsageExample"
 
 ### Flat-Mapping Nested Streams
 
-This example shows how `flatMap` sequences multiple streams and flattens the results.
+This example shows how `flatMap` sequences multiple streams and flattens the results:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1353,13 +1355,15 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamFlatMapExample.sc
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamFlatMapExample.scala))
 
+Run this example:
+
 ```bash
 sbt "streams-examples/runMain stream.StreamFlatMapExample"
 ```
 
 ### Error Handling
 
-This example demonstrates typed error recovery with `fail`, `catchAll`, and `orElse`.
+This example demonstrates typed error recovery with `fail`, `catchAll`, and `orElse`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1369,13 +1373,15 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamErrorHandlingExam
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamErrorHandlingExample.scala))
 
+Run this example:
+
 ```bash
 sbt "streams-examples/runMain stream.StreamErrorHandlingExample"
 ```
 
 ### Resource Management
 
-This example shows how `fromAcquireRelease` and `ensuring` manage resources safely.
+This example shows how `fromAcquireRelease` and `ensuring` manage resources safely:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1385,13 +1391,15 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamResourceExample.s
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamResourceExample.scala))
 
+Run this example:
+
 ```bash
 sbt "streams-examples/runMain stream.StreamResourceExample"
 ```
 
 ### Windowing and Scanning
 
-This example demonstrates `grouped`, `sliding`, and `scan` for windowing and stateful transformations.
+This example demonstrates `grouped`, `sliding`, and `scan` for windowing and stateful transformations:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1400,6 +1408,8 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamWindowingExample.
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamWindowingExample.scala))
+
+Run this example:
 
 ```bash
 sbt "streams-examples/runMain stream.StreamWindowingExample"
