@@ -163,7 +163,6 @@ sbt "<examples-module>/runMain <packagename>.<CompleteObjectName>"
 ```bash
 sbt "<examples-module>/compile"
 ```
-```
 
 **Key rules:**
 - Use plain `` ```bash `` code blocks (not mdoc—these are shell commands).
@@ -177,7 +176,6 @@ For data type references and module references where examples need detailed docu
 
 Place the "Running the Examples" section at the end of the documentation, after all type/module documentation. Use this template:
 
-```markdown
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `<examples-module>` module.
@@ -222,9 +220,7 @@ SourceFile.print("<examples-module>/src/main/scala/<package>/<ObjectName2>.scala
 ```bash
 sbt "<examples-module>/runMain <package>.<ObjectName2>"
 ```
-```
 
-**Rules for this section:**
 - List **every `App` object** in the examples module, one entry per object
 - For each entry: use a `###` heading (simple, concise title), followed by a short descriptive paragraph
 - The paragraph explains what the example demonstrates and the use case/pattern it covers
