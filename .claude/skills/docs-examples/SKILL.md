@@ -1,6 +1,6 @@
 ---
 name: docs-examples
-description: Shared procedure for creating and documenting companion examples for documentation. Covers directory structure, file templates, example creation, compilation, linting, and embedding with SourceFile. Used by docs-data-type-ref, docs-module-ref, docs-how-to-guide, and docs-tutorial.
+description: Shared procedure for creating and documenting companion examples. Covers directory structure, file templates, example creation, compilation, linting, and embedding with SourceFile. Used by docs-data-type-ref, docs-module-ref, docs-how-to-guide, and docs-tutorial.
 allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(scalafmt), Bash(git)
 ---
 
@@ -10,31 +10,7 @@ Use this procedure when creating companion example code for reference pages, mod
 
 ---
 
-## Part 1: Deciding Whether to Include Examples
-
-### When to Include a "Running the Examples" Section
-
-**For docs-data-type-ref (single data types):**
-- Include when the type has substantial, realistic use cases worth extracting to standalone files
-- Omit if inline examples within the documentation adequately demonstrate the type's usage
-- Omit if no standalone example files exist and creating them is not practical
-
-**For docs-module-ref (multiple related types):**
-- Before proceeding with documentation, **ask the user** to choose one of three options:
-
-  > Would you like to include standalone, runnable examples for this module? If yes, should we create them in a `<module>-examples` module before writing the documentation, or do you want to rely on inline code examples within the type sections?
-
-**Options based on user response:**
-  - **Option A (Recommended):** Create standalone examples first — Create `<module>-examples` with 3-5 App objects demonstrating multi-type composition, then document them
-  - **Option B:** Use inline examples only — Skip "Running the Examples" section, embed examples throughout type documentation
-  - **Option C:** Examples already exist — Review existing examples in `<module>-examples`, then document them
-
-**For docs-how-to-guide and docs-tutorial:**
-- Always create companion examples. The "Running the Examples" section is required.
-
----
-
-## Part 2: Creating Example Files
+## Creating Example Files
 
 ### Step 1: Directory and Package Structure
 
@@ -149,7 +125,7 @@ sbt check
 
 ---
 
-## Part 3: Documenting Examples
+## Documenting Examples
 
 ### When Examples Use Basic Shell Commands
 
