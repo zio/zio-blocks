@@ -1222,7 +1222,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.streams.*
 import zio.blocks.streams.io.Reader
 import zio.blocks.scope.*
@@ -1234,14 +1234,12 @@ Scope.global.scoped { scope =>
   val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
-    def readAll(): Unit = {
-      val v = r.read(-1)
-      if (v != -1) {
-        println(v)   // prints 1, 2, 3, 4, 5
-        readAll()
-      }
+    // Iterate through reader values using the protocol
+    var current = r.read(-1)
+    while (current != -1) {
+      println(current)   // prints 1, 2, 3, 4, 5
+      current = r.read(-1)
     }
-    readAll()
   }
   // reader is closed automatically when scope exits
 }
@@ -1276,7 +1274,7 @@ By default, Scala's type system boxes primitive values (Int, Long, Double, etc.)
 
 For example, `map`, `filter`, and `scan` all have specialized branches for `JvmType.Int` that use `readInt(Long.MinValue)` instead of boxing:
 
-```scala mdoc:compile-only
+```scala
 if (jvmType eq JvmType.Int) {
   val i = source.readInt(Long.MinValue)(using unsafeEvidence)
   // ... unboxed, fast path
