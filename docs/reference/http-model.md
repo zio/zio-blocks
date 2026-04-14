@@ -1398,3 +1398,48 @@ Your Application Code
 
 When an HTTP request arrives, the client library reads the stream and constructs a `Body` with all bytes loaded. When you send a response, the client library takes the `Body` bytes and streams them to the network. http-model handles the "in-memory representation" part; the framework handles the "network I/O" part.
 
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `http-model-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+### Basic HTTP Request/Response
+
+Demonstrates creating HTTP requests and responses with URLs, methods, headers, and bodies. Shows how `Request`, `Response`, `Method`, `URL`, `Headers`, and `Body` types work together.
+
+```bash
+sbt "http-model-examples/runMain httpmodel.BasicHttpRequest"
+```
+
+### Headers and Query Parameters
+
+Shows how to work with headers and query parameters in URLs and requests. Demonstrates how `Headers`, `QueryParams`, and `URL` types compose for extracting and manipulating HTTP metadata.
+
+```bash
+sbt "http-model-examples/runMain httpmodel.HeadersAndQueryParams"
+```
+
+### Form Submission and Cookies
+
+Demonstrates handling form data and cookies using `Request`, `Response`, `Form`, and cookie types. Shows realistic form submission scenarios with proper content-type headers and cookie management.
+
+```bash
+sbt "http-model-examples/runMain httpmodel.FormAndCookies"
+```
+
+### Complete HTTP Exchange
+
+Shows a realistic HTTP exchange scenario: creating a request with multiple headers and query parameters, sending it, and receiving a response with status codes and headers. Demonstrates all core types working together in a practical scenario.
+
+```bash
+sbt "http-model-examples/runMain httpmodel.CompleteHttpExchange"
+```
+

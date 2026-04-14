@@ -177,6 +177,7 @@ lazy val root = project
     `http-model`.js,
     `http-model-schema`.jvm,
     `http-model-schema`.js,
+    `http-model-examples`,
     markdown.jvm,
     markdown.js,
     zioGolemModel.jvm,
@@ -531,6 +532,17 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumStmtTotal   := 67,
     coverageMinimumBranchTotal := 51
   )
+
+lazy val `http-model-examples` = project
+  .in(file("http-model-examples"))
+  .settings(stdSettings("zio-blocks-http-model-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .dependsOn(`http-model`.jvm)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -1033,8 +1045,8 @@ lazy val zioGolemBuildCodegen = project
     publish / skip     := true,
     name               := "zio-golem-build-codegen",
     organization       := "dev.zio",
-    crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
-    scalaVersion       := BuildHelper.Scala33,
+    crossScalaVersions := Seq("2.12.21"),
+    scalaVersion       := "2.12.21",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta" % "4.14.7",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",

@@ -134,3 +134,14 @@ The schema module provides built-in `Schema` instances for common types:
 For custom types, define a `Schema[T]` instance using schema derivation or manual construction.
 
 The module is designed for **composition without coupling** — higher-level libraries (HTTP clients, servers, middleware) can import and use only the types they need without being forced to depend on unrelated types. The zero-dependency design means this module can be used in any Scala project without dragging in the ZIO ecosystem.
+
+## Integration with HTTP Model
+
+This schema module is designed to work seamlessly with the core [HTTP Model](./http-model.md) types. Use schema-based extraction to add type-safe, validated access to HTTP query parameters and headers on top of the basic `Request` and `Response` types.
+
+**Example workflow:**
+1. Create a `Request` with query parameters or headers (using core HTTP model types)
+2. Use schema-based extraction methods to get typed, validated values
+3. Handle errors with `Either` for explicit error management
+
+For comprehensive examples of how the HTTP model types work together, refer to the [HTTP Model Running the Examples](./http-model.md#running-the-examples) section.
