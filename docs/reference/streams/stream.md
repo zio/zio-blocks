@@ -174,22 +174,6 @@ result match {
 
 The key distinction: `Either[ParseError, Z]` means domain errors are *recoverable* via `Left`; any uncaught `Throwable` defect propagates as an exception, which is correct—you cannot recover from running out of memory, only from bad input.
 
-## Installation
-
-Add the Streams module to your SBT build:
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
-```
-
-For Scala.js (JavaScript/Node.js):
-
-```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
-```
-
-Supported Scala versions: 2.13.x and 3.x.
-
 ## Construction
 
 Streams can be created from constants, collections, resources, and pull-based sources:
