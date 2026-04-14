@@ -10,17 +10,16 @@ import zio.http._
  *
  * Run with: sbt "http-model-examples/runMain httpmodel.HeadersAndQueryParams"
  */
-object HeadersAndQueryParams extends App {
+@main def HeadersAndQueryParams(): Unit = {
 
   // Create URL with query parameters
   val url = URL.parse("https://api.example.com/search?q=zio&limit=10&sort=date").toOption.get
   println(s"URL: $url")
-
-  val params = url.queryParams
   println(s"Query Parameters:")
-  println(s"  q: ${params.get("q")}")
-  println(s"  limit: ${params.get("limit")}")
-  println(s"  sort: ${params.get("sort")}")
+  val params = url.queryParams
+  params.toList.foreach { case (key, values) =>
+    println(s"  $key: ${values.headOption}")
+  }
   println()
 
   // Create request with headers
@@ -29,11 +28,12 @@ object HeadersAndQueryParams extends App {
     .addHeader("accept", "application/json")
     .addHeader("authorization", "Bearer secret-token")
 
-  val headers = request.headers
   println(s"Request Headers:")
-  println(s"  user-agent: ${headers.toList.find(_._1.equalsIgnoreCase("user-agent")).map(_._2)}")
-  println(s"  accept: ${headers.toList.find(_._1.equalsIgnoreCase("accept")).map(_._2)}")
+  val headers = request.headers
   println(s"  Total headers: ${headers.toList.length}")
+  headers.toList.take(3).foreach { case (name, value) =>
+    println(s"    $name: $value")
+  }
   println()
 
   // Response with multiple headers
@@ -41,22 +41,22 @@ object HeadersAndQueryParams extends App {
     .addHeader("content-type", "application/json")
     .addHeader("cache-control", "max-age=3600")
     .addHeader("etag", "\"abc123\"")
-    .addHeader("set-cookie", "session=xyz789")
 
-  val respHeaders = response.headers
   println(s"Response Headers:")
-  println(s"  content-type: ${respHeaders.toList.find(_._1.equalsIgnoreCase("content-type")).map(_._2)}")
-  println(s"  cache-control: ${respHeaders.toList.find(_._1.equalsIgnoreCase("cache-control")).map(_._2)}")
-  println(s"  etag: ${respHeaders.toList.find(_._1.equalsIgnoreCase("etag")).map(_._2)}")
+  val respHeaders = response.headers
+  println(s"  Total headers: ${respHeaders.toList.length}")
+  respHeaders.toList.take(3).foreach { case (name, value) =>
+    println(s"    $name: $value")
+  }
   println()
 
   // Build URL with query parameters
   val baseUrl = URL.parse("https://api.github.com/search/repositories").toOption.get
-  val queryParams = QueryParams("q" -> "language:scala", "sort" -> "stars", "order" -> "desc")
+  val queryParams = QueryParams("q" -> "language:scala", "sort" -> "stars")
   val searchUrl = baseUrl.copy(queryParams = queryParams)
 
   println(s"Built Search URL: $searchUrl")
-  println(s"Query string has: ${searchUrl.queryParams.toList.length} parameters")
+  println(s"Query parameters: ${searchUrl.queryParams.toList.length}")
   println()
 
   println("✓ Headers and Query Parameters example complete")
