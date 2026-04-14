@@ -871,6 +871,8 @@ val result = combined.runCollect
 
 ### Zipping
 
+These operations combine multiple streams element-wise, coordinating execution across them:
+
 #### `Stream#&&[E2, B, C]`
 
 Zips two streams together as tuples (an extension method, not an instance method):
