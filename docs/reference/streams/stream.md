@@ -268,6 +268,8 @@ val dieStream = Stream.die(new Exception("System failure"))
 
 ### From Collections
 
+Streams can be created from existing collections and iterables, making it easy to convert `List`, `Array`, `Chunk`, or custom iterables into lazy streams:
+
 #### `Stream.apply[A]`
 
 Wraps a variable number of arguments into a stream:
