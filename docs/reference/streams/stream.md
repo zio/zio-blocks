@@ -1614,8 +1614,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/stream/StreamBasicUsageExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamBasicUsageExample.scala))
-
 To run this example:
 
 ```bash
@@ -1631,8 +1629,6 @@ import docs.SourceFile
 
 SourceFile.print("streams-examples/src/main/scala/stream/StreamFlatMapExample.scala")
 ```
-
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamFlatMapExample.scala))
 
 Run this example:
 
@@ -1650,8 +1646,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/stream/StreamErrorHandlingExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamErrorHandlingExample.scala))
-
 Run this example:
 
 ```bash
@@ -1668,8 +1662,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/stream/StreamResourceExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamResourceExample.scala))
-
 Run this example:
 
 ```bash
@@ -1685,8 +1677,6 @@ import docs.SourceFile
 
 SourceFile.print("streams-examples/src/main/scala/stream/StreamWindowingExample.scala")
 ```
-
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamWindowingExample.scala))
 
 Run this example:
 
