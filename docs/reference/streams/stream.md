@@ -441,6 +441,8 @@ val result = first10.runCollect
 
 ### Side Effects
 
+These constructors embed effects and deferred computation into streams, running actions at stream execution time:
+
 #### `Stream.eval[A]`
 
 Runs an arbitrary side effect and emits nothing:
