@@ -198,7 +198,7 @@ Streams can be created from constants, collections, resources, and pull-based so
 
 The simplest streams are single-element or empty streams.
 
-`Stream.empty` — An empty stream that emits no elements and succeeds immediately.
+`Stream.empty` — An empty stream that emits no elements and succeeds immediately:
 
 ```scala
 object Stream {
@@ -216,7 +216,7 @@ val result = emptyStream.runCollect
 // emptyStream contains no elements
 ```
 
-`Stream.succeed[A]` — Wraps a single value of any type. Specialized overloads avoid boxing for primitives.
+`Stream.succeed[A]` — Wraps a single value of any type. Specialized overloads avoid boxing for primitives:
 
 ```scala
 object Stream {
@@ -237,7 +237,7 @@ val singleElement = Stream.succeed(42)
 val result = singleElement.runCollect
 ```
 
-`Stream.fail[E]` — Creates a stream that fails immediately with a typed error.
+`Stream.fail[E]` — Creates a stream that fails immediately with a typed error.:
 
 ```scala
 object Stream {
@@ -258,7 +258,7 @@ val result = failedStream.runDrain
 // result is Left(NotFound("user-123"))
 ```
 
-`Stream.die` — Throws an untyped defect (exception) immediately.
+`Stream.die` — Throws an untyped defect (exception) immediately.:
 
 ```scala
 object Stream {
@@ -276,7 +276,7 @@ val dieStream = Stream.die(new Exception("System failure"))
 
 ### From Collections
 
-`Stream.apply[A]` — Wraps a variable number of arguments into a stream.
+`Stream.apply[A]` — Wraps a variable number of arguments into a stream.:
 
 ```scala
 object Stream {
@@ -293,7 +293,7 @@ val numbers = Stream(1, 2, 3, 4, 5)
 val result = numbers.runCollect
 ```
 
-`Stream.fromChunk[A]` — Converts a `Chunk` into a stream. Chunks are immutable, indexed sequences optimized for high-performance operations.
+`Stream.fromChunk[A]` — Converts a `Chunk` into a stream. Chunks are immutable, indexed sequences optimized for high-performance operations.:
 
 ```scala
 object Stream {
@@ -312,7 +312,7 @@ val stream = Stream.fromChunk(chunk)
 val result = stream.runCollect
 ```
 
-`Stream.fromIterable[A]` — Converts any `Iterable[A]` (List, Set, Vector, etc.) into a stream.
+`Stream.fromIterable[A]` — Converts any `Iterable[A]` (List, Set, Vector, etc.) into a stream.:
 
 ```scala
 object Stream {
@@ -330,7 +330,7 @@ val stream = Stream.fromIterable(list)
 val result = stream.runCollect
 ```
 
-`Stream.fromIterator[A]` — Converts an `Iterator[A]` into a stream. The iterator is consumed lazily.
+`Stream.fromIterator[A]` — Converts an `Iterator[A]` into a stream. The iterator is consumed lazily.:
 
 ```scala
 object Stream {
@@ -340,7 +340,7 @@ object Stream {
 
 ### From Ranges
 
-`Stream.range` — Emits integers from `from` (inclusive) to `until` (exclusive).
+`Stream.range` — Emits integers from `from` (inclusive) to `until` (exclusive).:
 
 ```scala
 object Stream {
@@ -357,7 +357,7 @@ val nums = Stream.range(0, 5)
 val result = nums.runCollect
 ```
 
-`Stream.fromRange` — Converts a Scala `Range` object.
+`Stream.fromRange` — Converts a Scala `Range` object.:
 
 ```scala
 object Stream {
@@ -367,7 +367,7 @@ object Stream {
 
 ### Generators
 
-`Stream.repeat[A]` — Emits the same value infinitely.
+`Stream.repeat[A]` — Emits the same value infinitely.:
 
 ```scala
 object Stream {
@@ -385,7 +385,7 @@ val first5 = infinite.take(5)
 val result = first5.runCollect
 ```
 
-`Stream.unfold[S, A]` — A stateful generator that emits elements based on a fold-like transition function.
+`Stream.unfold[S, A]` — A stateful generator that emits elements based on a fold-like transition function.:
 
 ```scala
 object Stream {
@@ -407,7 +407,7 @@ val result = first10.runCollect
 
 ### Side Effects
 
-`Stream.eval[A]` — Runs an arbitrary side effect and emits nothing.
+`Stream.eval[A]` — Runs an arbitrary side effect and emits nothing.:
 
 ```scala
 object Stream {
@@ -424,7 +424,7 @@ val logged = Stream(1, 2, 3)
   .tapEach(x => println(s"Processing: $x"))
 ```
 
-`Stream.attempt[A]` — Wraps a potentially throwing computation, converting any `Throwable` into a typed error.
+`Stream.attempt[A]` — Wraps a potentially throwing computation, converting any `Throwable` into a typed error.:
 
 ```scala
 object Stream {
@@ -443,7 +443,7 @@ val parsed = Stream.attempt(unsafeJsonParse("42"))
 val result = parsed.runCollect
 ```
 
-`Stream.defer[A]` — Defers the execution of a side effect until the stream is run.
+`Stream.defer[A]` — Defers the execution of a side effect until the stream is run.:
 
 ```scala
 object Stream {
@@ -451,7 +451,7 @@ object Stream {
 }
 ```
 
-`Stream.suspend[E, A]` — Defers the creation of a stream until run time, useful for recursive stream definitions.
+`Stream.suspend[E, A]` — Defers the creation of a stream until run time, useful for recursive stream definitions.:
 
 ```scala
 object Stream {
@@ -461,7 +461,7 @@ object Stream {
 
 ### I/O
 
-`Stream.fromInputStream` — Reads bytes from a Java `InputStream`, managing the resource.
+`Stream.fromInputStream` — Reads bytes from a Java `InputStream`, managing the resource.:
 
 ```scala
 object Stream {
@@ -480,7 +480,7 @@ val bytes = Stream.fromInputStream(data)
 val result = bytes.runCollect
 ```
 
-`Stream.fromJavaReader` — Reads characters from a Java `Reader`.
+`Stream.fromJavaReader` — Reads characters from a Java `Reader`.:
 
 ```scala
 object Stream {
@@ -490,7 +490,7 @@ object Stream {
 
 ### Resource Management
 
-`Stream.fromAcquireRelease[R, E, A]` — Acquires a resource, uses it in a stream, and releases it afterward.
+`Stream.fromAcquireRelease[R, E, A]` — Acquires a resource, uses it in a stream, and releases it afterward.:
 
 ```scala
 object Stream {
@@ -523,7 +523,7 @@ val managed = Stream.fromAcquireRelease(
 val result = managed.runCollect
 ```
 
-`Stream.fromResource[R, E, A]` — Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream.
+`Stream.fromResource[R, E, A]` — Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream.:
 
 ```scala
 object Stream {
@@ -537,7 +537,7 @@ Streams provide powerful operations for transforming elements, flattening nested
 
 ### Element-wise Transformations
 
-`map[B]` — Applies a function to each element.
+`map[B]` — Applies a function to each element.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -557,7 +557,7 @@ val result = doubled.runCollect
 
 **Key point:** `map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
 
-`mapError[E2]` — Transforms typed errors without affecting elements.
+`mapError[E2]` — Transforms typed errors without affecting elements.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -578,7 +578,7 @@ val mayFail: Stream[NetworkError, String] = Stream.fail(NetworkError())
 val mapped = mayFail.mapError(e => ServerError("Connection failed"))
 ```
 
-`filter` — Emits only elements that satisfy a predicate.
+`filter` — Emits only elements that satisfy a predicate.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -596,7 +596,7 @@ val evens = nums.filter(_ % 2 == 0)
 val result = evens.runCollect
 ```
 
-`collect[B]` — Applies a partial function, emitting only defined results.
+`collect[B]` — Applies a partial function, emitting only defined results.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -616,7 +616,7 @@ val result = numbers.runCollect
 
 ### Stateful Transformations
 
-`mapAccum[S, B]` — Maintains state while transforming each element.
+`mapAccum[S, B]` — Maintains state while transforming each element.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -634,7 +634,7 @@ val indexed = nums.mapAccum(0)((idx, x) => (idx + 1, (idx, x)))
 val result = indexed.runCollect
 ```
 
-`scan[S]` — Like `mapAccum`, but also emits the state at each step (not the mapped value).
+`scan[S]` — Like `mapAccum`, but also emits the state at each step (not the mapped value).:
 
 ```scala
 trait Stream[+E, +A] {
@@ -654,7 +654,7 @@ val result = cumsum.runCollect
 
 ### Flat-Mapping (Nested Streams)
 
-`flatMap[E2, B]` — Maps each element to a stream and flattens the results.
+`flatMap[E2, B]` — Maps each element to a stream and flattens the results.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -678,7 +678,7 @@ Streams can be grouped, sliced, and scanned to process data in temporal windows:
 
 ### Chunking
 
-`grouped[A]` — Collects elements into fixed-size chunks.
+`grouped[A]` — Collects elements into fixed-size chunks.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -696,7 +696,7 @@ val groups = nums.grouped(2)
 val result = groups.runCollect
 ```
 
-`sliding[A]` — Creates a sliding window of size `n`, optionally stepping by `step` elements.
+`sliding[A]` — Creates a sliding window of size `n`, optionally stepping by `step` elements.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -720,7 +720,7 @@ Streams can be sequentially concatenated, zipped together, or merged:
 
 ### Sequential Concatenation
 
-`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream.
+`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -741,7 +741,7 @@ val result = combined.runCollect
 
 ### Zipping
 
-`&&[E2, B, C]` — Zips two streams together as tuples (an extension method, not an instance method).
+`&&[E2, B, C]` — Zips two streams together as tuples (an extension method, not an instance method).:
 
 ```scala
 extension [E, A](stream: Stream[E, A])
@@ -761,7 +761,7 @@ val zipped = nums && chars
 val result = zipped.runCollect
 ```
 
-`Stream.flattenAll[E, A]` — Flattens a stream of streams into a single stream, processing them sequentially.
+`Stream.flattenAll[E, A]` — Flattens a stream of streams into a single stream, processing them sequentially.:
 
 ```scala
 object Stream {
@@ -788,7 +788,7 @@ Common utilities for deduplication, draining, and error recovery:
 
 ### Filtering Duplicates
 
-`distinct[A]` — Emits only unique elements (using a mutable `HashSet` internally).
+`distinct[A]` — Emits only unique elements (using a mutable `HashSet` internally).:
 
 ```scala
 trait Stream[+E, +A] {
@@ -806,7 +806,7 @@ val unique = nums.distinct
 val result = unique.runCollect
 ```
 
-`distinctBy[K]` — Emits only elements whose key (computed by `f`) has not been seen before.
+`distinctBy[K]` — Emits only elements whose key (computed by `f`) has not been seen before.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -816,7 +816,7 @@ trait Stream[+E, +A] {
 
 ### Skipping and Taking
 
-`drop` — Skips the first `n` elements.
+`drop` — Skips the first `n` elements.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -824,7 +824,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`take` — Emits at most the first `n` elements, then stops.
+`take` — Emits at most the first `n` elements, then stops.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -842,7 +842,7 @@ val first10 = nums.take(10)
 val result = first10.runCollect
 ```
 
-`takeWhile` — Emits elements while a predicate is true, then stops.
+`takeWhile` — Emits elements while a predicate is true, then stops.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -852,7 +852,7 @@ trait Stream[+E, +A] {
 
 ### Interspersing
 
-`intersperse[A1 >: A]` — Inserts a separator value between every two elements.
+`intersperse[A1 >: A]` — Inserts a separator value between every two elements.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -872,7 +872,7 @@ val result = separated.runCollect
 
 ### Repeating
 
-`repeated` — Repeats each element once, then emits the entire stream again, repeatedly.
+`repeated` — Repeats each element once, then emits the entire stream again, repeatedly.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -892,7 +892,7 @@ val result = repeated.runCollect
 
 ### Side Effects
 
-`tapEach` — Applies a function to each element for side effects, passing the element through unchanged.
+`tapEach` — Applies a function to each element for side effects, passing the element through unchanged.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -916,7 +916,7 @@ Streams distinguish between recoverable domain errors and fatal defects, with fl
 
 ### Recovering from Typed Errors
 
-`catchAll[E2, A1]` — Recovers from any typed error by switching to a recovery stream.
+`catchAll[E2, A1]` — Recovers from any typed error by switching to a recovery stream.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -937,7 +937,7 @@ val recovered = mayFail.catchAll(_ => Stream.succeed("default"))
 val result = recovered.runCollect
 ```
 
-`orElse[E2, A1]` — If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error.
+`orElse[E2, A1]` — If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -957,7 +957,7 @@ val result = (primary || fallback).runCollect
 
 ### Recovering from Defects
 
-`catchDefect[E1, A1]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.
+`catchDefect[E1, A1]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -985,7 +985,7 @@ Streams provide RAII-based resource guarantees with finalizers and cancellation 
 
 ### Ensuring Cleanup
 
-`ensuring[A]` — Runs a finalizer when the stream closes, whether cleanly or with an error.
+`ensuring[A]` — Runs a finalizer when the stream closes, whether cleanly or with an error.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1010,7 +1010,7 @@ All terminal operations are synchronous and return `Either[E, Z]`. The error typ
 
 ### Collecting Results
 
-`runCollect` — Collects all elements into a `Chunk[A]`.
+`runCollect` — Collects all elements into a `Chunk[A]`.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1028,7 +1028,7 @@ val result = nums.runCollect
 // result is Right(Chunk(1, 2, 3, 4, 5))
 ```
 
-`run[E2 >: E, Z]` — Runs the stream with a custom sink, producing result `Z`.
+`run[E2 >: E, Z]` — Runs the stream with a custom sink, producing result `Z`.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1048,7 +1048,7 @@ val sum = nums.run(Sink.foldLeft(0)((acc, x) => acc + x))
 
 ### Discarding Results
 
-`runDrain` — Consumes all elements and discards them, returning `Unit`.
+`runDrain` — Consumes all elements and discards them, returning `Unit`.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1066,7 +1066,7 @@ val sideEffect = nums.tapEach(x => println(s"Processing $x"))
 val result = sideEffect.runDrain
 ```
 
-`runForeach` — Applies a function to each element for side effects.
+`runForeach` — Applies a function to each element for side effects.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1085,7 +1085,7 @@ val result = nums.foreach(x => println(s"Got: $x"))
 
 ### Aggregations
 
-`runFold[Z]` — Folds all elements using an accumulator, returning the final result.
+`runFold[Z]` — Folds all elements using an accumulator, returning the final result.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1110,7 +1110,7 @@ def runFold(z: Long)(f: (Long, A) => Long): Either[E, Long]
 def runFold(z: Double)(f: (Double, A) => Double): Either[E, Double]
 ```
 
-`count` — Returns the number of elements.
+`count` — Returns the number of elements.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1118,7 +1118,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`head` — Returns the first element (or `None` if empty).
+`head` — Returns the first element (or `None` if empty).:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1126,7 +1126,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`last` — Returns the last element (or `None` if empty).
+`last` — Returns the last element (or `None` if empty).:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1134,7 +1134,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`find[A]` — Returns the first element satisfying a predicate.
+`find[A]` — Returns the first element satisfying a predicate.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1142,7 +1142,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`exists[A]` — Returns `true` if any element satisfies a predicate, short-circuiting.
+`exists[A]` — Returns `true` if any element satisfies a predicate, short-circuiting.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1150,7 +1150,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`forall[A]` — Returns `true` if all elements satisfy a predicate, short-circuiting.
+`forall[A]` — Returns `true` if all elements satisfy a predicate, short-circuiting.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1164,7 +1164,7 @@ Streams compose with pipelines and sinks to form complete data processing flows:
 
 ### Using Pipelines
 
-`via[B]` — Applies a `Pipeline[A, B]` transformation to the stream.
+`via[B]` — Applies a `Pipeline[A, B]` transformation to the stream.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1214,7 +1214,7 @@ When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the s
 
 ### Manual Pull via `start`
 
-`start` — Opens a stream for manual pulling within a `Scope`. The reader is closed automatically when the scope exits.
+`start` — Opens a stream for manual pulling within a `Scope`. The reader is closed automatically when the scope exits.:
 
 ```scala
 trait Stream[+E, +A] {
