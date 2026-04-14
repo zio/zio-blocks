@@ -175,31 +175,31 @@ The key distinction: `Either[ParseError, Z]` means domain errors are *recoverabl
 ### Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│ Stream[E, A]                             │
-│ (lazy description)                       │
-└──────────────────┬──────────────────────┘
+┌──────────────────────────────────┐
+│ Stream[E, A]                     │
+│ (lazy description)               │
+└──────────────────┬───────────────┘
                    │
       .flatMap, .map, .filter, etc.
                    │
-┌──────────────────▼──────────────────────┐
-│ Pipeline[-In, +Out]                      │
-│ (stream → stream transformation)         │
-└──────────────────┬──────────────────────┘
+┌──────────────────▼───────────────┐
+│ Pipeline[-In, +Out]              │
+│ (stream → stream transformation) │
+└──────────────────┬───────────────┘
                    │
         .via(pipe)
                    │
-┌──────────────────▼──────────────────────┐
-│ Sink[E, A, Z]                            │
-│ (stream consumer → result Z)             │
-└──────────────────┬──────────────────────┘
+┌──────────────────▼───────────────┐
+│ Sink[E, A, Z]                    │
+│ (stream consumer → result Z)     │
+└──────────────────┬───────────────┘
                    │
          .run(sink)
                    │
-┌──────────────────▼──────────────────────┐
-│ Either[E, Z]                             │
-│ (synchronous result)                     │
-└──────────────────────────────────────────┘
+┌──────────────────▼───────────────┐
+│ Either[E, Z]                     │
+│ (synchronous result)             │
+└──────────────────────────────────┘
 ```
 
 ## Installation
