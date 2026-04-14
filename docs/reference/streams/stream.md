@@ -27,7 +27,7 @@ Traditional eager sequences (like Scala `List`) fall short in **three critical d
 
 **1. Efficiency — Wasteful Computation**
 
-With eager evaluation, the entire dataset is processed upfront, regardless of how many elements you actually need:
+With eager evaluation, the entire dataset is processed upfront, regardless of how many elements you actually need. This example shows how much work is wasted:
 
 ```scala mdoc:compile-only
 // With Scala List (eager evaluation)
@@ -65,7 +65,7 @@ When you open resources (file handles, network connections, database cursors), y
 ```scala mdoc:compile-only
 import java.io.*
 
-// With traditional Scala (manual resource management)
+// ❌ With traditional Scala (manual resource management)
 // Count non-whitespace characters
 var file: BufferedReader = null
 try {
@@ -979,15 +979,13 @@ trait Stream[+E, +A] {
 
 The finalizer always runs, in a `finally` block:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
-var cleaned = false
 val managed = Stream(1, 2, 3)
-  .ensuring { cleaned = true; println("Cleaned up") }
+  .ensuring { println("Cleaned up") }
 
 val result = managed.runCollect
-// cleaned is now true
 ```
 
 ## Running Streams
@@ -1206,7 +1204,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import zio.blocks.streams.io.Reader
 import zio.blocks.scope.*
@@ -1218,11 +1216,14 @@ Scope.global.scoped { scope =>
   val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
-    var v = r.read(-1)
-    while (v != -1) {
-      println(v)   // prints 1, 2, 3, 4, 5
-      v = r.read(-1)
+    def readAll(): Unit = {
+      val v = r.read(-1)
+      if (v != -1) {
+        println(v)   // prints 1, 2, 3, 4, 5
+        readAll()
+      }
     }
+    readAll()
   }
   // reader is closed automatically when scope exits
 }
@@ -1255,12 +1256,12 @@ By default, Scala's type system boxes primitive values (Int, Long, Double, etc.)
 
 For example, `map`, `filter`, and `scan` all have specialized branches for `JvmType.Int` that use `readInt(Long.MinValue)` instead of boxing:
 
-```scala
+```scala mdoc:compile-only
 if (jvmType eq JvmType.Int) {
-  var i = source.readInt(Long.MinValue)(using unsafeEvidence)
+  val i = source.readInt(Long.MinValue)(using unsafeEvidence)
   // ... unboxed, fast path
 } else {
-  var o = reader.read(EndOfStream)  // generic boxed path
+  val o = reader.read(EndOfStream)  // generic boxed path
   // ...
 }
 ```
