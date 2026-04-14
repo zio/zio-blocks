@@ -1291,6 +1291,8 @@ val result = nums.foreach(x => println(s"Got: $x"))
 
 ### Aggregations
 
+These operations reduce streams to single values, aggregating elements into results:
+
 #### `Stream#runFold[Z]`
 
 Folds all elements using an accumulator, returning the final result:
