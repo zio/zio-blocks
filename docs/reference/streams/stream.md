@@ -645,6 +645,8 @@ Streams provide powerful operations for transforming elements, flattening nested
 
 ### Element-wise Transformations
 
+These operations apply functions to stream elements one-by-one, applying the transformation lazily as elements are pulled:
+
 #### `Stream#map[B]`
 
 Applies a function to each element:
