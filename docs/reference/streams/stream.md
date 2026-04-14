@@ -802,6 +802,8 @@ Streams can be grouped, sliced, and scanned to process data in temporal windows:
 
 ### Chunking
 
+These operations group elements into chunks and slide windows over the stream for batch processing:
+
 #### `Stream#grouped[A]`
 
 Collects elements into fixed-size chunks:
