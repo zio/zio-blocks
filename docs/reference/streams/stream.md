@@ -182,7 +182,9 @@ Streams can be created from constants, collections, resources, and pull-based so
 
 The simplest streams are single-element or empty streams.
 
-`Stream.empty` — An empty stream that emits no elements and succeeds immediately:
+#### `Stream.empty`
+
+An empty stream that emits no elements and succeeds immediately:
 
 ```scala
 object Stream {
@@ -200,7 +202,9 @@ val result = emptyStream.runCollect
 // emptyStream contains no elements
 ```
 
-`Stream.succeed[A]` — Wraps a single value of any type. Specialized overloads avoid boxing for primitives:
+#### `Stream.succeed[A]`
+
+Wraps a single value of any type. Specialized overloads avoid boxing for primitives:
 
 ```scala
 object Stream {
@@ -221,7 +225,9 @@ val singleElement = Stream.succeed(42)
 val result = singleElement.runCollect
 ```
 
-`Stream.fail[E]` — Creates a stream that fails immediately with a typed error.:
+#### `Stream.fail[E]`
+
+Creates a stream that fails immediately with a typed error:
 
 ```scala
 object Stream {
@@ -242,7 +248,9 @@ val result = failedStream.runDrain
 // result is Left(NotFound("user-123"))
 ```
 
-`Stream.die` — Throws an untyped defect (exception) immediately.:
+#### `Stream.die`
+
+Throws an untyped defect (exception) immediately:
 
 ```scala
 object Stream {
@@ -260,7 +268,9 @@ val dieStream = Stream.die(new Exception("System failure"))
 
 ### From Collections
 
-`Stream.apply[A]` — Wraps a variable number of arguments into a stream.:
+#### `Stream.apply[A]`
+
+Wraps a variable number of arguments into a stream:
 
 ```scala
 object Stream {
@@ -277,7 +287,9 @@ val numbers = Stream(1, 2, 3, 4, 5)
 val result = numbers.runCollect
 ```
 
-`Stream.fromChunk[A]` — Converts a `Chunk` into a stream. Chunks are immutable, indexed sequences optimized for high-performance operations.:
+#### `Stream.fromChunk[A]`
+
+Converts a `Chunk` into a stream. Chunks are immutable, indexed sequences optimized for high-performance operations:
 
 ```scala
 object Stream {
@@ -296,7 +308,9 @@ val stream = Stream.fromChunk(chunk)
 val result = stream.runCollect
 ```
 
-`Stream.fromIterable[A]` — Converts any `Iterable[A]` (List, Set, Vector, etc.) into a stream.:
+#### `Stream.fromIterable[A]`
+
+Converts any `Iterable[A]` (List, Set, Vector, etc.) into a stream:
 
 ```scala
 object Stream {
@@ -314,7 +328,9 @@ val stream = Stream.fromIterable(list)
 val result = stream.runCollect
 ```
 
-`Stream.fromIterator[A]` — Converts an `Iterator[A]` into a stream. The iterator is consumed lazily.:
+#### `Stream.fromIterator[A]`
+
+Converts an `Iterator[A]` into a stream. The iterator is consumed lazily:
 
 ```scala
 object Stream {
@@ -324,7 +340,9 @@ object Stream {
 
 ### From Ranges
 
-`Stream.range` — Emits integers from `from` (inclusive) to `until` (exclusive).:
+#### `Stream.range`
+
+Emits integers from `from` (inclusive) to `until` (exclusive):
 
 ```scala
 object Stream {
@@ -341,7 +359,9 @@ val nums = Stream.range(0, 5)
 val result = nums.runCollect
 ```
 
-`Stream.fromRange` — Converts a Scala `Range` object.:
+#### `Stream.fromRange`
+
+Converts a Scala `Range` object:
 
 ```scala
 object Stream {
@@ -351,7 +371,9 @@ object Stream {
 
 ### Generators
 
-`Stream.repeat[A]` — Emits the same value infinitely.:
+#### `Stream.repeat[A]`
+
+Emits the same value infinitely:
 
 ```scala
 object Stream {
@@ -369,7 +391,9 @@ val first5 = infinite.take(5)
 val result = first5.runCollect
 ```
 
-`Stream.unfold[S, A]` — A stateful generator that emits elements based on a fold-like transition function.:
+#### `Stream.unfold[S, A]`
+
+A stateful generator that emits elements based on a fold-like transition function:
 
 ```scala
 object Stream {
@@ -391,7 +415,9 @@ val result = first10.runCollect
 
 ### Side Effects
 
-`Stream.eval[A]` — Runs an arbitrary side effect and emits nothing.:
+#### `Stream.eval[A]`
+
+Runs an arbitrary side effect and emits nothing:
 
 ```scala
 object Stream {
@@ -408,7 +434,9 @@ val logged = Stream(1, 2, 3)
   .tapEach(x => println(s"Processing: $x"))
 ```
 
-`Stream.attempt[A]` — Wraps a potentially throwing computation, converting any `Throwable` into a typed error.:
+#### `Stream.attempt[A]`
+
+Wraps a potentially throwing computation, converting any `Throwable` into a typed error:
 
 ```scala
 object Stream {
@@ -427,7 +455,9 @@ val parsed = Stream.attempt(unsafeJsonParse("42"))
 val result = parsed.runCollect
 ```
 
-`Stream.defer[A]` — Defers the execution of a side effect until the stream is run.:
+#### `Stream.defer[A]`
+
+Defers the execution of a side effect until the stream is run:
 
 ```scala
 object Stream {
@@ -435,7 +465,9 @@ object Stream {
 }
 ```
 
-`Stream.suspend[E, A]` — Defers the creation of a stream until run time, useful for recursive stream definitions.:
+#### `Stream.suspend[E, A]`
+
+Defers the creation of a stream until run time, useful for recursive stream definitions:
 
 ```scala
 object Stream {
@@ -445,7 +477,9 @@ object Stream {
 
 ### I/O
 
-`Stream.fromInputStream` — Reads bytes from a Java `InputStream`, managing the resource.:
+#### `Stream.fromInputStream`
+
+Reads bytes from a Java `InputStream`, managing the resource:
 
 ```scala
 object Stream {
@@ -464,7 +498,9 @@ val bytes = Stream.fromInputStream(data)
 val result = bytes.runCollect
 ```
 
-`Stream.fromJavaReader` — Reads characters from a Java `Reader`.:
+#### `Stream.fromJavaReader`
+
+Reads characters from a Java `Reader`:
 
 ```scala
 object Stream {
@@ -474,7 +510,9 @@ object Stream {
 
 ### Resource Management
 
-`Stream.fromAcquireRelease[R, E, A]` — Acquires a resource, uses it in a stream, and releases it afterward.:
+#### `Stream.fromAcquireRelease[R, E, A]`
+
+Acquires a resource, uses it in a stream, and releases it afterward:
 
 ```scala
 object Stream {
@@ -507,7 +545,9 @@ val managed = Stream.fromAcquireRelease(
 val result = managed.runCollect
 ```
 
-`Stream.fromResource[R, E, A]` — Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream.:
+#### `Stream.fromResource[R, E, A]`
+
+Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream:
 
 ```scala
 object Stream {
