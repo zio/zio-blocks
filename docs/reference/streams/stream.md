@@ -1316,7 +1316,7 @@ This separation allows you to:
 
 All code from this guide is available as runnable examples in the `schema-examples` module.
 
-**1. Clone the repository and navigate to the project:**
+Clone the repository and navigate to the project:
 
 ```bash
 git clone https://github.com/zio/zio-blocks.git
@@ -1338,6 +1338,8 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamBasicUsageExample
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/stream/StreamBasicUsageExample.scala))
+
+To run this example:
 
 ```bash
 sbt "streams-examples/runMain stream.StreamBasicUsageExample"
