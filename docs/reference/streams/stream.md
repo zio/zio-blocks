@@ -482,6 +482,28 @@ val parsed = Stream.attempt(unsafeJsonParse("42"))
 val result = parsed.runCollect
 ```
 
+#### `Stream.attemptEval`
+
+Evaluates a side effect and converts any thrown exception into a typed `Throwable` error. Unlike `eval`, this captures exceptions and emits nothing:
+
+```scala
+object Stream {
+  def attemptEval(f: => Any): Stream[Throwable, Nothing]
+}
+```
+
+Use `attemptEval` when you need to safely execute an effect that might throw, but you don't need to emit any elements:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val effect = Stream.attemptEval {
+  val file = new java.io.File("nonexistent.txt")
+  if (!file.exists()) throw new java.io.FileNotFoundException("File not found")
+}
+val result = effect.runDrain
+```
+
 #### `Stream.defer[A]`
 
 Defers the execution of a side effect until the stream is run:
@@ -567,6 +589,50 @@ import java.io.StringReader
 val reader = new StringReader("hello world")
 val stream = Stream.fromJavaReader(reader)
 val result = stream.runCollect
+```
+
+#### `Stream.fromInputStreamUnmanaged`
+
+Reads bytes from a Java `InputStream` without automatic resource management. The caller is responsible for closing the stream:
+
+```scala
+object Stream {
+  def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Int]
+}
+```
+
+Use this when you need to manage the stream's lifecycle yourself, for example when the stream is created from a long-lived resource:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import java.io.ByteArrayInputStream
+
+val data = new ByteArrayInputStream("Data".getBytes)
+val bytes = Stream.fromInputStreamUnmanaged(data)
+val result = bytes.runCollect
+// Caller must close data when done
+```
+
+#### `Stream.fromJavaReaderUnmanaged`
+
+Reads characters from a Java `Reader` without automatic resource management. The caller is responsible for closing the reader:
+
+```scala
+object Stream {
+  def fromJavaReaderUnmanaged(r: java.io.Reader): Stream[java.io.IOException, Char]
+}
+```
+
+Use this when you need to manage the reader's lifecycle yourself:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import java.io.StringReader
+
+val reader = new StringReader("managed externally")
+val stream = Stream.fromJavaReaderUnmanaged(reader)
+val result = stream.runCollect
+// Caller must close reader when done
 ```
 
 ### Resource Management
