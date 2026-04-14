@@ -714,7 +714,9 @@ Streams can be grouped, sliced, and scanned to process data in temporal windows:
 
 ### Chunking
 
-`grouped[A]` — Collects elements into fixed-size chunks.:
+#### `Stream#grouped[A]`
+
+Collects elements into fixed-size chunks:
 
 ```scala
 trait Stream[+E, +A] {
@@ -732,7 +734,9 @@ val groups = nums.grouped(2)
 val result = groups.runCollect
 ```
 
-`sliding[A]` — Creates a sliding window of size `n`, optionally stepping by `step` elements.:
+#### `Stream#sliding[A]`
+
+Creates a sliding window of size `n`, optionally stepping by `step` elements:
 
 ```scala
 trait Stream[+E, +A] {
@@ -777,7 +781,9 @@ val result = combined.runCollect
 
 ### Zipping
 
-`&&[E2, B, C]` — Zips two streams together as tuples (an extension method, not an instance method).:
+#### `Stream#&&[E2, B, C]`
+
+Zips two streams together as tuples (an extension method, not an instance method):
 
 ```scala
 extension [E, A](stream: Stream[E, A])
@@ -797,7 +803,9 @@ val zipped = nums && chars
 val result = zipped.runCollect
 ```
 
-`Stream.flattenAll[E, A]` — Flattens a stream of streams into a single stream, processing them sequentially.:
+#### `Stream.flattenAll[E, A]`
+
+Flattens a stream of streams into a single stream, processing them sequentially:
 
 ```scala
 object Stream {
@@ -824,7 +832,9 @@ Common utilities for deduplication, draining, and error recovery:
 
 ### Filtering Duplicates
 
-`distinct[A]` — Emits only unique elements (using a mutable `HashSet` internally).:
+#### `Stream#distinct[A]`
+
+Emits only unique elements (using a mutable `HashSet` internally):
 
 ```scala
 trait Stream[+E, +A] {
@@ -842,7 +852,9 @@ val unique = nums.distinct
 val result = unique.runCollect
 ```
 
-`distinctBy[K]` — Emits only elements whose key (computed by `f`) has not been seen before.:
+#### `Stream#distinctBy[K]`
+
+Emits only elements whose key (computed by `f`) has not been seen before:
 
 ```scala
 trait Stream[+E, +A] {
@@ -852,7 +864,9 @@ trait Stream[+E, +A] {
 
 ### Skipping and Taking
 
-`drop` — Skips the first `n` elements.:
+#### `Stream#drop`
+
+Skips the first `n` elements:
 
 ```scala
 trait Stream[+E, +A] {
@@ -860,7 +874,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`take` — Emits at most the first `n` elements, then stops.:
+#### `Stream#take`
+
+Emits at most the first `n` elements, then stops:
 
 ```scala
 trait Stream[+E, +A] {
@@ -878,7 +894,9 @@ val first10 = nums.take(10)
 val result = first10.runCollect
 ```
 
-`takeWhile` — Emits elements while a predicate is true, then stops.:
+#### `Stream#takeWhile`
+
+Emits elements while a predicate is true, then stops:
 
 ```scala
 trait Stream[+E, +A] {
@@ -952,7 +970,9 @@ Streams distinguish between recoverable domain errors and fatal defects, with fl
 
 ### Recovering from Typed Errors
 
-`catchAll[E2, A1]` — Recovers from any typed error by switching to a recovery stream.:
+#### `Stream#catchAll[E2, A1]`
+
+Recovers from any typed error by switching to a recovery stream:
 
 ```scala
 trait Stream[+E, +A] {
@@ -973,7 +993,9 @@ val recovered = mayFail.catchAll(_ => Stream.succeed("default"))
 val result = recovered.runCollect
 ```
 
-`orElse[E2, A1]` — If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error.:
+#### `Stream#orElse[E2, A1]`
+
+If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1046,7 +1068,9 @@ All terminal operations are synchronous and return `Either[E, Z]`. The error typ
 
 ### Collecting Results
 
-`runCollect` — Collects all elements into a `Chunk[A]`.:
+#### `Stream#runCollect`
+
+Collects all elements into a `Chunk[A]`:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1064,7 +1088,9 @@ val result = nums.runCollect
 // result is Right(Chunk(1, 2, 3, 4, 5))
 ```
 
-`run[E2 >: E, Z]` — Runs the stream with a custom sink, producing result `Z`.:
+#### `Stream#run[E2, Z]`
+
+Runs the stream with a custom sink, producing result `Z`:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1084,7 +1110,9 @@ val sum = nums.run(Sink.foldLeft(0)((acc, x) => acc + x))
 
 ### Discarding Results
 
-`runDrain` — Consumes all elements and discards them, returning `Unit`.:
+#### `Stream#runDrain`
+
+Consumes all elements and discards them, returning `Unit`:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1102,7 +1130,9 @@ val sideEffect = nums.tapEach(x => println(s"Processing $x"))
 val result = sideEffect.runDrain
 ```
 
-`runForeach` — Applies a function to each element for side effects.:
+#### `Stream#runForeach`
+
+Applies a function to each element for side effects:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1121,7 +1151,9 @@ val result = nums.foreach(x => println(s"Got: $x"))
 
 ### Aggregations
 
-`runFold[Z]` — Folds all elements using an accumulator, returning the final result.:
+#### `Stream#runFold[Z]`
+
+Folds all elements using an accumulator, returning the final result:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1146,7 +1178,9 @@ def runFold(z: Long)(f: (Long, A) => Long): Either[E, Long]
 def runFold(z: Double)(f: (Double, A) => Double): Either[E, Double]
 ```
 
-`count` — Returns the number of elements.:
+#### `Stream#count`
+
+Returns the number of elements:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1154,7 +1188,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`head` — Returns the first element (or `None` if empty).:
+#### `Stream#head`
+
+Returns the first element (or `None` if empty):
 
 ```scala
 trait Stream[+E, +A] {
@@ -1162,7 +1198,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`last` — Returns the last element (or `None` if empty).:
+#### `Stream#last`
+
+Returns the last element (or `None` if empty):
 
 ```scala
 trait Stream[+E, +A] {
@@ -1170,7 +1208,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`find[A]` — Returns the first element satisfying a predicate.:
+#### `Stream#find[A]`
+
+Returns the first element satisfying a predicate:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1178,7 +1218,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`exists[A]` — Returns `true` if any element satisfies a predicate, short-circuiting.:
+#### `Stream#exists[A]`
+
+Returns `true` if any element satisfies a predicate, short-circuiting:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1186,7 +1228,9 @@ trait Stream[+E, +A] {
 }
 ```
 
-`forall[A]` — Returns `true` if all elements satisfy a predicate, short-circuiting.:
+#### `Stream#forall[A]`
+
+Returns `true` if all elements satisfy a predicate, short-circuiting:
 
 ```scala
 trait Stream[+E, +A] {
