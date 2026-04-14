@@ -91,10 +91,10 @@ request.query[String]("q")
 request.query[Int]("limit")
 // Right(20)
 
-// Response header extraction
-val response = Response.ok.addHeader("x-correlation-id", "abc-123")
-response.header[String]("x-correlation-id")
-// Right("abc-123")
+// Response objects provide the same extraction capabilities
+val response = Response.ok.addHeader("x-request-id", "12345")
+response.headers
+// Headers instance with added header
 ```
 
 ## Error Handling
