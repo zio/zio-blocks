@@ -1122,4 +1122,276 @@ The HTTP model types integrate with each other in a natural composition hierarch
 - **Cookies** (Request & Response variants) appear as header values in Cookie and Set-Cookie headers
 - **Form** is serialized as a Body with `application/x-www-form-urlencoded` content type
 
+## Advanced Usage
+
+### Building a Complete HTTP Exchange
+
+Here's how to build a full request and response for a real scenario:
+
+```scala mdoc:compile-only
+import zio.http._
+
+// Build request
+val url = URL.parse("https://api.example.com/users").toOption.get
+val requestBody = Body.fromString("""{"name":"Alice","age":30}""", Charset.UTF8)
+
+val request = Request(
+  method = Method.POST,
+  url = url,
+  headers = Headers(
+    "content-type" -> "application/json",
+    "authorization" -> "Bearer abc123",
+    "user-agent" -> "MyClient/1.0"
+  ),
+  body = requestBody,
+  version = Version.`HTTP/1.1`
+)
+
+// Build response
+val responseBody = Body.fromString("""{"id":123,"name":"Alice","age":30}""", Charset.UTF8)
+
+val response = Response(
+  status = Status.Created,
+  headers = Headers(
+    "content-type" -> "application/json",
+    "location" -> "/users/123"
+  ),
+  body = responseBody,
+  version = Version.`HTTP/1.1`
+)
+```
+
+### URL Building with Fluent API
+
+Compose complex URLs using operators:
+
+```scala mdoc:compile-only
+import zio.http._
+
+val url = URL.parse("https://api.example.com").toOption.get
+
+val extended = (url / "v1" / "users" / "123") ?? ("include", "profile") ?? ("include", "posts")
+
+extended.encode
+// "https://api.example.com/v1/users/123?include=profile&include=posts"
+```
+
+### Cookie Management
+
+Parse and render cookies in requests and responses:
+
+```scala mdoc:compile-only
+import zio.http._
+
+// Parse cookies from request header
+val cookieHeader = "session=abc; theme=dark"
+val requestCookies = Cookie.parseRequest(cookieHeader)
+
+// Create response with Set-Cookie headers
+val sessionCookie = ResponseCookie(
+  name = "session",
+  value = "xyz123",
+  path = Some(Path("/")),
+  maxAge = Some(3600),
+  isSecure = true,
+  isHttpOnly = true,
+  sameSite = Some(SameSite.Strict)
+)
+
+val response = Response(
+  status = Status.Ok,
+  headers = Headers(
+    "set-cookie" -> Cookie.renderResponse(sessionCookie)
+  ),
+  body = Body.empty
+)
+```
+
+### Form Submission
+
+Build and submit HTML forms:
+
+```scala mdoc:compile-only
+import zio.http._
+
+val form = Form(
+  "username" -> "alice",
+  "password" -> "secret",
+  "remember" -> "true"
+)
+
+val formBody = Body.fromString(form.encode, Charset.UTF8)
+
+val request = Request(
+  method = Method.POST,
+  url = URL.parse("/login").toOption.get,
+  headers = Headers(
+    "content-type" -> "application/x-www-form-urlencoded"
+  ),
+  body = formBody,
+  version = Version.`HTTP/1.1`
+)
+```
+
+## Design Principles
+
+### Single Encoding Contract
+
+`Path` and `QueryParams` store decoded values internally. Encoding happens only at output boundaries:
+
+- `Path.fromEncoded(s)` decodes, stores decoded segments
+- `Path.encode` encodes segments for transmission
+- `QueryParams.fromEncoded(s)` decodes, stores decoded key-value pairs
+- `QueryParams.encode` encodes for transmission
+
+This eliminates double-encoding bugs and clarifies responsibilities.
+
+### Lazy Header Parsing
+
+`Headers` stores raw string values and parses typed headers on first access. Parsed results are cached for O(1) subsequent lookups. This design:
+
+- Avoids parsing headers that are never accessed
+- Avoids re-parsing the same header multiple times
+- Supports unknown/custom headers without parsing failures
+
+### No Streaming
+
+Bodies are fully materialized `Chunk[Byte]`. Streaming is left to higher-level HTTP libraries that compose with this data model. This keeps the model simple and effect-free.
+
+### Zero ZIO Dependency
+
+The module uses `zio.blocks.chunk.Chunk` instead of `zio.Chunk`, making it usable in any Scala project without ZIO.
+
+## Schema-Based Typed Access (zio-http-model-schema)
+
+The `zio-http-model-schema` module provides schema-based extraction of query parameters and headers with automatic decoding and validation.
+
+### Installation
+
+Add the following to your `build.sbt`:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "<version>"
+```
+
+For cross-platform projects (Scala.js):
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "<version>"
+```
+
+### Query Parameter Extraction
+
+Extract and decode query parameters with schema validation:
+
+```scala mdoc:compile-only
+import zio.http.{QueryParams, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val url = URL.parse("/api/users?page=2&tag=scala&tag=fp").toOption.get
+val params = url.queryParams
+
+// Extract single value with automatic decoding
+params.query[Int]("page")
+// Right(2)
+
+// Extract all values for a key
+params.queryAll[String]("tag")
+// Right(Chunk("scala", "fp"))
+
+// Extract with default fallback
+params.queryOrElse[Int]("limit", 10)
+// 10 - uses default since "limit" not present
+```
+
+### Header Extraction
+
+Extract and decode headers with schema validation:
+
+```scala mdoc:compile-only
+import zio.http.{Headers, Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/").toOption.get)
+  .addHeader("x-page", "5")
+  .addHeader("x-tag", "scala")
+  .addHeader("x-tag", "functional")
+
+val headers = request.headers
+
+// Extract single header value
+headers.header[Int]("x-page")
+// Right(5)
+
+// Extract all header values
+headers.headerAll[String]("x-tag")
+// Right(Chunk("scala", "functional"))
+
+// Extract with default fallback
+headers.headerOrElse[Int]("x-limit", 100)
+// 100
+```
+
+### Request and Response Extensions
+
+`Request` and `Response` gain schema-based extraction methods:
+
+```scala mdoc:compile-only
+import zio.http.{Request, Response, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+// Request query parameter extraction
+val request = Request.get(URL.parse("/search?q=zio&limit=20").toOption.get)
+
+request.query[String]("q")
+// Right("zio")
+
+request.query[Int]("limit")
+// Right(20)
+
+// Response header extraction
+val response = Response.ok.addHeader("x-correlation-id", "abc-123")
+response.header[String]("x-correlation-id")
+// Right("abc-123")
+```
+
+### Error Handling
+
+Schema-based extraction returns `Either` for explicit error handling:
+
+```scala mdoc:compile-only
+import zio.http.{QueryParams, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val params = QueryParams("name" -> "Alice", "age" -> "invalid")
+
+params.query[String]("name") match {
+  case Right(name) => println(s"Name: $name")
+  case Left(QueryParamError.Missing(key)) => println(s"Missing key: $key")
+  case Left(QueryParamError.Malformed(key, value, cause)) =>
+    println(s"Failed to parse $key=$value: $cause")
+}
+
+params.query[Int]("age") match {
+  case Right(age) => println(s"Age: $age")
+  case Left(QueryParamError.Missing(key)) => println(s"Missing key: $key")
+  case Left(QueryParamError.Malformed(key, value, cause)) =>
+    println(s"Failed to parse $key=$value: $cause")
+}
+```
+
+### Supported Types
+
+The schema module provides built-in `Schema` instances for common types:
+
+- **Primitives**: `String`, `Int`, `Long`, `Boolean`, `Double`, `Float`, `Short`, `Byte`, `Char`
+- **Big Numbers**: `BigInt`, `BigDecimal`
+- **UUID**: `java.util.UUID`
+
+For custom types, define a `Schema[T]` instance using schema derivation or manual construction.
+
 The module is designed for **composition without coupling** — higher-level libraries (HTTP clients, servers, middleware) can import and use only the types they need without being forced to depend on unrelated types. The zero-dependency design means this module can be used in any Scala project without dragging in the ZIO ecosystem.
