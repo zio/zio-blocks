@@ -1104,6 +1104,8 @@ Streams distinguish between recoverable domain errors and fatal defects, with fl
 
 ### Recovering from Typed Errors
 
+These operations handle typed errors gracefully by recovering with alternative streams:
+
 #### `Stream#catchAll[E2, A1]`
 
 Recovers from any typed error by switching to a recovery stream:
