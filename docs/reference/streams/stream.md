@@ -924,6 +924,8 @@ Common utilities for deduplication, draining, and error recovery:
 
 ### Filtering Duplicates
 
+These operations remove duplicate elements, useful for deduplicating streams before processing:
+
 #### `Stream#distinct[A]`
 
 Emits only unique elements (using a mutable `HashSet` internally):
