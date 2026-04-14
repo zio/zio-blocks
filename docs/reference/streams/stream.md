@@ -976,6 +976,8 @@ val result = unique.runCollect
 
 ### Skipping and Taking
 
+These operations skip or limit elements, allowing you to keep or drop unwanted portions of the stream:
+
 #### `Stream#drop`
 
 Skips the first `n` elements:
