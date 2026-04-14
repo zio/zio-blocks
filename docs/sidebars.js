@@ -131,6 +131,7 @@ const sidebars = {
              "reference/streams/sink",
              "reference/streams/reader",
              "reference/streams/writer",
+             "reference/streams/zero-boxing",
            ]
          },
       ]
