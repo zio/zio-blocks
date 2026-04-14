@@ -395,6 +395,8 @@ val result = stream.runCollect
 
 ### Generators
 
+These constructors create streams from functions and logic, useful for synthesizing infinite or computed sequences:
+
 #### `Stream.repeat[A]`
 
 Emits the same value infinitely:
