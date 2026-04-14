@@ -1510,12 +1510,16 @@ Scope.global.scoped { scope =>
   val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
-    // Iterate through reader values using the protocol
-    var current = r.read(-1)
-    while (current != -1) {
-      println(current)   // prints 1, 2, 3, 4, 5
-      current = r.read(-1)
+    // Iterate through reader values using the protocol recursively
+    @scala.annotation.tailrec
+    def loop(): Unit = {
+      val current = r.read(-1)
+      if (current != -1) {
+        println(current)   // prints 1, 2, 3, 4, 5
+        loop()
+      }
     }
+    loop()
   }
   // reader is closed automatically when scope exits
 }
