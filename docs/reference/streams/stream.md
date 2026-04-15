@@ -193,7 +193,7 @@ object Stream {
 
 The empty stream is useful as a base case in recursive stream builders or as a neutral element when concatenating:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val emptyStream = Stream.empty
@@ -217,7 +217,7 @@ object Stream {
 
 When you call `Stream.succeed(value)`, the stream emits exactly one element and completes successfully. This is useful for wrapping a computed value into the stream abstraction:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val singleElement = Stream.succeed(42)
@@ -236,7 +236,7 @@ object Stream {
 
 Use `fail` when you need to short-circuit a stream with a known error:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 sealed trait ApiError
@@ -259,7 +259,7 @@ object Stream {
 
 Use `die` for truly exceptional, unrecoverable conditions that should not be caught as typed errors:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val dieStream = Stream.die(new Exception("System failure"))
@@ -281,7 +281,7 @@ object Stream {
 
 This is the most natural way to lift a list of values:
 
-```scala
+```scala mdoc
 import zio.blocks.streams.*
 
 val numbers = Stream(1, 2, 3, 4, 5)
@@ -300,7 +300,7 @@ object Stream {
 
 Use this when you already have a `Chunk`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
 
@@ -321,7 +321,7 @@ object Stream {
 
 This is useful when integrating with legacy Scala collections:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val list = List("a", "b", "c")
@@ -341,7 +341,7 @@ object Stream {
 
 Create a stream from an iterator and collect all elements:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val iter = Iterator(10, 20, 30, 40)
@@ -365,7 +365,7 @@ object Stream {
 
 This is memory-efficient (does not allocate intermediate collections):
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream.range(0, 5)
@@ -408,7 +408,7 @@ object Stream {
 
 Infinite streams are safe because streams are lazy; nothing runs until you call a terminal operation with a stopping condition (like `take`):
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val infinite = Stream.repeat(42)
@@ -428,7 +428,7 @@ object Stream {
 
 Each iteration, `f` receives the current state and returns either `None` (stop) or `Some((element, nextState))`. This is useful for generating Fibonacci numbers or other sequences defined by a recurrence relation:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val fibonacci = Stream.unfold((0, 1)) {
@@ -473,7 +473,7 @@ object Stream {
 
 Use `attempt` when you have legacy code that throws exceptions:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 def unsafeJsonParse(s: String): Int = s.toInt
@@ -561,7 +561,7 @@ object Stream {
 
 The stream automatically closes the input stream when done:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 import java.io.ByteArrayInputStream
 
@@ -724,7 +724,7 @@ trait Stream[+E, +A] {
 
 `map` does not run immediately; it builds up a description of the transformation. Only when you call a terminal operation does the mapping happen:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -769,7 +769,7 @@ trait Stream[+E, +A] {
 
 Short-circuits: as soon as the sink says "stop," filtering stops:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.Stream
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -789,7 +789,7 @@ trait Stream[+E, +A] {
 
 This combines filtering and mapping in one step:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val mixed = Stream(1, "a", 2, "b", 3)
@@ -813,7 +813,7 @@ trait Stream[+E, +A] {
 
 `mapAccum` threads a state value through the transformation. At each step, you receive the current state and the element, return a new state and output element:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -833,7 +833,7 @@ trait Stream[+E, +A] {
 
 This is useful for computing running totals, moving averages, or other cumulative statistics:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4)
@@ -853,7 +853,7 @@ trait Stream[+E, +A] {
 
 `flatMap` is sequential: streams are processed one at a time, in order. This is essential for resource safety: if each inner stream acquires a resource, `flatMap` ensures they are released in proper FIFO order:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val ids = Stream(1, 2, 3)
@@ -881,7 +881,7 @@ trait Stream[+E, +A] {
 
 The last chunk may contain fewer than `n` elements:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -901,7 +901,7 @@ trait Stream[+E, +A] {
 
 This is useful for computing local statistics or detecting patterns in sequences:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -925,7 +925,7 @@ trait Stream[+E, +A] {
 
 The error type is the union of both streams' error types. Evaluation is sequential: the second stream only starts when the first completes:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val first = Stream(1, 2)
@@ -951,7 +951,7 @@ extension [E, A](stream: Stream[E, A])
 
 The result streams have the same length as the shorter input:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -972,7 +972,7 @@ object Stream {
 
 This is equivalent to `flatMap(identity)`:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nested = Stream.fromIterable(List(
@@ -1003,7 +1003,7 @@ trait Stream[+E, +A] {
 
 This consumes memory proportional to the number of unique elements:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 2, 3, 3, 3)
@@ -1075,7 +1075,7 @@ trait Stream[+E, +A] {
 
 This naturally short-circuits: the stream stops pulling from upstream:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream.range(0, 1000)
@@ -1095,7 +1095,7 @@ trait Stream[+E, +A] {
 
 Taking elements while they are less than 6 stops early without processing the rest:
 
-```scala mdoc:compile-only
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -1115,7 +1115,7 @@ trait Stream[+E, +A] {
 
 This is useful for rendering comma-separated lists or row delimiters:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val items = Stream("a", "b", "c")
@@ -1135,7 +1135,7 @@ trait Stream[+E, +A] {
 
 This creates an infinite repetition of the stream:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val original = Stream(1, 2)
@@ -1155,7 +1155,7 @@ trait Stream[+E, +A] {
 
 Use `tapEach` for logging or metrics:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -1183,7 +1183,7 @@ trait Stream[+E, +A] {
 
 The recovery function receives the error and can return a new stream:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.streams.*
 
 sealed trait Error
@@ -1207,7 +1207,7 @@ trait Stream[+E, +A] {
 `||` is an alias for `orElse`:
 
 ```scala
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val primary = Stream.fail("error")
 val fallback = Stream.succeed(42)
@@ -1563,6 +1563,8 @@ trait Stream[+E, +A] {
 }
 ```
 
+Use `start` to manually pull elements within a resource scope:
+
 ```scala
 import zio.blocks.streams.*
 import zio.blocks.streams.io.Reader
@@ -1575,16 +1577,12 @@ Scope.global.scoped { scope =>
   val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
-    // Iterate through reader values using the protocol recursively
-    @scala.annotation.tailrec
-    def loop(): Unit = {
-      val current = r.read(-1)
-      if (current != -1) {
-        println(current)   // prints 1, 2, 3, 4, 5
-        loop()
-      }
+    // Iterate through reader values using the pull protocol directly
+    var current = r.read(-1)
+    while (current != -1) {
+      println(current) // prints 1, 2, 3, 4, 5
+      current = r.read(-1)
     }
-    loop()
   }
   // reader is closed automatically when scope exits
 }
