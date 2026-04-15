@@ -9,34 +9,30 @@ Core features: `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `
 
 ## Motivation
 
-Building HTTP handlers often requires extracting and validating query parameters or headers — "get the `page` query parameter as an `Int`, defaulting to 1 if missing." Without schema-based extraction, this becomes tedious and error-prone:
+Building HTTP handlers often requires extracting and validating query parameters or headers — "get the `userId` query parameter as a `UUID`." Without schema-based extraction, this becomes tedious and error-prone:
 
 ```scala
 // Manual extraction (error-prone, repetitive)
-val pageStr = params.getFirst("page")
-val page = pageStr match {
-  case None => Right(1)  // fallback
+val userIdStr = params.getFirst("userId")
+val userId = userIdStr match {
+  case None => Left("Missing userId")
   case Some(s) =>
-    try Right(s.toInt)
-    catch { case _: NumberFormatException => Left("invalid Int") }
+    try Right(java.util.UUID.fromString(s))
+    catch { case e: IllegalArgumentException => Left(s"Invalid UUID format: ${e.getMessage}") }
 }
 ```
 
-**Why is this tedious and error-prone?** Every parameter requires 8 lines of boilerplate with manual exception handling, error message creation, and fallback logic. Multiply this across dozens of handlers extracting `Int`, `String`, `Boolean` parameters, and you have duplicated extraction logic everywhere — inconsistent error messages, risk of forgotten error handling, and potential silent failures when using `getOrElse` incorrectly.
+Every parameter requires 8+ lines of boilerplate with manual exception handling, error message creation, and type-specific parsing. UUID parsing alone involves `IllegalArgumentException` handling; multiply this across dozens of handlers extracting `UUID`, `Int`, `Boolean` parameters, and you have duplicated extraction logic everywhere — inconsistent error messages, risk of forgotten error handling, and no compile-time guarantees on correctness.
 
-**The solution:** Use schema-based extraction for clean, declarative code:
+The solution is to use schema-based extraction for clean, declarative code:
 
 ```scala
 // Schema-based extraction (clean, type-safe)
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val page = params.queryOrElse[Int]("page", 1)  // 1 line, handles all cases
+val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID parsing + errors
 ```
-
-The difference:
-- **Manual approach:** 8 lines, boilerplate, error-prone, no type safety in the error message
-- **Schema approach:** 1 line, zero boilerplate, automatic decoding, rich error types
 
 `zio-http-model-schema` separates **extraction logic from business logic**:
 
