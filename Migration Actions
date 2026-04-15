@@ -1,0 +1,99 @@
+package zio.schema.migration
+
+sealed trait MigrationAction extends Serializable {
+  def at: DynamicOptic
+  def reverse: MigrationAction
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+}
+
+/** ==== Record ==== */
+final case class AddField(at: DynamicOptic, default: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = DropField(at, SchemaExpr.DefaultValue())
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    // If a field already exists we treat it as an error – structural safety.
+    value match {
+      case DynamicValue.Record(fields) =>
+        if (fields.contains(at.steps.last.asInstanceOf[OpticStep.Field].name))
+          Left(MigrationError(s"Field already present", at))
+        else {
+          default.eval(??? , ???) // the interpreter injects source schema & current value
+            .map(dv => DynamicValue.Record(fields + (fieldName(at) -> dv)))
+        }
+      case other => Left(MigrationError(s"AddField expects a record, got $other", at))
+    }
+}
+final case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = AddField(at, defaultForReverse)
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    value match {
+      case DynamicValue.Record(fields) =>
+        fields.get(fieldName(at)) match {
+          case Some(v) => Right(DynamicValue.Record(fields - fieldName(at)))
+          case None    => Left(MigrationError(s"Field not present", at))
+        }
+      case other => Left(MigrationError(s"DropField expects a record, got $other", at))
+    }
+}
+final case class Rename(at: DynamicOptic, to: String) extends MigrationAction {
+  def reverse: MigrationAction = Rename(at, fieldName(at))
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    value match {
+      case DynamicValue.Record(fields) =>
+        val from = fieldName(at)
+        fields.get(from) match {
+          case Some(v) => Right(DynamicValue.Record(fields - from + (to -> v)))
+          case None    => Left(MigrationError(s"Rename: source field not found", at))
+        }
+      case other => Left(MigrationError(s"Rename expects a record, got $other", at))
+    }
+}
+final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = TransformValue(at, transform) // best‑effort – same expr used both ways
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    // interpreter extracts the value at the optic, runs transform.eval and puts it back.
+    DynamicMigrationInterpreter.transformAt(value, at, transform)
+}
+final case class Mandate(at: DynamicOptic, default: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = Optionalize(at)
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.mandateAt(value, at, default)
+}
+final case class Optionalize(at: DynamicOptic) extends MigrationAction {
+  def reverse: MigrationAction = Mandate(at, SchemaExpr.DefaultValue())
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.optionalizeAt(value, at)
+}
+final case class ChangeType(at: DynamicOptic, converter: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = ChangeType(at, converter) // best‑effort same expr
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.changeTypeAt(value, at, converter)
+}
+
+/** ==== Enum (union) ==== */
+final case class RenameCase(at: DynamicOptic, from: String, to: String) extends MigrationAction {
+  def reverse: MigrationAction = RenameCase(at, to, from)
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.renameCase(value, at, from, to)
+}
+final case class TransformCase(at: DynamicOptic, actions: Vector[MigrationAction]) extends MigrationAction {
+  def reverse: MigrationAction = TransformCase(at, actions.map(_.reverse))
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.transformCase(value, at, actions)
+}
+
+/** ==== Collections & Maps ==== */
+final case class TransformElements(at: DynamicOptic, transform: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = TransformElements(at, transform) // best‑effort
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.transformElements(value, at, transform)
+}
+final case class TransformKeys(at: DynamicOptic, transform: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = TransformKeys(at, transform)
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.transformMapKeys(value, at, transform)
+}
+final case class TransformValues(at: DynamicOptic, transform: SchemaExpr[?, ?]) extends MigrationAction {
+  def reverse: MigrationAction = TransformValues(at, transform)
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+    DynamicMigrationInterpreter.transformMapValues(value, at, transform)
+}

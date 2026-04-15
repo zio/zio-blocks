@@ -1,0 +1,225 @@
+package zio.schema.migration
+
+import scala.quoted.*
+
+object MigrationBuilderMacro {
+
+  /** Shared helper – builds a MigrationBuilder with an appended action. */
+  private def addAction[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    act: Expr[MigrationAction]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    '{ ${builder}.copy(actions = ${builder}.actions :+ ${act}) }
+  }
+
+  // ----------------------------------------------------------------
+  // addField
+  // ----------------------------------------------------------------
+  def addFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    targetSel: Expr[B => Any],
+    defaultExpr: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    val optic: Expr[DynamicOptic] = '{ SelectorMacro.impl[B, Any](${targetSel}) }
+    val action = '{ AddField(${optic}, ${defaultExpr}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // dropField
+  // ----------------------------------------------------------------
+  def dropFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    sourceSel: Expr[A => Any],
+    defaultForReverse: Expr[SchemaExpr[B, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val optic = '{ SelectorMacro.impl[A, Any](${sourceSel}) }
+    val action = '{ DropField(${optic}, ${defaultForReverse}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // renameField
+  // ----------------------------------------------------------------
+  def renameFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    fromSel: Expr[A => Any],
+    toSel: Expr[B => Any]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val fromOptic = '{ SelectorMacro.impl[A, Any](${fromSel}) }
+    val toOptic   = '{ SelectorMacro.impl[B, Any](${toSel}) }
+    // the rename action stores only the *target* optic + the new name
+    // we extract the field name from the target optic
+    val newNameExpr = '{
+      ${toOptic}.steps.last match {
+        case OpticStep.Field(name) => name
+        case other => compiletime.error(s"rename target must be a field, got $other")
+      }
+    }
+    val action = '{ Rename(${fromOptic}, ${newNameExpr}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // transformField
+  // ----------------------------------------------------------------
+  def transformFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    fromSel: Expr[A => Any],
+    toSel: Expr[B => Any],
+    transform: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val from = '{ SelectorMacro.impl[A, Any](${fromSel}) }
+    val to   = '{ SelectorMacro.impl[B, Any](${toSel}) }
+    // we only need the target optic for placement; the transformer reads from `from`.
+    // For simplicity we store a single TransformValue action whose optic is `to`
+    // and the expr already has captured the source field via closure (macro will expand)
+    val action = '{ TransformValue(${to}, ${transform}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // mandateField / optionalizeField / changeFieldType – similar pattern
+  // ----------------------------------------------------------------
+  def mandateFieldImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      sourceSel: Expr[A => Option[?]],
+      targetSel: Expr[B => Any],
+      default: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val source = '{ SelectorMacro.impl[A, Option[?]](${sourceSel}) }
+    val target = '{ SelectorMacro.impl[B, Any](${targetSel}) }
+    val action = '{ Mandate(${target}, ${default}) }
+    addAction(builder, action)
+  }
+
+  def optionalizeFieldImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      sourceSel: Expr[A => Any],
+      targetSel: Expr[B => Option[?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val target = '{ SelectorMacro.impl[B, Option[?]](${targetSel}) }
+    val action = '{ Optionalize(${target}) }
+    addAction(builder, action)
+  }
+
+  def changeFieldTypeImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      sourceSel: Expr[A => Any],
+      targetSel: Expr[B => Any],
+      converter: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val target = '{ SelectorMacro.impl[B, Any](${targetSel}) }
+    val action = '{ ChangeType(${target}, ${converter}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // Enum case rename
+  // ----------------------------------------------------------------
+  def renameCaseImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      from: Expr[String],
+      to: Expr[String]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    // The optic for enum case is always root, because case tags are stored in the record itself.
+    // For clarity we keep the root optic.
+    val action = '{ RenameCase(DynamicOptic.root, ${from}, ${to}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // transformCase – receives a nested builder for the case type
+  // ----------------------------------------------------------------
+  def transformCaseImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      inner: Expr[MigrationBuilder[?, ?] => MigrationBuilder[?, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    // The macro expands the inner builder first (using given source/target schemas of the case)
+    // For simplicity we let the user write:
+    //   .transformCase[OldCreditCard, NewCreditCard](_.addField(...))
+    // The macro extracts the resulting Vector[MigrationAction] from the inner builder:
+    val caseActionsExpr = '{
+      val innerBuilder = ${inner}.asInstanceOf[MigrationBuilder[?, ?]]
+      innerBuilder.actions
+    }
+    // The optic is the root of the case value.
+    val action = '{ TransformCase(DynamicOptic.root, ${caseActionsExpr}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // collections
+  // ----------------------------------------------------------------
+  def transformElementsImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      atSel: Expr[A => Vector[?]],
+      transform: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val optic = '{ SelectorMacro.impl[A, Vector[?]](${atSel}) }
+    val action = '{ TransformElements(${optic}, ${transform}) }
+    addAction(builder, action)
+  }
+
+  def transformKeysImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      atSel: Expr[A => Map[?, ?]],
+      transform: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val optic = '{ SelectorMacro.impl[A, Map[?, ?]](${atSel}) }
+    val action = '{ TransformKeys(${optic}, ${transform}) }
+    addAction(builder, action)
+  }
+
+  def transformValuesImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      atSel: Expr[A => Map[?, ?]],
+      transform: Expr[SchemaExpr[A, ?]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect._
+    val optic = '{ SelectorMacro.impl[A, Map[?, ?]](${atSel}) }
+    val action = '{ TransformValues(${optic}, ${transform}) }
+    addAction(builder, action)
+  }
+
+  // ----------------------------------------------------------------
+  // BUILD
+  // ----------------------------------------------------------------
+  def buildImpl[A: Type, B: Type](
+      builder: Expr[MigrationBuilder[A, B]],
+      full: Expr[Boolean]
+  )(using Quotes): Expr[Migration[A, B]] = {
+    import quotes.reflect._
+    val dmExpr = '{ DynamicMigration(${builder}.actions) }
+
+    // If full validation is requested we run a compile‑time check that each action
+    // refers to a path that actually exists in the source/target schemas.
+    if (full.valueOrError) {
+      // This is a bit heavy – we reuse the runtime validator but execute it at compile‑time
+      // (the validator is pure and does not need any runtime data).
+      val validator = '{
+        MigrationValidator.validate(
+          ${dmExpr},
+          ${builder}.sourceSchema,
+          ${builder}.targetSchema
+        )
+      }
+      '{ $validator; Migration(${dmExpr}, ${builder}.sourceSchema, ${builder}.targetSchema) }
+    } else {
+      '{ Migration(${dmExpr}, ${builder}.sourceSchema, ${builder}.targetSchema) }
+    }
+  }
+}

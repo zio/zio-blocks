@@ -1,0 +1,47 @@
+package zio.schema.migration
+
+import scala.quoted.*
+
+object SelectorMacro {
+  /** Convert a selector `S => X` into a DynamicOptic. */
+  def impl[S: Type, X: Type](selector: Expr[S => X])(using Quotes): Expr[DynamicOptic] = {
+    import quotes.reflect.*
+
+    def extractSteps(term: Term, acc: List[OpticStep]): List[OpticStep] = term match {
+      case Select(qualifier, name) =>
+        extractSteps(qualifier, OpticStep.Field(name) :: acc)
+
+      case Apply(Select(qualifier, "each"), List()) =>
+        extractSteps(qualifier, OpticStep.Each() :: acc)
+
+      case TypeApply(Select(qualifier, "when"), List(Inferred(tagType))) =>
+        // we expect a singleton type string literal
+        tagType match {
+          case ConstantType(StringConstant(tag)) =>
+            extractSteps(qualifier, OpticStep.When(tag) :: acc)
+          case _ =>
+            report.errorAndAbort(s".when expects a literal string type, got ${tagType.show}")
+        }
+
+      case Ident(_) => acc // reached the lambda parameter – stop recursion
+
+      case other =>
+        report.errorAndAbort(s"Unsupported selector step: ${other.show}")
+    }
+
+    selector match {
+      case Lambda(_, body) =>
+        val steps = extractSteps(body, Nil).reverse
+        val stepExprs = steps.map {
+          case OpticStep.Field(name) => '{ OpticStep.Field(${Expr(name)}) }
+          case OpticStep.Each()      => '{ OpticStep.Each() }
+          case OpticStep.When(t)    => '{ OpticStep.When(${Expr(t)}) }
+        }
+        // Build a Vector[OpticStep] literal
+        val vecExpr = Expr.ofList(stepExprs)
+        '{ DynamicOptic(${vecExpr}) }
+      case _ =>
+        report.errorAndAbort("Selector must be a lambda")
+    }
+  }
+}

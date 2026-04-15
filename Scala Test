@@ -1,0 +1,86 @@
+package zio.schema.migration
+
+import zio.schema.{Schema, DeriveSchema}
+import zio.test._
+import zio.test.Assertion._
+
+object MigrationSpec extends ZIOSpecDefault {
+
+  // Simple record migration (add a field)
+  case class PersonV0(firstName: String, lastName: String)
+  case class PersonV1(fullName: String, age: Int)
+
+  given Schema[PersonV0] = DeriveSchema.gen[PersonV0] // structural schema
+  given Schema[PersonV1] = DeriveSchema.gen[PersonV1]
+
+  val addAgeMigration: Migration[PersonV0, PersonV1] = Migration
+    .newBuilder[PersonV0, PersonV1]
+    .addField(_.age, SchemaExpr.DefaultValue[PersonV0, Int]())
+    .build
+
+  def spec = suite("MigrationSpec")(
+    test("identity law") {
+      val m = MigrationLaws.identity(Schema[PersonV0])
+      assertTrue(m(PersonV0("John", "Doe")).contains(PersonV0("John", "Doe")))
+    },
+    test("addField works") {
+      val old = PersonV0("John", "Doe")
+      val expected = PersonV1("John", 0) // fullName is derived by the user using a Transform (shown later)
+      // Because we only added a field, we need a transform to produce fullName:
+      val mig = Migration
+        .newBuilder[PersonV0, PersonV1]
+        .transformField(
+          _.firstName,
+          _.fullName,
+          SchemaExpr.PrimitiveConversion[String, String] { s => Right(s + " " + "Doe") }
+        )
+        .addField(_.age, SchemaExpr.DefaultValue())
+        .build
+      assert(mig(old).map(_.fullName))(isRight(equalTo("John Doe")))
+      assert(mig(old).map(_.age))(isRight(equalTo(0)))
+    },
+    test("renameField") {
+      case class Old(name: String, age: Int)
+      case class New(fullName: String, age: Int)
+
+      given Schema[Old] = DeriveSchema.gen[Old]
+      given Schema[New] = DeriveSchema.gen[New]
+
+      val mig = Migration
+        .newBuilder[Old, New]
+        .renameField(_.name, _.fullName)
+        .build
+
+      assert(mig(Old("Bob", 25)).map(_.fullName))(isRight(equalTo("Bob")))
+    },
+    test("enum rename case") {
+      type Old = { type Tag = "A"; def i: Int } | { type Tag = "B"; def s: String }
+      type New = { type Tag = "Alpha"; def i: Int } | { type Tag = "B"; def s: String }
+
+      given Schema[Old] = Schema.structural[Old]
+      given Schema[New] = Schema.structural[New]
+
+      val mig = Migration
+        .newBuilder[Old, New]
+        .renameCase("A", "Alpha")
+        .build
+
+      // build an instance of the old union (manual DynamicValue creation)
+      val oldDyn = DynamicValue.Record(
+        Map("Tag" -> DynamicValue.Primitive("A"), "i" -> DynamicValue.Primitive(42))
+      )
+      val result = mig.dynamicMigration(oldDyn).flatMap(DynamicValue.toSchema[New])
+      assert(result.map(_.asInstanceOf[{ type Tag = "Alpha"; def i: Int }].i))(isRight(equalTo(42)))
+    },
+    test("reverse round‑trip") {
+      val mig = Migration
+        .newBuilder[PersonV0, PersonV1]
+        .addField(_.age, SchemaExpr.DefaultValue())
+        .build
+      val rev = mig.reverse
+      val old = PersonV0("John", "Doe")
+      val upgraded = mig(old).getOrElse(throw new RuntimeException)
+      assertTrue(rev(upgraded).contains(old))
+    }
+  )
+}

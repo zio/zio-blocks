@@ -1,0 +1,15 @@
+lazy val schemaMigration = (project in file("zio-schema-migration"))
+  .dependsOn(zioSchema)
+  .settings(
+    name := "zio-schema-migration",
+    scalaVersion := "3.5.0",
+    crossScalaVersions := Seq("2.13.12", "3.5.0"),
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test" % "2.0.23" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.0.23" % Test
+    ),
+    // Enable macro paradise for Scala 2
+    scalacOptions ++= (if (scalaBinaryVersion.value == "2.13")
+                         Seq("-Ymacro-annotations")
+                       else Nil)
+  )
