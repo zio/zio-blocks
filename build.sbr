@@ -1,0 +1,148 @@
+// =============================================================================
+//  ZIO Schema Migration — build.sbt
+//  Crafted for clarity, discipline, and zero compromise.
+// =============================================================================
+
+import sbt._
+import Keys._
+
+// -----------------------------------------------------------------------------
+// § 1  Versions — single source of truth, never duplicated
+// -----------------------------------------------------------------------------
+
+val Scala213         = "2.13.14"
+val ZioVersion       = "2.0.21"
+val ZioSchemaVersion = "1.0.0"
+
+// -----------------------------------------------------------------------------
+// § 2  Compiler Discipline — "Total Functional" strictness
+//      Every flag is intentional. Nothing is cargo-culted.
+// -----------------------------------------------------------------------------
+
+val totalFunctionalOptions: Seq[String] = Seq(
+  // Encoding — deterministic everywhere, no surprises on Windows CI
+  "-encoding", "UTF-8",
+
+  // Correctness surface
+  "-deprecation",          // Warn on deprecated API usage
+  "-unchecked",            // Warn on unchecked type casts
+  "-feature",              // Warn on misused language features
+  "-explaintypes",         // Spell out why types don't unify — saves debugging hours
+
+  // Unused code is dead weight; dead weight ships bugs
+  "-Ywarn-dead-code",
+  "-Ywarn-unused:imports",
+  "-Ywarn-unused:locals",
+  "-Ywarn-unused:params",
+  "-Ywarn-unused:privates",
+  "-Ywarn-unused:patvars",
+
+  // Numeric widening is implicit magic nobody asked for
+  "-Ywarn-numeric-widen",
+
+  // Values silently discarded are logic errors waiting to be found
+  "-Ywarn-value-discard",
+
+  // Exhaustive lint suite — catches shadowing, adaptation, type inference gaps
+  "-Xlint:_",
+
+  // The contract: every warning is a compilation error.
+  // If you wouldn't merge broken tests, don't merge broken warnings.
+  "-Xfatal-warnings"
+)
+
+// -----------------------------------------------------------------------------
+// § 3  ThisBuild — global consistency, zero leakage
+//      Set once here; never overridden by accident downstream.
+// -----------------------------------------------------------------------------
+
+ThisBuild / scalaVersion       := Scala213
+ThisBuild / organization       := "dev.zio"
+ThisBuild / organizationName   := "ZIO Contributors"
+ThisBuild / licenses           := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0"))
+
+// Keep incremental compilation artifacts tight and local
+ThisBuild / scalacOptions      ++= totalFunctionalOptions
+
+// ZIO Test is the only test framework. One paradigm, one truth.
+ThisBuild / testFrameworks      := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+
+// Parallel test execution — ZIO fibers make this safe and fast
+ThisBuild / Test / parallelExecution := true
+
+// Reproducible builds: strip unstable path info from bytecode
+ThisBuild / scalacOptions in (Compile, doc) ++= Seq(
+  "-no-link-warnings"
+)
+
+// -----------------------------------------------------------------------------
+// § 4  Dependency Graph — the project graph tells its own story
+//
+//   util ──────────────────────────────────────────────────► (foundation)
+//     └── json ──────────────────────────────────────────► (codec layer)
+//           └── core (+ util) ──────────────────────────► (domain logic)
+//                 └── mongo (+ json test fixtures) ──────► (persistence)
+//
+// -----------------------------------------------------------------------------
+
+// Shared ZIO kernel — every module gets exactly what it needs, nothing more
+def zioCore: ModuleID    = "dev.zio" %% "zio"             % ZioVersion
+def zioSchema: ModuleID  = "dev.zio" %% "zio-schema"      % ZioSchemaVersion
+def zioTest: ModuleID    = "dev.zio" %% "zio-test"        % ZioVersion % Test
+def zioTestSbt: ModuleID = "dev.zio" %% "zio-test-sbt"    % ZioVersion % Test
+
+// The canonical base — attach to every sub-project
+val baseSettings: Seq[Setting[_]] = Seq(
+  libraryDependencies ++= Seq(
+    zioCore, zioSchema,   // runtime — always present
+    zioTest, zioTestSbt   // test scope only — never leaks into production JARs
+  )
+)
+
+// -----------------------------------------------------------------------------
+// § 5  Module Declarations
+//      One responsibility per project. Dependencies flow in one direction only.
+// -----------------------------------------------------------------------------
+
+// Pure utilities: no domain knowledge, no I/O, no schema awareness.
+// The bedrock everything else stands on.
+lazy val util = project
+  .in(file("util"))
+  .settings(baseSettings)
+
+// Codec layer: knows how to serialize/deserialize ZIO Schema types.
+// Depends on nothing but the foundation.
+lazy val json = project
+  .in(file("json"))
+  .settings(baseSettings)
+  .dependsOn(util)
+
+// Domain core: where the business logic lives.
+// Draws on both utility functions and the JSON codec surface.
+lazy val core = project
+  .in(file("core"))
+  .settings(baseSettings)
+  .dependsOn(util, json)
+
+// Persistence layer: MongoDB integration built on top of the full domain.
+// Imports json's *test* utilities (schema generators/fixtures) into its own
+// test scope — "test->test" makes that boundary explicit and safe.
+lazy val mongo = project
+  .in(file("mongo"))
+  .settings(baseSettings)
+  .dependsOn(core, json % "test->test")
+
+// -----------------------------------------------------------------------------
+// § 6  Root Aggregator — the conductor, not a participant
+//      publish/skip: true because aggregators ship nothing; modules do.
+// -----------------------------------------------------------------------------
+
+lazy val root = project
+  .in(file("."))
+  .withId("zio-schema-migration")
+  .settings(
+    name           := "zio-schema-migration",
+    publish / skip := true,         // Nothing to publish at the root level
+    doc / aggregate := false        // Avoid duplicate Scaladoc generation
+  )
+  .aggregate(util, json, core, mongo)
