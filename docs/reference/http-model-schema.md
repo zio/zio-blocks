@@ -22,6 +22,15 @@ val page = pageStr match {
 }
 ```
 
+**Why is this tedious and error-prone?**
+
+- **Boilerplate for each parameter:** Extract every query parameter or header this way — 8 lines per value
+- **Manual error handling:** You catch `NumberFormatException` and convert it to an error message manually. What if you forget? What if the error message is unclear?
+- **Repetition across handlers:** Every request handler repeats the same extraction logic for `Int`, `String`, `Boolean`, etc. This duplicates effort and makes bugs easy to introduce
+- **No type-safe validation:** Query parameters are always strings; converting to `Int` happens at runtime with no compile-time guarantees
+- **Inconsistent error messages:** Different handlers might produce different error messages for the same problem, making debugging hard
+- **Silent failures possible:** If you use `getOrElse` instead of pattern matching, malformed values silently use the default, hiding bugs
+
 **The solution:** Use schema-based extraction for clean, declarative code:
 
 ```scala
