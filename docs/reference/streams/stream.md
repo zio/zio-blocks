@@ -631,7 +631,6 @@ val result = stream.runCollect
 // Caller must close reader when done
 ```
 
-
 ## Transformations
 
 Streams provide powerful operations for transforming elements, flattening nested structures, filtering, and managing state:
