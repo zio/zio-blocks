@@ -22,6 +22,20 @@ val page = pageStr match {
 }
 ```
 
+**The solution:** Use schema-based extraction for clean, declarative code:
+
+```scala
+// Schema-based extraction (clean, type-safe)
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val page = params.queryOrElse[Int]("page", 1)  // 1 line, handles all cases
+```
+
+The difference:
+- **Manual approach:** 8 lines, boilerplate, error-prone, no type safety in the error message
+- **Schema approach:** 1 line, zero boilerplate, automatic decoding, rich error types
+
 `zio-http-model-schema` separates **extraction logic from business logic**:
 
 - **Automatic decoding** — Pass a `Schema[T]`, get `Either[Error, T]` back. Works for 11 primitive types out of the box.
