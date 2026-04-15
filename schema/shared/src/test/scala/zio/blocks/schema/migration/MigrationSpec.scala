@@ -1,0 +1,2804 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.blocks.schema.migration
+
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
+import zio.blocks.schema.migration.MigrationBuilderCompanion._
+import zio.test.Assertion._
+import zio.test._
+
+object MigrationSpec extends SchemaBaseSpec {
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Test model — simple types used across all suites
+  // ─────────────────────────────────────────────────────────────────────────
+
+  case class PersonV1(name: String, age: Int)
+  case class PersonV2(fullName: String, age: Int, active: Boolean)
+  case class PersonV3(fullName: String, age: Long, active: Boolean)
+
+  case class WithOptional(id: Int, label: Option[String])
+  case class WithMandatory(id: Int, label: String)
+
+  case class HasList(id: Int, tags: List[String])
+  case class HasNestedLists(groups: List[HasList])
+  case class HasMap(id: Int, counts: Map[String, Int])
+
+  sealed trait Color
+  case object Red   extends Color
+  case object Blue  extends Color
+  case object Green extends Color
+
+  case class Painted(color: Color, value: Int)
+
+  case class FullName(first: String, last: String)
+  case class Combined(fullName: String, value: Int)
+  case class Split(first: String, last: String, value: Int)
+
+  // Nested migration test model
+  case class AddressV1(street: String, zipCode: Int)
+  case class AddressV2(streetName: String, zipCode: Long)
+  case class PersonWithAddr(name: String, address: AddressV1)
+  case class PersonWithAddrV2(name: String, address: AddressV2)
+
+  object PersonV1 { implicit val schema: Schema[PersonV1] = Schema.derived }
+  object PersonV2 {
+    implicit val schema: Schema[PersonV2] =
+      Schema.derived[PersonV2].defaultValue(PersonV2("", 0, active = false))
+  }
+  object PersonV3      { implicit val schema: Schema[PersonV3] = Schema.derived     }
+  object WithOptional  { implicit val schema: Schema[WithOptional] = Schema.derived }
+  object WithMandatory {
+    implicit val schema: Schema[WithMandatory] =
+      Schema.derived[WithMandatory].defaultValue(WithMandatory(0, "default"))
+  }
+  object HasList        extends CompanionOptics[HasList]        { implicit val schema: Schema[HasList] = Schema.derived }
+  object HasNestedLists extends CompanionOptics[HasNestedLists] {
+    implicit val schema: Schema[HasNestedLists] = Schema.derived
+  }
+  object HasMap   { implicit val schema: Schema[HasMap] = Schema.derived   }
+  object Color    { implicit val schema: Schema[Color] = Schema.derived    }
+  object Painted  { implicit val schema: Schema[Painted] = Schema.derived  }
+  object FullName { implicit val schema: Schema[FullName] = Schema.derived }
+  object Combined { implicit val schema: Schema[Combined] = Schema.derived }
+  object Split    { implicit val schema: Schema[Split] = Schema.derived    }
+
+  object AddressV1        { implicit val schema: Schema[AddressV1] = Schema.derived      }
+  object AddressV2        { implicit val schema: Schema[AddressV2] = Schema.derived      }
+  object PersonWithAddr   { implicit val schema: Schema[PersonWithAddr] = Schema.derived }
+  object PersonWithAddrV2 {
+    implicit val schema: Schema[PersonWithAddrV2] = Schema.derived
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Convenience: build DynamicValue records directly
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private def str(s: String): DynamicValue                       = new DynamicValue.Primitive(new PrimitiveValue.String(s))
+  private def int(i: Int): DynamicValue                          = new DynamicValue.Primitive(new PrimitiveValue.Int(i))
+  private def long(l: Long): DynamicValue                        = new DynamicValue.Primitive(new PrimitiveValue.Long(l))
+  private def bool(b: Boolean): DynamicValue                     = new DynamicValue.Primitive(new PrimitiveValue.Boolean(b))
+  private val ptInt                                              = PrimitiveType.Int(Validation.None)
+  private val ptLong                                             = PrimitiveType.Long(Validation.None)
+  private val ptString                                           = PrimitiveType.String(Validation.None)
+  private def rec(fields: (String, DynamicValue)*): DynamicValue =
+    new DynamicValue.Record(Chunk.from(fields))
+  private def some(v: DynamicValue): DynamicValue =
+    new DynamicValue.Variant("Some", new DynamicValue.Record(Chunk.single(("value", v))))
+  private def none: DynamicValue =
+    new DynamicValue.Variant("None", new DynamicValue.Record(Chunk.empty))
+  private def seq(elems: DynamicValue*): DynamicValue =
+    new DynamicValue.Sequence(Chunk.from(elems))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Spec
+  // ─────────────────────────────────────────────────────────────────────────
+
+  def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
+    suite("DynamicMigration laws")(
+      test("identity: no actions returns value unchanged") {
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val result = DynamicMigration.identity.apply(dv)
+        assert(result)(isRight(equalTo(dv)))
+      },
+      test("associativity: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
+        val dv = rec("x" -> str("hello"))
+        val m1 = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.RenameField(
+              DynamicOptic.root.field("x"),
+              "y"
+            )
+          )
+        )
+        val m2 = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.RenameField(
+              DynamicOptic.root.field("y"),
+              "z"
+            )
+          )
+        )
+        val m3 = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.TransformValue(
+              DynamicOptic.root.field("z"),
+              ValueExpr.Constant(str("world"))
+            )
+          )
+        )
+        val left  = (m1 ++ m2) ++ m3
+        val right = m1 ++ (m2 ++ m3)
+        assert(left.apply(dv))(equalTo(right.apply(dv)))
+      },
+      test("++ with identity is a no-op") {
+        val m = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.RenameField(
+              DynamicOptic.root.field("a"),
+              "b"
+            )
+          )
+        )
+        val dv = rec("a" -> int(1))
+        assert((m ++ DynamicMigration.identity).apply(dv))(equalTo(m.apply(dv))) &&
+        assert((DynamicMigration.identity ++ m).apply(dv))(equalTo(m.apply(dv)))
+      },
+      test("structural reverse: reverse.reverse == original") {
+        val m = new DynamicMigration(
+          Chunk.from(
+            List(
+              MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"),
+              MigrationAction.ChangeType(
+                DynamicOptic.root.field("age"),
+                ValueExpr.PrimitiveConvert(ptInt, ptLong)
+              ),
+              MigrationAction.Optionalize(DynamicOptic.root.field("active"))
+            )
+          )
+        )
+        assert(m.reverse.reverse.actions)(equalTo(m.actions))
+      }
+    ),
+    suite("AddField")(
+      test("inserts a constant field into a record") {
+        val path   = DynamicOptic.root.field("active")
+        val action = MigrationAction.AddField(path, ValueExpr.Constant(bool(true)))
+        val dv     = rec("name" -> str("Alice"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1).contains("active"))(
+          isTrue
+        )
+      }
+    ),
+    suite("DropField")(
+      test("removes a field from a record") {
+        val path   = DynamicOptic.root.field("age")
+        val action = MigrationAction.DropField(path)
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1).contains("age"))(
+          isFalse
+        )
+      }
+    ),
+    suite("RenameField")(
+      test("renames a field in-place preserving position") {
+        val path   = DynamicOptic.root.field("name")
+        val action = MigrationAction.RenameField(path, "fullName")
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        // "fullName" is now first, preserving order
+        assert(result)(isRight) &&
+        assert(fields.head._1)(equalTo("fullName")) &&
+        assert(fields.head._2)(equalTo(str("Alice")))
+      },
+      test("fails when path does not end in a Field node") {
+        val path   = DynamicOptic.root.at(0)
+        val action = MigrationAction.RenameField(path, "x")
+        val dv     = rec("a" -> int(1))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      }
+    ),
+    suite("TransformValue")(
+      test("replaces a field value with a constant") {
+        val path   = DynamicOptic.root.field("age")
+        val action = MigrationAction.TransformValue(path, ValueExpr.Constant(int(99)))
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("name" -> str("Alice"), "age" -> int(99)))))
+      }
+    ),
+    suite("Mandate")(
+      test("unwraps Some(x) to x") {
+        val path   = DynamicOptic.root.field("label")
+        val action = MigrationAction.Mandate(path, ValueExpr.Constant(str("default")))
+        val dv     = rec("id" -> int(1), "label" -> some(str("hello")))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("id" -> int(1), "label" -> str("hello")))))
+      },
+      test("uses default when None") {
+        val path   = DynamicOptic.root.field("label")
+        val action = MigrationAction.Mandate(path, ValueExpr.Constant(str("default")))
+        val dv     = rec("id" -> int(1), "label" -> none)
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("id" -> int(1), "label" -> str("default")))))
+      },
+      test("fails on non-Option value") {
+        val path   = DynamicOptic.root.field("id")
+        val action = MigrationAction.Mandate(path, ValueExpr.Constant(int(0)))
+        val dv     = rec("id" -> int(1))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      }
+    ),
+    suite("Optionalize")(
+      test("wraps a value in Some") {
+        val path   = DynamicOptic.root.field("label")
+        val action = MigrationAction.Optionalize(path)
+        val dv     = rec("id" -> int(1), "label" -> str("hello"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("id" -> int(1), "label" -> some(str("hello"))))))
+      }
+    ),
+    suite("ChangeType")(
+      test("widens Int to Long") {
+        val path   = DynamicOptic.root.field("age")
+        val conv   = ValueExpr.PrimitiveConvert(ptInt, ptLong)
+        val action = MigrationAction.ChangeType(path, conv)
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("name" -> str("Alice"), "age" -> long(30L)))))
+      },
+      test("converts Int to String") {
+        val path   = DynamicOptic.root.field("age")
+        val conv   = ValueExpr.PrimitiveConvert(ptInt, ptString)
+        val action = MigrationAction.ChangeType(path, conv)
+        val dv     = rec("age" -> int(42))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("age" -> str("42")))))
+      },
+      test("converts String to Int") {
+        val path   = DynamicOptic.root.field("age")
+        val conv   = ValueExpr.PrimitiveConvert(ptString, ptInt)
+        val action = MigrationAction.ChangeType(path, conv)
+        val dv     = rec("age" -> str("42"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("age" -> int(42)))))
+      },
+      test("fails on unparseable string") {
+        val path   = DynamicOptic.root.field("age")
+        val conv   = ValueExpr.PrimitiveConvert(ptString, ptInt)
+        val action = MigrationAction.ChangeType(path, conv)
+        val dv     = rec("age" -> str("not-a-number"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      }
+    ),
+    suite("PrimitiveConvert coverage")(
+      test("Byte widens to Short, Int, Long, Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def bv(b: Byte): DynamicValue                         = new DynamicValue.Primitive(new PrimitiveValue.Byte(b))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Byte(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bv(2))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Short(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Short(2))) &&
+        chk(PrimitiveType.Int(Validation.None), int(2)) &&
+        chk(PrimitiveType.Long(Validation.None), long(2L)) &&
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(2f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(2.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(2)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(2)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("2"))
+      },
+      test("Short widens to Int, Long, Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def sv(s: Short): DynamicValue                        = new DynamicValue.Primitive(new PrimitiveValue.Short(s))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Short(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> sv(3))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Int(Validation.None), int(3)) &&
+        chk(PrimitiveType.Long(Validation.None), long(3L)) &&
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(3f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(3.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(3)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(3)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("3"))
+      },
+      test("Int widens to Float, Double, BigInt, BigDecimal, Char") {
+        val path                                              = DynamicOptic.root.field("v")
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Int(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> int(65))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(65f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(65.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(65)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(65)))
+        ) &&
+        chk(PrimitiveType.Char(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Char('A')))
+      },
+      test("Long widens to Float, Double, BigInt, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def lv(l: Long): DynamicValue                         = new DynamicValue.Primitive(new PrimitiveValue.Long(l))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Long(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> lv(5L))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Float(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Float(5f))) &&
+        chk(PrimitiveType.Double(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.Double(5.0))) &&
+        chk(PrimitiveType.BigInt(Validation.None), new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(5)))) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(5)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("5"))
+      },
+      test("Float widens to Double, BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def fv(f: Float): DynamicValue                        = new DynamicValue.Primitive(new PrimitiveValue.Float(f))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Float(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> fv(1.5f))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.Double(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.Double(1.5f.toDouble))
+        ) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(1.5f.toDouble)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str(1.5f.toString))
+      },
+      test("Double widens to BigDecimal, String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def dv(d: Double): DynamicValue                       = new DynamicValue.Primitive(new PrimitiveValue.Double(d))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Double(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> dv(2.5))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(2.5)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("2.5"))
+      },
+      test("BigInt converts to BigDecimal and String") {
+        val path                                              = DynamicOptic.root.field("v")
+        def biv(n: BigInt): DynamicValue                      = new DynamicValue.Primitive(new PrimitiveValue.BigInt(n))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.BigInt(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> biv(BigInt(7)))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal(7)))
+        ) &&
+        chk(PrimitiveType.String(Validation.None), str("7"))
+      },
+      test("BigDecimal converts to String") {
+        val path   = DynamicOptic.root.field("v")
+        val bd     = BigDecimal("3.14")
+        val bdv    = new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(bd))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.BigDecimal(Validation.None), PrimitiveType.String(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bdv)))(
+          isRight(equalTo(rec("v" -> str("3.14"))))
+        )
+      },
+      test("Boolean converts to String") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Boolean(Validation.None), PrimitiveType.String(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bool(true))))(
+          isRight(equalTo(rec("v" -> str("true"))))
+        )
+      },
+      test("Char converts to Int and String") {
+        val path                                              = DynamicOptic.root.field("v")
+        val cv                                                = new DynamicValue.Primitive(new PrimitiveValue.Char('Z'))
+        def chk(to: PrimitiveType[_], expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.Char(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> cv)))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Int(Validation.None), int('Z'.toInt)) &&
+        chk(PrimitiveType.String(Validation.None), str("Z"))
+      },
+      test("String parses to Byte, Short, Long, Float, Double, BigInt, BigDecimal, Boolean") {
+        val path                                                           = DynamicOptic.root.field("v")
+        def chk(to: PrimitiveType[_], src: String, expected: DynamicValue) = {
+          val action =
+            MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(PrimitiveType.String(Validation.None), to))
+          assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> str(src))))(
+            isRight(equalTo(rec("v" -> expected)))
+          )
+        }
+        chk(PrimitiveType.Byte(Validation.None), "8", new DynamicValue.Primitive(new PrimitiveValue.Byte(8))) &&
+        chk(PrimitiveType.Short(Validation.None), "9", new DynamicValue.Primitive(new PrimitiveValue.Short(9))) &&
+        chk(PrimitiveType.Long(Validation.None), "10", long(10L)) &&
+        chk(PrimitiveType.Float(Validation.None), "1.1", new DynamicValue.Primitive(new PrimitiveValue.Float(1.1f))) &&
+        chk(PrimitiveType.Double(Validation.None), "2.2", new DynamicValue.Primitive(new PrimitiveValue.Double(2.2))) &&
+        chk(
+          PrimitiveType.BigInt(Validation.None),
+          "100",
+          new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt("100")))
+        ) &&
+        chk(
+          PrimitiveType.BigDecimal(Validation.None),
+          "1.23",
+          new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal("1.23")))
+        ) &&
+        chk(PrimitiveType.Boolean(Validation.None), "true", bool(true))
+      },
+      test("unsupported conversions return Left") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Boolean(Validation.None), PrimitiveType.Int(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bool(true))))(isLeft)
+      }
+    ),
+    suite("Join")(
+      test("concatenates two string fields with separator") {
+        val left   = DynamicOptic.root.field("first")
+        val right  = DynamicOptic.root.field("last")
+        val target = DynamicOptic.root.field("fullName")
+        val action = MigrationAction.Join(left, right, target, ValueExpr.Concat(" "))
+        val dv     = rec("first" -> str("John"), "last" -> str("Doe"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("first"))(isFalse) &&
+        assert(fields.map(_._1).contains("last"))(isFalse) &&
+        assert(fields.find(_._1 == "fullName").map(_._2))(isSome(equalTo(str("John Doe"))))
+      }
+    ),
+    suite("Split")(
+      test("splits a string field on separator") {
+        val from    = DynamicOptic.root.field("fullName")
+        val toLeft  = DynamicOptic.root.field("first")
+        val toRight = DynamicOptic.root.field("last")
+        val action  = MigrationAction.Split(from, toLeft, toRight, ValueExpr.StringSplit(" "))
+        val dv      = rec("fullName" -> str("John Doe"), "value" -> int(1))
+        val result  = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields  = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("fullName"))(isFalse) &&
+        assert(fields.find(_._1 == "first").map(_._2))(isSome(equalTo(str("John")))) &&
+        assert(fields.find(_._1 == "last").map(_._2))(isSome(equalTo(str("Doe"))))
+      },
+      test("split with no separator found puts full string left and empty right") {
+        val from    = DynamicOptic.root.field("name")
+        val toLeft  = DynamicOptic.root.field("first")
+        val toRight = DynamicOptic.root.field("rest")
+        val action  = MigrationAction.Split(from, toLeft, toRight, ValueExpr.StringSplit(" "))
+        val dv      = rec("name" -> str("Alice"))
+        val result  = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields  = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.find(_._1 == "first").map(_._2))(isSome(equalTo(str("Alice")))) &&
+        assert(fields.find(_._1 == "rest").map(_._2))(isSome(equalTo(str(""))))
+      }
+    ),
+    suite("TransformElements")(
+      test("applies a constant transform to each sequence element") {
+        val path   = DynamicOptic.root.field("tags")
+        val action = MigrationAction.TransformElements(path, ValueExpr.Constant(str("X")))
+        val dv     = rec("id" -> int(1), "tags" -> seq(str("a"), str("b"), str("c")))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val tags   = result.toOption.get
+          .asInstanceOf[DynamicValue.Record]
+          .fields
+          .find(_._1 == "tags")
+          .get
+          ._2
+          .asInstanceOf[DynamicValue.Sequence]
+          .elements
+        assert(result)(isRight) &&
+        assert(tags)(equalTo(Chunk.from(List(str("X"), str("X"), str("X")))))
+      },
+      test("fails when path does not address a Sequence") {
+        val path   = DynamicOptic.root.field("id")
+        val action = MigrationAction.TransformElements(path, ValueExpr.Constant(int(0)))
+        val dv     = rec("id" -> int(1))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      }
+    ),
+    suite("TransformKeys")(
+      test("applies a PrimitiveConvert to each map key (String→String via Constant)") {
+        val path   = DynamicOptic.root.field("counts")
+        val action = MigrationAction.TransformKeys(path, ValueExpr.Constant(str("k")))
+        val mapDv  = new DynamicValue.Map(Chunk.from(List(str("a") -> int(1), str("b") -> int(2))))
+        val dv     = rec("id" -> int(1), "counts" -> mapDv)
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight)
+      }
+    ),
+    suite("TransformValues")(
+      test("applies a constant transform to each map value") {
+        val path    = DynamicOptic.root.field("counts")
+        val action  = MigrationAction.TransformValues(path, ValueExpr.Constant(int(0)))
+        val mapDv   = new DynamicValue.Map(Chunk.from(List(str("a") -> int(1), str("b") -> int(2))))
+        val dv      = rec("id" -> int(1), "counts" -> mapDv)
+        val result  = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val entries = result.toOption.get
+          .asInstanceOf[DynamicValue.Record]
+          .fields
+          .find(_._1 == "counts")
+          .get
+          ._2
+          .asInstanceOf[DynamicValue.Map]
+          .entries
+        assert(result)(isRight) &&
+        assert(entries.map(_._2))(equalTo(Chunk.from(List(int(0), int(0)))))
+      }
+    ),
+    suite("RenameCase")(
+      test("renames a matching variant case at root") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
+        val dv     = new DynamicValue.Variant("Red", new DynamicValue.Record(Chunk.empty))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(
+          isRight(
+            equalTo(
+              new DynamicValue.Variant("Crimson", new DynamicValue.Record(Chunk.empty))
+            )
+          )
+        )
+      },
+      test("is a no-op when case name does not match") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")
+        val dv     = new DynamicValue.Variant("Blue", new DynamicValue.Record(Chunk.empty))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
+      }
+    ),
+    suite("TransformCase")(
+      test("transforms the inner value of a matching case at root") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Some",
+          DynamicMigration.transformPayload(ValueExpr.Constant(str("replaced")))
+        )
+        val dv     = new DynamicValue.Variant("Some", str("original"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(new DynamicValue.Variant("Some", str("replaced")))))
+      },
+      test("is a no-op when case name does not match") {
+        val action = MigrationAction.TransformCase(
+          DynamicOptic.root,
+          "Some",
+          DynamicMigration.transformPayload(ValueExpr.Constant(str("replaced")))
+        )
+        val dv = new DynamicValue.Variant("None", new DynamicValue.Record(Chunk.empty))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
+      }
+    ),
+    suite("reverse")(
+      test("AddField reverses to DropField") {
+        val path = DynamicOptic.root.field("x")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.AddField(path, ValueExpr.Constant(int(1)))))
+        m.reverse.actions.head match {
+          case MigrationAction.DropField(p) => assert(p)(equalTo(path))
+          case other                        => assert(other.toString)(equalTo("DropField"))
+        }
+      },
+      test("RenameField reverses by swapping path and newName") {
+        val path = DynamicOptic.root.field("name")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.RenameField(path, "fullName")))
+        m.reverse.actions.head match {
+          case MigrationAction.RenameField(p, n) =>
+            assert(p)(equalTo(DynamicOptic.root.field("fullName"))) &&
+            assert(n)(equalTo("name"))
+          case other => assert(other.toString)(equalTo("RenameField"))
+        }
+      },
+      test("ChangeType reverses by swapping from/to") {
+        val path = DynamicOptic.root.field("age")
+        val conv = ValueExpr.PrimitiveConvert(ptInt, ptLong)
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.ChangeType(path, conv)))
+        m.reverse.actions.head match {
+          case MigrationAction.ChangeType(_, ValueExpr.PrimitiveConvert(f, t)) =>
+            assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
+            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+          case other => assert(other.toString)(equalTo("ChangeType(reversed)"))
+        }
+      },
+      test("Mandate reverses to Optionalize") {
+        val path = DynamicOptic.root.field("label")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.Mandate(path, ValueExpr.DefaultValue)))
+        m.reverse.actions.head match {
+          case MigrationAction.Optionalize(p) => assert(p)(equalTo(path))
+          case other                          => assert(other.toString)(equalTo("Optionalize"))
+        }
+      },
+      test("Optionalize reverses to Mandate(DefaultValue)") {
+        val path = DynamicOptic.root.field("label")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.Optionalize(path)))
+        m.reverse.actions.head match {
+          case MigrationAction.Mandate(p, ValueExpr.DefaultValue) => assert(p)(equalTo(path))
+          case other                                              => assert(other.toString)(equalTo("Mandate"))
+        }
+      },
+      test("RenameCase reverses by swapping names") {
+        val m = new DynamicMigration(Chunk.single(MigrationAction.RenameCase(DynamicOptic.root, "Red", "Crimson")))
+        m.reverse.actions.head match {
+          case MigrationAction.RenameCase(at, f, t) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            assert(f)(equalTo("Crimson")) && assert(t)(equalTo("Red"))
+          case other => assert(other.toString)(equalTo("RenameCase"))
+        }
+      },
+      test("reverse actions are in reversed order") {
+        val m = new DynamicMigration(
+          Chunk.from(
+            List(
+              MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+              MigrationAction.RenameField(DynamicOptic.root.field("b"), "c")
+            )
+          )
+        )
+        val rev = m.reverse
+        assert(rev.actions.length)(equalTo(2)) &&
+        (rev.actions(0) match {
+          case MigrationAction.RenameField(p, _) => assert(p)(equalTo(DynamicOptic.root.field("c")))
+          case _                                 => assert(false)(isTrue)
+        }) &&
+        (rev.actions(1) match {
+          case MigrationAction.RenameField(p, _) => assert(p)(equalTo(DynamicOptic.root.field("b")))
+          case _                                 => assert(false)(isTrue)
+        })
+      }
+    ),
+    suite("Migration[A, B] typed layer")(
+      test("applies a rename and correctly round-trips through Schema") {
+        val m = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("active"),
+              ValueExpr.DefaultValue
+            )
+          )
+          .build
+        val result = m.apply(PersonV1("Alice", 30))
+        assert(result)(isRight(equalTo(PersonV2("Alice", 30, active = false))))
+      },
+      test("applies a ChangeType migration Int → Long") {
+        val m = MigrationBuilder[PersonV2, PersonV3](PersonV2.schema, PersonV3.schema)
+          .withAction(
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("age"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+          .build
+        val result = m.apply(PersonV2("Alice", 30, active = true))
+        assert(result)(isRight(equalTo(PersonV3("Alice", 30L, active = true))))
+      },
+      test("identity migration round-trips value unchanged") {
+        val m      = Migration.identity(PersonV1.schema)
+        val result = m.apply(PersonV1("Alice", 30))
+        assert(result)(isRight(equalTo(PersonV1("Alice", 30))))
+      },
+      test("andThen composes two migrations") {
+        val m1 = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("active"),
+              ValueExpr.DefaultValue
+            )
+          )
+          .build
+        val m2 = MigrationBuilder[PersonV2, PersonV3](PersonV2.schema, PersonV3.schema)
+          .withAction(
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("age"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+          .build
+        val result = m1.andThen(m2).apply(PersonV1("Bob", 25))
+        assert(result)(isRight(equalTo(PersonV3("Bob", 25L, active = false))))
+      },
+      test("++ composes two migrations") {
+        val m1 = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("active"),
+              ValueExpr.DefaultValue
+            )
+          )
+          .build
+        val m2 = MigrationBuilder[PersonV2, PersonV3](PersonV2.schema, PersonV3.schema)
+          .withAction(
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("age"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+          .build
+        val result = (m1 ++ m2).apply(PersonV1("Bob", 25))
+        assert(result)(isRight(equalTo(PersonV3("Bob", 25L, active = false))))
+      },
+      test("reverse of typed migration swaps fromSchema and toSchema") {
+        val m   = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema).build
+        val rev = m.reverse
+        assert(rev.fromSchema)(equalTo(PersonV2.schema)) &&
+        assert(rev.toSchema)(equalTo(PersonV1.schema))
+      },
+      test("Optionalize migration wraps a field in Some") {
+        val m = MigrationBuilder[WithMandatory, WithOptional](
+          WithMandatory.schema,
+          WithOptional.schema
+        ).withAction(MigrationAction.Optionalize(DynamicOptic.root.field("label"))).build
+        val result = m.apply(WithMandatory(1, "hello"))
+        assert(result)(isRight(equalTo(WithOptional(1, Some("hello")))))
+      },
+      test("Mandate migration with DefaultValue resolves from target schema") {
+        val m = MigrationBuilder[WithOptional, WithMandatory](
+          WithOptional.schema,
+          WithMandatory.schema
+        ).withAction(
+          MigrationAction.Mandate(
+            DynamicOptic.root.field("label"),
+            ValueExpr.DefaultValue
+          )
+        ).build
+        // None case: should use the default from WithMandatory.schema
+        val resultNone = m.apply(WithOptional(1, None))
+        assert(resultNone)(isRight(equalTo(WithMandatory(1, "default")))) &&
+        // Some case: should unwrap the value
+        assert(m.apply(WithOptional(1, Some("hello"))))(isRight(equalTo(WithMandatory(1, "hello"))))
+      }
+    ),
+    suite("MigrationBuilder low-level DSL")(
+      test("buildDynamic returns a DynamicMigration without schema info") {
+        val dm = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .buildDynamic
+        assert(dm.actions.length)(equalTo(1))
+      },
+      test("withActions appends multiple actions") {
+        val extra = Chunk.from(
+          List(
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+            MigrationAction.RenameField(DynamicOptic.root.field("b"), "c")
+          )
+        )
+        val b = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .withActions(extra)
+        assert(b.actions.length)(equalTo(2))
+      },
+      test("build validates action paths against source and target schemas") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .addField(_.fullName, ValueExpr.DefaultValue)
+              .transformElements(_.name, ValueExpr.Constant(str("x")))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch {
+            case ex: IllegalArgumentException => ex
+          }
+        assert(ex.getMessage)(containsString("must be a sequence"))
+      },
+      test("buildPartial skips validation") {
+        val result =
+          MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+            .transformElements(_.name, ValueExpr.Constant(str("x")))
+            .buildPartial
+        assert(result.migration.actions.length)(equalTo(1))
+      }
+    ),
+    suite("Macro DSL")(
+      test("selector macros build actions without exposing DynamicOptic") {
+        val migration = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .renameField(_.name, "fullName")
+          .addField(_.active, ValueExpr.DefaultValue)
+          .build
+
+        assert(migration.apply(PersonV1("Alice", 30)))(isRight(equalTo(PersonV2("Alice", 30, active = false))))
+      },
+      test("selector macros support nested each traversals") {
+        val migration = MigrationBuilder[HasNestedLists, HasNestedLists](HasNestedLists.schema, HasNestedLists.schema)
+          .transformValue(_.groups.each.tags.each, ValueExpr.Constant(str("patched")))
+          .buildPartial
+
+        val path = migration.migration.actions.head.asInstanceOf[MigrationAction.TransformValue].path
+        assert(path.toScalaString)(equalTo(".groups.each.tags.each"))
+      }
+    ),
+    suite("ValueExpr evaluation")(
+      test("DefaultValue fails at DynamicMigration level with clear message") {
+        val action = MigrationAction.AddField(DynamicOptic.root.field("x"), ValueExpr.DefaultValue)
+        val dv     = rec("a" -> int(1))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.message))(isSome(containsString("DefaultValue requires target schema")))
+      },
+      test("Concat fails as a unary transform") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root.field("x"),
+          ValueExpr.Concat("-")
+        )
+        val dv = rec("x" -> str("hello"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("StringSplit as unary produces a Sequence") {
+        val action = MigrationAction.TransformValue(
+          DynamicOptic.root.field("csv"),
+          ValueExpr.StringSplit(",")
+        )
+        val dv     = rec("csv" -> str("a,b,c"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "csv")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Sequence]
+            .elements
+            .length
+        )(equalTo(3))
+      },
+      test("error short-circuits remaining actions in DynamicMigration") {
+        // First action fails, second action should not run
+        val badAction  = MigrationAction.DropField(DynamicOptic.root.field("nonexistent"))
+        val goodAction = MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName")
+        val dv         = rec("name" -> str("Alice"))
+        val result     = new DynamicMigration(Chunk(badAction, goodAction)).apply(dv)
+        assert(result)(isLeft)
+      },
+      test("RenameField with empty path returns Left") {
+        val action = MigrationAction.RenameField(DynamicOptic.root, "newName")
+        val dv     = rec("name" -> str("Alice"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("resolveActions short-circuits on first DefaultValue resolution failure") {
+        val badPath = DynamicOptic.root.field("noDefault")
+        val actions = Chunk(
+          MigrationAction.AddField(badPath, ValueExpr.DefaultValue),
+          MigrationAction.AddField(DynamicOptic.root.field("other"), ValueExpr.DefaultValue)
+        )
+        val m = new Migration(PersonV1.schema, PersonV1.schema, new DynamicMigration(actions))
+        assert(m.apply(PersonV1("Bob", 25)))(isLeft)
+      },
+      test("DropField reverses to AddField(DefaultValue)") {
+        val path = DynamicOptic.root.field("x")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.DropField(path)))
+        m.reverse.actions.head match {
+          case MigrationAction.AddField(p, ValueExpr.DefaultValue) => assert(p)(equalTo(path))
+          case other                                               => assert(other.toString)(equalTo("AddField"))
+        }
+      },
+      test("TransformValue reverses to TransformValue with reversed expr") {
+        val path = DynamicOptic.root.field("x")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.TransformValue(path, ValueExpr.Constant(int(1)))))
+        m.reverse.actions.head match {
+          case MigrationAction.TransformValue(_, ValueExpr.DefaultValue) => assertCompletes
+          case other                                                     => assert(other.toString)(equalTo("TransformValue"))
+        }
+      },
+      test("Join reverses to Split") {
+        val l = DynamicOptic.root.field("a")
+        val r = DynamicOptic.root.field("b")
+        val t = DynamicOptic.root.field("c")
+        val m = new DynamicMigration(Chunk.single(MigrationAction.Join(l, r, t, ValueExpr.Concat("-"))))
+        m.reverse.actions.head match {
+          case MigrationAction.Split(from, toLeft, toRight, ValueExpr.StringSplit("-")) =>
+            assert(from)(equalTo(t)) && assert(toLeft)(equalTo(l)) && assert(toRight)(equalTo(r))
+          case other => assert(other.toString)(equalTo("Split"))
+        }
+      },
+      test("Split reverses to Join") {
+        val f = DynamicOptic.root.field("x")
+        val l = DynamicOptic.root.field("a")
+        val r = DynamicOptic.root.field("b")
+        val m = new DynamicMigration(Chunk.single(MigrationAction.Split(f, l, r, ValueExpr.StringSplit(","))))
+        m.reverse.actions.head match {
+          case MigrationAction.Join(left, right, target, ValueExpr.Concat(",")) =>
+            assert(left)(equalTo(l)) && assert(right)(equalTo(r)) && assert(target)(equalTo(f))
+          case other => assert(other.toString)(equalTo("Join"))
+        }
+      },
+      test("TransformElements reverses to TransformElements with reversed expr") {
+        val path = DynamicOptic.root.field("xs")
+        val conv = ValueExpr.PrimitiveConvert(ptInt, ptLong)
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.TransformElements(path, conv)))
+        m.reverse.actions.head match {
+          case MigrationAction.TransformElements(p, ValueExpr.PrimitiveConvert(f, t)) =>
+            assert(p)(equalTo(path)) &&
+            assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
+            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+          case other => assert(other.toString)(equalTo("TransformElements"))
+        }
+      },
+      test("TransformKeys reverses to TransformKeys with reversed expr") {
+        val path = DynamicOptic.root.field("m")
+        val conv = ValueExpr.PrimitiveConvert(ptInt, ptString)
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.TransformKeys(path, conv)))
+        m.reverse.actions.head match {
+          case MigrationAction.TransformKeys(p, ValueExpr.PrimitiveConvert(f, t)) =>
+            assert(p)(equalTo(path)) &&
+            assert(f.asInstanceOf[AnyRef])(equalTo(ptString.asInstanceOf[AnyRef])) &&
+            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+          case other => assert(other.toString)(equalTo("TransformKeys"))
+        }
+      },
+      test("TransformValues reverses to TransformValues with reversed expr") {
+        val path = DynamicOptic.root.field("m")
+        val conv = ValueExpr.PrimitiveConvert(ptInt, ptString)
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.TransformValues(path, conv)))
+        m.reverse.actions.head match {
+          case MigrationAction.TransformValues(p, ValueExpr.PrimitiveConvert(f, t)) =>
+            assert(p)(equalTo(path)) &&
+            assert(f.asInstanceOf[AnyRef])(equalTo(ptString.asInstanceOf[AnyRef])) &&
+            assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+          case other => assert(other.toString)(equalTo("TransformValues"))
+        }
+      },
+      test("TransformCase reverses inner DynamicMigration") {
+        val inner = DynamicMigration.transformPayload(ValueExpr.PrimitiveConvert(ptInt, ptLong))
+        val m     = new DynamicMigration(
+          Chunk.single(MigrationAction.TransformCase(DynamicOptic.root, "Foo", inner))
+        )
+        m.reverse.actions.head match {
+          case MigrationAction.TransformCase(at, "Foo", revInner) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            (revInner.actions.head match {
+              case MigrationAction.TransformValue(_, ValueExpr.PrimitiveConvert(f, t)) =>
+                assert(f.asInstanceOf[AnyRef])(equalTo(ptLong.asInstanceOf[AnyRef])) &&
+                assert(t.asInstanceOf[AnyRef])(equalTo(ptInt.asInstanceOf[AnyRef]))
+              case other => assert(other.toString)(equalTo("TransformValue"))
+            })
+          case other => assert(other.toString)(equalTo("TransformCase"))
+        }
+      },
+      test("evalBinaryExpr rejects non-Concat combiner in Join") {
+        val l      = DynamicOptic.root.field("a")
+        val r      = DynamicOptic.root.field("b")
+        val t      = DynamicOptic.root.field("c")
+        val action = MigrationAction.Join(l, r, t, ValueExpr.Constant(str("x")))
+        val dv     = rec("a" -> str("A"), "b" -> str("B"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("evalSplitExpr rejects non-StringSplit splitter in Split") {
+        val f      = DynamicOptic.root.field("x")
+        val l      = DynamicOptic.root.field("a")
+        val r      = DynamicOptic.root.field("b")
+        val action = MigrationAction.Split(f, l, r, ValueExpr.Constant(str("x")))
+        val dv     = rec("x" -> str("hello"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("PrimitiveConvert fails on non-Primitive value") {
+        val path   = DynamicOptic.root.field("x")
+        val action = MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(ptInt, ptLong))
+        val dv     = rec("x" -> rec("nested" -> int(1)))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("StringSplit fails on non-String value") {
+        val action = MigrationAction.TransformValue(DynamicOptic.root.field("x"), ValueExpr.StringSplit(","))
+        val dv     = rec("x" -> int(42))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("TransformKeys fails on non-Map value") {
+        val path   = DynamicOptic.root.field("x")
+        val action = MigrationAction.TransformKeys(path, ValueExpr.Constant(str("k")))
+        val dv     = rec("x" -> int(1))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("TransformValues fails on non-Map value") {
+        val path   = DynamicOptic.root.field("x")
+        val action = MigrationAction.TransformValues(path, ValueExpr.Constant(int(0)))
+        val dv     = rec("x" -> int(1))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("RenameField with nested parent path succeeds") {
+        val inner  = rec("name" -> str("Alice"), "age" -> int(30))
+        val dv     = rec("person" -> inner)
+        val path   = DynamicOptic.root.field("person").field("name")
+        val action = MigrationAction.RenameField(path, "fullName")
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) && {
+          val person = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "person").get._2
+          assert(person.asInstanceOf[DynamicValue.Record].fields.head._1)(equalTo("fullName"))
+        }
+      },
+      test("RenameField at root on non-Record returns Left") {
+        val path   = DynamicOptic.root.field("x")
+        val action = MigrationAction.RenameField(path, "y")
+        val dv     = str("not-a-record")
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("Join fails when Concat operands are not String") {
+        val l      = DynamicOptic.root.field("a")
+        val r      = DynamicOptic.root.field("b")
+        val t      = DynamicOptic.root.field("c")
+        val action = MigrationAction.Join(l, r, t, ValueExpr.Concat("-"))
+        val dv     = rec("a" -> int(1), "b" -> int(2))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("Split StringSplit fails on non-String focal") {
+        val f      = DynamicOptic.root.field("x")
+        val l      = DynamicOptic.root.field("a")
+        val r      = DynamicOptic.root.field("b")
+        val action = MigrationAction.Split(f, l, r, ValueExpr.StringSplit(","))
+        val dv     = rec("x" -> int(42))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("Migration.reverse swaps schemas and reverses migration") {
+        val m = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(
+            MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue)
+          )
+          .build
+        val rev = m.reverse
+        assert(rev.fromSchema)(equalTo(PersonV2.schema)) &&
+        assert(rev.toSchema)(equalTo(PersonV1.schema))
+      },
+      test("TransformCase nested inner migration runs multiple steps on payload") {
+        val inner = new DynamicMigration(
+          Chunk(
+            MigrationAction.TransformValue(DynamicOptic.root, ValueExpr.Constant(int(1))),
+            MigrationAction.TransformValue(DynamicOptic.root, ValueExpr.Constant(int(2)))
+          )
+        )
+        val action = MigrationAction.TransformCase(DynamicOptic.root, "U", inner)
+        val dv     = new DynamicValue.Variant("U", int(0))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(new DynamicValue.Variant("U", int(2)))))
+      },
+      test("MigrationError with path preserves path") {
+        val path = DynamicOptic.root.field("x")
+        val err  = MigrationError("test error", path)
+        assert(err.path)(equalTo(path)) && assert(err.message)(equalTo("test error"))
+      },
+      test("MigrationError without path defaults to root") {
+        val err = MigrationError("test error")
+        assert(err.path)(equalTo(DynamicOptic.root))
+      }
+    ),
+    suite("ApplyMigration")(
+      test("applies nested DynamicMigration to a field") {
+        val subMigration = new DynamicMigration(
+          Chunk.single(MigrationAction.RenameField(DynamicOptic.root.field("street"), "streetName"))
+        )
+        val addr   = rec("street" -> str("Main St"), "zip" -> int(12345))
+        val dv     = rec("name" -> str("Alice"), "address" -> addr)
+        val action = MigrationAction.ApplyMigration(DynamicOptic.root.field("address"), subMigration)
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) && {
+          val addrResult = result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "address")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+          assert(addrResult.head._1)(equalTo("streetName"))
+        }
+      },
+      test("propagates error from nested migration") {
+        val failingMigration = new DynamicMigration(
+          Chunk.single(MigrationAction.DropField(DynamicOptic.root.field("nonexistent")))
+        )
+        val addr   = rec("street" -> str("Main St"))
+        val dv     = rec("name" -> str("Alice"), "address" -> addr)
+        val action = MigrationAction.ApplyMigration(DynamicOptic.root.field("address"), failingMigration)
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.message))(isSome(containsString("ApplyMigration at")))
+      },
+      test("fails when path does not exist") {
+        val subMigration = DynamicMigration.identity
+        val dv           = rec("name" -> str("Alice"))
+        val action       = MigrationAction.ApplyMigration(DynamicOptic.root.field("missing"), subMigration)
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("reverses to ApplyMigration with reversed sub-migration") {
+        val subMigration = new DynamicMigration(
+          Chunk.single(MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"))
+        )
+        val path = DynamicOptic.root.field("address")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.ApplyMigration(path, subMigration)))
+        m.reverse.actions.head match {
+          case MigrationAction.ApplyMigration(p, rev) =>
+            assert(p)(equalTo(path)) &&
+            assert(rev.actions)(equalTo(subMigration.reverse.actions))
+          case other => assert(other.toString)(equalTo("ApplyMigration"))
+        }
+      },
+      test("reverse.reverse == original actions for ApplyMigration") {
+        val subMigration = new DynamicMigration(
+          Chunk.single(MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"))
+        )
+        val path = DynamicOptic.root.field("x")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.ApplyMigration(path, subMigration)))
+        assert(m.reverse.reverse.actions)(equalTo(m.actions))
+      },
+      test("migrateFieldAt builds ApplyMigration action") {
+        val subMigration = DynamicMigration.identity
+        val b            = MigrationBuilder[PersonWithAddr, PersonWithAddrV2](
+          PersonWithAddr.schema,
+          PersonWithAddrV2.schema
+        ).migrateFieldAt(DynamicOptic.root.field("address"), subMigration)
+        b.actions.head match {
+          case MigrationAction.ApplyMigration(path, _) =>
+            assert(path)(equalTo(DynamicOptic.root.field("address")))
+          case other => assert(other.toString)(equalTo("ApplyMigration"))
+        }
+      },
+      test("migrateField macro DSL applies nested typed migration") {
+        val addrMigration = MigrationBuilder[AddressV1, AddressV2](AddressV1.schema, AddressV2.schema)
+          .renameField(_.street, "streetName")
+          .changeType(_.zipCode, ValueExpr.PrimitiveConvert(ptInt, ptLong))
+          .build
+        val m = MigrationBuilder[PersonWithAddr, PersonWithAddrV2](
+          PersonWithAddr.schema,
+          PersonWithAddrV2.schema
+        ).migrateField(_.address, addrMigration).build
+        val result = m.apply(PersonWithAddr("Alice", AddressV1("Main St", 12345)))
+        assert(result)(isRight(equalTo(PersonWithAddrV2("Alice", AddressV2("Main St", 12345L)))))
+      },
+      test("ApplyMigration with identity sub-migration is a no-op") {
+        val dv     = rec("name" -> str("Alice"), "address" -> rec("street" -> str("Main")))
+        val action = MigrationAction.ApplyMigration(DynamicOptic.root.field("address"), DynamicMigration.identity)
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(dv)))
+      },
+      test("ApplyMigration in MigrationBuilder build validates source path") {
+        val ex =
+          try {
+            MigrationBuilder[PersonWithAddr, PersonWithAddrV2](PersonWithAddr.schema, PersonWithAddrV2.schema)
+              .migrateFieldAt(DynamicOptic.root.field("nonexistent"), DynamicMigration.identity)
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch {
+            case ex: IllegalArgumentException => ex
+          }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      }
+    ),
+    suite("Macro DSL extended")(
+      test("mandate macro DSL works") {
+        val m = MigrationBuilder[WithOptional, WithMandatory](WithOptional.schema, WithMandatory.schema)
+          .mandate(_.label, ValueExpr.DefaultValue)
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.Mandate(_, ValueExpr.DefaultValue) => assertCompletes
+          case other                                              => assert(other.toString)(equalTo("Mandate"))
+        })
+      },
+      test("optionalize macro DSL works") {
+        val m = MigrationBuilder[WithMandatory, WithOptional](WithMandatory.schema, WithOptional.schema)
+          .optionalize(_.label)
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.Optionalize(_) => assertCompletes
+          case other                          => assert(other.toString)(equalTo("Optionalize"))
+        })
+      },
+      test("changeType macro DSL works") {
+        val m = MigrationBuilder[PersonV2, PersonV3](PersonV2.schema, PersonV3.schema)
+          .changeType(_.age, ValueExpr.PrimitiveConvert(ptInt, ptLong))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.ChangeType(_, _) => assertCompletes
+          case other                            => assert(other.toString)(equalTo("ChangeType"))
+        })
+      },
+      test("transformElements macro DSL works") {
+        val m = MigrationBuilder[HasList, HasList](HasList.schema, HasList.schema)
+          .transformElements(_.tags, ValueExpr.Constant(str("x")))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.TransformElements(_, _) => assertCompletes
+          case other                                   => assert(other.toString)(equalTo("TransformElements"))
+        })
+      },
+      test("transformKeys macro DSL works") {
+        val m = MigrationBuilder[HasMap, HasMap](HasMap.schema, HasMap.schema)
+          .transformKeys(_.counts, ValueExpr.Constant(str("k")))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.TransformKeys(_, _) => assertCompletes
+          case other                               => assert(other.toString)(equalTo("TransformKeys"))
+        })
+      },
+      test("transformValues macro DSL works") {
+        val m = MigrationBuilder[HasMap, HasMap](HasMap.schema, HasMap.schema)
+          .transformValues(_.counts, ValueExpr.Constant(int(0)))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.TransformValues(_, _) => assertCompletes
+          case other                                 => assert(other.toString)(equalTo("TransformValues"))
+        })
+      },
+      test("dropField macro DSL works") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .dropField(_.age)
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.DropField(_) => assertCompletes
+          case other                        => assert(other.toString)(equalTo("DropField"))
+        })
+      },
+      test("transformValue macro DSL works") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .transformValue(_.name, ValueExpr.Constant(str("anon")))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.TransformValue(_, _) => assertCompletes
+          case other                                => assert(other.toString)(equalTo("TransformValue"))
+        })
+      },
+      test("join macro DSL works") {
+        val m = MigrationBuilder[FullName, Combined](FullName.schema, Combined.schema)
+          .join(_.first, _.last, _.fullName, ValueExpr.Concat(" "))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.Join(_, _, _, _) => assertCompletes
+          case other                            => assert(other.toString)(equalTo("Join"))
+        })
+      },
+      test("split macro DSL works") {
+        val m = MigrationBuilder[Combined, Split](Combined.schema, Split.schema)
+          .split(_.fullName, _.first, _.last, ValueExpr.StringSplit(" "))
+          .buildPartial
+        assert(m.migration.actions.length)(equalTo(1)) &&
+        (m.migration.actions.head match {
+          case MigrationAction.Split(_, _, _, _) => assertCompletes
+          case other                             => assert(other.toString)(equalTo("Split"))
+        })
+      }
+    ),
+    suite("Migration[A, B] typed layer — extended")(
+      test("Join migration round-trips through Schema") {
+        val m = MigrationBuilder[FullName, Combined](FullName.schema, Combined.schema)
+          .join(_.first, _.last, _.fullName, ValueExpr.Concat(" "))
+          .withAction(
+            MigrationAction.AddField(DynamicOptic.root.field("value"), ValueExpr.Constant(int(0)))
+          )
+          .buildPartial
+        val result = m.apply(FullName("John", "Doe"))
+        assert(result)(isRight(equalTo(Combined("John Doe", 0))))
+      },
+      test("Split migration round-trips through Schema") {
+        // Combined(fullName, value) → Split(first, last, value)
+        // value survives the split; we only need to split fullName → first + last
+        val m = MigrationBuilder[Combined, Split](Combined.schema, Split.schema)
+          .split(_.fullName, _.first, _.last, ValueExpr.StringSplit(" "))
+          .buildPartial
+        val result = m.apply(Combined("John Doe", 99))
+        assert(result)(isRight(equalTo(Split("John", "Doe", 99))))
+      },
+      test("RenameCase migration transforms enum variant") {
+        val m = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .renameCase((c: Color) => c, "Red", "Crimson")
+          .buildPartial
+        val result = m.apply(Red)
+        assert(result)(isLeft) // Crimson is not a valid Color case, schema decode fails
+      },
+      test("renameCase at nested field produces path-based RenameCase") {
+        val b = MigrationBuilder[Painted, Painted](Painted.schema, Painted.schema)
+          .renameCase(_.color, "Red", "Crimson")
+        b.actions.head match {
+          case MigrationAction.RenameCase(p, "Red", "Crimson") =>
+            assert(p)(equalTo(DynamicOptic.root.field("color")))
+          case other => assert(other.toString)(equalTo("RenameCase"))
+        }
+      },
+      test("renameCase builder produces correct action") {
+        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .renameCase((c: Color) => c, "Red", "Crimson")
+        b.actions.head match {
+          case MigrationAction.RenameCase(at, "Red", "Crimson") =>
+            assert(at)(equalTo(DynamicOptic.root))
+          case other => assert(other.toString)(equalTo("RenameCase"))
+        }
+      },
+      test("transformCase builder produces correct action") {
+        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .transformCase((c: Color) => c, "Blue", ValueExpr.Constant(str("replaced")))
+        b.actions.head match {
+          case MigrationAction.TransformCase(at, "Blue", inner) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            assert(inner.actions.length)(equalTo(1))
+          case other => assert(other.toString)(equalTo("TransformCase"))
+        }
+      },
+      test("Migration.andThen law: equal to sequential apply") {
+        val m1 = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue))
+          .build
+        val m2 = MigrationBuilder[PersonV2, PersonV3](PersonV2.schema, PersonV3.schema)
+          .withAction(
+            MigrationAction.ChangeType(DynamicOptic.root.field("age"), ValueExpr.PrimitiveConvert(ptInt, ptLong))
+          )
+          .build
+        val composed   = m1.andThen(m2).apply(PersonV1("Alice", 25))
+        val sequential = m1.apply(PersonV1("Alice", 25)).flatMap(m2.apply)
+        assert(composed)(equalTo(sequential))
+      },
+      test("Optionalize then Mandate round-trip") {
+        val opt = MigrationBuilder[WithMandatory, WithOptional](WithMandatory.schema, WithOptional.schema)
+          .optionalize(_.label)
+          .build
+        val man = MigrationBuilder[WithOptional, WithMandatory](WithOptional.schema, WithMandatory.schema)
+          .mandate(_.label, ValueExpr.DefaultValue)
+          .build
+        val result = opt.apply(WithMandatory(1, "hello")).flatMap(man.apply)
+        assert(result)(isRight(equalTo(WithMandatory(1, "hello"))))
+      },
+      test("Migration identity ++ m == m") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .withAction(MigrationAction.TransformValue(DynamicOptic.root.field("name"), ValueExpr.Constant(str("X"))))
+          .build
+        val idM = Migration.identity(PersonV1.schema)
+        assert((idM ++ m).apply(PersonV1("Alice", 30)))(equalTo(m.apply(PersonV1("Alice", 30))))
+      }
+    ),
+    suite("DynamicMigration edge cases")(
+      test("TransformElements on empty sequence succeeds") {
+        val path   = DynamicOptic.root.field("tags")
+        val action = MigrationAction.TransformElements(path, ValueExpr.Constant(str("x")))
+        val dv     = rec("id" -> int(1), "tags" -> seq())
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight)
+      },
+      test("TransformKeys on empty map succeeds") {
+        val path   = DynamicOptic.root.field("m")
+        val action = MigrationAction.TransformKeys(path, ValueExpr.Constant(str("k")))
+        val dv     = rec("m" -> new DynamicValue.Map(Chunk.empty))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight)
+      },
+      test("TransformValues on empty map succeeds") {
+        val path   = DynamicOptic.root.field("m")
+        val action = MigrationAction.TransformValues(path, ValueExpr.Constant(int(0)))
+        val dv     = rec("m" -> new DynamicValue.Map(Chunk.empty))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight)
+      },
+      test("multiple RenameField actions execute in order") {
+        val dv = rec("a" -> int(1))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+            MigrationAction.RenameField(DynamicOptic.root.field("b"), "c")
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.head._1
+        )(equalTo("c"))
+      },
+      test("AddField then TransformValue chain") {
+        val dv = rec("name" -> str("Alice"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(DynamicOptic.root.field("score"), ValueExpr.Constant(int(0))),
+            MigrationAction.TransformValue(DynamicOptic.root.field("score"), ValueExpr.Constant(int(100)))
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "score")
+            .map(_._2)
+        )(isSome(equalTo(int(100))))
+      },
+      test("DropField then AddField round-trip restores field name") {
+        val dv = rec("x" -> int(42), "y" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.DropField(DynamicOptic.root.field("x")),
+            MigrationAction.AddField(DynamicOptic.root.field("x"), ValueExpr.Constant(int(0)))
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "x").map(_._2)
+        )(isSome(equalTo(int(0))))
+      },
+      test("TransformElements with PrimitiveConvert on each element") {
+        val path   = DynamicOptic.root.field("nums")
+        val action = MigrationAction.TransformElements(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Int(Validation.None), PrimitiveType.Long(Validation.None))
+        )
+        val dv     = rec("nums" -> seq(int(1), int(2), int(3)))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "nums")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Sequence]
+            .elements
+        )(equalTo(Chunk.from(List(long(1L), long(2L), long(3L)))))
+      },
+      test("RenameCase is no-op when focal is not a Variant") {
+        val action = MigrationAction.RenameCase(DynamicOptic.root.field("color"), "Red", "Crimson")
+        val dv     = rec("color" -> str("Red"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isRight(equalTo(dv)))
+      },
+      test("structural reverse preserves action count for all 17 action types") {
+        val path    = DynamicOptic.root.field("x")
+        val path2   = DynamicOptic.root.field("xcopy")
+        val subM    = DynamicMigration.identity
+        val actions = Chunk[MigrationAction](
+          MigrationAction.AddField(path, ValueExpr.Constant(int(1))),
+          MigrationAction.DropField(path),
+          MigrationAction.RenameField(path, "y"),
+          MigrationAction.TransformValue(path, ValueExpr.Constant(int(2))),
+          MigrationAction.Mandate(path, ValueExpr.DefaultValue),
+          MigrationAction.Optionalize(path),
+          MigrationAction.ChangeType(path, ValueExpr.PrimitiveConvert(ptInt, ptLong)),
+          MigrationAction.Join(path, DynamicOptic.root.field("y"), DynamicOptic.root.field("z"), ValueExpr.Concat("-")),
+          MigrationAction
+            .Split(path, DynamicOptic.root.field("a"), DynamicOptic.root.field("b"), ValueExpr.StringSplit("-")),
+          MigrationAction.TransformElements(path, ValueExpr.Constant(int(0))),
+          MigrationAction.TransformKeys(path, ValueExpr.Constant(str("k"))),
+          MigrationAction.TransformValues(path, ValueExpr.Constant(int(0))),
+          MigrationAction.RenameCase(DynamicOptic.root, "A", "B"),
+          MigrationAction.TransformCase(
+            DynamicOptic.root,
+            "A",
+            DynamicMigration.transformPayload(ValueExpr.Constant(int(0)))
+          ),
+          MigrationAction.ApplyMigration(path, subM),
+          MigrationAction.CopyField(path, path2),
+          MigrationAction.MoveField(path, path2)
+        )
+        val m = new DynamicMigration(actions)
+        // Verify all 17 actions are reversed (count check avoids PrimitiveType equality issues in Scala 2.13)
+        assert(m.reverse.actions.length)(equalTo(17))
+      }
+    ),
+    suite("MigrationBuilder validation — extended")(
+      test("build fails when RenameField renamed path not in target schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .renameField(_.name, "nonExistentField")
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch {
+            case ex: IllegalArgumentException => ex
+          }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("build succeeds for valid join action") {
+        val result =
+          scala.util.Try {
+            MigrationBuilder[FullName, Combined](FullName.schema, Combined.schema)
+              .join(_.first, _.last, _.fullName, ValueExpr.Concat(" "))
+              .withAction(MigrationAction.AddField(DynamicOptic.root.field("value"), ValueExpr.Constant(int(0))))
+              .build
+          }
+        assert(result.isSuccess)(isTrue)
+      },
+      test("build succeeds for valid split action") {
+        val result =
+          scala.util.Try {
+            MigrationBuilder[Combined, Split](Combined.schema, Split.schema)
+              .split(_.fullName, _.first, _.last, ValueExpr.StringSplit(" "))
+              .withAction(MigrationAction.AddField(DynamicOptic.root.field("value"), ValueExpr.Constant(int(0))))
+              .build
+          }
+        assert(result.isSuccess)(isTrue)
+      },
+      test("build fails when ChangeType target path is missing from target schema") {
+        val ex =
+          try {
+            // PersonV2 has fullName not name; using _.name targets PersonV1.name which
+            // does not exist in PersonV2, triggering missingTarget validation failure
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .addField(_.active, ValueExpr.DefaultValue)
+              .changeType(_.name, ValueExpr.PrimitiveConvert(ptInt, ptLong))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch {
+            case ex: IllegalArgumentException => ex
+          }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("build fails when Mandate source is not Option") {
+        val ex =
+          try {
+            MigrationBuilder[WithMandatory, WithMandatory](WithMandatory.schema, WithMandatory.schema)
+              .mandate(_.label, ValueExpr.DefaultValue)
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch {
+            case ex: IllegalArgumentException => ex
+          }
+        assert(ex.getMessage)(containsString("must be an Option"))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // CopyField
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("CopyField")(
+      test("copies source value to new field and leaves source intact") {
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("name"), DynamicOptic.root.field("alias"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.find(_._1 == "name").map(_._2))(isSome(equalTo(str("Alice")))) &&
+        assert(fields.find(_._1 == "alias").map(_._2))(isSome(equalTo(str("Alice"))))
+      },
+      test("result has both source and copy fields") {
+        val dv         = rec("x" -> int(42))
+        val action     = MigrationAction.CopyField(DynamicOptic.root.field("x"), DynamicOptic.root.field("xCopy"))
+        val result     = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("x"))(isTrue) &&
+        assert(fieldNames.contains("xCopy"))(isTrue)
+      },
+      test("fails when source path does not exist") {
+        val dv     = rec("name" -> str("Alice"))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("missing"), DynamicOptic.root.field("alias"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("fails when target path already exists") {
+        val dv     = rec("name" -> str("Alice"), "alias" -> str("exists"))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("name"), DynamicOptic.root.field("alias"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("reverses to DropField at the copy target") {
+        val from = DynamicOptic.root.field("name")
+        val to   = DynamicOptic.root.field("alias")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.CopyField(from, to)))
+        m.reverse.actions.head match {
+          case MigrationAction.DropField(p) => assert(p)(equalTo(to))
+          case other                        => assert(other.toString)(equalTo("DropField(alias)"))
+        }
+      },
+      test("CopyField then DropField(from) produces same result as MoveField") {
+        val dv    = rec("x" -> int(42), "y" -> str("hello"))
+        val copyM = new DynamicMigration(
+          Chunk(
+            MigrationAction.CopyField(DynamicOptic.root.field("x"), DynamicOptic.root.field("z")),
+            MigrationAction.DropField(DynamicOptic.root.field("x"))
+          )
+        )
+        val moveM = new DynamicMigration(
+          Chunk.single(MigrationAction.MoveField(DynamicOptic.root.field("x"), DynamicOptic.root.field("z")))
+        )
+        assert(copyM.apply(dv))(equalTo(moveM.apply(dv)))
+      },
+      test("copies a nested record value") {
+        val inner  = rec("street" -> str("Main St"), "zip" -> int(12345))
+        val dv     = rec("address" -> inner)
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("address"), DynamicOptic.root.field("backup"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "backup").map(_._2)
+        )(isSome(equalTo(inner)))
+      },
+      test("copies a sequence value") {
+        val tags   = seq(str("a"), str("b"))
+        val dv     = rec("tags" -> tags, "id" -> int(1))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("tags"), DynamicOptic.root.field("backup"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "backup").map(_._2)
+        )(isSome(equalTo(tags)))
+      },
+      test("copyFieldAt builds CopyField action with correct paths") {
+        val from = DynamicOptic.root.field("name")
+        val to   = DynamicOptic.root.field("alias")
+        val b    = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema).copyFieldAt(from, to)
+        b.actions.head match {
+          case MigrationAction.CopyField(f, t) => assert(f)(equalTo(from)) && assert(t)(equalTo(to))
+          case other                           => assert(other.toString)(equalTo("CopyField"))
+        }
+      },
+      test("copyField macro DSL produces CopyField with correct paths") {
+        val b = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .copyField(_.name, _.fullName)
+        b.actions.head match {
+          case MigrationAction.CopyField(f, t) =>
+            assert(f)(equalTo(DynamicOptic.root.field("name"))) &&
+            assert(t)(equalTo(DynamicOptic.root.field("fullName")))
+          case other => assert(other.toString)(equalTo("CopyField"))
+        }
+      },
+      test("build fails when CopyField source path is not in source schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .copyFieldAt(DynamicOptic.root.field("nonexistent"), DynamicOptic.root.field("fullName"))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("build fails when CopyField target path is not in target schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .copyFieldAt(DynamicOptic.root.field("name"), DynamicOptic.root.field("nonexistent"))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("CopyField preserved original value type (bool)") {
+        val dv     = rec("active" -> bool(true))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("active"), DynamicOptic.root.field("flag"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "flag").map(_._2)
+        )(isSome(equalTo(bool(true))))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MoveField
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MoveField")(
+      test("moves value to target and removes source field") {
+        val dv     = rec("name" -> str("Alice"), "age" -> int(30))
+        val action = MigrationAction.MoveField(DynamicOptic.root.field("name"), DynamicOptic.root.field("fullName"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("name"))(isFalse) &&
+        assert(fields.find(_._1 == "fullName").map(_._2))(isSome(equalTo(str("Alice"))))
+      },
+      test("source field is absent after move") {
+        val dv         = rec("x" -> int(42))
+        val action     = MigrationAction.MoveField(DynamicOptic.root.field("x"), DynamicOptic.root.field("y"))
+        val result     = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("x"))(isFalse) &&
+        assert(fieldNames.contains("y"))(isTrue)
+      },
+      test("target field carries the moved value") {
+        val dv     = rec("score" -> long(99L), "label" -> str("Bob"))
+        val action = MigrationAction.MoveField(DynamicOptic.root.field("score"), DynamicOptic.root.field("points"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "points").map(_._2)
+        )(isSome(equalTo(long(99L))))
+      },
+      test("fails when source path does not exist") {
+        val dv     = rec("name" -> str("Alice"))
+        val action = MigrationAction.MoveField(DynamicOptic.root.field("missing"), DynamicOptic.root.field("target"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("fails when target path already exists") {
+        val dv     = rec("name" -> str("Alice"), "fullName" -> str("exists"))
+        val action = MigrationAction.MoveField(DynamicOptic.root.field("name"), DynamicOptic.root.field("fullName"))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("reverses to MoveField with from and to swapped") {
+        val from = DynamicOptic.root.field("a")
+        val to   = DynamicOptic.root.field("b")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.MoveField(from, to)))
+        m.reverse.actions.head match {
+          case MigrationAction.MoveField(f, t) => assert(f)(equalTo(to)) && assert(t)(equalTo(from))
+          case other                           => assert(other.toString)(equalTo("MoveField(reversed)"))
+        }
+      },
+      test("reverse.reverse equals original for MoveField") {
+        val from = DynamicOptic.root.field("x")
+        val to   = DynamicOptic.root.field("y")
+        val m    = new DynamicMigration(Chunk.single(MigrationAction.MoveField(from, to)))
+        assert(m.reverse.reverse.actions)(equalTo(m.actions))
+      },
+      test("moveFieldAt builds MoveField action with correct paths") {
+        val from = DynamicOptic.root.field("name")
+        val to   = DynamicOptic.root.field("alias")
+        val b    = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema).moveFieldAt(from, to)
+        b.actions.head match {
+          case MigrationAction.MoveField(f, t) => assert(f)(equalTo(from)) && assert(t)(equalTo(to))
+          case other                           => assert(other.toString)(equalTo("MoveField"))
+        }
+      },
+      test("moveField macro DSL produces MoveField with correct paths") {
+        val b = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .moveField(_.name, _.fullName)
+        b.actions.head match {
+          case MigrationAction.MoveField(f, t) =>
+            assert(f)(equalTo(DynamicOptic.root.field("name"))) &&
+            assert(t)(equalTo(DynamicOptic.root.field("fullName")))
+          case other => assert(other.toString)(equalTo("MoveField"))
+        }
+      },
+      test("build fails when MoveField source path is not in source schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .moveFieldAt(DynamicOptic.root.field("nonexistent"), DynamicOptic.root.field("fullName"))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("build fails when MoveField target path is not in target schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .moveFieldAt(DynamicOptic.root.field("name"), DynamicOptic.root.field("nonexistent"))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("MoveField then TransformValue on the moved field") {
+        val dv = rec("score" -> int(10), "label" -> str("Alice"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.MoveField(DynamicOptic.root.field("score"), DynamicOptic.root.field("points")),
+            MigrationAction.TransformValue(DynamicOptic.root.field("points"), ValueExpr.Constant(int(100)))
+          )
+        )
+        val result = m.apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("score"))(isFalse) &&
+        assert(fields.find(_._1 == "points").map(_._2))(isSome(equalTo(int(100))))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // DynamicMigration laws — extended
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("DynamicMigration laws — extended")(
+      test("identity has empty actions") {
+        assert(DynamicMigration.identity.actions.length)(equalTo(0))
+      },
+      test("identity applied to a Variant returns the Variant unchanged") {
+        val dv = new DynamicValue.Variant("Red", new DynamicValue.Record(Chunk.empty))
+        assert(DynamicMigration.identity.apply(dv))(isRight(equalTo(dv)))
+      },
+      test("identity applied to a Sequence returns the Sequence unchanged") {
+        val dv = seq(int(1), int(2), int(3))
+        assert(DynamicMigration.identity.apply(dv))(isRight(equalTo(dv)))
+      },
+      test("reverse of identity has empty actions") {
+        assert(DynamicMigration.identity.reverse.actions.length)(equalTo(0))
+      },
+      test("m ++ identity has same action length as m") {
+        val m = new DynamicMigration(Chunk.single(MigrationAction.RenameField(DynamicOptic.root.field("a"), "b")))
+        assert((m ++ DynamicMigration.identity).actions.length)(equalTo(m.actions.length))
+      },
+      test("identity ++ m has same action length as m") {
+        val m = new DynamicMigration(Chunk.single(MigrationAction.RenameField(DynamicOptic.root.field("a"), "b")))
+        assert((DynamicMigration.identity ++ m).actions.length)(equalTo(m.actions.length))
+      },
+      test("m1 ++ m2 has action count equal to sum of lengths") {
+        val m1 = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+            MigrationAction.RenameField(DynamicOptic.root.field("b"), "c")
+          )
+        )
+        val m2 = new DynamicMigration(
+          Chunk.single(MigrationAction.TransformValue(DynamicOptic.root.field("c"), ValueExpr.Constant(int(0))))
+        )
+        assert((m1 ++ m2).actions.length)(equalTo(3))
+      },
+      test("reverse has same action count as original") {
+        val m = new DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(DynamicOptic.root.field("x"), ValueExpr.Constant(int(1))),
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+            MigrationAction.Optionalize(DynamicOptic.root.field("c"))
+          )
+        )
+        assert(m.reverse.actions.length)(equalTo(m.actions.length))
+      },
+      test("apply short-circuits after first Left") {
+        val dv       = rec("name" -> str("Alice"))
+        val bad      = MigrationAction.DropField(DynamicOptic.root.field("nonexistent"))
+        val sentinel = MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName")
+        val result   = new DynamicMigration(Chunk(bad, sentinel)).apply(dv)
+        assert(result)(isLeft)
+      },
+      test("actions accumulate correctly across withAction calls") {
+        val b = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "x"))
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("x"), "y"))
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("y"), "z"))
+        assert(b.actions.length)(equalTo(3))
+      },
+      test("a migration with all rename actions can be applied and reversed") {
+        val dv = rec("a" -> int(1), "b" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "p"),
+            MigrationAction.RenameField(DynamicOptic.root.field("b"), "q")
+          )
+        )
+        val forward    = m.apply(dv)
+        val fieldNames = forward.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(forward)(isRight) &&
+        assert(fieldNames.contains("p"))(isTrue) &&
+        assert(fieldNames.contains("q"))(isTrue) &&
+        assert(fieldNames.contains("a"))(isFalse)
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // ValueExpr evaluation — additional edge cases
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("ValueExpr evaluation — additional")(
+      test("Constant expr ignores focal value and always returns the constant") {
+        val action = MigrationAction.TransformValue(DynamicOptic.root.field("x"), ValueExpr.Constant(int(999)))
+        val dv     = rec("x" -> str("anything"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("x" -> int(999)))))
+      },
+      test("StringSplit with multi-char separator splits correctly") {
+        val action = MigrationAction.TransformValue(DynamicOptic.root.field("s"), ValueExpr.StringSplit("::"))
+        val dv     = rec("s" -> str("a::b::c"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "s")
+            .get
+            ._2
+            .asInstanceOf[DynamicValue.Sequence]
+            .elements
+            .length
+        )(equalTo(3))
+      },
+      test("StringSplit separator not found: left = full string, right = empty string") {
+        val action = MigrationAction.Split(
+          DynamicOptic.root.field("fullName"),
+          DynamicOptic.root.field("first"),
+          DynamicOptic.root.field("last"),
+          ValueExpr.StringSplit("-")
+        )
+        val dv     = rec("fullName" -> str("Alice"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.find(_._1 == "first").map(_._2))(isSome(equalTo(str("Alice")))) &&
+        assert(fields.find(_._1 == "last").map(_._2))(isSome(equalTo(str(""))))
+      },
+      test("PrimitiveConvert Short → Boolean is unsupported and returns Left") {
+        val path   = DynamicOptic.root.field("v")
+        val sv     = new DynamicValue.Primitive(new PrimitiveValue.Short(1))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Short(Validation.None), PrimitiveType.Boolean(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> sv)))(isLeft)
+      },
+      test("PrimitiveConvert Double → Int is unsupported and returns Left") {
+        val path   = DynamicOptic.root.field("v")
+        val dv2    = new DynamicValue.Primitive(new PrimitiveValue.Double(3.14))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Double(Validation.None), PrimitiveType.Int(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> dv2)))(isLeft)
+      },
+      test("PrimitiveConvert Float → Short is unsupported and returns Left") {
+        val path   = DynamicOptic.root.field("v")
+        val fv     = new DynamicValue.Primitive(new PrimitiveValue.Float(1.5f))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Float(Validation.None), PrimitiveType.Short(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> fv)))(isLeft)
+      },
+      test("PrimitiveConvert Boolean → Int is unsupported and returns Left") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.Boolean(Validation.None), PrimitiveType.Int(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bool(true))))(isLeft)
+      },
+      test("PrimitiveConvert BigDecimal → Long is unsupported and returns Left") {
+        val path   = DynamicOptic.root.field("v")
+        val bdv    = new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(BigDecimal("1.5")))
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.BigDecimal(Validation.None), PrimitiveType.Long(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> bdv)))(isLeft)
+      },
+      test("evalBinaryExpr: Concat on non-String right operand returns Left") {
+        val l      = DynamicOptic.root.field("a")
+        val r      = DynamicOptic.root.field("b")
+        val t      = DynamicOptic.root.field("c")
+        val action = MigrationAction.Join(l, r, t, ValueExpr.Concat("-"))
+        val dv     = rec("a" -> str("hello"), "b" -> int(42))
+        assert(new DynamicMigration(Chunk.single(action)).apply(dv))(isLeft)
+      },
+      test("TransformValue with String → Long conversion") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.TransformValue(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.String(Validation.None), PrimitiveType.Long(Validation.None))
+        )
+        val dv     = rec("v" -> str("12345"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight(equalTo(rec("v" -> long(12345L)))))
+      },
+      test("String parses to Int via PrimitiveConvert") {
+        val path   = DynamicOptic.root.field("v")
+        val action = MigrationAction.ChangeType(
+          path,
+          ValueExpr.PrimitiveConvert(PrimitiveType.String(Validation.None), PrimitiveType.Int(Validation.None))
+        )
+        assert(new DynamicMigration(Chunk.single(action)).apply(rec("v" -> str("99"))))(
+          isRight(equalTo(rec("v" -> int(99))))
+        )
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MigrationBuilder path-explicit methods
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MigrationBuilder path-explicit methods")(
+      test("addFieldAt builds AddField action") {
+        val path = DynamicOptic.root.field("score")
+        val b    = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .addFieldAt(path, ValueExpr.DefaultValue)
+        b.actions.head match {
+          case MigrationAction.AddField(p, ValueExpr.DefaultValue) => assert(p)(equalTo(path))
+          case other                                               => assert(other.toString)(equalTo("AddField"))
+        }
+      },
+      test("dropFieldAt builds DropField action") {
+        val path = DynamicOptic.root.field("name")
+        val b    = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema).dropFieldAt(path)
+        b.actions.head match {
+          case MigrationAction.DropField(p) => assert(p)(equalTo(path))
+          case other                        => assert(other.toString)(equalTo("DropField"))
+        }
+      },
+      test("renameFieldAt builds RenameField action") {
+        val path = DynamicOptic.root.field("name")
+        val b    = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema).renameFieldAt(path, "fullName")
+        b.actions.head match {
+          case MigrationAction.RenameField(p, n) => assert(p)(equalTo(path)) && assert(n)(equalTo("fullName"))
+          case other                             => assert(other.toString)(equalTo("RenameField"))
+        }
+      },
+      test("transformValueAt builds TransformValue action") {
+        val path = DynamicOptic.root.field("age")
+        val b    = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .transformValueAt(path, ValueExpr.Constant(int(0)))
+        b.actions.head match {
+          case MigrationAction.TransformValue(p, _) => assert(p)(equalTo(path))
+          case other                                => assert(other.toString)(equalTo("TransformValue"))
+        }
+      },
+      test("mandateAt builds Mandate action") {
+        val path = DynamicOptic.root.field("label")
+        val b    = MigrationBuilder[WithOptional, WithMandatory](WithOptional.schema, WithMandatory.schema)
+          .mandateAt(path, ValueExpr.DefaultValue)
+        b.actions.head match {
+          case MigrationAction.Mandate(p, ValueExpr.DefaultValue) => assert(p)(equalTo(path))
+          case other                                              => assert(other.toString)(equalTo("Mandate"))
+        }
+      },
+      test("optionalizeAt builds Optionalize action") {
+        val path = DynamicOptic.root.field("label")
+        val b    = MigrationBuilder[WithMandatory, WithOptional](WithMandatory.schema, WithOptional.schema)
+          .optionalizeAt(path)
+        b.actions.head match {
+          case MigrationAction.Optionalize(p) => assert(p)(equalTo(path))
+          case other                          => assert(other.toString)(equalTo("Optionalize"))
+        }
+      },
+      test("changeTypeAt builds ChangeType action") {
+        val path = DynamicOptic.root.field("age")
+        val conv = ValueExpr.PrimitiveConvert(ptInt, ptLong)
+        val b    = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema).changeTypeAt(path, conv)
+        b.actions.head match {
+          case MigrationAction.ChangeType(p, _) => assert(p)(equalTo(path))
+          case other                            => assert(other.toString)(equalTo("ChangeType"))
+        }
+      },
+      test("joinAt builds Join action") {
+        val l = DynamicOptic.root.field("first")
+        val r = DynamicOptic.root.field("last")
+        val t = DynamicOptic.root.field("fullName")
+        val b = MigrationBuilder[FullName, Combined](FullName.schema, Combined.schema)
+          .joinAt(l, r, t, ValueExpr.Concat(" "))
+        b.actions.head match {
+          case MigrationAction.Join(lp, rp, tp, _) =>
+            assert(lp)(equalTo(l)) && assert(rp)(equalTo(r)) && assert(tp)(equalTo(t))
+          case other => assert(other.toString)(equalTo("Join"))
+        }
+      },
+      test("splitAt builds Split action") {
+        val f  = DynamicOptic.root.field("fullName")
+        val tl = DynamicOptic.root.field("first")
+        val tr = DynamicOptic.root.field("last")
+        val b  = MigrationBuilder[Combined, Split](Combined.schema, Split.schema)
+          .splitAt(f, tl, tr, ValueExpr.StringSplit(" "))
+        b.actions.head match {
+          case MigrationAction.Split(fp, tlp, trp, _) =>
+            assert(fp)(equalTo(f)) && assert(tlp)(equalTo(tl)) && assert(trp)(equalTo(tr))
+          case other => assert(other.toString)(equalTo("Split"))
+        }
+      },
+      test("transformElementsAt builds TransformElements action") {
+        val path = DynamicOptic.root.field("tags")
+        val b    = MigrationBuilder[HasList, HasList](HasList.schema, HasList.schema)
+          .transformElementsAt(path, ValueExpr.Constant(str("x")))
+        b.actions.head match {
+          case MigrationAction.TransformElements(p, _) => assert(p)(equalTo(path))
+          case other                                   => assert(other.toString)(equalTo("TransformElements"))
+        }
+      },
+      test("transformKeysAt builds TransformKeys action") {
+        val path = DynamicOptic.root.field("counts")
+        val b    = MigrationBuilder[HasMap, HasMap](HasMap.schema, HasMap.schema)
+          .transformKeysAt(path, ValueExpr.Constant(str("k")))
+        b.actions.head match {
+          case MigrationAction.TransformKeys(p, _) => assert(p)(equalTo(path))
+          case other                               => assert(other.toString)(equalTo("TransformKeys"))
+        }
+      },
+      test("transformValuesAt builds TransformValues action") {
+        val path = DynamicOptic.root.field("counts")
+        val b    = MigrationBuilder[HasMap, HasMap](HasMap.schema, HasMap.schema)
+          .transformValuesAt(path, ValueExpr.Constant(int(0)))
+        b.actions.head match {
+          case MigrationAction.TransformValues(p, _) => assert(p)(equalTo(path))
+          case other                                 => assert(other.toString)(equalTo("TransformValues"))
+        }
+      },
+      test("renameCase builds RenameCase action") {
+        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .renameCase((c: Color) => c, "Red", "Crimson")
+        b.actions.head match {
+          case MigrationAction.RenameCase(at, f, t) =>
+            assert(at)(equalTo(DynamicOptic.root)) &&
+            assert(f)(equalTo("Red")) && assert(t)(equalTo("Crimson"))
+          case other => assert(other.toString)(equalTo("RenameCase"))
+        }
+      },
+      test("transformCase builds TransformCase action") {
+        val b = MigrationBuilder[Color, Color](Color.schema, Color.schema)
+          .transformCase((c: Color) => c, "Blue", ValueExpr.Constant(str("blue")))
+        b.actions.head match {
+          case MigrationAction.TransformCase(at, n, _) =>
+            assert(at)(equalTo(DynamicOptic.root)) && assert(n)(equalTo("Blue"))
+          case other => assert(other.toString)(equalTo("TransformCase"))
+        }
+      },
+      test("migrateFieldAt builds ApplyMigration action") {
+        val path = DynamicOptic.root.field("address")
+        val sub  = DynamicMigration.identity
+        val b    = MigrationBuilder[PersonWithAddr, PersonWithAddrV2](PersonWithAddr.schema, PersonWithAddrV2.schema)
+          .migrateFieldAt(path, sub)
+        b.actions.head match {
+          case MigrationAction.ApplyMigration(p, _) => assert(p)(equalTo(path))
+          case other                                => assert(other.toString)(equalTo("ApplyMigration"))
+        }
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Migration[A, B] composition laws
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Migration[A, B] composition laws")(
+      test("identity migration has no actions") {
+        assert(Migration.identity(PersonV1.schema).migration.actions.length)(equalTo(0))
+      },
+      test("identity migration fromSchema equals toSchema") {
+        val id = Migration.identity(PersonV1.schema)
+        assert(id.fromSchema)(equalTo(id.toSchema))
+      },
+      test("reverse swaps fromSchema and toSchema") {
+        val m   = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema).build
+        val rev = m.reverse
+        assert(rev.fromSchema)(equalTo(PersonV2.schema)) && assert(rev.toSchema)(equalTo(PersonV1.schema))
+      },
+      test("reverse has same migration action count as original") {
+        val m = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue))
+          .build
+        assert(m.reverse.migration.actions.length)(equalTo(m.migration.actions.length))
+      },
+      test("m ++ identity applies only m") {
+        val m  = Migration.identity(PersonV1.schema)
+        val id = Migration.identity(PersonV1.schema)
+        assert((m ++ id).apply(PersonV1("Alice", 30)))(equalTo(m.apply(PersonV1("Alice", 30))))
+      },
+      test("identity ++ m applies only m") {
+        val m  = Migration.identity(PersonV1.schema)
+        val id = Migration.identity(PersonV1.schema)
+        assert((id ++ m).apply(PersonV1("Bob", 25)))(equalTo(m.apply(PersonV1("Bob", 25))))
+      },
+      test("m.andThen(identity) is equivalent to m") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .withAction(MigrationAction.TransformValue(DynamicOptic.root.field("name"), ValueExpr.Constant(str("X"))))
+          .build
+        val id = Migration.identity(PersonV1.schema)
+        assert(m.andThen(id).apply(PersonV1("Alice", 30)))(equalTo(m.apply(PersonV1("Alice", 30))))
+      },
+      test("identity.andThen(m) is equivalent to m") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .withAction(MigrationAction.TransformValue(DynamicOptic.root.field("name"), ValueExpr.Constant(str("Y"))))
+          .build
+        val id = Migration.identity(PersonV1.schema)
+        assert(id.andThen(m).apply(PersonV1("Alice", 30)))(equalTo(m.apply(PersonV1("Alice", 30))))
+      },
+      test("migration.actions accessible from buildPartial result") {
+        val b = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.DefaultValue))
+        val m = b.buildPartial
+        assert(m.migration.actions.length)(equalTo(2))
+      },
+      test("buildDynamic returns DynamicMigration with correct action count") {
+        val dm = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .withAction(MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"))
+          .withAction(MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.Constant(bool(false))))
+          .withAction(MigrationAction.AddField(DynamicOptic.root.field("active"), ValueExpr.Constant(bool(false))))
+          .buildDynamic
+        assert(dm.actions.length)(equalTo(3))
+      },
+      test("fromSchema and toSchema are accessible on builder") {
+        val b = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+        assert(b.fromSchema)(equalTo(PersonV1.schema)) && assert(b.toSchema)(equalTo(PersonV2.schema))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MigrationBuilder validation — per action type
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MigrationBuilder validation — per action type")(
+      test("AddField fails when target path not in target schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .withAction(MigrationAction.AddField(DynamicOptic.root.field("nosuchfield"), ValueExpr.DefaultValue))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("DropField fails when source path not in source schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .withAction(MigrationAction.DropField(DynamicOptic.root.field("nosuchfield")))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("TransformValue fails when source path not in source schema") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .withAction(
+                MigrationAction.TransformValue(DynamicOptic.root.field("nosuchfield"), ValueExpr.Constant(int(0)))
+              )
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("Optionalize fails when source path not in source schema") {
+        val ex =
+          try {
+            MigrationBuilder[WithMandatory, WithOptional](WithMandatory.schema, WithOptional.schema)
+              .withAction(MigrationAction.Optionalize(DynamicOptic.root.field("nosuchfield")))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("TransformElements fails when source is not a sequence") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+              .withAction(
+                MigrationAction.TransformElements(DynamicOptic.root.field("name"), ValueExpr.Constant(str("x")))
+              )
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("must be a sequence"))
+      },
+      test("TransformKeys fails when source is not a map") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+              .withAction(MigrationAction.TransformKeys(DynamicOptic.root.field("name"), ValueExpr.Constant(str("k"))))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("must be a map"))
+      },
+      test("TransformValues fails when source is not a map") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+              .withAction(MigrationAction.TransformValues(DynamicOptic.root.field("name"), ValueExpr.Constant(int(0))))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("must be a map"))
+      },
+      test("ChangeType fails when source path is not primitive") {
+        val ex =
+          try {
+            MigrationBuilder[HasList, HasList](HasList.schema, HasList.schema)
+              .withAction(
+                MigrationAction.ChangeType(
+                  DynamicOptic.root.field("tags"),
+                  ValueExpr.PrimitiveConvert(ptInt, ptLong)
+                )
+              )
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("must be a primitive"))
+      },
+      test("RenameField fails when source path missing") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .withAction(MigrationAction.RenameField(DynamicOptic.root.field("nosuchfield"), "x"))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("Join fails when left source path missing") {
+        val ex =
+          try {
+            MigrationBuilder[FullName, Combined](FullName.schema, Combined.schema)
+              .withAction(
+                MigrationAction.Join(
+                  DynamicOptic.root.field("nosuchfield"),
+                  DynamicOptic.root.field("last"),
+                  DynamicOptic.root.field("fullName"),
+                  ValueExpr.Concat(" ")
+                )
+              )
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("source schema has no node"))
+      },
+      test("Split fails when left target path missing") {
+        val ex =
+          try {
+            MigrationBuilder[Combined, Split](Combined.schema, Split.schema)
+              .withAction(
+                MigrationAction.Split(
+                  DynamicOptic.root.field("fullName"),
+                  DynamicOptic.root.field("nosuchfield"),
+                  DynamicOptic.root.field("last"),
+                  ValueExpr.StringSplit(" ")
+                )
+              )
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("target schema has no node"))
+      },
+      test("multiple invalid actions accumulate multiple error messages") {
+        val ex =
+          try {
+            MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+              .withAction(MigrationAction.DropField(DynamicOptic.root.field("nosuch1")))
+              .withAction(MigrationAction.DropField(DynamicOptic.root.field("nosuch2")))
+              .build
+            throw new RuntimeException("expected build to fail")
+          } catch { case ex: IllegalArgumentException => ex }
+        assert(ex.getMessage)(containsString("nosuch1")) &&
+        assert(ex.getMessage)(containsString("nosuch2"))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // Structural action chains (integration-style)
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("Structural action chains")(
+      test("RenameField then ChangeType chain") {
+        val dv = rec("name" -> str("Alice"), "age" -> int(30))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"),
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("age"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+        )
+        val result = m.apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("fullName"))(isTrue) &&
+        assert(fields.map(_._1).contains("name"))(isFalse) &&
+        assert(fields.find(_._1 == "age").map(_._2))(isSome(equalTo(long(30L))))
+      },
+      test("AddField then Mandate chain") {
+        val dv = rec("id" -> int(1))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(DynamicOptic.root.field("label"), ValueExpr.Constant(some(str("hello")))),
+            MigrationAction.Mandate(DynamicOptic.root.field("label"), ValueExpr.Constant(str("default")))
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "label").map(_._2)
+        )(isSome(equalTo(str("hello"))))
+      },
+      test("Optionalize then TransformValue wraps and overwrites") {
+        val dv = rec("id" -> int(1), "label" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.Optionalize(DynamicOptic.root.field("label")),
+            MigrationAction.TransformValue(
+              DynamicOptic.root.field("label"),
+              ValueExpr.Constant(some(str("replaced")))
+            )
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "label").map(_._2)
+        )(isSome(equalTo(some(str("replaced")))))
+      },
+      test("multiple CopyField actions produce multiple new fields") {
+        val dv = rec("x" -> int(1), "y" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.CopyField(DynamicOptic.root.field("x"), DynamicOptic.root.field("x1")),
+            MigrationAction.CopyField(DynamicOptic.root.field("y"), DynamicOptic.root.field("y1"))
+          )
+        )
+        val result     = m.apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("x"))(isTrue) &&
+        assert(fieldNames.contains("x1"))(isTrue) &&
+        assert(fieldNames.contains("y"))(isTrue) &&
+        assert(fieldNames.contains("y1"))(isTrue)
+      },
+      test("multiple MoveField actions chain correctly") {
+        val dv = rec("a" -> int(1), "b" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.MoveField(DynamicOptic.root.field("a"), DynamicOptic.root.field("p")),
+            MigrationAction.MoveField(DynamicOptic.root.field("b"), DynamicOptic.root.field("q"))
+          )
+        )
+        val result     = m.apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("a"))(isFalse) &&
+        assert(fieldNames.contains("b"))(isFalse) &&
+        assert(fieldNames.contains("p"))(isTrue) &&
+        assert(fieldNames.contains("q"))(isTrue)
+      },
+      test("MoveField then RenameField on the moved field") {
+        val dv = rec("score" -> int(10))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.MoveField(DynamicOptic.root.field("score"), DynamicOptic.root.field("points")),
+            MigrationAction.RenameField(DynamicOptic.root.field("points"), "finalScore")
+          )
+        )
+        val result     = m.apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("finalScore"))(isTrue) &&
+        assert(fieldNames.contains("score"))(isFalse)
+      },
+      test("CopyField then MoveField combo") {
+        val dv = rec("src" -> int(42))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.CopyField(DynamicOptic.root.field("src"), DynamicOptic.root.field("copy1")),
+            MigrationAction.MoveField(DynamicOptic.root.field("copy1"), DynamicOptic.root.field("copy2"))
+          )
+        )
+        val result     = m.apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames.contains("src"))(isTrue) &&
+        assert(fieldNames.contains("copy1"))(isFalse) &&
+        assert(fieldNames.contains("copy2"))(isTrue)
+      },
+      test("ApplyMigration with multi-action sub-migration") {
+        val subM = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("street"), "streetName"),
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("zipCode"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+        )
+        val addr       = rec("street" -> str("Main St"), "zipCode" -> int(12345))
+        val dv         = rec("name" -> str("Alice"), "address" -> addr)
+        val action     = MigrationAction.ApplyMigration(DynamicOptic.root.field("address"), subM)
+        val result     = new DynamicMigration(Chunk.single(action)).apply(dv)
+        val addrFields = result.toOption.get
+          .asInstanceOf[DynamicValue.Record]
+          .fields
+          .find(_._1 == "address")
+          .get
+          ._2
+          .asInstanceOf[DynamicValue.Record]
+          .fields
+          .map(_._1)
+        assert(result)(isRight) &&
+        assert(addrFields.contains("streetName"))(isTrue) &&
+        assert(addrFields.contains("street"))(isFalse)
+      },
+      test("TransformElements followed by TransformValues on separate fields") {
+        val tags  = seq(str("a"), str("b"))
+        val mapDv = new DynamicValue.Map(Chunk.from(List(str("k") -> int(1))))
+        val dv    = rec("tags" -> tags, "counts" -> mapDv)
+        val m     = new DynamicMigration(
+          Chunk(
+            MigrationAction.TransformElements(DynamicOptic.root.field("tags"), ValueExpr.Constant(str("X"))),
+            MigrationAction.TransformValues(DynamicOptic.root.field("counts"), ValueExpr.Constant(int(99)))
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) && {
+          val rec2   = result.toOption.get.asInstanceOf[DynamicValue.Record]
+          val elems  = rec2.fields.find(_._1 == "tags").get._2.asInstanceOf[DynamicValue.Sequence].elements
+          val values = rec2.fields.find(_._1 == "counts").get._2.asInstanceOf[DynamicValue.Map].entries.map(_._2)
+          assert(elems)(equalTo(Chunk(str("X"), str("X")))) &&
+          assert(values)(equalTo(Chunk(int(99))))
+        }
+      },
+      test("ChangeType for Int → Long → BigInt widening chain") {
+        val dv = rec("v" -> int(7))
+        val m1 = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("v"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+        )
+        val m2 = new DynamicMigration(
+          Chunk.single(
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("v"),
+              ValueExpr.PrimitiveConvert(PrimitiveType.Long(Validation.None), PrimitiveType.BigInt(Validation.None))
+            )
+          )
+        )
+        val result = (m1 ++ m2).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "v").map(_._2)
+        )(isSome(equalTo(new DynamicValue.Primitive(new PrimitiveValue.BigInt(BigInt(7))))))
+      },
+      test("three-step RenameField chain") {
+        val dv = rec("a" -> int(1))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(DynamicOptic.root.field("a"), "b"),
+            MigrationAction.RenameField(DynamicOptic.root.field("b"), "c"),
+            MigrationAction.RenameField(DynamicOptic.root.field("c"), "d")
+          )
+        )
+        val result     = m.apply(dv)
+        val fieldNames = result.toOption.get.asInstanceOf[DynamicValue.Record].fields.map(_._1)
+        assert(result)(isRight) &&
+        assert(fieldNames)(equalTo(Chunk("d")))
+      },
+      test("RenameCase then TransformCase combo") {
+        val dv = new DynamicValue.Variant("Old", str("payload"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameCase(DynamicOptic.root, "Old", "New"),
+            MigrationAction.TransformCase(
+              DynamicOptic.root,
+              "New",
+              DynamicMigration.transformPayload(ValueExpr.Constant(str("updated")))
+            )
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight(equalTo(new DynamicValue.Variant("New", str("updated")))))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // MigrationError properties
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("MigrationError properties")(
+      test("CopyField error message references the source path") {
+        val path   = DynamicOptic.root.field("missing")
+        val action = MigrationAction.CopyField(path, DynamicOptic.root.field("alias"))
+        val dv     = rec("name" -> str("Alice"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.path))(isSome(equalTo(path)))
+      },
+      test("MoveField error message references the source path when source missing") {
+        val path   = DynamicOptic.root.field("missing")
+        val action = MigrationAction.MoveField(path, DynamicOptic.root.field("target"))
+        val dv     = rec("name" -> str("Alice"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.path))(isSome(equalTo(path)))
+      },
+      test("ApplyMigration error message includes path prefix") {
+        val failingM = new DynamicMigration(Chunk.single(MigrationAction.DropField(DynamicOptic.root.field("x"))))
+        val path     = DynamicOptic.root.field("addr")
+        val action   = MigrationAction.ApplyMigration(path, failingM)
+        val dv       = rec("addr" -> rec("y" -> int(1)))
+        val result   = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.message))(isSome(containsString(".addr")))
+      },
+      test("Mandate error mentions expected type when not an Option") {
+        val path   = DynamicOptic.root.field("id")
+        val action = MigrationAction.Mandate(path, ValueExpr.Constant(int(0)))
+        val dv     = rec("id" -> int(5))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.message))(isSome(containsString("expected an Option")))
+      },
+      test("RenameField with non-Field last node error path is preserved") {
+        val path   = DynamicOptic.root.at(0)
+        val action = MigrationAction.RenameField(path, "x")
+        val dv     = rec("a" -> int(1))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft)
+      },
+      test("MigrationError apply with path preserves both fields") {
+        val path = DynamicOptic.root.field("addr").field("zip")
+        val err  = MigrationError("zip error", path)
+        assert(err.message)(equalTo("zip error")) && assert(err.path)(equalTo(path))
+      },
+      test("MigrationError apply without path defaults to root") {
+        val err = MigrationError("root error")
+        assert(err.path)(equalTo(DynamicOptic.root))
+      },
+      test("DropField on non-existent path reports Left with path") {
+        val path   = DynamicOptic.root.field("gone")
+        val action = MigrationAction.DropField(path)
+        val dv     = rec("name" -> str("Alice"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isLeft) &&
+        assert(result.left.toOption.map(_.path))(isSome(equalTo(path)))
+      }
+    ),
+    // ─────────────────────────────────────────────────────────────────────────
+    // CopyField and MoveField — end-to-end via typed Migration
+    // ─────────────────────────────────────────────────────────────────────────
+    suite("CopyField and MoveField — end-to-end")(
+      test("CopyField via buildPartial and apply produces duplication") {
+        val m = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .copyFieldAt(DynamicOptic.root.field("name"), DynamicOptic.root.field("alias"))
+          .buildPartial
+        val dv     = PersonV1.schema.toDynamicValue(PersonV1("Alice", 30))
+        val result = m.migration.apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("name"))(isTrue) &&
+        assert(fields.find(_._1 == "alias").map(_._2))(isSome(equalTo(fields.find(_._1 == "name").get._2)))
+      },
+      test("MoveField via buildPartial moves the field") {
+        val m = MigrationBuilder[PersonV1, PersonV2](PersonV1.schema, PersonV2.schema)
+          .moveFieldAt(DynamicOptic.root.field("name"), DynamicOptic.root.field("fullName"))
+          .buildPartial
+        val dv     = PersonV1.schema.toDynamicValue(PersonV1("Alice", 30))
+        val result = m.migration.apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.map(_._1).contains("name"))(isFalse) &&
+        assert(fields.find(_._1 == "fullName").map(_._2))(isSome(equalTo(str("Alice"))))
+      },
+      test("CopyField of int value preserves value equality") {
+        val dv     = rec("age" -> int(25))
+        val action = MigrationAction.CopyField(DynamicOptic.root.field("age"), DynamicOptic.root.field("ageCopy"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "ageCopy").map(_._2)
+        )(isSome(equalTo(int(25))))
+      },
+      test("MoveField of long value preserves value equality") {
+        val dv     = rec("score" -> long(12345L))
+        val action = MigrationAction.MoveField(DynamicOptic.root.field("score"), DynamicOptic.root.field("points"))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "points").map(_._2)
+        )(isSome(equalTo(long(12345L))))
+      },
+      test("CopyField in multi-step migration with ChangeType on the copy") {
+        val dv = rec("age" -> int(30))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.CopyField(DynamicOptic.root.field("age"), DynamicOptic.root.field("ageLong")),
+            MigrationAction.ChangeType(
+              DynamicOptic.root.field("ageLong"),
+              ValueExpr.PrimitiveConvert(ptInt, ptLong)
+            )
+          )
+        )
+        val result = m.apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "ageLong").map(_._2)
+        )(isSome(equalTo(long(30L)))) &&
+        assert(
+          result.toOption.get.asInstanceOf[DynamicValue.Record].fields.find(_._1 == "age").map(_._2)
+        )(isSome(equalTo(int(30))))
+      },
+      test("MoveField then AddField at vacated slot") {
+        val dv = rec("x" -> int(1), "y" -> str("hello"))
+        val m  = new DynamicMigration(
+          Chunk(
+            MigrationAction.MoveField(DynamicOptic.root.field("x"), DynamicOptic.root.field("z")),
+            MigrationAction.AddField(DynamicOptic.root.field("x"), ValueExpr.Constant(int(99)))
+          )
+        )
+        val result = m.apply(dv)
+        val fields = result.toOption.get.asInstanceOf[DynamicValue.Record].fields
+        assert(result)(isRight) &&
+        assert(fields.find(_._1 == "x").map(_._2))(isSome(equalTo(int(99)))) &&
+        assert(fields.find(_._1 == "z").map(_._2))(isSome(equalTo(int(1))))
+      },
+      test("reverse of CopyField-based migration has DropField at end") {
+        val from = DynamicOptic.root.field("name")
+        val to   = DynamicOptic.root.field("alias")
+        val m    = new DynamicMigration(
+          Chunk(
+            MigrationAction.RenameField(from, "fullName"),
+            MigrationAction.CopyField(DynamicOptic.root.field("fullName"), to)
+          )
+        )
+        val rev = m.reverse
+        // reversed order: DropField(to) first, then RenameField reversed
+        assert(rev.actions.length)(equalTo(2)) &&
+        (rev.actions(0) match {
+          case MigrationAction.DropField(p) => assert(p)(equalTo(to))
+          case other                        => assert(other.toString)(equalTo("DropField(alias)"))
+        })
+      },
+      test("reverse of MoveField migration produces MoveField with swapped paths") {
+        val from = DynamicOptic.root.field("score")
+        val to   = DynamicOptic.root.field("points")
+        val m    = new DynamicMigration(
+          Chunk(
+            MigrationAction.AddField(from, ValueExpr.Constant(int(0))),
+            MigrationAction.MoveField(from, to)
+          )
+        )
+        val rev = m.reverse
+        assert(rev.actions.length)(equalTo(2)) &&
+        (rev.actions(0) match {
+          case MigrationAction.MoveField(f, t) => assert(f)(equalTo(to)) && assert(t)(equalTo(from))
+          case other                           => assert(other.toString)(equalTo("MoveField(reversed)"))
+        })
+      },
+      test("CopyField and MoveField actions coexist in same builder chain") {
+        val b = MigrationBuilder[PersonV1, PersonV1](PersonV1.schema, PersonV1.schema)
+          .copyFieldAt(DynamicOptic.root.field("name"), DynamicOptic.root.field("alias"))
+          .moveFieldAt(DynamicOptic.root.field("age"), DynamicOptic.root.field("years"))
+        assert(b.actions.length)(equalTo(2)) &&
+        (b.actions(0) match {
+          case MigrationAction.CopyField(_, _) => assertCompletes
+          case other                           => assert(other.toString)(equalTo("CopyField"))
+        }) &&
+        (b.actions(1) match {
+          case MigrationAction.MoveField(_, _) => assertCompletes
+          case other                           => assert(other.toString)(equalTo("MoveField"))
+        })
+      },
+      test("TransformCase at nested path runs inner migration on variant payload") {
+        val inner  = DynamicMigration.transformPayload(ValueExpr.Constant(str("ok")))
+        val action = MigrationAction.TransformCase(DynamicOptic.root.field("label"), "Some", inner)
+        val dv     = rec("id" -> int(1), "label" -> new DynamicValue.Variant("Some", str("old")))
+        val result = new DynamicMigration(Chunk.single(action)).apply(dv)
+        assert(result)(isRight) &&
+        assert(
+          result.toOption.get
+            .asInstanceOf[DynamicValue.Record]
+            .fields
+            .find(_._1 == "label")
+            .get
+            ._2
+        )(equalTo(new DynamicValue.Variant("Some", str("ok"))))
+      }
+    )
+  )
+}
