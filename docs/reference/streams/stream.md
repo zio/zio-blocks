@@ -1317,14 +1317,6 @@ val managed = Stream(1, 2, 3)
 val result = managed.runCollect
 ```
 
-### Comparison of Resource Management Approaches
-
-| Method | Best For | Scope |
-|--------|----------|-------|
-| `fromAcquireRelease` | One resource acquired for entire stream | Full stream lifetime |
-| `fromResource` | Composable resources via `Resource` API | Full stream lifetime |
-| `ensuring` | Simple finalizer logic (cleanup, logging) | Any stream |
-
 ## Running Streams
 
 All terminal operations are synchronous and return `Either[E, Z]`. The error type is the union of the stream's error type and any sink-specific error type.
