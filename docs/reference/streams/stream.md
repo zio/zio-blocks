@@ -788,6 +788,29 @@ val expanded = ids.flatMap(id => Stream(s"${id}-a", s"${id}-b"))
 val result = expanded.runCollect
 ```
 
+#### `Stream.flattenAll[E, A]`
+
+Flattens a stream of streams into a single stream, processing them sequentially:
+
+```scala
+object Stream {
+  def flattenAll[E, A](streams: Stream[E, Stream[E, A]]): Stream[E, A]
+}
+```
+
+This is equivalent to `flatMap(identity)`. Use `flattenAll` when you already have a stream of streams and want to flatten it without applying a transformation:
+
+```scala mdoc:nest
+import zio.blocks.streams.*
+
+val nested = Stream.fromIterable(List(
+  Stream(1, 2),
+  Stream(3, 4)
+))
+val flat = Stream.flattenAll(nested)
+val result = flat.runCollect
+```
+
 ## Windowing
 
 Streams can be grouped, sliced, and scanned to process data in temporal windows. These operations group elements into chunks and slide windows over the stream for batch processing:
@@ -881,29 +904,6 @@ val nums = Stream(1, 2, 3)
 val chars = Stream('a', 'b')
 val zipped = nums && chars
 val result = zipped.runCollect
-```
-
-#### `Stream.flattenAll[E, A]`
-
-Flattens a stream of streams into a single stream, processing them sequentially:
-
-```scala
-object Stream {
-  def flattenAll[E, A](streams: Stream[E, Stream[E, A]]): Stream[E, A]
-}
-```
-
-This is equivalent to `flatMap(identity)`:
-
-```scala mdoc:nest
-import zio.blocks.streams.*
-
-val nested = Stream.fromIterable(List(
-  Stream(1, 2),
-  Stream(3, 4)
-))
-val flat = Stream.flattenAll(nested)
-val result = flat.runCollect
 ```
 
 ## Other Operations
