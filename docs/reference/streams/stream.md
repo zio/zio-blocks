@@ -1565,28 +1565,13 @@ trait Stream[+E, +A] {
 
 Use `start` to manually pull elements within a resource scope:
 
-```scala
-import zio.blocks.streams.*
-import zio.blocks.streams.io.Reader
-import zio.blocks.scope.*
+```scala mdoc:passthrough
+import docs.SourceFile
 
-Scope.global.scoped { scope =>
-  import scope.*
-
-  // Open a stream for manual pulling
-  val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
-
-  $(reader) { r =>
-    // Iterate through reader values using the pull protocol directly
-    var current = r.read(-1)
-    while (current != -1) {
-      println(current) // prints 1, 2, 3, 4, 5
-      current = r.read(-1)
-    }
-  }
-  // reader is closed automatically when scope exits
-}
+SourceFile.print("streams-examples/src/main/scala/stream/ManualPullUsingStart.scala")
 ```
+
+Use `Stream#start` when you need element-by-element control rather than running through a Sink. The returned Reader is closed automatically when the scope closes.
 
 ### The Reader Protocol
 
