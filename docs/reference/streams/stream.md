@@ -659,7 +659,7 @@ val doubled = nums.map(_ * 2)
 val result = doubled.runCollect
 ```
 
-**Key point:** `map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
+**Key point:** `Stream#map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
 
 #### `Stream#mapError[E2]`
 
@@ -778,7 +778,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`flatMap` is sequential: streams are processed one at a time, in order. This is essential for resource safety: if each inner stream acquires a resource, `flatMap` ensures they are released in proper FIFO order:
+`Stream#flatMap` is sequential: streams are processed one at a time, in order. This is essential for resource safety: if each inner stream acquires a resource, `Stream#flatMap` ensures they are released in proper FIFO order:
 
 ```scala mdoc:nest
 import zio.blocks.streams.*
@@ -1274,7 +1274,7 @@ val result = stream.runCollect
 
 ### `Stream#ensuring`
 
-Adds a **cleanup action to any stream**, regardless of how it was created. The finalizer runs in a `finally` block:
+Adds a **cleanup action to any stream**, regardless of how it is created. The finalizer runs in a `finally` block:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1622,7 +1622,7 @@ The pull protocol uses a **sentinel value** to signal end-of-stream:
 
 - `read(sentinel)` — returns the next element, or `sentinel` when exhausted
 - `close()` — signals the consumer is done
-- `isClosed` — checks whether the reader has been closed
+- `isClosed` — checks whether the reader is closed
 
 For primitive types, specialized methods avoid boxing:
 
@@ -1643,7 +1643,7 @@ ZIO Blocks Streams achieves zero-boxing via compile-time type detection and dual
 
 By default, Scala's type system boxes primitive values (Int, Long, Double, etc.) into objects, which wastes memory and is slower. ZIO Blocks' `Stream` uses `JvmType.Infer[A]` (a compile-time implicit) to detect primitive types at compile time and dispatch to unboxed, specialized implementations.
 
-For example, `map`, `filter`, and `scan` all have specialized branches for `JvmType.Int` that use `readInt(Long.MinValue)` instead of boxing:
+For example, `Stream#map`, `Stream#filter`, and `Stream#scan` all have specialized branches for `JvmType.Int` that use `readInt(Long.MinValue)` instead of boxing:
 
 ```scala
 if (jvmType eq JvmType.Int) {
@@ -1684,7 +1684,7 @@ cd zio-blocks
 
 ### Basic Usage
 
-This example demonstrates constructing streams from collections, transforming elements with `map` and `filter`, and collecting results:
+This example demonstrates constructing streams from collections, transforming elements with `Stream#map` and `Stream#filter`, and collecting results:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1700,7 +1700,7 @@ sbt "streams-examples/runMain stream.StreamBasicUsageExample"
 
 ### Flat-Mapping Nested Streams
 
-This example shows how `flatMap` sequences multiple streams and flattens the results:
+This example shows how `Stream#flatMap` sequences multiple streams and flattens the results:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
