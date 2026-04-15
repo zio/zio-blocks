@@ -1165,6 +1165,20 @@ val result = logged.runCollect
 
 ## Error Handling
 
+### Typed Error vs Untyped Defect
+
+ZIO Blocks distinguishes two error channels:
+
+- **Typed errors (`E`)**: Recoverable business logic errors. Returned as `Left(e)` from terminal operations.
+- **Untyped defects (`Throwable`)**: Unexpected exceptions (bugs, system failures). Propagate as thrown exceptions.
+
+Internally, typed errors are wrapped in `StreamError` (a non-fatal exception) and caught by the terminal operation to surface as `Left(e)`. Untyped `Throwable`s are not caught and propagate upward.
+
+This separation allows you to:
+- Use `catchAll` and `orElse` for business logic errors
+- Use `catchDefect` or try-catch for unexpected exceptions
+- Avoid accidentally silencing real bugs by catching all errors
+
 Streams distinguish between recoverable domain errors and fatal defects, with flexible recovery patterns:
 
 ### Recovering from Typed Errors
@@ -1623,20 +1637,6 @@ Each stream node compiles in two ways:
 2. **Flat-Array Interpreter (`compileInterpreter`)**: For deep pipelines (> 100 operations), the recursive approach hits Scala's default stack-depth limit (~100) and risks `StackOverflowError`. Instead, the interpreter compiles the entire pipeline into a flat array of operations, executed iteratively.
 
 The switch happens at `DepthCutoff = 100`. You should never see this in normal use, but it ensures that pipelines of any depth are safe.
-
-### Typed Error vs Untyped Defect
-
-ZIO Blocks distinguishes two error channels:
-
-- **Typed errors (`E`)**: Recoverable business logic errors. Returned as `Left(e)` from terminal operations.
-- **Untyped defects (`Throwable`)**: Unexpected exceptions (bugs, system failures). Propagate as thrown exceptions.
-
-Internally, typed errors are wrapped in `StreamError` (a non-fatal exception) and caught by the terminal operation to surface as `Left(e)`. Untyped `Throwable`s are not caught and propagate upward.
-
-This separation allows you to:
-- Use `catchAll` and `orElse` for business logic errors
-- Use `catchDefect` or try-catch for unexpected exceptions
-- Avoid accidentally silencing real bugs by catching all errors
 
 ## Running the Examples
 
