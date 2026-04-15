@@ -19,11 +19,7 @@ abstract class Stream[+E, +A] {
 - **Typed errors**: distinguish recoverable errors (`E`) from untyped defects (`Throwable`)
 - **Resource-safe**: RAII semantics ensure resources are released in all cases
 
-## Overview
-
-`Stream[E, A]` addresses three core limitations of traditional eager sequence libraries:
-
-### Motivation
+## Motivation
 
 Traditional eager sequences (like Scala `List`) fall short in **three critical dimensions**. Here's what `Stream[E, A]` solves for each:
 
