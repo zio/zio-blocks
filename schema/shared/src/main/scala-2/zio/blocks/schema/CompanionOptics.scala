@@ -59,6 +59,9 @@ trait CompanionOptics[S] {
   def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 
   def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
+
+  def dynamicOptic[A](path: S => A)(implicit schema: Schema[S]): DynamicOptic =
+    macro CompanionOptics.dynamicOptic[S, A]
 }
 
 private object CompanionOptics {
@@ -278,5 +281,14 @@ private object CompanionOptics {
     val optic = toOptic(toPathBody(path.tree))
     // c.info(c.enclosingPosition, s"Generated optic:\n${showCode(optic)}", force = true)
     optic
+  }
+
+  def dynamicOptic[S, A](c: whitebox.Context)(path: c.Expr[S => A])(schema: c.Expr[Schema[S]])(implicit
+    tag: c.WeakTypeTag[S]
+  ): c.Tree = {
+    import c.universe._
+    val opticTree = optic(c)(path)(schema)
+    val sTpe      = weakTypeOf[S]
+    q"$opticTree.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, _]].toDynamic"
   }
 }
