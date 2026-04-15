@@ -637,17 +637,19 @@ val result = stream.runCollect
 
 ### Resource Management
 
-Streams can be built from resources that need to be acquired and released, ensuring cleanup happens automatically:
+**The Problem:** Resources like files, database connections, and network sockets must be explicitly closed after use. If you just process them in a stream and forget to close, you leak resources. If an error occurs during processing, manual cleanup code might be skipped.
+
+**The Solution:** ZIO Blocks streams provide two patterns for safe, automatic resource cleanup:
 
 #### `Stream.fromAcquireRelease[R, E, A]`
 
-Acquires a resource, uses it in a stream, and releases it afterward:
+Acquires a resource, uses it in a stream, and **guarantees cleanup regardless of success or failure**:
 
 ```scala
 object Stream {
   def fromAcquireRelease[R, E, A](
-    acquire: => R,
-    release: R => Unit = (r: R) => 
+    acquire: => R,                                    // How to open the resource
+    release: R => Unit = (r: R) =>                    // How to close it (defaults to .close())
       r match { 
         case ac: AutoCloseable => ac.close()
         case _ => ()
@@ -656,7 +658,12 @@ object Stream {
 }
 ```
 
-This is the fundamental pattern for safe resource handling. The resource is acquired once when the stream is compiled, and released in the `finally` block of the terminal operation:
+This is the fundamental pattern for safe resource handling:
+1. **Acquire** — opens the resource (runs once, before streaming)
+2. **Use** — streams elements from the resource
+3. **Release** — closes the resource in a `finally` block (always runs, even on error)
+
+**Example with automatic cleanup:**
 
 ```scala
 import zio.blocks.streams.*
@@ -667,16 +674,39 @@ case class DatabaseConnection(id: String) {
 }
 
 val managed = Stream.fromAcquireRelease(
-  acquire = DatabaseConnection("db-1"),
-  release = _.close()
+  acquire = {
+    println("Opening database connection")
+    DatabaseConnection("db-1")
+  },
+  release = _.close()  // Guaranteed to run even if streaming fails
 )(conn => Stream.fromIterable(conn.query("SELECT *")))
 
 val result = managed.runCollect
+// Output:
+// Opening database connection
+// Closing database connection  <-- always happens
+```
+
+Even if the stream fails, cleanup runs:
+
+```scala
+import zio.blocks.streams.*
+
+val managed = Stream.fromAcquireRelease(
+  acquire = { println("Opening"); "resource" },
+  release = { r => println(s"Closing $r") }
+)(_ => Stream.fail("error occurred"))
+
+val result = managed.runCollect
+// Output:
+// Opening
+// Closing resource  <-- cleanup still runs even with error
+// result: Either[String, Chunk[Nothing]] = Left("error occurred")
 ```
 
 #### `Stream.fromResource[R, E, A]`
 
-Uses a ZIO Blocks `Resource[R]` (a more abstract resource type) within a stream:
+Uses a ZIO Blocks `Resource[R]` (more abstract, composable resource type) within a stream:
 
 ```scala
 object Stream {
@@ -684,7 +714,7 @@ object Stream {
 }
 ```
 
-When you need a resource to live for the entire duration of the stream, `fromResource` acquires it at the stream's start and releases it when the stream terminates:
+Use `fromResource` when you already have a `Resource` value, or when you need resource composition. The resource is acquired at stream start and released when the stream terminates:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -703,6 +733,37 @@ val stream = Stream.fromResource(resource) { value =>
 
 val result = stream.runCollect
 ```
+
+#### `Stream#ensuring`
+
+Adds a **cleanup action to any stream**, regardless of how it was created. The finalizer runs in a `finally` block:
+
+```scala
+trait Stream[+E, +A] {
+  def ensuring(finalizer: => Unit): Stream[E, A]
+}
+```
+
+Use `ensuring` for simple cleanup tasks that don't fit the acquire-release pattern:
+
+```scala
+import zio.blocks.streams.*
+
+val stream = Stream(1, 2, 3)
+  .ensuring {
+    println("Stream finished (success or error)")
+  }
+
+val result = stream.runCollect
+```
+
+**Comparison of Resource Management Approaches:**
+
+| Method | Best For | Scope |
+|--------|----------|-------|
+| `fromAcquireRelease` | One resource acquired for entire stream | Full stream lifetime |
+| `fromResource` | Composable resources via `Resource` API | Full stream lifetime |
+| `ensuring` | Simple finalizer logic (cleanup, logging) | Any stream |
 
 ## Transformations
 
@@ -1254,11 +1315,7 @@ val result = safe.runCollect
 
 ## Resource Management
 
-Streams provide RAII-based resource guarantees with finalizers and cancellation safety:
-
-### Ensuring Cleanup
-
-`ensuring[A]` — Runs a finalizer when the stream closes, whether cleanly or with an error.:
+Streams provide RAII-based resource guarantees with finalizers and cancellation safety. `Stream#ensuring[A]` runs a finalizer when the stream closes, whether cleanly or with an error:
 
 ```scala
 trait Stream[+E, +A] {
