@@ -790,13 +790,9 @@ val result = expanded.runCollect
 
 ## Windowing
 
-Streams can be grouped, sliced, and scanned to process data in temporal windows:
+Streams can be grouped, sliced, and scanned to process data in temporal windows. These operations group elements into chunks and slide windows over the stream for batch processing:
 
-### Chunking
-
-These operations group elements into chunks and slide windows over the stream for batch processing:
-
-#### `Stream#grouped[A]`
+### `Stream#grouped[A]`
 
 Collects elements into fixed-size chunks:
 
@@ -816,7 +812,7 @@ val groups = nums.grouped(2)
 val result = groups.runCollect
 ```
 
-#### `Stream#sliding[A]`
+### `Stream#sliding[A]`
 
 Creates a sliding window of size `n`, optionally stepping by `step` elements:
 
