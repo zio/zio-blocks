@@ -882,10 +882,6 @@ val result = combined.runCollect
 
 ### Zipping
 
-These operations combine multiple streams element-wise, coordinating execution across them:
-
-#### `Stream#&&[E2, B, C]`
-
 Zips two streams together as tuples (an extension method, not an instance method):
 
 ```scala
@@ -1088,6 +1084,8 @@ val result = logged.runCollect
 
 ## Error Handling
 
+Streams distinguish between recoverable business errors and unexpected exceptions, providing separate recovery mechanisms for each:
+
 ### Typed Error vs Untyped Defect
 
 ZIO Blocks distinguishes two error channels:
@@ -1203,7 +1201,7 @@ This is the fundamental pattern for safe resource handling:
 2. **Use** — streams elements from the resource
 3. **Release** — closes the resource in a `finally` block (always runs, even on error)
 
-**Example with automatic cleanup:**
+Here's an example with automatic cleanup:
 
 ```scala
 import zio.blocks.streams.*
