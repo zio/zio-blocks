@@ -22,7 +22,6 @@ trait Example1 extends BaseAgent {
   def run(): Future[String]
 }
 
-
 @agentImplementation()
 final case class Example1Impl(name: String, count: Int) extends Example1 {
   import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
@@ -34,4 +33,3 @@ final case class Example1Impl(name: String, count: Int) extends Example1 {
     }
   }
 }
-

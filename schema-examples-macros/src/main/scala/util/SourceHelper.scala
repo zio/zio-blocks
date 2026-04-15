@@ -21,7 +21,10 @@ import scala.io.Source
 
 object SourceHelper {
 
-  /** Returns consecutive `//` comment lines immediately above `lineNum` in the given file. */
+  /**
+   * Returns consecutive `//` comment lines immediately above `lineNum` in the
+   * given file.
+   */
   def commentsAbove(filePath: String, lineNum: Int): List[String] = {
     val f = new JFile(filePath)
     if (!f.exists()) return Nil
