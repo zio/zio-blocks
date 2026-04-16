@@ -3,8 +3,6 @@ id: zero-boxing
 title: "Zero-Boxing Optimization"
 ---
 
-## Understanding Zero-Boxing
-
 Working with streams of primitives (integers, longs, doubles, booleans) presents a performance challenge in languages with generic types: **boxing**. Without special care, primitive values get wrapped in objects, causing memory waste and slower code. ZIO Blocks Streams eliminates this overhead entirely through a novel runtime type-dispatch system.
 
 ## The Boxing Problem
