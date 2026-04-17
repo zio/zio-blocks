@@ -518,7 +518,9 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 ## JVM NIO Sinks
 
-The `NioSinks` object (JVM-only) provides sinks for NIO buffers and channels:
+The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. These exist because NIO is the standard high-performance I/O mechanism on the JVM: non-blocking, memory-efficient, and capable of handling thousands of concurrent connections. When you're writing to network sockets, memory-mapped files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
+
+Here are the available NIO sinks:
 
 ```scala
 object NioSinks {
@@ -531,7 +533,39 @@ object NioSinks {
 }
 ```
 
-`fromChannel` performs buffered writes to a `WritableByteChannel`, flushing when the internal buffer is full and after end-of-stream. It wraps `IOException` as a typed error, so it surfaces as `Left(IOException)` from `Stream.run`.
+**`fromByteBuffer` and typed variants** — Use these to write primitive streams directly into a pre-allocated NIO ByteBuffer. This is useful when you have a fixed-size buffer and want to fill it with data:
+- `fromByteBuffer` — writes individual `Byte` elements (slowest, use only for unstructured data)
+- `fromByteBufferInt`, `fromByteBufferLong`, etc. — write primitive arrays directly, using the buffer's `putInt`, `putLong` methods. These are faster because they operate on primitives without boxing and align with the buffer's native type.
+
+Use these when you control buffer allocation (e.g., pre-allocated DirectByteBuffer for zero-copy I/O) or when writing to memory-mapped files.
+
+**`fromChannel`** — Performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when full, and flushes again at end-of-stream. It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer.
+
+Here's an example using ByteBuffer with typed primitive writes:
+
+```scala mdoc:reset
+import zio.blocks.streams.*
+import zio.blocks.streams.NioSinks
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+val buffer = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN)
+
+// Write a stream of Longs to the buffer
+Stream(1L, 2L, 3L, 4L).run(NioSinks.fromByteBufferLong(buffer))
+
+// After writing, rewind to read
+buffer.rewind()
+
+val readBack = List(
+  buffer.getLong(),
+  buffer.getLong(),
+  buffer.getLong(),
+  buffer.getLong()
+)
+```
+
+This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
 
 ## Implementation Notes
 
