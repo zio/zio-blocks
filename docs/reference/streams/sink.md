@@ -46,7 +46,7 @@ These are value sinks (no factory arguments). They work on any element type.
 
 ### `Sink.drain` — Discard All Elements
 
-Consumes every element and discards them. Returns `Unit`.
+Consumes every element and discards them. Returns `Unit`:
 
 ```scala
 object Sink {
@@ -64,7 +64,7 @@ val result = Stream(1, 2, 3).run(Sink.drain)
 
 ### `Sink.count` — Count Elements
 
-Counts the total number of elements consumed. Returns `Long`.
+Counts the total number of elements consumed. Returns `Long`:
 
 ```scala
 object Sink {
@@ -80,7 +80,7 @@ val result = Stream(1, 2, 3, 4, 5).run(Sink.count)
 
 ### `Sink.sumInt` / `sumLong` / `sumFloat` / `sumDouble` — Typed Numeric Sums
 
-Returns the sum of all elements as a numeric type. Each sink accepts the corresponding primitive type.
+Returns the sum of all elements as a numeric type. Each sink accepts the corresponding primitive type:
 
 ```scala
 object Sink {
@@ -107,7 +107,7 @@ val doubleSum = Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)
 
 #### `Sink.collectAll[A]` — Collect into a Chunk
 
-Collects all elements into a `Chunk[A]`.
+Collects all elements into a `Chunk[A]`:
 
 ```scala
 object Sink {
@@ -125,7 +125,7 @@ val result = Stream(1, 2, 3).run(Sink.collectAll[Int])
 
 #### `Sink.take[A]` — Collect First N Elements
 
-Collects at most `n` elements into a `Chunk[A]`, then stops (short-circuiting the upstream).
+Collects at most `n` elements into a `Chunk[A]`, then stops (short-circuiting the upstream):
 
 ```scala
 object Sink {
@@ -143,7 +143,7 @@ val result = Stream.range(0, 1000).run(Sink.take(3))
 
 #### `Sink.foldLeft[A, Z]` — General Left Fold
 
-Folds all elements using an accumulator function, starting from initial value `z`.
+Folds all elements using an accumulator function, starting from initial value `z`:
 
 ```scala
 object Sink {
@@ -163,7 +163,7 @@ val concat = Stream("a", "b", "c").run(Sink.foldLeft("")(_ + _))
 
 #### `Sink.head[A]` — First Element
 
-Returns the first element wrapped in `Some`, or `None` for an empty stream.
+Returns the first element wrapped in `Some`, or `None` for an empty stream:
 
 ```scala
 object Sink {
@@ -181,7 +181,7 @@ val empty = Stream.empty.run(Sink.head[Int])
 
 #### `Sink.last[A]` — Last Element
 
-Returns the last element wrapped in `Some`, or `None` for an empty stream. Must consume all elements.
+Returns the last element wrapped in `Some`, or `None` for an empty stream. Must consume all elements:
 
 ```scala
 object Sink {
@@ -197,7 +197,7 @@ val result = Stream(10, 20, 30).run(Sink.last[Int])
 
 #### `Sink.find[A]` — First Matching Element
 
-Returns the first element satisfying `pred`, or `None`. Short-circuits on first match.
+Returns the first element satisfying `pred`, or `None`. Short-circuits on first match:
 
 ```scala
 object Sink {
@@ -213,7 +213,7 @@ val found = Stream(1, 3, 4, 6).run(Sink.find[Int](_ % 2 == 0))
 
 #### `Sink.exists[A]` — Any Element Matches
 
-Returns `true` if any element satisfies `pred`. Short-circuits on first match.
+Returns `true` if any element satisfies `pred`. Short-circuits on first match:
 
 ```scala
 object Sink {
@@ -229,7 +229,7 @@ val hasNegative = Stream(1, -2, 3).run(Sink.exists[Int](_ < 0))
 
 #### `Sink.forall[A]` — All Elements Match
 
-Returns `true` if all elements satisfy `pred`. Short-circuits to `false` on first failure.
+Returns `true` if all elements satisfy `pred`. Short-circuits to `false` on first failure:
 
 ```scala
 object Sink {
@@ -249,7 +249,7 @@ val notAll = Stream(1, -2, 3).run(Sink.forall[Int](_ > 0))
 
 #### `Sink.foreach[A]` — Apply Side Effect to Each Element
 
-Applies `f` to every element for side effects. Returns `Unit`.
+Applies `f` to every element for side effects. Returns `Unit`:
 
 ```scala
 object Sink {
@@ -267,7 +267,7 @@ val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
 
 #### `Sink.fail[E]` — Immediately Fail
 
-Creates a sink that fails immediately with a typed error, without consuming any elements.
+Creates a sink that fails immediately with a typed error, without consuming any elements:
 
 ```scala
 object Sink {
@@ -291,7 +291,7 @@ val result = Stream(1, 2, 3).run(sink)
 
 #### `Sink.fromOutputStream` — Write Bytes
 
-Writes every `Byte` element to a `java.io.OutputStream`. Does not close the stream when done.
+Writes every `Byte` element to a `java.io.OutputStream`. Does not close the stream when done:
 
 ```scala
 object Sink {
@@ -309,7 +309,7 @@ Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](72, 105)).run(Sink.fromOutputStrea
 
 #### `Sink.fromJavaWriter` — Write Characters
 
-Writes every `Char` element to a `java.io.Writer`. Does not close the writer when done.
+Writes every `Char` element to a `java.io.Writer`. Does not close the writer when done:
 
 ```scala
 object Sink {
@@ -321,7 +321,7 @@ object Sink {
 
 #### `Sink.create[E, A, Z]` — Escape Hatch
 
-Creates a sink from a raw function that takes a `Reader[A]` and returns `Z`. This is the low-level escape hatch for writing sinks that cannot be expressed using the built-in factories.
+Creates a sink from a raw function that takes a `Reader[A]` and returns `Z`. This is the low-level escape hatch for writing sinks that cannot be expressed using the built-in factories:
 
 ```scala
 object Sink {
@@ -356,7 +356,7 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 
 ### `Sink#contramap[A2]` — Pre-Process Input
 
-Transforms the input elements before they reach the sink. The sink's result and error types are unchanged.
+Transforms the input elements before they reach the sink. The sink's result and error types are unchanged:
 
 ```scala
 trait Sink[+E, -A, +Z] {
@@ -378,7 +378,7 @@ val result = Stream("hello", "world").run(totalLength)
 
 ### `Sink#map[Z2]` — Transform Result
 
-Transforms the result after the sink finishes draining.
+Transforms the result after the sink finishes draining:
 
 ```scala
 trait Sink[+E, -A, +Z] {
@@ -397,7 +397,7 @@ val result = Stream(1, 2, 3).run(countAsString)
 
 ### `Sink#mapError[E2]` — Transform Error
 
-Transforms the error channel of a sink.
+Transforms the error channel of a sink:
 
 ```scala
 trait Sink[+E, -A, +Z] {
