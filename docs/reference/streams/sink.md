@@ -56,11 +56,10 @@ object Sink {
 
 Use `drain` when you only care about side effects (e.g., via `tapEach`) and not the elements themselves:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.drain)
-// Right(())
 ```
 
 ### `Sink.count` — Count Elements
@@ -73,11 +72,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3, 4, 5).run(Sink.count)
-// Right(5L)
 ```
 
 ### `Sink.sumInt` / `sumLong` / `sumFloat` / `sumDouble` — Typed Numeric Sums
@@ -95,14 +93,12 @@ object Sink {
 
 Note that `sumInt` returns `Long` (to avoid overflow) and `sumFloat` returns `Double` (to reduce rounding loss):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val intSum = Stream(1, 2, 3, 4, 5).run(Sink.sumInt)
-// Right(15L)
 
 val doubleSum = Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)
-// Right(7.0)
 ```
 
 ## Construction
@@ -121,11 +117,10 @@ object Sink {
 
 This is the sink behind `Stream.runCollect`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.collectAll[Int])
-// Right(Chunk(1, 2, 3))
 ```
 
 #### `Sink.take[A]` — Collect First N Elements
@@ -138,11 +133,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream.range(0, 1000).run(Sink.take(3))
-// Right(Chunk(0, 1, 2))
 ```
 
 ### Aggregation and Search
@@ -159,14 +153,12 @@ object Sink {
 
 This is the most general aggregation sink:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val sum = Stream(1, 2, 3, 4).run(Sink.foldLeft(0)(_ + _))
-// Right(10)
 
 val concat = Stream("a", "b", "c").run(Sink.foldLeft("")(_ + _))
-// Right("abc")
 ```
 
 #### `Sink.head[A]` — First Element
@@ -179,14 +171,12 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val first = Stream(10, 20, 30).run(Sink.head[Int])
-// Right(Some(10))
 
 val empty = Stream.empty.run(Sink.head[Int])
-// Right(None)
 ```
 
 #### `Sink.last[A]` — Last Element
@@ -199,11 +189,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream(10, 20, 30).run(Sink.last[Int])
-// Right(Some(30))
 ```
 
 #### `Sink.find[A]` — First Matching Element
@@ -216,11 +205,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val found = Stream(1, 3, 4, 6).run(Sink.find[Int](_ % 2 == 0))
-// Right(Some(4))
 ```
 
 #### `Sink.exists[A]` — Any Element Matches
@@ -233,11 +221,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val hasNegative = Stream(1, -2, 3).run(Sink.exists[Int](_ < 0))
-// Right(true)
 ```
 
 #### `Sink.forall[A]` — All Elements Match
@@ -250,14 +237,12 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val allPositive = Stream(1, 2, 3).run(Sink.forall[Int](_ > 0))
-// Right(true)
 
 val notAll = Stream(1, -2, 3).run(Sink.forall[Int](_ > 0))
-// Right(false)
 ```
 
 ### Effectful
@@ -272,12 +257,10 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
-// Prints: Got: 1, Got: 2, Got: 3
-// Right(())
 ```
 
 ### Failing
@@ -294,7 +277,7 @@ object Sink {
 
 Use this in conditional sink construction:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val sink: Sink[String, Int, Long] =
@@ -302,7 +285,6 @@ val sink: Sink[String, Int, Long] =
   else Sink.fail("not ready")
 
 val result = Stream(1, 2, 3).run(sink)
-// Left("not ready")
 ```
 
 ### I/O
@@ -317,13 +299,12 @@ object Sink {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import java.io.ByteArrayOutputStream
 
 val bos = new ByteArrayOutputStream()
 Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](72, 105)).run(Sink.fromOutputStream(bos))
-// bos.toByteArray == Array(72, 105) ("Hi")
 ```
 
 #### `Sink.fromJavaWriter` — Write Characters
@@ -352,7 +333,7 @@ object Sink {
 `create` gives you direct access to the `Reader`, so you are responsible for using the correct read protocol (`read(sentinel)` for AnyRef, `readInt(sentinel)` for Int, etc.). Prefer the built-in sinks when possible.
 :::
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import zio.blocks.streams.io.Reader
 
@@ -384,7 +365,7 @@ trait Sink[+E, -A, +Z] {
 
 `contramap` is the dual of `map`: it transforms what goes *in*, not what comes *out*:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // A sink that counts the length of strings
@@ -392,7 +373,6 @@ val totalLength: Sink[Nothing, String, Long] =
   Sink.sumInt.contramap[String](_.length)
 
 val result = Stream("hello", "world").run(totalLength)
-// Right(10L)
 ```
 
 ### `Sink#map[Z2]` — Transform Result
@@ -405,14 +385,13 @@ trait Sink[+E, -A, +Z] {
 }
 ```
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val countAsString: Sink[Nothing, Any, String] =
   Sink.count.map(n => s"Total: $n elements")
 
 val result = Stream(1, 2, 3).run(countAsString)
-// Right("Total: 3 elements")
 ```
 
 ### `Sink#mapError[E2]` — Transform Error
@@ -427,7 +406,7 @@ trait Sink[+E, -A, +Z] {
 
 This method uses Scala 3's `inline` + `summonFrom` to perform a compile-time check: if `E` is `Nothing` (the sink never fails), the compiler elides the wrapper entirely and returns `this` cast to the new type with zero allocation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // No-op: drain never fails, so mapError is free
@@ -463,15 +442,15 @@ See [Stream — Running Streams](./stream.md#running-streams) for more details o
 
 A [Pipeline](./pipeline.md) can be applied to a Sink using `andThenSink`, producing a new Sink that pre-processes input elements through the pipeline:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
+import zio.blocks.chunk.Chunk
 
 val cleanAndCollect: Sink[Nothing, String, Chunk[String]] =
   Pipeline.map[String, String](_.trim.toLowerCase)
     .andThenSink(Sink.collectAll[String])
 
 val result = Stream("  Hello ", " WORLD  ").run(cleanAndCollect)
-// Right(Chunk("hello", "world"))
 ```
 
 The equivalence law holds: `stream.via(pipe).run(sink) == stream.run(pipe.andThenSink(sink))`.
