@@ -329,6 +329,27 @@ Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](72, 105)).run(Sink.fromOutputStrea
 // You must close it yourself when done: bos.close()
 ```
 
+Here's a more complete example showing how to manage the stream lifecycle:
+
+```scala mdoc:reset
+import zio.blocks.streams.*
+import java.io.ByteArrayOutputStream
+
+val bos = new ByteArrayOutputStream()
+
+// Write first batch of bytes
+Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](72, 105)).run(Sink.fromOutputStream(bos))
+
+// Write second batch to the same stream (reuse it)
+Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](33)).run(Sink.fromOutputStream(bos))
+
+// When done writing all batches, YOU close the stream
+bos.close()
+
+// Now you can get the final bytes: bos.toByteArray() would fail here because stream is closed
+// But in a real application, you'd flush and read the bytes before closing
+```
+
 #### `Sink.fromJavaWriter` — Write Characters
 
 Writes every `Char` element to a `java.io.Writer`. Does not close the writer when done:
