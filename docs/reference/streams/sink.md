@@ -339,14 +339,15 @@ import zio.blocks.streams.io.Reader
 
 // A custom sink that computes the average of Ints
 val average = Sink.create[Nothing, Int, Double] { reader =>
-  var sum = 0L
-  var count = 0L
-  var v = reader.read[Any](null)
-  while (v != null) {
-    sum += v.asInstanceOf[Int]
-    count += 1
-    v = reader.read[Any](null)
+  def loop(sum: Long, count: Long): (Long, Long) = {
+    val v = reader.read[Any](null)
+    if (v == null) (sum, count)
+    else {
+      val newSum = sum + v.asInstanceOf[Int]
+      loop(newSum, count + 1)
+    }
   }
+  val (sum, count) = loop(0L, 0L)
   if (count == 0) 0.0 else sum.toDouble / count
 }
 ```
