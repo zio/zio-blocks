@@ -65,11 +65,11 @@ val result3 = stream3.run(normalizedSink)
 
 `Pipeline` forms a **category** in the mathematical sense:
 
-| Law            | Statement                                              |
-| -------------- | ------------------------------------------------------ |
-| Left identity  | `Pipeline.identity andThen p == p`                     |
-| Right identity | `p andThen Pipeline.identity == p`                     |
-| Associativity  | `(p andThen q) andThen r == p andThen (q andThen r)`   |
+| Law            | Statement                                            |
+|----------------|------------------------------------------------------|
+| Left identity  | `Pipeline.identity andThen p == p`                   |
+| Right identity | `p andThen Pipeline.identity == p`                   |
+| Associativity  | `(p andThen q) andThen r == p andThen (q andThen r)` |
 
 These laws guarantee that pipelines compose predictably, regardless of how you parenthesize.
 
