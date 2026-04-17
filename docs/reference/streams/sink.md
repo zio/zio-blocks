@@ -60,8 +60,14 @@ Use `drain` when you only care about side effects (e.g., via `tapEach`) and not 
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
+import scala.collection.mutable.Buffer
 
-val result = Stream(1, 2, 3).run(Sink.drain)
+val log = Buffer[String]()
+val result = Stream(1, 2, 3)
+  .tapEach(x => log += s"Processing: $x")
+  .run(Sink.drain)
+// result is Right(())
+// log contains: ["Processing: 1", "Processing: 2", "Processing: 3"]
 ```
 
 ### `Sink.count` — Count Elements
