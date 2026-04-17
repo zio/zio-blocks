@@ -406,7 +406,7 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 }
 ```
 
-This example shows how `create` works. The reader reads elements using `read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level reader protocol.
+This example shows how `create` works. The reader reads elements using `read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level [reader protocol](./reader.md).
 
 ## Transforming Sinks
 
