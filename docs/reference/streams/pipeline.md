@@ -41,7 +41,7 @@ This works, but the transformation is tied to a specific stream. If you want to 
 
 `Pipeline[-In, +Out]` lifts stream transformations into first-class values. You define a pipeline once, compose it with other pipelines using `andThen`, and apply it wherever you need:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.streams.*
 
 // Define once
@@ -75,19 +75,37 @@ These laws guarantee that pipelines compose predictably, regardless of how you p
 
 ```
   Applying to a Stream (via):
-  ┌──────────────┐     ┌──────────────────┐     ┌──────────────┐
-  │ Stream[E, In]│ ──→ │ Pipeline[In, Out]│ ──→ │Stream[E, Out]│
-  └──────────────┘     └──────────────────┘     └──────────────┘
+  ┌──────────────┐           via             ┌──────────────┐
+  │ Stream[E, In]│ ──────────────────────→ │ Pipeline[In, Out]│
+  └──────────────┘                         └──────────────────┘
+                                                      │
+                                                    via
+                                                      ↓
+                                            ┌──────────────┐
+                                            │Stream[E, Out]│
+                                            └──────────────┘
 
   Applying to a Sink (andThenSink):
-  ┌──────────────────┐     ┌────────────────┐     ┌──────────────┐
-  │ Pipeline[In, Out]│ ──→ │ Sink[E, Out, Z]│ ──→ │Sink[E, In, Z]│
-  └──────────────────┘     └────────────────┘     └──────────────┘
+  ┌──────────────────┐    andThenSink        ┌────────────────┐
+  │ Pipeline[In, Out]│ ──────────────────→ │ Sink[E, Out, Z]│
+  └──────────────────┘                     └────────────────┘
+                                                      │
+                                              andThenSink
+                                                      ↓
+                                            ┌──────────────┐
+                                            │Sink[E, In, Z]│
+                                            └──────────────┘
 
   Composing two Pipelines (andThen):
-  ┌──────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-  │ Pipeline[A, B]   │ ──→ │ Pipeline[B, C]   │ ──→ │ Pipeline[A, C]  │
-  └──────────────────┘     └──────────────────┘     └─────────────────┘
+  ┌──────────────────┐       andThen         ┌──────────────────┐
+  │ Pipeline[A, B]   │ ──────────────────→ │ Pipeline[B, C]   │
+  └──────────────────┘                     └──────────────────┘
+                                                      │
+                                                   andThen
+                                                      ↓
+                                            ┌─────────────────┐
+                                            │ Pipeline[A, C]  │
+                                            └─────────────────┘
 ```
 
 ## Construction
@@ -284,7 +302,7 @@ Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type deleg
 
 The key advantage of `via` over inline methods is **reuse**: define the pipeline once and apply it to multiple streams:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.streams.*
 
 // A reusable cleaning pipeline for sensor data
