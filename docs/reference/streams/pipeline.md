@@ -7,7 +7,6 @@ title: "Pipeline"
 
 `Pipeline`:
 - Is contravariant in `In` and covariant in `Out` (like a function `In => Out`)
-- Forms a **category**: `identity` is the neutral element, `andThen` is associative composition
 - Can be applied to a **Stream** (transforming the output) or a **Sink** (pre-processing the input)
 - Participates in JVM primitive specialization to avoid boxing
 
