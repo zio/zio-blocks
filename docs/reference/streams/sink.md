@@ -520,6 +520,38 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. These exist because NIO is the standard high-performance I/O mechanism on the JVM: non-blocking, memory-efficient, and capable of handling thousands of concurrent connections. When you're writing to network sockets, memory-mapped files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
 
+### The Problem with Traditional I/O
+
+Traditional Java I/O (`OutputStream`, `Writer`) works well for simple cases, but has fundamental limitations in high-throughput scenarios:
+
+- **Allocations:** Every element passed to `write()` may trigger boxing (for objects) or temporary wrapper allocations, compounding in tight loops with millions of elements.
+- **No backpressure:** Streams and writers don't communicate when the underlying I/O is slow, making it hard to avoid memory overflow.
+- **Blocking:** Traditional I/O blocks the thread, tying up resources in high-concurrency scenarios (thousands of connections).
+- **Manual buffering:** Writing unbuffered is slow, so developers must wrap with `BufferedOutputStream` or `BufferedWriter`, adding boilerplate.
+
+NIO solves these problems through selectable (non-blocking) channels and bulk operations, but using NIO directly is verbose: you must allocate buffers, manage positions, flush explicitly, and handle `ClosedChannelException` manually.
+
+### Why NIO Sinks are Better
+
+`NioSinks` bridges this gap by:
+
+1. **Eliminating allocations** — Typed sinks (`fromByteBufferInt`, `fromByteBufferLong`) write primitives directly using the buffer's native methods (`putInt`, `putLong`), avoiding boxing and wrapper creation entirely.
+2. **Automatic buffering** — `fromChannel` handles internal buffering (default 8KB), flushes intelligently, and frees you from manual position management.
+3. **Direct integration with Streams** — No boilerplate: just `.run(NioSinks.fromChannel(...))` and all streaming logic (composition, error handling, resource cleanup) works seamlessly.
+4. **Type-safe errors** — `IOException` is typed (`Sink[IOException, ...]`), so you can use `Stream#catchAll` to handle I/O failures as first-class values, not try-catch blocks.
+
+### When to Choose NIO Sinks vs. Alternatives
+
+| Scenario | Use `NioSinks` | Alternative | Trade-off |
+|----------|---|---|---|
+| Writing to a network socket or file with low latency | ✅ `fromChannel` | `java.io.OutputStream` | NIO is non-blocking; I/O is simpler but may block threads |
+| Streaming millions of primitives (Longs, Doubles) | ✅ `fromByteBufferLong/Double` | Generic `Sink.create` + manual buffer ops | Typed sinks are unboxed; generic sinks are flexible but slower |
+| Pre-allocated buffer (e.g., off-heap memory, memory-mapped file) | ✅ `fromByteBuffer*` | `ByteArrayOutputStream` in-memory | Direct buffer writes avoid copying; in-memory is simpler but uses heap |
+| One-off small write, not performance-critical | ⚠️ Consider `Sink.fromOutputStream` | `java.io.ByteArrayOutputStream` | Simpler, no NIO overhead; NIO overkill for tiny writes |
+| Needing full control over flushing and positioning | ✅ `Sink.create` with `Reader` | `fromChannel` | Lowest level; `fromChannel` handles it for you |
+
+**In summary:** Use NIO Sinks when you're writing streams of data to I/O destinations (network, disk, memory-mapped files) and care about throughput or resource efficiency. The type-safe error handling and automatic buffering eliminate boilerplate while the specialized variants avoid boxing entirely.
+
 Here are the available NIO sinks:
 
 ```scala
