@@ -41,7 +41,7 @@ This works, but the transformation is tied to a specific stream. If you want to 
 
 `Pipeline[-In, +Out]` lifts stream transformations into first-class values. You define a pipeline once, compose it with other pipelines using `andThen`, and apply it wherever you need:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // Define once
@@ -51,6 +51,10 @@ val normalize: Pipeline[Int, Int] =
     .andThen(Pipeline.take(100))
 
 // Apply to any stream
+val stream1 = Stream(1, 2, 3, 4, 5)
+val stream2 = Stream(10, 20, 30, 40, 50)
+val stream3 = Stream(-5, 3, 7, 2, 8, 1, 9)
+
 val result1 = stream1.via(normalize).runCollect
 val result2 = stream2.via(normalize).runCollect
 
@@ -293,6 +297,9 @@ val cleanSensorData: Pipeline[Double, Double] =
     .andThen(Pipeline.filter(d => d >= -100.0 && d <= 100.0))
 
 // Apply to different sensor streams
+val sensorStream1 = Stream(45.5, 67.2, Double.NaN, 23.1)
+val sensorStream2 = Stream(89.9, -200.0, 12.5, 55.0)
+
 val sensor1Result = sensorStream1.via(cleanSensorData).runCollect
 val sensor2Result = sensorStream2.via(cleanSensorData).runCollect
 ```
