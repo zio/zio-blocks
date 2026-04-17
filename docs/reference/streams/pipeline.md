@@ -111,7 +111,7 @@ This is the most common pipeline constructor:
 import zio.blocks.streams.*
 
 val doubler = Pipeline.map[Int, Int](_ * 2)
-val toString = Pipeline.map[Int, String](_.toString)
+val toStr = Pipeline.map[Int, String](_.toString)
 
 val result = Stream(1, 2, 3).via(doubler).runCollect
 ```
