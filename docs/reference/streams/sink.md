@@ -72,7 +72,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3, 4, 5).run(Sink.count)
@@ -93,7 +93,7 @@ object Sink {
 
 Note that `sumInt` returns `Long` (to avoid overflow) and `sumFloat` returns `Double` (to reduce rounding loss):
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val intSum = Stream(1, 2, 3, 4, 5).run(Sink.sumInt)
@@ -119,7 +119,7 @@ object Sink {
 
 This is the sink behind `Stream.runCollect`:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.collectAll[Int])
@@ -135,7 +135,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream.range(0, 1000).run(Sink.take(3))
@@ -157,7 +157,7 @@ object Sink {
 
 This is the most general aggregation sink:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val sum = Stream(1, 2, 3, 4).run(Sink.foldLeft(0)(_ + _))
@@ -175,7 +175,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val first = Stream(10, 20, 30).run(Sink.head[Int])
@@ -193,7 +193,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream(10, 20, 30).run(Sink.last[Int])
@@ -209,7 +209,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val found = Stream(1, 3, 4, 6).run(Sink.find[Int](_ % 2 == 0))
@@ -225,7 +225,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val hasNegative = Stream(1, -2, 3).run(Sink.exists[Int](_ < 0))
@@ -241,7 +241,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val allPositive = Stream(1, 2, 3).run(Sink.forall[Int](_ > 0))
@@ -263,7 +263,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
@@ -285,7 +285,7 @@ object Sink {
 
 Use this in conditional sink construction:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val sink: Sink[String, Int, Long] =
@@ -307,7 +307,7 @@ object Sink {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 import java.io.ByteArrayOutputStream
 
@@ -374,7 +374,7 @@ trait Sink[+E, -A, +Z] {
 
 `contramap` is the dual of `map`: it transforms what goes *in*, not what comes *out*:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 // A sink that counts the length of strings
@@ -394,7 +394,7 @@ trait Sink[+E, -A, +Z] {
 }
 ```
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val countAsString: Sink[Nothing, Any, String] =
@@ -451,7 +451,7 @@ See [Stream — Running Streams](./stream.md#running-streams) for more details o
 
 A [Pipeline](./pipeline.md) can be applied to a Sink using `andThenSink`, producing a new Sink that pre-processes input elements through the pipeline:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
 
@@ -484,8 +484,6 @@ object NioSinks {
 `fromChannel` performs buffered writes to a `WritableByteChannel`, flushing when the internal buffer is full and after end-of-stream. It wraps `IOException` as a typed error, so it surfaces as `Left(IOException)` from `Stream.run`.
 
 ## Implementation Notes
-
-Sinks use several optimization techniques to provide high performance and low overhead:
 
 ### Primitive Specialization
 
