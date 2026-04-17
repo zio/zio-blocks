@@ -567,6 +567,72 @@ val readBack = List(
 
 This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
 
+**Real-World Use Case: Streaming Telemetry to a File Channel** — Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and backpressure handling:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import zio.blocks.streams.NioSinks
+import java.nio.channels.FileChannel
+import java.io.RandomAccessFile
+import scala.util.Using
+
+// Simulated sensor readings (timestamp, temperature)
+case class SensorReading(timestamp: Long, temperature: Double)
+
+def writeTelemetryToFile(readings: List[SensorReading], filePath: String): Unit = {
+  Using(new RandomAccessFile(filePath, "rw")) { file =>
+    val channel = file.getChannel
+    
+    // Convert sensor readings to bytes: 8 bytes timestamp + 8 bytes temperature
+    val byteStream = Stream.fromIterable(readings).flatMap { reading =>
+      val buf = java.nio.ByteBuffer.allocate(16)
+      buf.putLong(reading.timestamp)
+      buf.putDouble(reading.temperature)
+      buf.flip()
+      Stream.fromChunk(zio.blocks.chunk.Chunk.fromArray(buf.array()))
+    }
+    
+    // Drain all bytes to file with buffering (8KB chunks)
+    byteStream.run(NioSinks.fromChannel(channel, bufSize = 8192))
+  }.get
+}
+```
+
+This pattern is common in high-throughput logging systems, time-series databases, and IoT platforms where you need to write streams of telemetry data to persistent storage without blocking or allocating excessively.
+
+**Real-World Use Case: Batching Doubles for Scientific Computing** — When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing. Here's a simplified example of writing calibrated measurements:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+import zio.blocks.streams.NioSinks
+import java.nio.ByteBuffer
+import scala.math.pow
+
+// Simulate streaming sensor measurements that need calibration
+def processAndBufferMeasurements(
+  measurementCount: Int,
+  bufferCapacity: Int
+): ByteBuffer = {
+  val buffer = ByteBuffer.allocateDirect(bufferCapacity)
+  
+  // Stream of raw voltage measurements (need calibration)
+  val voltages = Stream.range(0, measurementCount).map(i => (i * 0.01).toDouble)
+  
+  // Apply calibration curve and write to buffer
+  val calibrated = voltages.map { raw =>
+    // Example calibration: quadratic correction
+    val calibration = 1.0 + 0.05 * pow(raw, 2)
+    raw * calibration
+  }
+  
+  calibrated.run(NioSinks.fromByteBufferDouble(buffer))
+  buffer.flip()
+  buffer
+}
+```
+
+This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
+
 ## Implementation Notes
 
 Sinks use several optimization techniques to provide high performance and low overhead:
