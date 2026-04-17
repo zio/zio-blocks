@@ -41,7 +41,7 @@ This works, but the transformation is tied to a specific stream. If you want to 
 
 `Pipeline[-In, +Out]` lifts stream transformations into first-class values. You define a pipeline once, compose it with other pipelines using `andThen`, and apply it wherever you need:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // Define once
@@ -207,7 +207,7 @@ object Pipeline {
 
 You rarely construct `identity` explicitly, but it is important as a base case in generic pipeline-building code:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val noOp = Pipeline.identity[Int]
@@ -257,7 +257,7 @@ val result = Stream(-5, 3, -1, 7, 2, 0, 9, 4, 8, 6, 1, 10)
 
 Because pipelines are values, you can build them dynamically:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 def buildPipeline(limit: Option[Int], onlyPositive: Boolean): Pipeline[Int, Int] = {
@@ -284,7 +284,7 @@ Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type deleg
 
 The key advantage of `via` over inline methods is **reuse**: define the pipeline once and apply it to multiple streams:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // A reusable cleaning pipeline for sensor data
