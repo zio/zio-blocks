@@ -11,6 +11,8 @@ title: "Sink"
 - Participates in JVM primitive specialization for zero-boxing overhead
 - Provides `contramap`, `map`, and `mapError` for composable transformations
 
+Here is the structural shape of the `Sink` type:
+
 ```scala
 abstract class Sink[+E, -A, +Z] {
   def contramap[A2](g: A2 => A): Sink[E, A2, Z]
@@ -106,6 +108,8 @@ val doubleSum = Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)
 Sinks are created using factory methods on the companion object. These methods fall into several categories based on what they do:
 
 ### Collecting
+
+Gather elements into collections:
 
 #### `Sink.collectAll[A]` — Collect into a Chunk
 
@@ -491,6 +495,8 @@ object NioSinks {
 
 ## Implementation Notes
 
+Sinks use several optimization techniques to provide high performance and low overhead:
+
 ### Primitive Specialization
 
 Every built-in sink checks `reader.jvmType` at the start of `drain` and dispatches into a fully unboxed tight loop using sentinel-based reads:
@@ -515,11 +521,12 @@ When a `Contramapped` sink receives a reader that is an `Interpreter` (the compi
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `schema-examples` module.
+All code from this guide is available as runnable examples in the `streams-examples` module.
 
 **1. Clone the repository and navigate to the project:**
 
 ```bash
+
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
@@ -538,6 +545,8 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkBasicUsageExample.sca
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkBasicUsageExample.scala))
 
+Run it with this command:
+
 ```bash
 sbt "streams-examples/runMain sink.SinkBasicUsageExample"
 ```
@@ -554,6 +563,8 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkAggregationExample.sc
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkAggregationExample.scala))
 
+Run it with this command:
+
 ```bash
 sbt "streams-examples/runMain sink.SinkAggregationExample"
 ```
@@ -569,6 +580,8 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkTransformationExample
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkTransformationExample.scala))
+
+Run it with this command:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkTransformationExample"
