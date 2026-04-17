@@ -297,6 +297,8 @@ val result = Stream(1, 2, 3).run(sink)
 
 ### I/O
 
+Write elements to Java I/O destinations:
+
 #### `Sink.fromOutputStream` — Write Bytes
 
 Writes every `Byte` element to a `java.io.OutputStream`. Does not close the stream when done:
@@ -326,6 +328,8 @@ object Sink {
 ```
 
 ### Custom
+
+Advanced low-level use cases with direct reader protocol access:
 
 #### `Sink.create[E, A, Z]` — Escape Hatch
 
@@ -361,6 +365,8 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 ```
 
 ## Transforming Sinks
+
+Every sink can be transformed using these instance methods:
 
 ### `Sink#contramap[A2]` — Pre-Process Input
 
