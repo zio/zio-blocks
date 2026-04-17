@@ -56,7 +56,7 @@ object Sink {
 
 Use `drain` when you only care about side effects (e.g., via `tapEach`) and not the elements themselves:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val result = Stream(1, 2, 3).run(Sink.drain)
@@ -103,6 +103,8 @@ val doubleSum = Stream(1.5, 2.5, 3.0).run(Sink.sumDouble)
 
 ## Construction
 
+Sinks are created using factory methods on the companion object. These methods fall into several categories based on what they do:
+
 ### Collecting
 
 #### `Sink.collectAll[A]` — Collect into a Chunk
@@ -140,6 +142,8 @@ val result = Stream.range(0, 1000).run(Sink.take(3))
 ```
 
 ### Aggregation and Search
+
+These sinks combine elements into a single result or search for specific elements within a stream:
 
 #### `Sink.foldLeft[A, Z]` — General Left Fold
 
@@ -247,6 +251,8 @@ val notAll = Stream(1, -2, 3).run(Sink.forall[Int](_ > 0))
 
 ### Effectful
 
+These sinks perform side effects during stream consumption:
+
 #### `Sink.foreach[A]` — Apply Side Effect to Each Element
 
 Applies `f` to every element for side effects. Returns `Unit`:
@@ -264,6 +270,8 @@ val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
 ```
 
 ### Failing
+
+These sinks can be used to produce typed errors or fail under specific conditions:
 
 #### `Sink.fail[E]` — Immediately Fail
 
@@ -476,6 +484,8 @@ object NioSinks {
 `fromChannel` performs buffered writes to a `WritableByteChannel`, flushing when the internal buffer is full and after end-of-stream. It wraps `IOException` as a typed error, so it surfaces as `Left(IOException)` from `Stream.run`.
 
 ## Implementation Notes
+
+Sinks use several optimization techniques to provide high performance and low overhead:
 
 ### Primitive Specialization
 
