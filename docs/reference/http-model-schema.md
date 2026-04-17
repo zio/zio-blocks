@@ -11,8 +11,11 @@ Core features: `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `
 
 Building HTTP handlers often requires extracting and validating query parameters or headers — "get the `userId` query parameter as a `UUID`." Without schema-based extraction, this becomes tedious and error-prone:
 
-```scala
+```scala mdoc:compile-only
+import zio.http.QueryParams
+
 // Manual extraction (error-prone, repetitive)
+val params = QueryParams("userId" -> "550e8400-e29b-41d4-a716-446655440000")
 val userIdStr = params.getFirst("userId")
 val userId = userIdStr match {
   case None => Left("Missing userId")
@@ -26,11 +29,12 @@ Every parameter requires 8+ lines of boilerplate with manual exception handling,
 
 The solution is to use schema-based extraction for clean, declarative code:
 
-```scala
-// Schema-based extraction (clean, type-safe)
+```scala mdoc:compile-only
+import zio.http.QueryParams
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
+val params = QueryParams("userId" -> "550e8400-e29b-41d4-a716-446655440000")
 val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID parsing + errors
 ```
 
