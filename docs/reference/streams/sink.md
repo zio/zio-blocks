@@ -385,6 +385,8 @@ object Sink {
 `create` gives you direct access to the `Reader`, so you are responsible for using the correct read protocol (`read(sentinel)` for AnyRef, `readInt(sentinel)` for Int, etc.). Prefer the built-in sinks when possible.
 :::
 
+Here's a custom sink that computes the average of all integers in a stream:
+
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
 import zio.blocks.streams.io.Reader
@@ -403,6 +405,8 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
   if (count == 0) 0.0 else sum.toDouble / count
 }
 ```
+
+This example shows how `create` works. The reader reads elements using `read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level reader protocol.
 
 ## Transforming Sinks
 
