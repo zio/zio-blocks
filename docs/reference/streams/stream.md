@@ -189,7 +189,7 @@ object Stream {
 
 The empty stream is useful as a base case in recursive stream builders or as a neutral element when concatenating:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val emptyStream = Stream.empty
@@ -213,7 +213,7 @@ object Stream {
 
 When you call `Stream.succeed(value)`, the stream emits exactly one element and completes successfully. This is useful for wrapping a computed value into the stream abstraction:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val singleElement = Stream.succeed(42)
@@ -232,7 +232,7 @@ object Stream {
 
 Use `fail` when you need to short-circuit a stream with a known error:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 sealed trait ApiError
@@ -255,7 +255,7 @@ object Stream {
 
 Use `die` for truly exceptional, unrecoverable conditions that should not be caught as typed errors:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val dieStream = Stream.die(new Exception("System failure"))
@@ -277,7 +277,7 @@ object Stream {
 
 This is the most natural way to lift a list of values:
 
-```scala mdoc
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val numbers = Stream(1, 2, 3, 4, 5)
@@ -380,7 +380,7 @@ object Stream {
 
 Create a stream from a `Range` and collect elements:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val range = 1 to 10 by 2
@@ -450,7 +450,7 @@ object Stream {
 
 Use `eval` when you want a side effect in a stream (e.g., logging, metrics) but no element:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val sideEffect = Stream.eval(println("Executing side effect"))
@@ -512,7 +512,7 @@ object Stream {
 
 Defer side effects until the stream executes:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val deferred = Stream.defer(println("Effect runs when stream executes"))
@@ -531,7 +531,7 @@ object Stream {
 
 Define a recursive stream safely:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 def countDown(n: Int): Stream[Nothing, Int] =
@@ -578,7 +578,7 @@ object Stream {
 
 Read characters from a string reader:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 import java.io.StringReader
 
@@ -716,7 +716,7 @@ trait Stream[+E, +A] {
 
 This combines filtering and mapping in one step:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val mixed = Stream(1, "a", 2, "b", 3)
@@ -740,7 +740,7 @@ trait Stream[+E, +A] {
 
 `mapAccum` threads a state value through the transformation. At each step, you receive the current state and the element, return a new state and output element:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -760,7 +760,7 @@ trait Stream[+E, +A] {
 
 This is useful for computing running totals, moving averages, or other cumulative statistics:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4)
@@ -780,7 +780,7 @@ trait Stream[+E, +A] {
 
 `Stream#flatMap` is sequential: streams are processed one at a time, in order. This is essential for resource safety: if each inner stream acquires a resource, `Stream#flatMap` ensures they are released in proper FIFO order:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val ids = Stream(1, 2, 3)
@@ -800,7 +800,7 @@ object Stream {
 
 This is equivalent to `flatMap(identity)`. Use `flattenAll` when you already have a stream of streams and want to flatten it without applying a transformation:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nested = Stream.fromIterable(List(
@@ -827,7 +827,7 @@ trait Stream[+E, +A] {
 
 The last chunk may contain fewer than `n` elements:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -847,7 +847,7 @@ trait Stream[+E, +A] {
 
 This is useful for computing local statistics or detecting patterns in sequences:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -871,7 +871,7 @@ trait Stream[+E, +A] {
 
 The error type is the union of both streams' error types. Evaluation is sequential: the second stream only starts when the first completes:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val first = Stream(1, 2)
@@ -893,7 +893,7 @@ extension [E, A](stream: Stream[E, A])
 
 The result streams have the same length as the shorter input:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -922,7 +922,7 @@ trait Stream[+E, +A] {
 
 This consumes memory proportional to the number of unique elements:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 2, 3, 3, 3)
@@ -994,7 +994,7 @@ trait Stream[+E, +A] {
 
 This naturally short-circuits: the stream stops pulling from upstream:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream.range(0, 1000)
@@ -1014,7 +1014,7 @@ trait Stream[+E, +A] {
 
 Taking elements while they are less than 6 stops early without processing the rest:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -1034,7 +1034,7 @@ trait Stream[+E, +A] {
 
 This is useful for rendering comma-separated lists or row delimiters:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val items = Stream("a", "b", "c")
@@ -1054,7 +1054,7 @@ trait Stream[+E, +A] {
 
 This creates an infinite repetition of the stream:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val original = Stream(1, 2)
@@ -1074,7 +1074,7 @@ trait Stream[+E, +A] {
 
 Use `tapEach` for logging or metrics:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -1118,7 +1118,7 @@ trait Stream[+E, +A] {
 
 The recovery function receives the error and can return a new stream:
 
-```scala mdoc:nest
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 sealed trait Error
@@ -1141,7 +1141,7 @@ trait Stream[+E, +A] {
 
 `||` is an alias for `orElse`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams._
 
 val primary = Stream.fail("error")
@@ -1163,7 +1163,7 @@ trait Stream[+E, +A] {
 
 Use `catchDefect` for exception handling:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val risky = Stream.attempt("not a number".toInt)
@@ -1203,7 +1203,7 @@ This is the fundamental pattern for safe resource handling:
 
 Here's an example with automatic cleanup:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 case class DatabaseConnection(id: String) {
@@ -1227,7 +1227,7 @@ val result = managed.runCollect
 
 Even if the stream fails, cleanup runs:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val managed = Stream.fromAcquireRelease(
@@ -1284,7 +1284,7 @@ trait Stream[+E, +A] {
 
 Use `ensuring` for simple cleanup tasks that don't fit the acquire-release pattern:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val stream = Stream(1, 2, 3)
@@ -1326,7 +1326,7 @@ trait Stream[+E, +A] {
 
 This is the most common terminal operation for extracting results:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -1346,7 +1346,7 @@ trait Stream[+E, +A] {
 
 Use `run` when you need a specialized sink operation:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -1370,7 +1370,7 @@ trait Stream[+E, +A] {
 
 Use `runDrain` when you only care about side effects:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -1390,7 +1390,7 @@ trait Stream[+E, +A] {
 
 Alias `foreach` also exists:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3)
@@ -1413,7 +1413,7 @@ trait Stream[+E, +A] {
 
 This is the most general aggregation, equivalent to `reduce` or `fold` on eager sequences:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4)
@@ -1440,7 +1440,7 @@ trait Stream[+E, +A] {
 
 Counting elements in a stream:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1459,7 +1459,7 @@ trait Stream[+E, +A] {
 
 Getting the first element without collecting the entire stream:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1478,7 +1478,7 @@ trait Stream[+E, +A] {
 
 Getting the final element of the stream:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1497,7 +1497,7 @@ trait Stream[+E, +A] {
 
 Finding the first element matching a condition:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1516,7 +1516,7 @@ trait Stream[+E, +A] {
 
 Checking if any element is greater than 35:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1535,7 +1535,7 @@ trait Stream[+E, +A] {
 
 Checking if all elements are positive:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(10, 20, 30, 40, 50)
@@ -1558,7 +1558,7 @@ trait Stream[+E, +A] {
 
 Pipelines are composable transformations that can be reused across streams and sinks. Common pipelines include `Pipeline.map`, `Pipeline.filter`, `Pipeline.take`, and `Pipeline.drop`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
@@ -1568,7 +1568,7 @@ val result = nums.via(pipe).runCollect
 
 Pipelines are useful when you want to build reusable transformation logic:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 def positiveIntsPipe: Pipeline[Int, Int] =
