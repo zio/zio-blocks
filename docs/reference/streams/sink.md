@@ -341,13 +341,31 @@ bos.close()
 
 #### `Sink.fromJavaWriter` — Write Characters
 
-Writes every `Char` element to a `java.io.Writer`. Does not close the writer when done:
+Writes every `Char` element to a `java.io.Writer`. Does not close the writer when done — you own its lifecycle:
 
 ```scala
 object Sink {
   def fromJavaWriter(w: java.io.Writer): Sink[Nothing, Char, Unit]
 }
 ```
+
+Write a stream of characters to a StringWriter and access the accumulated text:
+
+```scala mdoc:reset
+import zio.blocks.streams.*
+import java.io.StringWriter
+
+val writer = new StringWriter()
+
+// Write a stream of individual characters
+Stream('H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd')
+  .run(Sink.fromJavaWriter(writer))
+
+// Get the final string
+val result = writer.toString()
+```
+
+Like `fromOutputStream`, this sink intentionally does not close the writer. This gives you control over when to flush or close, allowing you to write multiple streams to the same writer or coordinate lifecycle with other operations.
 
 ### Custom
 
