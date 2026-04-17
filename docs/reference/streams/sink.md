@@ -311,25 +311,14 @@ Write elements to Java I/O destinations:
 
 #### `Sink.fromOutputStream` — Write Bytes
 
-Writes every `Byte` element to a `java.io.OutputStream`. The sink does **not** close the stream when done. This is intentional: you own the stream's lifecycle, not the sink. You're responsible for closing it yourself (typically via try-with-resources or explicit `close()` calls) to flush buffers and release system resources. This design gives you flexibility to reuse the stream after the sink finishes, or to coordinate closing with other stream operations.
+Writes every `Byte` element to a `java.io.OutputStream`:
 
 ```scala
 object Sink {
   def fromOutputStream(os: java.io.OutputStream): Sink[Nothing, Byte, Unit]
 }
 ```
-
-```scala mdoc:reset
-import zio.blocks.streams.*
-import java.io.ByteArrayOutputStream
-
-val bos = new ByteArrayOutputStream()
-Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](72, 105)).run(Sink.fromOutputStream(bos))
-// Stream writes bytes but does NOT close bos
-// You must close it yourself when done: bos.close()
-```
-
-Here's a more complete example showing how to manage the stream lifecycle:
+The sink does **not** close the stream when done. This is intentional: you own the stream's lifecycle, not the sink. You're responsible for closing it yourself (typically via try-with-resources or explicit `close()` calls) to flush buffers and release system resources. This design gives you flexibility to reuse the stream after the sink finishes, or to coordinate closing with other stream operations:
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
