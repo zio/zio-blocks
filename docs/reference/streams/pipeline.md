@@ -110,7 +110,7 @@ object Pipeline {
 
 This is the most common pipeline constructor:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val doubler = Pipeline.map[Int, Int](_ * 2)
@@ -131,7 +131,7 @@ object Pipeline {
 
 Note that the output type is the same as the input type — filtering does not change the element type:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val positives = Pipeline.filter[Int](_ > 0)
@@ -151,7 +151,7 @@ object Pipeline {
 
 Use `collect` when you need to filter and transform simultaneously:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val extractInts = Pipeline.collect[Any, Int] { case n: Int => n }
@@ -171,7 +171,7 @@ object Pipeline {
 
 This naturally short-circuits — upstream stops producing once `n` elements have passed:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val firstFive = Pipeline.take[Int](5)
@@ -191,7 +191,7 @@ object Pipeline {
 
 Use `drop` to skip headers, metadata, or warm-up elements:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val skipHeader = Pipeline.drop[String](1)
@@ -211,7 +211,7 @@ object Pipeline {
 
 You rarely construct `identity` explicitly, but it is important as a base case in generic pipeline-building code:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val noOp = Pipeline.identity[Int]
@@ -288,7 +288,7 @@ Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type deleg
 
 The key advantage of `via` over inline methods is **reuse**: define the pipeline once and apply it to multiple streams:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.streams.*
 
 // A reusable cleaning pipeline for sensor data
@@ -332,7 +332,7 @@ trait Pipeline[-In, +Out] {
 
 This is an alias for `applyToSink`. After calling `andThenSink`, the resulting sink accepts `In` elements, transforms them through the pipeline, and feeds the `Out` elements to the original sink:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.streams.*
 
 // A pipeline that normalizes strings
@@ -349,10 +349,10 @@ val result = Stream("  Hello ", " WORLD  ").run(collectNormalized)
 
 Both achieve the same result. Choose based on which side you want to reuse:
 
-| Approach                      | Use when…                                       |
-| ----------------------------- | ----------------------------------------------- |
-| `stream.via(pipe).run(sink)`  | You have a fixed pipeline and varying sinks      |
-| `stream.run(pipe.andThenSink(sink))` | You want a reusable "pre-processing sink" |
+| Approach                             | Use when…                                   |
+|--------------------------------------|---------------------------------------------|
+| `stream.via(pipe).run(sink)`         | You have a fixed pipeline and varying sinks |
+| `stream.run(pipe.andThenSink(sink))` | You want a reusable "pre-processing sink"   |
 
 The laws guarantee equivalence: `stream.via(pipe).run(sink) == stream.run(pipe.andThenSink(sink))`.
 
