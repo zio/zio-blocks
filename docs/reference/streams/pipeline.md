@@ -288,7 +288,7 @@ Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type deleg
 
 The key advantage of `via` over inline methods is **reuse**: define the pipeline once and apply it to multiple streams:
 
-```scala mdoc
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 // A reusable cleaning pipeline for sensor data
@@ -368,30 +368,11 @@ trait Pipeline[-In, +Out] {
 
 Prefer `andThenSink` for readability.
 
-## Implementation Notes
-
-Understanding how `Pipeline` is implemented helps explain its design choices: why certain methods require type parameters, how specialization avoids boxing, and what trade-offs exist when applying pipelines to sinks.
-
-### JVM Primitive Specialization
+## JVM Primitive Specialization
 
 `Pipeline.map`, `Pipeline.filter`, `Pipeline.collect`, and `Pipeline.identity` all require `JvmType.Infer[A]` implicit parameters. These are resolved at compile time and enable unboxed, specialized code paths for primitive types (`Int`, `Long`, `Float`, `Double`, etc.). You never need to provide these explicitly — the compiler infers them automatically.
 
 `Pipeline.take` and `Pipeline.drop` do not require `JvmType.Infer` because they do not inspect or transform element values — they only count positions.
-
-### The `RunViaSink` Mechanism
-
-When you apply most pipeline types to a sink (via `applyToSink`), the implementation uses a `RunViaSink` adapter internally:
-
-1. The incoming reader (raw element source) is wrapped in a synthetic stream
-2. The pipeline's `applyToStream` transforms that stream
-3. The transformed stream is compiled back to a reader
-4. The downstream sink drains the compiled reader
-
-This adds a small overhead compared to direct stream application, because an intermediate reader is created and closed.
-
-### The `MapPipeline` Optimization
-
-`Pipeline.map(f).applyToSink(sink)` is a special case: it short-circuits directly to `sink.contramap(f)` instead of going through `RunViaSink`. This is possible because mapping is the dual of contramapping — applying `f` to a sink's input is exactly `contramap`. This optimization avoids the synthetic stream round-trip entirely.
 
 ## Integration
 
