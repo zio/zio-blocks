@@ -223,6 +223,8 @@ object Reader {
 }
 ```
 
+Create an infinite reader that repeatedly emits the same value:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 
@@ -256,6 +258,8 @@ object Reader {
   def unfold[S, A](s: S)(f: S => Option[(A, S)]): Reader[A]
 }
 ```
+
+Create a reader that unfolds state incrementally until completion:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
