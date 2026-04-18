@@ -109,7 +109,7 @@ bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
 
 This checks Rules 5, 6, 8, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
 
-**Rule 8** uses a heuristic algorithm: identifies method names in backticks (lowercase start, >2 chars), excludes safe names (f, z, pred, Sink, Reader), and only flags methods that appear qualified elsewhere in the document. This avoids false positives without maintaining a fixed method list. After running the check, please update the `safeMethodNames` set in `check-docs-style.sh` with any new method names that are commonly used and should not be flagged when unqualified.
+**Rule 8** detects unqualified methods by identifying camelCase names in backticks, excluding safe names (variables, types), and flagging only methods that appear qualified elsewhere. Update `SAFE_NAMES` in `check-docs-style.sh` with new commonly-used names to avoid false positives. After running the check, please update the `safeMethodNames` set in `check-docs-style.sh` with any new method names that are commonly used and should not be flagged when unqualified.
 
 **Note:** Rule 16 (imports) is not checked mechanically. Verify that all code blocks include necessary imports by visual inspection.
 
