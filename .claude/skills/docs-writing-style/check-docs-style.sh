@@ -181,6 +181,10 @@ count_violations "$(awk '
 ' "$FILE")"
 
 # Rule 8: Unqualified method/constructor names (heuristic-based algorithm)
+# This mechanical check requires feedback loop to refine the SAFE_NAMES set
+# and confidence heuristics, but it can catch common cases of unqualified
+# method references in prose. After running this check, review the output
+# and add any false positives to the SAFE_NAMES set
 if command -v python3 >/dev/null 2>&1; then
   count_violations "$(python3 - "$FILE" << 'PYTHON_EOF'
 import sys, re
