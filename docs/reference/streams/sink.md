@@ -621,16 +621,6 @@ For a stream processing **millions of elements**, the typed sink approach has me
 - **Typed sinks:** Cannot stream sentinel values (Long.MaxValue, Double.MaxValue)
 - **Generic sinks:** Universal (handle any value), but slightly slower per-element
 
-**Decision Framework:**
-
-| Scenario | Use | Why |
-|----------|-----|-----|
-| Streaming millions of primitives + data can't contain sentinels | Typed sinks (`fromByteBufferLong`) | Zero overhead, maximum performance |
-| Streaming any data (including all possible values) | Generic sinks (`Sink.collectAll`, `Sink.foldLeft`) | Correctness over performance; handles any value |
-| Unknown constraints or developing/debugging | Generic sinks | When unsure, safety > performance |
-| Sensor/measurement data (won't have extreme values) | Typed sinks | Safe and fast for real-world domains |
-| Mathematical/scientific data (might need extreme values) | Generic sinks | Avoid silent data loss |
-
 Here is a complete, runnable example that demonstrates the sentinel limitation:
 
 ```scala mdoc:passthrough
