@@ -528,10 +528,10 @@ Here are the available NIO sinks:
 
 ```scala
 object NioSinks {
-  def fromByteBuffer(buf: ByteBuffer): Sink[Nothing, Byte, Unit]
-  def fromByteBufferInt(buf: ByteBuffer): Sink[Nothing, Int, Unit]
-  def fromByteBufferLong(buf: ByteBuffer): Sink[Nothing, Long, Unit]
-  def fromByteBufferFloat(buf: ByteBuffer): Sink[Nothing, Float, Unit]
+  def fromByteBuffer      (buf: ByteBuffer): Sink[Nothing, Byte,   Unit]
+  def fromByteBufferInt   (buf: ByteBuffer): Sink[Nothing, Int,    Unit]
+  def fromByteBufferLong  (buf: ByteBuffer): Sink[Nothing, Long,   Unit]
+  def fromByteBufferFloat (buf: ByteBuffer): Sink[Nothing, Float,  Unit]
   def fromByteBufferDouble(buf: ByteBuffer): Sink[Nothing, Double, Unit]
   def fromChannel(ch: WritableByteChannel, bufSize: Int = 8192): Sink[IOException, Byte, Unit]
 }
