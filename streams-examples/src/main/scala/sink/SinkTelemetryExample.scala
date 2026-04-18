@@ -59,7 +59,7 @@ object SinkTelemetryExample extends App {
     buffer.flip()
 
     // Write all bytes to file with internal buffering (8KB chunks)
-    val bytes = buffer.array()
+    val bytes      = buffer.array()
     val byteStream = Stream.fromChunk(zio.blocks.chunk.Chunk.fromArray(bytes))
     byteStream.run(NioSinks.fromChannel(channel, bufSize = 8192))
 
