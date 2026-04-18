@@ -12,7 +12,7 @@ title: "Reader"
 - dispatches on `jvmType` to use specialized, unboxed reads for primitive types
 - is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
 
-Here is the core Reader interface:
+Here is the core Reader interface with the most essential methods:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -20,19 +20,6 @@ abstract class Reader[+Elem] {
   def close(): Unit
   def isClosed: Boolean
   def readable(): Boolean
-  def readInt(sentinel: Long)(using Elem <:< Int): Long
-  def readLong(sentinel: Long)(using Elem <:< Long): Long
-  def readFloat(sentinel: Double)(using Elem <:< Float): Double
-  def readDouble(sentinel: Double)(using Elem <:< Double): Double
-  def ++[Elem2 >: Elem](next: => Reader[Elem2]): Reader[Elem2]
-  def concat[Elem2 >: Elem](next: () => Reader[Elem2]): Reader[Elem2]
-  def skip(n: Long): Unit
-  def readAll[A >: Elem](): Chunk[A]
-  def reset(): Unit
-  def setLimit(n: Long): Boolean
-  def setSkip(n: Long): Boolean
-  def setRepeat(): Boolean
-  def withRelease(release: () => Unit): Reader[Elem]
 }
 ```
 
