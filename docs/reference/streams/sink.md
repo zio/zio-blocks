@@ -520,37 +520,9 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. These exist because NIO is the standard high-performance I/O mechanism on the JVM: non-blocking, memory-efficient, and capable of handling thousands of concurrent connections. When you're writing to network sockets, memory-mapped files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
 
-### The Problem with Traditional I/O
+Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `fromChannel` handles buffering automatically (default 8KB), while typed variants like `fromByteBufferInt` and `fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
-Traditional Java I/O (`OutputStream`, `Writer`) works well for simple cases, but has fundamental limitations in high-throughput scenarios:
-
-- **Allocations:** Every element passed to `write()` may trigger boxing (for objects) or temporary wrapper allocations, compounding in tight loops with millions of elements.
-- **No backpressure:** Streams and writers don't communicate when the underlying I/O is slow, making it hard to avoid memory overflow.
-- **Blocking:** Traditional I/O blocks the thread, tying up resources in high-concurrency scenarios (thousands of connections).
-- **Manual buffering:** Writing unbuffered is slow, so developers must wrap with `BufferedOutputStream` or `BufferedWriter`, adding boilerplate.
-
-NIO solves these problems through selectable (non-blocking) channels and bulk operations, but using NIO directly is verbose: you must allocate buffers, manage positions, flush explicitly, and handle `ClosedChannelException` manually.
-
-### Why NIO Sinks are Better
-
-`NioSinks` bridges this gap by:
-
-1. **Eliminating allocations** — Typed sinks (`fromByteBufferInt`, `fromByteBufferLong`) write primitives directly using the buffer's native methods (`putInt`, `putLong`), avoiding boxing and wrapper creation entirely.
-2. **Automatic buffering** — `fromChannel` handles internal buffering (default 8KB), flushes intelligently, and frees you from manual position management.
-3. **Direct integration with Streams** — No boilerplate: just `.run(NioSinks.fromChannel(...))` and all streaming logic (composition, error handling, resource cleanup) works seamlessly.
-4. **Type-safe errors** — `IOException` is typed (`Sink[IOException, ...]`), so you can use `Stream#catchAll` to handle I/O failures as first-class values, not try-catch blocks.
-
-### When to Choose NIO Sinks vs. Alternatives
-
-| Scenario | Use `NioSinks` | Alternative | Trade-off |
-|----------|---|---|---|
-| Writing to a network socket or file with low latency | ✅ `fromChannel` | `java.io.OutputStream` | NIO is non-blocking; I/O is simpler but may block threads |
-| Streaming millions of primitives (Longs, Doubles) | ✅ `fromByteBufferLong/Double` | Generic `Sink.create` + manual buffer ops | Typed sinks are unboxed; generic sinks are flexible but slower |
-| Pre-allocated buffer (e.g., off-heap memory, memory-mapped file) | ✅ `fromByteBuffer*` | `ByteArrayOutputStream` in-memory | Direct buffer writes avoid copying; in-memory is simpler but uses heap |
-| One-off small write, not performance-critical | ⚠️ Consider `Sink.fromOutputStream` | `java.io.ByteArrayOutputStream` | Simpler, no NIO overhead; NIO overkill for tiny writes |
-| Needing full control over flushing and positioning | ✅ `Sink.create` with `Reader` | `fromChannel` | Lowest level; `fromChannel` handles it for you |
-
-**In summary:** Use NIO Sinks when you're writing streams of data to I/O destinations (network, disk, memory-mapped files) and care about throughput or resource efficiency. The type-safe error handling and automatic buffering eliminate boilerplate while the specialized variants avoid boxing entirely.
+Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. Note the sentinel-value limitation described below—it is a hard constraint that applies to all typed variants.
 
 Here are the available NIO sinks:
 
@@ -565,13 +537,22 @@ object NioSinks {
 }
 ```
 
-**`fromByteBuffer` and typed variants** — Use these to write primitive streams directly into a pre-allocated NIO ByteBuffer. This is useful when you have a fixed-size buffer and want to fill it with data:
-- `fromByteBuffer` — writes individual `Byte` elements (slowest, use only for unstructured data)
-- `fromByteBufferInt`, `fromByteBufferLong`, etc. — write primitive arrays directly, using the buffer's `putInt`, `putLong` methods. These are faster because they operate on primitives without boxing and align with the buffer's native type.
+**`fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
+- `fromByteBuffer` — writes individual `Byte` elements using a read sentinel of `-1`. Use only for unstructured byte data.
+- `fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferFloat`, `fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
 
-Use these when you control buffer allocation (e.g., pre-allocated DirectByteBuffer for zero-copy I/O) or when writing to memory-mapped files.
+:::danger
+**Sentinel Value Limitation:** Typed variants use reserved sentinel values to detect end-of-stream:
+- `fromByteBufferInt` uses `Long.MinValue` as sentinel
+- `fromByteBufferLong` uses `Long.MaxValue` as sentinel
+- `fromByteBufferFloat` and `fromByteBufferDouble` use `Double.MaxValue` as sentinel
 
-**`fromChannel`** — Performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when full, and flushes again at end-of-stream. It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer.
+**If your stream contains an element equal to the sentinel value, the sink will silently stop and drop all remaining elements.** For example, if you stream Longs and one element is `Long.MaxValue`, the stream terminates prematurely. This is a hard constraint of the implementation—do not use these typed sinks if your data can contain these exact values. Use `Sink.create` with manual buffering instead.
+:::
+
+Use these when you control buffer allocation (e.g., pre-allocated DirectByteBuffer) and your data cannot contain sentinel values, or when writing to memory-mapped files with the same constraint.
+
+**`fromChannel`** — Performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream. It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
 
 Here's an example using ByteBuffer with typed primitive writes:
 
@@ -599,7 +580,7 @@ val readBack = List(
 
 This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
 
-**Real-World Use Case: Streaming Telemetry to a File Channel** — Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and backpressure handling.
+**Real-World Use Case: Streaming Telemetry to a File Channel** — Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and eliminates manual position management.
 
 Here is the complete example:
 
