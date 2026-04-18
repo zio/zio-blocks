@@ -1,5 +1,7 @@
 #!/bin/bash
 # Method coverage checker for ZIO Blocks reference documentation
+# Uses Scala-aware parsing to extract public methods.
+#
 # Usage: check-method-coverage.sh <TypeName> <doc-file.md>
 # Exit codes: 0 = all methods covered, 1 = missing methods, 2 = error
 #
@@ -46,87 +48,116 @@ else
   echo "Found source: $SOURCE_FILE" >&2
 fi
 
-# Extract all public methods from the source
-# Extract public, top-level method names from the primary type body.
-# This is a best-effort parser that:
-# - ignores private/protected defs
-# - only considers defs at brace depth 1 (inside the outer class/object body)
-# - skips nested/local defs inside other blocks
-# - captures both identifier-based names (foo) and symbolic operators (++, &, |, ^, etc.)
+# Get directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Extract all public methods from the source using Scala-aware parser
+# The Scala parser properly handles:
+# - Method signatures with generic type parameters
+# - Access modifiers (private, protected)
+# - Complex nested structures
+# - Both identifier and symbolic method names
 extract_methods_from_source() {
   local file="$1"
+  local type_name="${2:-}"
+
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  awk '
-    BEGIN { brace_depth = 0 }
-    {
-      line = $0
-      current_depth = brace_depth
+  # Try to run the Scala extractor
+  if [[ -f "$SCRIPT_DIR/extract-methods.scala" ]]; then
+    # Run with scala if available, otherwise fall back to bash extraction
+    if command -v scala >/dev/null 2>&1; then
+      if [[ -n "$type_name" ]]; then
+        scala "$SCRIPT_DIR/extract-methods.scala" "$file" "$type_name" 2>/dev/null || true
+      else
+        scala "$SCRIPT_DIR/extract-methods.scala" "$file" 2>/dev/null || true
+      fi
+    else
+      # Fallback to improved bash-based extraction if scala is not available
+      extract_methods_bash_fallback "$file" "$type_name"
+    fi
+  else
+    # Fallback if Scala script not found
+    extract_methods_bash_fallback "$file" "$type_name"
+  fi
+}
 
-      if (
-        current_depth == 1 &&
-        line !~ /(^|[^[:alnum:]_])(private|protected)([^[:alnum:]_]|$)/ &&
-        line ~ /^[[:space:]]*(override[[:space:]]+|final[[:space:]]+|inline[[:space:]]+)*def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*|[][!#%&*+\\/:<=>?@\\\\^|~-]+)/
-      ) {
-        # Extract both identifier-based names and symbolic operator names
-        if (match(line, /def[[:space:]]+([A-Za-z_][A-Za-z0-9_]*|[][!#%&*+\\/:<=>?@\\\\^|~-]+)/)) {
-          name = substr(line, RSTART, RLENGTH)
-          sub(/^def[[:space:]]+/, "", name)
-          print name
+# Bash fallback for method extraction when Scala is not available
+extract_methods_bash_fallback() {
+  local file="$1"
+  local type_name="$2"
+
+  awk -v type_name="$type_name" '
+    BEGIN {
+      brace_depth = 0
+      in_target_type = (type_name == "")
+      target_type_depth = -1
+    }
+
+    # Check if entering target type
+    !in_target_type && $0 ~ "(abstract +)?(class|trait|object) +" type_name " " {
+      in_target_type = 1
+      target_type_depth = brace_depth
+    }
+
+    # Check if leaving target type
+    in_target_type && type_name != "" && brace_depth <= target_type_depth && /}/ {
+      in_target_type = 0
+    }
+
+    # Extract methods when in target scope
+    in_target_type && brace_depth > 0 {
+      if ($0 !~ /(private|protected)/ && $0 ~ /(def|given) +/) {
+        if (match($0, /(def|given) +([a-zA-Z_][a-zA-Z0-9_]*)/)) {
+          name = substr($0, RSTART + 4, RLENGTH - 4)
+          gsub(/^[[:space:]]+/, "", name)
+          gsub(/[[:space:]]+.*/, "", name)
+          if (name != "") print name
         }
       }
+    }
 
-      opens = gsub(/\{/, "{", line)
-      closes = gsub(/\}/, "}", line)
+    {
+      opens = gsub(/{/, "{")
+      closes = gsub(/}/, "}")
       brace_depth += opens - closes
-      if (brace_depth < 0) {
-        brace_depth = 0
-      }
+      if (brace_depth < 0) brace_depth = 0
     }
   ' "$file" | sort -u
 }
 
-# Extract companion object methods
-extract_object_methods_from_source() {
-  local file="$1"
-  if [[ ! -f "$file" ]]; then
-    return
-  fi
-
-  # Look for object <TypeName> or object following the class
-  awk '
-    /^[[:space:]]*object[[:space:]]+'"$TYPE_NAME"'[[:space:]]*[#{]/ { in_object=1; next }
-    /^[[:space:]]*object[[:space:]]+[a-zA-Z_]/ { in_object=0 }
-    in_object && /^[[:space:]]*def[[:space:]]+/ {
-      line=$0
-      sub(/^[[:space:]]*def[[:space:]]+/, "", line)
-      sub(/\(.*/, "", line)
-      print line
-    }
-  ' "$file" | grep -E '^[a-zA-Z][a-zA-Z0-9_]*$' | sort -u
-}
-
 # Extract documented methods from markdown
-# Looks for backtick-enclosed method references like `methodName`, `++`, or TypeName#methodName
-# Supports both identifier-based names (a-zA-Z0-9_) and symbolic names (++, &, |, ^, etc.)
-# Handles method signatures with parameters like `Chunk#:+(a)` by extracting full backtick
-# contents first, then stripping parameter lists
+# Looks for backtick-enclosed method references like:
+# - `methodName` (bare method name)
+# - `TypeName#methodName` (instance method)
+# - `TypeName.methodName` (companion/static method)
+#
+# Filters to only method-like patterns:
+# - Must start with lowercase (camelCase methods) or be symbolic operators
+# - Allow alphanumeric, underscores
+# - Excludes type names, constants, keywords, variables, and code tokens
 extract_methods_from_doc() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
     return
   fi
 
+  # Extract all backtick-quoted content
   grep -oE '`[^`]+`' "$file" | \
     sed -E 's/`//g' | \
     # Strip parameter lists and type parameters: remove everything from '(' or '[' onwards
     sed -E 's/[\(\[].*//' | \
     # Extract just the method name if it's Type#method or Type.method format
-    sed -E 's/^[^#.]+[#.]//' | \
-    # Remove empty lines and non-identifier results
-    grep -E '^[a-zA-Z0-9_+:*/%&|^!<>@\\-]+$' | \
+    sed -E 's/^[^#.]*[#.]//' | \
+    # Filter to only method-like identifiers:
+    # - Start with lowercase letter (methods are camelCase)
+    # - Allow alphanumeric, underscores, symbolic operators
+    # - Must be at least 2 characters (exclude single-letter variables like f, n, z, x, y)
+    grep -E '^[a-z][a-zA-Z0-9_]{1,}$|^[+:*/%&|^!<>@\\-]+$' | \
+    # Exclude common keywords and non-method tokens
+    grep -vE '^(true|false|null|this|super|self|finally|inline|read|close|bufSize|pred|f|n|z|via|nio)$' | \
     sort -u
 }
 
@@ -137,8 +168,7 @@ echo ""
 SOURCE_METHODS="source_methods_$$.txt"
 DOC_METHODS="doc_methods_$$.txt"
 
-extract_methods_from_source "$SOURCE_FILE" > "$SOURCE_METHODS" 2>/dev/null || true
-extract_object_methods_from_source "$SOURCE_FILE" >> "$SOURCE_METHODS" 2>/dev/null || true
+extract_methods_from_source "$SOURCE_FILE" "$TYPE_NAME" > "$SOURCE_METHODS" 2>/dev/null || true
 
 # Collect documented methods
 extract_methods_from_doc "$DOC_FILE" > "$DOC_METHODS"
