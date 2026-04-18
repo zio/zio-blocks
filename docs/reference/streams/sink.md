@@ -80,6 +80,8 @@ object Sink {
 }
 ```
 
+Count all elements in a stream:
+
 ```scala mdoc:reset
 import zio.blocks.streams._
 
@@ -145,6 +147,8 @@ object Sink {
 }
 ```
 
+Collect only the first three elements from a large stream:
+
 ```scala mdoc:reset
 import zio.blocks.streams._
 
@@ -185,6 +189,8 @@ object Sink {
 }
 ```
 
+Get the first element from a stream, or None if empty:
+
 ```scala mdoc:reset
 import zio.blocks.streams._
 
@@ -203,6 +209,8 @@ object Sink {
 }
 ```
 
+Get the last element from a stream:
+
 ```scala mdoc:reset
 import zio.blocks.streams._
 
@@ -218,6 +226,8 @@ object Sink {
   def find[A](pred: A => Boolean): Sink[Nothing, A, Option[A]]
 }
 ```
+
+Find the first even number in the stream:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -235,6 +245,8 @@ object Sink {
 }
 ```
 
+Check if any element matches a condition:
+
 ```scala mdoc:reset
 import zio.blocks.streams._
 
@@ -250,6 +262,8 @@ object Sink {
   def forall[A](pred: A => Boolean): Sink[Nothing, A, Boolean]
 }
 ```
+
+Test whether all elements satisfy a condition:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -272,6 +286,8 @@ object Sink {
   def foreach[A](f: A => Unit): Sink[Nothing, A, Unit]
 }
 ```
+
+Print each element as it is processed:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -443,6 +459,8 @@ trait Sink[+E, -A, +Z] {
   def map[Z2](f: Z => Z2): Sink[E, A, Z2]
 }
 ```
+
+Transform the result after draining:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
