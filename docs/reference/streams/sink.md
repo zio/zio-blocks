@@ -522,7 +522,7 @@ The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffer
 
 Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `fromChannel` handles buffering automatically (default 8KB), while typed variants like `fromByteBufferInt` and `fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
-Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. Note the sentinel-value limitation described below—it is a hard constraint that may affect your application logic soundness if your data can contain the sentinel values.
+Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. **Important:** Read the Sentinel Value Limitation section below—it describes a hard constraint that affects your choice depending on whether your data can contain specific values.
 
 Here are the available NIO sinks:
 
@@ -585,8 +585,6 @@ If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLon
 
 For a complete demonstration of this limitation in action, see the Sentinel Value Limitation example below.
 :::
-
-Use typed variants when you control buffer allocation (e.g., pre-allocated DirectByteBuffer), your data provably cannot contain sentinel values, and you need maximum performance. Otherwise, use generic sinks like `Sink.collectAll` or `Sink.foldLeft` which have no sentinel constraint.
 
 ### Design Trade-off: Why Sentinels Instead of Objects?
 
