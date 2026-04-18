@@ -185,5 +185,17 @@ Serious risk of data loss, incorrect behavior, or security issue.
 :::
 ```
 
+### Adding Titles to Admonitions
+
+Add a title in square brackets after the type. Titles support Markdown:
+
+```
+:::note[Your Title **with** some _Markdown_ `syntax`!]
+
+Some **content** with some _Markdown_ `syntax`.
+
+:::
+```
+
 Use admonitions **sparingly** — at most 3–4 in a typical document. They should highlight genuinely
 important information, not decorate every section.
