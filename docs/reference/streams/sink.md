@@ -537,9 +537,58 @@ object NioSinks {
 }
 ```
 
+### From ByteBuffer Sinks
+
 **`fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
 - `fromByteBuffer` — writes individual `Byte` elements using a read sentinel of `-1`. Use only for unstructured byte data.
 - `fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferFloat`, `fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
+
+Here's an example using ByteBuffer with typed primitive writes:
+
+```scala mdoc:reset
+import zio.blocks.streams.*
+import zio.blocks.streams.NioSinks
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+val buffer = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN)
+
+// Write a stream of Longs to the buffer
+Stream(1L, 2L, 3L, 4L).run(NioSinks.fromByteBufferLong(buffer))
+
+// After writing, rewind to read
+buffer.rewind()
+
+val readBack = List(
+  buffer.getLong(),
+  buffer.getLong(),
+  buffer.getLong(),
+  buffer.getLong()
+)
+```
+
+This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
+
+The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing.
+
+Here is the complete example:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala))
+
+Run it with:
+
+```bash
+sbt "streams-examples/runMain sink.SinkScientificComputingExample"
+```
+
+This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
+
 
 :::danger
 **Sentinel Value Limitation: Why It Exists**
@@ -583,14 +632,27 @@ If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLon
 - `Sink.foldLeft[A, Z](z: Z)(f: (Z, A) => Z)` — accumulates without sentinel constraint
 - `Sink.collectAll[A]` — collects into a Chunk using generic protocol (no sentinel)
 
-For a complete demonstration of this limitation in action, see the Sentinel Value Limitation example below.
-:::
+For a complete demonstration of this limitation in action, see the Sentinel Value Limitation example below:
 
-### Design Trade-off: Why Sentinels Instead of Objects?
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
+
+Run it with:
+
+```bash
+sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
+```
+:::
 
 You might ask: **Why not use a sentinel object like generic sinks do, instead of primitive values?** The answer reveals a fundamental performance trade-off.
 
 **Typed NIO Sinks use primitive sentinels:**
+
 ```scala
 // fromByteBufferLong - tight loop with primitives only
 val s = Long.MaxValue
@@ -599,6 +661,7 @@ while (v != s) { buf.putLong(v); v = reader.readLong(s)(using unsafeEvidence) }
 ```
 
 **Generic sinks use object sentinels:**
+
 ```scala
 // Sink.collectAll - uses object reference for end-of-stream
 var v = reader.read(EndOfStream)  // EndOfStream is an object
@@ -619,51 +682,13 @@ For a stream processing **millions of elements**, the typed sink approach has me
 - **Typed sinks:** Cannot stream sentinel values (Long.MaxValue, Double.MaxValue)
 - **Generic sinks:** Universal (handle any value), but slightly slower per-element
 
-Here is a complete, runnable example that demonstrates the sentinel limitation:
+### From Channel Sink
 
-```scala mdoc:passthrough
-import docs.SourceFile
+The **`Sink.fromChannel`**  constructor performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream.
 
-SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
-```
+It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
-
-Run it with:
-
-```bash
-sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
-```
-
-**`fromChannel`** — Performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream. It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
-
-Here's an example using ByteBuffer with typed primitive writes:
-
-```scala mdoc:reset
-import zio.blocks.streams.*
-import zio.blocks.streams.NioSinks
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-
-val buffer = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN)
-
-// Write a stream of Longs to the buffer
-Stream(1L, 2L, 3L, 4L).run(NioSinks.fromByteBufferLong(buffer))
-
-// After writing, rewind to read
-buffer.rewind()
-
-val readBack = List(
-  buffer.getLong(),
-  buffer.getLong(),
-  buffer.getLong(),
-  buffer.getLong()
-)
-```
-
-This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
-
-**Real-World Use Case: Streaming Telemetry to a File Channel** — Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and eliminates manual position management.
+Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and eliminates manual position management.
 
 Here is the complete example:
 
@@ -682,26 +707,6 @@ sbt "streams-examples/runMain sink.SinkTelemetryExample"
 ```
 
 This pattern is common in high-throughput logging systems, time-series databases, and IoT platforms where you need to write streams of telemetry data to persistent storage without blocking or allocating excessively.
-
-**Real-World Use Case: Batching Doubles for Scientific Computing** — When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing. This example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation.
-
-Here is the complete example:
-
-```scala mdoc:passthrough
-import docs.SourceFile
-
-SourceFile.print("streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala")
-```
-
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala))
-
-Run it with:
-
-```bash
-sbt "streams-examples/runMain sink.SinkScientificComputingExample"
-```
-
-This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
 ## Implementation Notes
 
