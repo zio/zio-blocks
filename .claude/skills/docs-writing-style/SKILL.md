@@ -109,16 +109,7 @@ bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
 
 This checks Rules 5, 6, 8, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
 
-**Rule 8 — Heuristic Algorithm for Unqualified Methods:**
-
-The checker uses a smart heuristic-based algorithm to detect unqualified method/constructor references:
-
-1. **Pattern matching**: Identifies identifiers in backticks matching method naming (lowercase start, >2 chars)
-2. **Confidence scoring**: Only flags methods that appear qualified elsewhere in the document (proof they're real methods, not variables)
-3. **Safe filtering**: Excludes known variable names (f, z, pred), type names (Sink, Reader), constants, and short identifiers
-4. **Context checking**: Skips already-qualified references (Type#method), code blocks, and markdown links
-
-This approach is scalable and catches all unqualified methods without maintaining a fixed list.
+**Rule 8** uses a heuristic algorithm: identifies method names in backticks (lowercase start, >2 chars), excludes safe names (f, z, pred, Sink, Reader), and only flags methods that appear qualified elsewhere in the document. This avoids false positives without maintaining a fixed method list.
 
 **Note:** Rule 16 (imports) is not checked mechanically. Verify that all code blocks include necessary imports by visual inspection.
 
