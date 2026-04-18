@@ -9,7 +9,7 @@ title: "Sink"
 - Is covariant in `E` (error) and `Z` (result) — these are outputs
 - Is contravariant in `A` (input) — a `Sink[_, Any, _]` accepts any element type
 - Participates in JVM primitive specialization for zero-boxing overhead
-- Provides `contramap`, `map`, and `mapError` for composable transformations
+- Provides `Sink#contramap`, `Sink#map`, and `Sink#mapError` for composable transformations
 
 Here is the structural shape of the `Sink` type:
 
@@ -37,7 +37,7 @@ Sink is the terminal piece in the streaming architecture. A [Stream](./stream.md
 
 When you call `stream.run(sink)`:
 1. The stream compiles into a `Reader` (a low-level pull-based source)
-2. The sink's internal `drain` method pulls elements in a tight loop until end-of-stream
+2. The sink's internal `Sink#drain` method pulls elements in a tight loop until end-of-stream
 3. On success, the result wraps in `Right(z)`
 4. Typed errors (`E`) surface as `Left(e)`, while untyped defects propagate as exceptions
 5. The reader's `close()` runs in a `finally` block, ensuring resource safety
@@ -56,7 +56,7 @@ object Sink {
 }
 ```
 
-Use `drain` when you only care about side effects (e.g., via `tapEach`) and not the elements themselves:
+Use `Sink.drain` when you only care about side effects (e.g., via `Stream#tapEach`) and not the elements themselves:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -382,7 +382,7 @@ object Sink {
 ```
 
 :::note
-`create` gives you direct access to the `Reader`, so you are responsible for using the correct read protocol (`read(sentinel)` for AnyRef, `readInt(sentinel)` for Int, etc.). Prefer the built-in sinks when possible.
+`Sink.create` gives you direct access to the `Reader`, so you are responsible for using the correct read protocol (`Reader#read(sentinel)` for AnyRef, `Reader#readInt(sentinel)` for Int, etc.). Prefer the built-in sinks when possible.
 :::
 
 Here's a custom sink that computes the average of all integers in a stream:
@@ -406,7 +406,7 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 }
 ```
 
-This example shows how `create` works. The reader reads elements using `read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level [reader protocol](./reader.md).
+This example shows how `Sink.create` works. The reader reads elements using `Reader#read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level [Reader protocol](./reader.md).
 
 ## Transforming Sinks
 
@@ -422,7 +422,7 @@ trait Sink[+E, -A, +Z] {
 }
 ```
 
-`contramap` is the dual of `map`: it transforms what goes *in*, not what comes *out*:
+`Sink#contramap` is the dual of `Sink#map`: it transforms what goes *in*, not what comes *out*:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -727,7 +727,7 @@ Run individual examples with sbt:
 
 ### Basic Usage
 
-This example demonstrates the most commonly used built-in sinks: `drain`, `count`, `collectAll`, `head`, `last`, and `take`:
+This example demonstrates the most commonly used built-in sinks: `Sink.drain`, `Sink.count`, `Sink.collectAll`, `Sink.head`, `Sink.last`, and `Sink.take`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -743,7 +743,7 @@ sbt "streams-examples/runMain sink.SinkBasicUsageExample"
 
 ### Aggregation and Search
 
-This example shows aggregation sinks (`foldLeft`, `sumInt`, `sumDouble`) and search sinks (`exists`, `forall`, `find`, `foreach`):
+This example shows aggregation sinks (`Sink.foldLeft`, `Sink.sumInt`, `Sink.sumDouble`) and search sinks (`Sink.exists`, `Sink.forall`, `Sink.find`, `Sink.foreach`):
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -759,7 +759,7 @@ sbt "streams-examples/runMain sink.SinkAggregationExample"
 
 ### Transformations and Composition
 
-This example demonstrates `contramap`, `map`, `mapError`, `fail`, `create`, and Pipeline integration via `andThenSink`:
+This example demonstrates `Sink#contramap`, `Sink#map`, `Sink#mapError`, `Sink.fail`, `Sink.create`, and `Pipeline#andThenSink`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
