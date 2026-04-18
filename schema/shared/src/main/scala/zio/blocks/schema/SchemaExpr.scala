@@ -167,7 +167,7 @@ object SchemaExpr {
   def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.Literal(schema.toDynamicValue(value)),
-      Schema[Unit].transform[S](_ => null.asInstanceOf[S], _ => ()),
+      Schema[Unit].asInstanceOf[Schema[S]],
       schema
     )
 
