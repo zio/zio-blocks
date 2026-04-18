@@ -59,7 +59,7 @@ object Sink {
 Use `drain` when you only care about side effects (e.g., via `tapEach`) and not the elements themselves:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import scala.collection.mutable.Buffer
 
 val log = Buffer[String]()
@@ -81,7 +81,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val result = Stream(1, 2, 3, 4, 5).run(Sink.count)
 ```
@@ -102,7 +102,7 @@ object Sink {
 Note that `sumInt` returns `Long` (to avoid overflow) and `sumFloat` returns `Double` (to reduce rounding loss):
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val intSum = Stream(1, 2, 3, 4, 5).run(Sink.sumInt)
 
@@ -130,7 +130,7 @@ object Sink {
 This is the sink behind `Stream.runCollect`:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val result = Stream(1, 2, 3).run(Sink.collectAll[Int])
 ```
@@ -146,7 +146,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val result = Stream.range(0, 1000).run(Sink.take(3))
 ```
@@ -168,7 +168,7 @@ object Sink {
 This is the most general aggregation sink:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val sum = Stream(1, 2, 3, 4).run(Sink.foldLeft(0)(_ + _))
 
@@ -186,7 +186,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val first = Stream(10, 20, 30).run(Sink.head[Int])
 
@@ -204,7 +204,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val result = Stream(10, 20, 30).run(Sink.last[Int])
 ```
@@ -220,7 +220,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val found = Stream(1, 3, 4, 6).run(Sink.find[Int](_ % 2 == 0))
 ```
@@ -236,7 +236,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val hasNegative = Stream(1, -2, 3).run(Sink.exists[Int](_ < 0))
 ```
@@ -252,7 +252,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val allPositive = Stream(1, 2, 3).run(Sink.forall[Int](_ > 0))
 
@@ -274,7 +274,7 @@ object Sink {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
 ```
@@ -296,7 +296,7 @@ object Sink {
 Use this in conditional sink construction:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val sink: Sink[String, Int, Long] =
   if (false) Sink.count
@@ -321,7 +321,7 @@ object Sink {
 The sink does **not** close the stream when done. This is intentional: you own the stream's lifecycle, not the sink. You're responsible for closing it yourself (typically via try-with-resources or explicit `close()` calls) to flush buffers and release system resources. This design gives you flexibility to reuse the stream after the sink finishes, or to coordinate closing with other stream operations:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import java.io.ByteArrayOutputStream
 
 val bos = new ByteArrayOutputStream()
@@ -352,7 +352,7 @@ object Sink {
 Write a stream of characters to a StringWriter and access the accumulated text:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import java.io.StringWriter
 
 val writer = new StringWriter()
@@ -388,7 +388,7 @@ object Sink {
 Here's a custom sink that computes the average of all integers in a stream:
 
 ```scala mdoc:compile-only
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.streams.io.Reader
 
 // A custom sink that computes the average of Ints
@@ -425,7 +425,7 @@ trait Sink[+E, -A, +Z] {
 `contramap` is the dual of `map`: it transforms what goes *in*, not what comes *out*:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 // A sink that counts the length of strings
 val totalLength: Sink[Nothing, String, Long] =
@@ -445,7 +445,7 @@ trait Sink[+E, -A, +Z] {
 ```
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 val countAsString: Sink[Nothing, Any, String] =
   Sink.count.map(n => s"Total: $n elements")
@@ -466,7 +466,7 @@ trait Sink[+E, -A, +Z] {
 This method uses Scala 3's `inline` + `summonFrom` to perform a compile-time check: if `E` is `Nothing` (the sink never fails), the compiler elides the wrapper entirely and returns `this` cast to the new type with zero allocation:
 
 ```scala mdoc:compile-only
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 // No-op: drain never fails, so mapError is free
 val mapped = Sink.drain.mapError[String](_.toString)
@@ -502,7 +502,7 @@ See [Stream — Running Streams](./stream.md#running-streams) for more details o
 A [Pipeline](./pipeline.md) can be applied to a Sink using `andThenSink`, producing a new Sink that pre-processes input elements through the pipeline:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.chunk.Chunk
 
 val cleanAndCollect: Sink[Nothing, String, Chunk[String]] =
@@ -546,7 +546,7 @@ object NioSinks {
 Here's an example using ByteBuffer with typed primitive writes:
 
 ```scala mdoc:reset
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.streams.NioSinks
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -712,32 +712,6 @@ sbt "streams-examples/runMain sink.SinkTelemetryExample"
 
 This pattern is common in high-throughput logging systems, time-series databases, and IoT platforms where you need to write streams of telemetry data to persistent storage without blocking or allocating excessively.
 
-## Implementation Notes
-
-Sinks use several optimization techniques to provide high performance and low overhead:
-
-### Primitive Specialization
-
-Every built-in sink checks `reader.jvmType` at the start of `drain` and dispatches into a fully unboxed tight loop using sentinel-based reads:
-
-| JvmType  | Read method            | Sentinel value    |
-|----------|------------------------|-------------------|
-| `Int`    | `readInt(sentinel)`    | `Long.MinValue`   |
-| `Long`   | `readLong(sentinel)`   | `Long.MaxValue`   |
-| `Float`  | `readFloat(sentinel)`  | `Double.MaxValue` |
-| `Double` | `readDouble(sentinel)` | `Double.MaxValue` |
-| `AnyRef` | `read(sentinel)`       | `EndOfStream`     |
-
-The sentinel values are chosen so they cannot appear as valid element values. For example, `readInt` returns `Long.MinValue` at end-of-stream — this is safe because all valid `Int` values fit within `Long` range and are non-negative-biased.
-
-### Contramap Interpreter Fast Path
-
-When a `Contramapped` sink receives a reader that is an `Interpreter` (the compiled form of a fused stream pipeline), it injects the mapping function directly into the interpreter's lane rather than wrapping the reader. This avoids an extra indirection level.
-
-### mapError Compile-Time Elision
-
-`mapError` uses Scala 3's `inline` + `summonFrom` to detect at compile time whether `E =:= Nothing`. If so, the method returns `this.asInstanceOf[Sink[E2, A, Z]]` — zero allocation, zero overhead. Only when `E` is a real error type does it create an `ErrorMapped` wrapper.
-
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `streams-examples` module.
@@ -808,7 +782,6 @@ import docs.SourceFile
 
 SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
 ```
-
 
 Run it with this command:
 
