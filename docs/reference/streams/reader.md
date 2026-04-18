@@ -57,6 +57,8 @@ Key characteristics:
 
 ## Construction
 
+Several ways to create a `Reader`, from predefined singletons to collections and I/O sources:
+
 ### Creating Predefined Readers
 
 `Reader.closed` — An already-closed reader that emits no elements. Useful as a base case or for empty streams:
@@ -92,11 +94,14 @@ import zio.blocks.chunk.Chunk
 val chunk = Chunk(10, 20, 30)
 val r = Reader.fromChunk(chunk)
 
-var v = r.read(-1)
-while (v != -1) {
-  println(v)
-  v = r.read(-1)
+def drain(): Unit = {
+  val v = r.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
 }
+drain()
 // Output: 10, 20, 30
 ```
 
@@ -114,11 +119,14 @@ import zio.blocks.streams.io.Reader
 val list = List("a", "b", "c")
 val r = Reader.fromIterable(list)
 
-var v = r.read(null)
-while (v != null) {
-  println(v)
-  v = r.read(null)
+def drain(): Unit = {
+  val v = r.read(null)
+  if (v != null) {
+    println(v)
+    drain()
+  }
 }
+drain()
 // Output: a, b, c
 ```
 
@@ -135,17 +143,20 @@ import zio.blocks.streams.io.Reader
 
 val r = Reader.fromRange(1 to 5)
 
-var v = r.read(-1)
-while (v != -1) {
-  println(v)
-  v = r.read(-1)
+def drain(): Unit = {
+  val v = r.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
 }
+drain()
 // Output: 1, 2, 3, 4, 5
 ```
 
 ### From I/O
 
-`Reader.fromInputStream` — Wraps a `java.io.InputStream` as a `Reader[Int]`, where each byte is widened to `Int` (0–255). This avoids boxing on `.map`/`.filter` since `Function1` is specialized for `Int`.
+`Reader.fromInputStream` — Wraps a `java.io.InputStream` as a `Reader[Int]`, where each byte is widened to `Int` (0–255). This avoids boxing on `.map`/`.filter` since `Function1` is specialized for `Int`:
 
 ```scala
 object Reader {
@@ -153,7 +164,7 @@ object Reader {
 }
 ```
 
-`Reader.fromReader` — Wraps a `java.io.Reader` as a `Reader[Char]` for character-based I/O.
+`Reader.fromReader` — Wraps a `java.io.Reader` as a `Reader[Char]` for character-based I/O:
 
 ```scala
 object Reader {
@@ -196,10 +207,10 @@ import zio.blocks.streams.io.Reader
 
 val r = Reader.singleInt(100)
 val sentinel = Long.MinValue
-var v = r.readInt(sentinel)
-println(v)    // 100
-v = r.readInt(sentinel)
-println(v)    // -9223372036854775808 (sentinel)
+val v1 = r.readInt(sentinel)
+println(v1)    // 100
+val v2 = r.readInt(sentinel)
+println(v2)    // -9223372036854775808 (sentinel)
 ```
 
 ### Infinite & Repeating
@@ -216,13 +227,15 @@ object Reader {
 import zio.blocks.streams.io.Reader
 
 val r = Reader.repeat(1)
-var count = 0
-var v = r.read(-1)
-while (count < 3) {
-  println(v)
-  v = r.read(-1)
-  count += 1
+
+def drainN(n: Int): Unit = {
+  if (n > 0) {
+    val v = r.read(-1)
+    println(v)
+    drainN(n - 1)
+  }
 }
+drainN(3)
 // Output: 1, 1, 1
 ```
 
@@ -251,15 +264,20 @@ val r = Reader.unfold(1) { s =>
   if (s > 3) None else Some((s, s + 1))
 }
 
-var v = r.read(-1)
-while (v != -1) {
-  println(v)
-  v = r.read(-1)
+def drain(): Unit = {
+  val v = r.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
 }
+drain()
 // Output: 1, 2, 3
 ```
 
 ## Core Operations
+
+These methods form the primary interface for consuming elements and querying reader state:
 
 ### Pulling Elements
 
@@ -328,7 +346,7 @@ import zio.blocks.chunk.Chunk
 val r = Reader.fromChunk(Chunk(10, 20, 30))
 val sentinel = Long.MinValue
 
-var v = r.readInt(sentinel)(using scala.compiletime.summonInline)
+val v = r.readInt(sentinel)(using scala.compiletime.summonInline)
 // Error: this would require direct evidence, but in real code it comes from dispatch
 ```
 
@@ -342,12 +360,14 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`:
+`readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`. The behavior is:
 
 - Blocks until at least 1 byte is available.
 - Returns the number of bytes read (`1 <= r <= len`).
 - Returns `-1` when closed and empty.
 - Returns `0` immediately when `len == 0`.
+
+The method signature is:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -444,6 +464,8 @@ println(r.readable())      // false
 
 ## Composition
 
+Combine multiple readers to build more complex sources:
+
 ### Concatenation
 
 `concat` — Concatenates this reader with `next`. When this reader is exhausted, it is closed and elements are pulled from `next` (evaluated lazily). Optimized for left-associative chains:
@@ -472,17 +494,22 @@ val r1 = Reader.fromChunk(Chunk(1, 2))
 val r2 = Reader.fromChunk(Chunk(3, 4))
 val combined = r1 ++ r2
 
-var v = combined.read(-1)
-while (v != -1) {
-  println(v)
-  v = combined.read(-1)
+def drain(): Unit = {
+  val v = combined.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
 }
+drain()
 // Output: 1, 2, 3, 4
 ```
 
 **Optimization**: If this reader is already a `ConcatReader`, the thunk is appended to its internal array and `this` is returned (mutable append, O(1) amortized). Otherwise a new `ConcatReader` is created. This ensures that left-associative chains like `a ++ b ++ c ++ d` compile into a single flat `ConcatReader` with O(1) per-element read, rather than O(n) nested wrappers.
 
 ## Resource Management
+
+Close readers and attach cleanup callbacks:
 
 ### Closing
 
@@ -507,15 +534,16 @@ Here is how cleanup logic is attached to a reader:
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 import zio.blocks.chunk.Chunk
+import scala.sys.Prop
 
-var cleaned = false
+val cleanupRef = scala.collection.mutable.ListBuffer[String]()
 val r = Reader.fromChunk(Chunk(1, 2)).withRelease { () =>
-  cleaned = true
+  cleanupRef += "cleaned"
   println("Cleaned up")
 }
 
 r.close()
-println(cleaned)  // true
+println(cleanupRef.nonEmpty)  // true
 ```
 
 ## Pushdown Operations
@@ -546,9 +574,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning:
-
-Not all readers support this. Readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`.
+`reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -572,7 +598,7 @@ println(r.read(-1))  // 1 (back to the beginning)
 
 `Reader` is the compilation target of `Stream`. When you call a terminal operation, the stream compiles to a `Reader`, which is then consumed.
 
-You can also open a stream for manual element-by-element pulling using `Stream.start`:
+You can also open a stream for manual element-by-element pulling using `Stream#start`:
 
 ```scala
 import zio.blocks.streams.*
@@ -585,18 +611,21 @@ Scope.global.scoped { scope =>
   val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
-    var v = r.read(-1)
-    while (v != -1) {
-      println(v)   // prints 1, 2, 3, 4, 5
-      v = r.read(-1)
+    def drain(): Unit = {
+      val v = r.read(-1)
+      if (v != -1) {
+        println(v)   // prints 1, 2, 3, 4, 5
+        drain()
+      }
     }
+    drain()
   }
   // reader is closed automatically when scope exits
 }
 ```
 
 :::caution
-Avoid holding references to a `Reader` obtained via `start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
+Avoid holding references to a `Reader` obtained via `Stream#start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
 ## Integration with Sink
@@ -620,6 +649,8 @@ val result = Stream.range(1, 10)
 ```
 
 ## Implementation Notes
+
+Understand the design choices and mechanisms that power `Reader`:
 
 ### Sentinel Protocol
 
@@ -656,20 +687,20 @@ For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `jvmType` to ret
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `streams-examples` module.
+All code from this guide is available as runnable examples in the `streams-examples` module. Follow these steps to run them:
 
-**1. Clone the repository and navigate to the project:**
+**Step 1** — Clone the repository and navigate to the project:
 
 ```bash
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-**2. Run individual examples with sbt:**
+**Step 2** — Run individual examples with sbt:
 
 ### Basic Reader Construction
 
-This example demonstrates the most common reader factories: `fromChunk`, `fromIterable`, `fromRange`, and `single`.
+This example demonstrates the most common reader factories: `Reader.fromChunk`, `Reader.fromIterable`, `Reader.fromRange`, and `Reader.single`. Embed the source:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -677,13 +708,15 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/reader/ReaderBasicConstructionExample.scala")
 ```
 
+Run it with:
+
 ```bash
 sbt "streams-examples/runMain reader.ReaderBasicConstructionExample"
 ```
 
 ### Primitive Specialization and Bulk Operations
 
-This example shows how primitive readers avoid boxing through `jvmType` dispatch, and demonstrates `readAll` and `skip` for bulk operations.
+This example shows how primitive readers avoid boxing through `jvmType` dispatch, and demonstrates `readAll` and `skip` for bulk operations. Embed the source:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -691,19 +724,23 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/reader/ReaderPrimitiveSpecializationExample.scala")
 ```
 
+Run it with:
+
 ```bash
 sbt "streams-examples/runMain reader.ReaderPrimitiveSpecializationExample"
 ```
 
 ### Composition and Resource Management
 
-This example demonstrates reader composition with `++`, resource cleanup with `withRelease`, and integration with `Stream.start` for manual pulling.
+This example demonstrates reader composition with `++`, resource cleanup with `withRelease`, and integration with `Stream.start` for manual pulling. Embed the source:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
 SourceFile.print("streams-examples/src/main/scala/reader/ReaderCompositionExample.scala")
 ```
+
+Run it with:
 
 ```bash
 sbt "streams-examples/runMain reader.ReaderCompositionExample"
