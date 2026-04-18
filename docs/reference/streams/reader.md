@@ -61,6 +61,8 @@ object Reader {
 }
 ```
 
+Here's how to create and use a closed reader:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 
@@ -78,6 +80,8 @@ object Reader {
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Reader[A]
 }
 ```
+
+Create a reader from a chunk and drain its elements:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -105,6 +109,8 @@ object Reader {
 }
 ```
 
+Create a reader from a list and consume its elements:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 
@@ -129,6 +135,8 @@ object Reader {
   def fromRange(range: Range): Reader[Int]
 }
 ```
+
+Create a reader from a range and drain the integers:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -182,7 +190,7 @@ object Reader {
 }
 ```
 
-Generic single-element reader with automatic type inference:
+Here's how to create and read from a single-element reader:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -192,7 +200,7 @@ println(r.read(-1))        // 42
 println(r.read(-1))        // -1 (sentinel, reader is closed)
 ```
 
-Specialized variants like `Reader.singleInt`, `Reader.singleLong`, `Reader.singleFloat`, `Reader.singleDouble`, `Reader.singleChar`, `Reader.singleShort`, `Reader.singleByte`, and `Reader.singleBoolean` emit a single primitive value without boxing overhead:
+Use specialized primitive variants like `Reader.singleInt` to read a single integer without boxing:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
