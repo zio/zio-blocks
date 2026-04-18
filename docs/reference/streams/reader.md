@@ -33,28 +33,6 @@ The streaming intuition is different: instead of pulling all data at once, what 
 
 `Reader` embodies this pull-based philosophy. Rather than materializing a `List`, a `Stream` compiles down to a `Reader`—a stateful object that produces one element each time you call `read()`. The consumer (a `Sink`) drives the pace: it calls `read()` when ready, and the `Reader` computes and returns the next value. When the stream is exhausted, `Reader` returns a sentinel—a special value you provide—signaling "no more data." No exceptions, no null, no boxing overhead.
 
-Here's how eager and pull-based execution contrast:
-
-```
-Eager (memory explosion):
-  Load file ──> [Row1, Row2, ... Row1M] ──> Transform ──> Filter ──> OOM
-
-Pull-based (memory constant):
-  Stream ──(compile)──> Reader
-                          │
-                     Consumer asks
-                     ├──> read() ──> Row1 ──> Transform ──> Filter ──> Emit
-                     ├──> read() ──> Row2 ──> Transform ──> Filter ──> Emit
-                     └──> read() ──> sentinel (done)
-```
-
-What makes `Reader` practical is attention to detail:
-
-- **Lazy compilation**: `Stream` transformations don't run until `read()` is called. A pipeline that looks complex at first glance runs in constant space, one element at a time.
-- **Sentinel protocol**: Instead of wrapping each element in `Option` or checking for `null`, `Reader` asks you upfront: "What value means 'end of stream'?" For primitives, specialized methods (`readInt(sentinel)`, `readLong(sentinel)`) avoid boxing entirely—critical for processing millions of integers without garbage collection pauses.
-- **Resource safety**: Files, database connections, and allocated buffers opened during stream construction are tracked and guaranteed to close via `finally` blocks, even if the sink stops early or an error occurs.
-- **Composition**: Readers can be chained—one reader feeds into a transformation, which feeds into another, all without materializing intermediate data.
-
 `Reader` shines when you're processing large, unbounded, or expensive-to-produce data sources: database result sets, network streams, log files, sensor data, or any pipeline where memory or time efficiency matters. Instead of hoping your data fits in memory, you pay a constant, predictable cost per element.
 
 ## Overview
