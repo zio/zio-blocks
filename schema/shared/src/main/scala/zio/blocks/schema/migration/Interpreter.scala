@@ -33,8 +33,17 @@ object Interpreter {
       case DynamicMigration.RenameField(optic, newName) =>
         renameAt(optic, value, newName)
 
-      case _ => 
-        Left("Feature execution not implemented for requested Algebraic Migration node.")
+      case DynamicMigration.MandateField(optic, default) =>
+        updateAt(optic, value, v => if (v == DynamicValue.Null) Right(default) else Right(v), isAdditive = true)
+
+      case DynamicMigration.OptionalizeField(optic) =>
+        Right(value) // DynamicValue is untyped and naturally supports optionality omitted fields
+
+      case DynamicMigration.ChangeType(optic, _, _, SchemaExpr.Transform(fw, _)) =>
+        updateAt(optic, value, fw, isAdditive = false)
+
+      case DynamicMigration.RenameCase(optic, newName) =>
+        Left("Feature execution not implemented for Enum Variant rename natively.")
     }
 
   // ---- Optic traversal primitives ----

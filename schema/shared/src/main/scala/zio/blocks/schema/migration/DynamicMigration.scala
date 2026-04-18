@@ -46,7 +46,12 @@ object DynamicMigration {
   }
 
   final case class RenameField(optic: DynamicOptic, newName: String) extends DynamicMigration {
-    def invert: DynamicMigration = ???
+    def invert: DynamicMigration = optic.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(oldName)) =>
+        RenameField(DynamicOptic(optic.nodes.dropRight(1) :+ DynamicOptic.Node.Field(newName)), oldName)
+      case _ =>
+        DynamicMigration.Identity
+    }
   }
 
   final case class MandateField(optic: DynamicOptic, fallback: DynamicValue) extends DynamicMigration {
@@ -69,13 +74,31 @@ object DynamicMigration {
 
   // --- Enum Actions ---
   final case class RenameCase(optic: DynamicOptic, newName: String) extends DynamicMigration {
-    def invert: DynamicMigration = ???
+    def invert: DynamicMigration = optic.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Case(oldName)) =>
+        RenameCase(DynamicOptic(optic.nodes.dropRight(1) :+ DynamicOptic.Node.Case(newName)), oldName)
+      case _ =>
+        DynamicMigration.Identity
+    }
   }
 }
 
 /**
- * Placeholder for the primitive mappings
+ * Algebraic representation of a transformation between two schemas.
  */
 sealed trait SchemaExpr[A, B] {
   def invert: SchemaExpr[B, A]
+}
+
+object SchemaExpr {
+  /**
+   * Evaluated mapping using untyped DynamicValue transforms to ensure the Migration interpreter
+   * can perform physical data shifting safely.
+   */
+  final case class Transform[A, B](
+    fw: DynamicValue => Either[String, DynamicValue], 
+    bw: DynamicValue => Either[String, DynamicValue]
+  ) extends SchemaExpr[A, B] {
+    def invert: SchemaExpr[B, A] = Transform(bw, fw)
+  }
 }
