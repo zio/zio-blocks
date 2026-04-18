@@ -50,16 +50,17 @@ object SinkTelemetryExample extends App {
     val channel = file.getChannel
     channel.truncate(0) // Clear file
 
-    // Convert sensor readings to bytes: 8 bytes timestamp + 8 bytes temperature
-    val byteStream = Stream.fromIterable(sensorReadings).flatMap { reading =>
-      val buf = java.nio.ByteBuffer.allocate(16)
-      buf.putLong(reading.timestamp)
-      buf.putDouble(reading.temperature)
-      buf.flip()
-      Stream.fromChunk(zio.blocks.chunk.Chunk.fromArray(buf.array()))
+    // Serialize readings into a single buffer: 8 bytes timestamp + 8 bytes temperature per reading
+    val buffer = java.nio.ByteBuffer.allocate(sensorReadings.length * 16)
+    sensorReadings.foreach { reading =>
+      buffer.putLong(reading.timestamp)
+      buffer.putDouble(reading.temperature)
     }
+    buffer.flip()
 
-    // Drain all bytes to file with buffering (8KB chunks)
+    // Write all bytes to file with internal buffering (8KB chunks)
+    val bytes = buffer.array()
+    val byteStream = Stream.fromChunk(zio.blocks.chunk.Chunk.fromArray(bytes))
     byteStream.run(NioSinks.fromChannel(channel, bufSize = 8192))
 
     println(s"✓ Wrote ${file.length()} bytes to disk")
@@ -88,7 +89,7 @@ object SinkTelemetryExample extends App {
   println("  • High-throughput logging systems")
   println("  • Sensor data aggregation pipelines")
   println("\nKey benefits:")
-  println("  • Automatic buffering (8KB chunks)")
-  println("  • Zero-copy writes to NIO channels")
-  println("  • Backpressure handling built-in")
+  println("  • Automatic buffering eliminates manual position management")
+  println("  • Integrated with Stream composition (no boilerplate)")
+  println("  • Type-safe error handling (IOException as Sink error type)")
 }
