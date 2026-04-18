@@ -23,6 +23,40 @@ abstract class Reader[+Elem] {
 }
 ```
 
+## Motivation
+
+Imagine you're processing a massive CSV file—millions of rows of customer data. Your first instinct is to load it all into memory as a `List[Row]`, transform it, filter it, and then write the results. This works fine for small files, but one day someone feeds you a 50GB dataset and your application crashes with `OutOfMemoryError`. You've hit the fundamental problem of eager evaluation: **you must load everything before you can do anything**, and if the data is bigger than available memory, you're stuck.
+
+Even if you manage to fit the data in memory, you've paid the startup cost upfront. If your pipeline only needs the first 100 rows to produce a result, you've wasted time and energy materializing the other millions. And if something fails partway through—a database connection drops, a file is corrupted—you've already consumed resources and may have inconsistencies to clean up.
+
+The streaming intuition is different: instead of pulling all data at once, what if the consumer asked the producer "give me the next element?" one at a time? This way, you never hold more than one element in memory, you only do work on elements you actually use, and you can stop immediately when you have enough.
+
+`Reader` embodies this pull-based philosophy. Rather than materializing a `List`, a `Stream` compiles down to a `Reader`—a stateful object that produces one element each time you call `read()`. The consumer (a `Sink`) drives the pace: it calls `read()` when ready, and the `Reader` computes and returns the next value. When the stream is exhausted, `Reader` returns a sentinel—a special value you provide—signaling "no more data." No exceptions, no null, no boxing overhead.
+
+Here's how eager and pull-based execution contrast:
+
+```
+Eager (memory explosion):
+  Load file ──> [Row1, Row2, ... Row1M] ──> Transform ──> Filter ──> OOM
+
+Pull-based (memory constant):
+  Stream ──(compile)──> Reader
+                          │
+                     Consumer asks
+                     ├──> read() ──> Row1 ──> Transform ──> Filter ──> Emit
+                     ├──> read() ──> Row2 ──> Transform ──> Filter ──> Emit
+                     └──> read() ──> sentinel (done)
+```
+
+What makes `Reader` practical is attention to detail:
+
+- **Lazy compilation**: `Stream` transformations don't run until `read()` is called. A pipeline that looks complex at first glance runs in constant space, one element at a time.
+- **Sentinel protocol**: Instead of wrapping each element in `Option` or checking for `null`, `Reader` asks you upfront: "What value means 'end of stream'?" For primitives, specialized methods (`readInt(sentinel)`, `readLong(sentinel)`) avoid boxing entirely—critical for processing millions of integers without garbage collection pauses.
+- **Resource safety**: Files, database connections, and allocated buffers opened during stream construction are tracked and guaranteed to close via `finally` blocks, even if the sink stops early or an error occurs.
+- **Composition**: Readers can be chained—one reader feeds into a transformation, which feeds into another, all without materializing intermediate data.
+
+`Reader` shines when you're processing large, unbounded, or expensive-to-produce data sources: database result sets, network streams, log files, sensor data, or any pipeline where memory or time efficiency matters. Instead of hoping your data fits in memory, you pay a constant, predictable cost per element.
+
 ## Overview
 
 `Reader[+Elem]` is the low-level, pull-based interface that powers ZIO Blocks streams. When you call a terminal operation like `stream.run(sink)`, the stream is compiled into a `Reader`, which the sink then drains element-by-element. Most users never interact with `Reader` directly — but understanding it clarifies how streams work internally.
