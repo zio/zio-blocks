@@ -33,6 +33,37 @@ abstract class Writer[-Elem] {
 }
 ```
 
+## Motivation
+
+**The Problem**: Streaming data in the real world is often *push-based*, not pull-based. When you integrate with network sockets, event buses, sensor arrays, or Java's `OutputStream`, data flows *toward you* (the producer pushes, you receive). Meanwhile, `Reader` and `Sink` are designed around *pulling*: the consumer drains elements on demand. This mismatch creates friction: you must buffer data while waiting for the consumer to pull, handle backpressure when buffers fill, and manage state transitions cleanly when the sink closes or fails.
+
+Worse, Java's standard I/O classes (`OutputStream`, `Writer`) are mutable and return `void` — they either succeed silently or throw exceptions. This makes it hard to compose I/O operations, test in isolation, or reason about cleanup. You end up with try-catch-finally boilerplate and tight coupling to concrete implementations.
+
+**The Solution**: `Writer` is a push-based abstraction that inverts the data flow. Instead of the consumer pulling elements from a source, a producer *pushes* elements to the writer. The key insight is that `Writer` returns a `Boolean` from `write()`: it tells you immediately whether the write succeeded, the writer is full, or it has closed — all without throwing exceptions or blocking threads. This makes `Writer` composable, testable, and safe to use in single-threaded production scenarios:
+
+```
+Problem (Pull-based mismatch):
+  Producer ──(buffer+wait)──> Consumer drains
+  │                                │
+  └──(oversized buffer)────────────┘
+  
+Solution (Push-based):
+  Producer ──(write: Boolean)──> Writer
+                                  │
+                          ┌───────┴──────┐
+                          │ (full/closed)│
+                    (success)            │
+                          │              │
+                    (backpressure)       │
+```
+
+`Writer` excels in these scenarios:
+
+- **Event streaming**: Push-based event buses or message queues where events arrive continuously and you need to bound buffering
+- **Network I/O**: Writing to sockets or channels where you control the pacing and must handle connection closure cleanly
+- **Sensor/telemetry data**: Devices or APIs that push data (timestamps, measurements) and you aggregate or forward them
+- **Interop with Java I/O**: Wrapping `OutputStream` or `Writer` to leverage existing code while maintaining functional semantics
+
 ## Overview
 
 `Writer[-Elem]` is the push-based counterpart to `Reader[+Elem]`. While Reader is a pull-based source that the consumer (sink) drains, Writer is a push-based sink that a producer feeds. Most users interact with Writer through channel-based stream operations or I/O adapters, but you can also use it directly for custom push-based integration.
