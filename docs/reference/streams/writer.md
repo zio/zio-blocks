@@ -73,6 +73,8 @@ object Writer {
 }
 ```
 
+Create a pre-closed writer that rejects all writes:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
 
@@ -90,6 +92,8 @@ object Writer {
   def single[Elem]: Writer[Elem]
 }
 ```
+
+Create a writer that accepts exactly one element, then auto-closes:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -109,6 +113,8 @@ object Writer {
   def limited[Elem](inner: Writer[Elem], n: Long): Writer[Elem]
 }
 ```
+
+Limit a writer to accept at most n elements:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
@@ -151,6 +157,8 @@ abstract class Writer[-Elem] {
 }
 ```
 
+Write elements and observe the return value indicating success or closure:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
 
@@ -169,6 +177,8 @@ abstract class Writer[-Elem] {
   def writeAll[Elem1 <: Elem](chunk: Chunk[Elem1]): Chunk[Elem1]
 }
 ```
+
+Write a chunk and observe how many elements were delivered:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
