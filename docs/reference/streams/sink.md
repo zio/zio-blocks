@@ -589,9 +589,8 @@ sbt "streams-examples/runMain sink.SinkScientificComputingExample"
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
-
 :::danger
-**Sentinel Value Limitation: Why It Exists**
+**Sentinel Value Limitation**
 
 These typed sinks achieve **zero-boxing performance** by using a special "sentinel" value to signal end-of-stream, rather than allocating wrapper objects or checking for `null`. This design eliminates allocations entirely, keeping the read loop fully unboxed and primitive.
 
