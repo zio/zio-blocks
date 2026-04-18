@@ -588,6 +588,49 @@ For a complete demonstration of this limitation in action, see the Sentinel Valu
 
 Use typed variants when you control buffer allocation (e.g., pre-allocated DirectByteBuffer), your data provably cannot contain sentinel values, and you need maximum performance. Otherwise, use generic sinks like `Sink.collectAll` or `Sink.foldLeft` which have no sentinel constraint.
 
+### Design Trade-off: Why Sentinels Instead of Objects?
+
+You might ask: **Why not use a sentinel object like generic sinks do, instead of primitive values?** The answer reveals a fundamental performance trade-off.
+
+**Typed NIO Sinks use primitive sentinels:**
+```scala
+// fromByteBufferLong - tight loop with primitives only
+val s = Long.MaxValue
+var v = reader.readLong(s)(using unsafeEvidence)
+while (v != s) { buf.putLong(v); v = reader.readLong(s)(using unsafeEvidence) }
+```
+
+**Generic sinks use object sentinels:**
+```scala
+// Sink.collectAll - uses object reference for end-of-stream
+var v = reader.read(EndOfStream)  // EndOfStream is an object
+while (v.asInstanceOf[AnyRef] ne EndOfStream) { b += v.asInstanceOf[A]; v = reader.read(EndOfStream) }
+```
+
+**Performance Impact:**
+- **Typed sinks:** Direct primitive comparison, zero allocations, tight loop optimizable by JVM
+- **Generic sinks:** Object casting, reference equality check, one `EndOfStream` object per stream
+
+For a stream processing **millions of elements**, the typed sink approach has measurably better performance because:
+1. No casting overhead per iteration
+2. Primitive values are faster than object references
+3. JIT compiler can better optimize tight primitive loops
+4. Zero per-element allocation pressure
+
+**The Cost:**
+- **Typed sinks:** Cannot stream sentinel values (Long.MaxValue, Double.MaxValue)
+- **Generic sinks:** Universal (handle any value), but slightly slower per-element
+
+**Decision Framework:**
+
+| Scenario | Use | Why |
+|----------|-----|-----|
+| Streaming millions of primitives + data can't contain sentinels | Typed sinks (`fromByteBufferLong`) | Zero overhead, maximum performance |
+| Streaming any data (including all possible values) | Generic sinks (`Sink.collectAll`, `Sink.foldLeft`) | Correctness over performance; handles any value |
+| Unknown constraints or developing/debugging | Generic sinks | When unsure, safety > performance |
+| Sensor/measurement data (won't have extreme values) | Typed sinks | Safe and fast for real-world domains |
+| Mathematical/scientific data (might need extreme values) | Generic sinks | Avoid silent data loss |
+
 Here is a complete, runnable example that demonstrates the sentinel limitation:
 
 ```scala mdoc:passthrough
