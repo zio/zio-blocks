@@ -13,6 +13,8 @@ title: "Writer"
 - is the dual of `Reader` — while Reader pulls, Writer receives pushes
 - supports bounded buffers and resource cleanup via `close()` and `fail()`
 
+Here is the structural shape of the `Writer` type:
+
 ```scala
 abstract class Writer[-Elem] {
   def write(a: Elem): Boolean
@@ -51,6 +53,8 @@ Key characteristics:
 - **Bounded buffering**: Implementations can enforce per-write blocking or immediate rejection based on buffer availability.
 
 ## Construction
+
+Writers are created using factory methods on the companion object, from adapters wrapping Java I/O, or by direct subclassing for custom implementations:
 
 ### Creating Predefined Writers
 
@@ -110,7 +114,7 @@ println(limited.write(2))    // false (limit reached)
 
 ### I/O Adapters
 
-`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream.
+`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream:
 
 ```scala
 object Writer {
@@ -118,7 +122,7 @@ object Writer {
 }
 ```
 
-`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer.
+`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer:
 
 ```scala
 object Writer {
@@ -128,9 +132,11 @@ object Writer {
 
 ## Core Operations
 
+The fundamental operations on `Writer` cover pushing elements one at a time, bulk operations, specialized writes for primitives, and state checks:
+
 ### Writing Elements
 
-`write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `fail()`:
+`Writer#write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `Writer#fail`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -149,7 +155,7 @@ println(s"First: $result1, Second: $result2")
 
 ### Bulk Writing
 
-`writeAll` — Writes every element in a chunk. Returns the suffix not delivered. If the writer is already closed, returns the entire chunk. Exceptions from individual writes propagate to the caller:
+`Writer#writeAll` — Writes every element in a chunk. Returns the suffix not delivered. If the writer is already closed, returns the entire chunk. Exceptions from individual writes propagate to the caller:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -247,7 +253,7 @@ abstract class Writer[-Elem] {
 
 ### State Checks
 
-`isClosed` — Returns `true` if the writer is closed. Monotone: once `true`, never returns `false`:
+`Writer#isClosed` — Returns `true` if the writer is closed. Monotone: once `true`, never returns `false`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -276,9 +282,11 @@ println(w.writeable())      // false (closed after accepting one)
 
 ## Composition
 
+Writers can be concatenated to chain multiple sinks together, or transformed to adapt their input types:
+
 ### Concatenation
 
-`concat` — Returns a `Writer` that writes to `this` until it closes, then transparently switches to `next`. If `this` closes with an error, the error is propagated immediately without consulting `next`. The dual of `Reader.concat`:
+`Writer#concat` — Returns a `Writer` that writes to `this` until it closes, then transparently switches to `next`. If `this` closes with an error, the error is propagated immediately without consulting `next`. The dual of `Reader#concat`:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -286,7 +294,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`++` — Alias for `concat`. Syntactic sugar for composing writers:
+`Writer#++` — Alias for `Writer#concat`. Syntactic sugar for composing writers:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -321,7 +329,7 @@ println(collected.toList)  // List(5, 200)
 
 ### Transformation
 
-`contramap` — Returns a `Writer` that transforms incoming elements with `g` before passing them to this writer. All other operations (`isClosed`, `close`, `fail`) delegate unchanged:
+`Writer#contramap` — Returns a `Writer` that transforms incoming elements with `g` before passing them to this writer. All other operations (`Writer#isClosed`, `Writer#close`, `Writer#fail`) delegate unchanged:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -346,9 +354,11 @@ intWriter.write(42)   // Prints: Writing: 42
 
 ## Closure and Error Handling
 
+Writers support both clean closure and error closure, allowing you to signal end-of-stream gracefully or with an error condition:
+
 ### Clean Closure
 
-`close` — Closes the writer cleanly. After this call, `write()` returns `false` and `isClosed` returns `true`. Idempotent:
+`Writer#close` — Closes the writer cleanly. After this call, `write()` returns `false` and `Writer#isClosed` returns `true`. Idempotent:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -358,7 +368,7 @@ abstract class Writer[-Elem] {
 
 ### Error Closure
 
-`fail` — Closes the writer with an error. After this call, `isClosed` returns `true`. Subclasses that override this method may cause `write()` to throw `error` on subsequent calls; the default simply delegates to `close()`. Both `close()` and `fail()` are idempotent; only the first call wins:
+`Writer#fail` — Closes the writer with an error. After this call, `Writer#isClosed` returns `true`. Subclasses that override this method may cause `write()` to throw `error` on subsequent calls; the default simply delegates to `Writer#close`. Both `Writer#close` and `Writer#fail` are idempotent; only the first call wins:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -404,9 +414,11 @@ This is the dual of Reader's covariance: Reader is covariant (`+Elem`) because n
 
 While Reader is typically used with pull-based stream operations, Writer is used internally by channel-based implementations and as an I/O adapter. The pairing is natural: a Reader pulls from a source, while a Writer pushes to a sink.
 
-For typical stream usage, you'll see Writer indirectly when writing to files, network sockets, or other I/O resources. The `fromOutputStream` and `fromWriter` factories adapt standard Java I/O to the Writer interface.
+For typical stream usage, you'll see Writer indirectly when writing to files, network sockets, or other I/O resources. The `Writer.fromOutputStream` and `Writer.fromWriter` factories adapt standard Java I/O to the Writer interface.
 
 ## Implementation Notes
+
+Understanding `Writer`'s design decisions helps you use it correctly and avoid common pitfalls:
 
 ### Push vs Pull
 
@@ -434,6 +446,8 @@ All code from this guide is available as runnable examples in the `streams-examp
 
 **1. Clone the repository and navigate to the project:**
 
+Run these commands to set up the examples:
+
 ```bash
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
@@ -443,7 +457,7 @@ cd zio-blocks
 
 ### Basic Writer Construction
 
-This example demonstrates the most common writer factories: `single`, `limited`, `closed`, and custom writers via subclassing.
+This example demonstrates the most common writer factories: `Writer.single`, `Writer.limited`, `Writer.closed`, and custom writers via subclassing:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -451,13 +465,15 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/writer/WriterBasicConstructionExample.scala")
 ```
 
+Run this example with:
+
 ```bash
 sbt "streams-examples/runMain writer.WriterBasicConstructionExample"
 ```
 
 ### Composition and Transformation
 
-This example shows writer composition with `++` (concat), transformation with `contramap`, and bulk writes with `writeAll`.
+This example shows writer composition with `Writer#++` (concat), transformation with `Writer#contramap`, and bulk writes with `Writer#writeAll`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -465,19 +481,23 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/writer/WriterCompositionExample.scala")
 ```
 
+Run this example with:
+
 ```bash
 sbt "streams-examples/runMain writer.WriterCompositionExample"
 ```
 
 ### I/O Adapters
 
-This example demonstrates I/O integration with `fromOutputStream` and `fromWriter` for streaming to files or character streams.
+This example demonstrates I/O integration with `Writer.fromOutputStream` and `Writer.fromWriter` for streaming to files or character streams:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
 SourceFile.print("streams-examples/src/main/scala/writer/WriterIOAdapterExample.scala")
 ```
+
+Run this example with:
 
 ```bash
 sbt "streams-examples/runMain writer.WriterIOAdapterExample"
