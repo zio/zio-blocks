@@ -542,15 +542,63 @@ object NioSinks {
 - `fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferFloat`, `fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
 
 :::danger
-**Sentinel Value Limitation:** Typed variants use reserved sentinel values to detect end-of-stream:
-- `fromByteBufferInt` uses `Long.MinValue` as sentinel
-- `fromByteBufferLong` uses `Long.MaxValue` as sentinel
-- `fromByteBufferFloat` and `fromByteBufferDouble` use `Double.MaxValue` as sentinel
+**Sentinel Value Limitation: Why It Exists**
 
-**If your stream contains an element equal to the sentinel value, the sink will silently stop and drop all remaining elements.** For example, if you stream Longs and one element is `Long.MaxValue`, the stream terminates prematurely. This is a hard constraint of the implementation—do not use these typed sinks if your data can contain these exact values. Use `Sink.create` with manual buffering instead.
+These typed sinks achieve **zero-boxing performance** by using a special "sentinel" value to signal end-of-stream, rather than allocating wrapper objects or checking for `null`. This design eliminates allocations entirely, keeping the read loop fully unboxed and primitive.
+
+**However, this comes with a cost:** if your stream contains the exact sentinel value, the sink stops reading and silently drops all remaining elements.
+
+**Affected Data Types and Their Sentinels:**
+| Method | Input Type | Sentinel Value | Why This Sentinel? |
+|--------|-----------|---|---|
+| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | Outside valid byte range; standard EOF marker |
+| `fromByteBufferInt` | `Int` | `Long.MinValue` | Outside valid Int range when cast to Long; Ints fit in [-2^31, 2^31-1], sentinel is -2^63 |
+| `fromByteBufferLong` | `Long` | `Long.MaxValue` | No value exists outside Long range; this is the least likely value in real-world data (epoch nanoseconds in year 2262) |
+| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | Both Float and Double are read as Double; MaxValue is rare in sensor/measurement data |
+| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | Same as Float; extremely unlikely to appear in real-world measurements |
+
+**Concrete Risk Example:**
+If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
+
+**When to Use These Sinks:**
+✅ Streaming domains where the sentinel value cannot occur:
+- Sensor/measurement data (temperatures, pressures, voltages)
+- Positive timestamps (Unix epoch timestamps won't reach year 2262 in practice)
+- Financial data (stock prices, volumes—rarely use extreme values)
+- Network packet counters, message IDs, or sequential data
+
+**When NOT to Use (Use Alternatives Instead):**
+❌ If your data might contain sentinel values:
+- Time-series data that could theoretically reach year 2262+
+- Data representing all possible values in a type's range
+- Domain-agnostic data processing (generic pipelines)
+
+**Safe Alternatives:** If you must support sentinel values, use:
+- `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual buffering without sentinels
+- `Sink.foreach[A](f: A => Unit)` — processes each element individually
+- `Sink.foldLeft[A, Z](z: Z)(f: (Z, A) => Z)` — accumulates without sentinel constraint
+- `Sink.collectAll[A]` — collects into a Chunk using generic protocol (no sentinel)
+
+For a complete demonstration of this limitation in action, see the Sentinel Value Limitation example below.
 :::
 
-Use these when you control buffer allocation (e.g., pre-allocated DirectByteBuffer) and your data cannot contain sentinel values, or when writing to memory-mapped files with the same constraint.
+Use typed variants when you control buffer allocation (e.g., pre-allocated DirectByteBuffer), your data provably cannot contain sentinel values, and you need maximum performance. Otherwise, use generic sinks like `Sink.collectAll` or `Sink.foldLeft` which have no sentinel constraint.
+
+Here is a complete, runnable example that demonstrates the sentinel limitation in three scenarios:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
+
+Run it with:
+
+```bash
+sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
+```
 
 **`fromChannel`** — Performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream. It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
 
