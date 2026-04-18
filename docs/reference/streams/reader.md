@@ -163,7 +163,7 @@ object Reader {
 
 ### Single Element
 
-`Reader.single` — Creates a reader that emits exactly one element, then closes. Primitive types use specialized variants (`singleInt`, `singleLong`, etc.) for zero-boxing:
+`Reader.single` — Creates a reader that emits exactly one element, then closes. Primitive types use specialized variants for zero-boxing:
 
 ```scala
 object Reader {
@@ -179,12 +179,27 @@ object Reader {
 }
 ```
 
+Generic single-element reader with automatic type inference:
+
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 
 val r = Reader.single(42)
 println(r.read(-1))        // 42
 println(r.read(-1))        // -1 (sentinel, reader is closed)
+```
+
+Specialized variants like `Reader.singleInt`, `Reader.singleLong`, `Reader.singleFloat`, `Reader.singleDouble`, `Reader.singleChar`, `Reader.singleShort`, `Reader.singleByte`, and `Reader.singleBoolean` emit a single primitive value without boxing overhead:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+
+val r = Reader.singleInt(100)
+val sentinel = Long.MinValue
+var v = r.readInt(sentinel)
+println(v)    // 100
+v = r.readInt(sentinel)
+println(v)    // -9223372036854775808 (sentinel)
 ```
 
 ### Infinite & Repeating
@@ -248,7 +263,7 @@ while (v != -1) {
 
 ### Pulling Elements
 
-`read` — Pulls the next element, or returns `sentinel` if the reader is closed and empty:
+`Reader#read` — Pulls the next element, or returns `sentinel` if the reader is closed and empty. This is the fundamental operation: call it repeatedly to consume all elements until it returns your sentinel value:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -397,7 +412,7 @@ abstract class Reader[+Elem] {
 
 ### State Queries
 
-`isClosed` — Returns `true` if the reader is closed. Monotone: once `true`, never returns `false`:
+`Reader#isClosed` — Returns `true` if the reader is closed. Monotone: once `true`, never returns `false`:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -405,13 +420,15 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readable` — Returns `true` if the next `read()` would return a value (not the sentinel). Default implementation returns `!isClosed`. Buffered readers override for accuracy:
+`Reader#readable` — Returns `true` if the next `read()` would return a value (not the sentinel). Default implementation returns `!isClosed`. Buffered readers can override `readable()` for accuracy to peek ahead without consuming:
 
 ```scala
 abstract class Reader[+Elem] {
   def readable(): Boolean
 }
 ```
+
+Use `readable()` to check if elements are available before calling `read()`:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -469,7 +486,7 @@ while (v != -1) {
 
 ### Closing
 
-`close` — Signals close from the consumer side. Implementations should set internal closed state and wake any blocked readers:
+`Reader#close` — Signals end-of-stream from the consumer side and releases any held resources. Implementations set internal closed state and wake any blocked readers. This is always called in a `finally` block by sinks to guarantee resource cleanup:
 
 ```scala
 abstract class Reader[+Elem] {

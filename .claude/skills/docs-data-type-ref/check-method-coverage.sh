@@ -157,7 +157,7 @@ extract_methods_from_doc() {
     # - Must be at least 2 characters (exclude single-letter variables like f, n, z, x, y)
     grep -E '^[a-z][a-zA-Z0-9_]{1,}$|^[+:*/%&|^!<>@\\-]+$' | \
     # Exclude common keywords and non-method tokens
-    grep -vE '^(true|false|null|this|super|self|finally|inline|read|close|bufSize|pred|f|n|z|via|nio)$' | \
+    grep -vE '^(true|false|null|this|super|self|finally|inline|bufSize|pred|f|n|z|via|nio)$' | \
     sort -u
 }
 

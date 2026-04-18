@@ -67,10 +67,11 @@ object MethodExtractor {
 
           val isPrivate = trimmed.matches("^(private|protected)\\s+.*") || trimmed.matches("^.*private\\[.*\\]\\s+.*")
 
-          // Filter out helper methods (starting with loop, mk, or underscore)
+          // Filter out helper methods (starting with loop, mk, or underscore) and internal impl details
           methodPattern.findFirstMatchIn(line).foreach { m =>
             val methodName = m.group(4)
-            if (!methodName.startsWith("loop") && !methodName.startsWith("mk") && !methodName.startsWith("_")) {
+            if (!methodName.startsWith("loop") && !methodName.startsWith("mk") && !methodName.startsWith("_") &&
+                methodName != "source" && methodName != "toInterpreter") {
               methods += MethodDef(methodName, isPrivate, depth, lineNum)
             }
           }
