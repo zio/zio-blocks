@@ -522,7 +522,7 @@ The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffer
 
 Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `fromChannel` handles buffering automatically (default 8KB), while typed variants like `fromByteBufferInt` and `fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
-Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. Note the sentinel-value limitation described below—it is a hard constraint that applies to all typed variants.
+Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. Note the sentinel-value limitation described below—it is a hard constraint that may affect your application logic soundness if your data can contain the sentinel values.
 
 Here are the available NIO sinks:
 
@@ -549,29 +549,33 @@ These typed sinks achieve **zero-boxing performance** by using a special "sentin
 **However, this comes with a cost:** if your stream contains the exact sentinel value, the sink stops reading and silently drops all remaining elements.
 
 **Affected Data Types and Their Sentinels:**
-| Method | Input Type | Sentinel Value | Why This Sentinel? |
-|--------|-----------|---|---|
-| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | Outside valid byte range; standard EOF marker |
-| `fromByteBufferInt` | `Int` | `Long.MinValue` | Outside valid Int range when cast to Long; Ints fit in [-2^31, 2^31-1], sentinel is -2^63 |
-| `fromByteBufferLong` | `Long` | `Long.MaxValue` | No value exists outside Long range; this is the least likely value in real-world data (epoch nanoseconds in year 2262) |
-| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | Both Float and Double are read as Double; MaxValue is rare in sensor/measurement data |
-| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | Same as Float; extremely unlikely to appear in real-world measurements |
+| Method | Input Type | Sentinel Value | Risk Level | Why? |
+|--------|-----------|---|---|---|
+| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | ✅ Safe | Sentinel is outside valid byte range [-128, 127] |
+| `fromByteBufferInt` | `Int` | `Long.MinValue` | ✅ Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
+| `fromByteBufferLong` | `Long` | `Long.MaxValue` | ⚠️ **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
+| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | ✅ Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
+| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | ⚠️ **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
 
 **Concrete Risk Example:**
 If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
 
-**When to Use These Sinks:**
-✅ Streaming domains where the sentinel value cannot occur:
-- Sensor/measurement data (temperatures, pressures, voltages)
-- Positive timestamps (Unix epoch timestamps won't reach year 2262 in practice)
-- Financial data (stock prices, volumes—rarely use extreme values)
-- Network packet counters, message IDs, or sequential data
+**Safe to Always Use (No Sentinel Risk):**
+✅ `fromByteBufferByte` — Byte sentinels are impossible
+✅ `fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
+✅ `fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
 
-**When NOT to Use (Use Alternatives Instead):**
-❌ If your data might contain sentinel values:
-- Time-series data that could theoretically reach year 2262+
-- Data representing all possible values in a type's range
-- Domain-agnostic data processing (generic pipelines)
+**Careful With (Sentinel Values Are Possible):**
+⚠️ `fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
+  - ❌ Unix timestamps in nanoseconds (will reach year 2262 eventually)
+  - ❌ Data representing all possible Long values
+  - ✅ Positive integers < Long.MaxValue (most sensor/measurement data)
+
+⚠️ `fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
+  - ❌ Domain-agnostic scientific computing (could need extreme values)
+  - ❌ Mathematical data (infinity, extreme results)
+  - ✅ Sensor data (temperatures, pressures, voltages)
+  - ✅ Financial data (stock prices, volumes—rarely extreme)
 
 **Safe Alternatives:** If you must support sentinel values, use:
 - `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual buffering without sentinels
@@ -584,7 +588,7 @@ For a complete demonstration of this limitation in action, see the Sentinel Valu
 
 Use typed variants when you control buffer allocation (e.g., pre-allocated DirectByteBuffer), your data provably cannot contain sentinel values, and you need maximum performance. Otherwise, use generic sinks like `Sink.collectAll` or `Sink.foldLeft` which have no sentinel constraint.
 
-Here is a complete, runnable example that demonstrates the sentinel limitation in three scenarios:
+Here is a complete, runnable example that demonstrates the sentinel limitation:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
