@@ -713,3 +713,21 @@ Run it with this command:
 ```bash
 sbt "streams-examples/runMain sink.SinkTransformationExample"
 ```
+
+### Sentinel Value Limitation (NIO Typed Sinks)
+
+This example demonstrates the critical sentinel value limitation of typed NIO sinks (`fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferDouble`, `fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `fromByteBufferLong`) will silently truncate, causing data loss without warning.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
+
+Run it with this command:
+
+```bash
+sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
+```
