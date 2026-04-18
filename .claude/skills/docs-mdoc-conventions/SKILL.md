@@ -161,39 +161,27 @@ import TabItem from '@theme/TabItem';
 
 ## Docusaurus Admonitions
 
-Use Docusaurus admonition syntax for callouts:
+Use Docusaurus admonition syntax for callouts: (Titles are optional)
 
 ```
-:::note
+:::note[Title of the note]
 Additional context or clarification.
 :::
 
-:::tip
+:::tip[Title of the tip]
 Helpful shortcut or best practice.
 :::
 
-:::warning
+:::warning[Title of the warning]
 Common mistake or gotcha to avoid.
 :::
 
-:::info
+:::info[Title of the info]
 Background information that is useful but not essential.
 :::
 
-:::danger
+:::danger[Title of the danger]
 Serious risk of data loss, incorrect behavior, or security issue.
-:::
-```
-
-### Adding Titles to Admonitions
-
-Add a title in square brackets after the type. Titles support Markdown:
-
-```
-:::note[Your Title **with** some _Markdown_ `syntax`!]
-
-Some **content** with some _Markdown_ `syntax`.
-
 :::
 ```
 
