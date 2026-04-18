@@ -121,10 +121,10 @@ extract_methods_from_doc() {
 
   grep -oE '`[^`]+`' "$file" | \
     sed -E 's/`//g' | \
-    # Strip parameter lists: remove everything from '(' onwards (handles `methodName(...)`)
-    sed -E 's/\(.*//' | \
-    # Extract just the method name if it's Type#method format
-    sed -E 's/^[^#]+#//' | \
+    # Strip parameter lists and type parameters: remove everything from '(' or '[' onwards
+    sed -E 's/[\(\[].*//' | \
+    # Extract just the method name if it's Type#method or Type.method format
+    sed -E 's/^[^#.]+[#.]//' | \
     # Remove empty lines and non-identifier results
     grep -E '^[a-zA-Z0-9_+:*/%&|^!<>@\\-]+$' | \
     sort -u
