@@ -579,9 +579,7 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkScientificComputingExample.scala))
-
-Run it with:
+Run this example with:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkScientificComputingExample"
@@ -598,31 +596,31 @@ These typed sinks achieve **zero-boxing performance** by using a special "sentin
 **Affected Data Types and Their Sentinels:**
 | Method | Input Type | Sentinel Value | Risk Level | Why? |
 |--------|-----------|---|---|---|
-| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | ✅ Safe | Sentinel is outside valid byte range [-128, 127] |
-| `fromByteBufferInt` | `Int` | `Long.MinValue` | ✅ Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
-| `fromByteBufferLong` | `Long` | `Long.MaxValue` | ⚠️ **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
-| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | ✅ Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
-| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | ⚠️ **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
+| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | Safe | Sentinel is outside valid byte range [-128, 127] |
+| `fromByteBufferInt` | `Int` | `Long.MinValue` | Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
+| `fromByteBufferLong` | `Long` | `Long.MaxValue` | **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
+| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
+| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
 
 **Concrete Risk Example:**
 If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
 
 **Safe to Always Use (No Sentinel Risk):**
-✅ `fromByteBufferByte` — Byte sentinels are impossible
-✅ `fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
-✅ `fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
+- `fromByteBufferByte` — Byte sentinels are impossible
+- `fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
+- `fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
 
 **Careful With (Sentinel Values Are Possible):**
-⚠️ `fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
-  - ❌ Unix timestamps in nanoseconds (will reach year 2262 eventually)
-  - ❌ Data representing all possible Long values
-  - ✅ Positive integers < Long.MaxValue (most sensor/measurement data)
+- `fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
+  - Unix timestamps in nanoseconds (will reach year 2262 eventually)
+  - Data representing all possible Long values
+  - Positive integers < Long.MaxValue (most sensor/measurement data) — safe
 
-⚠️ `fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
-  - ❌ Domain-agnostic scientific computing (could need extreme values)
-  - ❌ Mathematical data (infinity, extreme results)
-  - ✅ Sensor data (temperatures, pressures, voltages)
-  - ✅ Financial data (stock prices, volumes—rarely extreme)
+- `fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
+  - Domain-agnostic scientific computing (could need extreme values)
+  - Mathematical data (infinity, extreme results)
+  - Sensor data (temperatures, pressures, voltages) — safe
+  - Financial data (stock prices, volumes—rarely extreme) — safe
 
 **Safe Alternatives:** If you must support sentinel values, use:
 - `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual buffering without sentinels
@@ -638,7 +636,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
 
 Run it with:
 
@@ -649,21 +646,31 @@ sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
 
 You might ask: **Why not use a sentinel object like generic sinks do, instead of primitive values?** The answer reveals a fundamental performance trade-off.
 
-**Typed NIO Sinks use primitive sentinels:**
+Typed NIO Sinks use primitive sentinels to keep loops fully unboxed:
 
 ```scala
 // fromByteBufferLong - tight loop with primitives only
 val s = Long.MaxValue
-var v = reader.readLong(s)(using unsafeEvidence)
-while (v != s) { buf.putLong(v); v = reader.readLong(s)(using unsafeEvidence) }
+def loop(v: Long): Unit =
+  if (v != s) {
+    buf.putLong(v)
+    loop(reader.readLong(s)(using unsafeEvidence))
+  }
+val firstValue = reader.readLong(s)(using unsafeEvidence)
+loop(firstValue)
 ```
 
-**Generic sinks use object sentinels:**
+Generic sinks use object sentinels to signal end-of-stream:
 
 ```scala
 // Sink.collectAll - uses object reference for end-of-stream
-var v = reader.read(EndOfStream)  // EndOfStream is an object
-while (v.asInstanceOf[AnyRef] ne EndOfStream) { b += v.asInstanceOf[A]; v = reader.read(EndOfStream) }
+def loop(v: Any): Unit =
+  if (v.asInstanceOf[AnyRef] ne EndOfStream) {
+    b += v.asInstanceOf[A]
+    loop(reader.read(EndOfStream))
+  }
+val firstValue = reader.read(EndOfStream)  // EndOfStream is an object
+loop(firstValue)
 ```
 
 **Performance Impact:**
@@ -696,7 +703,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkTelemetryExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkTelemetryExample.scala))
 
 Run it with:
 
@@ -736,19 +742,18 @@ When a `Contramapped` sink receives a reader that is an `Interpreter` (the compi
 
 All code from this guide is available as runnable examples in the `streams-examples` module.
 
-**1. Clone the repository and navigate to the project:**
+Start by cloning the repository and navigating to the project:
 
 ```bash
-
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-**2. Run individual examples with sbt:**
+Run individual examples with sbt:
 
 ### Basic Usage
 
-This example demonstrates the most commonly used built-in sinks: `drain`, `count`, `collectAll`, `head`, `last`, and `take`.
+This example demonstrates the most commonly used built-in sinks: `drain`, `count`, `collectAll`, `head`, `last`, and `take`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -756,9 +761,7 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkBasicUsageExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkBasicUsageExample.scala))
-
-Run it with this command:
+Run this example with:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkBasicUsageExample"
@@ -766,7 +769,7 @@ sbt "streams-examples/runMain sink.SinkBasicUsageExample"
 
 ### Aggregation and Search
 
-This example shows aggregation sinks (`foldLeft`, `sumInt`, `sumDouble`) and search sinks (`exists`, `forall`, `find`, `foreach`).
+This example shows aggregation sinks (`foldLeft`, `sumInt`, `sumDouble`) and search sinks (`exists`, `forall`, `find`, `foreach`):
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -774,9 +777,7 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkAggregationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkAggregationExample.scala))
-
-Run it with this command:
+Run this example with:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkAggregationExample"
@@ -784,7 +785,7 @@ sbt "streams-examples/runMain sink.SinkAggregationExample"
 
 ### Transformations and Composition
 
-This example demonstrates `contramap`, `map`, `mapError`, `fail`, `create`, and Pipeline integration via `andThenSink`.
+This example demonstrates `contramap`, `map`, `mapError`, `fail`, `create`, and Pipeline integration via `andThenSink`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -792,9 +793,7 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkTransformationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkTransformationExample.scala))
-
-Run it with this command:
+Run this example with:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkTransformationExample"
@@ -802,7 +801,7 @@ sbt "streams-examples/runMain sink.SinkTransformationExample"
 
 ### Sentinel Value Limitation (NIO Typed Sinks)
 
-This example demonstrates the critical sentinel value limitation of typed NIO sinks (`fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferDouble`, `fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `fromByteBufferLong`) will silently truncate, causing data loss without warning.
+This example demonstrates the critical sentinel value limitation of typed NIO sinks (`fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferDouble`, `fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `fromByteBufferLong`) will silently truncate, causing data loss without warning:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -810,7 +809,6 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala))
 
 Run it with this command:
 
