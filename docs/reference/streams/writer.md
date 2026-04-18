@@ -39,25 +39,7 @@ abstract class Writer[-Elem] {
 
 Worse, Java's standard I/O classes (`OutputStream`, `Writer`) are mutable and return `void` — they either succeed silently or throw exceptions. This makes it hard to compose I/O operations, test in isolation, or reason about cleanup. You end up with try-catch-finally boilerplate and tight coupling to concrete implementations.
 
-**The Solution**: `Writer` is a push-based abstraction that inverts the data flow. Instead of the consumer pulling elements from a source, a producer *pushes* elements to the writer. The key insight is that `Writer` returns a `Boolean` from `write()`: it tells you immediately whether the write succeeded, the writer is full, or it has closed — all without throwing exceptions or blocking threads. This makes `Writer` composable, testable, and safe to use in single-threaded production scenarios:
-
-```
-Problem: Pull-based requires buffering layer
-  
-  Data source (push)  │  Buffering  │  Consumer.drain()
-         ↓            │             │         ↑
-  [Event] ─ ─ ─ ─ ─ ─→ [buffer] ← ← ← ← ← ← ┘
-         Event pushed  (growing)   Must wait for pull
-         immediately    No feedback
-
-Solution: Writer gives direct feedback
-
-  Data source          write(event)       
-         ↓                ↓                 ↓
-  [Event] ─→ Writer ─→ true (accepted) ─→ Success
-                     \→ false (full)    ─→ Backpressure
-                     \→ false (closed)  ─→ Stop writing
-```
+**The Solution**: `Writer` is a push-based abstraction that inverts the data flow. Instead of the consumer pulling elements from a source, a producer *pushes* elements to the writer. The key insight is that `Writer` returns a `Boolean` from `write()`: it tells you immediately whether the write succeeded, the writer is full, or it has closed — all without throwing exceptions or blocking threads. This makes `Writer` composable, testable, and safe to use in single-threaded production scenarios.
 
 `Writer` excels in these scenarios:
 
