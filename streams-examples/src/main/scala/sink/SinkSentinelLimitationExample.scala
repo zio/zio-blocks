@@ -26,7 +26,7 @@ object SinkSentinelLimitationExample extends App {
   println("Context: fromByteBufferLong uses Long.MaxValue as a sentinel to detect end-of-stream.")
   println("This means streams containing Long.MaxValue will silently truncate.\n")
 
-  // Example 1: Stream with Long.MaxValue in the middle
+  // Example: Stream with Long.MaxValue in the middle
   println("Test 1: Stream containing Long.MaxValue in the middle")
   println("-" * 60)
 
@@ -58,77 +58,6 @@ object SinkSentinelLimitationExample extends App {
   println()
   println(f"⚠️  Expected 5 values, but only wrote ${count1} to buffer!")
   println(f"✗ Data loss: Elements at indices 2, 3, 4 were silently dropped\n")
-
-  // Example 2: Demonstrating with realistic data (Unix timestamps in nanoseconds)
-  println("\nTest 2: Realistic scenario - Unix epoch nanoseconds")
-  println("-" * 60)
-
-  val now         = System.currentTimeMillis() * 1_000_000L // Current time in nanoseconds
-  val year2262_ns = Long.MaxValue - 1_000_000L              // Close to max representable time
-
-  val timestampData = List(
-    now,
-    now + 1_000_000L,
-    year2262_ns,              // ← Near the sentinel
-    year2262_ns + 1_000_000L, // ← Will be dropped
-    year2262_ns + 2_000_000L  // ← Will be dropped
-  )
-
-  println(f"Timestamps (nanoseconds since epoch):")
-  timestampData.zipWithIndex.foreach { case (ts, idx) =>
-    val readable = if (ts == year2262_ns) "year 2262 boundary" else s"T+${ts - now} ns"
-    println(f"  [$idx] $ts ($readable)")
-  }
-  println()
-
-  val buffer2 = ByteBuffer.allocate(timestampData.length * 8)
-  Stream.fromIterable(timestampData).run(NioSinks.fromByteBufferLong(buffer2))
-  buffer2.rewind()
-
-  println("Data written to buffer:")
-  var count2 = 0
-  while (buffer2.hasRemaining && count2 < timestampData.length) {
-    val ts       = buffer2.getLong()
-    val readable = if (ts == Long.MaxValue) "Long.MaxValue (UNEXPECTED!)" else s"T+${ts - now} ns"
-    println(f"  [$count2] $ts ($readable)")
-    count2 += 1
-  }
-
-  println()
-  println(f"⚠️  Expected 5 timestamps, but only wrote ${count2} to buffer!")
-  if (count2 < timestampData.length) {
-    println(f"✗ Future events after year 2262 were silently lost in time-series data!\n")
-  }
-
-  // Example 3: Showing that other Long values work fine
-  println("\nTest 3: Stream without sentinel value (works correctly)")
-  println("-" * 60)
-
-  val safeData = List(
-    100L,
-    200L,
-    Long.MaxValue - 1L, // ← Just before sentinel (safe)
-    300L,
-    Long.MinValue + 1L // ← Just after MinValue (safe)
-  )
-
-  println(f"Stream data (avoiding Long.MaxValue): ${safeData.mkString(", ")}")
-  println()
-
-  val buffer3 = ByteBuffer.allocate(safeData.length * 8)
-  Stream.fromIterable(safeData).run(NioSinks.fromByteBufferLong(buffer3))
-  buffer3.rewind()
-
-  println("Data written to buffer:")
-  var count3 = 0
-  while (buffer3.hasRemaining) {
-    val value = buffer3.getLong()
-    println(f"  [$count3] $value")
-    count3 += 1
-  }
-
-  println()
-  println(f"✓ All {count3} values written successfully!\n")
 
   // Recommendations
   println("\n=== Recommendations ===")
