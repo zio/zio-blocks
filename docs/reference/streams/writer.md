@@ -22,14 +22,6 @@ abstract class Writer[-Elem] {
   def fail(error: Throwable): Unit
   def isClosed: Boolean
   def writeable(): Boolean
-  def writeAll[Elem1 <: Elem](chunk: Chunk[Elem1]): Chunk[Elem1]
-  def writeInt(value: Int)(using Int <:< Elem): Boolean
-  def writeLong(value: Long)(using Long <:< Elem): Boolean
-  def writeFloat(value: Float)(using Float <:< Elem): Boolean
-  def writeDouble(value: Double)(using Double <:< Elem): Boolean
-  def ++[Elem1 <: Elem](next: => Writer[Elem1]): Writer[Elem1]
-  def concat[Elem1 <: Elem](next: => Writer[Elem1]): Writer[Elem1]
-  def contramap[Elem2](g: Elem2 => Elem): Writer[Elem2]
 }
 ```
 
