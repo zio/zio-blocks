@@ -180,6 +180,86 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
+# Rule 8: Unqualified method/constructor names (heuristic-based algorithm)
+if command -v python3 >/dev/null 2>&1; then
+  count_violations "$(python3 - "$FILE" << 'PYTHON_EOF'
+import sys, re
+
+# Known safe names (variables, parameters, constants, type names)
+SAFE_NAMES = {
+    # Variables and parameters
+    "f", "z", "g", "x", "y", "n", "i", "j", "k", "v", "a", "b", "c",
+    "buf", "buffer", "reader", "sink", "stream", "result", "value",
+    "e", "err", "error", "ex", "exception", "cause",
+    # Type names (capitalized or special)
+    "Sink", "Stream", "Reader", "Pipeline", "Chunk", "Any", "Unit",
+    "List", "Option", "Either", "Right", "Left", "Some", "None",
+    "Boolean", "Int", "Long", "Double", "Float", "String", "Byte",
+    "EndOfStream", "Throwable", "Exception", "IOException", "Error",
+    # Constants
+    "MaxValue", "MinValue", "MaxValu e", "Infinity",
+    # Common values
+    "null", "true", "false", "this", "super", "self",
+    # Common Scala/functional terms
+    "pred", "predicate", "init", "default", "Interpreted",
+}
+
+in_code = False
+qualified_methods = set()
+
+# First pass: collect all qualified method names to build confidence
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        content = f.read()
+        # Find all Qualified methods: Type#method or Type.method
+        for m in re.finditer(r'[A-Z][a-zA-Z0-9_]*[#.]([a-z][a-zA-Z0-9_]*)', content):
+            qualified_methods.add(m.group(1))
+except:
+    pass
+
+# Second pass: detect unqualified methods
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            s = line.rstrip()
+            if s.lstrip().startswith("```"):
+                in_code = not in_code
+                continue
+            if in_code:
+                continue
+
+            # Find all backtick-quoted identifiers
+            for m in re.finditer(r'`([a-z][a-zA-Z0-9_]*)`', s):
+                name = m.group(1)
+                start = m.start()
+
+                # Skip if name is in safe list
+                if name in SAFE_NAMES:
+                    continue
+
+                # Skip if preceded by # or . (already qualified)
+                if start > 0 and s[start-1] in '#.':
+                    continue
+
+                # Skip very short names (likely variables)
+                if len(name) <= 2:
+                    continue
+
+                # Skip if in a markdown link or reference
+                if '[' in s[:start] and ']' in s[start:]:
+                    continue
+
+                # **Confidence check**: if this identifier appears qualified elsewhere
+                # in the document, it's a real method and should be reported
+                if name in qualified_methods:
+                    print(f"{sys.argv[1]}:{lineno}: [Rule 8] unqualified method `{name}` (use Type#{name} or Type.{name})")
+except Exception as e:
+    print(f"Error in Rule 8: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_EOF
+)"
+fi
+
 # Report summary
 echo ""
 if [[ $VIOLATIONS -gt 0 ]]; then
