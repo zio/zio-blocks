@@ -86,7 +86,7 @@ import zio.blocks.streams._
 val result = Stream(1, 2, 3, 4, 5).run(Sink.count)
 ```
 
-### `Sink.sumInt` / `sumLong` / `sumFloat` / `sumDouble` — Typed Numeric Sums
+### `Sink.sumInt` / `Sink.sumLong` / `Sink.sumFloat` / `Sink.sumDouble` — Typed Numeric Sums
 
 Returns the sum of all elements as a numeric type. Each sink accepts the corresponding primitive type:
 
@@ -99,7 +99,7 @@ object Sink {
 }
 ```
 
-Note that `sumInt` returns `Long` (to avoid overflow) and `sumFloat` returns `Double` (to reduce rounding loss):
+Note that `Sink.sumInt` returns `Long` (to avoid overflow) and `Sink.sumFloat` returns `Double` (to reduce rounding loss):
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -365,7 +365,7 @@ Stream('H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd')
 val result = writer.toString()
 ```
 
-Like `fromOutputStream`, this sink intentionally does not close the writer. This gives you control over when to flush or close, allowing you to write multiple streams to the same writer or coordinate lifecycle with other operations.
+Like `Sink.fromOutputStream`, this sink intentionally does not close the writer. This gives you control over when to flush or close, allowing you to write multiple streams to the same writer or coordinate lifecycle with other operations.
 
 ### Custom
 
@@ -499,7 +499,7 @@ See [Stream — Running Streams](./stream.md#running-streams) for more details o
 
 ## Integration with Pipeline
 
-A [Pipeline](./pipeline.md) can be applied to a Sink using `andThenSink`, producing a new Sink that pre-processes input elements through the pipeline:
+A [Pipeline](./pipeline.md) can be applied to a Sink using `Pipeline#andThenSink`, producing a new Sink that pre-processes input elements through the pipeline:
 
 ```scala mdoc:reset
 import zio.blocks.streams._
@@ -520,9 +520,9 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. These exist because NIO is the standard high-performance I/O mechanism on the JVM: non-blocking, memory-efficient, and capable of handling thousands of concurrent connections. When you're writing to network sockets, memory-mapped files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
 
-Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `fromChannel` handles buffering automatically (default 8KB), while typed variants like `fromByteBufferInt` and `fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
+Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `NioSinks.fromChannel` handles buffering automatically (default 8KB), while typed variants like `NioSinks.fromByteBufferInt` and `NioSinks.fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
-Choose `fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. **Important:** Read the Sentinel Value Limitation section below—it describes a hard constraint that affects your choice depending on whether your data can contain specific values.
+Choose `NioSinks.fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. **Important:** Read the Sentinel Value Limitation section below—it describes a hard constraint that affects your choice depending on whether your data can contain specific values.
 
 Here are the available NIO sinks:
 
@@ -539,9 +539,9 @@ object NioSinks {
 
 ### From ByteBuffer Sinks
 
-**`fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
-- `fromByteBuffer` — writes individual `Byte` elements using a read sentinel of `-1`. Use only for unstructured byte data.
-- `fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferFloat`, `fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
+**`NioSinks.fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
+- `NioSinks.fromByteBuffer` — writes individual `Byte` elements using a read sentinel of `-1`. Use only for unstructured byte data.
+- `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
 
 Here's an example using ByteBuffer with typed primitive writes:
 
@@ -567,7 +567,7 @@ val readBack = List(
 )
 ```
 
-This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
+This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `NioSinks.fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `NioSinks.fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
 
 The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing.
 
@@ -597,26 +597,26 @@ These typed sinks achieve **zero-boxing performance** by using a special "sentin
 | Method | Input Type | Sentinel Value | Risk Level | Why? |
 |--------|-----------|---|---|---|
 | `fromByteBufferByte` | `Byte` | `-1` (0xFF) | Safe | Sentinel is outside valid byte range [-128, 127] |
-| `fromByteBufferInt` | `Int` | `Long.MinValue` | Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
-| `fromByteBufferLong` | `Long` | `Long.MaxValue` | **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
-| `fromByteBufferFloat` | `Float` | `Double.MaxValue` | Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
-| `fromByteBufferDouble` | `Double` | `Double.MaxValue` | **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
+| `NioSinks.fromByteBufferInt` | `Int` | `Long.MinValue` | Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
+| `NioSinks.fromByteBufferLong` | `Long` | `Long.MaxValue` | **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
+| `NioSinks.fromByteBufferFloat` | `Float` | `Double.MaxValue` | Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
+| `NioSinks.fromByteBufferDouble` | `Double` | `Double.MaxValue` | **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
 
 **Concrete Risk Example:**
-If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
+If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `NioSinks.fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
 
 **Safe to Always Use (No Sentinel Risk):**
 - `fromByteBufferByte` — Byte sentinels are impossible
-- `fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
-- `fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
+- `NioSinks.fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
+- `NioSinks.fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
 
 **Careful With (Sentinel Values Are Possible):**
-- `fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
+- `NioSinks.fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
   - Unix timestamps in nanoseconds (will reach year 2262 eventually)
   - Data representing all possible Long values
   - Positive integers < Long.MaxValue (most sensor/measurement data) — safe
 
-- `fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
+- `NioSinks.fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
   - Domain-agnostic scientific computing (could need extreme values)
   - Mathematical data (infinity, extreme results)
   - Sensor data (temperatures, pressures, voltages) — safe
@@ -693,7 +693,7 @@ The **`Sink.fromChannel`**  constructor performs buffered writes to a `WritableB
 
 It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
 
-Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and eliminates manual position management.
+Suppose you're collecting metrics from thousands of sensors (temperature, pressure, timestamps) and need to write them to a file efficiently. Using `NioSinks.fromChannel` with a file's `WritableByteChannel` gives you automatic buffering and eliminates manual position management.
 
 Here is the complete example:
 
@@ -775,7 +775,7 @@ sbt "streams-examples/runMain sink.SinkTransformationExample"
 
 ### Sentinel Value Limitation (NIO Typed Sinks)
 
-This example demonstrates the critical sentinel value limitation of typed NIO sinks (`fromByteBufferInt`, `fromByteBufferLong`, `fromByteBufferDouble`, `fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `fromByteBufferLong`) will silently truncate, causing data loss without warning:
+This example demonstrates the critical sentinel value limitation of typed NIO sinks (`NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferDouble`, `NioSinks.fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `NioSinks.fromByteBufferLong`) will silently truncate, causing data loss without warning:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
