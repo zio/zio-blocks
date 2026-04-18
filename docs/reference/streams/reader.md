@@ -6,13 +6,11 @@ title: "Reader"
 `Reader[+Elem]` is a **pull-based source of elements** that yields values one at a time until closed. Elements are pulled on demand by the consumer (typically a `Sink`), making it ideal for lazy, memory-efficient data streaming. The fundamental operations are `read(sentinel)` — returns the next element or a sentinel when exhausted — and `close()` — signals stream end and releases resources.
 
 `Reader`:
-- is lazy and pull-based — nothing happens until the consumer calls `read()`
+- is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
 - is not thread-safe — designed for single-threaded consumption
-- uses a sentinel protocol for end-of-stream signaling to avoid boxing
+- uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `readInt(sentinel)` avoid boxing entirely
 - dispatches on `jvmType` to use specialized, unboxed reads for primitive types
 - is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
-- features lazy compilation where `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
-- uses a sentinel protocol so callers can specify the end-of-stream value; for primitives, specialized methods like `readInt(sentinel)` avoid boxing entirely
 - guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
 - supports composition by chaining readers through transformations without materializing intermediate data
 
