@@ -18,7 +18,7 @@ package zio.blocks.schema.migration
 
 import scala.annotation.tailrec
 import scala.quoted.*
-import zio.blocks.schema.SchemaExpr
+import zio.blocks.schema.{Schema, SchemaExpr}
 
 object MigrationBuilderMacros {
 
@@ -96,6 +96,64 @@ object MigrationBuilderMacros {
             $builder.sourceSchema,
             $builder.targetSchema,
             $builder.actions :+ MigrationAction.RenameField(fromPath, $toNameExpr)
+          )
+        }
+    }
+  }
+
+  def renameCaseImpl[A: Type, B: Type, CS: Type](
+    builder: Expr[MigrationBuilder[A, B, CS]],
+    from: Expr[String],
+    to: Expr[String]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] = {
+    import q.reflect.*
+
+    val fromValue = from.valueOrAbort
+    val toValue   = to.valueOrAbort
+    val fromType  = ConstantType(StringConstant(fromValue))
+    val toType    = ConstantType(StringConstant(toValue))
+    val renamed   = TypeRepr.of[Changeset.RenameCase].appliedTo(List(fromType, toType))
+    val newCSType  = AndType(TypeRepr.of[CS], renamed)
+
+    newCSType.asType match {
+      case '[newCs] =>
+        '{
+          new MigrationBuilder[A, B, newCs](
+            $builder.sourceSchema,
+            $builder.targetSchema,
+            $builder.actions :+ MigrationAction.RenameCase(DynamicOptic.root, $from, $to)
+          )
+        }
+    }
+  }
+
+  def transformCaseImpl[A: Type, B: Type, CaseA: Type, CaseB: Type, CS: Type](
+    builder: Expr[MigrationBuilder[A, B, CS]],
+    caseName: Expr[String],
+    caseSourceSchema: Expr[_root_.zio.blocks.schema.Schema[CaseA]],
+    caseTargetSchema: Expr[_root_.zio.blocks.schema.Schema[CaseB]],
+    caseMigration: Expr[MigrationBuilder[CaseA, CaseB, Any] => MigrationBuilder[CaseA, CaseB, ?]]
+  )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] = {
+    import q.reflect.*
+
+    val caseNameValue = caseName.valueOrAbort
+    val caseNameType  = ConstantType(StringConstant(caseNameValue))
+    val transformed   = TypeRepr.of[Changeset.TransformCase].appliedTo(List(caseNameType))
+    val newCSType     = AndType(TypeRepr.of[CS], transformed)
+
+    newCSType.asType match {
+      case '[newCs] =>
+        '{
+          val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any](
+            $caseSourceSchema,
+            $caseTargetSchema,
+            Vector.empty
+          )
+          val builtInner = $caseMigration(innerBuilder)
+          new MigrationBuilder[A, B, newCs](
+            $builder.sourceSchema,
+            $builder.targetSchema,
+            $builder.actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf($caseName), builtInner.actions)
           )
         }
     }

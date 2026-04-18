@@ -92,49 +92,49 @@ object SchemaRepr {
    * Renders a SchemaRepr to its string representation.
    */
   def render(repr: SchemaRepr): String = {
-    val sb = new StringBuilder
+    val sb = new java.lang.StringBuilder
     renderTo(sb, repr)
     sb.toString
   }
 
-  private def renderTo(sb: StringBuilder, repr: SchemaRepr): Unit = repr match {
-    case Nominal(name)   => sb.append(name)
-    case Primitive(name) => sb.append(name)
-    case Record(fields)  =>
+  private def renderTo(sb: java.lang.StringBuilder, repr: SchemaRepr): Unit = repr match {
+    case n: Nominal   => sb.append(n.name)
+    case p: Primitive => sb.append(p.name)
+    case r: Record    =>
       sb.append("record { ")
       var first = true
-      fields.foreach { case (name, fieldRepr) =>
+      r.fields.foreach { case (name, fieldRepr) =>
         if (!first) sb.append(", ")
         first = false
         sb.append(name).append(": ")
         renderTo(sb, fieldRepr)
       }
       sb.append(" }")
-    case Variant(cases) =>
+    case v: Variant =>
       sb.append("variant { ")
       var first = true
-      cases.foreach { case (name, caseRepr) =>
+      v.cases.foreach { case (name, caseRepr) =>
         if (!first) sb.append(", ")
         first = false
         sb.append(name).append(": ")
         renderTo(sb, caseRepr)
       }
       sb.append(" }")
-    case Sequence(element) =>
+    case s: Sequence =>
       sb.append("list(")
-      renderTo(sb, element)
+      renderTo(sb, s.element)
       sb.append(')')
-    case Map(key, value) =>
+    case m: Map =>
       sb.append("map(")
-      renderTo(sb, key)
+      renderTo(sb, m.key)
       sb.append(", ")
-      renderTo(sb, value)
+      renderTo(sb, m.value)
       sb.append(')')
-    case Optional(inner) =>
+    case o: Optional =>
       sb.append("option(")
-      renderTo(sb, inner)
+      renderTo(sb, o.inner)
       sb.append(')')
-    case Wildcard => sb.append('_')
+    case _ => sb.append('_')
   }
 
   // Schema Definitions, Manual derivation for Scala 2 compatibility

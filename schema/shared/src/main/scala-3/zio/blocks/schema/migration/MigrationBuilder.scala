@@ -93,30 +93,25 @@ final class MigrationBuilder[A, B, Changeset](
     MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]('this, 'source, 'target, 'converter)
   }
 
-  def renameCase(
-    from: String,
-    to: String
-  ): MigrationBuilder[A, B, Changeset] =
-    new MigrationBuilder(sourceSchema, targetSchema, actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))
+  transparent inline def renameCase(
+    inline from: String,
+    inline to: String
+  ) = ${ MigrationBuilderMacros.renameCaseImpl[A, B, Changeset]('this, 'from, 'to) }
 
-  def transformCase[CaseA, CaseB](
-    caseName: String
+  transparent inline def transformCase[CaseA, CaseB](
+    inline caseName: String
   )(
     caseMigration: MigrationBuilder[CaseA, CaseB, Any] => MigrationBuilder[CaseA, CaseB, ?]
   )(using
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
-  ): MigrationBuilder[A, B, Changeset] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any](
-      caseSourceSchema,
-      caseTargetSchema,
-      Vector.empty
-    )
-    val builtInner = caseMigration(innerBuilder)
-    new MigrationBuilder(
-      sourceSchema,
-      targetSchema,
-      actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions)
+  ) = ${
+    MigrationBuilderMacros.transformCaseImpl[A, B, CaseA, CaseB, Changeset](
+      'this,
+      'caseName,
+      'caseSourceSchema,
+      'caseTargetSchema,
+      'caseMigration
     )
   }
 

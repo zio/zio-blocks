@@ -512,6 +512,61 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           )
         }
       }
+    ),
+    suite("Algebraic schema validation")(
+      test("build succeeds when renaming a sealed trait case") {
+        sealed trait StatusV1
+        object StatusV1 {
+          case object Draft     extends StatusV1
+          case object Published extends StatusV1
+        }
+
+        sealed trait StatusV2
+        object StatusV2 {
+          case object Draft extends StatusV2
+          case object Live  extends StatusV2
+        }
+
+        given Schema[StatusV1] = Schema.derived[StatusV1]
+        given Schema[StatusV2] = Schema.derived[StatusV2]
+
+        val migration = Migration
+          .newBuilder[StatusV1, StatusV2]
+          .renameCase("Published", "Live")
+          .build
+
+        val input  = StatusV1.Published
+        val result = migration(input)
+
+        assertTrue(result == Right(StatusV2.Live))
+      },
+      test("build fails when a sealed trait case is left unmapped") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          sealed trait StatusV1
+          object StatusV1 {
+            case object Draft     extends StatusV1
+            case object Published extends StatusV1
+          }
+
+          sealed trait StatusV2
+          object StatusV2 {
+            case object Draft extends StatusV2
+            case object Live  extends StatusV2
+          }
+
+          given Schema[StatusV1] = Schema.derived[StatusV1]
+          given Schema[StatusV2] = Schema.derived[StatusV2]
+
+          Migration.newBuilder[StatusV1, StatusV2].build
+          """
+        }.map { result =>
+          assertTrue(result.isLeft)
+        }
+      }
     )
   )
 }

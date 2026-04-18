@@ -27,6 +27,8 @@ object MigrationValidationMacros {
 
     val sourceFields = extractFieldNamesWithNested[A]("")
     val targetFields = extractFieldNamesWithNested[B]("")
+    val sourceCases  = extractCaseNamesWithNested[A]("")
+    val targetCases  = extractCaseNamesWithNested[B]("")
 
     val (handledFields, providedFields) = extractHandledAndProvided[CS]
 
@@ -35,8 +37,8 @@ object MigrationValidationMacros {
     val allExplicitlyHandled = handledFields ++ providedFields
     val crossTypeAutoMapped  = computeCrossTypeAutoMapped[A, B](allExplicitlyHandled, "")
 
-    var coveredSource = handledFields ++ autoMapped ++ crossTypeAutoMapped
-    var coveredTarget = providedFields ++ autoMapped ++ crossTypeAutoMapped
+    var coveredSource = (handledFields ++ autoMapped ++ crossTypeAutoMapped) ++ sourceCases.intersect(targetCases)
+    var coveredTarget = (providedFields ++ autoMapped ++ crossTypeAutoMapped) ++ sourceCases.intersect(targetCases)
 
     coveredSource = inferParentCoverage(sourceFields, coveredSource)
     coveredTarget = inferParentCoverage(targetFields, coveredTarget)
@@ -109,7 +111,15 @@ object MigrationValidationMacros {
                 handled += n
                 provided += n
               }
-            case "RenameCase" | "TransformCase" | "TransformElements" | "TransformKeys" | "TransformValues" =>
+            case "RenameCase" =>
+              extractStringFromType(args.head).foreach(n => handled += n)
+              extractStringFromType(args(1)).foreach(n => provided += n)
+            case "TransformCase" =>
+              extractStringFromType(args.head).foreach { n =>
+                handled += n
+                provided += n
+              }
+            case "TransformElements" | "TransformKeys" | "TransformValues" =>
               ()
             case _ => ()
           }
@@ -169,61 +179,101 @@ object MigrationValidationMacros {
     }
   }
 
-  private def computeAutoMappedWithNested[A: Type, B: Type](prefix: String)(using Quotes): Set[String] = {
+  private def extractCaseNamesWithNested[T: Type](prefix: String)(using Quotes): Set[String] = {
     import quotes.reflect.*
 
-    val sourceType = TypeRepr.of[A]
-    val targetType = TypeRepr.of[B]
+    val tpe = TypeRepr.of[T].dealias
+    extractCaseNamesWithNested(tpe, prefix)
+  }
 
-    val sourceFieldTypes: Map[String, TypeRepr] =
-      if (sourceType.typeSymbol.flags.is(Flags.Case)) {
-        sourceType.typeSymbol.caseFields.map { field =>
-          field.name -> sourceType.memberType(field)
-        }.toMap
-      } else Map.empty
+  private def extractCaseNamesWithNested(tpe: quotes.reflect.TypeRepr, prefix: String)(using
+    Quotes
+  ): Set[String] = {
+    import quotes.reflect.*
 
-    val targetFieldTypes: Map[String, TypeRepr] =
-      if (targetType.typeSymbol.flags.is(Flags.Case)) {
-        targetType.typeSymbol.caseFields.map { field =>
-          field.name -> targetType.memberType(field)
-        }.toMap
-      } else Map.empty
-
-    val sourceFields = sourceFieldTypes.keySet
-    val targetFields = targetFieldTypes.keySet
-    val commonFields = sourceFields.intersect(targetFields)
-
-    commonFields.flatMap { fieldName =>
-      val fullFieldName = if (prefix.isEmpty) fieldName else s"$prefix.$fieldName"
-      (sourceFieldTypes.get(fieldName), targetFieldTypes.get(fieldName)) match {
-        case (Some(srcType), Some(tgtType)) if srcType =:= tgtType =>
-          Set(fullFieldName) ++ computeAutoMappedNested(srcType, tgtType, fullFieldName)
-        case (Some(srcType), Some(tgtType)) if srcType <:< tgtType || tgtType <:< srcType =>
-          Set(fullFieldName)
-        case _ => Set.empty[String]
-      }
+    if (isVariantType(tpe)) {
+      variantChildren(tpe).map { child =>
+        val caseName = child.name
+        if (prefix.isEmpty) caseName else s"$prefix.$caseName"
+      }.toSet
+    } else {
+      Set.empty
     }
   }
 
-  private def computeAutoMappedNested(using
-    q: Quotes
-  )(srcType: q.reflect.TypeRepr, tgtType: q.reflect.TypeRepr, prefix: String): Set[String] = {
-    import q.reflect.*
+  private def isCaseClassType(tpe: quotes.reflect.TypeRepr)(using Quotes): Boolean = {
+    import quotes.reflect.*
+    val sym = tpe.dealias.typeSymbol
+    sym.flags.is(Flags.Case) && sym.caseFields.nonEmpty
+  }
 
-    if (srcType.typeSymbol.flags.is(Flags.Case) && tgtType.typeSymbol.flags.is(Flags.Case)) {
-      val srcFields = srcType.typeSymbol.caseFields.map(f => f.name -> srcType.memberType(f)).toMap
-      val tgtFields = tgtType.typeSymbol.caseFields.map(f => f.name -> tgtType.memberType(f)).toMap
+  private def isVariantType(tpe: quotes.reflect.TypeRepr)(using Quotes): Boolean = {
+    import quotes.reflect.*
+    val sym = tpe.dealias.typeSymbol
+    sym.children.nonEmpty && (sym.flags.is(Flags.Sealed) || sym.flags.is(Flags.Enum))
+  }
 
-      val commonFields = srcFields.keySet.intersect(tgtFields.keySet)
+  private def variantChildren(tpe: quotes.reflect.TypeRepr)(using Quotes): List[quotes.reflect.Symbol] = {
+    import quotes.reflect.*
+    tpe.dealias.typeSymbol.children.sortBy(_.name)
+  }
+
+  private def resolveChildType(parent: quotes.reflect.TypeRepr, child: quotes.reflect.Symbol)(using
+    Quotes
+  ): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    if (child.isType) parent.memberType(child)
+    else child.termRef
+  }
+
+  private def computeAutoMappedWithNested[A: Type, B: Type](prefix: String)(using Quotes): Set[String] = {
+    import quotes.reflect.*
+
+    computeAutoMappedWithNestedImpl(TypeRepr.of[A].dealias, TypeRepr.of[B].dealias, prefix)
+  }
+
+  private def computeAutoMappedWithNestedImpl(using
+    Quotes
+  )(
+    sourceType: quotes.reflect.TypeRepr,
+    targetType: quotes.reflect.TypeRepr,
+    prefix: String
+  ): Set[String] = {
+    import quotes.reflect.*
+
+    val sourceSym = sourceType.dealias.typeSymbol
+    val targetSym = targetType.dealias.typeSymbol
+
+    if (isCaseClassType(sourceType) && isCaseClassType(targetType)) {
+      val sourceFieldTypes: Map[String, TypeRepr] =
+        sourceSym.caseFields.map(f => f.name -> sourceType.memberType(f).dealias).toMap
+      val targetFieldTypes: Map[String, TypeRepr] =
+        targetSym.caseFields.map(f => f.name -> targetType.memberType(f).dealias).toMap
+
+      val commonFields = sourceFieldTypes.keySet.intersect(targetFieldTypes.keySet)
 
       commonFields.flatMap { fieldName =>
-        val fullFieldName = s"$prefix.$fieldName"
-        (srcFields.get(fieldName), tgtFields.get(fieldName)) match {
-          case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType =:= tgtFieldType =>
-            Set(fullFieldName) ++ computeAutoMappedNested(srcFieldType, tgtFieldType, fullFieldName)
-          case (Some(srcFieldType), Some(tgtFieldType))
-              if srcFieldType <:< tgtFieldType || tgtFieldType <:< srcFieldType =>
+        val fullFieldName = if (prefix.isEmpty) fieldName else s"$prefix.$fieldName"
+        (sourceFieldTypes.get(fieldName), targetFieldTypes.get(fieldName)) match {
+          case (Some(srcType), Some(tgtType)) if srcType =:= tgtType =>
+            Set(fullFieldName) ++ computeAutoMappedWithNestedImpl(srcType, tgtType, fullFieldName)
+          case (Some(srcType), Some(tgtType)) if srcType <:< tgtType || tgtType <:< srcType =>
             Set(fullFieldName)
+          case _ => Set.empty[String]
+        }
+      }
+    } else if (isVariantType(sourceType) && isVariantType(targetType)) {
+      val sourceCases = variantChildren(sourceType).map(sym => sym.name -> resolveChildType(sourceType, sym).dealias).toMap
+      val targetCases = variantChildren(targetType).map(sym => sym.name -> resolveChildType(targetType, sym).dealias).toMap
+      val commonCases = sourceCases.keySet.intersect(targetCases.keySet)
+
+      commonCases.flatMap { caseName =>
+        val fullName = if (prefix.isEmpty) caseName else s"$prefix.$caseName"
+        (sourceCases.get(caseName), targetCases.get(caseName)) match {
+          case (Some(srcCaseType), Some(tgtCaseType)) if srcCaseType =:= tgtCaseType =>
+            Set(fullName) ++ computeAutoMappedWithNestedImpl(srcCaseType, tgtCaseType, fullName)
+          case (Some(srcCaseType), Some(tgtCaseType)) if srcCaseType <:< tgtCaseType || tgtCaseType <:< srcCaseType =>
+            Set(fullName)
           case _ => Set.empty[String]
         }
       }
