@@ -3,9 +3,9 @@ id: reader
 title: "Reader"
 ---
 
-`Reader[+Elem]` is a **pull-based source of elements** that yields values one at a time until closed. Elements are pulled on demand by the consumer (typically a `Sink`), making it ideal for lazy, memory-efficient data streaming. The fundamental operations are `read(sentinel)` — returns the next element or a sentinel when exhausted — and `close()` — signals stream end and releases resources.
+`Reader[+Elem]` is the **pull-based source that powers ZIO Blocks streams**. When you call a terminal operation like `stream.run(sink)`, the stream compiles into a `Reader`, which yields values one at a time on demand until closed. The fundamental operations are `read(sentinel)` — returns the next element or a sentinel when exhausted — and `close()` — signals stream end and releases resources. Most users never interact with `Reader` directly, but understanding it clarifies how streams work internally.
 
-`Reader[+Elem]` is the low-level, pull-based interface that powers ZIO Blocks streams. When you call a terminal operation like `stream.run(sink)`, the stream is compiled into a `Reader`, which the sink then drains element-by-element. Most users never interact with `Reader` directly — but understanding it clarifies how streams work internally:
+The compilation and execution flow:
 
 ```
 Stream[E, A] ──(compile)──> Reader[A]
