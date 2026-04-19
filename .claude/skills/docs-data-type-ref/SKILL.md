@@ -80,13 +80,13 @@ Please write what the problem is and why this type is the solution in storytelli
 Only include this for top-level module types (e.g., `Chunk`, `Context`, `TypeId`). Skip for internal types that come as part of a larger module.
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-<module>" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-<module>" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "@VERSION@"
 ```
 
 Note supported Scala versions: 2.13.x and 3.x.
