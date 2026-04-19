@@ -54,9 +54,8 @@ Then list key properties as bullet points if applicable:
 
 ```
 `TypeName`:
-- is purely functional and referentially transparent
-- is concurrent-safe and lock-free
-- updates and modifies atomically
+- Lock-Free — safely shared across fibers with no synchronization overhead
+- Atomic — no observer can witness a partially updated state
 ```
 
 The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
