@@ -58,13 +58,15 @@ println(s"Collected: $collected")
 
 ## Motivation / Use Case
 
-Imagine you're building a financial data pipeline. Your system receives tick updates (price, volume, timestamp) from a live market feed—data flows *toward* your system continuously. You can't ask the market for the next tick; it pushes when ready. Your job is to buffer these updates, write them to a database, and alert traders on price swings.
+Imagine you're building an IoT monitoring system. Thousands of temperature and humidity sensors push readings to your data hub continuously—you can't ask a sensor to slow down or wait, it transmits on its schedule. Your job is to buffer these readings in memory, process them (detect anomalies), and forward them to a storage backend.
 
-The challenge: Java's `OutputStream` or standard file writers are mutable, return `void`, and throw exceptions on failure. If the database goes down mid-write, you catch an exception and scramble to figure out which ticks were lost. Worse, if your buffer fills faster than the database can write, you're stuck—either drop data silently or block the feed thread, halting all tick processing.
+The challenge: Java's `OutputStream` or standard writers are mutable, return `void`, and throw exceptions on failure. If processing slows down and your buffer fills, you're stuck—either block the socket reader (stalling *all* sensor input), drop readings silently (losing data), or crash when the buffer overflows. If the storage backend fails partway through a write, you catch an exception but can't tell which readings made it through.
 
-`Writer` solves this cleanly. When you call `write(tick)`, it returns `Boolean`: `true` means the tick was buffered and queued to the database; `false` means the writer is full or closed, and you should backpressure the feed (tell the exchange to slow down or drop the tick). No exceptions, no guessing. If the database fails, you call `fail(error)`, and subsequent writes either return `false` or throw under your control. The producer and consumer are loosely coupled: the feed doesn't care *where* ticks go, just that `write()` tells the truth about acceptance.
+`Writer` solves this cleanly. You maintain a bounded in-memory buffer and push sensor readings into it via `write(reading)`. The call returns `Boolean`: `true` means the reading was buffered successfully; `false` means the buffer is full or the writer has closed. When `write()` returns `false`, you stop reading from the socket (apply backpressure at the I/O level) until the buffer has space again. No data is lost—you just pause the socket to let processing catch up. If the storage backend fails, you call `fail(error)`, and `write()` either returns `false` or throws consistently. No silent drops, no surprises.
 
-This is the ZIO Blocks answer to push-based I/O: a simple, composable contract that makes backpressure, buffering, and error handling explicit and testable.
+The key insight: backpressure isn't about asking the producer to slow down; it's about your system refusing to accept more data and letting the producer (socket, network, device) naturally pause while you clear the buffer. `Writer` makes this explicit and testable.
+
+This is the ZIO Blocks answer to push-based I/O: a simple, composable contract that makes buffering, backpressure, and error handling explicit and testable.
 
 ## Overview
 
