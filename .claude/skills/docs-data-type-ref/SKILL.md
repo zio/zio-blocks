@@ -76,7 +76,7 @@ Show core capabilities through examples. For simple types (e.g., `Writer`, `Read
 
 Please write what the problem is and why this type is the solution in storytelling style by describing a realistic scenario.
 
-#### 3. Installation (if applicable)
+#### 4. Installation (if applicable)
 
 Only include this for top-level module types (e.g., `Chunk`, `Context`, `TypeId`). Skip for internal types that come as part of a larger module.
 
@@ -92,7 +92,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "<version>"
 
 Note supported Scala versions: 2.13.x and 3.x.
 
-#### 4. Construction / Creating Instances (required)
+#### 5. Construction / Creating Instances (required)
 
 Document all ways to create values of the type, organized by method:
 
@@ -104,11 +104,11 @@ Document all ways to create values of the type, organized by method:
 
 Each method gets its own Markdown subsection with a short explanation and a code example.
 
-#### 5. Predefined Instances (if applicable)
+#### 6. Predefined Instances (if applicable)
 
 List predefined instances (like `TypeId.int`, `TypeId.string`) organized by category in a table or code block.
 
-#### 6. Core Operations (Required)
+#### 7. Core Operations (Required)
 
 Document the primary API organized by category. Group related methods under markdown subsections:
 
@@ -185,11 +185,11 @@ d. **Show a usage example** using the Setup + Evaluated Output pattern:
 
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
-#### 7. Subtypes / Variants (if applicable)
+#### 8. Subtypes / Variants (if applicable)
 
 Document important subtypes (e.g., `NonEmptyChunk` for `Chunk`) with: when to use, how to create, operations that differ, and conversion examples.
 
-#### 8. Comparison Sections (when applicable)
+#### 9. Comparison Sections (when applicable)
 
 Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when it adds clarity. Examples:
 - "Ref vs AtomicReference in Java"
@@ -201,11 +201,11 @@ Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when 
 
 Use padded table columns for readability (see **`docs-writing-style`** for table formatting rules).
 
-#### 9. Advanced Usage / Building Blocks (when applicable)
+#### 10. Advanced Usage / Building Blocks (when applicable)
 
 Show how the type composes with other types or how it can be used to build higher-level abstractions.
 
-#### 10. Integration (if applicable)
+#### 11. Integration (if applicable)
 
 Show how this type integrates with other ZIO Blocks data types and module. For example:
 - How `TypeId` is used in `Schema`
@@ -214,7 +214,7 @@ Show how this type integrates with other ZIO Blocks data types and module. For e
 
 Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](./reflect.md)`) after explaining the integration of each related type.
 
-#### 11. Running the Examples (required when examples exist)
+#### 12. Running the Examples (required when examples exist)
 
 Add this section at the very end of the page, after Integration. For each `App` example, embed the full source using `SourceFile.print`, then show the command to run it. Use this template verbatim:
 
