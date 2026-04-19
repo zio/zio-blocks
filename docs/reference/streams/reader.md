@@ -679,9 +679,12 @@ def drain(): Unit = {
   }
 }
 drain()
+// Output:
+// Skip handled natively: true
+// 3
+// 4
+// 5
 ```
-
-The output shows that the skip was handled natively (`true`), and then prints only elements `3, 4, 5` (skipping the first two elements `1` and `2`).
 
 `Reader#setLimit` — Attempts to set a limit on this reader so it produces at most `n` elements. Returns `true` if handled natively, `false` if the caller must wrap. After `reset()`, the limit is re-applied from the new start position:
 
@@ -711,8 +714,6 @@ def drain(): Unit = {
 drain()
 ```
 
-The output shows that the limit was handled natively (`true`), and then prints only `1, 2, 3` (stopping after the limit of 3 elements is reached).
-
 `Reader#setRepeat` — Attempts to set this reader into repeat-forever mode, so it restarts from the beginning whenever it would otherwise close. Returns `true` if handled natively, `false` if the caller must wrap:
 
 ```scala
@@ -740,8 +741,6 @@ def drain(count: Int): Unit = {
 }
 drain(0)
 ```
-
-The output shows that repeat was handled natively (`true`), and then prints `1, 2, 1, 2, 1, 2` — the two-element chunk repeats three times as the reader restarts whenever it would otherwise close.
 
 `reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
 
