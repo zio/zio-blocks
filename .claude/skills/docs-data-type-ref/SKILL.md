@@ -306,13 +306,13 @@ Run `/docs-verify-compliance` skill.
 
 ## Step 3.5: Verify Method Coverage
 
-Check that all public methods are documented:
+Use the **`docs-data-type-list-members`** skill to extract public methods, then compare against documented methods:
 
 ```bash
 ./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md
 ```
 
-Exit codes: 0=complete, 1=missing, 2=source not found. Verify results manually.
+Exit codes: 0=complete, 1=missing, 2=source not found.
 
 ## Step 4: Write Examples
 

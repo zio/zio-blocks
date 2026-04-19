@@ -48,8 +48,8 @@ else
   echo "Found source: $SOURCE_FILE" >&2
 fi
 
-# Get directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get path to extract-members script in docs-data-type-list-members skill
+EXTRACT_MEMBERS_SCRIPT="./.claude/skills/docs-data-type-list-members/extract-members.scala"
 
 # Extract all public methods from the source using Scala-aware parser
 # The Scala parser properly handles:
@@ -66,13 +66,13 @@ extract_methods_from_source() {
   fi
 
   # Try to run the Scala extractor
-  if [[ -f "$SCRIPT_DIR/extract-methods.scala" ]]; then
+  if [[ -f "$EXTRACT_MEMBERS_SCRIPT" ]]; then
     # Run with scala if available, otherwise fall back to bash extraction
     if command -v scala >/dev/null 2>&1; then
       if [[ -n "$type_name" ]]; then
-        scala "$SCRIPT_DIR/extract-methods.scala" "$file" "$type_name" 2>/dev/null || true
+        scala "$EXTRACT_MEMBERS_SCRIPT" "$file" "$type_name" 2>/dev/null || true
       else
-        scala "$SCRIPT_DIR/extract-methods.scala" "$file" 2>/dev/null || true
+        scala "$EXTRACT_MEMBERS_SCRIPT" "$file" 2>/dev/null || true
       fi
     else
       # Fallback to improved bash-based extraction if scala is not available
