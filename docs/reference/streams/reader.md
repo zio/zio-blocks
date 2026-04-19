@@ -429,6 +429,12 @@ def drainBytes(): Unit = {
   }
 }
 drainBytes()
+// Output:
+// Byte: 72 (H)
+// Byte: 101 (e)
+// Byte: 108 (l)
+// Byte: 108 (l)
+// Byte: 111 (o)
 ```
 
 `Reader#readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`. The behavior is:
@@ -467,6 +473,9 @@ def drainBulk(): Unit = {
   }
 }
 drainBulk()
+// Output:
+// Read 3 bytes: Hel
+// Read 2 bytes: lo
 ```
 
 ### Character and Numeric Specialization
