@@ -25,7 +25,36 @@ abstract class Writer[-Elem] {
 }
 ```
 
-## Motivation
+## Quick Showcase
+
+Here's how to create and push elements to a `Writer`:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Writer
+import scala.collection.mutable.Buffer
+
+val collected = Buffer[Int]()
+val w = new Writer[Int] {
+  def isClosed = false
+  def write(a: Int) = { collected += a; true }
+  def close() = ()
+  override def fail(error: Throwable) = ()
+  override def writeable() = true
+}
+
+// Push elements until writer closes
+def pushAll(elements: List[Int]): Unit = {
+  elements match {
+    case Nil => ()
+    case head :: tail =>
+      if (w.write(head)) pushAll(tail)
+  }
+}
+pushAll(List(10, 20, 30, 40, 50))
+w.close()
+
+println(s"Collected: $collected")
+```
 
 **The Problem**: Streaming data in the real world is often *push-based*, not pull-based. When you integrate with network sockets, event buses, sensor arrays, or Java's `OutputStream`, data flows *toward you* (the producer pushes, you receive). Meanwhile, `Reader` and `Sink` are designed around *pulling*: the consumer drains elements on demand. This mismatch creates friction: you must buffer data while waiting for the consumer to pull, handle backpressure when buffers fill, and manage state transitions cleanly when the sink closes or fails.
 
