@@ -6,6 +6,18 @@ allowed-tools: Read, Glob, Grep
 
 # ZIO Blocks Documentation Writing Style
 
+## Mechanical Validation
+
+Before validating manually, run the mechanical style checks to catch common violations of the most critical rules:
+
+```
+bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
+```
+
+This checks Rules 5, 6, 8, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
+
+**Rule 8** detects unqualified methods using heuristics (camelCase in backticks, confident if qualified elsewhere). Update `SAFE_NAMES` in `check-docs-style.sh` to avoid false positives. After running the check, please update the `safeMethodNames` set in `check-docs-style.sh` with any new method names that are commonly used and should not be flagged when unqualified.
+
 ## Prose Style Rules
 
 1. **Person pronouns**: Use "we" when guiding the reader or walking through examples ("we can create...", "we need to..."). Use "you" when addressing the reader's choices ("if you need...", "you might want to...").
@@ -99,18 +111,5 @@ Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key e
 - ❌ "We can see this in action:"
 - ✅ "Splitting creates two chunks from a single index:"
 
-## Mechanical Validation
-
-To validate documentation against mechanical style rules, run:
-
-```
-bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
-```
-
-This checks Rules 5, 6, 8, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
-
-**Rule 8** detects unqualified methods using heuristics (camelCase in backticks, confident if qualified elsewhere). Update `SAFE_NAMES` in `check-docs-style.sh` to avoid false positives. After running the check, please update the `safeMethodNames` set in `check-docs-style.sh` with any new method names that are commonly used and should not be flagged when unqualified.
-
-**Note:** Rule 16 (imports) is not checked mechanically. Verify that all code blocks include necessary imports by visual inspection.
 
 ---
