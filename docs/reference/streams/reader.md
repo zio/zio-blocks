@@ -24,7 +24,7 @@ Stream[E, A] ──(compile)──> Reader[A]
 - guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
 - supports composition by chaining readers through transformations without materializing intermediate data
 
-Here is the core Reader interface with the most essential methods:
+Here is the core `Reader` interface with the most essential methods:
 
 ```scala
 abstract class Reader[+Elem] {
