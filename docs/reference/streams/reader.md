@@ -18,7 +18,7 @@ Stream[E, A] ──(compile)──> Reader[A]
 `Reader`:
 - is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
 - is not thread-safe — designed for single-threaded consumption
-- uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `readInt(sentinel)` avoid boxing entirely
+- uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `Reader#readInt(sentinel)` avoid boxing entirely
 - dispatches on `jvmType` to use specialized, unboxed reads for primitive types
 - is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
 - guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
@@ -215,6 +215,12 @@ object Reader {
 }
 ```
 
+When you use `Reader.single`, the way it behaves depends on what type of element you're wrapping. If you call `Reader.single("hello")` with a String (a reference type), the reader stores your element as an object and uses a sentinel object like `null` to signal "no more data." You read it with the generic `Reader#read[A](sentinel)` method, passing your sentinel. On the first call, you get your string; on the second call, you get the sentinel object back. This works perfectly for reference types since you can always distinguish a real value from a sentinel object.
+
+But what if you want to wrap a primitive like an integer? If you wrote `Reader.single(42)`, the system would box that integer into a generic `Any` reference. Then each time you call `read()`, the JVM unboxes it back to an `Int`, allocating memory on each read. For a single element this doesn't hurt much, but it violates the zero-copy principle that makes Reader efficient. So the library provides specialized variants: `Reader.singleInt(42)` stores the integer unboxed, and you read it with `Reader#readInt(sentinel)`, which also stays unboxed. No allocation, pure primitive values in, primitive values out. The same specialization applies to `Long`, `Float`, `Double`, and the other primitive types.
+
+In practice, this means: if you're working with primitives in hot loops or performance-critical code, use the specialized variants (`Reader.singleInt`, `Reader.singleLong`, etc.). For everything else—strings, custom objects, collections—use the generic `Reader.single[A]`.
+
 Here's how to create and read from a single-element reader:
 
 ```scala mdoc:reset
@@ -334,7 +340,7 @@ val v3 = r.read(-1)        // -1 (sentinel, reader is closed)
 
 For primitive types, specialized methods avoid boxing by widening the return type.
 
-`readInt` — Sentinel-return `Int` pull. Returns the element widened to `Long`, or `sentinel` when closed. The sentinel must lie outside `[Int.MinValue, Int.MaxValue]` (typically `Long.MinValue`):
+`Reader#readInt` — Sentinel-return `Int` pull. Returns the element widened to `Long`, or `sentinel` when closed. The sentinel must lie outside `[Int.MinValue, Int.MaxValue]` (typically `Long.MinValue`):
 
 ```scala
 abstract class Reader[+Elem] {
