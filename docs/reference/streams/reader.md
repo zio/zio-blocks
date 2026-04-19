@@ -361,6 +361,10 @@ abstract class Reader[+Elem] {
 }
 ```
 
+:::danger
+Unlike `readInt` which widens to `Long`, `readLong` has no wider type to safely house the sentinel. Your choice of sentinel is **entirely dependent on your data domain**. If your stream contains the sentinel value you chose, you will incorrectly detect end-of-stream mid-stream. Always choose a sentinel that provably never appears in your actual data—or use `Reader#read[Long](sentinel)` (the generic method) if you need more flexibility.
+:::
+
 `readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
 
 ```scala
