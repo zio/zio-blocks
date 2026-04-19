@@ -367,7 +367,7 @@ Unlike `Reader#readInt` which widens to `Long`, `Reader#readLong` has no wider t
 **Performance Tradeoff:** `Reader#readLong` avoids boxing on every read—the long stays unboxed in memory, and retrieval is a simple memory fetch. In contrast, `Reader#read[Long](sentinel)` boxes each long into a generic `Any` reference, forcing allocation and garbage collection pressure in hot loops. For latency-sensitive or high-throughput workloads (millions of elements per second), this difference is measurable. Use `Reader#readLong` when your data domain guarantees no sentinel collisions; switch to `Reader#read[Long]` only if you cannot safely choose a sentinel and the collision risk outweighs the performance cost.
 :::
 
-`readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
+`Reader#readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -375,13 +375,19 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readDouble` — Sentinel-return `Double` pull. Returns the element, or `sentinel` when closed. The sentinel must be a value outside the domain (typically `Double.MaxValue`):
+Like `Reader#readInt`, widening to `Double` allows the sentinel to lie safely outside the float domain. A float value will always fit in the lower precision bits of the double result, and the sentinel (typically `Double.MaxValue`) occupies the upper range. This ensures you can reliably distinguish real float elements from end-of-stream. Cast back to `Float` if needed: `r.readFloat(Double.MaxValue).toFloat`.
+
+`Reader#readDouble` — Sentinel-return `Double` pull. Returns the element, or `sentinel` when closed. The sentinel must be a value outside the domain (typically `Double.MaxValue`):
 
 ```scala
 abstract class Reader[+Elem] {
   def readDouble(sentinel: Double)(using Elem <:< Double): Double
 }
 ```
+
+:::danger[Sentinel Collision Risk for Doubles]
+Like `Reader#readLong`, `Reader#readDouble` has no wider type to safely contain the sentinel. If your actual data stream contains `Double.MaxValue` or the sentinel you chose, you will incorrectly detect end-of-stream mid-stream. Always verify that your data domain excludes the chosen sentinel value. Alternatively, use `Reader#read[Double](sentinel)` (the generic method) if you need the flexibility to choose any sentinel regardless of your data—this trades performance (boxing on every read) for safety.
+:::
 
 These specialized methods are the hot path for primitive streams — they avoid allocation and boxing entirely:
 
