@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zio-blocks-tools": {
+      "command": "python3",
+      "args": [".claude/mcp/extract-methods-server.py"]
+    }
+  }
+}
