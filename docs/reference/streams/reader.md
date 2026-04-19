@@ -35,6 +35,31 @@ abstract class Reader[+Elem] {
 }
 ```
 
+## Quick Showcase
+
+Here's how to create and pull from a `Reader`:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+
+// Create a reader from a chunk
+val r = Reader.fromChunk(Chunk(1, 2, 3, 4, 5))
+
+// Pull elements one at a time (sentinel = -1)
+val elem1 = r.read(-1)  // 1
+val elem2 = r.read(-1)  // 2
+val elem3 = r.read(-1)  // 3
+
+// Continue reading or check for end-of-stream
+val next = r.read(-1)   // 4
+val final_read = r.read(-1)  // 5
+val exhausted = r.read(-1)   // -1 (sentinel, no more data)
+
+println(s"Read values: $elem1, $elem2, $elem3, $next, $final_read")
+println(s"Exhausted: $exhausted")
+```
+
 ## Motivation
 
 Imagine you're processing a massive CSV file—millions of rows of customer data. Your first instinct is to load it all into memory as a `List[Row]`, transform it, filter it, and then write the results. This works fine for small files, but one day someone feeds you a 50GB dataset and your application crashes with `OutOfMemoryError`. You've hit the fundamental problem of eager evaluation: **you must load everything before you can do anything**, and if the data is bigger than available memory, you're stuck.
