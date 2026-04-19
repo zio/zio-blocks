@@ -215,23 +215,26 @@ object Reader {
 }
 ```
 
-When you use `Reader.single`, the way it behaves depends on what type of element you're wrapping. If you call `Reader.single("hello")` with a String (a reference type), the reader stores your element as an object and uses a sentinel object like `null` to signal "no more data." You read it with the generic `Reader#read[A](sentinel)` method, passing your sentinel. On the first call, you get your string; on the second call, you get the sentinel object back. This works perfectly for reference types since you can always distinguish a real value from a sentinel object.
+When you use `Reader.single`, behavior differs between reference types and primitives. The `JvmType.Infer[A]` implicit parameter enables compile-time type detection, automatically selecting the appropriate implementation (specialized primitive or reference-type generic).
 
-But what if you want to wrap a primitive like an integer? If you wrote `Reader.single(42)`, the system would box that integer into a generic `Any` reference. Then each time you call `read()`, the JVM unboxes it back to an `Int`, allocating memory on each read. For a single element this doesn't hurt much, but it violates the zero-copy principle that makes Reader efficient. So the library provides specialized variants: `Reader.singleInt(42)` stores the integer unboxed, and you read it with `Reader#readInt(sentinel)`, which also stays unboxed. No allocation, pure primitive values in, primitive values out. The same specialization applies to `Long`, `Float`, `Double`, and the other primitive types.
+For reference types like String, `Reader.single("hello")` stores the element directly and uses an internal sentinel object (`EndOfStream`) to signal end-of-stream. You read via the generic `Reader#read[A](sentinel)` method, passing your own sentinel value. On the first call, you get your string; on subsequent calls, you receive the sentinel you provided, allowing you to detect stream closure.
 
-In practice, this means: if you're working with primitives in hot loops or performance-critical code, use the specialized variants (`Reader.singleInt`, `Reader.singleLong`, etc.). For everything else—strings, custom objects, collections—use the generic `Reader.single[A]`.
+For primitive types, `Reader.single(42)` could naively box the integer, but the library avoids this penalty entirely via `SingletonPrim`—a zero-boxing specialization that stores the primitive unboxed in memory. The `JvmType.Infer` implicit detects this at compile time and routes you through specialized factory methods (`Reader.singleInt`, `Reader.singleLong`, etc.) and specialized read methods (`Reader#readInt`, `Reader#readLong`, etc.). Both storage and retrieval stay unboxed, maintaining zero-copy efficiency.
 
-Here's how to create and read from a single-element reader:
+Note: `Reader.singleByte` returns `Reader[Int]` (not `Reader[Byte]`) because Java's primitive byte type is typically widened to int in arrays and I/O contexts; this aligns with JVM conventions for byte-level operations. When reading, use `Reader#readInt(sentinel: Long): Long`, which returns a long to maintain the sentinel protocol—extract the int via casting if needed.
+
+Create and read from a single-element reference-type reader with a custom sentinel:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 
-val r = Reader.single(42)
-println(r.read(-1))        // 42
-println(r.read(-1))        // -1 (sentinel, reader is closed)
+val r = Reader.single("hello")
+val sentinel = "END"
+println(r.read(sentinel))    // hello
+println(r.read(sentinel))    // END (sentinel, reader is closed)
 ```
 
-Use specialized primitive variants like `Reader.singleInt` to read a single integer without boxing:
+For primitive types, use the specialized factory and read methods. The `Reader#readInt` method takes a `Long` sentinel (to avoid confusion with sentinel values that fit in int range) and returns `Long` so you can distinguish the actual int value from the sentinel:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -241,7 +244,7 @@ val sentinel = Long.MinValue
 val v1 = r.readInt(sentinel)
 println(v1)    // 100
 val v2 = r.readInt(sentinel)
-println(v2)    // -9223372036854775808 (sentinel)
+println(v2)    // -9223372036854775808 (sentinel, reader is closed)
 ```
 
 ### Infinite & Repeating
