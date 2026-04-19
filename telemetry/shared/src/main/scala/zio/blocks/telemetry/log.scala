@@ -56,7 +56,7 @@ object log extends LogVersionSpecific {
         currentState.logger.baseProcessors ++ _writerProcessors,
         cs
       )
-      GlobalLogState.set(new LogState(logger, currentState.minSeverity, currentState.levelOverrides))
+      GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
     }
   }
 
@@ -114,13 +114,15 @@ object log extends LogVersionSpecific {
       annotations.foreach { case (k, v) => builder.put(k, v) }
     }
 
+    val attrs = builder.build
+    builder.clear()
     LogRecord(
       timestampNanos = now,
       observedTimestampNanos = now,
       severity = severity,
       severityText = severity.text,
       body = LogMessage(message),
-      attributes = builder.buildAndReset(),
+      attributes = attrs,
       traceIdHi = 0L,
       traceIdLo = 0L,
       spanId = 0L,

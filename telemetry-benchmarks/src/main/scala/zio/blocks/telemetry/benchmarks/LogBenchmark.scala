@@ -22,6 +22,13 @@ import zio.blocks.telemetry.{Measurement => _, _}
 
 import java.util.concurrent.TimeUnit
 
+private class CountingProcessor extends LogRecordProcessor {
+  @volatile var count: Long = 0L
+  override def onEmit(logRecord: LogRecord): Unit = count += 1
+  override def shutdown(): Unit                   = ()
+  override def forceFlush(): Unit                 = ()
+}
+
 @BenchmarkMode(Array(Mode.Throughput, Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
@@ -36,7 +43,8 @@ class LogBenchmark {
     t
   }
 
-  private var sideEffectCounter: Int = 0
+  private var sideEffectCounter: Int                    = 0
+  private var countingProcessor: CountingProcessor = scala.compiletime.uninitialized
 
   private def sideEffect(): String = {
     sideEffectCounter += 1
@@ -45,8 +53,9 @@ class LogBenchmark {
 
   @Setup(Level.Trial)
   def setup(): Unit = {
+    countingProcessor = new CountingProcessor
     val provider = LoggerProvider.builder
-      .addLogRecordProcessor(LogRecordProcessor.noop)
+      .addLogRecordProcessor(countingProcessor)
       .build()
     val logger = provider.get("benchmark")
     GlobalLogState.install(logger, Severity.Info)
@@ -82,49 +91,67 @@ class LogBenchmark {
   }
 
   @Benchmark
-  def enabledSimple(): Unit =
+  def enabledSimple(bh: Blackhole): Unit = {
     log.info("msg")
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
-  def enabledOneAttribute(): Unit =
+  def enabledOneAttribute(bh: Blackhole): Unit = {
     log.info("msg", "key" -> 42L)
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
-  def enabledThreeAttributes(): Unit =
+  def enabledThreeAttributes(bh: Blackhole): Unit = {
     log.info("msg", "a" -> 1L, "b" -> "x", "c" -> true)
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
-  def enabledWithThrowable(): Unit =
+  def enabledWithThrowable(bh: Blackhole): Unit = {
     log.info("err", cachedThrowable)
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
-  def enabledWithAnnotations(): Unit =
+  def enabledWithAnnotations(bh: Blackhole): Unit = {
     log.annotated("rid" -> "123") {
       log.info("msg")
     }
+    bh.consume(countingProcessor.count)
+  }
 
   /** Multiple nested annotation scopes */
   @Benchmark
-  def enabledNestedAnnotations(): Unit =
+  def enabledNestedAnnotations(bh: Blackhole): Unit = {
     log.annotated("a" -> "1") {
       log.annotated("b" -> "2") {
         log.info("msg")
       }
     }
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
-  def enabledWithHierarchicalLevel(): Unit =
+  def enabledWithHierarchicalLevel(bh: Blackhole): Unit = {
     log.info("msg")
+    bh.consume(countingProcessor.count)
+  }
 
   /** Rate-limited: infoEvery — only logs every Nth call */
   @Benchmark
-  def rateLimitedEvery(): Unit =
+  def rateLimitedEvery(bh: Blackhole): Unit = {
     log.infoEvery(100, "rate limited msg")
+    bh.consume(countingProcessor.count)
+  }
 
   /** Rate-limited: infoAtMost — at most once per interval */
   @Benchmark
-  def rateLimitedAtMost(): Unit =
+  def rateLimitedAtMost(bh: Blackhole): Unit = {
     log.infoAtMost(1000L, "throttled msg")
+    bh.consume(countingProcessor.count)
+  }
 
   @Benchmark
   def systemNanoTime(bh: Blackhole): Unit =

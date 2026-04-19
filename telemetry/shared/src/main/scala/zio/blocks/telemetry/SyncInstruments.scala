@@ -45,8 +45,12 @@ final class Counter(
    */
   def add(value: Long, attributes: Attributes): Unit =
     if (value >= 0) {
-
-      val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+      var adder = adders.get(attributes)
+      if (adder == null) {
+        adder = new LongAdder()
+        val existing = adders.putIfAbsent(attributes, adder)
+        if (existing != null) adder = existing
+      }
       adder.add(value)
     }
 
@@ -58,7 +62,12 @@ final class Counter(
   def add(value: Long, attrs: (String, Any)*): Unit =
     if (value >= 0 && attrs.nonEmpty) {
       val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
+      var adder      = adders.get(attributes)
+      if (adder == null) {
+        adder = new LongAdder()
+        val existing = adders.putIfAbsent(attributes, adder)
+        if (existing != null) adder = existing
+      }
       adder.add(value)
     }
 
@@ -67,7 +76,12 @@ final class Counter(
    * attributes.
    */
   def bind(attributes: Attributes): BoundCounter = {
-    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+    var adder = adders.get(attributes)
+    if (adder == null) {
+      adder = new LongAdder()
+      val existing = adders.putIfAbsent(attributes, adder)
+      if (existing != null) adder = existing
+    }
     new BoundCounter(adder)
   }
 
@@ -125,8 +139,12 @@ final class UpDownCounter(
    * attributes.
    */
   def add(value: Long, attributes: Attributes): Unit = {
-
-    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+    var adder = adders.get(attributes)
+    if (adder == null) {
+      adder = new LongAdder()
+      val existing = adders.putIfAbsent(attributes, adder)
+      if (existing != null) adder = existing
+    }
     adder.add(value)
   }
 
@@ -138,7 +156,12 @@ final class UpDownCounter(
   def add(value: Long, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
       val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      val adder      = adders.computeIfAbsent(attributes, _ => new LongAdder())
+      var adder      = adders.get(attributes)
+      if (adder == null) {
+        adder = new LongAdder()
+        val existing = adders.putIfAbsent(attributes, adder)
+        if (existing != null) adder = existing
+      }
       adder.add(value)
     }
 
@@ -147,7 +170,12 @@ final class UpDownCounter(
    * attributes.
    */
   def bind(attributes: Attributes): BoundUpDownCounter = {
-    val adder = adders.computeIfAbsent(attributes, _ => new LongAdder())
+    var adder = adders.get(attributes)
+    if (adder == null) {
+      adder = new LongAdder()
+      val existing = adders.putIfAbsent(attributes, adder)
+      if (existing != null) adder = existing
+    }
     new BoundUpDownCounter(adder)
   }
 
@@ -208,8 +236,12 @@ final class Histogram(
    * Records a value into the histogram for the given attributes.
    */
   def record(value: Double, attributes: Attributes): Unit = {
-
-    val state = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+    var state = states.get(attributes)
+    if (state == null) {
+      state = new Histogram.State(boundaries.length + 1)
+      val existing = states.putIfAbsent(attributes, state)
+      if (existing != null) state = existing
+    }
     recordInternal(value, state)
   }
 
@@ -221,7 +253,12 @@ final class Histogram(
   def record(value: Double, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
       val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      val state      = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+      var state      = states.get(attributes)
+      if (state == null) {
+        state = new Histogram.State(boundaries.length + 1)
+        val existing = states.putIfAbsent(attributes, state)
+        if (existing != null) state = existing
+      }
       recordInternal(value, state)
     }
 
@@ -230,7 +267,12 @@ final class Histogram(
    * attributes.
    */
   def bind(attributes: Attributes): BoundHistogram = {
-    val state = states.computeIfAbsent(attributes, _ => new Histogram.State(boundaries.length + 1))
+    var state = states.get(attributes)
+    if (state == null) {
+      state = new Histogram.State(boundaries.length + 1)
+      val existing = states.putIfAbsent(attributes, state)
+      if (existing != null) state = existing
+    }
     new BoundHistogram(state, this)
   }
 
@@ -346,8 +388,12 @@ final class Gauge(
    * value.
    */
   def record(value: Double, attributes: Attributes): Unit = {
-
-    val ref = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
+    var ref = values.get(attributes)
+    if (ref == null) {
+      ref = new AtomicLong(0L)
+      val existing = values.putIfAbsent(attributes, ref)
+      if (existing != null) ref = existing
+    }
     ref.set(java.lang.Double.doubleToRawLongBits(value))
   }
 
@@ -359,7 +405,12 @@ final class Gauge(
   def record(value: Double, attrs: (String, Any)*): Unit =
     if (attrs.nonEmpty) {
       val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      val ref        = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
+      var ref        = values.get(attributes)
+      if (ref == null) {
+        ref = new AtomicLong(0L)
+        val existing = values.putIfAbsent(attributes, ref)
+        if (existing != null) ref = existing
+      }
       ref.set(java.lang.Double.doubleToRawLongBits(value))
     }
 
@@ -368,7 +419,12 @@ final class Gauge(
    * attributes.
    */
   def bind(attributes: Attributes): BoundGauge = {
-    val ref = values.computeIfAbsent(attributes, _ => new AtomicLong(0L))
+    var ref = values.get(attributes)
+    if (ref == null) {
+      ref = new AtomicLong(0L)
+      val existing = values.putIfAbsent(attributes, ref)
+      if (existing != null) ref = existing
+    }
     new BoundGauge(ref)
   }
 

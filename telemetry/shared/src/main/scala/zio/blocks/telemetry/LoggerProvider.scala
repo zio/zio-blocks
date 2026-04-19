@@ -18,7 +18,7 @@ package zio.blocks.telemetry
 
 final class LoggerProvider(
   resource: Resource,
-  processors: Seq[LogRecordProcessor],
+  private val processors: Array[LogRecordProcessor],
   contextStorage: ContextStorage[Option[SpanContext]]
 ) {
 
@@ -30,8 +30,13 @@ final class LoggerProvider(
     new Logger(scope, resource, processors, contextStorage)
   }
 
-  def shutdown(): Unit =
-    processors.foreach(_.shutdown())
+  def shutdown(): Unit = {
+    var i = 0
+    while (i < processors.length) {
+      processors(i).shutdown()
+      i += 1
+    }
+  }
 }
 
 object LoggerProvider {
@@ -66,6 +71,6 @@ final class LoggerProviderBuilder private[telemetry] (
 
   def build(): LoggerProvider = {
     val cs = contextStorage.getOrElse(ContextStorage.create[Option[SpanContext]](None))
-    new LoggerProvider(resource, processors, cs)
+    new LoggerProvider(resource, processors.toArray, cs)
   }
 }

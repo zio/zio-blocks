@@ -19,21 +19,22 @@ package zio.blocks.telemetry
 final class Logger(
   instrumentationScope: InstrumentationScope,
   resource: Resource,
-  processors: Seq[LogRecordProcessor],
+  private[telemetry] val processors: Array[LogRecordProcessor],
   contextStorage: ContextStorage[Option[SpanContext]]
 ) {
 
-  private[telemetry] val baseProcessors: Seq[LogRecordProcessor] =
+  private[telemetry] val baseProcessors: Array[LogRecordProcessor] =
     processors.filterNot(_.isInstanceOf[FormattedLogRecordProcessor])
 
   private val processorMinLevel: Int =
-    if (processors.isEmpty) Int.MaxValue
+    if (processors.length == 0) Int.MaxValue
     else {
-      var min  = Int.MaxValue
-      val iter = processors.iterator
-      while (iter.hasNext) {
-        val level = iter.next().minimumLevel
+      var min = Int.MaxValue
+      var i   = 0
+      while (i < processors.length) {
+        val level = processors(i).minimumLevel
         if (level < min) min = level
+        i += 1
       }
       min
     }
@@ -42,7 +43,7 @@ final class Logger(
   // When the only processor is ConsoleLogRecordProcessor, use the fast
   // FormattedLogEmitter that formats directly from builder arrays (no LogRecord).
   private[telemetry] val emitter: LogEmitter =
-    if (processors.length == 1 && processors.head.isInstanceOf[ConsoleLogRecordProcessor])
+    if (processors.length == 1 && processors(0).isInstanceOf[ConsoleLogRecordProcessor])
       new FormattedLogEmitter(TextLogFormatter, StdoutWriter)
     else
       new StandardLogEmitter(processors, processorMinLevel)
@@ -81,8 +82,13 @@ final class Logger(
 
   def emit(logRecord: LogRecord): Unit =
     if (logRecord.severity.number >= processorMinLevel) {
-      try processors.foreach(_.onEmit(logRecord))
-      catch {
+      try {
+        var i = 0
+        while (i < processors.length) {
+          processors(i).onEmit(logRecord)
+          i += 1
+        }
+      } catch {
         case e: Throwable =>
           System.err.println(s"[zio-blocks-telemetry] logging error: ${e.getMessage}")
       }

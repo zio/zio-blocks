@@ -48,7 +48,7 @@ private[telemetry] trait LogEmitter {
  * dispatches to all processors via onEmit.
  */
 private[telemetry] final class StandardLogEmitter(
-  processors: Seq[LogRecordProcessor],
+  processors: Array[LogRecordProcessor],
   processorMinLevel: Int
 ) extends LogEmitter {
 
@@ -73,7 +73,7 @@ private[telemetry] final class StandardLogEmitter(
         severity = severity,
         severityText = severityText,
         body = LogMessage(body),
-        attributes = builder.buildAndReset(),
+        attributes = builder.build,
         traceIdHi = traceIdHi,
         traceIdLo = traceIdLo,
         spanId = spanId,
@@ -82,12 +82,18 @@ private[telemetry] final class StandardLogEmitter(
         instrumentationScope = instrumentationScope,
         throwable = throwable
       )
-      try processors.foreach(_.onEmit(record))
-      catch {
+      builder.clear()
+      try {
+        var i = 0
+        while (i < processors.length) {
+          processors(i).onEmit(record)
+          i += 1
+        }
+      } catch {
         case e: Throwable =>
           System.err.println("[zio-blocks-telemetry] logging error: " + e.getMessage)
       }
     } else {
-      builder.clear() // Reset builder without allocating Attributes
+      builder.clear()
     }
 }
