@@ -10,8 +10,8 @@
 #   Rule 11: No bare subheaders (### or #### immediately after ## or ###)
 #   Rule 12: Provide narrative introduction before subheaders
 #   Rule 13: Code block preceded by prose sentence ending with ":"
-#   Rule 15: Consecutive code blocks must have bridging prose; no "var" in Scala blocks
-#   Rule 16: No hardcoded result comments in Scala blocks
+#   Rule 15: Consecutive code blocks must have bridging prose
+#   Rule 18: No "var" in Scala code blocks
 
 set -euo pipefail
 
@@ -178,7 +178,7 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 15 (Part 2): "var" in Scala code blocks
+# Rule 18: "var" in Scala code blocks
 count_violations "$(awk '
   /^```scala/ {
     in_scala = 1
@@ -189,7 +189,7 @@ count_violations "$(awk '
     next
   }
   in_scala && /var[^a-zA-Z0-9_]|^var[[:space:]]|[[:space:]]var[[:space:]]/ {
-    print FILENAME ":" NR ": [Rule 15] \"var\" in Scala code block"
+    print FILENAME ":" NR ": [Rule 18] \"var\" in Scala code block"
   }
 ' "$FILE")"
 
