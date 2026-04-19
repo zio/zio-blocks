@@ -446,7 +446,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-Read multiple bytes into a buffer in bulk:
+Read multiple bytes into a buffer in bulk with a loop pattern:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -457,12 +457,16 @@ val is = new ByteArrayInputStream(bytes)
 val r = Reader.fromInputStream(is)
 
 val buffer = new Array[Byte](3)
-val bytesRead = r.readBytes(buffer, 0, 3)
-println(s"Read $bytesRead bytes: ${buffer.map(_.toChar).mkString}")
 
-val buffer2 = new Array[Byte](5)
-val bytesRead2 = r.readBytes(buffer2, 0, 5)
-println(s"Read $bytesRead2 bytes: ${buffer2.take(bytesRead2).map(_.toChar).mkString}")
+def drainBulk(): Unit = {
+  val bytesRead = r.readBytes(buffer, 0, 3)
+  if (bytesRead > 0) {
+    val chunk = buffer.take(bytesRead).map(_.toChar).mkString
+    println(s"Read $bytesRead bytes: $chunk")
+    drainBulk()
+  }
+}
+drainBulk()
 ```
 
 ### Character and Numeric Specialization
