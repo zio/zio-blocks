@@ -398,8 +398,7 @@ import zio.blocks.chunk.Chunk
 val r = Reader.fromChunk(Chunk(10, 20, 30))
 val sentinel = Long.MinValue
 
-val v = r.readInt(sentinel)(using scala.compiletime.summonInline)
-// Error: this would require direct evidence, but in real code it comes from dispatch
+val v = r.readInt(sentinel)
 ```
 
 ### Byte-Level Reading
