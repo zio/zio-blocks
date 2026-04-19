@@ -215,6 +215,10 @@ object Reader {
 }
 ```
 
+**Behavior with primitive vs reference types:**
+- **Primitive types** (`Int`, `Long`, `Float`, `Double`, `Char`, `Short`, `Byte`, `Boolean`): Use specialized variants like `Reader.singleInt`, `Reader.singleLong`, etc. These methods avoid boxing entirely—the element and sentinel are both primitive values. You read them with `readInt(sentinel)`, `readLong(sentinel)`, etc., staying fully unboxed throughout.
+- **Reference types** (String, custom classes, etc.): Use the generic `Reader.single[A]`. The reader stores the element as an `Any` reference. You read it with `read[A](sentinel)`, passing an object sentinel (typically `null` for reference types). On first read, you get your element; on second read, you get the sentinel object.
+
 Here's how to create and read from a single-element reader:
 
 ```scala mdoc:reset
