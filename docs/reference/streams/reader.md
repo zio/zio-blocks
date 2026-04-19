@@ -653,7 +653,7 @@ println(cleanupRef.nonEmpty)  // true
 
 Readers can sometimes handle skip, limit, and repeat operations natively (O(1), zero per-element cost). These methods attempt that; if the reader cannot handle it natively, they return `false` and the caller must wrap the reader.
 
-`setSkip` — Attempts to set a skip (drop) on this reader. Returns `true` if handled natively, `false` if the caller must wrap. When `true`, the next `skip` elements are discarded before producing. After `reset()`, the skip is re-applied:
+`Reader#setSkip` — Attempts to set a skip (drop) on this reader. Returns `true` if handled natively, `false` if the caller must wrap. When `true`, the next `skip` elements are discarded before producing. After `reset()`, the skip is re-applied:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -661,7 +661,27 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`setLimit` — Attempts to set a limit on this reader so it produces at most `n` elements. Returns `true` if handled natively, `false` if the caller must wrap. After `reset()`, the limit is re-applied from the new start position:
+Set a skip to discard the first two elements:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+
+val r = Reader.fromChunk(Chunk(1, 2, 3, 4, 5))
+val handled = r.setSkip(2)
+println(s"Skip handled natively: $handled")
+
+def drain(): Unit = {
+  val v = r.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
+}
+drain()
+```
+
+`Reader#setLimit` — Attempts to set a limit on this reader so it produces at most `n` elements. Returns `true` if handled natively, `false` if the caller must wrap. After `reset()`, the limit is re-applied from the new start position:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -669,12 +689,52 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`setRepeat` — Attempts to set this reader into repeat-forever mode, so it restarts from the beginning whenever it would otherwise close. Returns `true` if handled natively, `false` if the caller must wrap:
+Set a limit to produce only three elements:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+
+val r = Reader.fromChunk(Chunk(1, 2, 3, 4, 5))
+val handled = r.setLimit(3)
+println(s"Limit handled natively: $handled")
+
+def drain(): Unit = {
+  val v = r.read(-1)
+  if (v != -1) {
+    println(v)
+    drain()
+  }
+}
+drain()
+```
+
+`Reader#setRepeat` — Attempts to set this reader into repeat-forever mode, so it restarts from the beginning whenever it would otherwise close. Returns `true` if handled natively, `false` if the caller must wrap:
 
 ```scala
 abstract class Reader[+Elem] {
   def setRepeat(): Boolean
 }
+```
+
+Set repeat mode to emit elements multiple times:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+
+val r = Reader.fromChunk(Chunk(1, 2))
+val handled = r.setRepeat()
+println(s"Repeat handled natively: $handled")
+
+def drain(count: Int): Unit = {
+  if (count < 6) {
+    val v = r.read(-1)
+    println(v)
+    drain(count + 1)
+  }
+}
+drain(0)
 ```
 
 `reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
