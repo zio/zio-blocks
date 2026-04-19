@@ -7,7 +7,9 @@ allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 
 # Write Data Type Reference Page
 
-**REQUIRED BACKGROUND:** Use `docs-writing-style` for prose conventions and `docs-mdoc-conventions` for code block syntax throughout.
+**REQUIRED BACKGROUND:** Import the following skill files before starting:
+- `.claude/skills/docs-writing-style/SKILL.md` for prose conventions
+- `.claude/skills/docs-mdoc-conventions/SKILL.md` for code block syntax throughout the document
 
 ## Target Type
 
