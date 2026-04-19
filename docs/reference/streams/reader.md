@@ -37,27 +37,27 @@ abstract class Reader[+Elem] {
 
 ## Quick Showcase
 
-Here's how to create and pull from a `Reader`:
+Here's how to create and drain a `Reader`:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
 import zio.blocks.chunk.Chunk
+import scala.collection.mutable.Buffer
 
-// Create a reader from a chunk
 val r = Reader.fromChunk(Chunk(1, 2, 3, 4, 5))
+val collected = Buffer[Int]()
 
-// Pull elements one at a time (sentinel = -1)
-val elem1 = r.read(-1)  // 1
-val elem2 = r.read(-1)  // 2
-val elem3 = r.read(-1)  // 3
+// Pull elements until sentinel
+def drainAll(): Unit = {
+  val elem = r.read(-1)
+  if (elem != -1) {
+    collected += elem
+    drainAll()
+  }
+}
+drainAll()
 
-// Continue reading or check for end-of-stream
-val next = r.read(-1)   // 4
-val final_read = r.read(-1)  // 5
-val exhausted = r.read(-1)   // -1 (sentinel, no more data)
-
-println(s"Read values: $elem1, $elem2, $elem3, $next, $final_read")
-println(s"Exhausted: $exhausted")
+println(s"Collected: $collected")
 ```
 
 ## Motivation
