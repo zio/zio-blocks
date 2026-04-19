@@ -19,7 +19,7 @@ Stream[E, A] ──(compile)──> Reader[A]
 - Is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
 - Is not thread-safe — designed for single-threaded consumption
 - Uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `Reader#readInt(sentinel)` avoid boxing entirely
-- Dispatches on `jvmType` to use specialized, unboxed reads for primitive types
+- Dispatches on `Reader#jvmType` to use specialized, unboxed reads for primitive types
 - Is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
 - Guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
 - Supports composition by chaining readers through transformations without materializing intermediate data
@@ -403,7 +403,7 @@ val v = r.readInt(sentinel)
 
 ### Byte-Level Reading
 
-`Reader#readByte` — Reads a single byte (0–255), widened to `Int`. Returns `-1` when the reader is closed. Dispatches on `jvmType` for zero-boxing when the reader is specialized:
+`Reader#readByte` — Reads a single byte (0–255), widened to `Int`. Returns `-1` when the reader is closed. Dispatches on `Reader#jvmType` for zero-boxing when the reader is specialized:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -480,7 +480,7 @@ drainBulk()
 
 ### Character and Numeric Specialization
 
-`readChar` — Sentinel-return `Char` pull. Returns the element widened to `Int`, or `sentinel` when closed. Requires evidence that `Elem <:< Char`:
+`Reader#readChar` — Sentinel-return `Char` pull. Returns the element widened to `Int`, or `sentinel` when closed. Requires evidence that `Elem <:< Char`:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -488,7 +488,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readShort` — Sentinel-return `Short` pull. Returns the element widened to `Int`, or `sentinel` when closed:
+`Reader#readShort` — Sentinel-return `Short` pull. Returns the element widened to `Int`, or `sentinel` when closed:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -496,7 +496,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readBoolean` — Sentinel-return `Boolean` pull. Returns `1` for `true`, `0` for `false`, or `sentinel` when closed. The sentinel must lie outside `[0, 1]` (typically `-1`):
+`Reader#readBoolean` — Sentinel-return `Boolean` pull. Returns `1` for `true`, `0` for `false`, or `sentinel` when closed. The sentinel must lie outside `[0, 1]` (typically `-1`):
 
 ```scala
 abstract class Reader[+Elem] {
@@ -506,7 +506,7 @@ abstract class Reader[+Elem] {
 
 ### Bulk Operations
 
-`readAll` — Drains the entire reader into a `Chunk`. Dispatches on `jvmType` for zero-boxing on primitive readers:
+`Reader#readAll` — Drains the entire reader into a `Chunk`. Dispatches on `Reader#jvmType` for zero-boxing on primitive readers:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -525,7 +525,7 @@ val all = r.readAll()
 println(all)  // Chunk(10, 20, 30)
 ```
 
-`skip` — Eagerly discards the first `n` elements. Dispatches on `jvmType` for zero-boxing when possible:
+`Reader#skip` — Eagerly discards the first `n` elements. Dispatches on `Reader#jvmType` for zero-boxing when possible:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -571,7 +571,7 @@ Combine multiple readers to build more complex sources:
 
 ### Concatenation
 
-`concat` — Concatenates this reader with `next`. When this reader is exhausted, it is closed and elements are pulled from `next` (evaluated lazily). Optimized for left-associative chains:
+`Reader#concat` — Concatenates this reader with `next`. When this reader is exhausted, it is closed and elements are pulled from `next` (evaluated lazily). Optimized for left-associative chains:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -579,7 +579,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`++` — Alias for `concat`. Syntactic sugar for composing readers:
+`Reader#++` — Alias for `Reader#concat`. Syntactic sugar for composing readers:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -624,7 +624,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`withRelease` — Wraps this reader so that `release` runs after `close()`. Useful for attaching cleanup logic:
+`Reader#withRelease` — Wraps this reader so that `release` runs after `Reader#close()`. Useful for attaching cleanup logic:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -653,7 +653,7 @@ println(cleanupRef.nonEmpty)  // true
 
 Readers can sometimes handle skip, limit, and repeat operations natively (O(1), zero per-element cost). These methods attempt that; if the reader cannot handle it natively, they return `false` and the caller must wrap the reader.
 
-`Reader#setSkip` — Attempts to set a skip (drop) on this reader. Returns `true` if handled natively, `false` if the caller must wrap. When `true`, the next `skip` elements are discarded before producing. After `reset()`, the skip is re-applied:
+`Reader#setSkip` — Attempts to set a skip (drop) on this reader. Returns `true` if handled natively, `false` if the caller must wrap. When `true`, the next n elements are discarded before producing. After `Reader#reset()`, the skip is re-applied:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -755,7 +755,7 @@ drain(0)
 // 2
 ```
 
-`reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
+`Reader#reset` — Rewinds this reader to its initial state, as if freshly constructed. After `Reader#reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -861,7 +861,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `jvmType` to return `JvmType.Int`. Then, methods like `readAll` check `jvmType` and dispatch to the unboxed `readInt(sentinel: Long)` path instead of boxing.
+For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `Reader#jvmType` to return `JvmType.Int`. Then, methods like `Reader#readAll` check `Reader#jvmType` and dispatch to the unboxed `Reader#readInt(sentinel: Long)` path instead of boxing.
 
 ### Thread Safety
 
@@ -898,7 +898,7 @@ sbt "streams-examples/runMain reader.ReaderBasicConstructionExample"
 
 ### Primitive Specialization and Bulk Operations
 
-This example shows how primitive readers avoid boxing through `jvmType` dispatch, and demonstrates `readAll` and `skip` for bulk operations. Embed the source:
+This example shows how primitive readers avoid boxing through `Reader#jvmType` dispatch, and demonstrates `Reader#readAll` and `Reader#skip` for bulk operations. Embed the source:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -914,7 +914,7 @@ sbt "streams-examples/runMain reader.ReaderPrimitiveSpecializationExample"
 
 ### Composition and Resource Management
 
-This example demonstrates reader composition with `++`, resource cleanup with `withRelease`, and integration with `Stream.start` for manual pulling. Embed the source:
+This example demonstrates reader composition with `Reader#++`, resource cleanup with `Reader#withRelease`, and integration with `Stream.start` for manual pulling. Embed the source:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
