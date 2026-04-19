@@ -56,18 +56,15 @@ w.close()
 println(s"Collected: $collected")
 ```
 
-**The Problem**: Streaming data in the real world is often *push-based*, not pull-based. When you integrate with network sockets, event buses, sensor arrays, or Java's `OutputStream`, data flows *toward you* (the producer pushes, you receive). Meanwhile, `Reader` and `Sink` are designed around *pulling*: the consumer drains elements on demand. This mismatch creates friction: you must buffer data while waiting for the consumer to pull, handle backpressure when buffers fill, and manage state transitions cleanly when the sink closes or fails.
+## Motivation / Use Case
 
-Worse, Java's standard I/O classes (`OutputStream`, `Writer`) are mutable and return `void` — they either succeed silently or throw exceptions. This makes it hard to compose I/O operations, test in isolation, or reason about cleanup. You end up with try-catch-finally boilerplate and tight coupling to concrete implementations.
+Imagine you're building a financial data pipeline. Your system receives tick updates (price, volume, timestamp) from a live market feed—data flows *toward* your system continuously. You can't ask the market for the next tick; it pushes when ready. Your job is to buffer these updates, write them to a database, and alert traders on price swings.
 
-**The Solution**: `Writer` is a push-based abstraction that inverts the data flow. Instead of the consumer pulling elements from a source, a producer *pushes* elements to the writer. The key insight is that `Writer` returns a `Boolean` from `write()`: it tells you immediately whether the write succeeded, the writer is full, or it has closed — all without throwing exceptions or blocking threads. This makes `Writer` composable, testable, and safe to use in single-threaded production scenarios.
+The challenge: Java's `OutputStream` or standard file writers are mutable, return `void`, and throw exceptions on failure. If the database goes down mid-write, you catch an exception and scramble to figure out which ticks were lost. Worse, if your buffer fills faster than the database can write, you're stuck—either drop data silently or block the feed thread, halting all tick processing.
 
-`Writer` excels in these scenarios:
+`Writer` solves this cleanly. When you call `write(tick)`, it returns `Boolean`: `true` means the tick was buffered and queued to the database; `false` means the writer is full or closed, and you should backpressure the feed (tell the exchange to slow down or drop the tick). No exceptions, no guessing. If the database fails, you call `fail(error)`, and subsequent writes either return `false` or throw under your control. The producer and consumer are loosely coupled: the feed doesn't care *where* ticks go, just that `write()` tells the truth about acceptance.
 
-- **Event streaming**: Push-based event buses or message queues where events arrive continuously and you need to bound buffering
-- **Network I/O**: Writing to sockets or channels where you control the pacing and must handle connection closure cleanly
-- **Sensor/telemetry data**: Devices or APIs that push data (timestamps, measurements) and you aggregate or forward them
-- **Interop with Java I/O**: Wrapping `OutputStream` or `Writer` to leverage existing code while maintaining functional semantics
+This is the ZIO Blocks answer to push-based I/O: a simple, composable contract that makes backpressure, buffering, and error handling explicit and testable.
 
 ## Overview
 
