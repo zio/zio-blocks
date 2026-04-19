@@ -861,7 +861,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `Reader#jvmType` to return `JvmType.Int`. Then, methods like `Reader#readAll` check `Reader#jvmType` and dispatch to the unboxed `Reader#readInt(sentinel: Long)` path instead of boxing.
+For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `jvmType` to return `JvmType.Int`. Then, methods like `Reader#readAll` check `Reader#jvmType` and dispatch to the unboxed `Reader#readInt(sentinel: Long)` path instead of boxing.
 
 ### Thread Safety
 
