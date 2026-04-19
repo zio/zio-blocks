@@ -403,7 +403,7 @@ val v = r.readInt(sentinel)
 
 ### Byte-Level Reading
 
-`readByte` — Reads a single byte (0–255), widened to `Int`. Returns `-1` when the reader is closed. Dispatches on `jvmType` for zero-boxing when the reader is specialized:
+`Reader#readByte` — Reads a single byte (0–255), widened to `Int`. Returns `-1` when the reader is closed. Dispatches on `jvmType` for zero-boxing when the reader is specialized:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -411,7 +411,27 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`. The behavior is:
+Read bytes one at a time from a reader until end-of-stream:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import java.io.ByteArrayInputStream
+
+val bytes = Array[Byte](72, 101, 108, 108, 111)  // Hello in ASCII bytes
+val is = new ByteArrayInputStream(bytes)
+val r = Reader.fromInputStream(is)
+
+def drainBytes(): Unit = {
+  val b = r.readByte()
+  if (b != -1) {
+    println(s"Byte: $b (${b.toChar})")
+    drainBytes()
+  }
+}
+drainBytes()
+```
+
+`Reader#readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`. The behavior is:
 
 - Blocks until at least 1 byte is available.
 - Returns the number of bytes read (`1 <= r <= len`).
@@ -424,6 +444,25 @@ The method signature is:
 abstract class Reader[+Elem] {
   def readBytes(buf: Array[Byte], offset: Int, len: Int): Int
 }
+```
+
+Read multiple bytes into a buffer in bulk:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Reader
+import java.io.ByteArrayInputStream
+
+val bytes = Array[Byte](72, 101, 108, 108, 111)  // The word Hello
+val is = new ByteArrayInputStream(bytes)
+val r = Reader.fromInputStream(is)
+
+val buffer = new Array[Byte](3)
+val bytesRead = r.readBytes(buffer, 0, 3)
+println(s"Read $bytesRead bytes: ${buffer.map(_.toChar).mkString}")
+
+val buffer2 = new Array[Byte](5)
+val bytesRead2 = r.readBytes(buffer2, 0, 5)
+println(s"Read $bytesRead2 bytes: ${buffer2.take(bytesRead2).map(_.toChar).mkString}")
 ```
 
 ### Character and Numeric Specialization
