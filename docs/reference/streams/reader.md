@@ -823,10 +823,11 @@ The sink calls `read()` repeatedly until the reader is closed, transforming the 
 
 For example, `Sink.collectAll` drains all elements and returns them as a `Chunk`:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.streams._
+
 val result = Stream.range(1, 10)
   .run(Sink.collectAll[Int])
-// result: Either[Nothing, Chunk[Int]] = Right(Chunk(1, 2, 3, ..., 9))
 ```
 
 ## Implementation Notes
