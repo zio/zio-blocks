@@ -365,6 +365,8 @@ abstract class Reader[+Elem] {
 Unlike `readInt` which widens to `Long`, `readLong` has no wider type to safely house the sentinel. Your choice of sentinel is **entirely dependent on your data domain**. If your stream contains the sentinel value you chose, you will incorrectly detect end-of-stream mid-stream. Always choose a sentinel that provably never appears in your actual data—or use `Reader#read[Long](sentinel)` (the generic method) if you need more flexibility.
 :::
 
+**Performance Tradeoff:** `readLong` avoids boxing on every read—the long stays unboxed in memory, and retrieval is a simple memory fetch. In contrast, `Reader#read[Long](sentinel)` boxes each long into a generic `Any` reference, forcing allocation and garbage collection pressure in hot loops. For latency-sensitive or high-throughput workloads (millions of elements per second), this difference is measurable. Use `readLong` when your data domain guarantees no sentinel collisions; switch to `read[Long]` only if you cannot safely choose a sentinel and the collision risk outweighs the performance cost.
+
 `readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
 
 ```scala
