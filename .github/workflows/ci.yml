@@ -131,6 +131,9 @@ jobs:
       - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
+      - name: Run telemetry tests (JDK 25+ only)
+        if: ${{ matrix.java >= 25 }}
+        run: sbt ++${{ matrix.scala }} telemetryJVM/test
       - name: Run Scala Next tests
         if: ${{ matrix.scala == '3.7.x' }}
         run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test

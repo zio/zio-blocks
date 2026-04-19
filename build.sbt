@@ -151,6 +151,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
+    telemetry.jvm,
+    telemetry.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -193,6 +195,7 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    telemetryBenchmarks,
     smithy
   )
 
@@ -387,6 +390,64 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
+  .settings(stdSettings("zio-blocks-telemetry"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.telemetry"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70,
+    coverageExcludedFiles      := Seq(
+      ".*PlatformExecutor.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    Compile / scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2."))
+        Seq("-Wconf:cat=unchecked:s")
+      else Nil
+    }
+  )
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      // Target JDK 25 for direct ScopedValue and virtual thread API access
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if (opt == "11" && i > 0 && base(i - 1) == "-release") Seq("25")
+        else Seq(opt)
+      }
+    }
+  )
+  .jsSettings(jsSettings)
+
+lazy val telemetryBenchmarks = project
+  .in(file("telemetry-benchmarks"))
+  .settings(stdSettings("zio-blocks-telemetry-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(telemetry.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
@@ -1134,7 +1195,11 @@ lazy val `schema-examples-macros` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
   )
 
 lazy val `schema-examples` = project
