@@ -16,13 +16,13 @@ Stream[E, A] ──(compile)──> Reader[A]
 ```
 
 `Reader`:
-- is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
-- is not thread-safe — designed for single-threaded consumption
-- uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `Reader#readInt(sentinel)` avoid boxing entirely
-- dispatches on `jvmType` to use specialized, unboxed reads for primitive types
-- is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
-- guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
-- supports composition by chaining readers through transformations without materializing intermediate data
+- Is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
+- Is not thread-safe — designed for single-threaded consumption
+- Uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `Reader#readInt(sentinel)` avoid boxing entirely
+- Dispatches on `jvmType` to use specialized, unboxed reads for primitive types
+- Is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
+- Guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
+- Supports composition by chaining readers through transformations without materializing intermediate data
 
 Here is the core `Reader` interface with the most essential methods:
 
