@@ -679,6 +679,11 @@ def drain(): Unit = {
   }
 }
 drain()
+// Output:
+// Skip handled natively: true
+// 3
+// 4
+// 5
 ```
 
 `Reader#setLimit` — Attempts to set a limit on this reader so it produces at most `n` elements. Returns `true` if handled natively, `false` if the caller must wrap. After `reset()`, the limit is re-applied from the new start position:
