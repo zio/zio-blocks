@@ -306,28 +306,18 @@ Run `/docs-verify-compliance` skill.
 
 ## Step 3.5: Verify Method Coverage
 
-Use the **`docs-data-type-list-members`** skill to extract public methods, then check coverage against documentation:
+Use **`docs-data-type-list-members`** to extract members, then **`docs-report-method-coverage`** to verify coverage:
 
 ```bash
-# Run the skill to extract members and pipe to coverage checker
-/docs-data-type-list-members <TypeName> | \
-  ./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md
+/docs-data-type-list-members <TypeName> | /docs-report-method-coverage <TypeName> docs/reference/<type-name>.md
 ```
 
-Or save extracted members to file, then check:
+Or save members to file first, then report:
 ```bash
-# Save members to file (run skill, save output)
-./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md members.txt
+/docs-report-method-coverage <TypeName> docs/reference/<type-name>.md members.txt
 ```
 
-The coverage checker categorizes members by:
-- **Companion Object Members** — static factories and utilities
-- **Public API** — instance methods
-- **Inherited Methods** — methods from parent types (when available)
-
-Then compares against backtick-quoted method names in documentation.
-
-Exit codes: 0=complete coverage, 1=gaps found, 2=error
+Coverage report shows completeness by category: Companion Object, Public API, Inherited Methods.
 
 ## Step 4: Write Examples
 
