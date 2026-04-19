@@ -712,6 +712,11 @@ def drain(): Unit = {
   }
 }
 drain()
+// Output:
+// Limit handled natively: true
+// 1
+// 2
+// 3
 ```
 
 `Reader#setRepeat` — Attempts to set this reader into repeat-forever mode, so it restarts from the beginning whenever it would otherwise close. Returns `true` if handled natively, `false` if the caller must wrap:
@@ -740,6 +745,14 @@ def drain(count: Int): Unit = {
   }
 }
 drain(0)
+// Output:
+// Repeat handled natively: true
+// 1
+// 2
+// 1
+// 2
+// 1
+// 2
 ```
 
 `reset` — Rewinds this reader to its initial state, as if freshly constructed. After `reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
