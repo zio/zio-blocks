@@ -43,6 +43,19 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       assert(result)(isRight(equalTo(expectedRecord)))
     },
 
+    test("Interpreter correctly renames a Enum Variant case via RenameCase AST") {
+      val initialValue = DynamicValue.Variant("OldTag", DynamicValue.Primitive(PrimitiveValue.Int(100)))
+      
+      val optic = DynamicOptic.root.caseOf("OldTag")
+      val migration = DynamicMigration.RenameCase(optic, "NewSecureTag")
+      
+      val result = Interpreter.run(migration, initialValue)
+      
+      val expectedVariant = DynamicValue.Variant("NewSecureTag", DynamicValue.Primitive(PrimitiveValue.Int(100)))
+
+      assert(result)(isRight(equalTo(expectedVariant)))
+    },
+
     test("Interpreter correctly evaluates Identity Migration") {
       val initialValue = DynamicValue.Record("existing" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
       val result = Interpreter.run(DynamicMigration.Identity, initialValue)

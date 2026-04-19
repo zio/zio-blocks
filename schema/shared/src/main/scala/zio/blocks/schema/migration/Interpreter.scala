@@ -43,7 +43,7 @@ object Interpreter {
         updateAt(optic, value, fw, isAdditive = false)
 
       case DynamicMigration.RenameCase(optic, newName) =>
-        Left("Feature execution not implemented for Enum Variant rename natively.")
+        renameAt(optic, value, newName)
     }
 
   // ---- Optic traversal primitives ----
@@ -89,6 +89,16 @@ object Interpreter {
           } else Left(s"Field '$name' not found.")
         case _ => Left(s"Expected Record to access field '$name'")
       }
+    case DynamicOptic.Node.Case(name) :: tail =>
+      value match {
+        case v: DynamicValue.Variant =>
+          if (v.caseNameValue == name) {
+            traverse(tail, v.value, updater, isAdditive).map { updatedValue =>
+              DynamicValue.Variant(name, updatedValue)
+            }
+          } else Left(s"Case '$name' not found.")
+        case _ => Left(s"Expected Variant to access case '$name'")
+      }
     case _ => Left("Unsupported optic traversal node")
   }
 
@@ -113,6 +123,16 @@ object Interpreter {
             }
           } else Left(s"Field '$name' not found.")
         case _ => Left("Expected Record")
+      }
+    case DynamicOptic.Node.Case(name) :: tail =>
+      value match {
+        case v: DynamicValue.Variant =>
+          if (v.caseNameValue == name) {
+            traverseDelete(tail, v.value).map { updatedValue =>
+              DynamicValue.Variant(name, updatedValue)
+            }
+          } else Left(s"Case '$name' not found.")
+        case _ => Left("Expected Variant")
       }
     case _ => Left("Invalid optic for deletion")
   }
@@ -145,6 +165,24 @@ object Interpreter {
              }
           } else Left(s"Field '$name' not found.")
         case _ => Left("Expected Record")
+      }
+    case DynamicOptic.Node.Case(name) :: Nil =>
+      value match {
+        case v: DynamicValue.Variant =>
+          if (v.caseNameValue == name) {
+            Right(DynamicValue.Variant(newName, v.value))
+          } else Left(s"Case '$name' not found.")
+        case _ => Left("Expected Variant to rename case")
+      }
+    case DynamicOptic.Node.Case(name) :: tail =>
+      value match {
+        case v: DynamicValue.Variant =>
+          if (v.caseNameValue == name) {
+            traverseRename(tail, v.value, newName).map { updatedValue =>
+              DynamicValue.Variant(name, updatedValue)
+            }
+          } else Left(s"Case '$name' not found.")
+        case _ => Left("Expected Variant")
       }
     case _ => Left("Invalid optic for rename")
   }
