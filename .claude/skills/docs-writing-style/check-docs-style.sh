@@ -208,11 +208,9 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 8: Unqualified method/constructor names (heuristic-based algorithm)
-# This mechanical check requires feedback loop to refine the SAFE_NAMES set
-# and confidence heuristics, but it can catch common cases of unqualified
-# method references in prose. After running this check, review the output
-# and add any false positives to the SAFE_NAMES set
+# Rule 8: Unqualified method/constructor names
+# Detects unqualified method references in backticks by checking against: Known API methods extracted from Scala source files for the topic
+# To extract methods: scala extract-methods.scala <source-file> [TypeName]
 if command -v python3 >/dev/null 2>&1; then
   count_violations "$(python3 - "$FILE" << 'PYTHON_EOF'
 import sys, re
@@ -229,17 +227,19 @@ SAFE_NAMES = {
     "Boolean", "Int", "Long", "Double", "Float", "String", "Byte",
     "EndOfStream", "Throwable", "Exception", "IOException", "Error",
     # Constants
-    "MaxValue", "MinValue", "MaxValu e", "Infinity",
+    "MaxValue", "MinValue", "Infinity",
     # Common values
     "null", "true", "false", "this", "super", "self",
     # Common Scala/functional terms
     "pred", "predicate", "init", "default", "Interpreted",
+    # Common variable names
+    "next", "release", "sentinel", "jvmType",
 }
 
 in_code = False
 qualified_methods = set()
 
-# First pass: collect all qualified method names to build confidence
+# First pass: collect all qualified method names to supplement detection
 try:
     with open(sys.argv[1], encoding="utf-8") as f:
         content = f.read()
@@ -281,8 +281,8 @@ try:
                 if '[' in s[:start] and ']' in s[start:]:
                     continue
 
-                # **Confidence check**: if this identifier appears qualified elsewhere
-                # in the document, it's a real method and should be reported
+                # Flag if it appears qualified elsewhere in the document
+                # This catches methods used both ways (qualified and unqualified)
                 if name in qualified_methods:
                     print(f"{sys.argv[1]}:{lineno}: [Rule 8] unqualified method `{name}` (use Type#{name} or Type.{name})")
 except Exception as e:
