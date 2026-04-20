@@ -193,7 +193,7 @@ val limit = request.queryOrElse[Int]("limit", 20)       // 20 (default)
 
 ### HeadersSchemaOps
 
-Extension methods for `Headers` to extract and decode header values with type safety. API identical to `QueryParamsSchemaOps`.
+Extension methods for `Headers` to extract and decode header values with type safety. Uses `rawGet`/`rawGetAll` internally for raw string header access. API identical to `QueryParamsSchemaOps`.
 
 **Methods:**
 
@@ -208,9 +208,7 @@ import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val headers = Headers()
-  .addHeader("x-user-id", "42")
-  .addHeader("x-api-version", "2")
+val headers = Headers("x-user-id" -> "42", "x-api-version" -> "2")
 
 headers.header[Int]("x-user-id")        // Right(42)
 headers.header[Int]("X-User-ID")        // Right(42) - case-insensitive
@@ -229,10 +227,7 @@ import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val headers = Headers()
-  .addHeader("x-tag", "scala")
-  .addHeader("x-tag", "functional")
-  .addHeader("x-tag", "zio")
+val headers = Headers("x-tag" -> "scala", "x-tag" -> "functional", "x-tag" -> "zio")
 
 headers.headerAll[String]("x-tag")      // Right(Chunk("scala", "functional", "zio"))
 headers.headerAll[String]("x-missing")  // Left(HeaderError.Missing("x-missing"))
@@ -247,7 +242,7 @@ import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val headers = Headers().addHeader("x-count", "5")
+val headers = Headers("x-count" -> "5")
 
 headers.headerOrElse[Int]("x-count", 0)     // 5 (from header)
 headers.headerOrElse[Int]("x-missing", 0)   // 0 (default)
