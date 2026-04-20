@@ -454,12 +454,12 @@ The module supports decoding to any type with a `Schema[T]` instance. Built-in s
 - **`String`** — No decoding, raw string value
 - **`Int`** — Parsed via `String#toInt`, error on invalid format
 - **`Long`** — Parsed via `String#toLong`, error on invalid format
-- **`Boolean`** — Parsed via `String#toBoolean` (accepts "true", "false", case-insensitive)
+- **`Boolean`** — Parsed via `String#toBoolean` (accepts only "true" or "false", case-insensitive)
 - **`Double`** — Parsed via `String#toDouble`, error on invalid format
 - **`Float`** — Parsed via `String#toFloat`, error on invalid format
 - **`Short`** — Parsed via `String#toShort`, error on invalid format
 - **`Byte`** — Parsed via `String#toByte`, error on invalid format
-- **`Char`** — Parses single character; error if string length ≠ 1
+- **`Char`** — Parses single character; throws `"Expected single character but got 'value'"` if string length ≠ 1 (differs from standard error pattern)
 
 ### Big Numbers
 
@@ -472,13 +472,19 @@ The module supports decoding to any type with a `Schema[T]` instance. Built-in s
 
 ### Error Messages
 
-All decoding errors follow the pattern: `"Cannot parse 'value' as TypeName"`. Example error messages:
+Most decoding errors follow the pattern: `"Cannot parse 'value' as TypeName"`. Example error messages:
 
 ```
 Cannot parse 'abc' as Int
 Cannot parse 'notaboolean' as Boolean
 Cannot parse 'not-a-uuid' as UUID
 Cannot parse '12.34.56' as BigDecimal
+```
+
+**Exception:** `Char` parsing uses a different error message format:
+```
+Expected single character but got 'multichar'
+Expected single character but got 'x' (if empty string)
 ```
 
 ### Custom Types
