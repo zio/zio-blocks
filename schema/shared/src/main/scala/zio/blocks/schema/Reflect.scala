@@ -20,7 +20,7 @@ import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
+import zio.blocks.typeid.{Owner, TypeId, TypeParam, TypeRepr, Variance}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
@@ -174,13 +174,21 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     cases.length == 2 && cases(1).name == "Some"
   }
 
+  def isMaybe: Boolean = isVariant && {
+    val tid = typeId
+    tid.isMaybe && {
+      val cases = asVariant.get.cases
+      cases.length == 2 && cases(1).name == "Present"
+    }
+  }
+
   def isEnumeration: Boolean = isVariant && asVariant.get.cases.forall { case_ =>
     val caseReflect = case_.value
     caseReflect.asRecord.exists(_.fields.isEmpty) || caseReflect.isEnumeration
   }
 
   def optionInnerType: Option[Reflect[F, ?]] =
-    if (isOption) asVariant.get.cases(1).value.asRecord.map(_.fields(0).value)
+    if (isOption || isMaybe) asVariant.get.cases(1).value.asRecord.map(_.fields(0).value)
     else None
 
   def modifiers: Seq[Modifier.Reflect]
@@ -1680,6 +1688,181 @@ object Reflect {
       Chunk(new Term("None", none), new Term("Some", someUnit(element))),
       TypeId.of[Option[Unit]],
       F.fromBinding(Binding.Variant.option)
+    )
+
+  private[this] val maybeTypeId: TypeId[Any] =
+    TypeId
+      .nominal[Any]("Maybe", Owner.fromPackagePath("zio.blocks.schema"), List(TypeParam("A", 0, Variance.Covariant)))
+
+  private[this] val absentTypeId: TypeId[AnyRef] =
+    TypeId.nominal[AnyRef]("Absent", Owner.fromPackagePath("zio.blocks.schema.Maybe"))
+
+  private[this] def absentRecord[F[_, _]](implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(Chunk.empty, absentTypeId, F.fromBinding(Binding.Record.absent))
+
+  private[this] def presentRecord[F[_, _], A <: AnyRef](
+    element: Reflect[F, A]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.present)
+    )
+
+  private[this] def presentDoubleRecord[F[_, _]](
+    element: Reflect[F, Double]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentDouble)
+    )
+
+  private[this] def presentLongRecord[F[_, _]](
+    element: Reflect[F, Long]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentLong)
+    )
+
+  private[this] def presentFloatRecord[F[_, _]](
+    element: Reflect[F, Float]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentFloat)
+    )
+
+  private[this] def presentIntRecord[F[_, _]](
+    element: Reflect[F, Int]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentInt)
+    )
+
+  private[this] def presentCharRecord[F[_, _]](
+    element: Reflect[F, Char]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentChar)
+    )
+
+  private[this] def presentShortRecord[F[_, _]](
+    element: Reflect[F, Short]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentShort)
+    )
+
+  private[this] def presentBooleanRecord[F[_, _]](
+    element: Reflect[F, Boolean]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentBoolean)
+    )
+
+  private[this] def presentByteRecord[F[_, _]](
+    element: Reflect[F, Byte]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentByte)
+    )
+
+  private[this] def presentUnitRecord[F[_, _]](
+    element: Reflect[F, Unit]
+  )(implicit F: FromBinding[F]): Record[F, AnyRef] =
+    new Record(
+      Chunk.single(new Term("value", element)),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      F.fromBinding(Binding.Record.presentUnit)
+    )
+
+  def maybe[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, AnyRef] = {
+    val typeId = TypeId.applied[AnyRef](
+      maybeTypeId,
+      TypeRepr.Ref(element.typeId)
+    )
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentRecord(element))),
+      typeId,
+      F.fromBinding(Binding.Variant.maybe)
+    )
+  }
+
+  def maybeDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentDoubleRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentLongRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentFloatRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentIntRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentCharRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentShortRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentBooleanRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentByteRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
+    )
+
+  def maybeUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, AnyRef] =
+    new Variant(
+      Chunk(new Term("Absent", absentRecord), new Term("Present", presentUnitRecord(element))),
+      TypeId.applied[AnyRef](maybeTypeId, TypeRepr.Ref(element.typeId)),
+      F.fromBinding(Binding.Variant.maybe)
     )
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] = {

@@ -278,6 +278,36 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
 
   implicit val optionUnit: Schema[Option[Unit]] = new Schema(Reflect.optionUnit(Schema[Unit].reflect))
 
+  implicit def maybe[A <: AnyRef](implicit element: Schema[A]): Schema[Maybe[A]] =
+    new Schema(Reflect.maybe(element.reflect).asInstanceOf[Reflect.Bound[Maybe[A]]])
+
+  implicit val maybeDouble: Schema[Maybe[Double]] =
+    new Schema(Reflect.maybeDouble(Schema[Double].reflect).asInstanceOf[Reflect.Bound[Maybe[Double]]])
+
+  implicit val maybeLong: Schema[Maybe[Long]] =
+    new Schema(Reflect.maybeLong(Schema[Long].reflect).asInstanceOf[Reflect.Bound[Maybe[Long]]])
+
+  implicit val maybeFloat: Schema[Maybe[Float]] =
+    new Schema(Reflect.maybeFloat(Schema[Float].reflect).asInstanceOf[Reflect.Bound[Maybe[Float]]])
+
+  implicit val maybeInt: Schema[Maybe[Int]] =
+    new Schema(Reflect.maybeInt(Schema[Int].reflect).asInstanceOf[Reflect.Bound[Maybe[Int]]])
+
+  implicit val maybeChar: Schema[Maybe[Char]] =
+    new Schema(Reflect.maybeChar(Schema[Char].reflect).asInstanceOf[Reflect.Bound[Maybe[Char]]])
+
+  implicit val maybeShort: Schema[Maybe[Short]] =
+    new Schema(Reflect.maybeShort(Schema[Short].reflect).asInstanceOf[Reflect.Bound[Maybe[Short]]])
+
+  implicit val maybeBoolean: Schema[Maybe[Boolean]] =
+    new Schema(Reflect.maybeBoolean(Schema[Boolean].reflect).asInstanceOf[Reflect.Bound[Maybe[Boolean]]])
+
+  implicit val maybeByte: Schema[Maybe[Byte]] =
+    new Schema(Reflect.maybeByte(Schema[Byte].reflect).asInstanceOf[Reflect.Bound[Maybe[Byte]]])
+
+  implicit val maybeUnit: Schema[Maybe[Unit]] =
+    new Schema(Reflect.maybeUnit(Schema[Unit].reflect).asInstanceOf[Reflect.Bound[Maybe[Unit]]])
+
   implicit def set[A](implicit element: Schema[A]): Schema[Set[A]] = new Schema(Reflect.set(element.reflect))
 
   implicit def list[A](implicit element: Schema[A]): Schema[List[A]] = new Schema(Reflect.list(element.reflect))

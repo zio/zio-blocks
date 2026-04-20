@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
-package zio.blocks
+package zio.blocks.schema
 
-package object schema extends PathInterpolator with SyntaxVersionSpecific with MaybeCompat {}
+trait MaybeCompat {
+  type Maybe[+A] = (A with MaybeTag) @scala.annotation.unchecked.uncheckedVariance
+}

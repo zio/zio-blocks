@@ -145,6 +145,10 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
     norm.owner == Owner.fromPackagePath("scala") && norm.name == "Option"
   }
 
+  final def isMaybe: Boolean =
+    (owner == Owner.fromPackagePath("zio.blocks.schema") ||
+      owner == Owner.fromPackagePath("zio.blocks.schema.package")) && name == "Maybe"
+
   /**
    * Checks if this type is a subtype of another type.
    *
