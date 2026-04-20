@@ -1,128 +1,108 @@
-import scala.annotation.tailrec
 import scala.util.Try
 import scala.quoted._
+import zio.schema.{DynamicValue, StandardType, Schema, TypeId}
+import zio.Chunk
 
-/**
- * ZIO-Blocks: The Ultimate Bijective Migration Engine
- * --------------------------------------------------
- * Optimized for Scala 3, SonarCloud A-Grade Security, and Reliability.
- * Combines Macro-based derivation (Ghost) with a recursive Bijective Engine.
- */
-
-// 1. Core Models
-final case class SchemaContext[A](data: Map[String, Any])
+// 1. Enterprise Core: Context Preservation for Rollbacks
+final case class MigrationContext(data: Map[String, DynamicValue], backup: Map[String, DynamicValue] = Map.empty)
 
 sealed trait Migration[In, Out] {
   def invert: Migration[Out, In]
-  def applyStep(current: Map[String, Any]): Either[String, Map[String, Any]]
+  def applyStep(ctx: MigrationContext): Either[String, MigrationContext]
 }
 
 object Migration {
-  final case class Identity[A]() extends Migration[A, A] {
-    def invert: Migration[A, A] = Identity[A]()
-    def applyStep(current: Map[String, Any]): Either[String, Map[String, Any]] = Right(current)
-  }
-
-  final case class Rename[In, Out](from: String, to: String) extends Migration[In, Out] {
-    def invert: Migration[Out, In] = Rename(to, from)
-    def applyStep(current: Map[String, Any]): Either[String, Map[String, Any]] =
-      current.get(from) match {
-        case Some(v) => Right(current - from + (to -> v))
-        case None    => Left(s"Structural Error: Field '$from' is missing in the current context.")
+  final case class Morph[In, Out](key: String, f: DynamicValue => DynamicValue, g: DynamicValue => DynamicValue, fromClass: String, toClass: String) extends Migration[In, Out] {
+    override def invert: Migration[Out, In] = Morph(key, g, f, toClass, fromClass)
+    override def applyStep(ctx: MigrationContext): Either[String, MigrationContext] =
+      ctx.data.get(key) match {
+        case Some(v) => Try(f(v)).toEither.map(res => ctx.copy(data = ctx.data + (key -> res))).left.map(e => s"[$fromClass -> $toClass] Morph failed for '$key': ${e.getMessage}")
+        case None    => Left(s"[$fromClass -> $toClass] Field '$key' missing during Morph")
       }
   }
 
-  final case class Morph[In, Out](key: String, f: Any => Any, g: Any => Any) extends Migration[In, Out] {
-    def invert: Migration[Out, In] = Morph(key, g, f)
-    def applyStep(current: Map[String, Any]): Either[String, Map[String, Any]] =
-      current.get(key) match {
-        case Some(v) => 
-          // Reliability: Handling potential transformation exceptions safely
-          Try(f(v)).toEither.left.map(e => s"Transformation failed for '$key': ${e.getMessage}")
-            .map(result => current + (key -> result))
-        case None => Left(s"Data Error: Field '$key' not found for Morph operation.")
-      }
+  final case class Rename[In, Out](from: String, to: String, fromClass: String, toClass: String) extends Migration[In, Out] {
+    override def invert: Migration[Out, In] = Rename(to, from, toClass, fromClass)
+    override def applyStep(ctx: MigrationContext): Either[String, MigrationContext] =
+      ctx.data.get(from).map(v => ctx.copy(data = ctx.data - from + (to -> v))).toRight(s"[$fromClass -> $toClass] Field '$from' missing during Rename")
+  }
+
+  final case class DeleteField[In, Out](key: String, defaultValue: DynamicValue) extends Migration[In, Out] {
+    override def invert: Migration[Out, In] = AddField(key, defaultValue)
+    override def applyStep(ctx: MigrationContext): Either[String, MigrationContext] =
+      ctx.data.get(key).map(v => ctx.copy(data = ctx.data - key, backup = ctx.backup + (key -> v))).map(Right(_)).getOrElse(Right(ctx))
+  }
+
+  final case class AddField[In, Out](key: String, defaultValue: DynamicValue) extends Migration[In, Out] {
+    override def invert: Migration[Out, In] = DeleteField(key, defaultValue)
+    override def applyStep(ctx: MigrationContext): Either[String, MigrationContext] =
+      val finalValue = ctx.backup.getOrElse(key, defaultValue)
+      Right(ctx.copy(data = ctx.data + (key -> finalValue), backup = ctx.backup - key))
   }
 }
 
-// 2. Evolution Engine
-final case class MigrationPlan[In, Out](steps: List[Migration[_, _]]) {
-  
-  def run(input: SchemaContext[In]): Either[String, SchemaContext[Out]] = {
-    @tailrec
-    def loop(current: Map[String, Any], remaining: List[Migration[_, _]]): Either[String, Map[String, Any]] = {
-      remaining match {
-        case Nil => Right(current)
-        case head :: tail =>
-          head.applyStep(current) match {
-            case Right(next) => loop(next, tail)
-            case Left(err)   => Left(err)
-          }
-      }
-    }
-    loop(input.data, steps).map(SchemaContext[Out](_))
-  }
-
-  def reverse: MigrationPlan[Out, In] = MigrationPlan(steps.reverse.map(_.invert))
-}
-
-// 3. Ghost Deriver (Scala 3 Macros)
+// 2. The Final Macro Implementation (Ghost v9.0)
 object GhostMigrationDeriver {
   inline def derive[A, B]: MigrationPlan[A, B] = ${ deriveImpl[A, B] }
 
   def deriveImpl[A: Type, B: Type](using Quotes): Expr[MigrationPlan[A, B]] = {
     import quotes.reflect._
-    
-    val fromFields = TypeRepr.of[A].typeSymbol.caseFields
-    val toFields = TypeRepr.of[B].typeSymbol.caseFields
 
-    // Logic to detect field renames automatically via Macro
-    val renameSteps = fromFields.flatMap { fSym =>
-      toFields.find(tSym => tSym.name != fSym.name && 
-        TypeRepr.of[A].memberType(fSym) =:= TypeRepr.of[B].memberType(tSym)).map { tSym =>
-        '{ Migration.Rename[Any, Any](${Expr(fSym.name)}, ${Expr(tSym.name)}) }
+    val aType = TypeRepr.of[A]
+    val bType = TypeRepr.of[B]
+    val aShow = aType.show
+    val bShow = bType.show
+    
+    def getZeroValue(tpe: TypeRepr, depth: Int = 0): Expr[DynamicValue] = {
+      if (depth > 5) '{ DynamicValue.None } 
+      else if (tpe =:= TypeRepr.of[String]) '{ DynamicValue.Primitive("", StandardType.StringType) }
+      else if (tpe =:= TypeRepr.of[Int]) '{ DynamicValue.Primitive(0, StandardType.IntType) }
+      else if (tpe.typeSymbol.flags.is(Flags.Case)) {
+        val fields = tpe.typeSymbol.caseFields
+        val mapExpr = Expr.ofList(fields.map(f => '{ ${Expr(f.name)} -> ${getZeroValue(tpe.memberType(f), depth + 1)} }))
+        '{ DynamicValue.Record(TypeId.parse(${Expr(tpe.show)}), Map.from($mapExpr)) }
+      } else '{ DynamicValue.None }
+    }
+
+    val fromFields = aType.typeSymbol.caseFields.map(s => s.name -> aType.memberType(s)).toMap
+    val toFields = bType.typeSymbol.caseFields.map(s => s.name -> bType.memberType(s)).toMap
+
+    val steps = List.newBuilder[Expr[Migration[A, B]]]
+    val matchedFrom = scala.collection.mutable.Set[String]()
+    val matchedTo = scala.collection.mutable.Set[String]()
+
+    // Sorted priority mapping to avoid collisions
+    for { fK <- fromFields.keySet.toList.sorted; tK <- toFields.keySet.toList.sorted } {
+      if (!matchedFrom.contains(fK) && !matchedTo.contains(tK) && (fK == tK || fK.contains(tK) || tK.contains(fK))) {
+        matchedFrom += fK; matchedTo += tK
+        if (fK != tK) steps += '{ Migration.Rename[A, B](${Expr(fK)}, ${Expr(tK)}, ${Expr(aShow)}, ${Expr(bShow)}) }
+        
+        val fT = fromFields(fK); val tT = toFields(tK)
+        if (!(fT =:= tT)) {
+          val fwd = if (fT =:= TypeRepr.of[Int] && tT =:= TypeRepr.of[String])
+              '{ (v: DynamicValue) => v match { case DynamicValue.Primitive(i: Int, _) => DynamicValue.Primitive(i.toString, StandardType.StringType); case _ => v } }
+            else '{ (v: DynamicValue) => v }
+
+          val bwd = if (fT =:= TypeRepr.of[Int] && tT =:= TypeRepr.of[String])
+              '{ (v: DynamicValue) => v match { case DynamicValue.Primitive(s: String, _) => DynamicValue.Primitive(Try(s.toInt).getOrElse(0), StandardType.IntType); case _ => v } }
+            else '{ (v: DynamicValue) => v }
+
+          steps += '{ Migration.Morph[A, B](${Expr(tK)}, $fwd, $bwd, ${Expr(aShow)}, ${Expr(bShow)}) }
+        }
       }
     }
 
-    // Logic to detect field type morphing automatically
-    val morphSteps = fromFields.filter(f => toFields.exists(t => t.name == f.name && 
-      !(TypeRepr.of[A].memberType(f) =:= TypeRepr.of[B].memberType(t)))).map { fSym =>
-      '{ Migration.Morph[Any, Any](${Expr(fSym.name)}, (v: Any) => v, (v: Any) => v) }
-    }
+    (toFields.keySet -- matchedTo).foreach(k => steps += '{ Migration.AddField[A, B](${Expr(k)}, ${getZeroValue(toFields(k))}) })
+    (fromFields.keySet -- matchedFrom).foreach(k => steps += '{ Migration.DeleteField[A, B](${Expr(k)}, DynamicValue.None) })
 
-    val allSteps = Expr.ofList((renameSteps ++ morphSteps).toList)
-    '{ MigrationPlan[A, B]($allSteps.asInstanceOf[List[Migration[_, _]]]) }
+    '{ MigrationPlan[A, B](Chunk.fromIterable(${Expr.ofList(steps.result())})) }
   }
 }
 
-// 4. Verification Proof
-@main def runMonsterProof(): Unit = {
-  case class UserV1(user_id: Int, user_name: String)
-  case class UserV2(id: Int, full_name: String)
-
-  val v1Data = SchemaContext[UserV1](Map("user_id" -> 101, "user_name" -> "shenun_anderson"))
-
-  // Example of a hybrid plan
-  val plan = MigrationPlan[UserV1, UserV2](List(
-    Migration.Rename("user_id", "id"),
-    Migration.Rename("user_name", "full_name"),
-    Migration.Morph("full_name", (v: Any) => v.toString.toUpperCase, (v: Any) => v.toString.toLowerCase)
-  ))
-
-  println("--- EXECUTING SECURE SCHEMA EVOLUTION ---")
-  plan.run(v1Data) match {
-    case Right(v2) =>
-      println(s"Evolution Success: ${v2.data}")
-      
-      println("\n--- EXECUTING BIJECTIVE ROLLBACK ---")
-      plan.reverse.run(v2) match {
-        case Right(restored) => 
-          println(s"Rollback Success: ${restored.data}")
-          if (restored.data == v1Data.data) {
-            println("\n💎 QUALITY ASSURANCE: Bijectivity and Data Integrity Verified.")
-          }
-        case Left(err) => println(s"Rollback Failed: $err")
-      }
-    case Left(err) => println(s"Evolution Failed: $err")
-  }
+// 3. Reversible Migration Plan
+final case class MigrationPlan[In, Out](steps: Chunk[Migration[In, Out]]) {
+  def run(data: Map[String, DynamicValue]): Either[String, MigrationContext] =
+    steps.foldLeft[Either[String, MigrationContext]](Right(MigrationContext(data)))((acc, s) => acc.flatMap(s.applyStep))
+  
+  def invert: MigrationPlan[Out, In] = MigrationPlan(steps.reverse.map(_.invert))
 }
