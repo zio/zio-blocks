@@ -72,7 +72,7 @@ With Java's `OutputStream`, you call `write()` and either it succeeds (void retu
 
 `Writer` makes the state explicit and non-throwing. Before pushing an item, you can call `writeable()` to check if the writer is closed. The default `writeable()` returns `!isClosed` and does not check buffer capacity. Bounded implementations that override `writeable()` may reflect actual capacity, but this is not guaranteed by the interface. Then you call `write(item)`, which returns `Boolean`: `true` on success, `false` only if the writer has **closed**. Note: if the buffer is full but open, bounded implementations block the thread until space is available—they don't return `false`. Only closure causes `write()` to return `false`.
 
-When the sink encounters an error, you call `fail(error)`. By default, this closes the sink and subsequent `write()` calls return `false`. If you override `fail()` to store the error, `write()` will throw it on subsequent calls—giving you optional error propagation.
+When the Writer encounters an error, you call `fail(error)`. By default, this closes the writer and subsequent `write()` calls return `false`. If you override `fail()` to store the error, `write()` will throw it on subsequent calls—giving you optional error propagation.
 
 The payoff: you get an explicit, non-throwing protocol for capacity checks and closure signaling. The `Boolean` return makes the state machine clear: check `writeable()`, call `write()`, and when `write()` returns `false`, you know the sink is permanently closed and should stop. No silent failures, no exceptions to parse for intent.
 
