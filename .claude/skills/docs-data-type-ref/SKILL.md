@@ -69,13 +69,13 @@ After the definition paragraph, include the source definition of the data type i
 
 After the structural definition, follow immediately with a section header (e.g., `## Quick Showcase`) for the next section.
 
-#### 2. Quick Showcase (required)
-
-Show core capabilities through examples. For simple types (e.g., `Writer`, `Reader`), one example suffices. For rich types (e.g., `Chunk`), combine 2–3 scenarios in a single `mdoc:reset` block (10–20 lines). Goal: readers grasp the core idea without reading further.
-
-#### 3. Motivation / Use Case (if applicable)
+#### 2. Motivation / Use Case (if applicable)
 
 Please write what the problem is and why this type is the solution in storytelling style by describing a realistic scenario.
+
+#### 3. Quick Showcase (required)
+
+Show core capabilities through examples. For simple types (e.g., `Writer`, `Reader`), one example suffices. For rich types (e.g., `Chunk`), combine 2–3 scenarios in a single `mdoc:reset` block (10–20 lines). Goal: readers grasp the core idea without reading further.
 
 #### 4. Installation (if applicable)
 
