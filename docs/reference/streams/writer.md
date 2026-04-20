@@ -146,11 +146,20 @@ Limit a writer to accept at most n elements:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
+import scala.collection.mutable.Buffer
 
-val inner = Writer.single[Int]
+val collected = Buffer[Int]()
+val inner = new Writer[Int] {
+  def isClosed = false
+  def write(a: Int) = { collected += a; true }
+  def close() = ()
+}
+
 val limited = Writer.limited(inner, 2)
 println(limited.write(1))    // true
-println(limited.write(2))    // false (limit reached)
+println(limited.write(2))    // true (space available)
+println(limited.write(3))    // false (limit of 2 reached)
+println(s"Collected: $collected")  // Collected: Buffer(1, 2)
 ```
 
 ### I/O Adapters
