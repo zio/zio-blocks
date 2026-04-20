@@ -226,64 +226,6 @@ object Writer {
 }
 ```
 
-### Bounded Buffering Example
-
-A bounded Writer wraps a fixed-capacity container and auto-closes when full. On each write, it checks remaining capacity: if space is available, it writes and returns `true`; if full, it auto-closes and returns `false`:
-
-```scala mdoc:reset
-import zio.blocks.streams.io.Writer
-import scala.collection.mutable.Buffer
-
-class BoundedWriter[A](maxCapacity: Int) extends Writer[A] {
-  private val buffer = Buffer[A]()
-  private var closed = false
-  
-  def isClosed: Boolean = closed
-  
-  def write(a: A): Boolean = {
-    if (closed) false
-    else if (buffer.size < maxCapacity) {
-      buffer += a
-      true
-    }
-    else {
-      // Buffer full: auto-close and reject
-      closed = true
-      false
-    }
-  }
-  
-  def close(): Unit = { closed = true }
-  
-  override def fail(error: Throwable): Unit = close()
-  
-  def contents: Buffer[A] = buffer
-}
-
-val bounded = new BoundedWriter[Int](3)
-
-// Write until full
-def pushUntilFull(elements: List[Int]): Unit = {
-  elements.foreach { elem =>
-    val accepted = bounded.write(elem)
-    if (accepted) println(s"Accepted: $elem")
-    else println(s"Rejected: $elem (writer full/closed)")
-  }
-}
-
-pushUntilFull(List(10, 20, 30, 40, 50))
-
-println(s"Buffer: ${bounded.contents}")
-println(s"Writer closed: ${bounded.isClosed}")
-println(s"Writeable: ${bounded.writeable()}")
-```
-
-Key behavior:
-- `write()` returns `true` while space exists
-- When buffer fills, `write()` auto-closes and returns `false`
-- All subsequent `write()` calls return `false` (closure is permanent)
-- `writeable()` reflects closure state
-
 ## Core Operations
 
 The fundamental operations on `Writer` cover pushing elements one at a time, bulk operations, specialized writes for primitives, and state checks:
@@ -662,4 +604,20 @@ Run this example with:
 
 ```bash
 sbt "streams-examples/runMain writer.WriterIOAdapterExample"
+```
+
+### Bounded Implementation
+
+This example shows how to implement a bounded Writer that wraps a fixed-capacity container and auto-closes when full. It demonstrates the protocol: `write()` returns `false` only on closure (not buffer fullness), and `writeable()` reflects closure state:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/writer/WriterBoundedImplementationExample.scala")
+```
+
+Run this example with:
+
+```bash
+sbt "streams-examples/runMain writer.WriterBoundedImplementationExample"
 ```
