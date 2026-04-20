@@ -585,13 +585,13 @@ Understanding `Writer`'s design decisions helps you use it correctly and avoid c
 
 `Writer` is push-based (producer-driven), contrasting with `Reader` which is pull-based (consumer-driven):
 
-| Aspect | Reader | Writer |
-|--------|--------|--------|
-| **Direction** | Source → Consumer (pull) | Producer → Sink (push) |
-| **Variance** | Covariant (`+Elem`) | Contravariant (`−Elem`) |
-| **Blocking** | `read()` may block | `write()` may block |
-| **Signal end** | Returns sentinel or `null` | `close()` or `fail()` |
-| **Dual** | Sink drains Reader | Producer feeds Writer |
+| Aspect         | Reader                     | Writer                  |
+|----------------|----------------------------|-------------------------|
+| **Direction**  | Source → Consumer (pull)   | Producer → Sink (push)  |
+| **Variance**   | Covariant (`+Elem`)        | Contravariant (`−Elem`) |
+| **Blocking**   | `read()` may block         | `write()` may block     |
+| **Signal end** | Returns sentinel or `null` | `close()` or `fail()`   |
+| **Dual**       | Sink drains Reader         | Producer feeds Writer   |
 
 ### Thread Safety
 
