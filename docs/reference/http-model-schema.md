@@ -114,6 +114,8 @@ pageResult match {
 }
 ```
 
+For comprehensive examples of the core HTTP model, refer to the [HTTP Model documentation](./http-model.md).
+
 ## Extension Classes
 
 ### QueryParamsSchemaOps
@@ -451,42 +453,3 @@ Expected single character but got 'x' (if empty string)
 
 To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, manually create a `Schema[T]` using the schema module's derivation tools or manual construction.
 
-## Integration with HTTP Model
-
-This module extends the core [HTTP Model](./http-model.md) with extraction capabilities:
-
-- **Base layer:** Core types (`Request`, `Response`, `URL`, `Headers`, `QueryParams`, `Body`) — pure data
-- **Schema layer:** Extraction methods (`query[T]`, `header[T]`, etc.) — type-safe access with automatic decoding
-- **Integration:** Use schema methods to extract and validate parameters/headers, then pass typed values to business logic
-
-**Typical request-handling flow:**
-
-```scala
-import zio.http.{Request, Response, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-// Step 1: Create a request (core HTTP model)
-val request = Request.get(URL.parse("/api/users?userId=42&includeDetails=true").toOption.get)
-
-// Step 2: Extract and validate parameters (this module)
-val userId = request.query[Int]("userId")
-val includeDetails = request.queryOrElse[Boolean]("includeDetails", false)
-
-// Step 3: Handle extraction results in business logic
-val response = for {
-  id <- userId
-  details <- Right(includeDetails)
-} yield {
-  // Business logic with typed values
-  Response.ok.addHeader("x-processed-user-id", id.toString)
-}
-
-// Step 4: Return response (core HTTP model)
-response match {
-  case Right(r) => r
-  case Left(error) => Response.badRequest.addHeader("x-error", error.message)
-}
-```
-
-For comprehensive examples of the core HTTP model, refer to the [HTTP Model documentation](./http-model.md).
