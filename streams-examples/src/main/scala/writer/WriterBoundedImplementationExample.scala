@@ -20,8 +20,8 @@ import zio.blocks.streams.io.Writer
 import scala.collection.mutable
 
 /**
- * Demonstrates implementing a bounded Writer that auto-closes when capacity
- * is reached. Shows how write() returns false only on closure, not on buffer
+ * Demonstrates implementing a bounded Writer that auto-closes when capacity is
+ * reached. Shows how write() returns false only on closure, not on buffer
  * fullness, and how writeable() reflects the closure state.
  */
 object WriterBoundedImplementationExample extends App {
@@ -32,20 +32,18 @@ object WriterBoundedImplementationExample extends App {
 
     def isClosed: Boolean = closed
 
-    def write(a: A): Boolean = {
+    def write(a: A): Boolean =
       if (closed) false
       else if (buffer.size < maxCapacity) {
         buffer += a
         true
-      }
-      else {
+      } else {
         // Buffer full: auto-close and reject
         closed = true
         false
       }
-    }
 
-    def close(): Unit = { closed = true }
+    def close(): Unit = closed = true
 
     override def fail(error: Throwable): Unit = close()
 
