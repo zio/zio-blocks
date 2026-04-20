@@ -136,7 +136,7 @@ println(w.isClosed)         // true
 
 ### Limited Capacity
 
-`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then auto-closes. The dual of `Stream.take`. If `inner` closes before `n` elements are accepted, the limited writer also closes immediately without consuming the remaining capacity.
+`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then becomes closed. The dual of `Stream.take`. If `inner` closes before `n` elements are accepted, the limited writer also closes immediately without consuming the remaining capacity. Note: the inner writer is not automatically closed—only the limited wrapper's `isClosed` returns `true` when the limit is reached. The inner writer stays open until someone explicitly calls `close()`.
 
 ```scala
 object Writer {
