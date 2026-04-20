@@ -6,12 +6,11 @@ title: "Writer"
 `Writer[-Elem]` is a **push-based sink for elements** that accepts values one at a time until closed or filled. Elements are written on demand by the producer, making it ideal for streaming, buffering, and integration with I/O subsystems. The fundamental operations are `write(elem): Boolean` — pushes an element and returns success or closure — and `close()` — signals the end of writing and releases resources.
 
 `Writer`:
-- is lazy and push-based — nothing happens until the producer calls `write()`
-- is not thread-safe — designed for single-threaded production
-- is contravariant in `Elem` — a `Writer[Number]` is also a `Writer[Int]`, so wherever `Writer[Int]` is expected you can supply a `Writer[Number]`
-- returns `false` on write when closed (clean closure) or throws when error-closed
-- is the dual of `Reader` — while Reader pulls, Writer receives pushes
-- supports bounded buffers and resource cleanup via `close()` and `fail()`
+- **Lazy and Push-Based** — nothing happens until the producer calls `write()`
+- **Non-Thread-Safe** — designed for single-threaded production; concurrent access requires external synchronization
+- **Explicit Closure Signal** — returns `false` when closed (clean closure) or throws when error-closed
+- **Dual of Reader** — while Reader pulls, Writer receives pushes
+- **Bounded Buffering** — supports bounded buffers with explicit resource cleanup via `close()` and `fail()`
 
 Here is the structural shape of the `Writer` type:
 
