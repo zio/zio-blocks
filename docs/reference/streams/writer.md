@@ -36,25 +36,32 @@ import scala.collection.mutable.Buffer
 
 val collected = Buffer[Int]()
 val w = new Writer[Int] {
-  def isClosed = false
-  def write(a: Int) = { collected += a; true }
-  def close() = ()
-  override def fail(error: Throwable) = ()
-  override def writeable() = true
+  private var closed = false
+  
+  def isClosed = closed
+  def write(a: Int) = {
+    if (!closed) { collected += a; true }
+    else false
+  }
+  def close() = { closed = true }
+  override def fail(error: Throwable) = close()
+  override def writeable() = !isClosed
 }
 
-// Push elements until writer closes
+// Push elements, checking writeable() before each write
 def pushAll(elements: List[Int]): Unit = {
   elements match {
     case Nil => ()
     case head :: tail =>
-      if (w.write(head)) pushAll(tail)
+      if (w.writeable() && w.write(head)) pushAll(tail)
   }
 }
+
 pushAll(List(10, 20, 30, 40, 50))
 w.close()
 
 println(s"Collected: $collected")
+println(s"Writable after close: ${w.writeable()}")
 ```
 
 ## Motivation / Use Case
