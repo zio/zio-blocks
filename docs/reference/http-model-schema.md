@@ -320,7 +320,7 @@ result match {
 }
 ```
 
-This pattern is useful when you need multiple parameters to be present and valid before proceeding with business logic.
+The for-comprehension short-circuits on the first error, so only the first error is reported if any extraction fails. This pattern is useful when you need multiple parameters to be present and valid before proceeding with business logic.
 
 ## Error Handling
 
