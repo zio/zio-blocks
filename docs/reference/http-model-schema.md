@@ -365,7 +365,7 @@ println(error.message)
 
 ### HeaderError
 
-Error type for header extraction failures (identical structure to `QueryParamError`):
+Error type for header extraction failures. Structurally identical to `QueryParamError`, with `name` replacing `key` and header-specific message prefixes:
 
 ```scala
 sealed trait HeaderError extends Product with Serializable {
@@ -377,16 +377,6 @@ object HeaderError {
   final case class Malformed(name: String, value: String, cause: String) extends HeaderError
 }
 ```
-
-**Variants:**
-
-- **`Missing(name)`** — Header with name `name` was not present
-  - Example: `HeaderError.Missing("authorization")` when accessing a non-existent header
-  - Message: `"Missing header: authorization"`
-
-- **`Malformed(name, value, cause)`** — Header with name `name` was present but decoding failed
-  - Example: `HeaderError.Malformed("x-count", "notanumber", "Cannot parse 'notanumber' as Int")`
-  - Message: `"Malformed header 'x-count' value 'notanumber': Cannot parse 'notanumber' as Int"`
 
 **Handling patterns:**
 
