@@ -52,13 +52,13 @@ This keeps HTTP request handling clean, testable, and portable across different 
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-http-model-schema" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-http-model-schema" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-http-model-schema" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-http-model-schema" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x. Requires `zio-http-model` and `zio-blocks-schema` as dependencies.
@@ -111,121 +111,6 @@ pageResult match {
   case Right(page) => println(s"Page: $page")
   case Left(QueryParamError.Missing(key)) => println(s"Missing $key")
   case Left(QueryParamError.Malformed(key, value, cause)) => println(s"Bad $key: $cause")
-}
-```
-
-## Common Patterns
-
-### Pattern 1: Extract Single Required Query Parameter
-
-When a query parameter is required, use `query[T]` and handle the error:
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/search?q=zio").toOption.get)
-
-request.query[String]("q") match {
-  case Right(q) => println(s"Search for: $q")
-  case Left(error) => println(s"Error: ${error.message}")
-}
-```
-
-### Pattern 2: Extract with Default Fallback
-
-When a query parameter is optional with a sensible default, use `queryOrElse`:
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/api/items?page=2").toOption.get)
-
-// Use page from params, or default to 1
-val page = request.queryOrElse[Int]("page", 1)          // 2
-val limit = request.queryOrElse[Int]("limit", 20)       // 20 (default)
-```
-
-### Pattern 3: Extract Multiple Values for Same Parameter
-
-When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `queryAll[T]`:
-
-```scala
-import zio.http.{URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val url = URL.parse("/search?tag=scala&tag=functional&tag=zio").toOption.get
-val params = url.queryParams
-
-params.queryAll[String]("tag") match {
-  case Right(tags) => println(s"Tags: ${tags.toList}")   // Chunk(scala, functional, zio)
-  case Left(error) => println(s"Error: ${error.message}")
-}
-```
-
-### Pattern 4: Extract Headers from Request
-
-Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/").toOption.get)
-  .addHeader("x-user-id", "42")
-  .addHeader("x-api-version", "2")
-
-val userId = request.header[Int]("x-user-id")
-// Right(42)
-
-val apiVersion = request.headerOrElse[Int]("x-api-version", 1)
-// 2
-```
-
-### Pattern 5: Extract Headers from Response
-
-`Response` provides the same header extraction methods:
-
-```scala
-import zio.http.Response
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val response = Response.ok
-  .addHeader("x-request-id", "req-12345")
-  .addHeader("x-ratelimit-remaining", "99")
-
-val requestId = response.header[String]("x-request-id")
-// Right("req-12345")
-
-val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
-// 99
-```
-
-### Pattern 6: Compose Multiple Extractions
-
-Combine multiple extractions using `Either` operations:
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/api/posts?userId=5&page=2").toOption.get)
-
-val result = for {
-  userId <- request.query[Int]("userId")
-  page <- request.query[Int]("page")
-} yield (userId, page)
-
-result match {
-  case Right((userId, page)) => println(s"User $userId, page $page")
-  case Left(error) => println(s"Extraction failed: ${error.message}")
 }
 ```
 
@@ -481,6 +366,30 @@ val limit = request.queryOrElse[Int]("limit", 20) // 10
 val token = request.header[String]("x-token")      // Right("secret123")
 val userId = request.header[Int]("x-user-id")      // Right(42)
 ```
+
+**Composing Multiple Extractions:**
+
+Combine query and header extractions using `Either` operations:
+
+```scala mdoc:compile-only
+import zio.http.{Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/api/posts?userId=5&page=2").toOption.get)
+
+val result = for {
+  userId <- request.query[Int]("userId")
+  page <- request.query[Int]("page")
+} yield (userId, page)
+
+result match {
+  case Right((userId, page)) => println(s"User $userId, page $page")
+  case Left(error) => println(s"Extraction failed: ${error.message}")
+}
+```
+
+This pattern is powerful for request handlers that need to extract multiple parameters and stop at the first error.
 
 ### ResponseSchemaOps
 
