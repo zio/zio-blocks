@@ -8,7 +8,7 @@ title: "Writer"
 `Writer`:
 - is lazy and push-based — nothing happens until the producer calls `write()`
 - is not thread-safe — designed for single-threaded production
-- is contravariant in `Elem` — `Writer[Number]` can accept a `Writer[Int]`
+- is contravariant in `Elem` — a `Writer[Number]` is also a `Writer[Int]`, so wherever `Writer[Int]` is expected you can supply a `Writer[Number]`
 - returns `false` on write when closed (clean closure) or throws when error-closed
 - is the dual of `Reader` — while Reader pulls, Writer receives pushes
 - supports bounded buffers and resource cleanup via `close()` and `fail()`
@@ -58,15 +58,15 @@ println(s"Collected: $collected")
 
 ## Motivation / Use Case
 
-Imagine you're building an IoT monitoring system where sensor data flows continuously to a central hub. Temperature and humidity sensors push readings at their own pace—you can't ask them to slow down. Your job is to buffer these readings, process them (detect anomalies), and forward them to persistent storage. Because `Writer` is **not thread-safe**, concurrent sensor connections feed into a thread-safe queue, and a single background thread pulls from that queue and writes to a bounded `Writer` instance.
+Imagine you're building a data pipeline where a producer feeds items to a bounded sink. The producer doesn't control the sink's internal state—how much capacity remains, whether it's busy, or if it's permanently closed. You need to know before each write: Is the sink ready? Did the write succeed? Is the sink closed?
 
-The challenge with Java's standard I/O: `OutputStream` returns `void` and throws on error, leaving you uncertain about the state after each write. If the storage backend fails partway through, you catch an exception but can't tell which readings were committed. If your bounded buffer fills (because storage is slow), `write()` blocks the calling thread—there's no way to know beforehand if a write will block or how long. This forces awkward design: either over-allocate buffers (wasting memory), spawn threads per connection (wasting resources), or use queues that decouple the concern but add complexity.
+With Java's `OutputStream`, you call `write()` and either it succeeds (void return) or throws an exception. This leaves ambiguity: Was the exception transient (try again later) or permanent (the stream is done)? If the buffer fills, the thread blocks—but you don't know how long, or even that it will block beforehand. There's no way to check capacity upfront, so you're forced to either over-allocate buffers (wasting memory) or catch exceptions and guess the right strategy.
 
-`Writer` makes the state explicit. Before pushing a reading, you call `writeable()`, which returns `true` if the next `write()` would succeed without blocking. This lets you check capacity upfront. When you call `write(reading)`, it returns `Boolean`: `true` on success; `false` only if the writer has **closed** (not because the buffer is full—bounded implementations block until space is available). After a closure (`write()` returns `false`), no further writes are meaningful; the connection is done.
+`Writer` makes the state explicit and non-throwing. Before pushing an item, you call `writeable()` to check if the sink has capacity for the next write without blocking. Then you call `write(item)`, which returns `Boolean`: `true` on success, `false` only if the writer has **closed**. Note: if the buffer is full but open, bounded implementations block the thread until space is available—they don't return `false`. Only closure causes `write()` to return `false`.
 
-If the storage backend fails, you call `fail(error)`. By default, this closes the writer and subsequent `write()` calls return `false`. If you override `fail()` to store the error, `write()` will throw it on subsequent calls—giving you optional error propagation.
+When the sink encounters an error, you call `fail(error)`. By default, this closes the sink and subsequent `write()` calls return `false`. If you override `fail()` to store the error, `write()` will throw it on subsequent calls—giving you optional error propagation.
 
-The payoff: you get an explicit, non-throwing protocol for closure signaling and capacity checks. The `Boolean` return makes the state machine clear: keep checking `writeable()` and calling `write()` while building the system; when `write()` returns `false`, you know the writer is closed and should stop. No silent failures, no exceptions to parse for "was this a transient error or permanent closure?"
+The payoff: you get an explicit, non-throwing protocol for capacity checks and closure signaling. The `Boolean` return makes the state machine clear: check `writeable()`, call `write()`, and when `write()` returns `false`, you know the sink is permanently closed and should stop. No silent failures, no exceptions to parse for intent.
 
 ## Overview
 
@@ -82,7 +82,7 @@ Producer ──(push via write)──> Writer[-Elem]
 
 Key characteristics:
 
-- **Push-based**: The producer controls the pace by calling `write()`. If the writer is full or closed, `write()` returns `false`.
+- **Push-based**: The producer controls the pace by calling `write()`. If the writer is closed, `write()` returns `false`. Bounded implementations block until space is available rather than returning `false`.
 - **Contravariant**: `Writer[-Elem]` is contravariant in `Elem`, meaning `Writer[Number]` can accept an `Int` write because `Int` is a subtype of `Number`.
 - **State-based closure**: Writers close cleanly (return `false`) or with error (via `fail(error)`, which may cause subsequent writes to throw).
 - **Bounded buffering**: Implementations can enforce per-write blocking or immediate rejection based on buffer availability.
@@ -369,7 +369,7 @@ val w2 = new Writer[Int] {
 val combined = w1 ++ w2
 combined.write(5)
 combined.write(20)  // first writer rejects, switches to second
-println(collected.toList)  // List(5, 200)
+println(collected.toList)  // List(5, 20, 200)
 ```
 
 ### Transformation
