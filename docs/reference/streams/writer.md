@@ -3,14 +3,13 @@ id: writer
 title: "Writer"
 ---
 
-`Writer[-Elem]` is a **push-based sink for elements** that accepts values one at a time until closed or filled. Elements are written on demand by the producer, making it ideal for streaming, buffering, and integration with I/O subsystems. The fundamental operations are `write(elem): Boolean` — pushes an element and returns success or closure — and `close()` — signals the end of writing and releases resources.
+`Writer[-Elem]` is a **push-based sink for elements** that accepts values one at a time until closed or filled. It is the push-based counterpart to `Reader[+Elem]` (which pulls). Elements are written on demand by the producer, making it ideal for streaming, buffering, and integration with I/O subsystems. The fundamental operations are `write(elem): Boolean` — pushes an element and returns success or closure — and `close()` — signals the end of writing and releases resources.
 
-`Writer`:
+`Writer[-Elem]` has these key properties:
+
 - **Lazy and Push-Based** — nothing happens until the producer calls `write()`
 - **Non-Thread-Safe** — designed for single-threaded production; concurrent access requires external synchronization
 - **Explicit Closure Signal** — returns `false` when closed (clean closure) or throws when error-closed
-- **Dual of Reader** — while Reader pulls, Writer receives pushes
-- **Bounded Buffering** — supports bounded buffers with explicit resource cleanup via `close()` and `fail()`
 
 Here is the structural shape of the `Writer` type:
 
@@ -129,25 +128,6 @@ try {
 ```
 
 This gives you optional error propagation: use the default `fail()` for silent closure, or override it to propagate errors as exceptions.
-
-## Overview
-
-`Writer[-Elem]` is the push-based counterpart to `Reader[+Elem]`. While Reader is a pull-based source that the consumer (sink) drains, Writer is a push-based sink that a producer feeds. Most users interact with Writer through channel-based stream operations or I/O adapters, but you can also use it directly for custom push-based integration.
-
-**Architecture**:
-
-```
-Producer ──(push via write)──> Writer[-Elem]
-                                │
-                                └─(closes on full/error)──> Status
-```
-
-Key characteristics:
-
-- **Push-based**: The producer controls the pace by calling `write()`. If the writer is closed, `write()` returns `false`. Bounded implementations block until space is available rather than returning `false`.
-- **Contravariant**: `Writer[-Elem]` is contravariant in `Elem`, meaning `Writer[Number]` can accept an `Int` write because `Int` is a subtype of `Number`.
-- **State-based closure**: Writers close cleanly (return `false`) or with error (via `fail(error)`, which may cause subsequent writes to throw).
-- **Bounded buffering**: Implementations can enforce per-write blocking or immediate rejection based on buffer availability.
 
 ## Construction
 
