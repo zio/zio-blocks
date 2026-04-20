@@ -6,7 +6,8 @@ import zio.http._
  * HTTP Model — Headers and Query Parameters
  *
  * Demonstrates working with headers and query parameters in URLs and requests.
- * Shows how Headers, QueryParams, and URL types work together for data extraction.
+ * Shows how Headers, QueryParams, and URL types work together for data
+ * extraction.
  *
  * Run with: sbt "http-model-examples/runMain httpmodel.HeadersAndQueryParams"
  */
@@ -23,7 +24,8 @@ import zio.http._
   println()
 
   // Create request with headers
-  val request = Request.get(url)
+  val request = Request
+    .get(url)
     .addHeader("user-agent", "MyApp/1.0")
     .addHeader("accept", "application/json")
     .addHeader("authorization", "Bearer secret-token")
@@ -51,9 +53,9 @@ import zio.http._
   println()
 
   // Build URL with query parameters
-  val baseUrl = URL.parse("https://api.github.com/search/repositories").toOption.get
+  val baseUrl     = URL.parse("https://api.github.com/search/repositories").toOption.get
   val queryParams = QueryParams("q" -> "language:scala", "sort" -> "stars")
-  val searchUrl = baseUrl.copy(queryParams = queryParams)
+  val searchUrl   = baseUrl.copy(queryParams = queryParams)
 
   println(s"Built Search URL: $searchUrl")
   println(s"Query parameters: ${searchUrl.queryParams.toList.length}")

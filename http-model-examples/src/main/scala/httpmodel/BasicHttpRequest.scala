@@ -5,8 +5,9 @@ import zio.http._
 /**
  * HTTP Model — Basic HTTP Request/Response
  *
- * Demonstrates creating HTTP requests and responses with URLs, methods, headers, and bodies.
- * Shows how Request and Response types compose with Method, URL, Headers, and Body.
+ * Demonstrates creating HTTP requests and responses with URLs, methods,
+ * headers, and bodies. Shows how Request and Response types compose with
+ * Method, URL, Headers, and Body.
  *
  * Run with: sbt "http-model-examples/runMain httpmodel.BasicHttpRequest"
  */
@@ -26,8 +27,9 @@ import zio.http._
   println()
 
   // Create a POST request with body
-  val postBody = Body.fromString("""{"name": "Alice", "email": "alice@example.com"}""", Charset.UTF8)
-  val postRequest = Request.post(url, postBody)
+  val postBody    = Body.fromString("""{"name": "Alice", "email": "alice@example.com"}""", Charset.UTF8)
+  val postRequest = Request
+    .post(url, postBody)
     .addHeader("content-type", "application/json")
     .addHeader("authorization", "Bearer token123")
 
@@ -41,7 +43,8 @@ import zio.http._
   println(s"OK Response: ${okResponse.status}")
   println()
 
-  val createdResponse = Response.apply(Status.Created)
+  val createdResponse = Response
+    .apply(Status.Created)
     .addHeader("location", "/users/123")
     .addHeader("content-type", "application/json")
   println(s"Created Response: ${createdResponse.status}")

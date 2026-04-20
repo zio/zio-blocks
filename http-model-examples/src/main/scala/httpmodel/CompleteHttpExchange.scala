@@ -5,9 +5,9 @@ import zio.http._
 /**
  * HTTP Model — Complete HTTP Exchange
  *
- * Demonstrates a realistic HTTP exchange: creating a request with headers and body,
- * then receiving a response with status codes and headers.
- * Shows core types working together in a practical scenario.
+ * Demonstrates a realistic HTTP exchange: creating a request with headers and
+ * body, then receiving a response with status codes and headers. Shows core
+ * types working together in a practical scenario.
  *
  * Run with: sbt "http-model-examples/runMain httpmodel.CompleteHttpExchange"
  */
@@ -17,9 +17,9 @@ import zio.http._
 
   // 1. Build the request URL with query parameters
   println("1. Building request URL...")
-  val apiBase = URL.parse("https://api.example.com/users").toOption.get
+  val apiBase     = URL.parse("https://api.example.com/users").toOption.get
   val queryParams = QueryParams("filter" -> "active", "page" -> "1")
-  val requestUrl = apiBase.copy(queryParams = queryParams)
+  val requestUrl  = apiBase.copy(queryParams = queryParams)
   println(s"   URL: $requestUrl\n")
 
   // 2. Create request with headers and body
@@ -29,7 +29,8 @@ import zio.http._
     Charset.UTF8
   )
 
-  val request = Request.post(requestUrl, requestBody)
+  val request = Request
+    .post(requestUrl, requestBody)
     .addHeader("content-type", "application/json")
     .addHeader("authorization", "Bearer token")
 
@@ -44,7 +45,8 @@ import zio.http._
     Charset.UTF8
   )
 
-  val response = Response.apply(Status.Created)
+  val response = Response
+    .apply(Status.Created)
     .copy(body = responseBody)
     .addHeader("content-type", "application/json")
     .addHeader("location", "/users/42")
