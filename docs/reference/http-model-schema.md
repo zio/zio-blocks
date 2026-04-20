@@ -406,7 +406,7 @@ The module supports decoding to any type with a `Schema[T]` instance. Built-in s
 - **`String`** — No decoding, raw string value
 - **`Int`** — Parsed via `String#toInt`, error on invalid format
 - **`Long`** — Parsed via `String#toLong`, error on invalid format
-- **`Boolean`** — Parsed via `String#toBoolean` (accepts only "true" and "false", lowercase; other values like "True" or "TRUE" produce a `Malformed` error)
+- **`Boolean`** — Parsed via `String#toBoolean` (case-insensitive; accepts "true"/"True"/"TRUE" → true and "false"/"False"/"FALSE" → false; any other value produces a Malformed error)
 - **`Double`** — Parsed via `String#toDouble`, error on invalid format
 - **`Float`** — Parsed via `String#toFloat`, error on invalid format
 - **`Short`** — Parsed via `String#toShort`, error on invalid format
