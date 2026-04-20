@@ -70,19 +70,65 @@ Imagine you're building a data pipeline where a producer feeds items to a bounde
 
 With Java's `OutputStream`, you call `write()` and either it succeeds (void return) or throws an exception. This leaves ambiguity: Was the exception transient (try again later) or permanent (the stream is done)? If the buffer fills, the thread blocks—but you don't know how long, or even that it will block beforehand. There's no way to check capacity upfront, so you're forced to either over-allocate buffers (wasting memory) or catch exceptions and guess the right strategy.
 
-`Writer` makes the state explicit and non-throwing. Before pushing an item, you can call `writeable()` to check if the writer is ready to accept a value. Then you call `write(item)`, which returns `Boolean`: `true` on success, `false` only if the writer has **closed**.
+`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is clear and exception-free: when `write()` returns `false`, the sink is permanently closed and you should stop.
 
-:::note
-The default `writeable()` returns `!isClosed` and does not check buffer capacity. Bounded implementations that override `writeable()` may reflect actual capacity, but this is not guaranteed by the interface. 
-:::
+## Writing and Closure
 
-:::
-If the buffer is full but open, bounded implementations block the thread until space is available—they don't return `false`. Only closure causes `write()` to return `false`.
-:::
+The fundamental protocol is: call `write(element)` to push an element. It returns `true` on success, `false` only when the writer is **closed** (not when the buffer is full). Once `write()` returns `false`, the writer is permanently closed—all further writes return `false`. There is no recovery.
 
-When the Writer encounters an error, you call `fail(error)`. By default, this closes the writer and subsequent `write()` calls return `false`. If you override `fail()` to store the error, `write()` will throw it on subsequent calls—giving you optional error propagation.
+```scala mdoc:reset
+import zio.blocks.streams.io.Writer
 
-The payoff: you get an explicit, non-throwing protocol for capacity checks and closure signaling. The `Boolean` return makes the state machine clear: check `writeable()`, call `write()`, and when `write()` returns `false`, you know the sink is permanently closed and should stop. No silent failures, no exceptions to parse for intent.
+val w = Writer.single[Int]
+println(s"First write: ${w.write(42)}")      // true (accepted)
+println(s"Second write: ${w.write(99)}")     // false (writer auto-closed after one element)
+println(s"Third write: ${w.write(77)}")      // false (still closed)
+```
+
+## Capacity and Buffering
+
+The default `writeable()` method returns `!isClosed`—it only tells you if the writer is closed, not whether the buffer has space. Bounded implementations can override `writeable()` to reflect remaining capacity, but this is not guaranteed by the interface. The important distinction:
+
+- **`writeable()` returns `false`**: the writer is closed (permanent state)
+- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed; bounded implementations block the calling thread until space becomes available (they don't return `false`)
+
+Implementations like `ByteBufferWriter` auto-close when the buffer fills, turning the full state into closure. Others may block indefinitely waiting for space.
+
+## Error Handling
+
+When the writer encounters an error, signal it with `fail(error)`. By default, `fail()` closes the writer; all subsequent `write()` calls return `false`.
+
+If you override `fail()` to store the error internally, `write()` will throw it on the next call:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Writer
+
+class ErrorStoringWriter extends Writer[Int] {
+  private var closed = false
+  private var storedError: Option[Throwable] = None
+  
+  def isClosed = closed
+  def write(a: Int): Boolean = {
+    if (storedError.isDefined) throw storedError.get
+    if (closed) false else true
+  }
+  def close() = { closed = true }
+  override def fail(error: Throwable) = {
+    storedError = Some(error)
+    closed = true
+  }
+}
+
+val w = new ErrorStoringWriter()
+w.fail(new Exception("Stream error"))
+try {
+  w.write(42)  // throws the stored error
+} catch {
+  case e: Exception => println(s"Caught: ${e.getMessage}")
+}
+```
+
+This gives you optional error propagation: use the default `fail()` for silent closure, or override it to propagate errors as exceptions.
 
 ## Overview
 
@@ -195,6 +241,64 @@ object Writer {
   def fromWriter(w: java.io.Writer): Writer[Char]
 }
 ```
+
+### Bounded Buffering Example
+
+A bounded Writer wraps a fixed-capacity container and auto-closes when full. On each write, it checks remaining capacity: if space is available, it writes and returns `true`; if full, it auto-closes and returns `false`:
+
+```scala mdoc:reset
+import zio.blocks.streams.io.Writer
+import scala.collection.mutable.Buffer
+
+class BoundedWriter[A](maxCapacity: Int) extends Writer[A] {
+  private val buffer = Buffer[A]()
+  private var closed = false
+  
+  def isClosed: Boolean = closed
+  
+  def write(a: A): Boolean = {
+    if (closed) false
+    else if (buffer.size < maxCapacity) {
+      buffer += a
+      true
+    }
+    else {
+      // Buffer full: auto-close and reject
+      closed = true
+      false
+    }
+  }
+  
+  def close(): Unit = { closed = true }
+  
+  override def fail(error: Throwable): Unit = close()
+  
+  def contents: Buffer[A] = buffer
+}
+
+val bounded = new BoundedWriter[Int](3)
+
+// Write until full
+def pushUntilFull(elements: List[Int]): Unit = {
+  elements.foreach { elem =>
+    val accepted = bounded.write(elem)
+    if (accepted) println(s"Accepted: $elem")
+    else println(s"Rejected: $elem (writer full/closed)")
+  }
+}
+
+pushUntilFull(List(10, 20, 30, 40, 50))
+
+println(s"Buffer: ${bounded.contents}")
+println(s"Writer closed: ${bounded.isClosed}")
+println(s"Writeable: ${bounded.writeable()}")
+```
+
+Key behavior:
+- `write()` returns `true` while space exists
+- When buffer fills, `write()` auto-closes and returns `false`
+- All subsequent `write()` calls return `false` (closure is permanent)
+- `writeable()` reflects closure state
 
 ## Core Operations
 
