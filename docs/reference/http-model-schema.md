@@ -411,7 +411,7 @@ The module supports decoding to any type with a `Schema[T]` instance. Built-in s
 - **`Float`** — Parsed via `String#toFloat`, error on invalid format
 - **`Short`** — Parsed via `String#toShort`, error on invalid format
 - **`Byte`** — Parsed via `String#toByte`, error on invalid format
-- **`Char`** — Parses single character; throws `"Expected single character but got 'value'"` if string length ≠ 1 (differs from standard error pattern)
+- **`Char`** — Parses single character; returns a `Left` with error message `"Expected single character but got 'value'"` if string length ≠ 1 (differs from standard error pattern)
 
 ### Big Numbers
 
@@ -436,7 +436,7 @@ Cannot parse '12.34.56' as BigDecimal
 **Exception:** `Char` parsing uses a different error message format:
 ```
 Expected single character but got 'multichar'
-Expected single character but got 'x' (if empty string)
+Expected single character but got ''
 ```
 
 ### Custom Types
