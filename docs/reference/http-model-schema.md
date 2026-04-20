@@ -252,21 +252,7 @@ headers.headerOrElse[Int]("x-missing", 0)   // 0 (default)
 
 Extension methods for `Request` to extract query parameters and headers using the same schema-based API.
 
-**Methods:**
-
-#### Query parameter methods (delegate to `QueryParamsSchemaOps`)
-
-- **`query[T](key: String)(implicit schema: Schema[T]): Either[QueryParamError, T]`** — Extract single query parameter
-- **`queryAll[T](key: String)(implicit schema: Schema[T]): Either[QueryParamError, Chunk[T]]`** — Extract all values for key
-- **`queryOrElse[T](key: String, default: => T)(implicit schema: Schema[T]): T`** — Extract with fallback
-
-#### Header methods (delegate to `HeadersSchemaOps`)
-
-- **`header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T]`** — Extract single header
-- **`headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`** — Extract all header values
-- **`headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`** — Extract header with fallback
-
-All methods work identically to their corresponding `QueryParamsSchemaOps` and `HeadersSchemaOps` versions but operate directly on the `Request` object.
+Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request` — they work identically but operate on the request object.
 
 Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
 
@@ -286,37 +272,11 @@ val apiVersion = request.headerOrElse[Int]("x-api-version", 1)
 // 2
 ```
 
-**Combined Query Parameters and Headers Example:**
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/api/users?page=1&limit=10").toOption.get)
-  .addHeader("x-token", "secret123")
-  .addHeader("x-user-id", "42")
-
-// Query parameters
-val page = request.query[Int]("page")              // Right(1)
-val limit = request.queryOrElse[Int]("limit", 20) // 10
-
-// Headers
-val token = request.header[String]("x-token")      // Right("secret123")
-val userId = request.header[Int]("x-user-id")      // Right(42)
-```
-
 ### ResponseSchemaOps
 
 Extension methods for `Response` to extract headers using the schema-based API.
 
-**Methods:**
-
-- **`header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T]`** — Extract single header
-- **`headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`** — Extract all header values
-- **`headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`** — Extract header with fallback
-
-Note: `Response` does not have `query*` methods (responses don't have query parameters).
+Exposes all header methods from `HeadersSchemaOps` directly on `Response` — they work identically but operate on the response object. Note: `Response` does not have `query*` methods (responses don't have query parameters).
 
 `Response` provides the same header extraction methods:
 
