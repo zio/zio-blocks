@@ -213,6 +213,25 @@ Extract a single query parameter value and decode it to type `T`.
 
 Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(QueryParamError.Missing(key))` if parameter is missing. Returns `Left(QueryParamError.Malformed(...))` if parameter exists but decoding fails.
 
+**Pattern: Extract Required Query Parameter**
+
+When a query parameter is required, use `query[T]` and handle the error:
+
+```scala
+import zio.http.{Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/search?q=zio").toOption.get)
+
+request.query[String]("q") match {
+  case Right(q) => println(s"Search for: $q")
+  case Left(error) => println(s"Error: ${error.message}")
+}
+```
+
+**Basic Usage Examples:**
+
 ```scala
 import zio.http.QueryParams
 import zio.http.schema._
@@ -231,6 +250,26 @@ params.query[Int]("limit")     // Right(50)
 Extract all values for a query parameter key and decode them to type `T`.
 
 Returns `Right(chunk)` with all decoded values if parameter exists and all values decode successfully. Returns `Left(QueryParamError.Missing(key))` if no values exist for the key. Returns `Left(QueryParamError.Malformed(...))` if any value fails to decode.
+
+**Pattern: Extract Multiple Values for Same Parameter**
+
+When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `queryAll[T]`:
+
+```scala
+import zio.http.{URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val url = URL.parse("/search?tag=scala&tag=functional&tag=zio").toOption.get
+val params = url.queryParams
+
+params.queryAll[String]("tag") match {
+  case Right(tags) => println(s"Tags: ${tags.toList}")   // Chunk(scala, functional, zio)
+  case Left(error) => println(s"Error: ${error.message}")
+}
+```
+
+**Basic Usage Examples:**
 
 ```scala
 import zio.http.QueryParams
@@ -252,6 +291,24 @@ params2.queryAll[Int]("id")     // Left(Malformed("id", "abc", "Cannot parse..."
 Extract a query parameter with a default fallback.
 
 Returns the decoded value if parameter exists and decodes successfully. Returns `default` if parameter is missing or decoding fails (errors are silently ignored).
+
+**Pattern: Extract with Default Fallback**
+
+When a query parameter is optional with a sensible default, use `queryOrElse`:
+
+```scala
+import zio.http.{Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/api/items?page=2").toOption.get)
+
+// Use page from params, or default to 1
+val page = request.queryOrElse[Int]("page", 1)          // 2
+val limit = request.queryOrElse[Int]("limit", 20)       // 20 (default)
+```
+
+**Basic Usage Examples:**
 
 ```scala
 import zio.http.QueryParams
@@ -347,7 +404,29 @@ Extension methods for `Request` to extract query parameters and headers using th
 - **`headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`** — Extract all header values
 - **`headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`** — Extract header with fallback
 
-All methods work identically to their corresponding `QueryParamsSchemaOps` and `HeadersSchemaOps` versions but operate directly on the `Request` object:
+All methods work identically to their corresponding `QueryParamsSchemaOps` and `HeadersSchemaOps` versions but operate directly on the `Request` object.
+
+**Pattern: Extract Headers from Request**
+
+Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
+
+```scala
+import zio.http.{Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/").toOption.get)
+  .addHeader("x-user-id", "42")
+  .addHeader("x-api-version", "2")
+
+val userId = request.header[Int]("x-user-id")
+// Right(42)
+
+val apiVersion = request.headerOrElse[Int]("x-api-version", 1)
+// 2
+```
+
+**Combined Query Parameters and Headers Example:**
 
 ```scala
 import zio.http.{Request, URL}
@@ -367,11 +446,45 @@ val token = request.header[String]("x-token")      // Right("secret123")
 val userId = request.header[Int]("x-user-id")      // Right(42)
 ```
 
-**Composing Multiple Extractions:**
+### ResponseSchemaOps
 
-Combine query and header extractions using `Either` operations:
+Extension methods for `Response` to extract headers using the schema-based API.
 
-```scala mdoc:compile-only
+**Methods:**
+
+- **`header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T]`** — Extract single header
+- **`headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`** — Extract all header values
+- **`headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`** — Extract header with fallback
+
+Note: `Response` does not have `query*` methods (responses don't have query parameters).
+
+**Pattern: Extract Headers from Response**
+
+`Response` provides the same header extraction methods:
+
+```scala
+import zio.http.Response
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val response = Response.ok
+  .addHeader("x-request-id", "req-12345")
+  .addHeader("x-ratelimit-remaining", "99")
+
+val requestId = response.header[String]("x-request-id")
+// Right("req-12345")
+
+val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
+// 99
+```
+
+### Composing Multiple Extractions
+
+**Pattern: Combine Multiple Extractions**
+
+Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
+
+```scala
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -389,32 +502,7 @@ result match {
 }
 ```
 
-This pattern is powerful for request handlers that need to extract multiple parameters and stop at the first error.
-
-### ResponseSchemaOps
-
-Extension methods for `Response` to extract headers using the schema-based API.
-
-**Methods:**
-
-- **`header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T]`** — Extract single header
-- **`headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`** — Extract all header values
-- **`headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`** — Extract header with fallback
-
-Note: `Response` does not have `query*` methods (responses don't have query parameters).
-
-```scala
-import zio.http.Response
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val response = Response.ok
-  .addHeader("x-request-id", "req-12345")
-  .addHeader("x-ratelimit-remaining", "99")
-
-val requestId = response.header[String]("x-request-id")      // Right("req-12345")
-val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100) // 99
-```
+This pattern is useful when you need multiple parameters to be present and valid before proceeding with business logic.
 
 ## Supported Types
 
