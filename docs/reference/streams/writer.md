@@ -64,7 +64,7 @@ println(s"Collected: $collected")
 println(s"Writable after close: ${w.writeable()}")
 ```
 
-## Motivation / Use Case
+## Motivation
 
 Imagine you're building a data pipeline where a producer feeds items to a bounded sink. The producer doesn't control the sink's internal state—how much capacity remains, whether it's busy, or if it's permanently closed. You need to know before each write: Is the sink ready? Did the write succeed? Is the sink closed?
 
