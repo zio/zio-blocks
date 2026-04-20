@@ -114,91 +114,6 @@ pageResult match {
 }
 ```
 
-## Error Handling
-
-The module provides two error types for explicit error handling: `QueryParamError` and `HeaderError`.
-
-### QueryParamError
-
-Error type for query parameter extraction failures:
-
-```scala
-sealed trait QueryParamError extends Product with Serializable {
-  def message: String
-}
-
-object QueryParamError {
-  final case class Missing(key: String) extends QueryParamError
-  final case class Malformed(key: String, value: String, cause: String) extends QueryParamError
-}
-```
-
-**Variants:**
-
-- **`Missing(key)`** — Query parameter with name `key` was not present in the parameters
-  - Example: `QueryParamError.Missing("page")` when accessing a non-existent parameter
-  - Message: `"Missing query parameter: page"`
-
-- **`Malformed(key, value, cause)`** — Query parameter with name `key` was present but decoding the `value` to the requested type failed
-  - Example: `QueryParamError.Malformed("age", "abc", "Cannot parse 'abc' as Int")` when `age=abc` but `Int` was requested
-  - Message: `"Malformed query parameter 'age' value 'abc': Cannot parse 'abc' as Int"`
-
-**Accessing error messages:**
-
-All `QueryParamError` subtypes have a `message` property for user-friendly error reporting:
-
-```scala
-import zio.http.schema._
-
-val error: QueryParamError = QueryParamError.Malformed("page", "invalid", "Cannot parse 'invalid' as Int")
-println(error.message)
-// Malformed query parameter 'page' value 'invalid': Cannot parse 'invalid' as Int
-```
-
-### HeaderError
-
-Error type for header extraction failures (identical structure to `QueryParamError`):
-
-```scala
-sealed trait HeaderError extends Product with Serializable {
-  def message: String
-}
-
-object HeaderError {
-  final case class Missing(name: String) extends HeaderError
-  final case class Malformed(name: String, value: String, cause: String) extends HeaderError
-}
-```
-
-**Variants:**
-
-- **`Missing(name)`** — Header with name `name` was not present
-  - Example: `HeaderError.Missing("authorization")` when accessing a non-existent header
-  - Message: `"Missing header: authorization"`
-
-- **`Malformed(name, value, cause)`** — Header with name `name` was present but decoding failed
-  - Example: `HeaderError.Malformed("x-count", "notanumber", "Cannot parse 'notanumber' as Int")`
-  - Message: `"Malformed header 'x-count' value 'notanumber': Cannot parse 'notanumber' as Int"`
-
-**Handling patterns:**
-
-Pattern-match on error type to distinguish "missing" from "malformed":
-
-```scala
-import zio.http.{Request, URL}
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val request = Request.get(URL.parse("/").toOption.get)
-  .addHeader("x-token", "invalid-token")
-
-request.header[Int]("x-token") match {
-  case Right(token) => println(s"Token: $token")
-  case Left(HeaderError.Missing(name)) => println(s"Missing required header: $name")
-  case Left(HeaderError.Malformed(name, value, cause)) => println(s"Bad header: $cause")
-}
-```
-
 ## Extension Classes
 
 ### QueryParamsSchemaOps
@@ -213,8 +128,6 @@ Extract a single query parameter value and decode it to type `T`.
 
 Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(QueryParamError.Missing(key))` if parameter is missing. Returns `Left(QueryParamError.Malformed(...))` if parameter exists but decoding fails.
 
-**Pattern: Extract Required Query Parameter**
-
 When a query parameter is required, use `query[T]` and handle the error:
 
 ```scala
@@ -228,21 +141,6 @@ request.query[String]("q") match {
   case Right(q) => println(s"Search for: $q")
   case Left(error) => println(s"Error: ${error.message}")
 }
-```
-
-**Basic Usage Examples:**
-
-```scala
-import zio.http.QueryParams
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val params = QueryParams("page" -> "2", "limit" -> "50")
-
-params.query[Int]("page")      // Right(2)
-params.query[String]("page")   // Right("2")
-params.query[Int]("missing")   // Left(QueryParamError.Missing("missing"))
-params.query[Int]("limit")     // Right(50)
 ```
 
 #### `queryAll[T](key: String)(implicit schema: Schema[T]): Either[QueryParamError, Chunk[T]]`
@@ -269,21 +167,6 @@ params.queryAll[String]("tag") match {
 }
 ```
 
-**Basic Usage Examples:**
-
-```scala
-import zio.http.QueryParams
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val params = QueryParams("tag" -> "scala", "tag" -> "fp", "tag" -> "zio")
-
-params.queryAll[String]("tag")  // Right(Chunk("scala", "fp", "zio"))
-
-val params2 = QueryParams("id" -> "1", "id" -> "2", "id" -> "abc")
-params2.queryAll[Int]("id")     // Left(Malformed("id", "abc", "Cannot parse..."))
-```
-
 **Short-circuit behavior:** Decoding stops at the first malformed value; only the first error is reported.
 
 #### `queryOrElse[T](key: String, default: => T)(implicit schema: Schema[T]): T`
@@ -306,22 +189,6 @@ val request = Request.get(URL.parse("/api/items?page=2").toOption.get)
 // Use page from params, or default to 1
 val page = request.queryOrElse[Int]("page", 1)          // 2
 val limit = request.queryOrElse[Int]("limit", 20)       // 20 (default)
-```
-
-**Basic Usage Examples:**
-
-```scala
-import zio.http.QueryParams
-import zio.http.schema._
-import zio.blocks.schema.Schema
-
-val params = QueryParams("page" -> "2")
-
-params.queryOrElse[Int]("page", 1)     // 2 (from param)
-params.queryOrElse[Int]("limit", 10)   // 10 (default, param missing)
-
-val params2 = QueryParams("page" -> "invalid")
-params2.queryOrElse[Int]("page", 1)    // 1 (default, decoding failed)
 ```
 
 ### HeadersSchemaOps
@@ -406,8 +273,6 @@ Extension methods for `Request` to extract query parameters and headers using th
 
 All methods work identically to their corresponding `QueryParamsSchemaOps` and `HeadersSchemaOps` versions but operate directly on the `Request` object.
 
-**Pattern: Extract Headers from Request**
-
 Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
 
 ```scala
@@ -458,8 +323,6 @@ Extension methods for `Response` to extract headers using the schema-based API.
 
 Note: `Response` does not have `query*` methods (responses don't have query parameters).
 
-**Pattern: Extract Headers from Response**
-
 `Response` provides the same header extraction methods:
 
 ```scala
@@ -479,8 +342,6 @@ val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
 ```
 
 ### Composing Multiple Extractions
-
-**Pattern: Combine Multiple Extractions**
 
 Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
 
@@ -503,6 +364,91 @@ result match {
 ```
 
 This pattern is useful when you need multiple parameters to be present and valid before proceeding with business logic.
+
+## Error Handling
+
+The module provides two error types for explicit error handling: `QueryParamError` and `HeaderError`.
+
+### QueryParamError
+
+Error type for query parameter extraction failures:
+
+```scala
+sealed trait QueryParamError extends Product with Serializable {
+  def message: String
+}
+
+object QueryParamError {
+  final case class Missing(key: String) extends QueryParamError
+  final case class Malformed(key: String, value: String, cause: String) extends QueryParamError
+}
+```
+
+**Variants:**
+
+- **`Missing(key)`** — Query parameter with name `key` was not present in the parameters
+  - Example: `QueryParamError.Missing("page")` when accessing a non-existent parameter
+  - Message: `"Missing query parameter: page"`
+
+- **`Malformed(key, value, cause)`** — Query parameter with name `key` was present but decoding the `value` to the requested type failed
+  - Example: `QueryParamError.Malformed("age", "abc", "Cannot parse 'abc' as Int")` when `age=abc` but `Int` was requested
+  - Message: `"Malformed query parameter 'age' value 'abc': Cannot parse 'abc' as Int"`
+
+**Accessing error messages:**
+
+All `QueryParamError` subtypes have a `message` property for user-friendly error reporting:
+
+```scala
+import zio.http.schema._
+
+val error: QueryParamError = QueryParamError.Malformed("page", "invalid", "Cannot parse 'invalid' as Int")
+println(error.message)
+// Malformed query parameter 'page' value 'invalid': Cannot parse 'invalid' as Int
+```
+
+### HeaderError
+
+Error type for header extraction failures (identical structure to `QueryParamError`):
+
+```scala
+sealed trait HeaderError extends Product with Serializable {
+  def message: String
+}
+
+object HeaderError {
+  final case class Missing(name: String) extends HeaderError
+  final case class Malformed(name: String, value: String, cause: String) extends HeaderError
+}
+```
+
+**Variants:**
+
+- **`Missing(name)`** — Header with name `name` was not present
+  - Example: `HeaderError.Missing("authorization")` when accessing a non-existent header
+  - Message: `"Missing header: authorization"`
+
+- **`Malformed(name, value, cause)`** — Header with name `name` was present but decoding failed
+  - Example: `HeaderError.Malformed("x-count", "notanumber", "Cannot parse 'notanumber' as Int")`
+  - Message: `"Malformed header 'x-count' value 'notanumber': Cannot parse 'notanumber' as Int"`
+
+**Handling patterns:**
+
+Pattern-match on error type to distinguish "missing" from "malformed":
+
+```scala
+import zio.http.{Request, URL}
+import zio.http.schema._
+import zio.blocks.schema.Schema
+
+val request = Request.get(URL.parse("/").toOption.get)
+  .addHeader("x-token", "invalid-token")
+
+request.header[Int]("x-token") match {
+  case Right(token) => println(s"Token: $token")
+  case Left(HeaderError.Missing(name)) => println(s"Missing required header: $name")
+  case Left(HeaderError.Malformed(name, value, cause)) => println(s"Bad header: $cause")
+}
+```
 
 ## Supported Types
 
