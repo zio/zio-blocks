@@ -176,7 +176,11 @@ println(w.isClosed)         // true
 
 ### Limited Capacity
 
-`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then becomes closed. The dual of `Stream.take`. If `inner` closes before `n` elements are accepted, the limited writer also closes immediately without consuming the remaining capacity. Note: the inner writer is not automatically closed—only the limited wrapper's `isClosed` returns `true` when the limit is reached. The inner writer stays open until someone explicitly calls `close()`.
+`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then becomes closed. The dual of `Stream.take`. If `inner` closes before `n` elements are accepted, the limited writer also closes immediately without consuming the remaining capacity. 
+
+:::note
+The inner writer is not automatically closed—only the limited wrapper's `isClosed` returns `true` when the limit is reached. The inner writer stays open until someone explicitly calls `close()`.
+:::
 
 ```scala
 object Writer {
@@ -432,16 +436,6 @@ val w = Writer.single[Int]
 println(w.writeable())      // true
 w.write(42)
 println(w.writeable())      // false (closed after accepting one)
-```
-
-### Implementation Notes
-
-`Writer#jvmType` — Returns the primitive type of elements in this writer for specialization purposes. Returns `JvmType.AnyRef` for reference types, and more specific JVM types for primitives. This is used internally to optimize primitive writes by selecting specialized methods rather than boxing values:
-
-```scala
-abstract class Writer[-Elem] {
-  def jvmType: JvmType = JvmType.AnyRef
-}
 ```
 
 ## Composition
