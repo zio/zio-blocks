@@ -134,7 +134,7 @@ println(w.isClosed)         // true
 
 ### Limited Capacity
 
-`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then auto-closes. The dual of `Stream.take`:
+`Writer.limited` — Creates a writer that accepts at most `n` elements from `inner`, then auto-closes. The dual of `Stream.take`. If `inner` closes before `n` elements are accepted, the limited writer also closes immediately without consuming the remaining capacity.
 
 ```scala
 object Writer {
@@ -315,7 +315,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy:
+`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy. Note: the analogous method on `Reader` is named `readable()`, not `writable()`.
 
 ```scala
 abstract class Writer[-Elem] {
@@ -332,6 +332,16 @@ val w = Writer.single[Int]
 println(w.writeable())      // true
 w.write(42)
 println(w.writeable())      // false (closed after accepting one)
+```
+
+### Implementation Notes
+
+`Writer#jvmType` — Returns the primitive type of elements in this writer for specialization purposes. Returns `JvmType.AnyRef` for reference types, and more specific JVM types for primitives. This is used internally to optimize primitive writes by selecting specialized methods rather than boxing values:
+
+```scala
+abstract class Writer[-Elem] {
+  def jvmType: JvmType = JvmType.AnyRef
+}
 ```
 
 ## Composition
