@@ -19,9 +19,11 @@ Here is the structural shape of the `Writer` type:
 abstract class Writer[-Elem] {
   def write(a: Elem): Boolean
   def close(): Unit
-  def fail(error: Throwable): Unit
   def isClosed: Boolean
-  def writeable(): Boolean
+  
+  // concrete defaults for fail() and writeable()
+  def fail(error: Throwable): Unit = close()
+  def writeable(): Boolean = !isClosed
 }
 ```
 
