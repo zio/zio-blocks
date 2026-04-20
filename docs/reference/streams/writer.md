@@ -469,7 +469,10 @@ import scala.collection.mutable
 val collected = mutable.ArrayBuffer[Int]()
 val w1 = new Writer[Int] {
   def isClosed = false
-  def write(a: Int) = { collected += a; a < 10 }
+  def write(a: Int) = {
+    if (a < 10) { collected += a; true; }
+    else false
+  }
   def close() = ()
 }
 
@@ -482,7 +485,7 @@ val w2 = new Writer[Int] {
 val combined = w1 ++ w2
 combined.write(5)
 combined.write(20)  // first writer rejects, switches to second
-println(collected.toList)  // List(5, 20, 200)
+println(collected.toList)  // List(5, 200)
 ```
 
 ### Transformation
