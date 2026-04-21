@@ -51,13 +51,13 @@ This keeps HTTP request handling clean, testable, and portable across different 
 
 Add the following to your `build.sbt`:
 
-```scala
+```scala mdoc:passthrough
 libraryDependencies += "dev.zio" %% "zio-http-model-schema" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
-```scala
+```scala mdoc:passthrough
 libraryDependencies += "dev.zio" %%% "zio-http-model-schema" % "@VERSION@"
 ```
 
@@ -90,7 +90,7 @@ Typical Workflow:
 
 ## Quick Showcase
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -120,8 +120,6 @@ pageResult match {
 
 Extension methods for `QueryParams` to extract and decode query parameters with type safety.
 
-**Methods:**
-
 ### `QueryParams#query[T]`
 
 Extract a single query parameter value and decode it to type `T`.
@@ -132,7 +130,7 @@ Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(
 
 When a query parameter is required, use `query[T]` and handle the error:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -157,7 +155,7 @@ Returns `Right(chunk)` with all decoded values if parameter exists and all value
 
 When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `queryAll[T]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -185,7 +183,7 @@ Returns the decoded value if parameter exists and decodes successfully. Returns 
 
 When a query parameter is optional with a sensible default, use `queryOrElse`:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -211,7 +209,7 @@ Extract a single header value and decode it to type `T`.
 
 Header name matching is **case-insensitive** (HTTP spec). Returns `Right(value)` on success, `Left(HeaderError.Missing(name))` if header not found, or `Left(HeaderError.Malformed(...))` if decoding fails.
 
-```scala
+```scala mdoc:compile-only
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -232,7 +230,7 @@ Extract all values for a header name and decode them to type `T`.
 
 HTTP allows multiple headers with the same name; this method collects and decodes all of them. Returns `Right(chunk)` with all decoded values, `Left(HeaderError.Missing(name))` if no headers exist for the name, or `Left(HeaderError.Malformed(...))` if any value fails to decode.
 
-```scala
+```scala mdoc:compile-only
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -249,7 +247,7 @@ Extract a header with a default fallback (errors are silently ignored).
 
 **Signature:** `headerOrElse[T](name: String, default: => T): T`
 
-```scala
+```scala mdoc:compile-only
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -268,7 +266,7 @@ Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly 
 
 Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -292,7 +290,7 @@ Exposes all header methods from `HeadersSchemaOps` directly on `Response` — th
 
 `Response` provides the same header extraction methods:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.Response
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -312,7 +310,7 @@ val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
 
 Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -340,7 +338,7 @@ The module provides two error types for explicit error handling: `QueryParamErro
 
 Error type for query parameter extraction failures:
 
-```scala
+```scala mdoc:compile-only
 sealed trait QueryParamError extends Product with Serializable {
   def message: String
 }
@@ -365,7 +363,7 @@ object QueryParamError {
 
 All `QueryParamError` subtypes have a `message` property for user-friendly error reporting:
 
-```scala
+```scala mdoc:compile-only
 import zio.http.schema._
 
 val error: QueryParamError = QueryParamError.Malformed("page", "invalid", "Cannot parse 'invalid' as Int")
@@ -377,7 +375,7 @@ println(error.message)
 
 Error type for header extraction failures. Structurally identical to `QueryParamError`, with `name` replacing `key` and header-specific message prefixes:
 
-```scala
+```scala mdoc:compile-only
 sealed trait HeaderError extends Product with Serializable {
   def message: String
 }
@@ -392,7 +390,7 @@ object HeaderError {
 
 Pattern-match on error type to distinguish "missing" from "malformed":
 
-```scala
+```scala mdoc:compile-only
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
