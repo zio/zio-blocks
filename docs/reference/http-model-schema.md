@@ -92,7 +92,7 @@ Typical Workflow:
 
 Setting up a request with query parameters:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -103,7 +103,7 @@ val request = Request.get(url)
 
 Extract query parameters with type safety:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 val pageResult = request.query[Int]("page")
 val limitResult = request.query[Int]("limit")
 val sortResult = request.query[String]("sort")
@@ -141,7 +141,7 @@ Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(
 
 When a query parameter is required, use `query[T]` and handle the error:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -171,7 +171,7 @@ Returns `Right(chunk)` with all decoded values if parameter exists and all value
 
 When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `queryAll[T]`:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -203,7 +203,7 @@ Returns the decoded value if parameter exists and decodes successfully. Returns 
 
 When a query parameter is optional with a sensible default, use `queryOrElse`:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -234,7 +234,7 @@ Header name matching is **case-insensitive** (HTTP spec). Returns `Right(value)`
 
 Here's how to use `header[T]`:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -270,7 +270,7 @@ HTTP allows multiple headers with the same name; this method collects and decode
 
 Here's how to extract multiple headers:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -298,7 +298,7 @@ Extract a header with a default fallback (errors are silently ignored).
 
 Use `headerOrElse[T]` when a header is optional with a sensible default:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -326,7 +326,7 @@ Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly 
 
 Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -352,7 +352,7 @@ Exposes all header methods from `HeadersSchemaOps` directly on `Response` — th
 
 `Response` provides the same header extraction methods:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.Response
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -378,7 +378,7 @@ response.headers.headerOrElse[Int]("x-ratelimit-remaining", 100)
 
 Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -388,7 +388,7 @@ val request = Request.get(URL.parse("/api/posts?userId=5&page=2").toOption.get)
 
 Combine multiple extractions with a for-comprehension:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 val result = for {
   userId <- request.query[Int]("userId")
   page <- request.query[Int]("page")
@@ -439,7 +439,7 @@ object QueryParamError {
 
 All `QueryParamError` subtypes have a `message` property for user-friendly error reporting:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.schema._
 
 val error: QueryParamError = QueryParamError.Malformed("page", "invalid", "Cannot parse 'invalid' as Int")
@@ -470,7 +470,7 @@ object HeaderError {
 
 Pattern-match on error type to distinguish "missing" from "malformed":
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
