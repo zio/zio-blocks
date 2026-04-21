@@ -37,7 +37,7 @@ object ReaderPrimitiveSpecializationExample extends App {
 
   println("\n=== singleFloat (zero-boxed) ===")
   val floatReader = Reader.singleFloat(3.14f)
-  println(s"Read: ${floatReader.read(Double.MaxValue)}")
+  println(s"Read: ${floatReader.readFloat(Float.MaxValue)}")
 
   println("\n=== singleDouble (zero-boxed) ===")
   val doubleReader = Reader.singleDouble(2.718)

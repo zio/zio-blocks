@@ -40,9 +40,12 @@ object WriterBasicConstructionExample extends App {
 
   println("\n=== Writer.limited ===")
   val limitedWriter = Writer.limited(Writer.single[String], 2)
-  println(s"Write 'a': ${limitedWriter.write("a")}")
-  println(s"Write 'b': ${limitedWriter.write("b")}")
-  println(s"Write 'c': ${limitedWriter.write("c")}")
+  val a             = "a"
+  val b             = "b"
+  val c             = "c"
+  println(s"Write 'a': ${limitedWriter.write(a)}")
+  println(s"Write 'b': ${limitedWriter.write(b)}")
+  println(s"Write 'c': ${limitedWriter.write(c)}")
   println(s"isClosed: ${limitedWriter.isClosed}")
 
   println("\n=== writeAll: bulk write ===")

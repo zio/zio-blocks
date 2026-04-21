@@ -17,7 +17,7 @@
 package writer
 
 import zio.blocks.streams.io.Writer
-import java.io.{ByteArrayOutputStream, StringWriter, OutputStreamWriter => JOutputStreamWriter}
+import java.io.{ByteArrayOutputStream, StringWriter}
 
 /**
  * Demonstrates I/O integration with Writer via fromOutputStream and fromWriter.
@@ -30,9 +30,9 @@ object WriterIOAdapterExample extends App {
   val byteStream = new ByteArrayOutputStream()
   val byteWriter = Writer.fromOutputStream(byteStream)
 
-  byteWriter.write(72)  // 'H'
-  byteWriter.write(105) // 'i'
-  byteWriter.write(33)  // '!'
+  byteWriter.write(72.toByte)  // 'H'
+  byteWriter.write(105.toByte) // 'i'
+  byteWriter.write(33.toByte)  // '!'
   byteWriter.close()
 
   println(s"Output: ${byteStream.toString("UTF-8")}")
@@ -67,7 +67,7 @@ object WriterIOAdapterExample extends App {
 
   val greeting = "Hi!"
   for (c <- greeting) {
-    val result = charWriter2.writeChar(c)(using Char.box(c) match { case _: Char => summon[Char <:< Char] })
+    val result = charWriter2.writeChar(c)
     println(s"Write '$c': $result")
   }
   charWriter2.close()
@@ -76,7 +76,6 @@ object WriterIOAdapterExample extends App {
 
   println("\n=== Specialized numeric writes ===")
   val charStream3 = new StringWriter()
-  val jWriter     = new JOutputStreamWriter(System.out)
   val charWriter3 = Writer.fromWriter(charStream3)
 
   // Note: These specialized methods require the writer to be typed to accept them
