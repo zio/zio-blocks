@@ -772,6 +772,70 @@ object DomSpec extends ZIOSpecDefault {
         }
         assertTrue(transformed == Dom.Text("replaced"))
       }
+    ),
+    suite("security")(
+      test("script child escapes closing script tag in render") {
+        val s = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("</script><script>alert(1)</script>")))
+        assertTrue(s.render == """<script><\/script><script>alert(1)<\/script></script>""")
+      },
+      test("style child escapes closing style tag in render") {
+        val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("</style><style>body{}")))
+        assertTrue(s.render == """<style><\/style><style>body{}</style>""")
+      },
+      test("script child escapes closing tag in indented render") {
+        val s = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("</script>")))
+        assertTrue(s.render(indent = 2) == """<script><\/script></script>""")
+      },
+      test("script child escapes closing tag in indented multi-child render") {
+        val s = Dom.Element.Script(
+          Chunk.empty,
+          Chunk(Dom.Text("var x = 1;"), Dom.Text("</script>"))
+        )
+        assertTrue(s.render(indent = 2) == "<script>\n  var x = 1;\n  <\\/script>\n</script>")
+      },
+      test("javascript: URI is blocked in href") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:javascript:alert(1)">click</a>""")
+      },
+      test("vbscript: URI is blocked in href") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("vbscript:MsgBox"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:vbscript:MsgBox">click</a>""")
+      },
+      test("data:text/html URI is blocked in src") {
+        val attr =
+          Dom.Attribute.KeyValue("src", Dom.AttributeValue.StringValue("data:text/html,<script>alert(1)</script>"))
+        val el = Dom.Element.Generic("iframe", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<iframe src="unsafe:data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>"""
+        )
+      },
+      test("javascript: URI with mixed case is blocked") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("JavaScript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:JavaScript:alert(1)">click</a>""")
+      },
+      test("javascript: URI with leading whitespace is blocked") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("  javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:  javascript:alert(1)">click</a>""")
+      },
+      test("safe href is not blocked") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("https://example.com"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="https://example.com">click</a>""")
+      },
+      test("action attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("action", Dom.AttributeValue.StringValue("javascript:void(0)"))
+        val el   = Dom.Element.Generic("form", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<form action="unsafe:javascript:void(0)"></form>""")
+      },
+      test("non-URL attribute does not sanitize") {
+        val attr = Dom.Attribute.KeyValue("title", Dom.AttributeValue.StringValue("javascript:not-a-url"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<div title="javascript:not-a-url"></div>""")
+      }
     )
   )
 }

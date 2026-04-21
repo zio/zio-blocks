@@ -103,6 +103,32 @@ object EscapeSpec extends ZIOSpecDefault {
         val result = Escape.cssString("""\"'<>&""")
         assertTrue(result == """\\\"\'\3c \3e \26 """)
       }
+    ),
+    suite("sanitizeUrl")(
+      test("blocks javascript: scheme") {
+        assertTrue(Escape.sanitizeUrl("javascript:alert(1)") == "unsafe:javascript:alert(1)")
+      },
+      test("blocks JavaScript: with mixed case") {
+        assertTrue(Escape.sanitizeUrl("JavaScript:alert(1)") == "unsafe:JavaScript:alert(1)")
+      },
+      test("blocks vbscript: scheme") {
+        assertTrue(Escape.sanitizeUrl("vbscript:MsgBox") == "unsafe:vbscript:MsgBox")
+      },
+      test("blocks data:text/html scheme") {
+        assertTrue(Escape.sanitizeUrl("data:text/html,<h1>hi</h1>") == "unsafe:data:text/html,<h1>hi</h1>")
+      },
+      test("blocks javascript: with leading whitespace") {
+        assertTrue(Escape.sanitizeUrl("  javascript:alert(1)") == "unsafe:  javascript:alert(1)")
+      },
+      test("allows https: scheme") {
+        assertTrue(Escape.sanitizeUrl("https://example.com") == "https://example.com")
+      },
+      test("allows relative URLs") {
+        assertTrue(Escape.sanitizeUrl("/path/to/page") == "/path/to/page")
+      },
+      test("allows data:image URLs") {
+        assertTrue(Escape.sanitizeUrl("data:image/png;base64,abc") == "data:image/png;base64,abc")
+      }
     )
   )
 }

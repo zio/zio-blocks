@@ -110,11 +110,14 @@ object ToJs extends LowPriorityToJs {
 
 trait LowPriorityToJs {
   implicit def fromSchema[A](implicit schema: zio.blocks.schema.Schema[A]): ToJs[A] = new ToJs[A] {
-    private[this] var _codec: zio.blocks.schema.json.JsonCodec[A] = _
+    private[this] var _codec: zio.blocks.schema.json.JsonCodec[A] = null
     private[this] def codec: zio.blocks.schema.json.JsonCodec[A]  = {
       if (_codec == null) _codec = schema.derive(zio.blocks.schema.json.JsonFormat)
       _codec
     }
-    def toJs(a: A): String = codec.encodeToString(a)
+    def toJs(a: A): String = {
+      val json = codec.encodeToString(a)
+      json.replace("<", "\\u003c").replace(">", "\\u003e")
+    }
   }
 }

@@ -468,6 +468,34 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val el     = result.head.asInstanceOf[Dom.Element]
         assertTrue(el.attributes.length == 2)
       }
+    ),
+    suite("security")(
+      test("HTML comment with > inside is parsed correctly") {
+        val result = InterpolatorRuntime.parseHtml("<!-- a > b --><div>x</div>")
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("x")))))
+      },
+      test("HTML comment with multiple > is parsed correctly") {
+        val result = InterpolatorRuntime.parseHtml("<!-- a > b > c --><p>ok</p>")
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
+      },
+      test("HTML comment without closing --> treats rest as comment") {
+        val result = InterpolatorRuntime.parseHtml("<!-- unclosed comment")
+        assertTrue(result == Chunk(Dom.Text("<!-- unclosed comment")))
+      },
+      test("DOCTYPE with > is not treated as comment") {
+        val result = InterpolatorRuntime.parseHtml("<!DOCTYPE html><p>ok</p>")
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
+      },
+      test("interpolated attr value is auto-quoted when unquoted") {
+        val userInput = "foo bar"
+        val result    = html"""<div class=${userInput}>text</div>"""
+        assertTrue(result.render == """<div class="foo bar">text</div>""")
+      },
+      test("interpolated attr value with existing quotes is not double-quoted") {
+        val userInput = "hello"
+        val result    = html"""<div class="${userInput}">text</div>"""
+        assertTrue(result.render == """<div class="hello">text</div>""")
+      }
     )
   )
 }

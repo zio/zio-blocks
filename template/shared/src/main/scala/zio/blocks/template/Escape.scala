@@ -83,6 +83,19 @@ private[template] object Escape {
     sb.toString
   }
 
+  private val dangerousUrlSchemes: Array[String] =
+    Array("javascript:", "vbscript:", "data:text/html")
+
+  def sanitizeUrl(url: String): String = {
+    val trimmed = url.trim.toLowerCase
+    var i       = 0
+    while (i < dangerousUrlSchemes.length) {
+      if (trimmed.startsWith(dangerousUrlSchemes(i))) return "unsafe:" + url
+      i += 1
+    }
+    url
+  }
+
   def cssString(s: String): String = {
     val len = s.length
     if (len == 0) return s

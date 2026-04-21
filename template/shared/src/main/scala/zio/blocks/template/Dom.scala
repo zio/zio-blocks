@@ -213,7 +213,7 @@ object Dom {
         var i      = 0
         while (i < children.length) {
           children(i) match {
-            case Text(content) if !escape => sb.append(content)
+            case Text(content) if !escape => sb.append(content.replace("</", "<\\/"))
             case child                    => child.renderTo(sb)
           }
           i += 1
@@ -241,7 +241,7 @@ object Dom {
         sb.append('>')
         val escape = escapeText
         children(0) match {
-          case Text(content) if !escape => sb.append(content)
+          case Text(content) if !escape => sb.append(content.replace("</", "<\\/"))
           case Text(content)            => sb.append(Escape.html(content))
           case _                        => children(0).renderIndented(sb, level, indent)
         }
@@ -256,7 +256,7 @@ object Dom {
           sb.append('\n')
           appendIndent(sb, level + 1, indent)
           children(i) match {
-            case Text(content) if !escape => sb.append(content)
+            case Text(content) if !escape => sb.append(content.replace("</", "<\\/"))
             case child                    => child.renderIndented(sb, level + 1, indent)
           }
           i += 1
@@ -603,7 +603,8 @@ object Dom {
         sb.append(' ')
         sb.append(name)
         sb.append("=\"")
-        sb.append(Escape.html(v))
+        val sanitized = if (isUrlAttribute(name)) Escape.sanitizeUrl(v) else v
+        sb.append(Escape.html(sanitized))
         sb.append('"')
 
       case AttributeValue.MultiValue(values, separator) =>
@@ -713,6 +714,10 @@ object Dom {
       case other => other
     }
   }
+
+  private val urlAttributes: Set[String] = Set("href", "src", "action", "formaction")
+
+  private def isUrlAttribute(name: String): Boolean = urlAttributes.contains(name)
 
   private[template] val voidElements: Set[String] = Set(
     "area",

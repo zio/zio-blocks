@@ -50,7 +50,18 @@ private[template] object InterpolatorRuntime {
       if (i < args.length) {
         args(i) match {
           case Left(attrValue) =>
-            sb.append(attrValue)
+            val part       = parts(i)
+            val needsQuote = part.nonEmpty && {
+              val lastChar = part.charAt(part.length - 1)
+              lastChar == '=' || (lastChar == ' ' && part.trim.endsWith("="))
+            }
+            if (needsQuote) {
+              sb.append('"')
+              sb.append(attrValue)
+              sb.append('"')
+            } else {
+              sb.append(attrValue)
+            }
           case Right(_) =>
             sb.append(SentinelStr)
             sb.append(i)
@@ -101,12 +112,23 @@ private[template] object InterpolatorRuntime {
             pos = gtPos + 1
           }
         } else if (next == '!' || next == '?') {
-          val gtPos = indexOf(input, '>', pos + 2)
-          if (gtPos < 0) {
-            addText(result, stack, input.substring(pos))
-            pos = len
+          val isComment = next == '!' && pos + 3 < len && input.charAt(pos + 2) == '-' && input.charAt(pos + 3) == '-'
+          if (isComment) {
+            val endComment = input.indexOf("-->", pos + 4)
+            if (endComment < 0) {
+              addText(result, stack, input.substring(pos))
+              pos = len
+            } else {
+              pos = endComment + 3
+            }
           } else {
-            pos = gtPos + 1
+            val gtPos = indexOf(input, '>', pos + 2)
+            if (gtPos < 0) {
+              addText(result, stack, input.substring(pos))
+              pos = len
+            } else {
+              pos = gtPos + 1
+            }
           }
         } else {
           val tagParseResult = parseOpenTag(input, pos)

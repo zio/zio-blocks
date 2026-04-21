@@ -91,6 +91,15 @@ object ToJsSpec extends ZIOSpecDefault {
       val point  = Point(1, 2)
       val result = ToJs[Point].toJs(point)
       assertTrue(result == """{"x":1,"y":2}""")
+    },
+    test("ToJs.fromSchema escapes angle brackets in JSON output") {
+      import zio.blocks.schema.Schema
+      case class Wrap(v: String)
+      object Wrap {
+        implicit val schema: Schema[Wrap] = Schema.derived
+      }
+      val result = ToJs[Wrap].toJs(Wrap("<b>"))
+      assertTrue(result == "{\"v\":\"\\u003cb\\u003e\"}")
     }
   )
 }
