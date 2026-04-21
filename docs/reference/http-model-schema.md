@@ -88,7 +88,7 @@ Typical Workflow:
 4. Handle Either[Error, T] in business logic
 ```
 
-**Example flow:**
+## Quick Showcase
 
 ```scala
 import zio.http.{Request, URL}
@@ -113,8 +113,6 @@ pageResult match {
   case Left(QueryParamError.Malformed(key, value, cause)) => println(s"Bad $key: $cause")
 }
 ```
-
-For comprehensive examples of the core HTTP model, refer to the [HTTP Model documentation](./http-model.md).
 
 ## Extension Classes
 
