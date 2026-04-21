@@ -122,9 +122,11 @@ Extension methods for `QueryParams` to extract and decode query parameters with 
 
 **Methods:**
 
-#### `query[T](key: String)(implicit schema: Schema[T]): Either[QueryParamError, T]`
+#### `query[T](key: String)`
 
 Extract a single query parameter value and decode it to type `T`.
+
+**Signature:** `Either[QueryParamError, T]`
 
 Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(QueryParamError.Missing(key))` if parameter is missing. Returns `Left(QueryParamError.Malformed(...))` if parameter exists but decoding fails.
 
@@ -143,9 +145,11 @@ request.query[String]("q") match {
 }
 ```
 
-#### `queryAll[T](key: String)(implicit schema: Schema[T]): Either[QueryParamError, Chunk[T]]`
+#### `queryAll[T](key: String)`
 
 Extract all values for a query parameter key and decode them to type `T`.
+
+**Signature:** `Either[QueryParamError, Chunk[T]]`
 
 Returns `Right(chunk)` with all decoded values if parameter exists and all values decode successfully. Returns `Left(QueryParamError.Missing(key))` if no values exist for the key. Returns `Left(QueryParamError.Malformed(...))` if any value fails to decode.
 
@@ -169,9 +173,11 @@ params.queryAll[String]("tag") match {
 
 **Short-circuit behavior:** Decoding stops at the first malformed value; only the first error is reported.
 
-#### `queryOrElse[T](key: String, default: => T)(implicit schema: Schema[T]): T`
+#### `queryOrElse[T](key: String, default: T)`
 
 Extract a query parameter with a default fallback.
+
+**Signature:** `T`
 
 Returns the decoded value if parameter exists and decodes successfully. Returns `default` if parameter is missing or decoding fails (errors are silently ignored).
 
@@ -197,9 +203,11 @@ Extension methods for `Headers` to extract and decode header values with type sa
 
 **Methods:**
 
-#### `header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T]`
+#### `header[T](name: String)`
 
 Extract a single header value and decode it to type `T`.
+
+**Signature:** `Either[HeaderError, T]`
 
 Header name matching is **case-insensitive** (HTTP spec). Returns `Right(value)` on success, `Left(HeaderError.Missing(name))` if header not found, or `Left(HeaderError.Malformed(...))` if decoding fails.
 
@@ -216,9 +224,11 @@ headers.header[Int]("x-missing")        // Left(HeaderError.Missing("x-missing")
 headers.header[Int]("x-api-version")    // Right(2)
 ```
 
-#### `headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]]`
+#### `headerAll[T](name: String)`
 
 Extract all values for a header name and decode them to type `T`.
+
+**Signature:** `Either[HeaderError, Chunk[T]]`
 
 HTTP allows multiple headers with the same name; this method collects and decodes all of them. Returns `Right(chunk)` with all decoded values, `Left(HeaderError.Missing(name))` if no headers exist for the name, or `Left(HeaderError.Malformed(...))` if any value fails to decode.
 
@@ -233,9 +243,11 @@ headers.headerAll[String]("x-tag")      // Right(Chunk("scala", "functional", "z
 headers.headerAll[String]("x-missing")  // Left(HeaderError.Missing("x-missing"))
 ```
 
-#### `headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T`
+#### `headerOrElse[T](name: String, default: T)`
 
 Extract a header with a default fallback (errors are silently ignored).
+
+**Signature:** `T`
 
 ```scala
 import zio.http.Headers
