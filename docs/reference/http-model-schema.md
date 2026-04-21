@@ -336,11 +336,11 @@ val request = Request.get(URL.parse("/").toOption.get)
   .addHeader("x-api-version", "2")
 ```
 
-Extract headers from the request:
+Extract headers from the request using the headers API:
 
 ```scala mdoc
-val userId = request.header[Int]("x-user-id")
-val apiVersion = request.headerOrElse[Int]("x-api-version", 1)
+val userId = request.headers.header[Int]("x-user-id")
+val apiVersion = request.headers.headerOrElse[Int]("x-api-version", 1)
 (userId, apiVersion)
 ```
 
@@ -362,16 +362,16 @@ val response = Response.ok
   .addHeader("x-ratelimit-remaining", "99")
 ```
 
-Extract a header from the response:
+Extract a header from the response using the headers API:
 
 ```scala mdoc
-response.header[String]("x-request-id")
+response.headers.header[String]("x-request-id")
 ```
 
 Use a default if the header is missing:
 
 ```scala mdoc
-response.headerOrElse[Int]("x-ratelimit-remaining", 100)
+response.headers.headerOrElse[Int]("x-ratelimit-remaining", 100)
 ```
 
 ## Composing Multiple Extractions
@@ -482,7 +482,7 @@ val request = Request.get(URL.parse("/").toOption.get)
 When you extract a header with the wrong type, you get a `Malformed` error:
 
 ```scala mdoc
-request.header[Int]("x-token") match {
+request.headers.header[Int]("x-token") match {
   case Right(token) => s"Token: $token"
   case Left(HeaderError.Missing(name)) => s"Missing required header: $name"
   case Left(HeaderError.Malformed(name, value, cause)) => s"Bad header: $cause"
