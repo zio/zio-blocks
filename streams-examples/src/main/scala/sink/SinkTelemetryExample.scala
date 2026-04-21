@@ -19,6 +19,7 @@ package sink
 import zio.blocks.streams.*
 import zio.blocks.streams.NioSinks
 import java.io.RandomAccessFile
+import java.nio.file.Files
 import scala.util.Using
 
 object SinkTelemetryExample extends App {
@@ -43,7 +44,8 @@ object SinkTelemetryExample extends App {
   println()
 
   // Write telemetry to file using NioSinks.fromChannel
-  val filePath = "/tmp/telemetry.bin"
+  val tempFile = Files.createTempFile("telemetry", ".bin")
+  val filePath = tempFile.toString
 
   println(s"Writing to $filePath...")
   Using(new RandomAccessFile(filePath, "rw")) { file =>
@@ -92,4 +94,6 @@ object SinkTelemetryExample extends App {
   println("  • Automatic buffering eliminates manual position management")
   println("  • Integrated with Stream composition (no boilerplate)")
   println("  • Type-safe error handling (IOException as Sink error type)")
+
+  Files.delete(tempFile)
 }

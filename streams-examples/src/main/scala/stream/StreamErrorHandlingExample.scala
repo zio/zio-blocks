@@ -42,12 +42,13 @@ object StreamErrorHandlingExample extends App {
   val fallback = Stream.fail(NotFound) || Stream(1, 2, 3)
   show(fallback.runCollect)
 
-  // Error transformation with mapError
-  println("\n4. Transforming error types with mapError:")
-  val mapped = Stream.fail[ValidationError](ValidationError("invalid data")).mapError { case ValidationError(msg) =>
-    ServerError(400)
+  // Error transformation with error-producing flatMap
+  println("\n4. Producing typed errors in flatMap:")
+  val errorExample = Stream(1, 2, 3, 4).flatMap { x =>
+    if (x == 3) Stream.fail[ApiError](ValidationError("cannot process"))
+    else Stream(x)
   }
-  show(mapped.runCollect)
+  show(errorExample.runCollect)
 
   // Handling errors in flatMap chains
   println("\n5. Error handling in flatMap chains:")

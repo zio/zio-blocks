@@ -168,9 +168,9 @@ object X extends App {
 
   val charCount: Either[IOException, Long] =
     Stream
-      .fromJavaReader(new FileReader("/tmp/test.txt")) // lazily acquires file handle
+      .fromJavaReader(new StringReader("Hello\nWorld")) // lazily acquires reader
       .filter(!_.isWhitespace)                         // process only non-whitespace
       .count                                           // count all matching characters
 
-  println(charCount) // prints Right(count) or Left(IOException)
+  println(charCount) // prints Right(10) — count of non-whitespace characters
 }
