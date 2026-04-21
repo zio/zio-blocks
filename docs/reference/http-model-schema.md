@@ -120,7 +120,7 @@ pageResult match {
 
 Extension methods for `QueryParams` to extract and decode query parameters with type safety.
 
-### `QueryParams#query[T]`
+#### `QueryParams#query[T]`
 
 Extract a single query parameter value and decode it to type `T`.
 
@@ -144,7 +144,7 @@ params.query[String]("q") match {
 }
 ```
 
-### `QueryParams#queryAll[T]`
+#### `QueryParams#queryAll[T]`
 
 Extract all values for a query parameter key and decode them to type `T`.
 
@@ -172,7 +172,7 @@ params.queryAll[String]("tag") match {
 
 **Short-circuit behavior:** Decoding stops at the first malformed value; only the first error is reported.
 
-### `QueryParams#queryOrElse[T]`
+#### `QueryParams#queryOrElse[T]`
 
 Extract a query parameter with a default fallback.
 
@@ -201,9 +201,7 @@ val limit = params.queryOrElse[Int]("limit", 20)       // 20 (default)
 
 Extension methods for `Headers` to extract and decode header values with type safety. Uses `rawGet`/`rawGetAll` internally for raw string header access. API identical to `QueryParamsSchemaOps`.
 
-**Methods:**
-
-### `Headers#header[T]`
+#### `Headers#header[T]`
 
 Extract a single header value and decode it to type `T`.
 
@@ -224,7 +222,7 @@ headers.header[Int]("x-missing")        // Left(HeaderError.Missing("x-missing")
 headers.header[Int]("x-api-version")    // Right(2)
 ```
 
-### `Headers#headerAll[T]`
+#### `Headers#headerAll[T]`
 
 Extract all values for a header name and decode them to type `T`.
 
@@ -243,7 +241,7 @@ headers.headerAll[String]("x-tag")      // Right(Chunk("scala", "functional", "z
 headers.headerAll[String]("x-missing")  // Left(HeaderError.Missing("x-missing"))
 ```
 
-### `Headers#headerOrElse[T]`
+#### `Headers#headerOrElse[T]`
 
 Extract a header with a default fallback (errors are silently ignored).
 
@@ -308,7 +306,7 @@ val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
 // 99
 ```
 
-### Composing Multiple Extractions
+## Composing Multiple Extractions
 
 Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
 
@@ -444,6 +442,7 @@ Cannot parse '12.34.56' as BigDecimal
 ```
 
 **Exception:** `Char` parsing uses a different error message format:
+
 ```
 Expected single character but got 'multichar'
 Expected single character but got ''
