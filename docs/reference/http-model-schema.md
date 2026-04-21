@@ -47,6 +47,10 @@ val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID p
 
 This keeps HTTP request handling clean, testable, and portable across different effect systems.
 
+```scala mdoc:silent:reset
+// Scope reset to isolate Motivation section
+```
+
 ## Installation
 
 Add the following to your `build.sbt`:
@@ -88,6 +92,10 @@ Typical Workflow:
 4. Handle Either[Error, T] in business logic
 ```
 
+```scala mdoc:silent:reset
+// Scope reset before Quick Showcase
+```
+
 ## Quick Showcase
 
 Setting up and extracting query parameters with type safety:
@@ -100,25 +108,24 @@ import zio.blocks.schema.Schema
 val url = URL.parse("/api/users?page=2&limit=50&sort=name").toOption.get
 val request = Request.get(url)
 
+// Extract query parameters
 val pageResult = request.query[Int]("page")
 val limitResult = request.query[Int]("limit")
 val sortResult = request.query[String]("sort")
-```
 
-The results are properly typed and decoded:
-
-```scala mdoc
+// Results are properly typed and decoded
 (pageResult, limitResult, sortResult)
-```
 
-Handle errors with pattern matching:
-
-```scala mdoc
+// Handle errors with pattern matching
 pageResult match {
   case Right(page) => s"Page: $page"
   case Left(QueryParamError.Missing(key)) => s"Missing $key"
   case Left(QueryParamError.Malformed(key, value, cause)) => s"Bad $key: $cause"
 }
+```
+
+```scala mdoc:silent:reset
+// Scope reset before Extension Classes
 ```
 
 ## Extension Classes
@@ -151,6 +158,10 @@ params.query[String]("q") match {
 }
 ```
 
+```scala mdoc:silent:reset
+// Scope reset for next section
+```
+
 #### `QueryParams#queryAll[T]`
 
 Extract all values for a query parameter key and decode them to type `T`.
@@ -179,6 +190,10 @@ params.queryAll[String]("tag") match {
   case Right(tags) => s"Tags: ${tags.toList}"
   case Left(error) => s"Error: ${error.message}"
 }
+```
+
+```scala mdoc:silent:reset
+// Scope reset for next section
 ```
 
 **Short-circuit behavior:** Decoding stops at the first malformed value; only the first error is reported.
@@ -210,6 +225,10 @@ Extract with fallback defaults:
 val page = params.queryOrElse[Int]("page", 1)
 val limit = params.queryOrElse[Int]("limit", 20)
 (page, limit)
+```
+
+```scala mdoc:silent:reset
+// Scope reset for next section
 ```
 
 ### HeadersSchemaOps
@@ -252,6 +271,10 @@ Missing headers produce a `Missing` error:
 headers.header[Int]("x-missing")
 ```
 
+```scala mdoc:silent:reset
+// Scope reset for next section
+```
+
 #### `Headers#headerAll[T]`
 
 Extract all values for a header name and decode them to type `T`.
@@ -282,6 +305,10 @@ Missing headers return a `Missing` error:
 headers.headerAll[String]("x-missing")
 ```
 
+```scala mdoc:silent:reset
+// Scope reset for next section
+```
+
 #### `Headers#headerOrElse[T]`
 
 Extract a header with a default fallback (errors are silently ignored).
@@ -310,6 +337,10 @@ When missing, the default is used:
 headers.headerOrElse[Int]("x-missing", 0)
 ```
 
+```scala mdoc:silent:reset
+// Scope reset for next section
+```
+
 ### RequestSchemaOps
 
 Extension methods for `Request` to extract query parameters and headers using the same schema-based API.
@@ -334,6 +365,10 @@ Extract headers from the request using the headers API:
 val userId = request.headers.header[Int]("x-user-id")
 val apiVersion = request.headers.headerOrElse[Int]("x-api-version", 1)
 (userId, apiVersion)
+```
+
+```scala mdoc:silent:reset
+// Scope reset for next section
 ```
 
 ### ResponseSchemaOps
@@ -364,6 +399,10 @@ Use a default if the header is missing:
 
 ```scala mdoc
 response.headers.headerOrElse[Int]("x-ratelimit-remaining", 100)
+```
+
+```scala mdoc:silent:reset
+// Scope reset for next section
 ```
 
 ## Composing Multiple Extractions
@@ -398,6 +437,10 @@ result match {
 
 The for-comprehension short-circuits on the first error, so only the first error is reported if any extraction fails. This pattern is useful when you need multiple parameters to be present and valid before proceeding with business logic.
 
+```scala mdoc:silent:reset
+// Scope reset before Error Handling section
+```
+
 ## Error Handling
 
 The module provides two error types for explicit error handling: `QueryParamError` and `HeaderError`.
@@ -412,8 +455,12 @@ sealed trait QueryParamError extends Product with Serializable {
 }
 
 object QueryParamError {
-  final case class Missing(key: String) extends QueryParamError
-  final case class Malformed(key: String, value: String, cause: String) extends QueryParamError
+  final case class Missing(key: String) extends QueryParamError {
+    def message: String = s"Missing query parameter: $key"
+  }
+  final case class Malformed(key: String, value: String, cause: String) extends QueryParamError {
+    def message: String = s"Malformed query parameter '$key' value '$value': $cause"
+  }
 }
 ```
 
@@ -453,8 +500,12 @@ sealed trait HeaderError extends Product with Serializable {
 }
 
 object HeaderError {
-  final case class Missing(name: String) extends HeaderError
-  final case class Malformed(name: String, value: String, cause: String) extends HeaderError
+  final case class Missing(name: String) extends HeaderError {
+    def message: String = s"Missing header: $name"
+  }
+  final case class Malformed(name: String, value: String, cause: String) extends HeaderError {
+    def message: String = s"Malformed header '$name' value '$value': $cause"
+  }
 }
 ```
 
