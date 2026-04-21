@@ -30,7 +30,7 @@ object PipelineBasicUsageExample extends App {
   // 2. Pipeline.map — cross-type transformation
   println("\n2. Pipeline.map — type-changing transformation:")
   val intToString = Pipeline.map[Int, String](n => s"item-$n")
-  show(Stream(1, 2, 3))
+  show(Stream(1, 2, 3).via(intToString).runCollect)
 
   // 3. Pipeline.filter — keep elements matching a predicate
   println("\n3. Pipeline.filter — keep matching elements:")
@@ -40,7 +40,7 @@ object PipelineBasicUsageExample extends App {
   // 4. Pipeline.collect — partial function (filter + map)
   println("\n4. Pipeline.collect — partial function transformation:")
   val extractInts = Pipeline.collect[Any, Int] { case n: Int => n * 10 }
-  show(Stream(1, "a", 2, "b"))
+  show(Stream(1, "a", 2, "b").via(extractInts).runCollect)
 
   // 5. Pipeline.take — first n elements
   println("\n5. Pipeline.take — first n elements (short-circuits):")
@@ -50,7 +50,7 @@ object PipelineBasicUsageExample extends App {
   // 6. Pipeline.drop — skip first n elements
   println("\n6. Pipeline.drop — skip first n elements:")
   val skipTwo = Pipeline.drop[String](2)
-  show(Stream("header", "subheader", "data1", "data2"))
+  show(Stream("header", "subheader", "data1", "data2").via(skipTwo).runCollect)
 
   // 7. Pipeline.identity — pass-through (no-op)
   println("\n7. Pipeline.identity — pass-through (neutral element):")

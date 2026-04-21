@@ -44,7 +44,9 @@ object StreamErrorHandlingExample extends App {
 
   // Error transformation with mapError
   println("\n4. Transforming error types with mapError:")
-  val mapped = Stream.fail[ServerError](ServerError(404))
+  val mapped = Stream.fail[ValidationError](ValidationError("invalid data")).mapError { case ValidationError(msg) =>
+    ServerError(400)
+  }
   show(mapped.runCollect)
 
   // Handling errors in flatMap chains
@@ -65,10 +67,10 @@ object StreamErrorHandlingExample extends App {
 
   show(recovered_chain.runCollect)
 
-  // Handling defects (exceptions)
-  println("\n7. Catching defects (exceptions) with catchDefect:")
+  // Handling typed errors from attempt
+  println("\n7. Recovering typed errors from Stream.attempt with catchAll:")
   val risky = Stream.attempt("not-a-number".toInt)
-  val safe  = risky.catchDefect { case _: NumberFormatException =>
+  val safe  = risky.catchAll { case _: NumberFormatException =>
     Stream.succeed(-1)
   }
   show(safe.runCollect)

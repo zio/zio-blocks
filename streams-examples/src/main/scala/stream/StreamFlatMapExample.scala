@@ -53,7 +53,7 @@ object StreamFlatMapExample extends App {
   var order   = scala.collection.mutable.Buffer[String]()
   val tracked = Stream(1, 2, 3).flatMap { x =>
     order += s"expand($x)"
-    Stream(x, x + 100).tapEach(_ => order += s"emit($x)")
+    Stream(x, x + 100).tapEach(y => order += s"emit($y)")
   }
   val _ = tracked.runCollect
   show(order.toList)
