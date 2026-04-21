@@ -70,7 +70,7 @@ This separation is powerful: you can build, manipulate, serialize, and test HTTP
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-http-model" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-http-model" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
