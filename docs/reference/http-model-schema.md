@@ -38,7 +38,7 @@ val params = QueryParams("userId" -> "550e8400-e29b-41d4-a716-446655440000")
 val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID parsing + errors
 ```
 
-`zio-http-model-schema` separates **extraction logic from business logic**:
+`zio-http-model-schema` separates **extraction logic from business logic**. The module achieves this through:
 
 - **Automatic decoding** — Pass a `Schema[T]`, get `Either[Error, T]` back. Works for 11 primitive types out of the box.
 - **Explicit error handling** — `Either` forces error handling. `QueryParamError` and `HeaderError` distinguish "missing" from "malformed" cases.
@@ -65,7 +65,7 @@ Supported Scala versions: 2.13.x and 3.x. Requires `zio-http-model` and `zio-blo
 
 ## How They Work Together
 
-The module adds a **schema-based extraction layer** on top of core HTTP model types:
+To understand how the module works, we add a **schema-based extraction layer** on top of core HTTP model types:
 
 ```
 HTTP Model Types (from zio-http-model)
@@ -357,11 +357,11 @@ object QueryParamError {
 
 **Variants:**
 
-- **`Missing(key)`** — Query parameter with name `key` was not present in the parameters
+- **`Missing(key)`** — Query parameter with name `key` is not present in the parameters
   - Example: `QueryParamError.Missing("page")` when accessing a non-existent parameter
   - Message: `"Missing query parameter: page"`
 
-- **`Malformed(key, value, cause)`** — Query parameter with name `key` was present but decoding the `value` to the requested type failed
+- **`Malformed(key, value, cause)`** — Query parameter with name `key` is present but decoding the `value` to the requested type fails
   - Example: `QueryParamError.Malformed("age", "abc", "Cannot parse 'abc' as Int")` when `age=abc` but `Int` was requested
   - Message: `"Malformed query parameter 'age' value 'abc': Cannot parse 'abc' as Int"`
 
