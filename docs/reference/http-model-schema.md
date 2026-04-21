@@ -91,7 +91,7 @@ Typical Workflow:
 4. Handle Either[Error, T] in business logic
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset before Quick Showcase
 ```
 
@@ -123,7 +123,7 @@ pageResult match {
 }
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset before Extension Classes
 ```
 
@@ -157,7 +157,7 @@ params.query[String]("q") match {
 }
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -191,7 +191,7 @@ params.queryAll[String]("tag") match {
 }
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -226,7 +226,7 @@ val limit = params.queryOrElse[Int]("limit", 20)
 (page, limit)
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -270,7 +270,7 @@ Missing headers produce a `Missing` error:
 headers.header[Int]("x-missing")
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -304,7 +304,7 @@ Missing headers return a `Missing` error:
 headers.headerAll[String]("x-missing")
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -336,7 +336,7 @@ When missing, the default is used:
 headers.headerOrElse[Int]("x-missing", 0)
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -366,7 +366,7 @@ val apiVersion = request.headers.headerOrElse[Int]("x-api-version", 1)
 (userId, apiVersion)
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
@@ -400,7 +400,7 @@ Use a default if the header is missing:
 response.headers.headerOrElse[Int]("x-ratelimit-remaining", 100)
 ```
 
-```scala mdoc:silent:reset
+```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
 
