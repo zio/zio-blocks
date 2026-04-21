@@ -90,27 +90,38 @@ Typical Workflow:
 
 ## Quick Showcase
 
-```scala mdoc:compile-only
+Setting up a request with query parameters:
+
+```scala mdoc:silent
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val url = URL.parse("/api/users?page=2&limit=50&sort=name").toOption.get
 val request = Request.get(url)
+```
 
-// Step 1: Access raw query parameters (core HTTP model)
-val params = request.queryParams
+Extract query parameters with type safety:
 
-// Step 2: Extract with type safety (schema extraction)
-val pageResult = request.query[Int]("page")      // Right(2)
-val limitResult = request.query[Int]("limit")    // Right(50)
-val sortResult = request.query[String]("sort")   // Right("name")
+```scala mdoc:silent
+val pageResult = request.query[Int]("page")
+val limitResult = request.query[Int]("limit")
+val sortResult = request.query[String]("sort")
+```
 
-// Step 3: Handle errors
+The results are properly typed and decoded:
+
+```scala mdoc
+(pageResult, limitResult, sortResult)
+```
+
+Handle errors with pattern matching:
+
+```scala mdoc
 pageResult match {
-  case Right(page) => println(s"Page: $page")
-  case Left(QueryParamError.Missing(key)) => println(s"Missing $key")
-  case Left(QueryParamError.Malformed(key, value, cause)) => println(s"Bad $key: $cause")
+  case Right(page) => s"Page: $page"
+  case Left(QueryParamError.Missing(key)) => s"Missing $key"
+  case Left(QueryParamError.Malformed(key, value, cause)) => s"Bad $key: $cause"
 }
 ```
 
@@ -130,17 +141,21 @@ Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(
 
 When a query parameter is required, use `query[T]` and handle the error:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val url = URL.parse("/search?q=zio").toOption.get
 val params = url.queryParams
+```
 
+Extract and handle the result:
+
+```scala mdoc
 params.query[String]("q") match {
-  case Right(q) => println(s"Search for: $q")
-  case Left(error) => println(s"Error: ${error.message}")
+  case Right(q) => s"Search for: $q"
+  case Left(error) => s"Error: ${error.message}"
 }
 ```
 
@@ -156,17 +171,21 @@ Returns `Right(chunk)` with all decoded values if parameter exists and all value
 
 When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `queryAll[T]`:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val url = URL.parse("/search?tag=scala&tag=functional&tag=zio").toOption.get
 val params = url.queryParams
+```
 
+Extract all values for a multi-valued parameter:
+
+```scala mdoc
 params.queryAll[String]("tag") match {
-  case Right(tags) => println(s"Tags: ${tags.toList}")   // Chunk(scala, functional, zio)
-  case Left(error) => println(s"Error: ${error.message}")
+  case Right(tags) => s"Tags: ${tags.toList}"
+  case Left(error) => s"Error: ${error.message}"
 }
 ```
 
@@ -184,17 +203,21 @@ Returns the decoded value if parameter exists and decodes successfully. Returns 
 
 When a query parameter is optional with a sensible default, use `queryOrElse`:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val url = URL.parse("/api/items?page=2").toOption.get
 val params = url.queryParams
+```
 
-// Use page from params, or default to 1
-val page = params.queryOrElse[Int]("page", 1)          // 2
-val limit = params.queryOrElse[Int]("limit", 20)       // 20 (default)
+Extract with fallback defaults:
+
+```scala mdoc
+val page = params.queryOrElse[Int]("page", 1)
+val limit = params.queryOrElse[Int]("limit", 20)
+(page, limit)
 ```
 
 ### HeadersSchemaOps
@@ -211,17 +234,30 @@ Header name matching is **case-insensitive** (HTTP spec). Returns `Right(value)`
 
 Here's how to use `header[T]`:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val headers = Headers("x-user-id" -> "42", "x-api-version" -> "2")
+```
 
-headers.header[Int]("x-user-id")        // Right(42)
-headers.header[Int]("X-User-ID")        // Right(42) - case-insensitive
-headers.header[Int]("x-missing")        // Left(HeaderError.Missing("x-missing"))
-headers.header[Int]("x-api-version")    // Right(2)
+Calling `header[T]` returns an `Either` with the decoded value or an error:
+
+```scala mdoc
+headers.header[Int]("x-user-id")
+```
+
+Header names are **case-insensitive**:
+
+```scala mdoc
+headers.header[Int]("X-User-ID")
+```
+
+Missing headers produce a `Missing` error:
+
+```scala mdoc
+headers.header[Int]("x-missing")
 ```
 
 #### `Headers#headerAll[T]`
@@ -234,15 +270,24 @@ HTTP allows multiple headers with the same name; this method collects and decode
 
 Here's how to extract multiple headers:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val headers = Headers("x-tag" -> "scala", "x-tag" -> "functional", "x-tag" -> "zio")
+```
 
-headers.headerAll[String]("x-tag")      // Right(Chunk("scala", "functional", "zio"))
-headers.headerAll[String]("x-missing")  // Left(HeaderError.Missing("x-missing"))
+Extract all values for a header:
+
+```scala mdoc
+headers.headerAll[String]("x-tag")
+```
+
+Missing headers return a `Missing` error:
+
+```scala mdoc
+headers.headerAll[String]("x-missing")
 ```
 
 #### `Headers#headerOrElse[T]`
@@ -253,15 +298,24 @@ Extract a header with a default fallback (errors are silently ignored).
 
 Use `headerOrElse[T]` when a header is optional with a sensible default:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.Headers
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val headers = Headers("x-count" -> "5")
+```
 
-headers.headerOrElse[Int]("x-count", 0)     // 5 (from header)
-headers.headerOrElse[Int]("x-missing", 0)   // 0 (default)
+When the header exists, it's decoded and returned:
+
+```scala mdoc
+headers.headerOrElse[Int]("x-count", 0)
+```
+
+When missing, the default is used:
+
+```scala mdoc
+headers.headerOrElse[Int]("x-missing", 0)
 ```
 
 ### RequestSchemaOps
@@ -272,7 +326,7 @@ Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly 
 
 Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -280,12 +334,14 @@ import zio.blocks.schema.Schema
 val request = Request.get(URL.parse("/").toOption.get)
   .addHeader("x-user-id", "42")
   .addHeader("x-api-version", "2")
+```
 
+Extract headers from the request:
+
+```scala mdoc
 val userId = request.header[Int]("x-user-id")
-// Right(42)
-
 val apiVersion = request.headerOrElse[Int]("x-api-version", 1)
-// 2
+(userId, apiVersion)
 ```
 
 ### ResponseSchemaOps
@@ -296,7 +352,7 @@ Exposes all header methods from `HeadersSchemaOps` directly on `Response` — th
 
 `Response` provides the same header extraction methods:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.Response
 import zio.http.schema._
 import zio.blocks.schema.Schema
@@ -304,33 +360,47 @@ import zio.blocks.schema.Schema
 val response = Response.ok
   .addHeader("x-request-id", "req-12345")
   .addHeader("x-ratelimit-remaining", "99")
+```
 
-val requestId = response.header[String]("x-request-id")
-// Right("req-12345")
+Extract a header from the response:
 
-val remaining = response.headerOrElse[Int]("x-ratelimit-remaining", 100)
-// 99
+```scala mdoc
+response.header[String]("x-request-id")
+```
+
+Use a default if the header is missing:
+
+```scala mdoc
+response.headerOrElse[Int]("x-ratelimit-remaining", 100)
 ```
 
 ## Composing Multiple Extractions
 
 Extract multiple parameters or headers in a single operation using `Either`'s monadic operations:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val request = Request.get(URL.parse("/api/posts?userId=5&page=2").toOption.get)
+```
 
+Combine multiple extractions with a for-comprehension:
+
+```scala mdoc:silent
 val result = for {
   userId <- request.query[Int]("userId")
   page <- request.query[Int]("page")
 } yield (userId, page)
+```
 
+Handle the combined result:
+
+```scala mdoc
 result match {
-  case Right((userId, page)) => println(s"User $userId, page $page")
-  case Left(error) => println(s"Extraction failed: ${error.message}")
+  case Right((userId, page)) => s"User $userId, page $page"
+  case Left(error) => s"Extraction failed: ${error.message}"
 }
 ```
 
@@ -369,12 +439,16 @@ object QueryParamError {
 
 All `QueryParamError` subtypes have a `message` property for user-friendly error reporting:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.schema._
 
 val error: QueryParamError = QueryParamError.Malformed("page", "invalid", "Cannot parse 'invalid' as Int")
-println(error.message)
-// Malformed query parameter 'page' value 'invalid': Cannot parse 'invalid' as Int
+```
+
+The message provides detailed error information:
+
+```scala mdoc
+error.message
 ```
 
 ### HeaderError
@@ -396,18 +470,22 @@ object HeaderError {
 
 Pattern-match on error type to distinguish "missing" from "malformed":
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.{Request, URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
 val request = Request.get(URL.parse("/").toOption.get)
   .addHeader("x-token", "invalid-token")
+```
 
+When you extract a header with the wrong type, you get a `Malformed` error:
+
+```scala mdoc
 request.header[Int]("x-token") match {
-  case Right(token) => println(s"Token: $token")
-  case Left(HeaderError.Missing(name)) => println(s"Missing required header: $name")
-  case Left(HeaderError.Malformed(name, value, cause)) => println(s"Bad header: $cause")
+  case Right(token) => s"Token: $token"
+  case Left(HeaderError.Missing(name)) => s"Missing required header: $name"
+  case Left(HeaderError.Malformed(name, value, cause)) => s"Bad header: $cause"
 }
 ```
 
