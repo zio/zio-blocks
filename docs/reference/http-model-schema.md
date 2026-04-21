@@ -47,8 +47,7 @@ val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID p
 
 This keeps HTTP request handling clean, testable, and portable across different effect systems.
 
-```scala mdoc:silent:reset
-// Scope reset to isolate Motivation section
+```scala mdoc:invisible:reset
 ```
 
 ## Installation
