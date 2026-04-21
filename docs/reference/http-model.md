@@ -33,6 +33,8 @@ final class Body(val data: Chunk[Byte], val contentType: ContentType)
 
 ## Motivation
 
+Building modern distributed systems requires HTTP clients and servers, but most HTTP libraries bake effects (I/O, streaming, async) directly into their data types. This creates coupling problems when sharing types across layers or testing without pulling in entire runtimes.
+
 ### The Problem: Protocol, Effects, and Coupling
 
 Imagine building a distributed system where you need an HTTP client to call external APIs and an HTTP server to handle incoming requests. Your first instinct is to reach for a popular HTTP library. But here's the trouble: most HTTP libraries bake "effects" (I/O operations, streaming, async) directly into their data structures.
@@ -265,6 +267,8 @@ Method.fromString("CUSTOM") // None (HTTP allows custom methods, but not predefi
 
 ### Method Properties
 
+Access properties of a `Method` object:
+
 ```scala mdoc:compile-only
 import zio.http.Method
 
@@ -396,6 +400,8 @@ Version.`HTTP/2.0`.text            // "HTTP/2.0"
 ```
 
 ### Version Properties
+
+Access version components:
 
 ```scala mdoc:compile-only
 import zio.http.Version
