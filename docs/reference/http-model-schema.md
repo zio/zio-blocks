@@ -131,13 +131,14 @@ Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(
 When a query parameter is required, use `query[T]` and handle the error:
 
 ```scala mdoc:compile-only
-import zio.http.{Request, URL}
+import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val request = Request.get(URL.parse("/search?q=zio").toOption.get)
+val url = URL.parse("/search?q=zio").toOption.get
+val params = url.queryParams
 
-request.query[String]("q") match {
+params.query[String]("q") match {
   case Right(q) => println(s"Search for: $q")
   case Left(error) => println(s"Error: ${error.message}")
 }
@@ -184,15 +185,16 @@ Returns the decoded value if parameter exists and decodes successfully. Returns 
 When a query parameter is optional with a sensible default, use `queryOrElse`:
 
 ```scala mdoc:compile-only
-import zio.http.{Request, URL}
+import zio.http.{URL}
 import zio.http.schema._
 import zio.blocks.schema.Schema
 
-val request = Request.get(URL.parse("/api/items?page=2").toOption.get)
+val url = URL.parse("/api/items?page=2").toOption.get
+val params = url.queryParams
 
 // Use page from params, or default to 1
-val page = request.queryOrElse[Int]("page", 1)          // 2
-val limit = request.queryOrElse[Int]("limit", 20)       // 20 (default)
+val page = params.queryOrElse[Int]("page", 1)          // 2
+val limit = params.queryOrElse[Int]("limit", 20)       // 20 (default)
 ```
 
 ### HeadersSchemaOps
