@@ -209,6 +209,8 @@ Extract a single header value and decode it to type `T`.
 
 Header name matching is **case-insensitive** (HTTP spec). Returns `Right(value)` on success, `Left(HeaderError.Missing(name))` if header not found, or `Left(HeaderError.Malformed(...))` if decoding fails.
 
+Here's how to use `header[T]`:
+
 ```scala mdoc:compile-only
 import zio.http.Headers
 import zio.http.schema._
@@ -230,6 +232,8 @@ Extract all values for a header name and decode them to type `T`.
 
 HTTP allows multiple headers with the same name; this method collects and decodes all of them. Returns `Right(chunk)` with all decoded values, `Left(HeaderError.Missing(name))` if no headers exist for the name, or `Left(HeaderError.Malformed(...))` if any value fails to decode.
 
+Here's how to extract multiple headers:
+
 ```scala mdoc:compile-only
 import zio.http.Headers
 import zio.http.schema._
@@ -246,6 +250,8 @@ headers.headerAll[String]("x-missing")  // Left(HeaderError.Missing("x-missing")
 Extract a header with a default fallback (errors are silently ignored).
 
 **Signature:** `headerOrElse[T](name: String, default: => T): T`
+
+Use `headerOrElse[T]` when a header is optional with a sensible default:
 
 ```scala mdoc:compile-only
 import zio.http.Headers
@@ -433,6 +439,8 @@ The module supports decoding to any type with a `Schema[T]` instance. Built-in s
 ### Error Messages
 
 Most decoding errors follow the pattern: `"Cannot parse 'value' as TypeName"`. Example error messages:
+
+Here are common error message formats:
 
 ```
 Cannot parse 'abc' as Int
