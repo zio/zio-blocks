@@ -76,7 +76,7 @@ libraryDependencies += "dev.zio" %% "zio-http-model" % "<version>"
 For cross-platform projects (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-http-model" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-http-model" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x
