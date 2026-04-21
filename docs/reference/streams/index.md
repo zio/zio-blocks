@@ -92,8 +92,8 @@ val result: Either[Nothing, Chunk[Int]] = stream.take(5).runCollect
 
 ZIO Blocks Streams distinguishes two error channels:
 
-- **Typed errors (`E`)**: recoverable business logic errors, returned as `Left(e)` from terminal operations. Use `catchAll`, `orElse`, or `catchDefect` to handle them.
-- **Untyped defects (`Throwable`)**: unexpected exceptions (bugs, system failures). Propagate as thrown exceptions.
+- **Typed errors (`E`)**: recoverable business logic errors, returned as `Left(e)` from terminal operations. Use `catchAll` or `orElse` to handle them.
+- **Untyped defects (`Throwable`)**: unexpected exceptions (bugs, system failures). Use `catchDefect` to recover, or propagate as thrown exceptions.
 
 ```scala
 import zio.blocks.streams.*

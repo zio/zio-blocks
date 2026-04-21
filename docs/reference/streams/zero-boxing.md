@@ -24,9 +24,9 @@ val result = doubled.runCollect
 
 For high-throughput data processing, this overhead is unacceptable.
 
-## ZIO Streams' Solution: JvmType Dispatch
+## ZIO Blocks Streams' Solution: JvmType Dispatch
 
-Instead of using Scala's `@specialized` annotation (which generates separate classes for each primitive type, bloating binaries), ZIO Streams uses **compile-time type detection + runtime dispatch**. This gives you the speed of specialization without the binary bloat.
+Instead of using Scala's `@specialized` annotation (which generates separate classes for each primitive type, bloating binaries), ZIO Blocks Streams uses **compile-time type detection + runtime dispatch**. This gives you the speed of specialization without the binary bloat.
 
 ### How It Works
 
@@ -71,14 +71,14 @@ def map[B](f: A => B)(implicit jvmTypeA: JvmType.Infer[A]): Stream[E, B] = {
 
 **Step 3: Unboxed Accessors**
 
-Instead of a single `read()` method that returns boxed `Any`, primitives use specialized accessors:
+Instead of a single `read()` method that returns boxed `Any` (where boxed means wrapping primitives in object wrappers like `Integer`, `Long`, `Double`), primitives use specialized accessors that operate directly on primitive values:
 
 ```scala
 trait Reader[A] {
-  // Generic: may box
+  // Generic: wraps primitives in objects (Integer, Long, etc.)
   def read(onEnd: A): A
   
-  // Specialized: never box
+  // Specialized: primitives stay unboxed
   def readInt(onEnd: Long): Int
   def readLong(onEnd: Long): Long
   def readDouble(onEnd: Long): Double
@@ -154,7 +154,7 @@ You don't need to do anything special — the compiler and runtime handle it aut
 
 ## Comparison: @specialized vs JvmType Dispatch
 
-ZIO Streams' approach differs fundamentally from Scala's traditional `@specialized` annotation. Here's how they compare:
+ZIO Blocks Streams' approach differs fundamentally from Scala's traditional `@specialized` annotation. Here's how they compare:
 
 **Traditional Scala `@specialized` annotation** generates separate specialized classes at compile time:
 
@@ -193,7 +193,7 @@ abstract class Stream[+E, +A] {
 
 ## Implementation Architecture
 
-Zero-boxing works across ZIO Streams' three core abstractions:
+Zero-boxing works across ZIO Blocks Streams' three core abstractions:
 
 ### Stream[E, A]
 
@@ -264,7 +264,7 @@ This gives you runtime type information while maintaining full zero-boxing perfo
 
 ## Summary
 
-ZIO Streams achieves **zero-boxing for primitives** through:
+ZIO Blocks Streams achieves **zero-boxing for primitives** through:
 
 1. **Compile-time type detection** via `JvmType.Infer[A]` implicits
 2. **Runtime dispatch** that selects specialized fast paths

@@ -459,7 +459,7 @@ val result = sideEffect.runDrain
 
 #### `Stream.attempt[A]`
 
-Wraps a potentially throwing computation, converting any `Throwable` into a typed error:
+Wraps a potentially throwing computation, converting non-fatal `Throwable`s into a typed error. Fatal errors (like `OutOfMemoryError`) are not caught and propagate as exceptions:
 
 ```scala
 object Stream {
@@ -1161,14 +1161,14 @@ trait Stream[+E, +A] {
 }
 ```
 
-Use `catchDefect` for exception handling:
+Use `catchDefect` when you need to handle unexpected exceptions that were not wrapped by `attempt`:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
 
-val risky = Stream.attempt("not a number".toInt)
+val risky = Stream.die(new IllegalArgumentException("Not allowed"))
 val safe = risky.catchDefect {
-  case e: NumberFormatException => Stream.succeed(-1)
+  case e: IllegalArgumentException => Stream.succeed(-1)
 }
 val result = safe.runCollect
 ```

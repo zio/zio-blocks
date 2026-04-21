@@ -351,8 +351,9 @@ Stream.fromChunk(zio.blocks.chunk.Chunk[Byte](33)).run(Sink.fromOutputStream(bos
 // When done writing all batches, YOU close the stream
 bos.close()
 
-// Now you can get the final bytes: bos.toByteArray() would fail here because stream is closed
-// But in a real application, you'd flush and read the bytes before closing
+// ByteArrayOutputStream ignores close(), so you can still call toByteArray()
+val allBytes = bos.toByteArray()
+// This works because ByteArrayOutputStream doesn't maintain any closeable resources
 ```
 
 #### `Sink.fromJavaWriter` — Write Characters
@@ -410,10 +411,10 @@ import zio.blocks.streams.io.Reader
 // A custom sink that computes the average of Ints
 val average = Sink.create[Nothing, Int, Double] { reader =>
   def loop(sum: Long, count: Long): (Long, Long) = {
-    val v = reader.read[Any](null)
-    if (v == null) (sum, count)
+    val v = reader.readInt(Long.MinValue)
+    if (v.asInstanceOf[Long] == Long.MinValue) (sum, count)
     else {
-      val newSum = sum + v.asInstanceOf[Int]
+      val newSum = sum + v
       loop(newSum, count + 1)
     }
   }
@@ -614,7 +615,7 @@ These typed sinks achieve **zero-boxing performance** by using a special "sentin
 **Affected Data Types and Their Sentinels:**
 | Method | Input Type | Sentinel Value | Risk Level | Why? |
 |--------|-----------|---|---|---|
-| `fromByteBufferByte` | `Byte` | `-1` (0xFF) | Safe | Sentinel is outside valid byte range [-128, 127] |
+| `NioSinks.fromByteBuffer` | `Byte` | `-1` (0xFF) | Safe | Sentinel is outside valid byte range [-128, 127] |
 | `NioSinks.fromByteBufferInt` | `Int` | `Long.MinValue` | Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
 | `NioSinks.fromByteBufferLong` | `Long` | `Long.MaxValue` | **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
 | `NioSinks.fromByteBufferFloat` | `Float` | `Double.MaxValue` | Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
