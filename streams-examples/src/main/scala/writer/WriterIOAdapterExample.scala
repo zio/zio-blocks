@@ -95,7 +95,7 @@ object WriterIOAdapterExample extends App {
   closedStream.close()
   val failingWriter = Writer.fromOutputStream(closedStream)
 
-  val writeResult = failingWriter.write(65) // 'A'
+  val writeResult = failingWriter.write(65.toByte) // 'A'
   println(s"Write to closed stream: $writeResult")
   println(s"Writer is closed: ${failingWriter.isClosed}")
 }
