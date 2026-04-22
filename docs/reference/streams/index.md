@@ -44,13 +44,13 @@ val result: Either[Nothing, Chunk[Int]] = stream.take(5).runCollect
 
 Add the Streams module to your SBT build:
 
-```scala
+```scala mdoc:compile-only
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 ```
 
 For Scala.js (JavaScript/Node.js):
 
-```scala
+```scala mdoc:compile-only
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 
@@ -96,6 +96,8 @@ ZB Streams leads in every single-operator benchmark and maintains its advantage 
 
 ## Core mental model
 
+To understand ZIO Blocks Streams fully, it's helpful to see how the three primitives fit together and how data flows through a pipeline from source to sink. This section walks through the architecture and explains each component in depth.
+
 ### Execution Flow
 
 Operations on streams transform the pipeline and ultimately run it against a sink:
@@ -140,7 +142,7 @@ Nothing happens when you construct a stream or chain transformations. Execution 
 
 Untyped defects (unexpected exceptions) propagate as thrown exceptions, not as `Left` values.
 
-```scala
+```scala mdoc:compile-only
 // This does nothing -- it's just a description
 val description: Stream[Nothing, Int] =
   Stream.range(0, 1_000_000)
@@ -154,7 +156,7 @@ val result: Either[Nothing, Chunk[Int]] = description.runCollect
 
 Streams render their pipeline structure as a human-readable string:
 
-```scala
+```scala mdoc:compile-only
 val s = Stream.range(0, 100).map(_ + 1).filter(_ > 50).take(10)
 println(s)  // Stream.range(0, 100).map(...).filter(...).take(10)
 ```
@@ -167,7 +169,7 @@ This makes debugging and logging straightforward -- you can see exactly what tra
 
 A `Sink[+E, -A, +Z]` consumes elements of type `A` from a stream and produces a final result of type `Z`. Sinks are passed to `Stream.run`:
 
-```scala
+```scala mdoc:compile-only
 val stream = Stream.range(1, 101)
 
 // Built-in sinks
@@ -179,7 +181,7 @@ val first: Either[Nothing, Option[Int]] = stream.run(Sink.head)
 
 Most sinks also have convenience methods directly on `Stream`:
 
-```scala
+```scala mdoc:compile-only
 stream.count       // Either[Nothing, Long]
 stream.runCollect  // Either[Nothing, Chunk[Int]]
 stream.head        // Either[Nothing, Option[Int]]
@@ -188,7 +190,7 @@ stream.last        // Either[Nothing, Option[Int]]
 
 Sinks compose with `contramap` (pre-process input) and `map` (post-process result):
 
-```scala
+```scala mdoc:compile-only
 val lengthSink: Sink[Nothing, String, Long] =
   Sink.sumInt.contramap[String](_.length)
 
@@ -202,7 +204,7 @@ val doubled: Sink[Nothing, Int, Long] =
 
 A `Pipeline[-In, +Out]` is a reusable stream transformation. It decouples the transformation logic from any specific stream, so you can define it once and apply it many times.
 
-```scala
+```scala mdoc:compile-only
 // Define a reusable pipeline
 val normalize: Pipeline[Int, Double] =
   Pipeline.filter[Int](_ > 0)
@@ -215,7 +217,7 @@ val result2 = Stream(42, -5, 100, 0).via(normalize).runCollect
 
 Pipelines compose with `andThen`:
 
-```scala
+```scala mdoc:compile-only
 val step1: Pipeline[String, Int] =
   Pipeline.map[String, Int](_.length)
 
@@ -228,7 +230,7 @@ val combined: Pipeline[String, Int] =
 
 You can also apply a pipeline to a sink with `andThenSink` / `applyToSink`, which pre-processes the sink's input:
 
-```scala
+```scala mdoc:compile-only
 val countLong: Sink[Nothing, String, Long] =
   Pipeline.map[String, Int](_.length)
     .andThenSink(Sink.sumInt)
@@ -271,7 +273,7 @@ This eliminates the need for manual try/finally when working with resources — 
 
 ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`readLong`/`readFloat`/`readDouble` methods, so no `java.lang.Integer` wrappers are allocated.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // This entire pipeline runs with ZERO boxing of the Int elements.
@@ -302,9 +304,13 @@ This matters most for numeric workloads — data processing, statistics, encodin
 
 ## Usage examples
 
+This section shows practical examples of using streams in real-world scenarios. Each subsection demonstrates a different aspect of the API with runnable code examples.
+
 ### Creating streams
 
-```scala
+Here are the most common ways to construct a stream. Choose the constructor that best fits your data source:
+
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
 
@@ -360,7 +366,9 @@ Stream.fromJavaReaderUnmanaged(javaReader)   // Stream[IOException, Char] (does 
 
 ### Transforming streams
 
-```scala
+Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams:
+
+```scala mdoc:compile-only
 val s = Stream.range(1, 21) // 1 to 20
 
 // map: transform each element
@@ -428,7 +436,7 @@ s.via(Pipeline.filter[Int](_ > 10))          // 11, 12, ..., 20
 
 The `&&` operator zips two streams element-by-element into tuples. The resulting stream ends when either input is exhausted.
 
-```scala
+```scala mdoc:compile-only
 val names: Stream[Nothing, String] = Stream("Alice", "Bob", "Charlie")
 val ages:  Stream[Nothing, Int]    = Stream(30, 25, 35)
 val ids:   Stream[Nothing, Long]   = Stream(1L, 2L, 3L)
@@ -444,7 +452,7 @@ triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie"
 
 When the error types differ, they widen via union:
 
-```scala
+```scala mdoc:compile-only
 val s1: Stream[String, Int]  = Stream(1, 2, 3)
 val s2: Stream[IOException, Int] = Stream(4, 5, 6)
 val zipped: Stream[String | IOException, (Int, Int)] = s1 && s2
@@ -456,7 +464,7 @@ val zipped: Stream[String | IOException, (Int, Int)] = s1 && s2
 
 ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`writeInt` (or the corresponding type) methods, so no `java.lang.Integer` wrappers are allocated.
 
-```scala
+```scala mdoc:compile-only
 // This entire pipeline runs with ZERO boxing of the Int elements.
 // Every step uses specialized readInt/writeInt internally.
 val sum: Either[Nothing, Long] =
@@ -475,7 +483,9 @@ This matters most for numeric workloads -- data processing, statistics, encoding
 
 ### Consuming streams
 
-```scala
+Terminal operations run the stream and produce a final result. Use `runCollect` to gather all elements, `runDrain` to discard them, or specialized operations like `head`, `count`, and `foldLeft`:
+
+```scala mdoc:compile-only
 val s = Stream.range(1, 11) // 1 to 10
 
 // Collect all elements
@@ -510,7 +520,9 @@ s.run(Sink.take(3))       // Right(Chunk(1, 2, 3))
 
 ### Error handling patterns
 
-```scala
+Streams support two types of failures: typed errors that you can handle explicitly, and defects (exceptions) that propagate. Here are common patterns for dealing with both:
+
+```scala mdoc:compile-only
 // Typed error: appears in Either
 val result = Stream.fail("not found").runCollect
 // result: Left("not found")
@@ -550,7 +562,9 @@ val handled = risky.catchDefect {
 
 ### Resource safety patterns
 
-```scala
+When working with files, network connections, or other resources, use the resource-safe constructors to guarantee cleanup. Here are the most common patterns:
+
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import zio.blocks.scope.*
 
@@ -592,7 +606,7 @@ On the JVM, `NioStreams` and `NioSinks` provide zero-copy integration with `java
 
 #### `NioStreams` -- creating streams from NIO sources
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -623,7 +637,7 @@ ch2.close() // caller is responsible for closing
 
 #### `NioSinks` -- writing to NIO targets
 
-```scala
+```scala mdoc:compile-only
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.{Paths, StandardOpenOption}
@@ -649,7 +663,9 @@ outCh.close()
 
 ### Pipeline composition
 
-```scala
+Pipelines are composable transformations that can be reused across different streams. Build complex transformations by chaining pipelines together with `andThen`:
+
+```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 // Build reusable transformation steps
