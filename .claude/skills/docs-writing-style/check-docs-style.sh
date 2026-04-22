@@ -12,6 +12,7 @@
 #   Rule 13: Code block preceded by prose sentence ending with ":"
 #   Rule 15: Consecutive code blocks must have bridging prose
 #   Rule 18: No "var" in Scala code blocks
+#   Rule 19: All Scala code blocks must have mdoc modifiers
 
 set -euo pipefail
 
@@ -175,6 +176,13 @@ count_violations "$(awk '
   /^(#+)[[:space:]]/ { next }
   {
     had_prose_since_last_code = 1
+  }
+' "$FILE")"
+
+# Rule 21: Missing mdoc modifiers on Scala code blocks
+count_violations "$(awk '
+  /^```scala$/ {
+    print FILENAME ":" NR ": [Rule 19] Scala code block missing mdoc modifier (use ```scala mdoc:compile-only or appropriate modifier)"
   }
 ' "$FILE")"
 
