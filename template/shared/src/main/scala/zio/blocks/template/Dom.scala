@@ -161,6 +161,16 @@ sealed trait Dom extends Product with Serializable {
     Dom.transformImpl(this, f)
 
   /**
+   * Selects all descendant nodes matching the given CSS selector.
+   *
+   * @param selector
+   *   the CSS selector to match against
+   * @return
+   *   a [[DomSelection]] containing all matching descendant nodes
+   */
+  def select(selector: CssSelector): DomSelection = DomSelection.select(this, selector)
+
+  /**
    * Checks whether this node renders to empty HTML.
    *
    * Returns true if the node is `Empty` or a `Text` with empty content.
