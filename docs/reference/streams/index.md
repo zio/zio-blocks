@@ -5,17 +5,13 @@ title: "Streams"
 
 `zio.blocks.streams` is a **synchronous, pull-based** streaming library for **Scala 3** (and Scala 2.13) with typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is called. All results are returned as `Either[E, Z]`, keeping error handling explicit and typed. The library has zero runtime dependencies beyond `zio.blocks.chunk` and `zio.blocks.scope`, and achieves zero-boxing on primitive element types (`Int`, `Long`, `Float`, `Double`) through JVM-type-specialized internal readers.
 
-ZIO Blocks Streams is built on three composable primitives: [Stream](./stream.md), [Pipeline](./pipeline.md), and [Sink](./sink.md):
+ZIO Blocks Streams is built on three composable primitives:
 
-- [`Stream[+E, +A]`](./stream.md) — a lazy, pull-based sequence of elements that may fail with error `E`
-- [`Pipeline[-In, +Out]`](./pipeline.md) — a reusable, composable stream-to-stream transformation
-- [`Sink[+E, -A, +Z]`](./sink.md) — a stream consumer that produces a typed result `Z`
-
-| Type | Role | Key operation |
-|---|---|---|
-| `Stream[+E, +A]` | Source of elements | `stream.via(pipe)` |
-| `Pipeline[-In, +Out]` | Element transformer | `pipe.andThen(other)` |
-| `Sink[+E, -A, +Z]` | Consumer → result | `stream.run(sink)` |
+| Type                                   | Description                                                          | Key operation         |
+|----------------------------------------|----------------------------------------------------------------------|-----------------------|
+| [`Stream[+E, +A]`](./stream.md)        | A lazy, pull-based sequence of elements that may fail with error `E` | `stream.via(pipe)`    |
+| [`Pipeline[-In, +Out]`](./pipeline.md) | A reusable, composable stream-to-stream transformation               | `pipe.andThen(other)` |
+| [`Sink[+E, -A, +Z]`](./sink.md)        | A stream consumer that produces a typed result `Z`                   | `stream.run(sink)`    |
 
 ## Overview
 
