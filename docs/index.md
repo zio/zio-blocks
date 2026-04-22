@@ -85,11 +85,11 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
 ```
 
 ### Example: Optics
@@ -583,39 +583,39 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Core Schema Concepts
 
-- [Schema](./reference/schema.md) - Core schema definitions and derivation
-- [Allows](./reference/allows.md) - Compile-time structural grammar constraints
-- [Reflect](./reference/reflect.md) - Structural reflection API
-- [Binding](./reference/binding.md) - Runtime constructors and deconstructors
-- [BindingResolver](./reference/binding-resolver.md) - Binding lookup and schema rebinding
-- [Registers](./reference/registers.md) - Register-based primitive storage
+- [Schema](./reference/schema/schema.md) - Core schema definitions and derivation
+- [Allows](./reference/schema/allows.md) - Compile-time structural grammar constraints
+- [Reflect](./reference/schema/reflect.md) - Structural reflection API
+- [Binding](./reference/schema/binding.md) - Runtime constructors and deconstructors
+- [BindingResolver](reference/schema/binding-resolver.md) - Binding lookup and schema rebinding
+- [Registers](./reference/schema/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
 
-- [Optics](./reference/optics.md) - Lenses, prisms, and traversals
-- [SchemaExpr](./reference/schema-expr.md) - Schema-aware expressions for queries and validation
+- [Optics](./reference/schema/optics.md) - Lenses, prisms, and traversals
+- [SchemaExpr](./reference/schema/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](./path-interpolator.md) - Type-safe path construction
-- [DynamicValue](./reference/dynamic-value.md) - Schema-less dynamic values
-- [DynamicSchema](./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
+- [DynamicValue](./reference/schema/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](./reference/schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
-- [Codec & Format](./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](./reference/json.md) - JSON codec and parsing
-- [JsonPatch](./reference/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](./reference/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](./reference/json-schema.md) - JSON Schema generation and validation
-- [Formats](./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
-- [Extension Syntax](./reference/syntax.md) - `.toJson`, `.fromJson`, and more
+- [Codec & Format](./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
+- [JSON](./reference/schema/json.md) - JSON codec and parsing
+- [JsonPatch](./reference/schema/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
+- [JSON Schema](./reference/schema/json-schema.md) - JSON Schema generation and validation
+- [Formats](./reference/schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
 
-- [Patching](./reference/patch.md) - Serializable data transformations
-- [SchemaError](./reference/schema-error.md) - Structured error type for schema operations
-- [Validation](./reference/validation.md) - Data validation and error handling
-- [Schema Evolution](./reference/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
-  - [Into](./reference/schema-evolution/into.md) - One-way conversion with validation
-  - [As](./reference/schema-evolution/as.md) - Bidirectional round-trip conversion
+- [Patching](./reference/schema/patch.md) - Serializable data transformations
+- [SchemaError](./reference/schema/schema-error.md) - Structured error type for schema operations
+- [Validation](./reference/schema/validation.md) - Data validation and error handling
+- [Schema Evolution](reference/schema/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
+  - [Into](reference/schema/schema-evolution/into.md) - One-way conversion with validation
+  - [As](reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
 
 ### Other Blocks
 
@@ -627,7 +627,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [HTTP Model](./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
-- [Ring Buffer](./ringbuffer.md) - High-performance bounded ring buffers
+- [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
 
 ### Guides
 

@@ -1,5 +1,6 @@
 ---
 id: schema
+slug: schema
 title: "Schema"
 ---
 

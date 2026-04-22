@@ -37,8 +37,41 @@ jobs:
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.12.0'
+      - name: Install yarn
+        run: npm install -g yarn
+      - name: Install website dependencies
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn install --cwd website
+      - name: Generate documentation with mdoc
+        if: hashFiles('website/yarn.lock') != ''
+        run: sbt docs/mdoc
       - name: Check website build process
-        run: sbt docs/clean docs/buildWebsite
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn --cwd website build
+      - name: Upload website build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-artifact
+          path: ./website/build
+          overwrite: true
+          retention-days: 30
+        if: hashFiles('website/yarn.lock') != '' && github.event_name == 'pull_request'
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-metadata
+          path: pr-number.txt
+          overwrite: true
+      - name: Print All Generated Files
+        run: find ./website/build -print
 
   lint:
     runs-on: ubuntu-latest

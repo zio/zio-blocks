@@ -25,7 +25,7 @@ allowed-tools: Read, Glob, Grep
    - **Companion object/static members** — use `TypeName.methodName`: `As.derived`, `As.apply`, `Into.derived`, `Into.apply`
    - **In headings** — same rules apply: `### Context#add`, `#### Wire.shared[T]` (always in backticks)
 
-9. **Type name alone rule**: When talking about the type itself (not a method), use only its name with no qualifier: "derives automatically via `As`", "`Into` is a one-way conversion".
+9. **Type name alone rule**: When talking about the type itself (not a method), use only its name with no qualifier, and always wrap it in backticks: "`As` derives automatically", "`Into` is a one-way conversion", "convert the data to `List`". This applies to all type references in prose, including standard library types like `List`, `Vector`, `Set`, `String`, `Int`, `Array`, etc.
 
 ## Frontmatter Titles
 
@@ -34,27 +34,30 @@ allowed-tools: Read, Glob, Grep
 ## Heading and Code Block Layout Rules
 
 11. **Heading hierarchy**: Use `##` for major sections, `###` for subsections, and `####` for subsubsections. All three levels are fully supported and encouraged.
-12. **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write at least one sentence of explanation before the first subheader.
+12. **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write a brief, narrative introduction that explains the purpose and context—tell readers *why* they need this section and what problems it solves. Example: "Often you need to work with portions of a chunk rather than the whole. These operations let you keep elements from the ends, skip unwanted portions, extract contiguous ranges by position, and intelligently partition chunks based on predicates or conditions:"
 13. **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, remove the subheader entirely and place the content directly under the parent heading. The same rule applies to `###` → `####`.
 14. **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a single `###` heading by using `####` for each item. This creates visual hierarchy and makes the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` → `#### Schema-driven migrations`.
 15. **Every code block must be preceded by an introductory prose sentence**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. This applies universally:
     - After a heading: write at least one sentence before the first code block.
-    - Between two consecutive code blocks: write a short bridging sentence.
+    - Between two consecutive code blocks: write a contextualized bridging sentence that explains what the next block demonstrates (especially important for execution blocks that follow signature blocks).
     - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing).
     - **The sentence must end with a colon (`:`)**. A colon signals to the reader that code follows.
+    
+    **Example of correct structure:**
+    
+    When you write: "Here's how to create a chunk with initial elements:" followed by a code fence, the sentence ends with colon — correct. ✅
+    
+    **Example of incorrect structure:**
+    
+    When you write a heading like "#### `Chunk#map` — Transform Elements" and immediately follow it with a code fence (with no prose in between), it violates Rule 15. ❌
 
 ## Code Block Rules
 
 16. **Always include imports**: Every code block must start with the necessary import statements.
 17. **One concept per code block**: Each code block demonstrates one cohesive idea.
 18. **Prefer `val` over `var`**: Use immutable patterns everywhere.
-19. **Never hardcode expression output in comments**: Do not annotate expression results with inline comments such as `// None`, `// Some(SchemaError)`, or `// "hello"` — these go stale and can be wrong. The fix is **not** to remove the comment and leave the block as `mdoc:compile-only` — that still hides the result. The fix is to restructure the block so mdoc evaluates and renders the output:
-    1. Move all type definitions and setup `val`s into a `mdoc:silent:reset` block (or `mdoc:silent` if scope continuity is needed). Use `mdoc:silent:reset` in reference pages to avoid name conflicts between independent sections.
-    2. Add a short bridging sentence ending in `:`.
-    3. Put the expressions whose results matter in a bare `mdoc` block — mdoc renders them as REPL-style output automatically.
-    
-    See **`docs-mdoc-conventions`** for the complete modifier table and the Setup + Evaluated Output pattern.
-20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Don't just show code without context.
+19. **Never hardcode expression output in comments**: Do not annotate results with inline comments like `// None` or `// "hello"` — they go stale. Don't just add `mdoc:compile-only` to hide them. Instead, let mdoc render the output automatically. Default: use a single bare `mdoc` block and let all vals display their rendered output. Only split into `mdoc:silent:reset` + bare `mdoc` when setup produces verbose boilerplate that obscures the final result. See **`docs-mdoc-conventions`** for full modifier reference.
+20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
 
 ## Table Formatting
 
@@ -64,5 +67,48 @@ allowed-tools: Read, Glob, Grep
 
 22. **Default to Scala 2.13.x syntax**: All code in documentation and companion example files **MUST use Scala 2.13.x syntax**. When in doubt, check the companion example files — they are the source of truth for syntax style. Specifically, MUST use `import x._` (Scala 2.13) for wildcard imports, never `import x.*` (Scala 3.x), unless explicitly demonstrating version-specific syntax in a tabbed comparison.
 23. **Use tabs for version-specific syntax**: When a section shows syntax that genuinely differs between Scala 2 and Scala 3 (e.g., `using` vs `implicit`, native union types vs backtick infix, or wildcard imports), use tabbed code blocks instead of sequential prose. See `docs-mdoc-conventions` for the exact tab structure. Scala 2 is always the default tab (`defaultValue="scala2"`).
+
+## Dependency Declarations
+
+24. **Use @VERSION@ for versions**: In installation sections, always use the literal `@VERSION@` (`@VERSION@` placeholder) in sbt dependency coordinates. The build system substitutes it during publish. Do not instruct readers to replace a placeholder.
+
+## Manual Verification for Non-Mechanical Rules
+
+Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key examples to watch for:
+
+**Rule 2 (Tense)** — Use present tense only:
+- ❌ "will create" (future)
+- ❌ "created" (past)
+- ✅ "creates"
+
+**Rule 3 (No padding)** — Remove filler phrases:
+- ❌ "As we can see, the chunk will accept..."
+- ❌ "It's worth noting that chunks are immutable"
+- ✅ "Chunks are immutable"
+
+**Rule 8 (Qualify method names)** — Always include the type:
+- ❌ "Use `map` to transform elements"
+- ✅ "Use `Chunk#map` to transform elements"
+
+**Rule 9 (Type name alone)** — No qualifier when referring to the type itself:
+- ❌ "Use `Chunk#Chunk` for building chunks"
+- ✅ "Use `Chunk` for building chunks"
+
+**Rule 20 (Contextualized descriptions)** — Avoid generic intro phrases:
+- ❌ "Here's an example:"
+- ❌ "We can see this in action:"
+- ✅ "Splitting creates two chunks from a single index:"
+
+## Mechanical Validation
+
+To validate documentation against mechanical style rules, run:
+
+```
+bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
+```
+
+This checks Rules 5, 6, 11, 13, and 15 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
+
+**Note:** Rule 16 (imports) is not checked mechanically. Verify that all code blocks include necessary imports by visual inspection.
 
 ---

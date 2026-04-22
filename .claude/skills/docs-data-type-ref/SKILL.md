@@ -231,6 +231,16 @@ Use the **`docs-examples`** skill for complete guidance on:
 
 Run `/docs-verify-compliance` skill.
 
+## Step 3.5: Verify Method Coverage
+
+Check that all public methods are documented:
+
+```bash
+./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md
+```
+
+Exit codes: 0=complete, 1=missing, 2=source not found. Verify results manually.
+
 ## Step 4: Write Examples
 
 Create focused `App` objects in `<module_name>-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
