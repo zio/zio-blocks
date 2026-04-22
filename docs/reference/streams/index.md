@@ -11,10 +11,11 @@ ZIO Blocks Streams is built on three composable primitives: [Stream](./stream.md
 - [`Pipeline[-In, +Out]`](./pipeline.md) — a reusable, composable stream-to-stream transformation
 - [`Sink[+E, -A, +Z]`](./sink.md) — a stream consumer that produces a typed result `Z`
 
-|-----------------------|---------------------|-----------------------|
-| `Stream[+E, +A]`      | Source of elements  | `stream.via(pipe)`    |
+| Type | Role | Key operation |
+|---|---|---|
+| `Stream[+E, +A]` | Source of elements | `stream.via(pipe)` |
 | `Pipeline[-In, +Out]` | Element transformer | `pipe.andThen(other)` |
-| `Sink[+E, -A, +Z]`    | Consumer → result   | `stream.run(sink)`    |
+| `Sink[+E, -A, +Z]` | Consumer → result | `stream.run(sink)` |
 
 ## Overview
 
@@ -25,6 +26,79 @@ ZIO Blocks Streams is designed around three core principles:
 **Pull-based evaluation.** Execution is driven from the consumer (Sink) backward through the pipeline to the source (Stream). This enables natural short-circuiting: if a sink only needs the first three elements, the stream stops producing after three elements — no work is wasted.
 
 **Resource safety via RAII.** Resources acquired during stream construction (file handles, database connections, etc.) are always released in `finally` blocks, whether the stream succeeds, fails, or is short-circuited.
+
+## Quick Start
+
+Here's a minimal example. Streams are lazy descriptions — nothing executes until you call a terminal operation like `runCollect`. The result is always `Either[E, Z]`, keeping errors explicit and typed.
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+// Build a lazy stream description
+val stream = Stream.range(1, 100)
+  .filter(_ % 2 == 0)
+  .map(_ * 3)
+
+// Run it — nothing executes until here
+val result: Either[Nothing, Chunk[Int]] = stream.take(5).runCollect
+// Right(Chunk(6, 12, 18, 24, 30))
+```
+
+## Installation
+
+Add the Streams module to your SBT build:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
+```
+
+For Scala.js (JavaScript/Node.js):
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
+```
+
+Supported Scala versions: 2.13.x and 3.x.
+
+## Why Streams?
+
+Streaming libraries in the Scala ecosystem typically require an effect system. fs2 needs `cats.effect.IO`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
+
+`zio.blocks.streams` fills that gap:
+
+| Feature                   | ZB Streams              | fs2                  | Kyo           | Ox                      | Pekko           |
+|---------------------------|-------------------------|----------------------|---------------|-------------------------|-----------------|
+| Effect system required    | No                      | Yes (cats-effect)    | Yes (Kyo)     | No (virtual threads)    | Yes (Akka)      |
+| Execution model           | Synchronous, pull-based | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
+| Typed errors              | `Either[E, Z]`          | ApplicativeError     | Kyo effects   | Exceptions              | No              |
+| Primitive specialization  | Yes (zero boxing)       | No                   | No            | No                      | No              |
+| Stack-safe deep pipelines | Yes (trampolined)       | Yes (Pull)           | Yes           | No (SO on deep flatMap) | N/A             |
+| Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
+| Dependencies              | chunk + scope           | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
+
+## Benchmarks
+
+All benchmarks use 10,000 elements, measured in operations per second (higher is better). Run on Apple M-series, JDK 25, Scala 3.7.4.
+
+| Benchmark            | ZB Streams | Ox     | Kyo    | fs2    | Pekko |
+|----------------------|------------|--------|--------|--------|-------|
+| drain                | 179,872    | 54,512 | 31,777 | 20,795 | 4,381 |
+| map                  | 161,920    | 42,007 | 12,012 | 13,295 | 2,259 |
+| filter               | 168,541    | 47,933 | 19,962 | 14,977 | 2,901 |
+| flatMap              | 49,165     | 30,506 | 28,303 | 748    | 742   |
+| take/drop            | 322,470    | 28,708 | 64,640 | 28,836 | 2,379 |
+| map+filter+flatMap   | 980        | 508    | 602    | 19     | 16    |
+| mixed depth 1        | 47,459     | 19,449 | 13,427 | 257    | 639   |
+| mixed depth 2        | 33,859     | 15,336 | 7,328  | 208    | 459   |
+| mixed depth 3        | 23,610     | 11,878 | 3,174  | 139    | 256   |
+| nested flatMap (10K) | 8,161      | --     | --     | 937    | --    |
+| nested concat (10K)  | 6,140      | --     | 3      | 1,065  | 1     |
+
+"--" indicates the benchmark was not run or the library crashed.
+
+ZB Streams leads in every single-operator benchmark and maintains its advantage as pipeline depth increases. The "mixed depth" rows show cascading `map`/`filter`/`flatMap` stages — ZB Streams degrades gracefully thanks to its trampolined execution model, while libraries without stack-safety (Ox) or with high per-element overhead (fs2, Pekko) fall off sharply.
+
+## Core mental model
 
 ### Execution Flow
 
@@ -58,97 +132,6 @@ Operations on streams transform the pipeline and ultimately run it against a sin
 └──────────────────────────────────┘
 ```
 
-### Quick Start
-
-```scala
-import zio.blocks.streams.*
-
-// Build a lazy stream description
-val stream = Stream.range(1, 100)
-  .filter(_ % 2 == 0)
-  .map(_ * 3)
-
-// Run it — nothing executes until here
-val result: Either[Nothing, Chunk[Int]] = stream.take(5).runCollect
-// Right(Chunk(6, 12, 18, 24, 30))
-```
-
-### Typed Errors
-
-ZIO Blocks Streams distinguishes two error channels:
-
-- **Typed errors (`E`)**: recoverable business logic errors, returned as `Left(e)` from terminal operations. Use `catchAll` or `orElse` to handle them.
-- **Untyped defects (`Throwable`)**: unexpected exceptions (bugs, system failures). Use `catchDefect` to recover, or propagate as thrown exceptions.
-
-```scala
-import zio.blocks.streams.*
-
-sealed trait ApiError
-case object NotFound extends ApiError
-
-val stream: Stream[ApiError, String] =
-  Stream.fail(NotFound)
-    .catchAll(_ => Stream.succeed("default"))
-
-stream.runCollect
-// Right(Chunk("default"))
-```
-
-### Resource Management
-
-Use `fromAcquireRelease` to safely manage any resource:
-
-```scala
-import zio.blocks.streams.*
-
-val managed = Stream.fromAcquireRelease(
-  acquire = scala.io.Source.fromFile("data.txt"),
-  release = _.close()
-)(source => Stream.fromIterator(source.getLines()))
-
-managed.take(10).runCollect
-// Source is closed in finally block regardless of outcome
-```
-
-## Why Streams?
-
-Streaming libraries in the Scala ecosystem typically require an effect system. fs2 needs `cats.effect.IO`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
-
-`zio.blocks.streams` fills that gap:
-
-| Feature                    | ZB Streams               | fs2                 | Kyo              | Ox                       | Pekko            |
-| -------------------------- | ------------------------ | ------------------- | ---------------- | ------------------------ | ---------------- |
-| Effect system required     | No                       | Yes (cats-effect)   | Yes (Kyo)        | No (virtual threads)     | Yes (Akka)       |
-| Execution model            | Synchronous, pull-based  | Async, pull-based   | Async, chunk     | Synchronous, pull-based  | Async, push      |
-| Typed errors               | `Either[E, Z]`           | ApplicativeError    | Kyo effects      | Exceptions               | No               |
-| Primitive specialization   | Yes (zero boxing)        | No                  | No               | No                       | No               |
-| Stack-safe deep pipelines  | Yes (trampolined)        | Yes (Pull)          | Yes              | No (SO on deep flatMap)  | N/A              |
-| Resource safety            | Scope integration        | Resource/bracket    | Kyo resources    | try/finally              | Graph lifecycle  |
-| Dependencies               | chunk + scope            | cats-effect + scodec | Kyo core         | Ox core                  | Akka actor       |
-
-### Benchmarks
-
-All benchmarks use 10,000 elements, measured in operations per second (higher is better). Run on Apple M-series, JDK 25, Scala 3.7.4.
-
-| Benchmark              | ZB Streams | Ox     | Kyo    | fs2    | Pekko |
-| ---------------------- | ---------- | ------ | ------ | ------ | ----- |
-| drain                  | 179,872    | 54,512 | 31,777 | 20,795 | 4,381 |
-| map                    | 161,920    | 42,007 | 12,012 | 13,295 | 2,259 |
-| filter                 | 168,541    | 47,933 | 19,962 | 14,977 | 2,901 |
-| flatMap                | 49,165     | 30,506 | 28,303 | 748    | 742   |
-| take/drop              | 322,470    | 28,708 | 64,640 | 28,836 | 2,379 |
-| map+filter+flatMap     | 980        | 508    | 602    | 19     | 16    |
-| mixed depth 1          | 47,459     | 19,449 | 13,427 | 257    | 639   |
-| mixed depth 2          | 33,859     | 15,336 | 7,328  | 208    | 459   |
-| mixed depth 3          | 23,610     | 11,878 | 3,174  | 139    | 256   |
-| nested flatMap (10K)   | 8,161      | --     | --     | 937    | --    |
-| nested concat (10K)    | 6,140      | --     | 3      | 1,065  | 1     |
-
-"--" indicates the benchmark was not run or the library crashed.
-
-ZB Streams leads in every single-operator benchmark and maintains its advantage as pipeline depth increases. The "mixed depth" rows show cascading `map`/`filter`/`flatMap` stages — ZB Streams degrades gracefully thanks to its trampolined execution model, while libraries without stack-safety (Ox) or with high per-element overhead (fs2, Pekko) fall off sharply.
-
-## Core mental model
 
 ### 1) `Stream[E, A]` -- a lazy sequence
 
@@ -217,30 +200,6 @@ val doubled: Sink[Nothing, Int, Long] =
   Sink.sumInt.map(_ * 2)
 ```
 
-Built-in sinks:
-
-| Sink | Result type | Description |
-|---|---|---|
-| `Sink.collectAll` | `Chunk[A]` | Collects all elements |
-| `Sink.drain` | `Unit` | Consumes and discards all elements |
-| `Sink.count` | `Long` | Counts elements |
-| `Sink.foldLeft(z)(f)` | `Z` | Left fold with initial value |
-| `Sink.foreach(f)` | `Unit` | Side-effect per element |
-| `Sink.head` | `Option[A]` | First element |
-| `Sink.last` | `Option[A]` | Last element |
-| `Sink.take(n)` | `Chunk[A]` | First n elements |
-| `Sink.exists(p)` | `Boolean` | Short-circuiting existential |
-| `Sink.forall(p)` | `Boolean` | Short-circuiting universal |
-| `Sink.find(p)` | `Option[A]` | First matching element |
-| `Sink.sumInt` | `Long` | Sum of Ints (zero-boxing) |
-| `Sink.sumLong` | `Long` | Sum of Longs (zero-boxing) |
-| `Sink.sumFloat` | `Double` | Sum of Floats (zero-boxing) |
-| `Sink.sumDouble` | `Double` | Sum of Doubles (zero-boxing) |
-| `Sink.fromOutputStream(os)` | `Unit` | Writes bytes to an `OutputStream` |
-| `Sink.fromJavaWriter(w)` | `Unit` | Writes chars to a `java.io.Writer` |
-| `Sink.fail(e)` | `Nothing` | Fails immediately |
-| `Sink.create(f)` | `Z` | Custom sink from `Reader[A] => Z` |
-
 ---
 
 ### 3) `Pipeline[In, Out]` -- reusable transformation
@@ -279,177 +238,38 @@ val countLong: Sink[Nothing, String, Long] =
     .andThenSink(Sink.sumInt)
 ```
 
-Built-in pipeline factories:
-
-| Factory | Description |
-|---|---|
-| `Pipeline.map(f)` | Transform each element |
-| `Pipeline.filter(p)` | Keep elements matching predicate |
-| `Pipeline.collect(pf)` | Partial function -- filter + map |
-| `Pipeline.take(n)` | Keep first n elements |
-| `Pipeline.drop(n)` | Skip first n elements |
-| `Pipeline.identity` | Pass-through (useful as a base for composition) |
-
----
-
-### 4) `Reader[A]` -- low-level pull source
-
-`Reader[+Elem]` is the low-level, pull-based source that backs every stream. Most users will never interact with `Reader` directly; it is the compilation target when a stream runs.
-
-The protocol is simple:
-
-- `read(sentinel)` -- returns the next element, or `sentinel` when exhausted
-- `close()` -- signal the consumer is done
-- `isClosed` -- check whether the reader has been closed
-
-For primitive types, specialized methods avoid boxing:
-
-- `readInt(sentinel: Long): Long`
-- `readLong(sentinel: Long): Long`
-- `readFloat(sentinel: Double): Double`
-- `readDouble(sentinel: Double): Double`
-
-You interact with `Reader` in two situations:
-
-1. **Custom sources** -- create a stream from a `Reader` via `Stream.fromReader`
-2. **Manual pull** -- open a stream for element-by-element control via `stream.start`
-
-```scala
-import zio.blocks.scope.*
-
-Scope.global.scoped { scope =>
-  import scope.*
-
-  // Open a stream for manual pulling
-  val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
-
-  $(reader) { r =>
-    var v = r.read(-1)
-    while v != -1 do
-      println(v)   // prints 1, 2, 3, 4, 5
-      v = r.read(-1)
-  }
-  // reader is closed automatically when scope exits
-}
-```
-
----
-
-### 5) Error handling
+## Error Handling
 
 Streams distinguish between two kinds of failures:
 
-- **Typed errors** (`E`) -- domain errors you expect and handle. These appear as `Left` in the `Either` result.
-- **Defects** (`Throwable`) -- unexpected exceptions. These propagate as thrown exceptions, bypassing the `Either` channel.
+- **Typed errors** (`E`) — domain errors you expect and handle, returned as `Left` in the result. Use `catchAll`, `orElse`, or `mapError` to recover.
+- **Defects** (`Throwable`) — unexpected exceptions from bugs or system failures. Use `catchDefect` to recover, or they propagate as thrown exceptions.
 
-```scala
-// Create a failing stream
+```scala mdoc:compile-only
 val failing: Stream[String, Int] =
   Stream(1, 2, 3) ++ Stream.fail("oops") ++ Stream(4, 5)
 
-// catchAll: recover from typed errors
-val recovered: Stream[Nothing, Int] =
-  failing.catchAll(_ => Stream(99))
-
+val recovered = failing.catchAll(_ => Stream(99))
 recovered.runCollect  // Right(Chunk(1, 2, 3, 99))
 ```
 
-Error handling operators:
+## Resource Management
 
-| Operator | Description |
-|---|---|
-| `catchAll(f: E => Stream[E2, A])` | Recover from all typed errors |
-| `catchDefect(pf: PartialFunction[Throwable, Stream[E1, A]])` | Recover from matching defects |
-| `mapError(f: E => E2)` | Transform the error type |
-| `orElse(that)` / `\|\|(that)` | Fall back to another stream on error |
+Streams integrate with `zio.blocks.scope.Scope` for deterministic resource cleanup. The `fromAcquireRelease` constructor guarantees that a resource is acquired lazily (when the stream runs), used to produce elements, and then released — even if the stream is short-circuited early via `take()`, fails with an error, or succeeds normally. The release function is wired into a finally block, ensuring cleanup always happens.
 
----
+```scala mdoc:compile-only
+import zio.blocks.streams.*
 
-### 6) Resource safety
+val managed = Stream.fromAcquireRelease(
+  acquire = scala.io.Source.fromFile("data.txt"),
+  release = _.close()
+)(source => Stream.fromIterator(source.getLines()))
 
-Streams integrate with `zio.blocks.scope.Scope` for deterministic finalization. Several constructors guarantee that acquired resources are released when the stream closes, whether it completes normally, short-circuits, or fails.
-
-#### `fromAcquireRelease`
-
-The primary resource-safe constructor. Acquires a resource, uses it to produce a stream, and guarantees the release function runs on close:
-
-```scala
-import java.io.BufferedReader
-import java.io.FileReader
-
-val lines: Stream[Nothing, String] =
-  Stream.fromAcquireRelease(
-    acquire = new BufferedReader(new FileReader("data.txt")),
-    release = _.close()
-  ) { reader =>
-    Stream.unfold(()) { _ =>
-      Option(reader.readLine()).map(line => (line, ()))
-    }
-  }
-
-// The BufferedReader is closed when the stream finishes,
-// even if the consumer takes only a few lines
-lines.take(5).runCollect
+managed.take(10).runCollect
+// File is closed in finally block regardless of outcome
 ```
 
-If the resource is `AutoCloseable`, the release function defaults to calling `close()`:
-
-```scala
-val lines: Stream[Nothing, String] =
-  Stream.fromAcquireRelease(
-    acquire = new BufferedReader(new FileReader("data.txt"))
-  ) { reader =>
-    Stream.unfold(()) { _ =>
-      Option(reader.readLine()).map(line => (line, ()))
-    }
-  }
-```
-
-#### `fromResource`
-
-Integrates with `zio.blocks.scope.Resource` directly:
-
-```scala
-import zio.blocks.scope.Resource
-
-val resource: Resource[BufferedReader] =
-  Resource.fromAutoCloseable(new BufferedReader(new FileReader("data.txt")))
-
-val lines: Stream[Nothing, String] =
-  Stream.fromResource(resource) { reader =>
-    Stream.unfold(()) { _ =>
-      Option(reader.readLine()).map(line => (line, ()))
-    }
-  }
-```
-
-#### `ensuring` and `defer`
-
-For attaching finalizers to existing streams:
-
-```scala
-// ensuring: run a finalizer when the stream closes
-val withCleanup: Stream[Nothing, Int] =
-  Stream.range(1, 11).ensuring(println("stream closed"))
-
-// defer: register a release action (runs on close, not on construction)
-val withDefer: Stream[Nothing, Int] =
-  Stream.defer(println("cleanup")) ++ Stream.range(1, 6)
-```
-
-#### `start` with `Scope`
-
-For manual pull-based consumption with scope-managed lifetime:
-
-```scala
-import zio.blocks.scope.*
-
-Scope.global.scoped { scope =>
-  import scope.*
-  val reader = Stream.range(1, 100).start(using scope)
-  // reader is automatically closed when scope exits
-}
-```
+This eliminates the need for manual try/finally when working with resources — the stream handles it for you.
 
 ## Primitive Specialization
 
@@ -468,34 +288,6 @@ val sum: Either[Nothing, Long] =
 ```
 
 This matters most for numeric workloads — data processing, statistics, encoding/decoding — where millions of elements flow through multi-stage pipelines.
-
-## Installation
-
-Add the Streams module to your SBT build:
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
-```
-
-For Scala.js (JavaScript/Node.js):
-
-```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
-```
-
-Supported Scala versions: 2.13.x and 3.x.
-
-## JVM Platform Availability
-
-| Feature                               | JVM | Scala.js |
-| ------------------------------------- | --- | -------- |
-| `Stream`, `Pipeline`, `Sink` core API | ✅  | ✅       |
-| `Stream.fromInputStream`              | ✅  | ❌       |
-| `Stream.fromJavaReader`               | ✅  | ❌       |
-| `Sink.fromOutputStream`               | ✅  | ❌       |
-| `Sink.fromJavaWriter`                 | ✅  | ❌       |
-| `NioStreams` (ByteBuffer / Channel)   | ✅  | ❌       |
-| `NioSinks` (WritableByteChannel)      | ✅  | ❌       |
 
 ## Practical Guidance
 
