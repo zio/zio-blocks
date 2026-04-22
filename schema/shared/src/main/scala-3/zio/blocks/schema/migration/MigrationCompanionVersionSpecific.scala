@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
 
 trait MigrationCompanionVersionSpecific {
@@ -7,5 +8,5 @@ trait MigrationCompanionVersionSpecific {
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, Any, Any] =
-    new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+    new MigrationBuilder(sourceSchema, targetSchema, Chunk.empty)
 }

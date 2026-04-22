@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{Schema, SchemaError}
 
 /**
@@ -92,7 +93,7 @@ final case class Migration[A, B](
   /**
    * Get the list of actions in this migration.
    */
-  def actions: Vector[MigrationAction] = dynamicMigration.actions
+  def actions: Chunk[MigrationAction] = dynamicMigration.actions
 }
 
 object Migration extends MigrationSelectorSyntax with MigrationCompanionVersionSpecific {
@@ -110,7 +111,7 @@ object Migration extends MigrationSelectorSyntax with MigrationCompanionVersionS
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
-    new Migration(sourceSchema, targetSchema, new DynamicMigration(actions.toVector))
+    new Migration(sourceSchema, targetSchema, new DynamicMigration(Chunk.fromIterable(actions)))
 
   def fromDynamic[A, B](dynamicMigration: DynamicMigration)(implicit
     sourceSchema: Schema[A],

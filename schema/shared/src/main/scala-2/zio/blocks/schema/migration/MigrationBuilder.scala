@@ -1,6 +1,7 @@
 package zio.blocks.schema.migration
 
 import scala.language.experimental.macros
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
 /**
@@ -34,7 +35,7 @@ sealed trait FieldName[N]
 final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
   val sourceSchema: Schema[A],
   val targetSchema: Schema[B],
-  private[migration] val actions: Vector[MigrationAction]
+  private[migration] val actions: Chunk[MigrationAction]
 ) {
 
   // ----- Record operations -----
@@ -162,7 +163,7 @@ final class MigrationBuilder[A, B, SourceHandled, TargetProvided](
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
   ): MigrationBuilder[A, B, SourceHandled, TargetProvided] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any, Any](caseSourceSchema, caseTargetSchema, Vector.empty)
+    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any, Any](caseSourceSchema, caseTargetSchema, Chunk.empty)
     val builtInner   = caseMigration(innerBuilder)
     appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions))
   }
@@ -236,7 +237,7 @@ object MigrationBuilder {
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): MigrationBuilder[A, B, Any, Any] =
-    new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+    new MigrationBuilder(sourceSchema, targetSchema, Chunk.empty)
 }
 
 /**

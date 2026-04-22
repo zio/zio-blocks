@@ -169,7 +169,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           "MyCase",
           DynamicValue.Record("old" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
         )
-        val innerActions = Vector(MigrationAction.Rename(DynamicOptic.root.field("old"), "new"))
+        val innerActions = Chunk(MigrationAction.Rename(DynamicOptic.root.field("old"), "new"))
         val m            = DynamicMigration.single(MigrationAction.TransformCase(DynamicOptic.root, innerActions))
         assertTrue(m(input).flatMap(m.reverse(_)) == Right(input))
       },
@@ -329,7 +329,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.AddField(
                 DynamicOptic.root.field("x"),
                 dynamicLiteral(1)
@@ -399,7 +399,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("items"),
             DynamicOptic.Node.AtIndex(10)
           )
@@ -426,7 +426,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("data"),
             DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("missingKey")))
           )
@@ -677,7 +677,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.AddField(
                 DynamicOptic.root.field("y"),
                 dynamicLiteral(2)
@@ -703,7 +703,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.Rename(DynamicOptic.root.field("oldField"), "newField")
             )
           )
@@ -723,7 +723,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.Rename(DynamicOptic.root.field("a"), "b"),
               MigrationAction.AddField(
                 DynamicOptic.root.field("c"),
@@ -750,7 +750,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.TransformValue(
                 DynamicOptic.root.field("value"),
                 dynamicLiteral("42")
@@ -773,7 +773,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.AddField(
                 DynamicOptic.root.field("newField"),
                 dynamicLiteral("data")
@@ -966,60 +966,6 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       }
     ),
 
-    suite("Join and Split")(
-      test("join combines multiple fields into one") {
-        val input = DynamicValue.Record(
-          "first" -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-          "last"  -> DynamicValue.Primitive(PrimitiveValue.String("Doe"))
-        )
-        val migration = DynamicMigration.single(
-          MigrationAction.Join(
-            at = DynamicOptic.root.field("fullName"),
-            sourcePaths = Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-            combiner = dynamicLiteral("John Doe")
-          )
-        )
-        val expected = DynamicValue.Record(
-          "first"    -> DynamicValue.Primitive(PrimitiveValue.String("John")),
-          "last"     -> DynamicValue.Primitive(PrimitiveValue.String("Doe")),
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
-        )
-        assertTrue(migration(input) == Right(expected))
-      },
-      test("split divides one field into multiple") {
-        val input = DynamicValue.Record(
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe"))
-        )
-        val migration = DynamicMigration.single(
-          MigrationAction.Split(
-            at = DynamicOptic.root.field("fullName"),
-            targetPaths = Vector(DynamicOptic.root.field("first"), DynamicOptic.root.field("last")),
-            splitter = dynamicLiteral("split")
-          )
-        )
-        val expected = DynamicValue.Record(
-          "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("John Doe")),
-          "first"    -> DynamicValue.Primitive(PrimitiveValue.String("split")),
-          "last"     -> DynamicValue.Primitive(PrimitiveValue.String("split"))
-        )
-        assertTrue(migration(input) == Right(expected))
-      },
-      test("join and split reverse to Irreversible") {
-        val at     = DynamicOptic.root.field("target")
-        val source = DynamicOptic.root.field("source")
-        val paths  = Vector(source)
-        val expr   = dynamicLiteral("test")
-
-        val join  = MigrationAction.Join(at, paths, expr)
-        val split = MigrationAction.Split(at, paths, expr)
-
-        assertTrue(
-          join.reverse.isInstanceOf[MigrationAction.Irreversible] &&
-            split.reverse.isInstanceOf[MigrationAction.Irreversible]
-        )
-      }
-    ),
-
     suite("Error Branches")(
       test("AddField.fieldName extracts field name from path") {
         val action = MigrationAction.AddField(
@@ -1040,7 +986,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
       test("AddField.fieldName throws on non-Field path node") {
         val action = MigrationAction.AddField(
-          DynamicOptic(Vector(DynamicOptic.Node.Case("SomeCase"))),
+          DynamicOptic(Chunk(DynamicOptic.Node.Case("SomeCase"))),
           dynamicLiteral(1)
         )
         val result = scala.util.Try(action.fieldName)
@@ -1066,7 +1012,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
       test("DropField.fieldName throws on non-Field path node") {
         val action = MigrationAction.DropField(
-          DynamicOptic(Vector(DynamicOptic.Node.Elements)),
+          DynamicOptic(Chunk(DynamicOptic.Node.Elements)),
           dynamicLiteral(1)
         )
         val result = scala.util.Try(action.fieldName)
@@ -1086,7 +1032,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
       test("Rename.from throws on non-Field path node") {
         val action = MigrationAction.Rename(
-          DynamicOptic(Vector(DynamicOptic.Node.MapKeys)),
+          DynamicOptic(Chunk(DynamicOptic.Node.MapKeys)),
           "newName"
         )
         val result = scala.util.Try(action.from)
@@ -1157,54 +1103,6 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(migration(input).isLeft)
       },
 
-      test("join on non-Record fails") {
-        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val migration = DynamicMigration.single(
-          MigrationAction.Join(
-            at = DynamicOptic.root.field("target"),
-            sourcePaths = Vector(DynamicOptic.root.field("source")),
-            combiner = dynamicLiteral(1)
-          )
-        )
-        assertTrue(migration(input).isLeft)
-      },
-
-      test("executeJoin path not ending with Field") {
-        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val migration = DynamicMigration.single(
-          MigrationAction.Join(
-            at = DynamicOptic.root,
-            sourcePaths = Vector(DynamicOptic.root.field("a")),
-            combiner = dynamicLiteral(1)
-          )
-        )
-        assertTrue(migration(input).isLeft)
-      },
-
-      test("split on non-Record fails") {
-        val input     = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val migration = DynamicMigration.single(
-          MigrationAction.Split(
-            at = DynamicOptic.root.field("source"),
-            targetPaths = Vector(DynamicOptic.root.field("target1")),
-            splitter = dynamicLiteral(1)
-          )
-        )
-        assertTrue(migration(input).isLeft)
-      },
-
-      test("executeSplit path not ending with Field") {
-        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val migration = DynamicMigration.single(
-          MigrationAction.Split(
-            at = DynamicOptic.root.field("source"),
-            targetPaths = Vector(DynamicOptic.root),
-            splitter = dynamicLiteral(1)
-          )
-        )
-        assertTrue(migration(input).isLeft)
-      },
-
       test("renameCase on non-Variant fails") {
         val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val migration = DynamicMigration.single(
@@ -1218,7 +1116,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.AddField(
                 DynamicOptic.root.field("x"),
                 dynamicLiteral(1)
@@ -1274,7 +1172,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("modifyAtPath Node.Case on non-Variant fails") {
         val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val migration = DynamicMigration.single(
-          MigrationAction.TransformCase(DynamicOptic.root, Vector.empty)
+          MigrationAction.TransformCase(DynamicOptic.root, Chunk.empty)
         )
         assertTrue(migration(input).isLeft)
       },
@@ -1322,7 +1220,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("items"),
             DynamicOptic.Node.AtIndex(10)
           )
@@ -1339,7 +1237,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("modifyAtPath Node.AtIndex on non-Sequence fails") {
         val input = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("data"),
             DynamicOptic.Node.AtIndex(0)
           )
@@ -1362,7 +1260,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("data"),
             DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("missingKey")))
           )
@@ -1379,7 +1277,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("modifyAtPath Node.AtMapKey on non-Map fails") {
         val input = DynamicValue.Record("data" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("data"),
             DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key")))
           )
@@ -1425,7 +1323,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Field("items"),
             DynamicOptic.Node.MapKeys
           )
@@ -1500,7 +1398,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             DynamicOptic.root,
-            Vector(
+            Chunk(
               MigrationAction.Rename(DynamicOptic.root.field("x"), "y")
             )
           )
@@ -1541,7 +1439,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("modifyAtPath Node.Wrapped allows path continuation") {
         val input = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Wrapped
           )
         )
@@ -1552,23 +1450,6 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         assertTrue(migration(input) == Right(DynamicValue.Primitive(PrimitiveValue.Long(42L))))
-      },
-
-      test("split creates multiple fields from single source") {
-        val input = DynamicValue.Record(
-          "source" -> DynamicValue.Primitive(PrimitiveValue.String("data"))
-        )
-        val migration = DynamicMigration.single(
-          MigrationAction.Split(
-            at = DynamicOptic.root.field("source"),
-            targetPaths = Vector(
-              DynamicOptic.root.field("target1"),
-              DynamicOptic.root.field("target2")
-            ),
-            splitter = dynamicLiteral("split")
-          )
-        )
-        assertTrue(migration(input).isRight)
       },
 
       test("mandate with None and default value") {
@@ -1590,18 +1471,6 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
         val expected = DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.String("hello")))
         assertTrue(migration(input) == Right(expected))
-      },
-
-      test("join with empty source paths") {
-        val input     = DynamicValue.Record("a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val migration = DynamicMigration.single(
-          MigrationAction.Join(
-            at = DynamicOptic.root.field("joined"),
-            sourcePaths = Vector.empty,
-            combiner = dynamicLiteral(99)
-          )
-        )
-        assertTrue(migration(input).isRight)
       },
 
       test("renameCase preserves non-matching variants") {
@@ -1719,27 +1588,9 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
       test("reverse of TransformCase reverses inner actions") {
         val innerAction = MigrationAction.Rename(DynamicOptic.root.field("a"), "b")
-        val action      = MigrationAction.TransformCase(DynamicOptic.root, Vector(innerAction))
+        val action      = MigrationAction.TransformCase(DynamicOptic.root, Chunk(innerAction))
         val reversed    = action.reverse.asInstanceOf[MigrationAction.TransformCase]
         assertTrue(reversed.actions.nonEmpty)
-      },
-
-      test("reverse of Join is Irreversible") {
-        val action = MigrationAction.Join(
-          DynamicOptic.root.field("target"),
-          Vector(DynamicOptic.root.field("source")),
-          dynamicLiteral(1)
-        )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
-      },
-
-      test("reverse of Split is Irreversible") {
-        val action = MigrationAction.Split(
-          DynamicOptic.root.field("source"),
-          Vector(DynamicOptic.root.field("target")),
-          dynamicLiteral(1)
-        )
-        assertTrue(action.reverse.isInstanceOf[MigrationAction.Irreversible])
       },
 
       test("executing reversed irreversible action fails with clear error") {
@@ -1833,7 +1684,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           DynamicValue.Record("x" -> DynamicValue.Primitive(PrimitiveValue.Int(10)))
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.Case("MyCase"),
             DynamicOptic.Node.Field("x")
           )
@@ -1858,7 +1709,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             DynamicValue.Primitive(PrimitiveValue.Int(2))
           )
         )
-        val optic     = DynamicOptic(Vector(DynamicOptic.Node.Elements))
+        val optic     = DynamicOptic(Chunk(DynamicOptic.Node.Elements))
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
@@ -1880,7 +1731,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             (DynamicValue.Primitive(PrimitiveValue.String("k1")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
           )
         )
-        val optic     = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
+        val optic     = DynamicOptic(Chunk(DynamicOptic.Node.MapKeys))
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
@@ -1901,7 +1752,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             (DynamicValue.Primitive(PrimitiveValue.String("k")), DynamicValue.Primitive(PrimitiveValue.Int(1)))
           )
         )
-        val optic     = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
+        val optic     = DynamicOptic(Chunk(DynamicOptic.Node.MapValues))
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
@@ -1924,7 +1775,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             DynamicValue.Primitive(PrimitiveValue.Int(30))
           )
         )
-        val optic     = DynamicOptic(Vector(DynamicOptic.Node.AtIndex(1)))
+        val optic     = DynamicOptic(Chunk(DynamicOptic.Node.AtIndex(1)))
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
@@ -1949,7 +1800,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
         val optic = DynamicOptic(
-          Vector(
+          Chunk(
             DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.String("key1")))
           )
         )
@@ -1970,7 +1821,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
       test("modifyAtPath Node.Case mismatch returns unchanged") {
         val input     = DynamicValue.Variant("CaseA", DynamicValue.Record.empty)
-        val optic     = DynamicOptic(Vector(DynamicOptic.Node.Case("CaseB")))
+        val optic     = DynamicOptic(Chunk(DynamicOptic.Node.Case("CaseB")))
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(
             optic,
@@ -2015,7 +1866,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
 
       test("reverse with multiple actions maintains order") {
-        val actions = Vector(
+        val actions = Chunk(
           MigrationAction.AddField(
             DynamicOptic.root.field("a"),
             dynamicLiteral(1)
@@ -2037,7 +1888,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
     suite("Depth Protection")(
       test("path exceeding max depth fails gracefully") {
-        val deepNodes = (0 to 65).map(i => DynamicOptic.Node.Field(s"f$i")).toVector
+        val deepNodes = Chunk.fromIterable((0 to 65).map(i => DynamicOptic.Node.Field(s"f$i")))
         val deepOptic = DynamicOptic(deepNodes)
         val migration = DynamicMigration.single(
           MigrationAction.TransformValue(deepOptic, dynamicLiteral(1))

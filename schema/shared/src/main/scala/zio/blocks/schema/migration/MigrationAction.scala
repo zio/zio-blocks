@@ -1,5 +1,6 @@
 package zio.blocks.schema.migration
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue}
 
 /**
@@ -141,42 +142,6 @@ object MigrationAction {
   }
 
   /**
-   * Join multiple fields into a single field.
-   *
-   * @param at
-   *   The path to the target location for the joined value
-   * @param sourcePaths
-   *   The paths to the source values to join
-   * @param combiner
-   *   The combiner expression
-   */
-  final case class Join(
-    at: DynamicOptic,
-    sourcePaths: Vector[DynamicOptic],
-    combiner: DynamicSchemaExpr
-  ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "Join")
-  }
-
-  /**
-   * Split a single field into multiple fields.
-   *
-   * @param at
-   *   The path to the source value to split
-   * @param targetPaths
-   *   The paths to the target locations
-   * @param splitter
-   *   The splitter expression
-   */
-  final case class Split(
-    at: DynamicOptic,
-    targetPaths: Vector[DynamicOptic],
-    splitter: DynamicSchemaExpr
-  ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "Split")
-  }
-
-  /**
    * Change the type of a value at a path (primitive-to-primitive only).
    *
    * @param at
@@ -221,7 +186,7 @@ object MigrationAction {
    */
   final case class TransformCase(
     at: DynamicOptic,
-    actions: Vector[MigrationAction]
+    actions: Chunk[MigrationAction]
   ) extends MigrationAction {
     override def reverse: MigrationAction =
       TransformCase(at, actions.reverse.map(_.reverse))

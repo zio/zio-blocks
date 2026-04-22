@@ -20,7 +20,7 @@ import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError}
  *   - Inspected and transformed
  *   - Used to generate SQL DDL, upgraders, etc.
  */
-final case class DynamicMigration(actions: Vector[MigrationAction]) {
+final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
   /**
    * Apply this migration to a `DynamicValue`.
@@ -59,7 +59,7 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
    * field without capturing its value).
    */
   def reverse: DynamicMigration =
-    new DynamicMigration(actions.reverseIterator.map(_.reverse).toVector)
+    new DynamicMigration(Chunk.fromIterable(actions.reverseIterator.map(_.reverse).toSeq))
 
   /**
    * Returns true if this migration has no actions (identity migration).
@@ -77,26 +77,26 @@ object DynamicMigration {
   /**
    * An empty migration that performs no transformations.
    */
-  val empty: DynamicMigration = new DynamicMigration(Vector.empty)
+  val empty: DynamicMigration = new DynamicMigration(Chunk.empty)
 
   /**
    * Create a migration from a single action.
    */
   def single(action: MigrationAction): DynamicMigration =
-    new DynamicMigration(Vector(action))
+    new DynamicMigration(Chunk(action))
 
   /**
    * Create a migration from multiple actions.
    */
   def apply(actions: MigrationAction*): DynamicMigration =
-    new DynamicMigration(actions.toVector)
+    new DynamicMigration(Chunk.fromIterable(actions))
 
   /**
    * Execute a sequence of migration actions on a value. Actions are applied in
    * order, with the output of each action becoming the input to the next.
    */
   private[migration] def execute(
-    actions: Vector[MigrationAction],
+    actions: Chunk[MigrationAction],
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] = {
     var current: DynamicValue = value
@@ -151,16 +151,6 @@ private[migration] object ActionExecutor {
 
       case Optionalize(at) =>
         executeOptionalize(at, value)
-
-      case Join(at, sourcePaths, combiner) =>
-        evalExpr(combiner, value).flatMap { combinedValue =>
-          executeJoin(at, sourcePaths, combinedValue, value)
-        }
-
-      case Split(at, targetPaths, splitter) =>
-        evalExpr(splitter, value).flatMap { splitValue =>
-          executeSplit(at, targetPaths, splitValue, value)
-        }
 
       case ChangeType(at, converter) =>
         evalExpr(converter, value).flatMap { convertedValue =>
@@ -343,53 +333,6 @@ private[migration] object ActionExecutor {
         Left(SchemaError.typeMismatch(at, "Map", other.getClass.getSimpleName))
     }
 
-  // ==================== Join/Split Action Execution ====================
-
-  private def executeJoin(
-    at: zio.blocks.schema.DynamicOptic,
-    @scala.annotation.unused sourcePaths: Vector[zio.blocks.schema.DynamicOptic],
-    combinedValue: DynamicValue,
-    value: DynamicValue
-  ): Either[SchemaError, DynamicValue] = {
-    // For Literal-based join: set the target field to the combined value
-    // The source fields are NOT removed (caller should use DropField if needed)
-    val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1))
-    val fieldName  = at.nodes.lastOption match {
-      case Some(zio.blocks.schema.DynamicOptic.Node.Field(name)) => name
-      case _                                                     => return Left(SchemaError.transformFailed(at, "Join target path must end with a Field node"))
-    }
-    modifyAt(parentPath, value) {
-      case DynamicValue.Record(fields) =>
-        Right(DynamicValue.Record(fields :+ (fieldName -> combinedValue)))
-      case other =>
-        Left(SchemaError.typeMismatch(at, "Record", other.getClass.getSimpleName))
-    }
-  }
-
-  private def executeSplit(
-    @scala.annotation.unused at: zio.blocks.schema.DynamicOptic,
-    targetPaths: Vector[zio.blocks.schema.DynamicOptic],
-    splitValue: DynamicValue,
-    value: DynamicValue
-  ): Either[SchemaError, DynamicValue] =
-    targetPaths.foldLeft[Either[SchemaError, DynamicValue]](Right(value)) {
-      case (Right(current), targetPath) =>
-        val parentPath = zio.blocks.schema.DynamicOptic(targetPath.nodes.dropRight(1))
-        targetPath.nodes.lastOption match {
-          case Some(zio.blocks.schema.DynamicOptic.Node.Field(fieldName)) =>
-            modifyAt(parentPath, current) {
-              case DynamicValue.Record(fields) =>
-                Right(DynamicValue.Record(fields :+ (fieldName -> splitValue)))
-              case other =>
-                Left(SchemaError.typeMismatch(targetPath, "Record", other.getClass.getSimpleName))
-            }
-          case _ =>
-            Left(SchemaError.transformFailed(targetPath, "Split target path must end with a Field node"))
-        }
-      case (left, _) =>
-        left
-    }
-
   private def executeMandate(
     at: zio.blocks.schema.DynamicOptic,
     default: DynamicValue,
@@ -435,7 +378,7 @@ private[migration] object ActionExecutor {
 
   private def executeTransformCase(
     at: zio.blocks.schema.DynamicOptic,
-    actions: Vector[MigrationAction],
+    actions: Chunk[MigrationAction],
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
